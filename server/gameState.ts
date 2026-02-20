@@ -876,6 +876,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
       };
       log(`[Income] Next: ${player.name} needs to select income items: ${items.length} items`, 'game');
       clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+        log(`Bot turn execution error (IncomeReentry): ${err}`, 'error');
+      });
       return;
     }
     // 선택 대기 플레이어 없음 → 아래 가이아 포머 복귀 등으로 진행
@@ -1099,6 +1102,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
         };
         log(`[Income] ${firstPlayer.name} needs to select income items: ${incomeItems.length} items`, 'game');
         clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+        executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+          log(`Bot turn execution error (IncomeInitial): ${err}`, 'error');
+        });
         return;
       }
       delete (firstPlayer as any).pendingIncomeItems;
@@ -1129,6 +1135,10 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
       game.pendingItarsGaiaformerExchange = { playerId: pId, tokensRemaining: powerToReturn };
       player.gaiaformerPower = 0;
       log(`Player ${player.name} (Itars PI): ${powerToReturn} tokens in Gaiaformer → exchange or Bowl 1 choice`, 'game');
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+        log(`Bot turn execution error (ItarsInitial): ${err}`, 'error');
+      });
+      return;
     } else {
       player.power1 = (player.power1 || 0) + powerToReturn;
       log(`Player ${player.name} returned ${powerToReturn} power tokens from Gaiaformer area to Bowl 1`, 'game');
@@ -1146,6 +1156,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
     game.pendingTerranCouncilBenefit = terranCouncilQueue[0];
     game.terranCouncilQueue = terranCouncilQueue.slice(1);
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+    executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+      log(`Bot turn execution error (TerranInitial): ${err}`, 'error');
+    });
     return;
   }
 
@@ -1166,6 +1179,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
     } else if (options.length > 1) {
       game.pendingTinkeroidSpecialChoice = { playerId: tinkeroidPlayerId, round: game.roundNumber, options };
       tinkeroidsPending = true;
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+        log(`Bot turn execution error (TinkeroidInitial): ${err}`, 'error');
+      });
     }
   }
 
@@ -1231,7 +1247,13 @@ export function helperFinishAfterGaiaformerPhase(io: SocketIOServer, game: GaiaG
       gameLogLength: game.gameLog?.length || 0,
     };
   }
-  clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+
+  // 가이아 단계 종료 후 봇 턴 확인
+  executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+    log(`Bot turn execution error (FinishAfterGaiaformerPhase): ${err}`, 'error');
+  });
 }
 
 export function setupGameServer(httpServer: HTTPServer) {
@@ -2602,8 +2624,9 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
       const pending = game.pendingItarsGaiaformerExchange;
-      if (!pending || pending.playerId !== playerId) return;
-      const player = game.players[playerId];
+      if (!pending || (pending.playerId !== playerId && game.hostId !== playerId)) return;
+      const targetPlayerId = pending.playerId;
+      const player = game.players[targetPlayerId];
       const tokensRemaining = pending.tokensRemaining;
       game.pendingItarsGaiaformerExchange = null;
 
@@ -3056,10 +3079,11 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
       const pending = game.pendingTinkeroidSpecialChoice;
-      if (!pending || pending.playerId !== playerId || pending.round !== game.roundNumber) return;
+      if (!pending || (pending.playerId !== playerId && game.hostId !== playerId) || pending.round !== game.roundNumber) return;
       if (!pending.options.includes(specialId)) return;
 
-      const player = game.players[playerId];
+      const targetPlayerId = pending.playerId;
+      const player = game.players[targetPlayerId];
       player.tinkeroidRoundSpecialId = specialId;
       player.tinkeroidsChosenSpecialIds = [...(player.tinkeroidsChosenSpecialIds ?? []), specialId];
 
@@ -3766,9 +3790,9 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
-      if (!game.pendingIncomeOrder || game.pendingIncomeOrder.playerId !== playerId) return;
-
-      const player = game.players[playerId];
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
+      const targetPlayerId = game.pendingIncomeOrder.playerId;
+      const player = game.players[targetPlayerId];
       const item = game.pendingIncomeOrder.incomeItems.find(i => i.id === itemId);
       if (!item) return;
 
@@ -3796,8 +3820,9 @@ export function setupGameServer(httpServer: HTTPServer) {
     socket.on('select_all_income_items', ({ gameId }) => {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-      if (!game.pendingIncomeOrder || game.pendingIncomeOrder.playerId !== playerId) return;
-      const player = game.players[playerId];
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
+      const targetPlayerId = game.pendingIncomeOrder.playerId;
+      const player = game.players[targetPlayerId];
       const items = [...game.pendingIncomeOrder.incomeItems];
       if (items.length === 0) return;
 
@@ -3897,10 +3922,11 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
-      if (!game.pendingIncomeOrder || game.pendingIncomeOrder.playerId !== playerId) return;
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
       if (game.pendingIncomeOrder.appliedItems.length === 0) return;
 
-      const player = game.players[playerId];
+      const targetPlayerId = game.pendingIncomeOrder.playerId;
+      const player = game.players[targetPlayerId];
       const lastItem = game.pendingIncomeOrder.appliedItems.pop()!;
       const snapshots = game.pendingIncomeOrder.powerBeforeSnapshots;
       if (snapshots && snapshots.length > 0) {
@@ -3921,8 +3947,9 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
       const pending = game.pendingTerranCouncilBenefit;
-      if (!pending || pending.playerId !== playerId) return;
-      const player = game.players[playerId];
+      if (!pending || (pending.playerId !== playerId && game.hostId !== playerId)) return;
+      const targetPlayerId = pending.playerId;
+      const player = game.players[targetPlayerId];
       const totalCost = qic * 4 + knowledge * 4 + ore * 3 + credits * 1;
       if (totalCost > pending.tokenCount || totalCost < 0) {
         io.to(gameId).emit('game_error', { message: 'Terran council: invalid benefit total (4=QIC/K, 3=O, 1=C).' });
@@ -3955,13 +3982,14 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
-      if (!game.pendingIncomeOrder || game.pendingIncomeOrder.playerId !== playerId) return;
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
       if (game.pendingIncomeOrder.incomeItems.length > 0) {
         log(`Player ${playerId} tried to finish but has remaining income items`, 'game');
         return; // 아직 남은 아이템이 있으면 완료 불가
       }
 
-      const player = game.players[playerId];
+      const targetPlayerId = game.pendingIncomeOrder.playerId;
+      const player = game.players[targetPlayerId];
 
       // 저장된 수익 정보 제거
       delete (player as any).pendingIncomeItems;
@@ -3984,43 +4012,56 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       if (!game.pendingPowerOffers) return;
 
-      const offerIndex = game.pendingPowerOffers.findIndex(o => o.id === offerId && o.targetPlayerId === playerId);
-      if (offerIndex === -1) return;
+      // 호스트 바이패스: 소켓 플레이어가 봇이거나 호스트일 때, offer 대상이 호스트인 경우도 허용
+      const offerIndex = game.pendingPowerOffers.findIndex(o =>
+        o.id === offerId && (
+          o.targetPlayerId === playerId ||
+          game.hostId === playerId ||
+          (game.botPlayerIds?.includes(playerId) && o.targetPlayerId === game.hostId)
+        )
+      );
+      if (offerIndex === -1) {
+        log(`Power offer response failed: offer ${offerId} not found or target mismatch (socketPlayer: ${playerId}, host: ${game.hostId})`, 'error');
+        return;
+      }
 
       const offer = game.pendingPowerOffers[offerIndex];
       if (offer.responded) return; // 이미 응답함
 
       offer.responded = true;
-      const targetPlayer = game.players[playerId];
+      // 실제 처리는 offer의 진짜 대상 플레이어로 (호스트 바이패스 지원)
+      const actualTargetId = offer.targetPlayerId;
+      const targetPlayer = game.players[actualTargetId];
+      if (!targetPlayer) {
+        log(`Power offer response: targetPlayer ${actualTargetId} not found`, 'error');
+        game.pendingPowerOffers.splice(offerIndex, 1);
+        return;
+      }
 
       if (accept) {
-        addScore(game, playerId, -offer.vpCost, 'powerReceived');
+        addScore(game, actualTargetId, -offer.vpCost, 'powerReceived');
         const isTaklons = targetPlayer.faction === 'taklons';
-        const hasPI = isTaklons && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        const hasPI = isTaklons && game.map.some(t => t.ownerId === actualTargetId && t.structure === 'planetary_institute');
         const brainFirstVal = isTaklons ? (brainFirst !== false) : true; // 타클론 기본 브레인 우선
 
         if (isTaklons) {
           if (hasPI && piAddFirst === true) {
             chargePowerTaklons(targetPlayer, 1, brainFirstVal);
-            targetPlayer.power1 = (targetPlayer.power1 || 0) + 1;
+            targetPlayer.power1 = (targetPlayer.power1 || 0) + 1; // Taklons PI bonus IS a new token
             chargePowerTaklons(targetPlayer, offer.amount, brainFirstVal);
-            targetPlayer.power1 = (targetPlayer.power1 || 0) + offer.amount;
           } else if (hasPI && piAddFirst === false) {
             chargePowerTaklons(targetPlayer, offer.amount, brainFirstVal);
-            targetPlayer.power1 = (targetPlayer.power1 || 0) + offer.amount;
             chargePowerTaklons(targetPlayer, 1, brainFirstVal);
-            targetPlayer.power1 = (targetPlayer.power1 || 0) + 1;
+            targetPlayer.power1 = (targetPlayer.power1 || 0) + 1; // Taklons PI bonus IS a new token
           } else {
             chargePowerTaklons(targetPlayer, offer.amount, brainFirstVal);
-            targetPlayer.power1 = (targetPlayer.power1 || 0) + offer.amount;
           }
         } else {
           chargePower(targetPlayer, offer.amount);
-          targetPlayer.power1 = (targetPlayer.power1 || 0) + offer.amount;
         }
 
         const sourcePlayer = game.players[offer.sourcePlayerId];
-        addGameLog(game, playerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer.name} (-${offer.vpCost}VP)`, offer.tileId);
+        addGameLog(game, actualTargetId, 'Received Power', `+${offer.amount}P from ${sourcePlayer.name} (-${offer.vpCost}VP)`, offer.tileId);
         log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game');
       } else {
         log(`Player ${targetPlayer.name} declined power offer`, 'game');
@@ -4047,27 +4088,30 @@ export function setupGameServer(httpServer: HTTPServer) {
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
       if (!game.pendingPowerOffers) return;
 
+      // 호스트 바이패스: 봇 소켓 / 호스트 소켓 모두 hostId 대상 오퍼 수락 가능
+      const isHostViewing = game.botPlayerIds?.includes(playerId) || game.hostId === playerId;
+      const effectivePlayerId = isHostViewing ? game.hostId : playerId;
+
       const myOffers = game.pendingPowerOffers.filter(
-        o => o.targetPlayerId === playerId && !o.responded
+        o => (o.targetPlayerId === effectivePlayerId) && !o.responded
       );
-      // 큰 파워 먼저 받기 (공간 있을 때 큰 것을 받고, 토큰 이동으로 공간 확보 후 작은 것)
+      // 큰 파워 먼저 받기
       myOffers.sort((a, b) => b.amount - a.amount);
 
-      const targetPlayer = game.players[playerId];
+      const targetPlayer = game.players[effectivePlayerId];
+      if (!targetPlayer) return;
       const isTaklons = targetPlayer.faction === 'taklons';
       for (const offer of myOffers) {
         if (offer.vpCost > (targetPlayer.score || 0)) continue; // VP 부족 시 스킵
         offer.responded = true;
-        addScore(game, playerId, -offer.vpCost, 'powerReceived');
+        addScore(game, effectivePlayerId, -offer.vpCost, 'powerReceived');
         if (isTaklons) {
           chargePowerTaklons(targetPlayer, offer.amount, true); // 일괄 수락 시 브레인 우선
-          targetPlayer.power1 = (targetPlayer.power1 || 0) + offer.amount;
         } else {
           chargePower(targetPlayer, offer.amount);
-          targetPlayer.power1 = (targetPlayer.power1 || 0) + offer.amount;
         }
         const sourcePlayer = game.players[offer.sourcePlayerId];
-        addGameLog(game, playerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
+        addGameLog(game, effectivePlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
       }
       game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
       if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
@@ -5452,6 +5496,173 @@ export function executeBotSelectTechTile(
   log(`Bot ${player.name} could not find valid tech tile selection, clearing pending state`, 'game');
   game.pendingTechTileSelection = null;
   game.availableShipTechTileIds = undefined;
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+  return true;
+}
+
+/** Bot용: 팅커로이드 라운드 특수 능력 자동 선택. 첫 번째 가능한 옵션 선택. */
+export function executeBotTinkeroidSpecial(
+  io: SocketIOServer, game: ServerGameState,
+  playerId: string
+): boolean {
+  const pending = game.pendingTinkeroidSpecialChoice;
+  if (!pending || pending.playerId !== playerId) return false;
+  if (!pending.options || pending.options.length === 0) return false;
+
+  const specialId = pending.options[0];
+  const player = game.players[playerId];
+  player.tinkeroidRoundSpecialId = specialId;
+  player.tinkeroidsChosenSpecialIds = [...(player.tinkeroidsChosenSpecialIds ?? []), specialId];
+
+  game.pendingTinkeroidSpecialChoice = null;
+  addGameLog(game, playerId, 'Bot: Tinkeroid Special', `Auto-selected ${specialId}`);
+  log(`Bot ${player.name} (Tinkeroids) auto-selected special ${specialId}`, 'game');
+
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+  helperStartNewRoundTurn(io, game);
+  return true;
+}
+
+/** Bot용: 테란 의회 혜택 자동 선택. QIC/지식 위주로 가능한 만큼 선택. */
+export function executeBotTerranCouncilBenefit(
+  io: SocketIOServer, game: ServerGameState,
+  playerId: string
+): boolean {
+  const pending = game.pendingTerranCouncilBenefit;
+  if (!pending || pending.playerId !== playerId) return false;
+
+  const player = game.players[playerId];
+  let tokens = pending.tokenCount;
+  let qic = 0, knowledge = 0, ore = 0, credits = 0;
+
+  // QIC(4) > Knowledge(4) > Ore(3) > Credits(1) 순서로 자동 배분 시뮬레이션
+  const p2 = player.power2 ?? 0;
+  const maxSpend = Math.min(tokens, p2);
+
+  let remaining = maxSpend;
+  // 지식 우선 (4점)
+  while (remaining >= 4) { knowledge++; remaining -= 4; }
+  // 남은걸로 크레딧 (1점)
+  while (remaining >= 1) { credits++; remaining -= 1; }
+
+  player.power2 = p2 - maxSpend;
+  grantQic(game, playerId, qic);
+  player.knowledge = (player.knowledge ?? 0) + knowledge;
+  player.ore = (player.ore ?? 0) + ore;
+  player.credits = (player.credits || 0) + credits;
+
+  addGameLog(game, playerId, 'Bot: Terran Council', `Auto: ${maxSpend} tokens → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
+  log(`Bot ${player.name} (Terran) auto-selected council benefits: ${maxSpend} tokens used`, 'game');
+
+  game.pendingTerranCouncilBenefit = null;
+  const queue = game.terranCouncilQueue ?? [];
+  if (queue.length > 0) {
+    game.pendingTerranCouncilBenefit = queue[0];
+    game.terranCouncilQueue = queue.slice(1);
+  } else {
+    game.terranCouncilQueue = [];
+    helperFinishAfterGaiaformerPhase(io, game);
+  }
+
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+  return true;
+}
+
+/** Bot용: 매안(Bescods) 의회 보유 시 가장 낮은 트랙 +1 스페셜 자동 수행. 가장 낮은 레벨의 트랙 중 하나를 선택. */
+export function executeBotBescodsAdvanceLowestTrack(
+  io: SocketIOServer, game: ServerGameState,
+  playerId: string
+): boolean {
+  const player = game.players[playerId];
+  if (!player || player.faction !== 'bescods') return false;
+  if (player.usedSpecialActions?.includes('bescods-advance-lowest')) return false;
+
+  const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+  const levels = tracks.map(t => player.research?.[t] ?? 0);
+  const minLevel = Math.min(...levels);
+  // Navigation blocked for Bal'Tak without PI (not relevant here since we're already Bescods, but keep check)
+  const candidates = tracks.filter(t => (player.research?.[t] ?? 0) === minLevel && (player.research?.[t] ?? 0) < 5);
+  if (candidates.length === 0) return false;
+
+  // Pick the first candidate (deterministic, e.g. prefer science > economy > gaia > AI > nav > terra)
+  const preferred: ResearchTrack[] = ['science', 'economy', 'gaiaProject', 'artificialIntelligence', 'navigation', 'terraforming'];
+  const chosen = preferred.find(t => candidates.includes(t as ResearchTrack)) ?? candidates[0];
+
+  saveActionStartState(game, playerId);
+  if (!player.usedSpecialActions) player.usedSpecialActions = [];
+  player.usedSpecialActions.push('bescods-advance-lowest');
+  player.research[chosen as ResearchTrack] = (player.research[chosen as ResearchTrack] ?? 0) + 1;
+  const newLevel = player.research[chosen as ResearchTrack];
+  applyTrackLevelBonus(game, playerId, player, chosen as ResearchTrack, newLevel);
+  applyRoundMissionScore(game, playerId, 'research_track');
+  addGameLog(game, playerId, 'Bot: Bescods Special', `가장 낮은 트랙 +1 → ${chosen} Lv.${newLevel}`);
+  log(`Bot ${player.name} (Bescods) advanced lowest track ${chosen} to Lv.${newLevel}`, 'game');
+  game.hasDoneMainAction = true;
+
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+  return true;
+}
+
+/** Bot용: 모웨이드 의회 보유 시 링 놓기 스페셜 자동 수행. 링이 없는 첫 번째 건물에 링 배치. */
+export function executeBotMoweyipPlaceRing(
+  io: SocketIOServer, game: ServerGameState,
+  playerId: string
+): boolean {
+  const player = game.players[playerId];
+  if (!player || player.faction !== 'moweyip') return false;
+  if (player.usedSpecialActions?.includes('moweyip-place-ring')) return false;
+  if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return false;
+
+  // 링이 없는 본인 건물 중 첫 번째 선택 (ship 제외)
+  const targetTile = game.map.find(
+    t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && !t.moweyipRing
+  );
+  if (!targetTile) return false;
+
+  targetTile.moweyipRing = true;
+  if (!player.usedSpecialActions) player.usedSpecialActions = [];
+  player.usedSpecialActions.push('moweyip-place-ring');
+  game.hasDoneMainAction = true;
+  addGameLog(game, playerId, 'Bot: Moweyip Special', `링 놓기 → ${targetTile.structure} @ ${targetTile.id} (+2 파워)`, targetTile.id);
+  log(`Bot ${player.name} (Moweyip) placed ring on ${targetTile.structure} @ ${targetTile.id}`, 'game');
+
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+  return true;
+}
+
+/** Bot용: 아이타 의회 가이아포머 환전 자동 결정. 4개 이상이면 무조건 기술 타일 선택. */
+export function executeBotItarsGaiaformerExchange(
+  io: SocketIOServer, game: ServerGameState,
+  playerId: string
+): boolean {
+  const pending = game.pendingItarsGaiaformerExchange;
+  if (!pending || pending.playerId !== playerId) return false;
+
+  const player = game.players[playerId];
+  const tokensRemaining = pending.tokensRemaining;
+  game.pendingItarsGaiaformerExchange = null;
+
+  // 4개 이상이면 기술 타일 선택 (itars_pi_exchange)
+  if (tokensRemaining >= 4) {
+    const after = tokensRemaining - 4;
+    game.itarsGaiaformerRemainingAfterTech = after;
+    game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'itars_pi_exchange' };
+    addGameLog(game, playerId, 'Bot: Itars PI', '4 tokens → Tech Tile exchange');
+    clampPlayerResources(game);
+    io.to(game.id).emit('game_updated', game);
+    return true;
+  }
+
+  // 4개 미만이면 1그릇 복귀
+  player.power1 = (player.power1 || 0) + tokensRemaining;
+  if (tokensRemaining > 0) addGameLog(game, playerId, 'Bot: Itars PI', `${tokensRemaining} tokens → Bowl 1`);
+  helperProceedAfterItarsGaiaformerOrTerran(io, game);
+
   clampPlayerResources(game);
   io.to(game.id).emit('game_updated', game);
   return true;

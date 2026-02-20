@@ -5,7 +5,12 @@ import {
     ServerGameState,
     executeBotIncomeSelection,
     executeBotSelectTechTile,
-    executeAdvanceTech
+    executeAdvanceTech,
+    executeBotTinkeroidSpecial,
+    executeBotTerranCouncilBenefit,
+    executeBotItarsGaiaformerExchange,
+    executeBotMoweyipPlaceRing,
+    executeBotBescodsAdvanceLowestTrack
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
@@ -39,6 +44,47 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             const botPlayer = game.players[incomePlayerId];
             log(`Bot ${botPlayer?.name} auto-handling income selection`, 'game');
             executeBotIncomeSelection(io, game, incomePlayerId);
+            // 수익 선택 후 다음 수익 선택자나 턴 시작 확인을 위해 재호출
+            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            return;
+        }
+        return;
+    }
+
+    // === 팅커로이드 라운드 특수 능력 선택 대기: 봇이면 자동 처리 ===
+    if (game.pendingTinkeroidSpecialChoice) {
+        const tinkerPlayerId = game.pendingTinkeroidSpecialChoice.playerId;
+        if (botPlayerIds.includes(tinkerPlayerId)) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            log(`Bot auto-handling Tinkeroid special choice`, 'game');
+            executeBotTinkeroidSpecial(io, game, tinkerPlayerId);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            return;
+        }
+        return;
+    }
+
+    // === 테란 의회 혜택 선택 대기: 봇이면 자동 처리 ===
+    if (game.pendingTerranCouncilBenefit) {
+        const terranPlayerId = game.pendingTerranCouncilBenefit.playerId;
+        if (botPlayerIds.includes(terranPlayerId)) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            log(`Bot auto-handling Terran council benefits`, 'game');
+            executeBotTerranCouncilBenefit(io, game, terranPlayerId);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            return;
+        }
+        return;
+    }
+
+    // === 아이타 의회 가이아포머 환전 선택 대기: 봇이면 자동 처리 ===
+    if (game.pendingItarsGaiaformerExchange) {
+        const itarsPlayerId = game.pendingItarsGaiaformerExchange.playerId;
+        if (botPlayerIds.includes(itarsPlayerId)) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            log(`Bot auto-handling Itars Gaiaformer exchange`, 'game');
+            executeBotItarsGaiaformerExchange(io, game, itarsPlayerId);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
             return;
         }
         return;
@@ -116,11 +162,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
 
     if (game.currentPhase === 'main') {
         currentPlayerId = game.turnOrder[game.currentPlayerIndex];
-    }
-    else if (game.currentPhase === 'factionSelect') {
+    } else if (game.currentPhase === 'factionSelect') {
         currentPlayerId = game.turnOrder[game.currentPlayerIndex];
-    }
-    else if (game.currentPhase === 'startingMines') {
+    } else if (game.currentPhase === 'startingMines') {
         const totalMines = game.map.filter(t => t.structure === 'mine' || t.structure === 'planetary_institute').length;
         const snakingSequence = (game as any).startingMineSequence ?? [];
         if (snakingSequence.length > 0 && totalMines < snakingSequence.length) {
@@ -128,12 +172,47 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         } else {
             return;
         }
-    }
-    else if (game.currentPhase === 'bonusSelection') {
+    } else if (game.currentPhase === 'bonusSelection') {
         currentPlayerId = game.pendingBonusSelection;
     }
 
     if (!currentPlayerId || !botPlayerIds.includes(currentPlayerId)) return;
+
+    // === 모웨이드: 의회 보유 + 링 미사용 상태면 자동으로 링 놓기 처리 (메인 액션 전에만) ===
+    if (game.currentPhase === 'main' && !game.hasDoneMainAction) {
+        const moweyipPlayer = game.players[currentPlayerId];
+        if (
+            moweyipPlayer?.faction === 'moweyip' &&
+            !moweyipPlayer.usedSpecialActions?.includes('moweyip-place-ring') &&
+            game.map.some(t => t.ownerId === currentPlayerId && t.structure === 'planetary_institute') &&
+            game.map.some(t => t.ownerId === currentPlayerId && t.structure && t.structure !== 'ship' && !(t as any).moweyipRing)
+        ) {
+            await new Promise(resolve => setTimeout(resolve, 400));
+            log(`Bot ${moweyipPlayer.name} (Moweyip) auto-placing ring`, 'game');
+            const ok = executeBotMoweyipPlaceRing(io, game, currentPlayerId);
+            if (ok) {
+                setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+                return;
+            }
+        }
+    }
+
+    // === 매안(Bescods): 미사용 상태면 자동으로 가장 낮은 트랙 +1 처리 ===
+    if (game.currentPhase === 'main' && !game.hasDoneMainAction) {
+        const bescodsPlayer = game.players[currentPlayerId ?? ''];
+        if (
+            bescodsPlayer?.faction === 'bescods' &&
+            !bescodsPlayer.usedSpecialActions?.includes('bescods-advance-lowest')
+        ) {
+            await new Promise(resolve => setTimeout(resolve, 400));
+            log(`Bot ${bescodsPlayer.name} (Bescods) auto-advancing lowest track`, 'game');
+            const ok = executeBotBescodsAdvanceLowestTrack(io, game, currentPlayerId!);
+            if (ok) {
+                setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+                return;
+            }
+        }
+    }
 
     // Check if any human player has a pending power offer (blocking game flow)
     const pendingHumanOffers = game.pendingPowerOffers?.filter(o => !o.responded && !botPlayerIds.includes(o.targetPlayerId));

@@ -23,6 +23,7 @@ interface PlayerPanelProps {
   onUseBonusAction?: () => void;
   onUseAcademyQic?: () => void;
   onUseGleens2Nav?: () => void;
+  onUseBalTakGaiaformerToQic?: () => void;
 }
 
 
@@ -218,7 +219,8 @@ function TurnSequence({ game }: { game: GameState }) {
 
 export function PlayerPanel({
   game, playerId, isCurrentTurn, onEndTurn, onPass,
-  onAdvanceTech, onConvertResource, onBurnPower, onExit, onUseBonusAction, onUseAcademyQic, onUseGleens2Nav
+  onAdvanceTech, onConvertResource, onBurnPower, onExit, onUseBonusAction, onUseAcademyQic, onUseGleens2Nav,
+  onUseBalTakGaiaformerToQic
 }: PlayerPanelProps) {
   const currentPlayer = playerId ? game.players[playerId] : null;
   const faction = currentPlayer?.faction ? FACTIONS.find(f => f.id === currentPlayer.faction) : null;
@@ -321,6 +323,27 @@ export function PlayerPanel({
           </div>
         </div>
 
+        {/* Power Cycle */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Power Systems</h4>
+          </div>
+          <PowerCycle
+            power1={currentPlayer.power1 ?? 0}
+            power2={currentPlayer.power2 ?? 0}
+            power3={currentPlayer.power3 ?? 0}
+            gaiaformerPower={currentPlayer.gaiaformerPower}
+            gaiaformers={currentPlayer.gaiaformers}
+            pendingGaiaformerCount={currentPlayer.pendingGaiaformerTiles?.length ?? 0}
+            balTakLocked={currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : undefined}
+            brainStoneBowl={currentPlayer.faction === 'taklons' ? (currentPlayer as { brainStoneBowl?: 1 | 2 | 3 }).brainStoneBowl : undefined}
+            brainStoneInGaia={currentPlayer.faction === 'taklons' ? (currentPlayer as { brainStoneInGaia?: boolean }).brainStoneInGaia : undefined}
+            itarsPendingBowl1Tokens={currentPlayer.faction === 'itars' ? (currentPlayer as { itarsPendingBowl1Tokens?: number }).itarsPendingBowl1Tokens : undefined}
+            onBurnPower={onBurnPower}
+            canBurn={isCurrentTurn && (currentPlayer.power2 ?? 0) >= 2}
+          />
+        </div>
+
         {/* Free Actions */}
         <div className="space-y-3 bg-zinc-900/30 p-3 rounded-xl border border-white/5">
           <h4 className="text-[9px] uppercase font-black tracking-[0.2em] text-muted-foreground text-center">Trade Conversions</h4>
@@ -399,29 +422,25 @@ export function PlayerPanel({
             ) : (
               <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < (hasNevlasPI ? 2 : 4)} onClick={() => onConvertResource('4power-to-1knowledge')}>{hasNevlasPI ? '2P ➔ 1K' : '4P ➔ 1K'}</Button>
             )}
+            {currentPlayer?.faction === 'bal_tak' && onUseBalTakGaiaformerToQic && (() => {
+              const locked = (currentPlayer as any).balTakGaiaformersUsedForQic ?? 0;
+              const effectiveFormers = Math.max(0, (currentPlayer.gaiaformers ?? 0) - locked);
+              return (
+                <Button
+                  variant="outline" size="sm"
+                  className="h-8 text-[9px] bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-200"
+                  disabled={!isCurrentTurn || effectiveFormers < 1}
+                  onClick={() => onUseBalTakGaiaformerToQic()}
+                  title={locked > 0 ? `포머 ${locked}개 잠김 (다음 라운드 복귀)` : undefined}
+                >
+                  1 포머 → 1 QIC{locked > 0 ? ` (잠김: ${locked})` : ''}
+                </Button>
+              );
+            })()}
           </div>
         </div>
 
-        {/* Power Cycle */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Power Systems</h4>
-          </div>
-          <PowerCycle
-            power1={currentPlayer.power1 ?? 0}
-            power2={currentPlayer.power2 ?? 0}
-            power3={currentPlayer.power3 ?? 0}
-            gaiaformerPower={currentPlayer.gaiaformerPower}
-            gaiaformers={currentPlayer.gaiaformers}
-            pendingGaiaformerCount={currentPlayer.pendingGaiaformerTiles?.length ?? 0}
-            balTakLocked={currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : undefined}
-            brainStoneBowl={currentPlayer.faction === 'taklons' ? (currentPlayer as { brainStoneBowl?: 1 | 2 | 3 }).brainStoneBowl : undefined}
-            brainStoneInGaia={currentPlayer.faction === 'taklons' ? (currentPlayer as { brainStoneInGaia?: boolean }).brainStoneInGaia : undefined}
-            itarsPendingBowl1Tokens={currentPlayer.faction === 'itars' ? (currentPlayer as { itarsPendingBowl1Tokens?: number }).itarsPendingBowl1Tokens : undefined}
-            onBurnPower={onBurnPower}
-            canBurn={isCurrentTurn && (currentPlayer.power2 ?? 0) >= 2}
-          />
-        </div>
+
 
         {/* Bonus Tile (more important — above Research Institute) */}
         {currentPlayer.bonusTile && (

@@ -675,6 +675,9 @@ export default function Game() {
             if (game.hasDoneMainAction) return;
             if (gameId) GameClient.useSpecialAction(gameId, 'gleens-2nav');
           }}
+          onUseBalTakGaiaformerToQic={() => {
+            if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
+          }}
         />
         {/* Game End: Show Score Button */}
         {game.currentPhase === 'gameEnd' && (
@@ -1148,13 +1151,12 @@ export default function Game() {
                     setPendingAction({ type: 'useTechAction', tileId });
                   }}
                   onAdvanceTech={(trackId) => {
-                    if (game.hasDoneMainAction) return;
                     // Eclipse 2번(2K+3P)으로 트랙 올리기 대기 중이면 확인 없이 해당 트랙 진행
                     if (game.pendingEclipseResearch?.playerId === playerId) {
                       GameClient.eclipseAdvanceTrack(gameId!, trackId);
                       return;
                     }
-                    // 우주선 기술 타일 3개 중 하나 획득 후: 하단 풀 3개처럼 6개 트랙 중 원하는 트랙 1칸 무료 진행
+                    // 우주선 기술 타일 3개 중 하나 획득 후: 6개 트랙 중 원하는 트랙 1칸 무료 진행
                     if (game.pendingShipTechTrackAdvance?.playerId === playerId) {
                       GameClient.advanceTech(gameId!, trackId);
                       return;
@@ -1164,6 +1166,8 @@ export default function Game() {
                       GameClient.advanceTech(gameId!, trackId);
                       return;
                     }
+                    // ↑ pending 상태 체크 이후에만 hasDoneMainAction 가드 적용
+                    if (game.hasDoneMainAction) return;
                     const player = game.players[playerId!];
                     if (player.knowledge < 4) {
                       toast({ title: 'Cannot Advance', description: 'Requires 4 Knowledge.', variant: 'destructive' });
@@ -1326,8 +1330,14 @@ export default function Game() {
         })()}
 
         {/* 팅커로이드: 라운드 시작 시 Special 1개 선택 (2~3개 중 선택, 1개면 자동 지정) */}
-        {(game as { pendingTinkeroidSpecialChoice?: { playerId: string; round: number; options: string[] } }).pendingTinkeroidSpecialChoice?.playerId === playerId && gameId && (() => {
-          const pending = (game as { pendingTinkeroidSpecialChoice: { playerId: string; round: number; options: string[] } }).pendingTinkeroidSpecialChoice;
+        {(() => {
+          const pending = (game as any).pendingTinkeroidSpecialChoice;
+          if (!pending) return null;
+          const isTargetMe = pending.playerId === playerId;
+          const viewingBot = playerId && game.botPlayerIds?.includes(playerId);
+          const targetHuman = !game.botPlayerIds?.includes(pending.playerId);
+          if (!(isTargetMe || (viewingBot && targetHuman))) return null;
+
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
               <AlertDialogContent className="bg-zinc-900 border-amber-500/40 max-w-sm">
@@ -1338,14 +1348,14 @@ export default function Game() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="grid gap-2 py-2">
-                  {pending.options.map((actionId) => (
+                  {pending.options.map((actionId: string) => (
                     <Button
                       key={actionId}
                       variant="outline"
                       className="w-full justify-start bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
-                      onClick={() => GameClient.tinkeroidChooseSpecial(gameId, actionId)}
+                      onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
                     >
-                      {TINKEROID_SPECIAL_LABELS[actionId] ?? actionId}
+                      {TINKEROID_SPECIAL_LABELS[actionId as keyof typeof TINKEROID_SPECIAL_LABELS] ?? actionId}
                     </Button>
                   ))}
                 </div>
@@ -1573,38 +1583,54 @@ export default function Game() {
         })()}
 
         {/* Itars PI: Gaiaformer 4개당 기술 타일 1개 vs 그만하고 나머지 1그릇 복귀 */}
-        {game.pendingItarsGaiaformerExchange && game.pendingItarsGaiaformerExchange.playerId === playerId && gameId && (
-          <AlertDialog open={true} onOpenChange={() => { }}>
-            <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-white font-black uppercase tracking-wider">Itars 의회</AlertDialogTitle>
-                <AlertDialogDescription className="text-zinc-300">
-                  가이아포머 공간에 <strong>{game.pendingItarsGaiaformerExchange.tokensRemaining}개</strong> 토큰이 있습니다. 4개를 제거하고 기술 타일 1개를 가져오시겠습니까? (그만 선택 시 나머지는 1그릇으로 복귀)
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <Button
-                  variant="outline"
-                  className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-                  onClick={() => GameClient.itarsGaiaformerExchangeChoice(gameId, false)}
-                >
-                  그만하고 1그릇으로
-                </Button>
-                <Button
-                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
-                  disabled={game.pendingItarsGaiaformerExchange.tokensRemaining < 4}
-                  onClick={() => GameClient.itarsGaiaformerExchangeChoice(gameId, true)}
-                >
-                  4개 제거하고 기술 타일 가져오기
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+        {(() => {
+          const pending = game.pendingItarsGaiaformerExchange;
+          if (!pending) return null;
+          const isTargetMe = pending.playerId === playerId;
+          const viewingBot = playerId && game.botPlayerIds?.includes(playerId);
+          const targetHuman = !game.botPlayerIds?.includes(pending.playerId);
+          if (!(isTargetMe || (viewingBot && targetHuman))) return null;
+
+          return (
+            <AlertDialog open={true} onOpenChange={() => { }}>
+              <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider">Itars 의회</AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    가이아포머 공간에 <strong>{pending.tokensRemaining}개</strong> 토큰이 있습니다. 4개를 제거하고 기술 타일 1개를 가져오시겠습니까? (그만 선택 시 나머지는 1그릇으로 복귀)
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <Button
+                    variant="outline"
+                    className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                    onClick={() => gameId && GameClient.itarsGaiaformerExchangeChoice(gameId, false)}
+                  >
+                    그만하고 1그릇으로
+                  </Button>
+                  <Button
+                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
+                    disabled={pending.tokensRemaining < 4}
+                    onClick={() => gameId && GameClient.itarsGaiaformerExchangeChoice(gameId, true)}
+                  >
+                    4개 제거하고 기술 타일 가져오기
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
 
         {/* Terran Council: Gaiaformer tokens → Bowl 2, then exchange (4=QIC/K, 3=O, 1=C) */}
-        {game.pendingTerranCouncilBenefit && game.pendingTerranCouncilBenefit.playerId === playerId && gameId && (() => {
-          const { tokenCount } = game.pendingTerranCouncilBenefit;
+        {(() => {
+          const pending = game.pendingTerranCouncilBenefit;
+          if (!pending) return null;
+          const isTargetMe = pending.playerId === playerId;
+          const viewingBot = playerId && game.botPlayerIds?.includes(playerId);
+          const targetHuman = !game.botPlayerIds?.includes(pending.playerId);
+          if (!(isTargetMe || (viewingBot && targetHuman))) return null;
+
+          const { tokenCount } = pending;
           const cost = terranCouncilChoice.qic * 4 + terranCouncilChoice.knowledge * 4 + terranCouncilChoice.ore * 3 + terranCouncilChoice.credits * 1;
           const valid = cost <= tokenCount;
           return (
@@ -1656,8 +1682,10 @@ export default function Game() {
                     className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
                     disabled={!valid}
                     onClick={() => {
-                      GameClient.terranCouncilConfirmBenefits(gameId, terranCouncilChoice.qic, terranCouncilChoice.knowledge, terranCouncilChoice.ore, terranCouncilChoice.credits);
-                      setTerranCouncilChoice({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
+                      if (gameId) {
+                        GameClient.terranCouncilConfirmBenefits(gameId, terranCouncilChoice.qic, terranCouncilChoice.knowledge, terranCouncilChoice.ore, terranCouncilChoice.credits);
+                        setTerranCouncilChoice({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
+                      }
                     }}
                   >
                     Confirm
@@ -1761,166 +1789,172 @@ export default function Game() {
         )}
 
         {/* Income Selection Dialog - 수익 단계에서 맨 앞에 표시 (z-[100]) */}
-        {game.pendingIncomeOrder && game.pendingIncomeOrder.playerId === playerId && (
-          <AlertDialog open={true} onOpenChange={() => { }}>
-            <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-2xl z-[100]">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-white font-black uppercase tracking-wider text-xl">
-                  수익 선택 (Income Phase)
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-zinc-300">
-                  받을 수익(파워/토큰)을 하나씩 선택하세요. 모두 받으면 Finish를 눌러주세요.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-4 py-4">
-                {game.pendingIncomeOrder.incomeItems.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-sm font-bold text-zinc-300">받을 수익</span>
-                      <Button
-                        className="bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30 font-bold"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => gameId && GameClient.selectAllIncomeItems(gameId)}
-                      >
-                        자동 받기 (수익 모두 받기)
-                      </Button>
-                      {currentPlayer && (
-                        <span className="text-xs text-zinc-400 font-mono ml-2 px-2 py-1 rounded bg-zinc-800/80 border border-white/10">
-                          현재 파워: <span className="text-blue-400 font-bold">{currentPlayer.power1 ?? 0}</span> / <span className="text-cyan-400 font-bold">{currentPlayer.power2 ?? 0}</span> / <span className="text-amber-400 font-bold">{currentPlayer.power3 ?? 0}</span> (1/2/3그릇)
-                        </span>
-                      )}
-                    </div>
-                    {currentPlayer && game.pendingIncomeOrder.incomeItems.length > 0 && (() => {
-                      let p1 = currentPlayer.power1 ?? 0, p2 = currentPlayer.power2 ?? 0, p3 = currentPlayer.power3 ?? 0;
-                      game.pendingIncomeOrder.incomeItems.forEach((item) => {
-                        if (item.type === 'power') {
-                          let rem = item.amount;
-                          const from1 = Math.min(rem, p1);
-                          p1 -= from1; p2 += from1; rem -= from1;
-                          const from2 = Math.min(rem, p2);
-                          p2 -= from2; p3 += from2;
-                        } else {
-                          p1 += item.amount;
-                        }
-                      });
-                      return (
-                        <p className="text-[10px] text-zinc-500">
-                          자동 받기 시 결과: 1/2/3그릇 → <span className="font-mono text-zinc-300 font-bold">{p1} / {p2} / {p3}</span>
-                        </p>
-                      );
-                    })()}
-                    <div className="grid grid-cols-3 gap-3">
-                      {game.pendingIncomeOrder.incomeItems.map((item) => {
-                        // 파워 변화 미리보기 계산
-                        let preview = '';
-                        if (item.type === 'power' && currentPlayer) {
-                          const { power1, power2, power3 } = currentPlayer;
-                          let p1 = power1 ?? 0, p2 = power2 ?? 0, p3 = power3 ?? 0;
-                          let rem = item.amount;
-                          const from1 = Math.min(rem, p1);
-                          p1 -= from1; p2 += from1; rem -= from1;
-                          const from2 = Math.min(rem, p2);
-                          p2 -= from2; p3 += from2;
-                          preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${p1}/${p2}/${p3}`;
-                        } else if (item.type === 'tokens' && currentPlayer) {
-                          const { power1, power2, power3 } = currentPlayer;
-                          preview = `${power1}/${power2}/${power3} → ${power1 + item.amount}/${power2}/${power3}`;
-                        }
+        {(() => {
+          const pending = game.pendingIncomeOrder;
+          if (!pending) return null;
+          const isTargetMe = pending.playerId === playerId;
+          const viewingBot = playerId && game.botPlayerIds?.includes(playerId);
+          const targetHuman = !game.botPlayerIds?.includes(pending.playerId);
+          if (!(isTargetMe || (viewingBot && targetHuman))) return null;
 
-                        return (
-                          <button
-                            key={item.id}
-                            className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${item.type === 'power'
-                              ? 'bg-blue-500/10 border-blue-500/30 hover:border-blue-500/60 hover:bg-blue-500/20'
-                              : 'bg-cyan-500/10 border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20'
-                              }`}
-                            onClick={() => {
-                              if (gameId) {
-                                GameClient.selectIncomeItem(gameId, item.id);
-                              }
-                            }}
-                          >
-                            <div className={`text-2xl font-black ${item.type === 'power' ? 'text-blue-400' : 'text-cyan-400'}`}>
-                              {item.amount}
-                            </div>
-                            <div className="text-xs uppercase text-zinc-400 font-bold mt-1">
-                              {item.type === 'power' ? 'Power' : 'Tokens'}
-                            </div>
-                            {preview && (
-                              <div className="text-[9px] text-zinc-500 mt-1.5 font-mono">
-                                {preview}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="text-center text-zinc-400 py-2">
-                      모든 수익을 받았습니다. Finish를 눌러주세요.
-                    </div>
-                    {currentPlayer && (
-                      <div className="text-center">
-                        <span className="text-xs text-zinc-500 font-mono px-2 py-1 rounded bg-zinc-800/80 border border-white/10">
-                          결과 상태 — 파워 1/2/3그릇: <span className="text-blue-400 font-bold">{currentPlayer.power1 ?? 0}</span> / <span className="text-cyan-400 font-bold">{currentPlayer.power2 ?? 0}</span> / <span className="text-amber-400 font-bold">{currentPlayer.power3 ?? 0}</span>
+          const actualPlayer = game.players[pending.playerId];
+          if (!actualPlayer) return null;
+
+          return (
+            <AlertDialog open={true} onOpenChange={() => { }}>
+              <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-2xl z-[100]">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider text-xl">
+                    수익 선택 (Income Phase)
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    받을 수익(파워/토큰)을 하나씩 선택하세요. 모두 받으면 Finish를 눌러주세요.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4 py-4">
+                  {pending.incomeItems.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-sm font-bold text-zinc-300">받을 수익</span>
+                        <Button
+                          className="bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30 font-bold"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => gameId && GameClient.selectAllIncomeItems(gameId)}
+                        >
+                          자동 받기 (수익 모두 받기)
+                        </Button>
+                        <span className="text-xs text-zinc-400 font-mono ml-2 px-2 py-1 rounded bg-zinc-800/80 border border-white/10">
+                          현재 파워: <span className="text-blue-400 font-bold">{actualPlayer.power1 ?? 0}</span> / <span className="text-cyan-400 font-bold">{actualPlayer.power2 ?? 0}</span> / <span className="text-amber-400 font-bold">{actualPlayer.power3 ?? 0}</span> (1/2/3그릇)
                         </span>
                       </div>
-                    )}
-                  </div>
-                )}
-                {game.pendingIncomeOrder.appliedItems && game.pendingIncomeOrder.appliedItems.length > 0 && (
-                  <div className="pt-4 border-t border-white/10">
-                    <div className="text-xs text-zinc-400 mb-2">받은 수익:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {game.pendingIncomeOrder.appliedItems.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className={`px-2 py-1 rounded text-xs font-bold ${item.type === 'power' ? 'bg-blue-500/20 text-blue-400' : 'bg-cyan-500/20 text-cyan-400'
-                            }`}
-                        >
-                          {item.amount} {item.type === 'power' ? 'P' : 'T'}
-                        </div>
-                      ))}
+                      {pending.incomeItems.length > 0 && (() => {
+                        let p1 = actualPlayer.power1 ?? 0, p2 = actualPlayer.power2 ?? 0, p3 = actualPlayer.power3 ?? 0;
+                        pending.incomeItems.forEach((item) => {
+                          if (item.type === 'power') {
+                            let rem = item.amount;
+                            const from1 = Math.min(rem, p1);
+                            p1 -= from1; p2 += from1; rem -= from1;
+                            const from2 = Math.min(rem, p2);
+                            p2 -= from2; p3 += from2;
+                          } else {
+                            p1 += item.amount;
+                          }
+                        });
+                        return (
+                          <p className="text-[10px] text-zinc-500">
+                            자동 받기 시 결과: 1/2/3그릇 → <span className="font-mono text-zinc-300 font-bold">{p1} / {p2} / {p3}</span>
+                          </p>
+                        );
+                      })()}
+                      <div className="grid grid-cols-3 gap-3">
+                        {pending.incomeItems.map((item) => {
+                          let preview = '';
+                          const { power1, power2, power3 } = actualPlayer;
+                          if (item.type === 'power') {
+                            let p1 = power1 ?? 0, p2 = power2 ?? 0, p3 = power3 ?? 0;
+                            let rem = item.amount;
+                            const from1 = Math.min(rem, p1);
+                            p1 -= from1; p2 += from1; rem -= from1;
+                            const from2 = Math.min(rem, p2);
+                            p2 -= from2; p3 += from2;
+                            preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${p1}/${p2}/${p3}`;
+                          } else if (item.type === 'tokens') {
+                            preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${(power1 ?? 0) + item.amount}/${power2 ?? 0}/${power3 ?? 0}`;
+                          }
+
+                          return (
+                            <button
+                              key={item.id}
+                              className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${item.type === 'power'
+                                ? 'bg-blue-500/10 border-blue-500/30 hover:border-blue-500/60 hover:bg-blue-500/20'
+                                : 'bg-cyan-500/10 border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20'
+                                }`}
+                              onClick={() => {
+                                if (gameId) {
+                                  GameClient.selectIncomeItem(gameId, item.id);
+                                }
+                              }}
+                            >
+                              <div className={`text-2xl font-black ${item.type === 'power' ? 'text-blue-400' : 'text-cyan-400'}`}>
+                                {item.amount}
+                              </div>
+                              <div className="text-xs uppercase text-zinc-400 font-bold mt-1">
+                                {item.type === 'power' ? 'Power' : 'Tokens'}
+                              </div>
+                              {preview && (
+                                <div className="text-[9px] text-zinc-500 mt-1.5 font-mono">
+                                  {preview}
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              <AlertDialogFooter className="flex justify-between">
-                {game.pendingIncomeOrder.appliedItems && game.pendingIncomeOrder.appliedItems.length > 0 && (
-                  <Button
-                    variant="outline"
-                    className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-                    onClick={() => {
-                      if (gameId) {
-                        GameClient.undoIncomeItem(gameId);
-                      }
-                    }}
-                  >
-                    Undo
-                  </Button>
-                )}
-                <div className="flex gap-2 ml-auto">
-                  {game.pendingIncomeOrder.incomeItems.length === 0 && (
-                    <AlertDialogAction
-                      className="bg-green-600 hover:bg-green-500 text-white font-bold"
-                      onClick={(e) => {
-                        e.preventDefault();
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-center text-zinc-400 py-2">
+                        모든 수익을 받았습니다. Finish를 눌러주세요.
+                      </div>
+                      <div className="text-center">
+                        <span className="text-xs text-zinc-500 font-mono px-2 py-1 rounded bg-zinc-800/80 border border-white/10">
+                          결과 상태 — 파워 1/2/3그릇: <span className="text-blue-400 font-bold">{actualPlayer.power1 ?? 0}</span> / <span className="text-cyan-400 font-bold">{actualPlayer.power2 ?? 0}</span> / <span className="text-amber-400 font-bold">{actualPlayer.power3 ?? 0}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {pending.appliedItems && pending.appliedItems.length > 0 && (
+                    <div className="pt-4 border-t border-white/10">
+                      <div className="text-xs text-zinc-400 mb-2">받은 수익:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {pending.appliedItems.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className={`px-2 py-1 rounded text-xs font-bold ${item.type === 'power' ? 'bg-blue-500/20 text-blue-400' : 'bg-cyan-500/20 text-cyan-400'
+                              }`}
+                          >
+                            {item.amount} {item.type === 'power' ? 'P' : 'T'}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <AlertDialogFooter className="flex justify-between">
+                  {pending.appliedItems && pending.appliedItems.length > 0 && (
+                    <Button
+                      variant="outline"
+                      className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                      onClick={() => {
                         if (gameId) {
-                          GameClient.finishIncomeSelection(gameId);
+                          GameClient.undoIncomeItem(gameId);
                         }
                       }}
                     >
-                      Finish
-                    </AlertDialogAction>
+                      Undo
+                    </Button>
                   )}
-                </div>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+                  <div className="flex gap-2 ml-auto">
+                    {pending.incomeItems.length === 0 && (
+                      <AlertDialogAction
+                        className="bg-green-600 hover:bg-green-500 text-white font-bold"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (gameId) {
+                            GameClient.finishIncomeSelection(gameId);
+                          }
+                        }}
+                      >
+                        Finish
+                      </AlertDialogAction>
+                    )}
+                  </div>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
 
         {/* 종족 선택 토글 버튼은 GameBoard의 Round 표시 영역에 추가됨 */}
 
@@ -2205,6 +2239,14 @@ export default function Game() {
                         <span className="text-muted-foreground">우주정거장 </span>
                         <span className={p.usedIvitsSpaceStationThisRound ? 'text-red-400/90' : 'text-green-400/90'}>
                           {p.usedIvitsSpaceStationThisRound ? '사용함' : '미사용'}
+                        </span>
+                      </div>
+                    )}
+                    {p.faction === 'moweyip' && game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === id && t.structure === 'planetary_institute') && (
+                      <div>
+                        <span className="text-muted-foreground">링 놓기 (Special) </span>
+                        <span className={(p as any).usedSpecialActions?.includes('moweyip-place-ring') ? 'text-red-400/90' : 'text-green-400/90'}>
+                          {(p as any).usedSpecialActions?.includes('moweyip-place-ring') ? '사용함' : '미사용'}
                         </span>
                       </div>
                     )}
