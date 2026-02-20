@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+
+  --card: 222 47% 14%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222 47% 11%;
+  --popover-foreground: 210 40% 98%;
+
+  --primary: 262 83% 58%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+
+  --accent: 199 89% 48%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217 33% 20%;
+  --input: 217 33% 17%;
+  --ring: 262 83% 58%;
+
+  --radius: 0.5rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground;
+    font-family: 'Rajdhani', sans-serif;
+    background-image: 
+      radial-gradient(circle at 50% 0%, hsl(262 83% 58% / 0.15), transparent 40%),
+      radial-gradient(circle at 0% 100%, hsl(199 89% 48% / 0.1), transparent 30%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron', sans-serif;
+    @apply tracking-wider;
+  }
+}
+
+/* Custom Hex Grid Styles */
+.hex-grid-container {
+  filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+}
+
+.hex {
+  transition: all 0.2s ease-out;
+  cursor: pointer;
+}
+
+.hex:hover {
+  filter: brightness(1.2);
+  transform: scale(1.02);
+}
+
+.hex-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.25rem;
+  fill: rgba(255,255,255,0.7);
+  pointer-events: none;
+}

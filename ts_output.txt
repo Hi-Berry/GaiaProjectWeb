@@ -1,0 +1,35 @@
+﻿client/src/components/GameBoard.tsx(580,58): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+client/src/pages/Game.tsx(511,38): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(predicate: (value: HexTile, index: number, array: HexTile[]) => value is HexTile, thisArg?: any): HexTile[]', gave the following error.
+    Argument of type '(t: { structure: string; academyType?: string; }) => boolean' is not assignable to parameter of type '(value: HexTile, index: number, array: HexTile[]) => value is HexTile'.
+      Types of parameters 't' and 'value' are incompatible.
+        Type 'HexTile' is not assignable to type '{ structure: string; academyType?: string | undefined; }'.
+          Types of property 'structure' are incompatible.
+            Type 'string | null' is not assignable to type 'string'.
+              Type 'null' is not assignable to type 'string'.
+  Overload 2 of 2, '(predicate: (value: HexTile, index: number, array: HexTile[]) => unknown, thisArg?: any): HexTile[]', gave the following error.
+    Argument of type '(t: { structure: string; academyType?: string; }) => boolean' is not assignable to parameter of type '(value: HexTile, index: number, array: HexTile[]) => unknown'.
+      Types of parameters 't' and 'value' are incompatible.
+        Type 'HexTile' is not assignable to type '{ structure: string; academyType?: string | undefined; }'.
+          Types of property 'structure' are incompatible.
+            Type 'string | null' is not assignable to type 'string'.
+              Type 'null' is not assignable to type 'string'.
+client/src/pages/Game.tsx(512,39): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(predicate: (value: HexTile, index: number, array: HexTile[]) => value is HexTile, thisArg?: any): HexTile[]', gave the following error.
+    Argument of type '(t: { structure: string; academyType?: string; }) => boolean' is not assignable to parameter of type '(value: HexTile, index: number, array: HexTile[]) => value is HexTile'.
+      Types of parameters 't' and 'value' are incompatible.
+        Type 'HexTile' is not assignable to type '{ structure: string; academyType?: string | undefined; }'.
+          Types of property 'structure' are incompatible.
+            Type 'string | null' is not assignable to type 'string'.
+              Type 'null' is not assignable to type 'string'.
+  Overload 2 of 2, '(predicate: (value: HexTile, index: number, array: HexTile[]) => unknown, thisArg?: any): HexTile[]', gave the following error.
+    Argument of type '(t: { structure: string; academyType?: string; }) => boolean' is not assignable to parameter of type '(value: HexTile, index: number, array: HexTile[]) => unknown'.
+      Types of parameters 't' and 'value' are incompatible.
+        Type 'HexTile' is not assignable to type '{ structure: string; academyType?: string | undefined; }'.
+          Types of property 'structure' are incompatible.
+            Type 'string | null' is not assignable to type 'string'.
+              Type 'null' is not assignable to type 'string'.
+client/src/pages/Game.tsx(553,64): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+shared/gameConfig.ts(561,14): error TS2741: Property 'lost_planet' is missing in type '{ terra: string; oxide: string; volcanic: string; desert: string; swamp: string; titanium: string; ice: string; transdim: string; gaia: string; space: string; deep_space: string; asteroid: string; lost_fleet_ship: string; ... 4 more ...; proto: string; }' but required in type 'Record<PlanetType, string>'.
