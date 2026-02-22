@@ -124,6 +124,11 @@ export const GameClient = {
     s.emit('start_game', { gameId });
   },
 
+  autoSetupTest(gameId: string) {
+    const s = getSocket();
+    s.emit('auto_setup_test', { gameId });
+  },
+
   selectFaction(gameId: string, factionId: string, turnOrder?: number) {
     const s = getSocket();
     s.emit('select_faction', { gameId, factionId, turnOrder });

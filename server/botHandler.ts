@@ -20,6 +20,7 @@ import { ResearchTrack } from '@shared/gameConfig';
  * Called after any game state update during main phase
  */
 export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGameState): Promise<void> {
+    log(`[BotHandler] executeBotTurnIfNeeded called. isExecuting=${game.isBotExecuting}, phase=${game.currentPhase}`, 'game');
     if (!game.botPlayerIds || game.botPlayerIds.length === 0) return;
     if (game.isBotExecuting) return;
 
@@ -169,12 +170,16 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         const snakingSequence = (game as any).startingMineSequence ?? [];
         if (snakingSequence.length > 0 && totalMines < snakingSequence.length) {
             currentPlayerId = snakingSequence[totalMines];
+            log(`BotHandler DEBUG: startingMines - totalMines=${totalMines}, expected=${currentPlayerId}, seqLength=${snakingSequence.length}`, 'game');
         } else {
+            log(`BotHandler DEBUG: startingMines skip - totalMines=${totalMines}, seqLength=${snakingSequence.length}`, 'game');
             return;
         }
     } else if (game.currentPhase === 'bonusSelection') {
         currentPlayerId = game.pendingBonusSelection;
     }
+
+    log(`BotHandler DEBUG: phase=${game.currentPhase}, currentPlayer=${currentPlayerId}, isBot=${botPlayerIds.includes(currentPlayerId || '')}`, 'game');
 
     if (!currentPlayerId || !botPlayerIds.includes(currentPlayerId)) return;
 
@@ -236,9 +241,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     const success = await BotLogic.performAction(io, game, action, currentPlayerId);
 
     if (success) {
-        log(`Bot ${player.name} successfully executed ${action.type}`, 'game');
+        log(`Bot ${player.name} successfully executed ${action.type}`, 'game', game.id);
         setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
     } else {
-        log(`Bot ${player.name} failed to execute ${action.type}`, 'error');
+        log(`Bot ${player.name} failed to execute ${action.type}. Action details: ${JSON.stringify(action)}`, 'error', game.id);
     }
 }

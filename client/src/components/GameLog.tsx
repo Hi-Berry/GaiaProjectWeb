@@ -10,10 +10,7 @@ interface GameLogProps {
 export function GameLog({ game }: GameLogProps) {
   const logs = game.gameLog || [];
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
+
 
   return (
     <Card className="w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron shadow-2xl">
@@ -25,24 +22,21 @@ export function GameLog({ game }: GameLogProps) {
       </CardHeader>
       <CardContent className="p-0">
         <ScrollArea className="h-[400px]">
-          <div className="p-4 space-y-2">
+          <div className="p-4 space-y-2 flex flex-col">
             {logs.length === 0 ? (
               <div className="text-center text-zinc-500 text-sm py-8">
                 No actions yet
               </div>
             ) : (
-              logs.map((log, index) => (
+              [...logs].reverse().map((log, index) => (
                 <div
                   key={index}
                   className="flex items-start gap-2 p-2 rounded-lg bg-zinc-900/30 border border-white/5 hover:bg-zinc-900/50 transition-colors"
                 >
-                  <div className="flex-shrink-0 text-[10px] text-zinc-500 font-mono mt-0.5">
-                    {formatTime(log.timestamp)}
-                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <User className="w-3 h-3 text-primary flex-shrink-0" />
-                      <span className="text-xs font-bold text-zinc-200 truncate">
+                      <span className="text-xs font-bold text-zinc-200 truncate shrink-0 max-w-[80px]">
                         {log.playerName}
                       </span>
                     </div>

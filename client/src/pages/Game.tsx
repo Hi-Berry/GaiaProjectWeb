@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
 
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { playMyTurnSound, playOtherTurnSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2 } from 'lucide-react';
 import {
   Select,
@@ -104,6 +106,14 @@ export default function Game() {
   /** 한 컴퓨터 4인플: 방장 브라우저인지 (턴 바뀔 때 조작 플레이어 자동 전환용) */
   const isHostSessionRef = useRef(false);
   const [showGameEndScore, setShowGameEndScore] = useState(false);
+
+  // Sound notification tracking
+  const lastActivePlayerRef = useRef<string | null>(null);
+  const lastWasMyTurnRef = useRef(false);
+  const lastPendingBonusSelectionRef = useRef<string | null>(null);
+  const lastWasMyBonusRef = useRef(false);
+  const lastPendingTechSelectionRef = useRef<string | null>(null);
+  const lastWasMyTechRef = useRef(false);
 
   useEffect(() => {
     if (game?.currentPhase === 'gameEnd') {
@@ -267,10 +277,11 @@ export default function Game() {
   // 연구소/아카데미 건설 시 기술 타일 선택이 R창 안에만 있으므로, 필요 시 R창 자동 오픈
   useEffect(() => {
     if (!game || !playerId) return;
+    if (game.botPlayerIds?.includes(playerId)) return; // 봇의 턴을 관전 중일 때는 자동 오픈 방지
     if (game.pendingTechTileSelection?.playerId === playerId) {
       setIsResearchOpen(true);
     }
-  }, [game?.pendingTechTileSelection?.playerId, playerId]);
+  }, [game?.pendingTechTileSelection?.playerId, playerId, game?.botPlayerIds]);
 
   // 테란 의회 다이얼로그가 열릴 때 선택 초기화
   useEffect(() => {
@@ -278,6 +289,51 @@ export default function Game() {
       setTerranCouncilChoice({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
     }
   }, [game?.pendingTerranCouncilBenefit?.playerId, playerId]);
+
+  // Turn behavior notification sounds
+  useEffect(() => {
+    if (!game || !game.turnOrder || game.currentPlayerIndex === undefined) return;
+
+    const activePlayerId = game.turnOrder[game.currentPlayerIndex];
+    const isMyTurn = activePlayerId === playerId;
+
+    // 1. Turn change notifications
+    if (activePlayerId !== lastActivePlayerRef.current || isMyTurn !== lastWasMyTurnRef.current) {
+      if (isMyTurn && !lastWasMyTurnRef.current) {
+        playMyTurnSound();
+      } else if (activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
+        playOtherTurnSound();
+      }
+      lastActivePlayerRef.current = activePlayerId;
+      lastWasMyTurnRef.current = isMyTurn;
+    }
+
+    // 2. Special cases: Bonus selection
+    const pendingBonus = game.pendingBonusSelection;
+    const isMyBonus = pendingBonus === playerId;
+    if (pendingBonus !== lastPendingBonusSelectionRef.current || isMyBonus !== lastWasMyBonusRef.current) {
+      if (isMyBonus && !lastWasMyBonusRef.current) {
+        playMyTurnSound();
+      } else if (pendingBonus && pendingBonus !== lastPendingBonusSelectionRef.current) {
+        playOtherTurnSound();
+      }
+      lastPendingBonusSelectionRef.current = pendingBonus || null;
+      lastWasMyBonusRef.current = isMyBonus;
+    }
+
+    // 3. Special cases: Tech selection
+    const pendingTechPlayer = game.pendingTechTileSelection?.playerId;
+    const isMyTech = pendingTechPlayer === playerId;
+    if (pendingTechPlayer !== lastPendingTechSelectionRef.current || isMyTech !== lastWasMyTechRef.current) {
+      if (isMyTech && !lastWasMyTechRef.current) {
+        playMyTurnSound();
+      } else if (pendingTechPlayer && pendingTechPlayer !== lastPendingTechSelectionRef.current) {
+        playOtherTurnSound();
+      }
+      lastPendingTechSelectionRef.current = pendingTechPlayer || null;
+      lastWasMyTechRef.current = isMyTech;
+    }
+  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, playerId]);
 
   if (loading) {
     return (
@@ -339,6 +395,9 @@ export default function Game() {
           setPlayerId(targetPlayerId);
           storePlayerId(gameId, targetPlayerId);
         } : undefined}
+        onAutoSetupTest={() => {
+          if (gameId) GameClient.autoSetupTest(gameId);
+        }}
       />
     );
   }
@@ -1802,7 +1861,7 @@ export default function Game() {
 
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
-              <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-2xl z-[100]">
+              <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-2xl">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-white font-black uppercase tracking-wider text-xl">
                     수익 선택 (Income Phase)
@@ -1978,68 +2037,105 @@ export default function Game() {
       </main>
 
       <div className="w-64 border-l border-border bg-card p-4 flex flex-col overflow-y-auto">
-        {/* Confirmation Overlay - Fixed in sidebar */}
-        {pendingAction && (
-          <div className="mb-4 p-4 bg-black/90 border border-yellow-500/50 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.2)] space-y-3">
-            <h3 className="text-yellow-500 font-black uppercase tracking-wider text-xs text-center">Confirm Action</h3>
-            <div className="flex flex-wrap justify-center gap-3">
-              {cost?.ore && (
-                <div className="text-center">
-                  <div className={`text-lg font-black ${cost.needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>
-                    {cost.ore}
-                  </div>
-                  <div className="text-[9px] uppercase text-zinc-500 font-bold">Ore</div>
-                  {cost.terraformSteps && cost.terraformSteps > 0 && (
-                    <div className="text-[8px] text-zinc-400 mt-1">
-                      {cost.terraformSteps} step{cost.terraformSteps > 1 ? 's' : ''} @ {getTerraformCost(cost.terraformingLevel || 0)}/step
-                      {cost.terraformDiscount && cost.terraformDiscount > 0 && (
-                        <span className="text-green-400 ml-1">
-                          (-{cost.terraformDiscount} free)
-                        </span>
+        {/* Confirmation Overlay - Ultra-slim horizontal layout at top-20 with smooth drop-down */}
+        <AnimatePresence>
+          {pendingAction && (
+            <motion.div
+              initial={{ y: -50, x: '-50%', opacity: 0 }}
+              animate={{ y: 0, x: '-50%', opacity: 1 }}
+              exit={{ y: -50, x: '-50%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-20 left-1/2 z-[60] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+            >
+              {/* Title & Costs (Left Side) */}
+              <div className="flex items-center gap-3 border-r border-white/10 pr-4">
+                <div className="flex flex-col shrink-0 mr-2">
+                  <h3 className="text-yellow-500 font-black uppercase tracking-tighter text-[9px] leading-none">Confirm Action</h3>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  {cost?.ore && (
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-base font-black leading-none ${cost.needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>{cost.ore}</span>
+                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Ore</span>
+                      {cost.terraformSteps && cost.terraformSteps > 0 && (
+                        <span className="text-[8px] text-zinc-400">({cost.terraformSteps}st)</span>
                       )}
                     </div>
                   )}
+                  {cost?.credits && cost.credits > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base font-black text-yellow-500 leading-none">{cost.credits}</span>
+                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Cr</span>
+                    </div>
+                  )}
+                  {cost?.gaiaformers && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base font-black text-cyan-500 leading-none">{cost.gaiaformers}</span>
+                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Gf</span>
+                    </div>
+                  )}
+                  {cost?.knowledge && cost.knowledge > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base font-black text-blue-500 leading-none">{cost.knowledge}</span>
+                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Kn</span>
+                    </div>
+                  )}
+                  {cost?.qic && cost.qic > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base font-black text-green-500 leading-none">{cost.qic}</span>
+                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">QIC</span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {cost?.credits && cost.credits > 0 && <div className="text-center"><div className="text-lg font-black text-yellow-500">{cost.credits}</div><div className="text-[9px] uppercase text-zinc-500 font-bold">Credits</div></div>}
-              {cost?.gaiaformers && <div className="text-center"><div className="text-lg font-black text-cyan-500">{cost.gaiaformers}</div><div className="text-[9px] uppercase text-zinc-500 font-bold">Gaiaformer</div></div>}
-              {cost?.knowledge && <div className="text-center"><div className="text-lg font-black text-blue-500">{cost.knowledge}</div><div className="text-[9px] uppercase text-zinc-500 font-bold">Knowledge</div></div>}
-              {cost?.qic && <div className="text-center"><div className="text-lg font-black text-green-500">{cost.qic}</div><div className="text-[9px] uppercase text-zinc-500 font-bold">QIC</div></div>}
-            </div>
-            {cost?.needsExtraTerraforming && (
-              <div className="text-[9px] text-red-400 text-center font-bold bg-red-500/10 p-2 rounded border border-red-500/30">
-                ⚠️ Terraforming Level {cost.terraformingLevel} - Extra terraforming required!
               </div>
-            )}
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-[9px] font-bold" onClick={() => setPendingAction(null)}>Undo</Button>
-              <Button size="sm" className="flex-1 bg-yellow-500 text-black hover:bg-yellow-400 text-[9px] font-bold" onClick={handleConfirm}>Confirm</Button>
-            </div>
-            {/* Reset 및 End Turn 버튼을 확인 영역에 추가 (보너스 선택 단계 제외) */}
-            {game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && (
-              <div className="flex gap-2 mt-2">
+
+              {/* Action Buttons (Right Side) */}
+              <div className="flex items-center gap-1.5">
                 <Button
-                  size="sm"
                   variant="outline"
-                  className="flex-1 border-red-500/50 hover:bg-red-500/20 text-red-400 text-[9px] font-bold"
-                  onClick={() => {
-                    GameClient.resetTurn(gameId!);
-                    setPendingAction(null);
-                  }}
+                  size="sm"
+                  className="h-7 px-3 border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-tight"
+                  onClick={() => setPendingAction(null)}
                 >
-                  Reset
+                  Undo
                 </Button>
                 <Button
                   size="sm"
-                  className="flex-1 bg-green-600 hover:bg-green-500 text-white text-[9px] font-bold"
-                  onClick={() => gameId && GameClient.endTurn(gameId)}
+                  className="h-7 px-4 bg-yellow-500 text-black hover:bg-yellow-400 text-[10px] font-black uppercase tracking-tight shadow-lg"
+                  onClick={handleConfirm}
                 >
-                  End Turn
+                  Confirm
                 </Button>
+
+                {/* Reset/End Turn (Integrated inside slim bar) */}
+                {game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (
+                  <>
+                    <div className="h-5 w-[1px] bg-white/10 mx-1" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-3 border-red-500/30 hover:bg-red-500/10 text-red-500 text-[10px] font-black uppercase"
+                      onClick={() => {
+                        GameClient.resetTurn(gameId!);
+                        setPendingAction(null);
+                      }}
+                    >
+                      Reset
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 px-3 bg-green-600/80 hover:bg-green-500 text-white text-[10px] font-black uppercase"
+                      onClick={() => gameId && GameClient.endTurn(gameId)}
+                    >
+                      End Turn
+                    </Button>
+                  </>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 연방 구현: 모드 진입/취소 및 완료 */}
         {game && game.currentPhase === 'main' && game.turnOrder[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !game.pendingFederationReward && (
@@ -2276,37 +2372,50 @@ export default function Game() {
                   No actions yet
                 </div>
               ) : (
-                game.gameLog.map((log, index) => {
+                [...game.gameLog].reverse().map((log, index) => {
                   const formatTime = (timestamp: number) => {
                     const date = new Date(timestamp);
-                    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    // 24시간제 적용 및 공간 절약형 포맷
+                    return date.toLocaleTimeString('ko-KR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    });
                   };
                   return (
                     <div
                       key={index}
-                      className={`flex items-start gap-2 p-2 rounded-lg border text-xs transition-colors ${log.tileId
-                        ? 'bg-muted/50 border-border hover:bg-muted hover:border-primary/50 cursor-pointer'
-                        : 'bg-muted/30 border-border'
+                      className={`group flex flex-col gap-1 p-2 rounded-lg border text-xs transition-all ${log.tileId
+                        ? 'bg-muted/50 border-border hover:bg-muted hover:border-primary/50 cursor-pointer shadow-sm'
+                        : 'bg-zinc-900/30 border-white/5'
                         }`}
                       onMouseEnter={() => log.tileId && setHighlightedTileId(log.tileId)}
                       onMouseLeave={() => setHighlightedTileId(null)}
                     >
-                      <div className="flex-shrink-0 text-[10px] text-muted-foreground font-mono mt-0.5">
-                        {formatTime(log.timestamp)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <User className="w-3 h-3 text-primary flex-shrink-0" />
-                          <span className="text-[11px] font-semibold truncate">
-                            {log.playerName}
+                      {/* Header Line: Player (Left) | Time (Right) */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <User className="w-2.5 h-2.5 text-primary flex-shrink-0 opacity-70" />
+                          <span className="text-[10px] font-black text-zinc-100 uppercase tracking-tighter truncate">
+                            {(() => {
+                              const p = game.players[log.playerId];
+                              const f = p?.faction ? FACTIONS.find(f => f.id === p.faction) : null;
+                              return f ? `${f.name} (${log.playerName})` : log.playerName;
+                            })()}
                           </span>
                         </div>
-                        <div className="text-[11px] text-foreground">
-                          <span className="font-semibold text-primary">{log.action}</span>
-                          {log.details && (
-                            <span className="text-muted-foreground ml-2">{log.details}</span>
-                          )}
-                        </div>
+                        <span className="text-[9px] text-muted-foreground/40 font-mono shrink-0">
+                          {formatTime(log.timestamp)}
+                        </span>
+                      </div>
+
+                      {/* Action Content: Full Width Below */}
+                      <div className="text-[11px] leading-tight">
+                        <span className="font-bold text-primary mr-1.5">{log.action}</span>
+                        {log.details && (
+                          <span className="text-zinc-400 font-medium">{log.details}</span>
+                        )}
                       </div>
                     </div>
                   );

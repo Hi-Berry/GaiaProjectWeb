@@ -15,9 +15,10 @@ interface GameLobbyProps {
   onAddPlayer?: (playerName?: string) => Promise<void>;
   onAddBot?: (botName?: string) => Promise<void>;
   onSwitchPlayer?: (targetPlayerId: string) => Promise<void>;
+  onAutoSetupTest?: () => void;
 }
 
-export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer }: GameLobbyProps) {
+export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer, onAutoSetupTest }: GameLobbyProps) {
   const playerEntries = Object.entries(game.players);
   const playerCount = playerEntries.length;
   const maxPlayers = game.maxPlayers || 4;
@@ -163,14 +164,23 @@ export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddP
             </Button>
 
             {isHost && (
-              <Button
-                onClick={onStartGame}
-                disabled={!canStart}
-                data-testid="button-start-game"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Start Game {!canStart && '(Need 1+ players)'}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={onAutoSetupTest}
+                  className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20"
+                >
+                  Auto Setup Test (4P + Random Factions)
+                </Button>
+                <Button
+                  onClick={onStartGame}
+                  disabled={!canStart}
+                  data-testid="button-start-game"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Start Game {!canStart && '(Need 1+ players)'}
+                </Button>
+              </div>
             )}
 
             {!isHost && (

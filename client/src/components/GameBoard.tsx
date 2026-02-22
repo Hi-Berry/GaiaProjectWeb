@@ -37,7 +37,7 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
   const strokeColor = '#000';
   const highlightColor = lightenColor(color, 50);
   const shadowColor = darkenColor(color, 35);
-  const scale = 1.7; // 전체 크기 1.7배 (15% 축소)
+  const scale = 2.2; // 전체 크기 확대 (기존 1.7 -> 2.2)
 
   switch (structureType) {
     case 'mine':
@@ -397,37 +397,37 @@ export function GameBoard({
 
     return (
       <g>
-        {/* 간단한 육각형 우주선 */}
+        {/* 간단한 육각형 우주선 - 크기 확대 (2.5 -> 3.5, 1.5 -> 2.2) */}
         <path
-          d="M 0,-2.5 L 1.5,-1 L 1.5,1 L 0,2.5 L -1.5,1 L -1.5,-1 Z"
+          d="M 0,-3.5 L 2.2,-1.4 L 2.2,1.4 L 0,3.5 L -2.2,1.4 L -2.2,-1.4 Z"
           fill={shipColor}
           stroke={accentColor}
-          strokeWidth="0.25"
-          opacity="0.85"
+          strokeWidth="0.35"
+          opacity="0.9"
         />
-        {/* 중앙 창문/엔진 */}
+        {/* 중앙 창문/엔진 - 크기 확대 (0.7 -> 1.0) */}
         <circle
           cx="0"
           cy="0"
-          r="0.7"
+          r="1.0"
           fill={accentColor}
-          opacity="0.6"
+          opacity="0.7"
         />
-        {/* 우주선 약자 (대문자 2글자, 상단 레이어·흰색·선명) */}
+        {/* 우주선 약자 - 폰트 크기 및 가인성 대폭 강화 (2.4px -> 3.2px) */}
         <text
-          y="0.2"
+          y="0.3"
           style={{
             fill: '#ffffff',
-            fontSize: '2.4px',
-            fontWeight: 'bold',
+            fontSize: '3.2px',
+            fontWeight: '900',
             textAnchor: 'middle',
             dominantBaseline: 'central',
             pointerEvents: 'none',
             fontFamily: 'inherit',
-            letterSpacing: '0.08em',
+            letterSpacing: '0.1em',
             paintOrder: 'stroke fill',
-            stroke: 'rgba(0,0,0,0.8)',
-            strokeWidth: '0.2px',
+            stroke: 'rgba(0,0,0,0.95)',
+            strokeWidth: '0.4px',
           }}
         >
           {abbr}
@@ -599,7 +599,11 @@ export function GameBoard({
     }
     // 가이아 행성 (다른 출처, 내 pending 아님)
     else if (selectedTile.type === 'gaia') {
-      qicCost += 1;
+      if (currentPlayer.faction === 'gleens') {
+        oreCost += 1;
+      } else {
+        qicCost += 1;
+      }
     }
 
     const pendingTerraformSteps = currentPlayer.pendingTerraformSteps || 0;
@@ -657,16 +661,7 @@ export function GameBoard({
     }
 
     if (currentPlayer.ore < mineBuildCost.oreCost || currentPlayer.credits < mineBuildCost.credits) return false;
-    // 글린 가이아: 1 QIC 대신 1 광물 가능 (오른쪽 아카데미 있어도 유지)
-    if (selectedTile.type === 'gaia' && currentPlayer.faction === 'gleens') {
-      const ore = currentPlayer.ore ?? 0;
-      const cred = currentPlayer.credits ?? 0;
-      const qic = currentPlayer.qic ?? 0;
-      if (cred < 2) return false;
-      if (ore >= 2 && qic >= Math.max(0, mineBuildCost.qicCost - 1)) return true;
-      if (ore >= 1 && qic >= mineBuildCost.qicCost) return true;
-      return false;
-    }
+    // 글린 가이아 비용 체크는 이제 mineBuildCost.oreCost(2 Ore)에 반영되므로 표준 로직을 따름
     if (mineBuildCost.qicCost > 0 && (currentPlayer.qic ?? 0) < mineBuildCost.qicCost) return false;
     return true;
   }, [selectedTile, currentPlayer, game.currentPhase, game.map, playerId, mineBuildCost]);
@@ -1102,7 +1097,7 @@ export function GameBoard({
                         size="sm"
                         disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
                         onClick={() => {
-                          onEnterSpaceship(selectedTile.id, false, neededQIC);
+                          onEnterSpaceship(selectedTile.id, !!currentPlayer.rangeBonusActive, neededQIC);
                           setSelectedTile(null);
                         }}
                       >
@@ -1388,7 +1383,7 @@ export function GameBoard({
                       <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
                         {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) - +6 VP</>
                     ) : selectedTile.type === 'gaia' && currentPlayer?.faction === 'gleens' ? (
-                      <>Build Mine (1O, 2C, 1O or 1Q{mineBuildCost.qicCost > 1 ? `, ${mineBuildCost.qicCost - 1} QIC` : ''}) — Gleens +2 VP</>
+                      <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits{mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) — Gleens +2 VP</>
                     ) : (
                       <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
                         {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`})</>

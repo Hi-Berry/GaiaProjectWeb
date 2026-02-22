@@ -14,6 +14,7 @@ import {
     executeUseShipAction,
     executeEndTurn
 } from '../gameState';
+import { log } from '../index';
 import {
     PlayerState,
     HexTile,
@@ -147,11 +148,40 @@ export class BotLogic {
                 if (ivitsAction) return ivitsAction;
             }
 
-            const upgradeAction = this.findUpgradeAction(game, playerId);
-            if (upgradeAction) return upgradeAction;
+            const mineCount = game.map.filter(t => (t.ownerId === playerId || t.parasiticMine?.ownerId === playerId) && (t.structure === 'mine' || t.structure === 'planetary_institute' || t.structure === 'academy' || t.structure === 'research_lab' || t.structure === 'trading_station')).length;
 
+            // 파워 수급을 위한 교역소(TS) 할인 업그레이드 확인
+            const discountedTS = this.findDiscountedUpgradeAction(game, playerId);
             const buildAction = this.findBuildAction(game, playerId);
-            if (buildAction) return buildAction;
+
+            // 내비게이션 연구 우선순위 체크 (QIC 절약)
+            if (buildAction?.type === 'build_mine' && (player.knowledge ?? 0) >= 4) {
+                const navId: ResearchTrack = 'navigation';
+                const currentNav = player.research[navId] || 0;
+                if (currentNav < 5) {
+                    const needsQIC = this.checkIfActionNeedsQIC(game, playerId, buildAction);
+                    if (needsQIC) {
+                        // 연구 시 QIC를 아낄 수 있는지 확인
+                        const savesQIC = this.willNavResearchSaveQIC(game, playerId, buildAction);
+                        if (savesQIC) {
+                            return { type: 'advance_research', params: { trackId: navId } };
+                        }
+                    }
+                }
+            }
+
+            // 광산이 적을 때는 건설을 기본으로 하되, 할인된 교역소가 있으면 업그레이드 우선
+            if (discountedTS) return discountedTS;
+
+            if (mineCount < 3) {
+                if (buildAction) return buildAction;
+                const upgradeAction = this.findUpgradeAction(game, playerId);
+                if (upgradeAction) return upgradeAction;
+            } else {
+                const upgradeAction = this.findUpgradeAction(game, playerId);
+                if (upgradeAction) return upgradeAction;
+                if (buildAction) return buildAction;
+            }
 
             if ((player.knowledge ?? 0) >= 4) {
                 const track = this.pickResearchTrack(game, player, playerId);
@@ -176,23 +206,41 @@ export class BotLogic {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
-        const knowledge = player.knowledge ?? 0;
+        const round = game.roundNumber;
+        const isGeoden = player.faction === 'geodens';
 
+        // 1. 연구소(Research Lab) 우선순위 (초반 라운드 기술 타일 확보 중요)
+        if (ore >= 3 && credits >= 5) {
+            const labCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length;
+            if (labCount < 3) {
+                // 초반(1-2R)이거나 연구소가 하나도 없을 때 강하게 추진
+                if (round <= 2 || labCount === 0) {
+                    const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
+                    if (ts) return { type: 'upgrade_structure', params: { tileId: ts.id, target: 'research_lab' } };
+                }
+            }
+        }
+
+        // 2. 종족별 특수 건물 (의회 등)
         const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-        // Try PI (4 ore, 6 credit)
         if (ore >= 4 && credits >= 6 && !hasPI) {
-            const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
-            if (ts) return { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } };
+            let shouldBuildPI = false;
+
+            if (isGeoden) {
+                // 기오덴: 실질적으로 확장 가능한 새로운 행성 유형이 2개 이상일 때만 PI 건설
+                shouldBuildPI = this.shouldGeodenBuildPI(game, playerId);
+            } else if (round >= 3) {
+                // 일반 종족: 초반보다는 라운드 중반부터 고려
+                shouldBuildPI = true;
+            }
+
+            if (shouldBuildPI) {
+                const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
+                if (ts) return { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } };
+            }
         }
 
-        // Try Academy (6 ore, 6 credit)
-        const academyCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
-        if (ore >= 6 && credits >= 6 && academyCount < 2) {
-            const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
-            if (ts) return { type: 'upgrade_structure', params: { tileId: ts.id, target: 'academy_right' } };
-        }
-
-        // Try TS (2 ore, 3/6 credit)
+        // 3. 교역소 (Trading Station) - 파워 수급을 위해 할인 여부와 무관하게 크레딧 여유 시 우선 고려
         if (ore >= 2 && credits >= 3) {
             const mines = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine');
             const discountedMine = mines.find(t => hasNearbyPlayersForDiscount(game, t, playerId));
@@ -200,13 +248,14 @@ export class BotLogic {
                 return { type: 'upgrade_structure', params: { tileId: discountedMine.id, target: 'trading_station' } };
             }
 
+            // 크레딧이 어느 정도 있다면 파워서칭을 위해 일반 교역소도 건설
             if (credits >= 6) {
                 const anyMine = mines[0];
                 if (anyMine) return { type: 'upgrade_structure', params: { tileId: anyMine.id, target: 'trading_station' } };
             }
         }
 
-        // Try Lab (3 ore, 5 credit)
+        // 4. 연구소 (기본 순수 점검)
         if (ore >= 3 && credits >= 5) {
             const labCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length;
             if (labCount < 3) {
@@ -215,7 +264,130 @@ export class BotLogic {
             }
         }
 
+        // 5. 아카데미 (Academy)
+        const academyCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
+        if (ore >= 6 && credits >= 6 && academyCount < 2) {
+            const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
+            if (ts) return { type: 'upgrade_structure', params: { tileId: ts.id, target: 'academy_right' } };
+        }
+
         return null;
+    }
+
+    private static findDiscountedUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        const ore = player.ore ?? 0;
+        const credits = player.credits ?? 0;
+
+        if (ore >= 2 && credits >= 3) {
+            const mines = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine');
+            const discountedMine = mines.find(t => hasNearbyPlayersForDiscount(game, t, playerId));
+            if (discountedMine) {
+                return { type: 'upgrade_structure', params: { tileId: discountedMine.id, target: 'trading_station' } };
+            }
+        }
+        return null;
+    }
+
+    private static checkIfActionNeedsQIC(game: ServerGameState, playerId: string, action: BotAction): boolean {
+        if (action.type !== 'build_mine') return false;
+        const player = game.players[playerId];
+        const tile = game.map.find(t => t.id === action.params.tileId);
+        if (!tile) return false;
+
+        const myPlanets = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+        const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+        const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
+
+        if (tile.type === 'gaia' && player.faction !== 'gleens') {
+            return (neededQicForRange + 1) > 0;
+        }
+        return neededQicForRange > 0;
+    }
+
+    private static willNavResearchSaveQIC(game: ServerGameState, playerId: string, action: BotAction): boolean {
+        const player = JSON.parse(JSON.stringify(game.players[playerId]));
+        player.research.navigation = (player.research.navigation || 0) + 1;
+        const tile = game.map.find(t => t.id === action.params.tileId);
+        if (!tile) return false;
+
+        const myPlanets = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+        const oldRange = getRange(game.players[playerId].research.navigation || 0) + (game.players[playerId].navigationBonus || 0);
+        const newRange = getRange(player.research.navigation) + (player.navigationBonus || 0);
+        if (newRange <= oldRange) return false; // 레벨업으로 거리가 안 늘어나는 구간이면 무의미
+
+        const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+        const oldQic = Math.max(0, Math.ceil((dist - oldRange) / 2));
+        const newQic = Math.max(0, Math.ceil((dist - newRange) / 2));
+
+        return newQic < oldQic;
+    }
+
+    /**
+     * 기오덴이 의회를 지어야 하는지 실질적 확장 가능성을 토대로 판단
+     */
+    private static shouldGeodenBuildPI(game: ServerGameState, playerId: string): boolean {
+        const player = game.players[playerId];
+        const currentPlanetTypes = new Set(
+            game.map.filter(t => t.ownerId === playerId && t.type && t.type !== 'space' && t.type !== 'deep_space').map(t => t.type)
+        );
+
+        const myPlanets = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+        const power3 = player.power3 ?? 0;
+        const qic = player.qic ?? 0;
+
+        const potentialNewTypes = new Set<string>();
+
+        // 주변 행성 중 새로운 유형 탐색
+        const candidates = game.map.filter(t =>
+            !t.ownerId && t.structure === null &&
+            t.type !== 'space' && t.type !== 'deep_space' && t.type !== 'transdim' &&
+            !t.type?.startsWith('ship_')
+        );
+
+        for (const tile of candidates) {
+            if (currentPlanetTypes.has(tile.type!)) continue;
+
+            const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+            const neededQic = Math.max(0, Math.ceil((dist - range) / 2));
+            if (neededQic > 1 || neededQic > qic) continue;
+
+            // 실질적 확장 가능 조건 체크
+            let canExpand = false;
+            if (tile.type === 'asteroid') {
+                // 소행성: 가이아포머가 있거나 Eclipse 우주선 액션 가능 여부 (여기서는 단순 소행성 존재 여부만 체크해도 됨)
+                canExpand = true;
+            } else if (tile.type === 'gaia') {
+                canExpand = true;
+            } else {
+                const steps = getTerraformStepsForFaction(game, player.faction!, tile.type!);
+                // 0~1단계만 필요한 행성만 고려 (3단계는 제외)
+                if (steps <= 1) {
+                    canExpand = true;
+                } else if (steps === 2 && power3 >= 5) {
+                    // 2단계이지만 5파워 2삽 액션이 가용한 경우
+                    const stepAction = game.powerActions.find(a => a.id === 'gain-2-steps' && !a.isUsed);
+                    if (stepAction) canExpand = true;
+                }
+            }
+
+            if (canExpand) {
+                potentialNewTypes.add(tile.type!);
+            }
+        }
+
+        return potentialNewTypes.size >= 2;
     }
 
     /**
@@ -257,7 +429,8 @@ export class BotLogic {
             t.type !== 'space' &&
             t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
-            t.type !== 'asteroid' // 소행성은 별도 처리
+            t.type !== 'asteroid' && // 소행성은 별도 처리
+            !t.type?.startsWith('ship_')
         );
 
         interface ScoredCandidate {
@@ -291,7 +464,7 @@ export class BotLogic {
 
                 scored.push({
                     tile,
-                    score: neededQicForRange === 0 ? 90 : 75,
+                    score: (neededQicForRange === 0 ? 90 : 75) - neededQicForRange * 25,
                     action: { type: 'build_mine', params: { tileId: tile.id } }
                 });
                 continue;
@@ -301,7 +474,7 @@ export class BotLogic {
             if (tile.type === homeType) {
                 scored.push({
                     tile,
-                    score: neededQicForRange === 0 ? 100 : 80,
+                    score: (neededQicForRange === 0 ? 100 : 80) - neededQicForRange * 25,
                     action: { type: 'build_mine', params: { tileId: tile.id } }
                 });
                 continue;
@@ -319,7 +492,7 @@ export class BotLogic {
                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
                 scored.push({
                     tile,
-                    score: 85,
+                    score: 85 - neededQicForRange * 25,
                     action: { type: 'build_mine', params: { tileId: tile.id } }
                 });
                 continue;
@@ -331,7 +504,7 @@ export class BotLogic {
                 if (stepAction) {
                     scored.push({
                         tile,
-                        score: 70,
+                        score: 70 - neededQicForRange * 25,
                         preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step' } },
                         action: { type: 'build_mine', params: { tileId: tile.id } }
                     });
@@ -345,7 +518,7 @@ export class BotLogic {
                 if (stepAction) {
                     scored.push({
                         tile,
-                        score: 60,
+                        score: 60 - neededQicForRange * 25,
                         preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps' } },
                         action: { type: 'build_mine', params: { tileId: tile.id } }
                     });
@@ -362,7 +535,7 @@ export class BotLogic {
                     if (!usedActions.includes(3)) {
                         scored.push({
                             tile,
-                            score: 65,
+                            score: 65 - neededQicForRange * 25,
                             preAction: { type: 'use_ship_action', params: { shipTileId: tfMarsShip.id, actionIndex: 3 } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -382,7 +555,7 @@ export class BotLogic {
                     const tfScore = tfLevel >= 3 ? 55 : (tfLevel >= 2 ? 40 : 30);
                     scored.push({
                         tile,
-                        score: tfScore - remainingSteps * 5, // 삽 수가 많을수록 감점
+                        score: (tfScore - remainingSteps * 5) - neededQicForRange * 25, // 삽 수가 많을수록 감점
                         action: { type: 'build_mine', params: { tileId: tile.id } }
                     });
                 }
@@ -464,7 +637,8 @@ export class BotLogic {
         const candidates = game.map.filter(t =>
             !t.ownerId && t.structure === null &&
             t.type !== 'space' && t.type !== 'deep_space' &&
-            t.type !== 'transdim' && t.type !== 'asteroid'
+            t.type !== 'transdim' && t.type !== 'asteroid' &&
+            !t.type?.startsWith('ship_')
         );
 
         let bestTile: HexTile | null = null;
@@ -634,7 +808,11 @@ export class BotLogic {
         const homePlanet = faction.homePlanet;
 
         const freeTiles = game.map.filter(t => !t.ownerId && t.structure === null && t.type === homePlanet);
-        if (freeTiles.length === 0) return null;
+        log(`BotLogic DEBUG: playerId=${playerId}, homePlanet=${homePlanet}, freeTiles.length=${freeTiles.length}`, 'game');
+        if (freeTiles.length === 0) {
+            log(`BotLogic DEBUG: NO TILES FOUND! Map example tiles: ${game.map.slice(0, 5).map(t => t.type).join(', ')}`, 'game');
+            return null;
+        }
 
         let bestTile = freeTiles[0];
         let bestScore = -1000;

@@ -186,7 +186,7 @@ export function HexMap() {
                 data-testid={`hex-tile-${tile.id}`}
               >
                 {/* Planet Circle */}
-                {tile.type !== 'space' && tile.type !== 'deep_space' && !tile.type.includes('ship') && (
+                {tile.type !== 'space' && tile.type !== 'deep_space' && (
                   <g>
                     <circle r="3.2" fill="rgba(0,0,0,0.4)" />
                     <circle

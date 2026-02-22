@@ -37,7 +37,10 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-export function log(message: string, source = "express") {
+import fs from "fs";
+import path from "path";
+
+export function log(message: string, source = "express", gameId?: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -45,7 +48,17 @@ export function log(message: string, source = "express") {
     hour12: true,
   });
 
-  console.log(`${formattedTime} [${source}] ${message}`);
+  const logLine = `${formattedTime} [${source}] ${message}`;
+  console.log(logLine);
+
+  if (gameId) {
+    const logDir = path.join(process.cwd(), "logs");
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const logFile = path.join(logDir, `game_${gameId}.log`);
+    fs.appendFileSync(logFile, logLine + "\n");
+  }
 }
 
 app.use((req, res, next) => {

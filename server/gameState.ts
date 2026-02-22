@@ -1,5 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { log } from './index';
 import type {
   GaiaGameState,
@@ -110,6 +112,26 @@ function ensureScoreBreakdown(player: PlayerState): ScoreBreakdown {
   return player.scoreBreakdown;
 }
 
+/** Debug Log: console + file (if game.id exists) */
+export function debugLog(game: { id: string }, message: string, source = "game") {
+  log(message, source, game.id);
+}
+
+export function saveFinalGameState(game: ServerGameState) {
+  try {
+    const logDir = path.join(process.cwd(), "logs");
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const filename = `game_${game.id}_final_state.json`;
+    const filePath = path.join(logDir, filename);
+    fs.writeFileSync(filePath, JSON.stringify(game, null, 2));
+    debugLog(game, `Final game state saved to ${filename}`, 'system');
+  } catch (error) {
+    log(`Failed to save final game state: ${error}`, 'error', game.id);
+  }
+}
+
 function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; source?: string }) {
   const player = game.players[playerId];
   if (!player) return;
@@ -145,7 +167,8 @@ function getShipTechTileIdsForPlayer(game: ServerGameState, playerId: string): s
     const tile = game.map.find(t => t.id === tileId);
     if (tile?.type && byShip[tile.type]) {
       const techId = byShip[tile.type];
-      if (!ids.includes(techId) && !owned.includes(techId)) ids.push(techId);
+      const hasStock = (game.shipTechPool?.[techId] ?? 0) > 0;
+      if (!ids.includes(techId) && !owned.includes(techId) && hasStock) ids.push(techId);
     }
   }
   return ids;
@@ -1315,17 +1338,35 @@ export function setupGameServer(httpServer: HTTPServer) {
         economyVariant: Math.random() < 0.5 ? 'power' : 'vp', // 랜덤으로 경제 트랙 변형 선택
       };
 
-      // Randomize Standard Tech Tiles (트랙당 플레이어 수만큼 = 각 플레이어가 한 번씩 가져갈 수 있음)
-      const numPlayers = game.turnOrder.length;
-      const neededStandard = 6 * numPlayers;
-      const repeatedStandard = Array.from({ length: Math.ceil(neededStandard / ALL_TECH_TILES.length) }, () => [...ALL_TECH_TILES]).flat();
-      const shuffledStandard = repeatedStandard.sort(() => Math.random() - 0.5).slice(0, neededStandard + 3);
+      // Randomize Standard Tech Tiles (9종류를 6트랙 + 3풀에 무작위 배정, 각 4개씩 스택)
       const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+      const allStandardTiles = [...ALL_TECH_TILES].sort(() => Math.random() - 0.5);
 
+      // 6개는 트랙에 배정
       tracks.forEach((track, i) => {
-        game.techTilesByTrack[track] = shuffledStandard.slice(i * numPlayers, (i + 1) * numPlayers);
+        const tileType = allStandardTiles[i];
+        game.techTilesByTrack[track] = Array(4).fill(null).map(() => ({ ...tileType }));
       });
-      game.techTilesPool = shuffledStandard.slice(6 * numPlayers, 6 * numPlayers + 3);
+
+      // 남은 3개는 풀에 배정
+      game.techTilesPool = [];
+      [6, 7, 8].forEach(idx => {
+        const tileType = allStandardTiles[idx];
+        // 4개씩 담기 위해 다차원 배열이나 평탄화된 배열 고민 필요하지만, 기존 getFirstTrackTile이 배열에서 첫 t를 찾는 로직임
+        // techTilesPool은 (TechTile | null)[] 타입이므로 4개씩 밀어넣으면 UI에서 어떻게 보일지 확인 필요
+        // 기존 UI는 Pool 3개를 개별 슬롯으로 그림. 여기서는 3종류를 각각 4개씩 스택으로 관리해야 함.
+        // 하지만 기존 techTilesPool 정의가 (TechTile | null)[] 임. 
+        // 규칙상 풀 타일 3종류도 각각 4개씩이므로, 3 * 4 = 12개의 요소를 넣거나 로직 수정 필요.
+        // 현재 ResearchBoard.tsx:146 에서는 game.techTilesPool?.map(tile, idx)로 그림.
+        // 12개를 넣으면 칸이 너무 많아짐. 3개 타입만 보여주고 수량을 표시하거나 내부적으로만 4개인 것이 좋음.
+        // 일단 UI 호환성을 위해 4개씩 채우되 렌더링은 getFirstTechTilePool 처럼 첫 번째 것만 보여주도록 클라이언트 수정 혹은 서버에서 3개만 유지하고 count 관리.
+        // 하지만 기존 techTilesByTrack은 (TechTile | null)[]로 4개를 다 들고 있음. 
+        // Pool도 동일하게 3종류 * 4개 = 12개로 구성하고 클라이언트에서 중복 제거해서 그리거나, 3개만 넣고 소유권 체크로 퉁칠 수도 있으나
+        // '4개씩 있고 유저별로 1번씩' 이라면 4개 데이터가 살아있는게 안전함.
+        for (let k = 0; k < 4; k++) {
+          game.techTilesPool.push({ ...tileType });
+        }
+      });
 
 
 
@@ -1358,6 +1399,12 @@ export function setupGameServer(httpServer: HTTPServer) {
         ship_rebellion: shuffledShipTech[0],
         ship_tf_mars: shuffledShipTech[1],
         ship_eclipse: shuffledShipTech[2],
+      };
+      // 우주선 전용 기술 타일 풀 수량 초기화 (각 4개)
+      game.shipTechPool = {
+        [shuffledShipTech[0]]: 4,
+        [shuffledShipTech[1]]: 4,
+        [shuffledShipTech[2]]: 4,
       };
 
       // 트왈라잇 인공물: 13종 중 4개 랜덤 배치
@@ -1530,6 +1577,115 @@ export function setupGameServer(httpServer: HTTPServer) {
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
     });
 
+    /** 테스트용 원클릭 자동 세팅 (봇 3개 + 랜덤 팩션 + 게임 시작) */
+    socket.on('auto_setup_test', ({ gameId }) => {
+      const game = games.get(gameId);
+      if (!game) return;
+      const callerId = socketToPlayerMap.get(socket.id);
+      if (callerId !== game.hostId) return;
+      if (game.currentPhase !== 'lobby') return;
+
+      // 1. 봇 3개 추가 (최대 4인)
+      while (Object.keys(game.players).length < 4) {
+        const botId = `bot-${generatePlayerId()}`;
+        const name = `AI Bot ${Object.keys(game.players).length + 1}`;
+        game.players[botId] = createInitialPlayerState(name);
+        game.turnOrder.push(botId);
+        if (!game.botPlayerIds) game.botPlayerIds = [];
+        game.botPlayerIds.push(botId);
+      }
+
+      // 2. 게임 시작 (팩션 선택 단계로 진입)
+      game.currentPhase = 'factionSelect';
+
+      // 3. 모든 플레이어에게 랜덤 팩션 및 턴 순서 배정 (무작위성 확보)
+      const playerIds = Object.keys(game.players);
+      const shuffledPlayerIds = [...playerIds].sort(() => Math.random() - 0.5);
+      const shuffledFactions = [...FACTIONS].sort(() => Math.random() - 0.5);
+
+      const usedColors = new Set<string>();
+      const usedFactionIds = new Set<string>();
+
+      // 배치 도중 봇 턴이 중복 실행되지 않도록 락을 건 상태로 일괄 작업
+      game.isBotExecuting = true;
+      try {
+        // 1단계: 이미 팩션을 가진 플레이어(주로 사람)의 팩션 선점
+        playerIds.forEach(pid => {
+          const p = game.players[pid];
+          if (p.faction) {
+            usedFactionIds.add(p.faction);
+            const f = FACTIONS.find(fac => fac.id === p.faction);
+            if (f) usedColors.add(f.color);
+          }
+        });
+
+        let factionIdx = 0;
+        shuffledPlayerIds.forEach((pid, idx) => {
+          const player = game.players[pid];
+
+          // 이미 팩션이 있는 경우 (유저가 선택함), 턴 순서만 새로 배정하여 executeSelectFaction 호출
+          if (player.faction) {
+            executeSelectFaction(io, game, pid, player.faction, idx + 1);
+            return;
+          }
+
+          // 중복되지 않는 컬러/팩션을 가진 팩션 찾기
+          while (factionIdx < shuffledFactions.length) {
+            const f = shuffledFactions[factionIdx++];
+            if (!usedColors.has(f.color) && !usedFactionIds.has(f.id)) {
+              usedColors.add(f.color);
+              usedFactionIds.add(f.id);
+              executeSelectFaction(io, game, pid, f.id, idx + 1);
+              break;
+            }
+          }
+        });
+
+        // 배정 결과 요약 로그
+        const summary = Object.entries(game.players).map(([id, p]: [string, any]) => `${p.name}(${p.faction}) order:${p.selectedTurnOrder}`).join(', ');
+        log(`Auto setup assignments: ${summary}`, 'game');
+
+        // 4. 상태 점검 및 봇 턴 실행 (executeSelectFaction 내에서 이미 startingMines 단계로 진입했을 것임)
+        log(`Current Phase after setup: ${game.currentPhase}`, 'game');
+
+        // 만약 executeSelectFaction 내에서 단계 전환이 안 일어났을 경우를 대비한 보장 로직
+        if (game.currentPhase === 'factionSelect') {
+          game.currentPhase = 'startingMines';
+          (game as any).startingMineSequence = buildStartingMineSequence(game);
+        }
+
+        // 광산 배치 순서 확인/초기화 (이미 executeSelectFaction에서 했을 수 있지만 보강)
+        if (game.currentPhase === 'startingMines' && !(game as any).startingMineSequence) {
+          (game as any).startingMineSequence = buildStartingMineSequence(game);
+        }
+
+        // 모웨이드/팅커로이드 3테라포밍 땅 설정 (start_game 로직 복사)
+        const playerList = Object.values(game.players);
+        const moweyipPlayer = playerList.find(p => p.faction === 'moweyip');
+        const tinkeroidsPlayer = playerList.find(p => p.faction === 'tinkeroids');
+
+        if (moweyipPlayer) {
+          const otherHomes = playerList.filter(p => p.faction && p.faction !== 'moweyip').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
+          game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+        }
+        if (tinkeroidsPlayer) {
+          const otherHomes = playerList.filter(p => p.faction && p.faction !== 'tinkeroids').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
+          game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+        }
+
+        log(`Auto setup test completed for game ${gameId}. Current Phase: ${game.currentPhase}`, 'game');
+        clampPlayerResources(game);
+        io.to(gameId).emit('game_updated', game);
+      } finally {
+        game.isBotExecuting = false;
+      }
+
+      // 모든 세팅이 안정된 후 단 한 번 봇 턴 실행 트리거
+      executeBotTurnIfNeeded(io, game).catch(err => {
+        log(`Bot turn execution error (auto_setup_test): ${err}`, 'error');
+      });
+    });
+
     socket.on('debug_set_resources', ({ gameId, resources }) => {
       const game = games.get(gameId);
       if (!game || !game.isTestMode) return;
@@ -1639,6 +1795,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 
         case 'gaia_project':
           // 가이아 프로젝트 = TF Mars 2번과 동일 (Transdim에 가이아포머 배치 또는 건너뛰기)
+          if (getEffectiveGaiaformers(player) < 1) {
+            socket.emit('game_error', { message: '사용 가능한 가이아포머가 없습니다.' });
+            return;
+          }
           player.usedBonusAction = true;
           game.pendingTFMarsGaiaProject = { playerId, shipTileId: 'bonus-gaia' };
           game.hasDoneMainAction = true;
@@ -1728,14 +1888,19 @@ export function setupGameServer(httpServer: HTTPServer) {
         else player.power3 = p3 - 1;
       }
 
-      // 잠금 해제 비용: 첫 입장 시 5 VP (거리 통과 후 적용)
+      // 잠금 해제 비용: 첫 입장 시 5 VP (발타크는 7 VP) (거리 통과 후 적용)
       if (!shipState.unlocked) {
-        if (player.score < 5) return;
-        addScore(game, playerId, -5, 'other', { source: '우주선 잠금해제' });
+        const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
+        if ((player.score || 0) < unlockCost) {
+          io.to(gameId).emit('game_error', { message: `우주선 잠금해제에 ${unlockCost} VP가 필요합니다.` });
+          return;
+        }
+        addScore(game, playerId, -unlockCost, 'other', { source: '우주선 잠금해제' });
         shipState.unlocked = true;
-        addGameLog(game, playerId, 'Unlocked & Entered Ship', `-5 VP (${tile.type})`, tileId);
+        addGameLog(game, playerId, 'Unlocked & Entered Ship', `-${unlockCost} VP (${tile.type})`, tileId);
       }
 
+      shipState.occupants = shipState.occupants || [];
       shipState.occupants.push(playerId);
       if (!player.spaceshipsEntered) player.spaceshipsEntered = [];
       player.spaceshipsEntered.push(tileId);
@@ -1892,6 +2057,10 @@ export function setupGameServer(httpServer: HTTPServer) {
         }
         if (actionIndex === 2) {
           if (player.power3 < 2) return; // 3그릇 2pw = 5 from bowl 3
+          if (getEffectiveGaiaformers(player) < 1) {
+            socket.emit('game_error', { message: '사용 가능한 가이아포머가 없습니다.' });
+            return;
+          }
           player.power3 -= 2;
           player.power1 += 2;
           shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
@@ -2482,8 +2651,21 @@ export function setupGameServer(httpServer: HTTPServer) {
       const techTile = ALL_TECH_TILES.find(t => t.id === techTileId) || SHIP_TECH_TILES.find(t => t.id === techTileId);
       if (!techTile) return;
 
+      // 이미 해당 종류의 기술 타일을 가지고 있다면 획득 불가
+      if (player.techTiles.includes(techTileId)) {
+        log(`Player ${player.name} already owns tech tile ${techTileId}. Cannot gain again.`, 'game');
+        return;
+      }
+
       // 우주선 전용 기술 타일 선택 (3개 중 1개) — 획득 후 하단 풀 3개처럼 6개 트랙 중 원하는 트랙 1칸 진행
       if (isShipTech && SHIP_TECH_TILES.some(t => t.id === techTileId)) {
+        // 수량 확인 및 차감
+        if (!game.shipTechPool || (game.shipTechPool[techTileId] ?? 0) <= 0) {
+          log(`Ship Tech Tile ${techTileId} is out of stock.`, 'game');
+          return;
+        }
+        game.shipTechPool[techTileId]--;
+
         if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
         if (techTileId === 'ship-tech-nav+1') {
           player.navigationBonus = (player.navigationBonus || 0) + 1;
@@ -3787,14 +3969,23 @@ export function setupGameServer(httpServer: HTTPServer) {
     });
 
     socket.on('select_income_item', ({ gameId, itemId }) => {
-      const game = games.get(gameId); if (!game) return;
-      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+      console.log(`[DEBUG_INCOME] Received select_income_item: gameId=${gameId}, itemId=${itemId}`);
+      const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
+      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
 
-      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
+      console.log(`[DEBUG_INCOME] Processing for player: ${playerId}, current pending: ${game.pendingIncomeOrder?.playerId}`);
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) {
+        console.log(`[DEBUG_INCOME] Authorization failed or no pending order. pendingOrder:`, game.pendingIncomeOrder);
+        return;
+      }
       const targetPlayerId = game.pendingIncomeOrder.playerId;
       const player = game.players[targetPlayerId];
-      const item = game.pendingIncomeOrder.incomeItems.find(i => i.id === itemId);
-      if (!item) return;
+      const itemsList = game.pendingIncomeOrder.incomeItems;
+      const item = itemsList.find(i => i.id === itemId);
+      if (!item) {
+        console.log(`[DEBUG_INCOME] Item not found: ${itemId}. Available items:`, itemsList.map(i => i.id));
+        return;
+      }
 
       // Undo용: 적용 직전 파워 스냅샷 저장
       const snap = { p1: player.power1 ?? 0, p2: player.power2 ?? 0, p3: player.power3 ?? 0 };
@@ -3818,9 +4009,13 @@ export function setupGameServer(httpServer: HTTPServer) {
     /** 수익 항목 전부 한 번에 받기: 파워는 1그릇 추가 후 charge(amount), 토큰은 1그릇에만 추가. 적용 직전마다 스냅샷 저장 → Undo 시 복원 */
     /** 수익 항목 전부 한 번에 받기: 파워 토큰/충전 순서 최적화 시뮬레이션 적용 */
     socket.on('select_all_income_items', ({ gameId }) => {
-      const game = games.get(gameId); if (!game) return;
-      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
+      console.log(`[DEBUG_INCOME] Received select_all_income_items: gameId=${gameId}`);
+      const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
+      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) {
+        console.log(`[DEBUG_INCOME] Auto-select Auth failed. pendingOrder:`, game.pendingIncomeOrder);
+        return;
+      }
       const targetPlayerId = game.pendingIncomeOrder.playerId;
       const player = game.players[targetPlayerId];
       const items = [...game.pendingIncomeOrder.incomeItems];
@@ -3979,11 +4174,16 @@ export function setupGameServer(httpServer: HTTPServer) {
     });
 
     socket.on('finish_income_selection', ({ gameId }) => {
-      const game = games.get(gameId); if (!game) return;
-      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+      console.log(`[DEBUG_INCOME] Received finish_income_selection: gameId=${gameId}`);
+      const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
+      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
 
-      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) {
+        console.log(`[DEBUG_INCOME] Finish Auth failed. pendingOrder:`, game.pendingIncomeOrder);
+        return;
+      }
       if (game.pendingIncomeOrder.incomeItems.length > 0) {
+        console.log(`[DEBUG_INCOME] Finish failed: remaining items:`, game.pendingIncomeOrder.incomeItems.length);
         log(`Player ${playerId} tried to finish but has remaining income items`, 'game');
         return; // 아직 남은 아이템이 있으면 완료 불가
       }
@@ -4156,26 +4356,54 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
 }
 
 export function executeBuildMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, useGaiaformer?: boolean): boolean {
-  if (!game || game.hasDoneMainAction) return false;
-  if (game.currentPhase !== 'main') return false;
+  if (!game) {
+    log(`executeBuildMine failed: Game state is null`, 'error');
+    return false;
+  }
+  if (game.hasDoneMainAction) {
+    debugLog(game, `executeBuildMine failed: Player ${playerId} has already done a main action`, 'error');
+    return false;
+  }
+  if (game.currentPhase !== 'main') {
+    debugLog(game, `executeBuildMine failed: Current phase is ${game.currentPhase}, expected 'main'`, 'error');
+    return false;
+  }
 
   // Note: playerId is passed as argument, so we check if it matches current player
-  if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+  if (game.turnOrder[game.currentPlayerIndex] !== playerId) {
+    debugLog(game, `executeBuildMine failed: Not Player ${playerId}'s turn (Current: ${game.turnOrder[game.currentPlayerIndex]})`, 'error');
+    return false;
+  }
 
   saveActionStartState(game, playerId);
 
   const player = game.players[playerId];
   const tile = game.map.find(t => t.id === tileId);
-  if (!tile) return false;
+  if (!tile) {
+    debugLog(game, `executeBuildMine failed: Tile ${tileId} not found`, 'error');
+    return false;
+  }
   const faction = FACTIONS.find(f => f.id === player.faction);
-  if (!faction) return false;
+  if (!faction) {
+    debugLog(game, `executeBuildMine failed: Faction not found for player ${playerId}`, 'error');
+    return false;
+  }
 
   // Spaceship Fed Mine
   if (game.pendingSpaceshipFedMine?.playerId === playerId) {
     const unbuildable = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
-    if (unbuildable.includes(tile.type) || tile.structure !== null) return false;
-    if (tile.type === 'asteroid') return false;
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+    if (unbuildable.includes(tile.type) || tile.structure !== null) {
+      debugLog(game, `executeBuildMine failed (Spaceship Fed): Tile ${tileId} is unbuildable (${tile.type}) or has structure (${tile.structure})`, 'error');
+      return false;
+    }
+    if (tile.type === 'asteroid') {
+      debugLog(game, `executeBuildMine failed (Spaceship Fed): Cannot build on asteroid directly`, 'error');
+      return false;
+    }
+    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+      debugLog(game, `executeBuildMine failed (Spaceship Fed): Mine limit reached`, 'error');
+      return false;
+    }
     game.pendingSpaceshipFedMine = null;
     const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
     const rm7Qualify = qualifiesForNewSectorRoundMission(game, playerId, tileId);
@@ -4197,18 +4425,30 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   // Lantids Parasitic
   if (player.faction === 'lantids' && tile.structure != null && tile.ownerId !== playerId && tile.ownerId != null && !tile.parasiticMine) {
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+      debugLog(game, `executeBuildMine failed (Lantida): Mine limit reached`, 'error');
+      return false;
+    }
     const mineOre = freeMine ? 0 : 1, mineCredits = freeMine ? 0 : 2;
-    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) return false;
+    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) {
+      debugLog(game, `executeBuildMine failed (Lantida): Insufficient resources (Ore: ${player.ore}/${mineOre}, Credits: ${player.credits}/${mineCredits})`, 'error');
+      return false;
+    }
     const playerTiles = game.map.filter(t => (t.ownerId === playerId || t.parasiticMine?.ownerId === playerId) && (t.structure != null || t.parasiticMine));
-    if (playerTiles.length === 0) return false;
+    if (playerTiles.length === 0) {
+      debugLog(game, `executeBuildMine failed (Lantida): No existing structures for range calculation`, 'error');
+      return false;
+    }
     let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
     if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
     if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
     if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
     const minDist = Math.min(...playerTiles.map(t => getDistance(t, tile)));
     const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-    if ((player.qic ?? 0) < neededQIC) return false;
+    if ((player.qic ?? 0) < neededQIC) {
+      debugLog(game, `executeBuildMine failed (Lantida): Insufficient QIC (QIC: ${player.qic}/${neededQIC}, Dist: ${minDist}, Range: ${baseRange})`, 'error');
+      return false;
+    }
     player.ore = (player.ore ?? 0) - mineOre;
     player.credits = (player.credits ?? 0) - mineCredits;
     player.qic = (player.qic ?? 0) - neededQIC;
@@ -4230,14 +4470,20 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     return true;
   }
 
-  if (tile.structure !== null) return false;
+  if (tile.structure !== null) {
+    debugLog(game, `executeBuildMine failed: Tile ${tileId} already has structure ${tile.structure}`, 'error');
+    return false;
+  }
   if (freeMine) {
     player.nextMineFreeFromShipTech = false;
     if (player.spaceshipFed3TfMineFree) player.spaceshipFed3TfMineFree = false;
   }
 
   const unbuildableTypes = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
-  if (unbuildableTypes.includes(tile.type)) return false;
+  if (unbuildableTypes.includes(tile.type)) {
+    debugLog(game, `executeBuildMine failed: Tile ${tileId} type ${tile.type} is unbuildable`, 'error');
+    return false;
+  }
 
   // Asteroid
   if (tile.type === 'asteroid') {
@@ -4246,12 +4492,24 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
     if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
     const rangeTiles = getPlayerRangeTiles(game, playerId);
-    if (rangeTiles.length === 0) return false;
+    if (rangeTiles.length === 0) {
+      debugLog(game, `executeBuildMine failed (Asteroid): No starting tiles for range calculation`, 'error');
+      return false;
+    }
     const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
     const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
-    if (getEffectiveGaiaformers(player) <= 0) return false;
-    if ((player.qic ?? 0) < neededQIC) return false;
+    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+      debugLog(game, `executeBuildMine failed (Asteroid): Mine limit reached`, 'error');
+      return false;
+    }
+    if (getEffectiveGaiaformers(player) <= 0) {
+      debugLog(game, `executeBuildMine failed (Asteroid): No available Gaiaformers`, 'error');
+      return false;
+    }
+    if ((player.qic ?? 0) < neededQIC) {
+      debugLog(game, `executeBuildMine failed (Asteroid): Insufficient QIC (QIC: ${player.qic}/${neededQIC}, Dist: ${minDist}, Range: ${baseRange})`, 'error');
+      return false;
+    }
 
     player.gaiaformers = Math.max(0, (player.gaiaformers || 0) - 1);
     player.qic = (player.qic ?? 0) - neededQIC;
@@ -4273,9 +4531,15 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   // Gaia Planet (Matured)
   if (tile.type === 'gaia' && player.pendingGaiaformerTiles?.includes(tileId)) {
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+      debugLog(game, `executeBuildMine failed (Gaia Matured): Mine limit reached`, 'error');
+      return false;
+    }
     const mineOre = freeMine ? 0 : 1, mineCredits = freeMine ? 0 : 2;
-    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) return false;
+    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) {
+      debugLog(game, `executeBuildMine failed (Gaia Matured): Insufficient resources (Ore: ${player.ore}/${mineOre}, Credits: ${player.credits}/${mineCredits})`, 'error');
+      return false;
+    }
     player.ore = (player.ore ?? 0) - mineOre;
     player.credits = (player.credits ?? 0) - mineCredits;
     player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
@@ -4299,14 +4563,26 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   // Transdim + Gaiaformer
   if (tile.type === 'transdim') {
-    if (!tile.hasGaiaformer) return false;
+    if (!tile.hasGaiaformer) {
+      debugLog(game, `executeBuildMine failed (Transdim): Tile ${tileId} does not have a Gaiaformer`, 'error');
+      return false;
+    }
     // We only allow if it was matured (usually handled by gaia type check above, but keeping for safety if type didn't change yet)
     // Actually original code checked pendingGaiaformerTiles.
-    if (!player.pendingGaiaformerTiles?.includes(tileId)) return false;
+    if (!player.pendingGaiaformerTiles?.includes(tileId)) {
+      debugLog(game, `executeBuildMine failed (Transdim): Gaiaformer on ${tileId} is not matured`, 'error');
+      return false;
+    }
 
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+      debugLog(game, `executeBuildMine failed (Transdim): Mine limit reached`, 'error');
+      return false;
+    }
     const mineOre = freeMine ? 0 : 1, mineCredits = freeMine ? 0 : 2;
-    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) return false;
+    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) {
+      debugLog(game, `executeBuildMine failed (Transdim): Insufficient resources (Ore: ${player.ore}/${mineOre}, Credits: ${player.credits}/${mineCredits})`, 'error');
+      return false;
+    }
     player.ore = (player.ore ?? 0) - mineOre;
     player.credits = (player.credits ?? 0) - mineCredits;
     player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
@@ -4335,7 +4611,10 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
   if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
   const rangeTiles = getPlayerRangeTiles(game, playerId);
-  if (rangeTiles.length === 0) return false;
+  if (rangeTiles.length === 0) {
+    debugLog(game, `executeBuildMine failed (Standard): No starting tiles for range calculation`, 'error');
+    return false;
+  }
 
   const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
   const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
@@ -4346,15 +4625,24 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   const standardMineOre = freeMine ? 0 : 1, standardMineCredits = freeMine ? 0 : 2;
 
   if (tile.type === 'gaia') {
-    const gaiaBaseQic = 1;
     const isGleens = player.faction === 'gleens';
-    const useOreForGaia = isGleens && (player.ore ?? 0) >= (standardMineOre + 1) && (player.credits ?? 0) >= standardMineCredits && (player.qic ?? 0) >= neededQIC;
-    const useQicForGaia = (player.ore ?? 0) >= standardMineOre && (player.credits ?? 0) >= standardMineCredits && (player.qic ?? 0) >= (neededQIC + gaiaBaseQic);
-    if (!useOreForGaia && !useQicForGaia) return false;
-    if (useOreForGaia) {
-      player.ore = (player.ore ?? 0) - (standardMineOre + 1); player.credits = (player.credits ?? 0) - standardMineCredits; player.qic = (player.qic ?? 0) - neededQIC;
+    if (isGleens) {
+      if ((player.ore ?? 0) < (standardMineOre + 1) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
+        debugLog(game, `executeBuildMine failed (Gleens Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre + 1}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
+        return false;
+      }
+      player.ore = (player.ore ?? 0) - (standardMineOre + 1);
+      player.credits = (player.credits ?? 0) - standardMineCredits;
+      player.qic = (player.qic ?? 0) - neededQIC;
     } else {
-      player.ore = (player.ore ?? 0) - standardMineOre; player.credits = (player.credits ?? 0) - standardMineCredits; player.qic = (player.qic ?? 0) - (neededQIC + gaiaBaseQic);
+      const gaiaBaseQic = 1;
+      if ((player.ore ?? 0) < standardMineOre || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < (neededQIC + gaiaBaseQic)) {
+        debugLog(game, `executeBuildMine failed (Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC + gaiaBaseQic})`, 'error');
+        return false;
+      }
+      player.ore = (player.ore ?? 0) - standardMineOre;
+      player.credits = (player.credits ?? 0) - standardMineCredits;
+      player.qic = (player.qic ?? 0) - (neededQIC + gaiaBaseQic);
     }
     terraformSteps = 0;
   } else {
@@ -4363,12 +4651,18 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     const actualSteps = terraformSteps - discountSteps;
     terraformCost = player.spaceshipFed3TfMineFree ? 0 : actualSteps * getTerraformCost(player.research.terraforming);
 
-    if ((player.ore ?? 0) < (terraformCost + standardMineOre) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) return false;
+    if ((player.ore ?? 0) < (terraformCost + standardMineOre) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
+      debugLog(game, `executeBuildMine failed (Standard): Insufficient resources (Ore: ${player.ore}/${terraformCost + standardMineOre}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
+      return false;
+    }
     player.ore = (player.ore ?? 0) - (terraformCost + standardMineOre); player.credits = (player.credits ?? 0) - standardMineCredits; player.qic = (player.qic ?? 0) - neededQIC;
     player.pendingTerraformSteps = Math.max(0, pendingTerraformSteps - discountSteps);
   }
 
-  if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+  if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+    debugLog(game, `executeBuildMine failed (Standard): Mine limit reached`, 'error');
+    return false;
+  }
   const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
   const hadStructureInThisSector = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector === tile.sector);
   const hadStructureInOuter = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector >= 20 && t.sector < 30);
@@ -4639,6 +4933,21 @@ export function executeSelectFaction(
           }
         }
       });
+    }
+
+    // Moweyip start with TF Mars ship occupied
+    if (factionId === 'moweyip') {
+      const tfMarsTile = game.map.find(t => t.type === 'ship_tf_mars');
+      if (tfMarsTile && game.spaceships?.[tfMarsTile.id]) {
+        if (!game.spaceships[tfMarsTile.id].occupants.includes(playerId)) {
+          game.spaceships[tfMarsTile.id].occupants.push(playerId);
+          if (!player.spaceshipsEntered) player.spaceshipsEntered = [];
+          if (!player.spaceshipsEntered.includes(tfMarsTile.id)) {
+            player.spaceshipsEntered.push(tfMarsTile.id);
+          }
+          log(`Moweyip player ${player.name} startingly occupied ${tfMarsTile.id} (TF Mars)`, 'game');
+        }
+      }
     }
   }
 
@@ -5019,6 +5328,7 @@ export function executePassRound(
       }
       for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
       game.currentPhase = 'gameEnd';
+      saveFinalGameState(game);
       clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
       return true;
     }
@@ -5188,16 +5498,39 @@ export function executeUsePowerAction(
   io: SocketIOServer, game: ServerGameState,
   playerId: string, actionId: string
 ): boolean {
-  if (!game || game.hasDoneMainAction) return false;
+  if (!game) {
+    log(`executeUsePowerAction failed: Game state is null`, 'error');
+    return false;
+  }
+  if (game.hasDoneMainAction) {
+    debugLog(game, `executeUsePowerAction failed: Player ${playerId} has already done a main action`, 'error');
+    return false;
+  }
   const action = game.powerActions.find(a => a.id === actionId);
-  if (!action || action.isUsed) return false;
-  if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+  if (!action) {
+    debugLog(game, `executeUsePowerAction failed: Action ${actionId} not found`, 'error');
+    return false;
+  }
+  if (action.isUsed) {
+    debugLog(game, `executeUsePowerAction failed: Action ${actionId} is already used`, 'error');
+    return false;
+  }
+  if (game.turnOrder[game.currentPlayerIndex] !== playerId) {
+    debugLog(game, `executeUsePowerAction failed: Not Player ${playerId}'s turn (Current: ${game.turnOrder[game.currentPlayerIndex]})`, 'error');
+    return false;
+  }
 
   const player = game.players[playerId];
   const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
   const powerCost = action.costType === 'power' ? (hasNevlasPI ? Math.ceil(action.cost as number / 2) : action.cost as number) : 0;
-  if (action.costType === 'power' && (player.power3 ?? 0) < powerCost) return false;
-  if (action.costType === 'qic' && (player.qic ?? 0) < action.cost) return false;
+  if (action.costType === 'power' && (player.power3 ?? 0) < powerCost) {
+    debugLog(game, `executeUsePowerAction failed: Insufficient Power 3 (Required: ${powerCost}, Current: ${player.power3})`, 'error');
+    return false;
+  }
+  if (action.costType === 'qic' && (player.qic ?? 0) < action.cost) {
+    debugLog(game, `executeUsePowerAction failed: Insufficient QIC (Required: ${action.cost}, Current: ${player.qic})`, 'error');
+    return false;
+  }
 
   if (action.costType === 'power') {
     player.power3 = (player.power3 ?? 0) - powerCost;
