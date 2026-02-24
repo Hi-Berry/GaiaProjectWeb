@@ -218,29 +218,9 @@ export default function Game() {
     if (game && playerId && game.hostId === playerId) isHostSessionRef.current = true;
   }, [game?.hostId, playerId]);
 
-  // 한 컴퓨터 4인플: game 상태가 바뀔 때마다 조작 플레이어 자동 전환. UI는 즉시 전환하고, 서버 rejoin은 백그라운드로만 호출(응답으로 setGame 하지 않음).
+  // 한 컴퓨터 4인플: 방장일지라도 리소스 고정을 위해 조작 플레이어 자동 전환 비활성화
   useEffect(() => {
-    if (!gameId || !game || game.currentPhase === 'lobby' || !isHostSessionRef.current) return;
-    const turnOrder = game.turnOrder ?? [];
-    const isFactionPhase = game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect';
-    const someoneWithoutFaction = isFactionPhase && turnOrder.some((pid) => !game.players[pid]?.faction);
-    let targetPlayerId: string | null = null;
-    if (someoneWithoutFaction) {
-      const cur = game.players[playerId ?? ''];
-      if (cur?.faction) {
-        const nextNoFaction = turnOrder.find((pid) => !game.players[pid]?.faction);
-        if (nextNoFaction && nextNoFaction !== playerId) targetPlayerId = nextNoFaction;
-      }
-      if (!targetPlayerId) return;
-    } else {
-      const currentTurnPlayer = turnOrder[game.currentPlayerIndex];
-      if (!currentTurnPlayer || currentTurnPlayer === playerId) return;
-      targetPlayerId = currentTurnPlayer;
-    }
-    if (!targetPlayerId) return;
-    setPlayerId(targetPlayerId);
-    storePlayerId(gameId, targetPlayerId);
-    GameClient.switchPlayer(gameId, targetPlayerId).catch(() => { });
+    // UI 고정 요청에 따라, 현재 턴 플레이어로 자동 전환되지 않게 함
   }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.players, playerId]);
 
   useEffect(() => {
@@ -2249,20 +2229,20 @@ export default function Game() {
                   <span>K <span className="text-blue-400 font-medium">{p.knowledge ?? 0}</span></span>
                   <span>C <span className="text-yellow-500 font-medium">{p.credits ?? 0}</span></span>
                   <span>Q <span className="text-green-400 font-medium">{p.qic ?? 0}</span></span>
-                  <span className="col-span-4">
-                    포머 <span className="text-teal-300 font-medium">{p.gaiaformers ?? 0}</span>
-                    <span className="mx-1">G:<span className="text-emerald-400">{p.gaiaformerPower ?? 0}</span></span>
-                    I:<span className="text-blue-400">{p.power1 ?? 0}</span> II:<span className="text-cyan-400">{p.power2 ?? 0}</span> III:<span className="text-amber-400">{p.power3 ?? 0}</span>
-                  </span>
+                  <div className="col-span-4 flex items-center justify-between border-t border-white/10 pt-1 mt-0.5">
+                    <div className="flex gap-2">
+                      <span title="가이아포머" className="text-[10px] bg-teal-900/40 border border-teal-500/30 text-teal-300 px-1.5 py-0.5 rounded flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-teal-400" />포머 {p.gaiaformers ?? 0}</span>
+                      <span title="가이아 구역 파워" className="text-[10px] bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />G: {p.gaiaformerPower ?? 0}</span>
+                    </div>
+                    <div className="flex bg-black/40 rounded p-0.5 px-1 border border-white/10 gap-1.5 items-center" title="파워 1/2/3 그릇">
+                      <span className="text-blue-400 font-bold bg-blue-500/10 px-1.5 py-0.5 rounded-sm text-[10px]">I: {p.power1 ?? 0}</span>
+                      <span className="text-cyan-400 font-bold bg-cyan-500/10 px-1.5 py-0.5 rounded-sm text-[10px]">II: {p.power2 ?? 0}</span>
+                      <span className="text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded-sm text-[10px]">III: {p.power3 ?? 0}</span>
+                    </div>
+                  </div>
                 </div>
                 {expanded && (
                   <div className="px-2.5 pb-3 pt-1 border-t border-white/5 space-y-2 text-[10px]">
-                    {p.faction && (
-                      <div>
-                        <span className="text-muted-foreground">종족 </span>
-                        <Badge variant="outline" className="text-[9px] py-0">{p.faction}</Badge>
-                      </div>
-                    )}
                     {fedEntries.length > 0 && (
                       <div>
                         <span className="text-muted-foreground font-medium">연방 </span>

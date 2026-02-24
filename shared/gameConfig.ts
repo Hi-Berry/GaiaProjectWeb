@@ -388,6 +388,8 @@ export interface GaiaGameState {
   availableShipTechTileIds?: string[];
   /** 게임마다 랜덤: 우주선 타입 → 우주선 전용 기술 타일 ID (없으면 SHIP_TECH_BY_SHIP 사용) */
   shipTechByShip?: Record<string, string>;
+  /** 우주선 전용 기술 타일 수량 풀: techId -> 남은 수량 (각 4개씩) */
+  shipTechPool?: Record<string, number>;
   pendingIncomeOrder?: {
     playerId: string;
     incomeItems: Array<{ type: 'power' | 'tokens'; amount: number; id: string }>;
@@ -1281,14 +1283,23 @@ export function generateMap(): HexTile[] {
   const remainingOthers = [...others].sort(() => Math.random() - 0.5);
 
   for (const shipType of ships) {
-    for (let i = 0; i < availableCoords.length; i++) {
-      const coord = availableCoords[i];
-      const isFarEnough = shipPlacements.every(p => getDistance(p, coord) > 3);
-      if (isFarEnough) {
-        shipPlacements.push({ ...coord, type: shipType });
-        availableCoords.splice(i, 1);
-        break;
+    let placed = false;
+    // Try decreasing distance constraints until placed
+    for (let minDist = 3; minDist >= 0; minDist--) {
+      const shuffledCoords = [...availableCoords].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < shuffledCoords.length; i++) {
+        const coord = shuffledCoords[i];
+        const isFarEnough = shipPlacements.every(p => getDistance(p, coord) > minDist);
+        if (isFarEnough) {
+          shipPlacements.push({ ...coord, type: shipType });
+          // Find the index in the original availableCoords and remove it
+          const originalIdx = availableCoords.findIndex(c => c.q === coord.q && c.r === coord.r);
+          availableCoords.splice(originalIdx, 1);
+          placed = true;
+          break;
+        }
       }
+      if (placed) break;
     }
   }
 
