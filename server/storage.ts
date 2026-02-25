@@ -131,7 +131,8 @@ export class MemStorage implements IStorage {
       researchAI: player.researchAI ?? 0,
       researchGaia: player.researchGaia ?? 0,
       researchEconomy: player.researchEconomy ?? 0,
-      researchScience: player.researchScience ?? 0
+      researchScience: player.researchScience ?? 0,
+      destroyedGaiaformers: player.destroyedGaiaformers ?? 0
     };
     this.players.set(id, newPlayer);
     return newPlayer;

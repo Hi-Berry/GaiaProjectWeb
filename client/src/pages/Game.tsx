@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -575,7 +575,11 @@ export default function Game() {
         let needsExtraTerraforming = false;
 
         if (tile.type === 'gaia') {
-          qicCost += 1;
+          if (faction.id === 'gleens') {
+            oreCost += 1;
+          } else {
+            qicCost += getGaiaBaseQic(faction.id);
+          }
         } else {
           if (tile.type === 'proto' && faction.homePlanet === 'proto') {
             oreCost = 1;
@@ -2019,7 +2023,7 @@ export default function Game() {
       <div className="w-64 border-l border-border bg-card p-4 flex flex-col overflow-y-auto">
         {/* Confirmation Overlay - Ultra-slim horizontal layout at top-20 with smooth drop-down */}
         <AnimatePresence>
-          {pendingAction && (
+          {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId)) && (
             <motion.div
               initial={{ y: -50, x: '-50%', opacity: 0 }}
               animate={{ y: 0, x: '-50%', opacity: 1 }}
@@ -2030,68 +2034,80 @@ export default function Game() {
               {/* Title & Costs (Left Side) */}
               <div className="flex items-center gap-3 border-r border-white/10 pr-4">
                 <div className="flex flex-col shrink-0 mr-2">
-                  <h3 className="text-yellow-500 font-black uppercase tracking-tighter text-[9px] leading-none">Confirm Action</h3>
+                  <h3 className="text-yellow-500 font-black uppercase tracking-tighter text-[9px] leading-none">
+                    {pendingAction ? 'Confirm Action' : 'Turn Management'}
+                  </h3>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  {cost?.ore && (
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-base font-black leading-none ${cost.needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>{cost.ore}</span>
-                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Ore</span>
-                      {cost.terraformSteps && cost.terraformSteps > 0 && (
-                        <span className="text-[8px] text-zinc-400">({cost.terraformSteps}st)</span>
+                  {pendingAction ? (
+                    <div className="flex items-center gap-3">
+                      {(cost as any)?.ore && (
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-base font-black leading-none ${(cost as any).needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>{(cost as any).ore}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Ore</span>
+                          {(cost as any).terraformSteps && (cost as any).terraformSteps > 0 && (
+                            <span className="text-[8px] text-zinc-400">({(cost as any).terraformSteps}st)</span>
+                          )}
+                        </div>
+                      )}
+                      {(cost as any)?.credits && (cost as any).credits > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base font-black text-yellow-500 leading-none">{(cost as any).credits}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Cr</span>
+                        </div>
+                      )}
+                      {(cost as any)?.gaiaformers && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base font-black text-cyan-500 leading-none">{(cost as any).gaiaformers}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Gf</span>
+                        </div>
+                      )}
+                      {(cost as any)?.knowledge && (cost as any).knowledge > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base font-black text-blue-500 leading-none">{(cost as any).knowledge}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Kn</span>
+                        </div>
+                      )}
+                      {(cost as any)?.qic && (cost as any).qic > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base font-black text-green-500 leading-none">{(cost as any).qic}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">QIC</span>
+                        </div>
                       )}
                     </div>
-                  )}
-                  {cost?.credits && cost.credits > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base font-black text-yellow-500 leading-none">{cost.credits}</span>
-                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Cr</span>
-                    </div>
-                  )}
-                  {cost?.gaiaformers && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base font-black text-cyan-500 leading-none">{cost.gaiaformers}</span>
-                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Gf</span>
-                    </div>
-                  )}
-                  {cost?.knowledge && cost.knowledge > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base font-black text-blue-500 leading-none">{cost.knowledge}</span>
-                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Kn</span>
-                    </div>
-                  )}
-                  {cost?.qic && cost.qic > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base font-black text-green-500 leading-none">{cost.qic}</span>
-                      <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">QIC</span>
-                    </div>
+                  ) : (
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Main Action Done</span>
                   )}
                 </div>
               </div>
 
               {/* Action Buttons (Right Side) */}
               <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-3 border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-tight"
-                  onClick={() => setPendingAction(null)}
-                >
-                  Undo
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-7 px-4 bg-yellow-500 text-black hover:bg-yellow-400 text-[10px] font-black uppercase tracking-tight shadow-lg"
-                  onClick={handleConfirm}
-                >
-                  Confirm
-                </Button>
-
-                {/* Reset/End Turn (Integrated inside slim bar) */}
-                {game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (
+                {pendingAction && (
                   <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-3 border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-tight"
+                      onClick={() => setPendingAction(null)}
+                    >
+                      Undo
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 px-4 bg-yellow-500 text-black hover:bg-yellow-400 text-[10px] font-black uppercase tracking-tight shadow-lg"
+                      onClick={handleConfirm}
+                    >
+                      Confirm
+                    </Button>
                     <div className="h-5 w-[1px] bg-white/10 mx-1" />
+                  </>
+                )}
+
+                {/* Reset/End Turn (Integrated inside bar) */}
+                {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (
+                  <>
                     <Button
                       size="sm"
                       variant="outline"
@@ -2105,7 +2121,7 @@ export default function Game() {
                     </Button>
                     <Button
                       size="sm"
-                      className="h-7 px-3 bg-green-600/80 hover:bg-green-500 text-white text-[10px] font-black uppercase"
+                      className="h-7 px-4 bg-green-600/80 hover:bg-green-500 text-white text-[10px] font-black uppercase shadow-lg shadow-green-900/20"
                       onClick={() => gameId && GameClient.endTurn(gameId)}
                     >
                       End Turn
@@ -2155,34 +2171,7 @@ export default function Game() {
               <Button size="sm" className="w-full bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
             )}
           </div>
-        )}
-
-        {/* 가이아 포머 설치 등 pendingAction 없이도 End Turn 가능하도록 (보너스 선택 단계 제외) */}
-        {!pendingAction && game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && (
-          <div className="mb-4 p-4 bg-black/90 border border-green-500/50 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.2)]">
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 border-red-500/50 hover:bg-red-500/20 text-red-400 text-[9px] font-bold"
-                onClick={() => {
-                  GameClient.resetTurn(gameId!);
-                }}
-              >
-                Reset
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1 bg-green-600 hover:bg-green-500 text-white text-[9px] font-bold"
-                onClick={() => gameId && GameClient.endTurn(gameId)}
-              >
-                End Turn
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <h3 className="font-semibold mb-4 flex items-center gap-2">
+        )}      <h3 className="font-semibold mb-4 flex items-center gap-2">
           <Users className="w-4 h-4" />
           Players
         </h3>
@@ -2230,14 +2219,46 @@ export default function Game() {
                   <span>C <span className="text-yellow-500 font-medium">{p.credits ?? 0}</span></span>
                   <span>Q <span className="text-green-400 font-medium">{p.qic ?? 0}</span></span>
                   <div className="col-span-4 flex items-center justify-between border-t border-white/10 pt-1 mt-0.5">
-                    <div className="flex gap-2">
-                      <span title="가이아포머" className="text-[10px] bg-teal-900/40 border border-teal-500/30 text-teal-300 px-1.5 py-0.5 rounded flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-teal-400" />포머 {p.gaiaformers ?? 0}</span>
-                      <span title="가이아 구역 파워" className="text-[10px] bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />G: {p.gaiaformerPower ?? 0}</span>
+                    {/* Gaiaformers Status - Dots (Highlighted = Available, X = Destroyed, Dim = Map) */}
+                    <div className="flex gap-1 items-center" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
+                      {(() => {
+                        const gpLevel = p.research?.gaiaProject ?? 0;
+                        const totalGF = gpLevel >= 4 ? 3 : gpLevel >= 3 ? 2 : gpLevel >= 1 ? 1 : 0;
+                        const availableGF = p.gaiaformers ?? 0;
+                        const destroyedGF = p.destroyedGaiaformers ?? 0;
+                        const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
+
+                        if (totalGF === 0) return <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-tighter">No Gf</span>;
+
+                        const dots = [];
+                        // 1. Destroyed (X)
+                        for (let i = 0; i < destroyedGF; i++) {
+                          dots.push(<span key={`d-${i}`} className="text-red-500 font-black text-[10px] leading-none mb-0.5">X</span>);
+                        }
+                        // 2. Available (Glow)
+                        for (let i = 0; i < availableGF; i++) {
+                          dots.push(<div key={`a-${i}`} className="w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
+                        }
+                        // 3. On Map (Dim)
+                        for (let i = 0; i < onMapGF; i++) {
+                          dots.push(<div key={`m-${i}`} className="w-1.5 h-1.5 rounded-full bg-teal-950 border border-teal-500/20 transition-colors" />);
+                        }
+
+                        return dots.slice(0, totalGF); // Ensure we don't exceed total capacity displayed
+                      })()}
                     </div>
-                    <div className="flex bg-black/40 rounded p-0.5 px-1 border border-white/10 gap-1.5 items-center" title="파워 1/2/3 그릇">
-                      <span className="text-blue-400 font-bold bg-blue-500/10 px-1.5 py-0.5 rounded-sm text-[10px]">I: {p.power1 ?? 0}</span>
-                      <span className="text-cyan-400 font-bold bg-cyan-500/10 px-1.5 py-0.5 rounded-sm text-[10px]">II: {p.power2 ?? 0}</span>
-                      <span className="text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded-sm text-[10px]">III: {p.power3 ?? 0}</span>
+
+                    {/* Unified Power Row: [GP | I II III] (Bar removed) */}
+                    <div className="flex bg-black/40 rounded p-1 px-1.5 border border-white/10 gap-2 items-center" title="가이아 구역 | 1, 2, 3그릇 파워">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-emerald-400 font-bold text-[10px] leading-none">{p.gaiaformerPower ?? 0}</span>
+                      </div>
+                      <div className="w-[1px] h-3 bg-white/10 shrink-0" />
+                      <div className="flex gap-2 items-center">
+                        <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
+                        <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
+                        <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2409,7 +2430,7 @@ export default function Game() {
         <div className="mt-4 pt-4 border-t flex-1 overflow-y-auto">
           <DebugPanel game={game} playerId={playerId} />
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

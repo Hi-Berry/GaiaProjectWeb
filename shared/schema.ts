@@ -36,6 +36,7 @@ export const players = pgTable("players", {
   researchGaia: integer("research_gaia").default(0).notNull(),
   researchEconomy: integer("research_economy").default(0).notNull(),
   researchScience: integer("research_science").default(0).notNull(),
+  destroyedGaiaformers: integer("destroyed_gaiaformers").default(0).notNull(),
 });
 
 // === SCHEMAS ===

@@ -21,6 +21,7 @@ import {
   STRUCTURE_INCOME,
   chargePower,
   chargePowerTaklons,
+  getMaxPowerGain,
   canSpendTaklonsPower,
   spendTaklonsPower,
   createInitialPlayerState,
@@ -31,6 +32,7 @@ import {
   getTerraformCost,
   getTerraformSteps,
   getTerraformStepsForFaction,
+  getGaiaBaseQic,
   computeExpansionThreeStepPlanets,
   HOME_PLANETS,
   getDistance,
@@ -504,10 +506,24 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
   const sourcePlayer = game.players[sourcePlayerId];
   for (const { playerId, maxPower, tileId } of nearbyPlayers) {
     const targetPlayer = game.players[playerId];
-    const maxAffordable = Math.min(maxPower, targetPlayer.score + 1);
-    const vpCost = maxAffordable - 1;
+    const potentialGain = getMaxPowerGain(targetPlayer);
+
+    // 이타르(Itars) 의회 보유 시: 파워 수신 대신 가이아 구역에 파워 토큰 1개 추가 가능 (상시 선택)
+    // 여기서는 일단 일반적인 파워 수신 가능 여부만 체크하고, 실제 처리 시 이타르 룰 적용
+    // 단, 수신 가능한 파워가 0이면 오퍼 자체를 만들지 않음
+    if (potentialGain === 0 && targetPlayer.faction !== 'itars') continue;
+
+    const actualGain = Math.min(maxPower, potentialGain);
+
+    // 이타르의 경우 실제 수신량이 0이라도 가이아 토큰을 위해 오퍼를 띄워야 할 수도 있으나, 
+    // 원칙적으로 '파워 수신' 행위가 가능해야 점수 깎는 오퍼가 성립함. 
+    // 일단 수신 가능 파워가 0이면 오퍼 생략 (사용자 요청 사항)
+    if (actualGain === 0) continue;
+
+    const maxAffordable = Math.min(actualGain, targetPlayer.score + 1);
+    const vpCost = Math.max(0, maxAffordable - 1);
+
     // 이타르·타클론 제외: 1파워는 묻지 않고 자동 수락 (단, 소스 건물의 파워가 1보다 크면 오해 방지를 위해 오퍼 띄움)
-    // maxAffordable === 1 이라도 maxPower > 1 이면 (VP 부족 등으로 깎인 경우) 사용자 확인 필요
     const autoAcceptOne = maxAffordable === 1 && maxPower === 1 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
     if (autoAcceptOne) {
       addScore(game, playerId, -vpCost, 'powerReceived');
@@ -515,23 +531,13 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
       addGameLog(game, playerId, 'Received Power', `+1P from ${sourcePlayer?.name} (auto)`, tileId);
       continue;
     }
-    // Bot Auto-Accept Logic: If target is a bot, handle immediately without UI
+    // Bot Auto-Accept Logic
     if (game.botPlayerIds?.includes(playerId)) {
-      // Simple Bot Logic: Always accept if VP cost is low enough (e.g. < 2 or based on strategy)
-      // For now, mirroring user request: "Auto accept internally"
-      // But we should probably only accept if it makes sense. 
-      // User said "Auto accept", so let's default to accepting.
-      // However, converting VP to Power is not always good. 
-      // Let's assume standard bot behavior: Accept if VP cost <= 1 or Power gained >= 2 ??
-      // Actually, user wants it "Internal". Let's just auto-accept for now to verify the flow.
-
-      const shouldAccept = true; // Bot strategy can be refined later
+      const shouldAccept = true;
       if (shouldAccept) {
         addScore(game, playerId, -vpCost, 'powerReceived');
         chargePower(targetPlayer, maxAffordable);
         addGameLog(game, playerId, 'Received Power (Bot)', `+${maxAffordable}P from ${sourcePlayer?.name}`, tileId);
-      } else {
-        // Log decline
       }
       continue;
     }
@@ -4512,6 +4518,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     }
 
     player.gaiaformers = Math.max(0, (player.gaiaformers || 0) - 1);
+    player.destroyedGaiaformers = (player.destroyedGaiaformers || 0) + 1;
     player.qic = (player.qic ?? 0) - neededQIC;
 
     const geodensTypesBeforeAsteroid = getPlayerPlanetTypesForGeodens(game, playerId);
@@ -4635,7 +4642,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
       player.credits = (player.credits ?? 0) - standardMineCredits;
       player.qic = (player.qic ?? 0) - neededQIC;
     } else {
-      const gaiaBaseQic = 1;
+      const gaiaBaseQic = getGaiaBaseQic(player.faction || '');
       if ((player.ore ?? 0) < standardMineOre || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < (neededQIC + gaiaBaseQic)) {
         debugLog(game, `executeBuildMine failed (Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC + gaiaBaseQic})`, 'error');
         return false;

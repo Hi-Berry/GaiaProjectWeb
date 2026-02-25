@@ -34,6 +34,7 @@ export interface PlayerState {
   bonusTile: string | null;
   usedBonusAction: boolean;
   gaiaformers?: number; // 보유한 가이아 포머 개수
+  destroyedGaiaformers?: number; // 소행성 건설 등에 사용되어 영구 파괴된 개수
   gaiaformerPower?: number; // 가이아 포머 구역에 있는 파워 토큰
   pendingGaiaformerTiles?: string[]; // 건설 가능한 가이아(성숙) 타일 ID들 (이번 라운드 배치 제외)
   gaiaformerPlacedThisRound?: string[]; // 이번 라운드에 가이아포머 배치한 타일 ID (다음 라운드에 성숙)
@@ -1015,6 +1016,20 @@ export function chargePower(player: PlayerState, amount: number) {
   player.power3 += toMove2;
 }
 
+/** 플레이어가 현재 받을 수 있는 최대 파워 양 계산 (Bowl 1 -> 2는 1차지, 2 -> 3은 1차지이므로 (P1 * 2) + P2) */
+export function getMaxPowerGain(player: PlayerState): number {
+  let p1 = player.power1 ?? 0;
+  let p2 = player.power2 ?? 0;
+
+  // 타클론 브레인스톤 처리 (가이아 구역에 있지 않을 경우)
+  if (player.faction === 'taklons' && !player.brainStoneInGaia) {
+    if (player.brainStoneBowl === 1) p1 += 1;
+    else if (player.brainStoneBowl === 2) p2 += 1;
+  }
+
+  return p1 * 2 + p2;
+}
+
 /** 타클론: 파워 수령 시 브레인 스톤 우선 이동 여부를 반영한 캐스케이드. brainStoneInGaia면 일반 chargePower와 동일. */
 export function chargePowerTaklons(player: PlayerState, amount: number, brainFirst: boolean) {
   if (player.brainStoneInGaia) {
@@ -1399,6 +1414,7 @@ export function createInitialPlayerState(name: string = 'Player'): PlayerState {
     bonusTile: null,
     usedBonusAction: false,
     gaiaformers: 0,
+    destroyedGaiaformers: 0,
     gaiaformerPower: 0,
     pendingGaiaformerTiles: [],
     spaceshipsEntered: [],
@@ -1783,6 +1799,14 @@ export function getTerraformStepsForFaction(
   }
 
   return getTerraformSteps(faction.homePlanet, to);
+}
+
+/** 가이아 행성 건설 시 기본 QIC 비용 (확장 종족 다카니안, 스페이스 자이언트, 팅커로이드는 2QIC, 그 외 1QIC) */
+export function getGaiaBaseQic(factionId: string): number {
+  if (factionId === 'darkanians' || factionId === 'space_giants' || factionId === 'tinkeroids') {
+    return 2;
+  }
+  return 1;
 }
 
 /** 확장: 나머지 종족들의 홈(7색상만)이 3명분 있고 서로 다르면 그 3개, 아니면 랜덤 3개 반환 */
