@@ -70,7 +70,6 @@ export interface PlayerState {
   /** 타클론: 우주선 입장 시 브레인 스톤이 가이아 영역으로 가 다음 라운드까지 사용 불가 */
   brainStoneInGaia?: boolean;
   /** 아이타: 2그릇 태울 때 "사라지는" 1토큰을 가이아포머 공간처럼 보관, 다음 라운드에 1그릇으로 복귀 */
-  itarsPendingBowl1Tokens?: number;
   /** 팅커로이드: 게임 중 이미 선택한 Special 액션 ID (각 1회만 선택 가능) */
   tinkeroidsChosenSpecialIds?: string[];
   /** 팅커로이드: 이번 라운드에 사용할 Special 액션 ID (라운드 시작 시 선택) */
@@ -398,7 +397,7 @@ export interface GaiaGameState {
     /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
     powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number }>;
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
-  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string }>; // 게임 액션 로그
+  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }> }>; // 게임 액션 로그
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
   turnStartState?: Record<string, {
     playerState: PlayerState;
@@ -434,6 +433,8 @@ export interface GaiaGameState {
   pendingAdvancedTechTrackAdvance?: { playerId: string } | null;
   /** 거리 5 보상 잊혀진 행성: 해당 플레이어가 빈 우주 타일을 클릭해 특수 광산 배치 대기 */
   pendingLostPlanet?: { playerId: string } | null;
+  /** 우주선 기술 타일 "2TF+Mine" 획득 후 남은 광산 건설 대기 */
+  pendingShipTechMine?: { playerId: string } | null;
 
   /** 트왈라잇 인공물: 4칸 슬롯 (매 게임 4개 랜덤 배치, 가져가면 null) */
   twilightArtifactSlots?: (string | null)[];
@@ -916,11 +917,11 @@ export const ECONOMY_INCOME = ECONOMY_INCOME_POWER;
 export function getNextRoundIncomePreview(
   playerId: string,
   game: GaiaGameState
-): { ore: number; credits: number; knowledge: number; qic: number; power: number } {
+): { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number } {
   const player = game.players[playerId];
-  if (!player?.faction) return { ore: 0, credits: 0, knowledge: 0, qic: 0, power: 0 };
+  if (!player?.faction) return { ore: 0, credits: 0, knowledge: 0, qic: 0, powerCharge: 0, powerTokens: 0 };
   const faction = FACTIONS.find(f => f.id === player.faction);
-  const result = { ore: 0, credits: 0, knowledge: 0, qic: 0, power: 0 };
+  const result = { ore: 0, credits: 0, knowledge: 0, qic: 0, powerCharge: 0, powerTokens: 0 };
   const structures = game.map.filter(t => t.ownerId === playerId);
   const parasiticMineCount = game.map.filter(t => t.parasiticMine?.ownerId === playerId).length;
 
@@ -933,7 +934,7 @@ export function getNextRoundIncomePreview(
   result.knowledge += baseKnowledge;
   result.credits += baseCredits;
   result.qic += baseQic;
-  result.power += basePowerTokens;
+  result.powerTokens += basePowerTokens;
 
   const mineCount = structures.filter(t => t.structure === 'mine').length + parasiticMineCount;
   for (let i = 0; i < mineCount && i < STRUCTURE_INCOME.mine.length; i++) {
@@ -948,7 +949,7 @@ export function getNextRoundIncomePreview(
   if (labCount > 0) {
     const labBase = player.faction === 'firaks' ? 2 : 1;
     result.knowledge += labBase;
-    if (player.faction === 'nevlas') result.power += 2;
+    if (player.faction === 'nevlas') result.powerCharge += 2;
     if (player.faction === 'moweyip') {
       const labCredits = [3, 4, 5];
       for (let i = 0; i < labCount && i < labCredits.length; i++) result.credits += labCredits[i];
@@ -965,14 +966,14 @@ export function getNextRoundIncomePreview(
     const ei = economyIncome[econLevel] ?? economyIncome[0];
     result.credits += ei.credits;
     result.ore += ei.ore;
-    if (ei.power) result.power += ei.power;
+    if (ei.power) result.powerCharge += ei.power;
   }
   const sciLevel = player.research?.science ?? 0;
   if (sciLevel < 5) result.knowledge += sciLevel;
 
   if (player.techTiles?.includes('tech-inc-1o-1p')) {
     result.ore += 1;
-    result.power += 1;
+    result.powerCharge += 1;
   }
   if (player.techTiles?.includes('tech-inc-4c')) result.credits += 4;
   if (player.techTiles?.includes('tech-inc-1k-1c')) {
@@ -986,14 +987,15 @@ export function getNextRoundIncomePreview(
       if (bonusTile.income.credits) result.credits += bonusTile.income.credits;
       if (bonusTile.income.knowledge) result.knowledge += bonusTile.income.knowledge;
       if (bonusTile.income.qic) result.qic += bonusTile.income.qic;
-      if (bonusTile.income.power) result.power += bonusTile.income.power;
-      if (bonusTile.income.powerTokens) result.power += bonusTile.income.powerTokens;
+      if (bonusTile.income.power) result.powerCharge += bonusTile.income.power;
+      if (bonusTile.income.powerTokens) result.powerTokens += bonusTile.income.powerTokens;
     }
   }
   const hasPI = structures.some(t => t.structure === 'planetary_institute');
   if (hasPI && faction?.piIncome) {
     const c = faction.piIncome;
-    result.power += (c.power ?? 0) + (c.tokens ?? 0);
+    result.powerCharge += (c.power ?? 0);
+    result.powerTokens += (c.tokens ?? 0);
     if (c.ore) result.ore += c.ore;
     if (c.qic) result.qic += c.qic;
   }

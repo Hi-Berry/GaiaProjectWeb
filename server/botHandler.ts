@@ -21,8 +21,41 @@ import { ResearchTrack } from '@shared/gameConfig';
  */
 export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGameState): Promise<void> {
     log(`[BotHandler] executeBotTurnIfNeeded called. isExecuting=${game.isBotExecuting}, phase=${game.currentPhase}`, 'game');
+    if (game.currentPhase === 'lobby') return;
     if (!game.botPlayerIds || game.botPlayerIds.length === 0) return;
     if (game.isBotExecuting) return;
+
+    // Determine current player ID based on phase
+    let currentPlayerId: string | null = null;
+    if (game.currentPhase === 'main' || game.currentPhase === 'factionSelect') {
+        currentPlayerId = game.turnOrder[game.currentPlayerIndex];
+    } else if (game.currentPhase === 'startingMines') {
+        const totalMines = game.map.filter(t => t.structure === 'mine' || t.structure === 'planetary_institute').length;
+        const snakingSequence = (game as any).startingMineSequence ?? [];
+        if (snakingSequence.length > 0 && totalMines < snakingSequence.length) {
+            currentPlayerId = snakingSequence[totalMines];
+        }
+    } else if (game.currentPhase === 'bonusSelection') {
+        currentPlayerId = game.pendingBonusSelection;
+    }
+
+    // Special blocking conditions (e.g. pending income or other specific bot-auto-choices)
+    // If there's a pending choice for a bot, we process it. 
+    // Otherwise, we only proceed if it's a bot's regular turn.
+    const isBotTurn = currentPlayerId && game.botPlayerIds.includes(currentPlayerId);
+    const hasPendingBotAutoChoice =
+        (game.pendingIncomeOrder && game.botPlayerIds.includes(game.pendingIncomeOrder.playerId)) ||
+        (game.pendingTinkeroidSpecialChoice && game.botPlayerIds.includes(game.pendingTinkeroidSpecialChoice.playerId)) ||
+        (game.pendingTerranCouncilBenefit && game.botPlayerIds.includes(game.pendingTerranCouncilBenefit.playerId)) ||
+        (game.pendingItarsGaiaformerExchange && game.botPlayerIds.includes(game.pendingItarsGaiaformerExchange.playerId)) ||
+        (game.pendingTechTileSelection && game.botPlayerIds.includes(game.pendingTechTileSelection.playerId)) ||
+        (game.pendingShipTechTrackAdvance && game.botPlayerIds.includes(game.pendingShipTechTrackAdvance.playerId)) ||
+        (game.pendingAdvancedTechTrackAdvance && game.botPlayerIds.includes(game.pendingAdvancedTechTrackAdvance.playerId));
+
+    if (!isBotTurn && !hasPendingBotAutoChoice) {
+        log(`[BotHandler] Not a bot's turn and no pending bot choices. Skipping. currentPlayer=${currentPlayerId}`, 'game');
+        return;
+    }
 
     game.isBotExecuting = true;
     try {
@@ -231,7 +264,7 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     // Delay to make it more visible for debugging/demo
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    const action = BotLogic.getNextMove(game, currentPlayerId);
+    const action = await BotLogic.getNextMove(game, currentPlayerId);
     if (!action) {
         log(`Bot ${player.name} has no valid action, skipping turn`, 'game');
         return;

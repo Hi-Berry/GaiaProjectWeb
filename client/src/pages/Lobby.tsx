@@ -29,7 +29,7 @@ export default function Lobby() {
 
   useEffect(() => {
     const socket = getSocket();
-    
+
     socket.on('connect', () => {
       setConnected(true);
       fetchGames();
@@ -87,16 +87,16 @@ export default function Lobby() {
     try {
       setCreating(true);
       localStorage.setItem('gaia-playerName', playerName);
-      
+
       const { gameId, playerId } = await GameClient.createGame(playerName);
-      
+
       localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
-      
+
       toast({
         title: 'Game Created',
         description: 'Waiting for other players to join...',
       });
-      
+
       setLocation(`/game/${gameId}`);
     } catch (error) {
       console.error('Failed to create game:', error);
@@ -125,14 +125,14 @@ export default function Lobby() {
       localStorage.setItem('gaia-playerName', playerName);
 
       const { playerId } = await GameClient.joinGame(gameId, playerName);
-      
+
       localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
-      
+
       toast({
         title: 'Joined Game',
         description: 'Successfully joined the game!',
       });
-      
+
       setLocation(`/game/${gameId}`);
     } catch (error: any) {
       console.error('Failed to join game:', error);
@@ -222,6 +222,8 @@ export default function Lobby() {
                 {games.map((game) => {
                   const isFull = game.playerCount >= game.maxPlayers;
                   const isStarted = game.phase !== 'lobby';
+                  const storedPlayerId = localStorage.getItem(`gaia-${game.id}-playerId`);
+                  const canRejoin = !!storedPlayerId;
 
                   return (
                     <div
@@ -249,15 +251,27 @@ export default function Lobby() {
                         <Badge variant="outline">
                           {game.playerCount}/{game.maxPlayers} Players
                         </Badge>
-                        <Button
-                          variant="secondary"
-                          disabled={isFull || isStarted || joining === game.id || !playerName.trim() || !connected}
-                          onClick={() => handleJoinGame(game.id)}
-                          data-testid={`button-join-${game.id}`}
-                        >
-                          <LogIn className="w-4 h-4 mr-2" />
-                          {joining === game.id ? 'Joining...' : 'Join'}
-                        </Button>
+                        {canRejoin ? (
+                          <Button
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-500 text-white"
+                            onClick={() => setLocation(`/game/${game.id}`)}
+                            data-testid={`button-rejoin-${game.id}`}
+                          >
+                            <LogIn className="w-4 h-4 mr-2" />
+                            이어하기
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            disabled={isFull || isStarted || joining === game.id || !playerName.trim() || !connected}
+                            onClick={() => handleJoinGame(game.id)}
+                            data-testid={`button-join-${game.id}`}
+                          >
+                            <LogIn className="w-4 h-4 mr-2" />
+                            {joining === game.id ? 'Joining...' : 'Join'}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );

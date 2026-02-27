@@ -1187,7 +1187,7 @@ export function GameBoard({
                                   className="w-full"
                                   variant="secondary"
                                   disabled={
-                                    (game.hasDoneMainAction && game.pendingTFMarsGaiaProject?.playerId !== playerId)
+                                    (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId))
                                     || (game.turnOrder[game.currentPlayerIndex] !== playerId)
                                     || !canReach
                                     || (neededQIC > 0 && (currentPlayer.qic ?? 0) < neededQIC)
@@ -1293,7 +1293,7 @@ export function GameBoard({
                       <Button
                         className="w-full"
                         variant="secondary"
-                        disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)}
+                        disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId)}
                         onClick={() => {
                           onBuildMine(selectedTile.id);
                           setSelectedTile(null);
@@ -1351,7 +1351,7 @@ export function GameBoard({
                     <Button
                       className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"
                       variant="secondary"
-                      disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !canReach || !canAfford}
+                      disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !canReach || !canAfford}
                       onClick={() => {
                         onBuildMine(selectedTile.id);
                         setSelectedTile(null);
@@ -1368,7 +1368,7 @@ export function GameBoard({
                   <Button
                     className="w-full"
                     variant="secondary"
-                    disabled={game.hasDoneMainAction}
+                    disabled={game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)}
                     onClick={() => {
                       onBuildMine(selectedTile.id, selectedTile.type === 'asteroid' ? true : undefined);
                       setSelectedTile(null);

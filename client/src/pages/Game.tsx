@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -1795,6 +1795,12 @@ export default function Game() {
             Eclipse: 맵에서 <span className="font-bold text-green-300">초록 테두리</span> 소행성을 클릭하여 광산 건설 (6C)
           </div>
         )}
+        {/* 우주선 기술(2TF+Mine): 맵에서 행성 클릭으로 건설 */}
+        {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-orange-500/50 text-orange-400 text-sm font-medium shadow-lg">
+            Ship Tech (2TF+Mine): 맵에서 <span className="font-bold text-orange-300">행성을 클릭</span>하여 광산 건설
+          </div>
+        )}
         {/* Twilight 액션2 / Rebellion 액션2: 맵에서 보라 테두리 건물 클릭으로 선택 */}
         {(pendingTwilightTSUpgrade || pendingRebellionMineToTS) && (
           <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-violet-500/50 text-violet-300 text-sm font-medium shadow-lg flex items-center gap-2">
@@ -2023,7 +2029,7 @@ export default function Game() {
       <div className="w-64 border-l border-border bg-card p-4 flex flex-col overflow-y-auto">
         {/* Confirmation Overlay - Ultra-slim horizontal layout at top-20 with smooth drop-down */}
         <AnimatePresence>
-          {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId)) && (
+          {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
             <motion.div
               initial={{ y: -50, x: '-50%', opacity: 0 }}
               animate={{ y: 0, x: '-50%', opacity: 1 }}
@@ -2077,7 +2083,9 @@ export default function Game() {
                       )}
                     </div>
                   ) : (
-                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Main Action Done</span>
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
+                      {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId ? 'Pending Mine Construction' : 'Main Action Done'}
+                    </span>
                   )}
                 </div>
               </div>
@@ -2106,7 +2114,7 @@ export default function Game() {
                 )}
 
                 {/* Reset/End Turn (Integrated inside bar) */}
-                {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (
+                {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (
                   <>
                     <Button
                       size="sm"
@@ -2185,6 +2193,7 @@ export default function Game() {
             const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
             const expanded = expandedPlayerId === id;
             const counts = getStructureCountsForPlayer(game, id);
+            const inc = getNextRoundIncomePreview(id, game);
             return (
               <div
                 key={id}
@@ -2214,10 +2223,27 @@ export default function Game() {
                   <span className="mx-1">A</span><span className="text-indigo-400/90">{counts.academyLeft}+{counts.academyRight}</span>/{BUILDING_LIMITS.academy}
                 </div>
                 <div className="px-2.5 pb-2 grid grid-cols-4 gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                  <span>O <span className="text-amber-400 font-medium">{p.ore ?? 0}</span></span>
-                  <span>K <span className="text-blue-400 font-medium">{p.knowledge ?? 0}</span></span>
-                  <span>C <span className="text-yellow-500 font-medium">{p.credits ?? 0}</span></span>
-                  <span>Q <span className="text-green-400 font-medium">{p.qic ?? 0}</span></span>
+                  <span className="flex items-baseline">
+                    <span className="text-zinc-500 mr-1.5 font-bold">O</span>
+                    <span style={{ color: '#E85D04' }} className="font-black">{p.ore ?? 0}</span>
+                    {inc.ore > 0 && <span className="text-[10px] text-zinc-500 font-medium ml-1">({`+${inc.ore}`})</span>}
+                  </span>
+                  <span className="flex items-baseline">
+                    <span className="text-zinc-500 mr-1.5 font-bold">K</span>
+                    <span style={{ color: '#2E5EAA' }} className="font-black">{p.knowledge ?? 0}</span>
+                    {inc.knowledge > 0 && <span className="text-[10px] text-zinc-500 font-medium ml-1">({`+${inc.knowledge}`})</span>}
+                  </span>
+                  <span className="flex items-baseline">
+                    <span className="text-zinc-500 mr-1.5 font-bold">C</span>
+                    <span style={{ color: '#FFE74C' }} className="font-black">{p.credits ?? 0}</span>
+                    {inc.credits > 0 && <span className="text-[10px] text-zinc-500 font-medium ml-1">({`+${inc.credits}`})</span>}
+                  </span>
+                  <span className="flex items-baseline">
+                    <span className="text-zinc-500 mr-1.5 font-bold">Q</span>
+                    <span style={{ color: '#38B000' }} className="font-black">{p.qic ?? 0}</span>
+                    {inc.qic > 0 && <span className="text-[10px] text-zinc-500 font-medium ml-1">({`+${inc.qic}`})</span>}
+                  </span>
+
                   <div className="col-span-4 flex items-center justify-between border-t border-white/10 pt-1 mt-0.5">
                     {/* Gaiaformers Status - Dots (Highlighted = Available, X = Destroyed, Dim = Map) */}
                     <div className="flex gap-1 items-center" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
@@ -2255,9 +2281,21 @@ export default function Game() {
                       </div>
                       <div className="w-[1px] h-3 bg-white/10 shrink-0" />
                       <div className="flex gap-2 items-center">
-                        <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
+                        <span className="text-blue-400 font-bold text-[10px] leading-none flex items-center">
+                          {p.power1 ?? 0}
+                          {inc.powerTokens > 0 && <span className="text-[9px] text-zinc-500 font-medium ml-0.5">({`+${inc.powerTokens}`})</span>}
+                        </span>
                         <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
                         <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
+                        {inc.powerCharge > 0 && (
+                          <span className="flex items-center text-zinc-500 font-bold ml-1">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="mr-0.5">
+                              <path d="M3 12a9 9 0 0 1 18 0" />
+                              <path d="M21 12l-4-4M21 12l-4 4" />
+                            </svg>
+                            {inc.powerCharge}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2348,7 +2386,8 @@ export default function Game() {
                       </div>
                     )}
                   </div>
-                )}
+                )
+                }
               </div>
             );
           })}

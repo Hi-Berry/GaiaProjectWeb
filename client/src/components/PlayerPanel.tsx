@@ -34,7 +34,7 @@ function ResourceBar({ label, value, max, color, next }: { label: string; value:
         <span>{label}</span>
         <span>
           {value}
-          {next != null && next > 0 && <span className="text-muted-foreground font-normal ml-1">(+{next})</span>}
+          {next != null && next > 0 && <span className="opacity-60 font-medium ml-1">({`+${next}`})</span>}
         </span>
       </div>
       <div className="h-2 bg-muted rounded-full overflow-hidden border border-white/5">
@@ -59,15 +59,14 @@ const TRACK_DESCRIPTIONS: Record<string, string[]> = {
   science: ["None", "1K", "2K", "3K", "4K", "L5: One-time reward"],
 };
 
-function PowerCycle({ power1, power2, power3, gaiaformerPower, gaiaformers, pendingGaiaformerCount, balTakLocked, brainStoneBowl, brainStoneInGaia, itarsPendingBowl1Tokens, onBurnPower, canBurn }: {
+function PowerCycle({ power1, power2, power3, gaiaformerPower, gaiaformers, pendingGaiaformerCount, balTakLocked, brainStoneBowl, brainStoneInGaia, factionId, onBurnPower, canBurn }: {
   power1: number; power2: number; power3: number;
   gaiaformerPower?: number; gaiaformers?: number; pendingGaiaformerCount?: number;
   balTakLocked?: number;
   /** 타클론 브레인 스톤: 1|2|3 = 해당 그릇, 없으면 가이아 등 */
   brainStoneBowl?: 1 | 2 | 3;
   brainStoneInGaia?: boolean;
-  /** 아이타: 2그릇 태울 때 보관한 토큰 수 (다음 라운드 1그릇 복귀) */
-  itarsPendingBowl1Tokens?: number;
+  factionId?: string;
   onBurnPower: (moveBrainToBowl3?: boolean) => void; canBurn: boolean
 }) {
   const label = (bowl: 1 | 2 | 3, count: number) => (brainStoneBowl === bowl && !brainStoneInGaia ? `${count} (B)` : String(count));
@@ -107,8 +106,8 @@ function PowerCycle({ power1, power2, power3, gaiaformerPower, gaiaformers, pend
       {brainStoneInGaia && (
         <div className="text-[10px] text-amber-400/90 text-center">B (가이아, 다음 라운드 복귀)</div>
       )}
-      {itarsPendingBowl1Tokens !== undefined && itarsPendingBowl1Tokens > 0 && (
-        <div className="text-[10px] text-cyan-400/90 text-center">아이타: {itarsPendingBowl1Tokens} 토큰 → 다음 라운드 1그릇 복귀</div>
+      {factionId === 'itars' && gaiaformerPower !== undefined && gaiaformerPower > 0 && (
+        <div className="text-[10px] text-cyan-400/90 text-center">아이타: {gaiaformerPower} 토큰 → 다음 라운드 1그릇 복귀</div>
       )}
       <div className="text-center space-y-1">
         {gaiaformers !== undefined && gaiaformers > 0 ? (
@@ -161,7 +160,7 @@ function PowerCycle({ power1, power2, power3, gaiaformerPower, gaiaformers, pend
           disabled={!canBurn}
           onClick={() => onBurnPower()}
         >
-          {itarsPendingBowl1Tokens !== undefined ? '2P 태우기 (1→다음 라운드 1그릇)' : 'Burn 2 Power (II ➔ III)'}
+          {factionId === 'itars' ? '2P 태우기 (1→다음 라운드 1그릇)' : 'Burn 2 Power (II ➔ III)'}
         </Button>
       )}
     </div>
@@ -186,29 +185,31 @@ function TurnSequence({ game }: { game: GameState }) {
           return (
             <div
               key={id}
-              className={`flex items-center gap-2.5 p-2 rounded-lg transition-all duration-300 ${isCurrent
+              className={`flex flex-col gap-1 p-2 rounded-lg transition-all duration-300 ${isCurrent
                 ? 'bg-primary/10 border border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.05)]'
                 : 'bg-zinc-900/20 border border-white/5'
                 } ${hasPassed ? 'opacity-30 grayscale-[0.8]' : ''}`}
             >
-              <div className={`text-[9px] font-black w-3 text-center ${isCurrent ? 'text-primary' : 'text-zinc-600'}`}>
-                {index + 1}
-              </div>
-              <div
-                className={`w-2 h-2 rounded-full shadow-sm ${isCurrent ? 'animate-pulse' : ''}`}
-                style={{ backgroundColor: faction?.color || '#444' }}
-              />
-              <div className={`text-[11px] font-bold flex-1 truncate ${isCurrent ? 'text-white' : 'text-zinc-400'}`}>
-                {faction ? `${faction.name} (${p.name})` : p.name}
-              </div>
-              {isCurrent && !hasPassed && (
-                <div className="flex gap-1">
-                  <span className="text-[7px] uppercase font-black text-primary tracking-widest">Active</span>
+              <div className="flex items-center gap-2.5">
+                <div className={`text-[9px] font-black w-3 text-center ${isCurrent ? 'text-primary' : 'text-zinc-600'}`}>
+                  {index + 1}
                 </div>
-              )}
-              {hasPassed && (
-                <span className="text-[7px] uppercase font-black text-zinc-600 tracking-widest">Passed</span>
-              )}
+                <div
+                  className={`w-2 h-2 rounded-full shadow-sm ${isCurrent ? 'animate-pulse' : ''}`}
+                  style={{ backgroundColor: faction?.color || '#444' }}
+                />
+                <div className={`text-[11px] font-bold flex-1 truncate ${isCurrent ? 'text-white' : 'text-zinc-400'}`}>
+                  {faction ? `${faction.name} (${p.name})` : p.name}
+                </div>
+                {isCurrent && !hasPassed && (
+                  <div className="flex gap-1">
+                    <span className="text-[7px] uppercase font-black text-primary tracking-widest">Active</span>
+                  </div>
+                )}
+                {hasPassed && (
+                  <span className="text-[7px] uppercase font-black text-zinc-600 tracking-widest">Passed</span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -312,9 +313,23 @@ export function PlayerPanel({
                   <ResourceBar label="Knowledge" value={currentPlayer.knowledge} max={15} color="#2E5EAA" next={incomeNext?.knowledge} />
                   <ResourceBar label="Credits" value={currentPlayer.credits} max={30} color="#FFE74C" next={incomeNext?.credits} />
                   <ResourceBar label="Q.I.C" value={currentPlayer.qic} max={10} color="#38B000" next={incomeNext?.qic} />
-                  {incomeNext && incomeNext.power > 0 && (
-                    <div className="text-[10px] text-muted-foreground">
-                      다음 라운드 파워: +{incomeNext.power}
+                  {incomeNext != null && (incomeNext.powerCharge > 0 || incomeNext.powerTokens > 0) && (
+                    <div className="flex flex-col gap-1 items-start">
+                      {incomeNext.powerTokens > 0 && (
+                        <div className="text-[10px] text-zinc-500 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit flex items-center">
+                          Next Round Tokens: (+{incomeNext.powerTokens})
+                        </div>
+                      )}
+                      {incomeNext.powerCharge > 0 && (
+                        <div className="text-[10px] text-zinc-500 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit flex items-center">
+                          Next Round Charge:
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="mx-1">
+                            <path d="M3 12a9 9 0 0 1 18 0" />
+                            <path d="M21 12l-4-4M21 12l-4 4" />
+                          </svg>
+                          {incomeNext.powerCharge}
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -338,7 +353,7 @@ export function PlayerPanel({
             balTakLocked={currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : undefined}
             brainStoneBowl={currentPlayer.faction === 'taklons' ? (currentPlayer as { brainStoneBowl?: 1 | 2 | 3 }).brainStoneBowl : undefined}
             brainStoneInGaia={currentPlayer.faction === 'taklons' ? (currentPlayer as { brainStoneInGaia?: boolean }).brainStoneInGaia : undefined}
-            itarsPendingBowl1Tokens={currentPlayer.faction === 'itars' ? (currentPlayer as { itarsPendingBowl1Tokens?: number }).itarsPendingBowl1Tokens : undefined}
+            factionId={currentPlayer.faction || undefined}
             onBurnPower={onBurnPower}
             canBurn={isCurrentTurn && (currentPlayer.power2 ?? 0) >= 2}
           />
