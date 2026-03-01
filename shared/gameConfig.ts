@@ -338,7 +338,7 @@ export const FINAL_MISSION_IDS = [
 
 export const FINAL_MISSION_LABELS: Record<string, string> = {
   fm_total_structures: '총 건물 수',
-  fm_federation_buildings: '연방 수',
+  fm_federation_buildings: '연방 건물 수',
   fm_sectors: '섹터 수',
   fm_outer_sectors: '외각 섹터 수',
   fm_gaia_planets: '가이아 행성 수',
@@ -916,7 +916,8 @@ export const ECONOMY_INCOME = ECONOMY_INCOME_POWER;
 /** 다음 라운드 수익 단계에서 얻게 될 자원 예상치 (UI 미리보기용) */
 export function getNextRoundIncomePreview(
   playerId: string,
-  game: GaiaGameState
+  game: GaiaGameState,
+  options: { excludeBonusTiles?: boolean } = {}
 ): { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number } {
   const player = game.players[playerId];
   if (!player?.faction) return { ore: 0, credits: 0, knowledge: 0, qic: 0, powerCharge: 0, powerTokens: 0 };
@@ -980,7 +981,7 @@ export function getNextRoundIncomePreview(
     result.knowledge += 1;
     result.credits += 1;
   }
-  if (player.bonusTile) {
+  if (player.bonusTile && !options.excludeBonusTiles) {
     const bonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
     if (bonusTile?.income) {
       if (bonusTile.income.ore) result.ore += bonusTile.income.ore;
@@ -1329,7 +1330,7 @@ export function generateMap(): HexTile[] {
   finalInternalPlacements.forEach((p, i) => {
     const key = `${p.q},${p.r}`;
     if (!occupied.has(key)) {
-      tiles.push({ id: `internal-${i}`, q: p.q, r: p.r, type: p.type, sector: 20, structure: null, ownerId: null });
+      tiles.push({ id: `internal-${i}`, q: p.q, r: p.r, type: p.type, sector: 90, structure: null, ownerId: null });
       occupied.add(key);
     }
   });
@@ -1848,14 +1849,26 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       const academy = map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
       return mineCount + ts + lab + pi + academy;
     }
-    case 'fm_federation_buildings':
-      return getFederationEntries(player).length;
+    case 'fm_federation_buildings': {
+      const fedHexIds = game.playerFederationHexes?.[playerId] || [];
+      let buildingCount = 0;
+      for (const hexId of fedHexIds) {
+        const hex = map.find(t => t.id === hexId);
+        if (!hex) continue;
+        // 내 소유 구조물(우주선 제외)이 있거나, 란티다 기생 광산이 연방 헥스에 포함된 경우
+        if ((hex.ownerId === playerId && hex.structure != null && hex.structure !== 'ship') ||
+          hex.parasiticMine?.ownerId === playerId) {
+          buildingCount++;
+        }
+      }
+      return buildingCount;
+    }
     case 'fm_sectors': {
       const sectors = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship').map(t => t.sector));
       return sectors.size;
     }
     case 'fm_outer_sectors': {
-      const outer = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship' && t.sector >= 20 && t.sector < 30).map(t => t.sector));
+      const outer = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship' && t.sector >= 11 && t.sector < 20).map(t => t.sector));
       return outer.size;
     }
     case 'fm_gaia_planets':
@@ -1906,6 +1919,7 @@ export function isEmptyHex(tile: HexTile): boolean {
 
 /** 행성 타일 (건물 올릴 수 있는 타일, 우주선/소행성 제외한 일반 행성) */
 export function isPlanetHex(tile: HexTile): boolean {
+  if (tile.structure != null || tile.parasiticMine) return true;
   if (!tile.type) return false;
   const nonPlanet: PlanetType[] = ['space', 'deep_space', 'lost_fleet_ship', 'asteroid'];
   if (tile.type.startsWith('ship_')) return false;

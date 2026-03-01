@@ -3,8 +3,34 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
 import type { GameState, ResearchTrack } from '@/lib/gameClient';
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ARTIFACTS, getNextRoundIncomePreview, canSpendTaklonsPower, HOME_PLANETS } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ARTIFACTS, getNextRoundIncomePreview, canSpendTaklonsPower, HOME_PLANETS, PlanetType } from '@shared/gameConfig';
 import { PlayerBonusTile } from './BonusTiles';
+
+const PLANET_COLORS: Record<string, string> = {
+  terra: '#2E5EAA',      // Blue
+  oxide: '#E85D04',      // Red/Orange
+  volcanic: '#FFB703',   // Orange
+  titanium: '#808080',   // Gray
+  ice: '#E0FAFA',        // Light Blue/White
+  desert: '#FFE74C',     // Yellow
+  swamp: '#38B000',      // Green
+};
+
+const ColoredPlanetList = ({ planets }: { planets: string[] }) => {
+  if (!planets || planets.length === 0) return <span>None</span>;
+  return (
+    <>
+      {planets.map((p, i) => (
+        <span key={p}>
+          <span style={{ color: PLANET_COLORS[p] || '#ffffff' }} className="font-semibold drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+            {p}
+          </span>
+          {i < planets.length - 1 ? ', ' : ''}
+        </span>
+      ))}
+    </>
+  );
+};
 
 
 
@@ -168,52 +194,75 @@ function PowerCycle({ power1, power2, power3, gaiaformerPower, gaiaformers, pend
 }
 
 function TurnSequence({ game }: { game: GameState }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Turn Order</h4>
-        <Badge variant="outline" className="text-[8px] border-zinc-800 text-zinc-500">ROUND {game.roundNumber}</Badge>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        {game.turnOrder.map((id, index) => {
-          const p = game.players[id];
-          if (!p) return null;
-          const isCurrent = index === game.currentPlayerIndex;
-          const hasPassed = p.hasPassed;
-          const faction = p.faction ? FACTIONS.find(f => f.id === p.faction) : null;
+  const activePlayers = game.turnOrder.filter(id => !game.players[id]?.hasPassed);
+  const passedPlayers = game.passingOrder || [];
 
-          return (
-            <div
-              key={id}
-              className={`flex flex-col gap-1 p-2 rounded-lg transition-all duration-300 ${isCurrent
-                ? 'bg-primary/10 border border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.05)]'
-                : 'bg-zinc-900/20 border border-white/5'
-                } ${hasPassed ? 'opacity-30 grayscale-[0.8]' : ''}`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className={`text-[9px] font-black w-3 text-center ${isCurrent ? 'text-primary' : 'text-zinc-600'}`}>
-                  {index + 1}
-                </div>
-                <div
-                  className={`w-2 h-2 rounded-full shadow-sm ${isCurrent ? 'animate-pulse' : ''}`}
-                  style={{ backgroundColor: faction?.color || '#444' }}
-                />
-                <div className={`text-[11px] font-bold flex-1 truncate ${isCurrent ? 'text-white' : 'text-zinc-400'}`}>
-                  {faction ? `${faction.name} (${p.name})` : p.name}
-                </div>
-                {isCurrent && !hasPassed && (
-                  <div className="flex gap-1">
-                    <span className="text-[7px] uppercase font-black text-primary tracking-widest">Active</span>
-                  </div>
-                )}
-                {hasPassed && (
-                  <span className="text-[7px] uppercase font-black text-zinc-600 tracking-widest">Passed</span>
-                )}
-              </div>
+  const renderPlayerItem = (id: string, index: number, isCurrent: boolean, hasPassed: boolean) => {
+    const p = game.players[id];
+    if (!p) return null;
+    const faction = p.faction ? FACTIONS.find(f => f.id === p.faction) : null;
+
+    return (
+      <div
+        key={id}
+        className={`flex flex-col gap-1 p-2 rounded-lg transition-all duration-300 ${isCurrent
+          ? 'bg-primary/10 border border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.05)]'
+          : 'bg-zinc-900/20 border border-white/5'
+          } ${hasPassed ? 'opacity-40 grayscale-[0.5]' : ''}`}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className={`text-[9px] font-black w-3 text-center ${isCurrent ? 'text-primary' : 'text-zinc-600'}`}>
+            {index}
+          </div>
+          <div
+            className={`w-2 h-2 rounded-full shadow-sm ${isCurrent ? 'animate-pulse' : ''}`}
+            style={{ backgroundColor: faction?.color || '#444' }}
+          />
+          <div className={`text-[11px] font-bold flex-1 truncate ${isCurrent ? 'text-white' : 'text-zinc-400'}`}>
+            {faction ? `${faction.name} (${p.name})` : p.name}
+          </div>
+          {isCurrent && !hasPassed && (
+            <div className="flex gap-1">
+              <span className="text-[7px] uppercase font-black text-primary tracking-widest">Active</span>
             </div>
-          );
-        })}
+          )}
+          {hasPassed && (
+            <span className="text-[7px] uppercase font-black text-zinc-600 tracking-widest">Passed</span>
+          )}
+        </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Active Turn Order */}
+      {activePlayers.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Turn Order</h4>
+            <Badge variant="outline" className="text-[8px] border-zinc-800 text-zinc-500">ROUND {game.roundNumber}</Badge>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {game.turnOrder.map((id, index) => {
+              if (game.players[id]?.hasPassed) return null;
+              return renderPlayerItem(id, index + 1, index === game.currentPlayerIndex, false);
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Next Round Order (Passed) */}
+      {passedPlayers.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-white/5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-amber-500/70">Next Round Order</h4>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {passedPlayers.map((id, index) => renderPlayerItem(id, index + 1, false, true))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -264,12 +313,12 @@ export function PlayerPanel({
           <div className="space-y-1.5 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5">
             <h4 className="text-[9px] uppercase font-black tracking-wider text-amber-400/90">테라포밍 (모웨이드)</h4>
             <div className="text-[9px] text-zinc-300">
-              <span className="text-green-400 font-medium">1 TF:</span>{' '}
-              {HOME_PLANETS.filter((p: string) => !(game as { moweyipThreeStepPlanets?: string[] }).moweyipThreeStepPlanets!.includes(p)).join(', ')}
+              <span className="text-green-400 font-medium mr-1 border-r border-green-500/30 pr-1">1 TF</span>
+              <ColoredPlanetList planets={HOME_PLANETS.filter((p: string) => !(game as { moweyipThreeStepPlanets?: string[] }).moweyipThreeStepPlanets!.includes(p))} />
             </div>
             <div className="text-[9px] text-zinc-300">
-              <span className="text-amber-400 font-medium">3 TF:</span>{' '}
-              {(game as { moweyipThreeStepPlanets?: string[] }).moweyipThreeStepPlanets!.join(', ')}
+              <span className="text-amber-400 font-medium mr-1 border-r border-amber-500/30 pr-1">3 TF</span>
+              <ColoredPlanetList planets={(game as { moweyipThreeStepPlanets?: string[] }).moweyipThreeStepPlanets!} />
             </div>
           </div>
         )}
@@ -277,12 +326,12 @@ export function PlayerPanel({
           <div className="space-y-1.5 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5">
             <h4 className="text-[9px] uppercase font-black tracking-wider text-amber-400/90">테라포밍 (팅커로이드)</h4>
             <div className="text-[9px] text-zinc-300">
-              <span className="text-green-400 font-medium">1 TF:</span>{' '}
-              {HOME_PLANETS.filter((p: string) => !(game as { tinkeroidsThreeStepPlanets?: string[] }).tinkeroidsThreeStepPlanets!.includes(p)).join(', ')}
+              <span className="text-green-400 font-medium mr-1 border-r border-green-500/30 pr-1">1 TF</span>
+              <ColoredPlanetList planets={HOME_PLANETS.filter((p: string) => !(game as { tinkeroidsThreeStepPlanets?: string[] }).tinkeroidsThreeStepPlanets!.includes(p))} />
             </div>
             <div className="text-[9px] text-zinc-300">
-              <span className="text-amber-400 font-medium">3 TF:</span>{' '}
-              {(game as { tinkeroidsThreeStepPlanets?: string[] }).tinkeroidsThreeStepPlanets!.join(', ')}
+              <span className="text-amber-400 font-medium mr-1 border-r border-amber-500/30 pr-1">3 TF</span>
+              <ColoredPlanetList planets={(game as { tinkeroidsThreeStepPlanets?: string[] }).tinkeroidsThreeStepPlanets!} />
             </div>
           </div>
         )}
@@ -306,7 +355,7 @@ export function PlayerPanel({
           </div>
           <div className="grid grid-cols-1 gap-3">
             {(() => {
-              const incomeNext = playerId && game ? getNextRoundIncomePreview(playerId, game) : null;
+              const incomeNext = playerId && game ? getNextRoundIncomePreview(playerId, game, { excludeBonusTiles: true }) : null;
               return (
                 <>
                   <ResourceBar label="Ore" value={currentPlayer.ore} max={15} color="#E85D04" next={incomeNext?.ore} />
@@ -314,12 +363,7 @@ export function PlayerPanel({
                   <ResourceBar label="Credits" value={currentPlayer.credits} max={30} color="#FFE74C" next={incomeNext?.credits} />
                   <ResourceBar label="Q.I.C" value={currentPlayer.qic} max={10} color="#38B000" next={incomeNext?.qic} />
                   {incomeNext != null && (incomeNext.powerCharge > 0 || incomeNext.powerTokens > 0) && (
-                    <div className="flex flex-col gap-1 items-start">
-                      {incomeNext.powerTokens > 0 && (
-                        <div className="text-[10px] text-zinc-500 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit flex items-center">
-                          Next Round Tokens: (+{incomeNext.powerTokens})
-                        </div>
-                      )}
+                    <div className="flex flex-row gap-2 items-center flex-wrap">
                       {incomeNext.powerCharge > 0 && (
                         <div className="text-[10px] text-zinc-500 font-bold bg-white/5 px-2 py-0.5 rounded border border-white/10 w-fit flex items-center">
                           Next Round Charge:
@@ -328,6 +372,11 @@ export function PlayerPanel({
                             <path d="M21 12l-4-4M21 12l-4 4" />
                           </svg>
                           {incomeNext.powerCharge}
+                        </div>
+                      )}
+                      {incomeNext.powerTokens > 0 && (
+                        <div className="text-[10px] text-zinc-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 w-fit flex items-center">
+                          +{incomeNext.powerTokens} Tokens
                         </div>
                       )}
                     </div>

@@ -169,8 +169,8 @@ export function HexMap() {
                 r={tile.r}
                 s={-tile.q - tile.r}
                 style={{
-                  fill: (tile.sector !== null && tile.sector >= 20 && tile.sector < 30)
-                    ? '#3b2f6b' // Highlight C-sectors with purple
+                  fill: (tile.sector !== null && tile.sector >= 11 && tile.sector < 20)
+                    ? "rgba(128, 0, 128, 0.15)" // bridge highlight C-sectors with purple
                     : '#1a1a1a',
                   stroke: tile.structure
                     ? 'rgba(255,215,0,0.8)'

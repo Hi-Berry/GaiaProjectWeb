@@ -356,11 +356,11 @@ function getStructureCount(game: GaiaGameState, playerId: string, structure: 'pl
   return game.map.filter(t => t.ownerId === playerId && t.structure === structure).length;
 }
 
-function getAcademyLeftCount(game: GaiaGameState, playerId: string): number {
+export function getAcademyLeftCount(game: GaiaGameState, playerId: string): number {
   return game.map.filter(t => t.ownerId === playerId && t.structure === 'academy' && (t.academyType === 'left' || t.academyType == null)).length;
 }
 
-function getAcademyRightCount(game: GaiaGameState, playerId: string): number {
+export function getAcademyRightCount(game: GaiaGameState, playerId: string): number {
   return game.map.filter(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right').length;
 }
 
@@ -483,12 +483,21 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
   const selectedHexIds = mode.selectedHexIds ?? [];
   const selectedPlanetIds = mode.selectedPlanetIds ?? [];
   const selectedSpaceStationHexIds = mode.selectedSpaceStationHexIds ?? [];
-  const planetIds = new Set<string>(getFederationPlanetIdsFromSelectedEmpties(game, selectedHexIds));
-  selectedPlanetIds.forEach(id => {
-    const component = getPlanetConnectedComponent(game, id);
-    component.forEach(pid => planetIds.add(pid));
+  const allHexIds = [...fedHexes, ...selectedHexIds, ...selectedSpaceStationHexIds, ...selectedPlanetIds];
+  const planetIds = new Set<string>();
+  allHexIds.forEach(hexId => {
+    const tile = game.map.find(t => t.id === hexId);
+    if (!tile) return;
+    if (isPlanetHex(tile)) {
+      getPlanetConnectedComponent(game, hexId).forEach(pid => planetIds.add(pid));
+    }
+    getNeighbors(game.map, tile).forEach(n => {
+      if (isPlanetHex(n)) {
+        getPlanetConnectedComponent(game, n.id).forEach(pid => planetIds.add(pid));
+      }
+    });
   });
-  const allHexIds = [...fedHexes, ...selectedHexIds, ...selectedSpaceStationHexIds];
+
   const power = getFederationBuildingPower(game, playerId, planetIds, allHexIds);
   const requiredPower = getFederationRequiredPower(game, playerId);
   const hasBig = game.players[playerId]?.techTiles?.includes('tech-big-4str') ?? false;
@@ -542,12 +551,12 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
     const maxAffordable = Math.min(actualGain, targetPlayer.score + 1);
     const vpCost = Math.max(0, maxAffordable - 1);
 
-    // 이타르·타클론 제외: 1파워는 묻지 않고 자동 수락 (단, 소스 건물의 파워가 1보다 크면 오해 방지를 위해 오퍼 띄움)
-    const autoAcceptOne = maxAffordable === 1 && maxPower === 1 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
+    // 이타르·타클론 제외: 발생 파워가 얼마든, 비용(vpCost) 없이 지불되는 파워가 1 이하라면 자동 수락(autoAcceptOne)
+    const autoAcceptOne = vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
     if (autoAcceptOne) {
       addScore(game, playerId, -vpCost, 'powerReceived');
-      chargePower(targetPlayer, 1);
-      addGameLog(game, playerId, '↳ Received Power', `+1P from ${sourcePlayer?.name}`, tileId);
+      chargePower(targetPlayer, maxAffordable);
+      addGameLog(game, playerId, '↳ Received Power', `+${maxAffordable}P from ${sourcePlayer?.name}`, tileId);
       continue;
     }
     // Bot Auto-Accept Logic
@@ -2883,90 +2892,10 @@ export function setupGameServer(httpServer: HTTPServer) {
     socket.on('convert_resource', ({ gameId, type, useBrain }) => {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-      const player = game.players[playerId];
-      const isTaklons = player.faction === 'taklons';
-      const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 
-      // 네뷸라 전용: 3그릇 토큰 → 가이아포머 공간 + 1K (의회 시 2P→1K)
-      if (type === '1power-to-1k-gaiaformer') {
-        if (player.faction !== 'nevlas') return;
-        if (hasNevlasPI) {
-          if ((player.power3 ?? 0) < 2) return;
-          player.power3! -= 2;
-          player.power1 = (player.power1 ?? 0) + 0; // 토큰은 가이아포머로만
-          player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 2;
-          player.knowledge = (player.knowledge ?? 0) + 1;
-          addGameLog(game, playerId, 'Nebula PI', '2P → Gaiaformer + 1K', undefined);
-        } else {
-          if ((player.power3 ?? 0) < 1) return;
-          player.power3! -= 1;
-          player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
-          player.knowledge = (player.knowledge ?? 0) + 1;
-          addGameLog(game, playerId, 'Nebula', '1P → Gaiaformer + 1K', undefined);
-        }
-        clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-        return;
+      if (executeConvertResource(io, game, playerId, type, useBrain)) {
+        // 이미 executeConvertResource에서 clamp 및 emit을 수행함
       }
-
-      if (type === '3power-to-1ore') {
-        if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
-          player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.ore = (player.ore ?? 0) + 1;
-        } else if (isTaklons) {
-          if (!canSpendTaklonsPower(player, 3, 3)) return;
-          if (!spendTaklonsPower(player, 3, 3, useBrain ?? false)) return;
-          player.ore = (player.ore ?? 0) + 1;
-        } else if (player.power3 >= 3) {
-          player.power3 -= 3; player.power1 += 3; player.ore += 1;
-        }
-      }
-      else if (type === '3power-to-2ore') {
-        if (!hasNevlasPI || (player.power3 ?? 0) < 3) return;
-        player.power3! -= 3; player.power1 = (player.power1 ?? 0) + 3; player.ore = (player.ore ?? 0) + 2;
-      }
-      else if (type === '2power-to-1ore-1credit') {
-        if (!hasNevlasPI || (player.power3 ?? 0) < 2) return;
-        player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.ore = (player.ore ?? 0) + 1; player.credits = (player.credits ?? 0) + 1;
-      }
-      else if (type === '4power-to-1qic') {
-        if (player.faction === 'gleens' && getAcademyRightCount(game, playerId) < 1) return;
-        if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
-          player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; grantQic(game, playerId, 1);
-        } else if (isTaklons) {
-          if (!canSpendTaklonsPower(player, 3, 4)) return;
-          if (!spendTaklonsPower(player, 3, 4, useBrain ?? false)) return;
-          grantQic(game, playerId, 1);
-        } else if (player.power3 >= 4) {
-          player.power3 -= 4; player.power1 += 4; grantQic(game, playerId, 1);
-        }
-      }
-      else if (type === '1power-to-1credit') {
-        if (hasNevlasPI && (player.power3 ?? 0) >= 1) {
-          player.power3! -= 1; player.power1 = (player.power1 ?? 0) + 1; player.credits = (player.credits ?? 0) + 2;
-        } else if (isTaklons) {
-          if (!canSpendTaklonsPower(player, 3, 1)) return;
-          if (!spendTaklonsPower(player, 3, 1, useBrain ?? false)) return;
-          player.credits += 1;
-        } else if (player.power3 >= 1) {
-          player.power3 -= 1; player.power1 += 1; player.credits += 1;
-        }
-      }
-      else if (type === '1knowledge-to-1credit' && player.knowledge >= 1) { player.knowledge -= 1; player.credits += 1; }
-      else if (type === '1qic-to-1ore' && (player.qic ?? 0) >= 1) { player.qic -= 1; player.ore = (player.ore ?? 0) + 1; }
-      else if (type === '1ore-to-1credit' && (player.ore ?? 0) >= 1) { player.ore -= 1; player.credits = (player.credits ?? 0) + 1; }
-      else if (type === '1ore-to-1token' && (player.ore ?? 0) >= 1) { player.ore -= 1; player.power1 = (player.power1 ?? 0) + 1; }
-      else if (type === '4power-to-1knowledge') {
-        if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
-          player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.knowledge = (player.knowledge ?? 0) + 1;
-        } else if (isTaklons) {
-          if (!canSpendTaklonsPower(player, 3, 4)) return;
-          if (!spendTaklonsPower(player, 3, 4, useBrain ?? false)) return;
-          player.knowledge = (player.knowledge ?? 0) + 1;
-        } else if (player.power3 >= 4) {
-          player.power3 -= 4; player.power1 += 4; player.knowledge = (player.knowledge ?? 0) + 1;
-        }
-      }
-
-      clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
     });
 
     socket.on('burn_power', ({ gameId, moveBrainToBowl3 }: { gameId: string; moveBrainToBowl3?: boolean }) => {
@@ -3213,8 +3142,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
-      // 선택 완료 후 라운드 턴 시작
-      helperStartNewRoundTurn(io, game);
+      // 팅커로이드 보너스 선택 완료 후 
+      // 턴을 강제로 리셋하는 helperStartNewRoundTurn 대신 봇 후속 조치만 호출.
+      // 팅커 특수 보너스 선택은 메인 액션을 소모하지 않음.
+      executeBotTurnIfNeeded(io, game).catch(err => {
+        log(`Bot turn execution error (TinkeroidSpecial): ${err}`, 'error');
+      });
     });
 
     socket.on('use_special_action', ({ gameId, actionId }) => {
@@ -3511,13 +3444,21 @@ export function setupGameServer(httpServer: HTTPServer) {
       const numEmpty = selectedHexIds.length;
       const player = game.players[playerId];
       const fedHexes = game.playerFederationHexes?.[playerId] ?? [];
-      const planetIds = getFederationPlanetIdsFromSelectedEmpties(game, selectedHexIds);
-      selectedPlanetIds.forEach(id => {
-        const component = getPlanetConnectedComponent(game, id);
-        component.forEach(pid => planetIds.add(pid));
+      const allHexIds = [...fedHexes, ...selectedHexIds, ...selectedSpaceStationHexIds, ...selectedPlanetIds];
+      const planetIdsForPower = new Set<string>();
+      allHexIds.forEach(hexId => {
+        const tile = game.map.find(t => t.id === hexId);
+        if (!tile) return;
+        if (isPlanetHex(tile)) {
+          getPlanetConnectedComponent(game, hexId).forEach(pid => planetIdsForPower.add(pid));
+        }
+        getNeighbors(game.map, tile).forEach(n => {
+          if (isPlanetHex(n)) {
+            getPlanetConnectedComponent(game, n.id).forEach(pid => planetIdsForPower.add(pid));
+          }
+        });
       });
-      const allHexIds = [...fedHexes, ...selectedHexIds, ...selectedSpaceStationHexIds];
-      const power = getFederationBuildingPower(game, playerId, planetIds, allHexIds);
+      const power = getFederationBuildingPower(game, playerId, planetIdsForPower, allHexIds);
       const requiredPower = getFederationRequiredPower(game, playerId);
       if (power < requiredPower) {
         log(`Federation complete rejected: building power ${power} < ${requiredPower}`, 'game');
@@ -3547,7 +3488,8 @@ export function setupGameServer(httpServer: HTTPServer) {
       game.federationMode = null;
       game.federationPreview = null;
       game.pendingFederationReward = { playerId, selectedHexIds, spentTokens: numEmpty };
-      addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} satellites, ${power} power${isIvits ? ', QIC cost' : ''})`);
+      const unitLabel = isIvits ? '우주정거장' : '위성';
+      addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel}, ${power} power${isIvits ? ', QIC cost' : ''})`);
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
     });
 
@@ -4217,6 +4159,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 }
 
 export function saveActionStartState(game: ServerGameState, playerId: string) {
+  if (game.hasDoneMainAction) return;
   if (!game.turnStartState) game.turnStartState = {};
   game.turnStartState[playerId] = {
     playerState: JSON.parse(JSON.stringify(game.players[playerId])),
@@ -4265,7 +4208,12 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
     }
     game.pendingTechTileSelection = null;
     game.availableShipTechTileIds = undefined;
-    game.pendingShipTechTrackAdvance = { playerId };
+    if (techTileId === 'ship-tech-2tf-mine') {
+      // 광산 건설부터 우선 수행
+      game.pendingShipTechMine = { playerId };
+    } else {
+      game.pendingShipTechTrackAdvance = { playerId };
+    }
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
     return;
   }
@@ -4463,6 +4411,21 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   const freeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
 
+  const clearFreeMineFlags = () => {
+    const fromShipTech = player.nextMineFreeFromShipTech;
+    if (freeMine) {
+      player.nextMineFreeFromShipTech = false;
+      if (player.spaceshipFed3TfMineFree) player.spaceshipFed3TfMineFree = false;
+    }
+    if (game.pendingShipTechMine?.playerId === playerId) {
+      game.pendingShipTechMine = null;
+      if (fromShipTech) {
+        // 광산 건설 완료 후 트랙 전진 단계로
+        game.pendingShipTechTrackAdvance = { playerId };
+      }
+    }
+  };
+
   // Lantids Parasitic
   if (player.faction === 'lantids' && tile.structure != null && tile.ownerId !== playerId && tile.ownerId != null && !tile.parasiticMine) {
     if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
@@ -4505,6 +4468,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
       player.knowledge = (player.knowledge || 0) + 2;
       addGameLog(game, playerId, 'Lantida Council', '+2 Knowledge (parasitic build with PI)', tileId);
     }
+    clearFreeMineFlags();
     game.hasDoneMainAction = true;
     log(`Player ${player.name} built parasitic mine on ${tileId}`, 'game');
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -4515,10 +4479,6 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     debugLog(game, `executeBuildMine failed: Tile ${tileId} already has structure ${tile.structure}`, 'error');
     return false;
   }
-  if (freeMine) {
-    player.nextMineFreeFromShipTech = false;
-    if (player.spaceshipFed3TfMineFree) player.spaceshipFed3TfMineFree = false;
-  }
 
   const unbuildableTypes = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
   if (unbuildableTypes.includes(tile.type)) {
@@ -4528,34 +4488,6 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   // Asteroid
   if (tile.type === 'asteroid') {
-    let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-    if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-    if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-    if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
-    const rangeTiles = getPlayerRangeTiles(game, playerId);
-    if (rangeTiles.length === 0) {
-      debugLog(game, `executeBuildMine failed (Asteroid): No starting tiles for range calculation`, 'error');
-      return false;
-    }
-    const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-    const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
-      debugLog(game, `executeBuildMine failed (Asteroid): Mine limit reached`, 'error');
-      return false;
-    }
-    if (getEffectiveGaiaformers(player) <= 0) {
-      debugLog(game, `executeBuildMine failed (Asteroid): No available Gaiaformers`, 'error');
-      return false;
-    }
-    if ((player.qic ?? 0) < neededQIC) {
-      debugLog(game, `executeBuildMine failed (Asteroid): Insufficient QIC (QIC: ${player.qic}/${neededQIC}, Dist: ${minDist}, Range: ${baseRange})`, 'error');
-      return false;
-    }
-
-    player.gaiaformers = Math.max(0, (player.gaiaformers || 0) - 1);
-    player.destroyedGaiaformers = (player.destroyedGaiaformers || 0) + 1;
-    player.qic = (player.qic ?? 0) - neededQIC;
-
     const geodensTypesBeforeAsteroid = getPlayerPlanetTypesForGeodens(game, playerId);
     const rm7QualifyAsteroid = qualifiesForNewSectorRoundMission(game, playerId, tileId);
     tile.structure = 'mine';
@@ -4573,96 +4505,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     applyAdvancedTechTileEffect(game, playerId, 'build_mine');
     createPowerOffers(game, tile, playerId);
     applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeAsteroid);
-    game.hasDoneMainAction = true;
-    clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-    return true;
-  }
-
-  // Gaia Planet (Matured)
-  if (tile.type === 'gaia' && player.pendingGaiaformerTiles?.includes(tileId)) {
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
-      debugLog(game, `executeBuildMine failed (Gaia Matured): Mine limit reached`, 'error');
-      return false;
-    }
-    const mineOre = freeMine ? 0 : 1, mineCredits = freeMine ? 0 : 2;
-    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) {
-      debugLog(game, `executeBuildMine failed (Gaia Matured): Insufficient resources (Ore: ${player.ore}/${mineOre}, Credits: ${player.credits}/${mineCredits})`, 'error');
-      return false;
-    }
-    player.ore = (player.ore ?? 0) - mineOre;
-    player.credits = (player.credits ?? 0) - mineCredits;
-    player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
-    const geodensTypesBeforeGaia = getPlayerPlanetTypesForGeodens(game, playerId);
-    const rm7QualifyGaia1 = qualifiesForNewSectorRoundMission(game, playerId, tileId);
-    tile.structure = 'mine';
-    tile.ownerId = playerId;
-    tile.hasGaiaformer = false;
-    player.gaiaformers = (player.gaiaformers || 0) + 1;
-    addGameLog(game, playerId, 'Built Mine on Gaia Planet', '1O, 2C (Gaiaformed, Gaiaformer recovered)', tileId);
-    applyRoundMissionScore(game, playerId, 'build_mine');
-    if (rm7QualifyGaia1) applyRoundMissionScore(game, playerId, 'new_sector');
-    applyRoundMissionScore(game, playerId, 'build_gaia');
-
-    // RM8: New Planet Type (RM8)
-    const geodensTypesAfterGaia = getPlayerPlanetTypesForGeodens(game, playerId);
-    if (geodensTypesAfterGaia.size > geodensTypesBeforeGaia.size) {
-      applyRoundMissionScore(game, playerId, 'new_planet_type');
-    }
-
-    applyAdvancedTechTileEffect(game, playerId, 'build_mine');
-    createPowerOffers(game, tile, playerId);
-    applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeGaia);
-    game.hasDoneMainAction = true;
-    clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-    return true;
-  }
-
-  // Transdim + Gaiaformer
-  if (tile.type === 'transdim') {
-    if (!tile.hasGaiaformer) {
-      debugLog(game, `executeBuildMine failed (Transdim): Tile ${tileId} does not have a Gaiaformer`, 'error');
-      return false;
-    }
-    // We only allow if it was matured (usually handled by gaia type check above, but keeping for safety if type didn't change yet)
-    // Actually original code checked pendingGaiaformerTiles.
-    if (!player.pendingGaiaformerTiles?.includes(tileId)) {
-      debugLog(game, `executeBuildMine failed (Transdim): Gaiaformer on ${tileId} is not matured`, 'error');
-      return false;
-    }
-
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
-      debugLog(game, `executeBuildMine failed (Transdim): Mine limit reached`, 'error');
-      return false;
-    }
-    const mineOre = freeMine ? 0 : 1, mineCredits = freeMine ? 0 : 2;
-    if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) {
-      debugLog(game, `executeBuildMine failed (Transdim): Insufficient resources (Ore: ${player.ore}/${mineOre}, Credits: ${player.credits}/${mineCredits})`, 'error');
-      return false;
-    }
-    player.ore = (player.ore ?? 0) - mineOre;
-    player.credits = (player.credits ?? 0) - mineCredits;
-    player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
-    const geodensTypesBeforeTransdim = getPlayerPlanetTypesForGeodens(game, playerId);
-    const rm7QualifyGaia2 = qualifiesForNewSectorRoundMission(game, playerId, tileId);
-    tile.structure = 'mine';
-    tile.ownerId = playerId;
-    tile.type = 'gaia';
-    tile.hasGaiaformer = false;
-    player.gaiaformers = (player.gaiaformers || 0) + 1;
-    addGameLog(game, playerId, 'Built Mine on Gaia Planet', '1O, 2C (Gaiaformed, Gaiaformer recovered)', tileId);
-    applyRoundMissionScore(game, playerId, 'build_mine');
-    if (rm7QualifyGaia2) applyRoundMissionScore(game, playerId, 'new_sector');
-    applyRoundMissionScore(game, playerId, 'build_gaia');
-
-    // RM8: New Planet Type (RM8)
-    const geodensTypesAfterTransdim = getPlayerPlanetTypesForGeodens(game, playerId);
-    if (geodensTypesAfterTransdim.size > geodensTypesBeforeTransdim.size) {
-      applyRoundMissionScore(game, playerId, 'new_planet_type');
-    }
-
-    applyAdvancedTechTileEffect(game, playerId, 'build_mine');
-    createPowerOffers(game, tile, playerId);
-    applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeTransdim);
+    clearFreeMineFlags();
     game.hasDoneMainAction = true;
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
     return true;
@@ -4784,10 +4627,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   createPowerOffers(game, tile, playerId);
   applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBefore);
 
+  clearFreeMineFlags();
   game.hasDoneMainAction = true;
-  if (game.pendingShipTechMine?.playerId === playerId) {
-    game.pendingShipTechMine = null;
-  }
   clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
   return true;
 }
@@ -5254,10 +5095,7 @@ export function executeAdvanceTech(
     applyRoundMissionScore(game, playerId, 'research_track');
     game.hasDoneMainAction = true;
 
-    // 만약 2TF+Mine 타일을 통해 진행한 것이라면, 광산 건설 단계를 위해 펜딩 상태 유지
-    if (player.nextMineFreeFromShipTech) {
-      game.pendingShipTechMine = { playerId };
-    }
+    // 2TF+Mine 관련 순서 조정을 위해 기존 로직 제거 (이제 광산 건설 완료 시 트랙 전진이 트리거됨)
 
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
     return true;
@@ -5420,6 +5258,12 @@ export function executePassRound(
       game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
     }
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+
+    // 6라운드에서도 사람이 패스한 후 다음 플레이어가 봇이면 자동 실행될 수 있도록 트리거 추가
+    executeBotTurnIfNeeded(io, game).catch(err => {
+      log(`Bot turn execution error (Round 6 pass): ${err}`, 'error');
+    });
+
     return true;
 
   } else {
@@ -5955,9 +5799,11 @@ export function executeBotTinkeroidSpecial(
   addGameLog(game, playerId, 'Bot: Tinkeroid Special', `Auto-selected ${specialId}`);
   log(`Bot ${player.name} (Tinkeroids) auto-selected special ${specialId}`, 'game');
 
+  game.hasDoneMainAction = false; // 보너스 선택만 일어난 경우 메인 액션 소모 방지
   clampPlayerResources(game);
   io.to(game.id).emit('game_updated', game);
-  helperStartNewRoundTurn(io, game);
+  // 봇 전용: 보너스 픽업 완료 후 턴오더 강제 리셋을 방지하기 위해 여기선 return만 처리
+  // (botHandler가 알아서 이어서 메인턴 실행함)
   return true;
 }
 
@@ -6240,12 +6086,139 @@ export function executeBotFederation(
   if (!game.playerFederationHexes[playerId]) game.playerFederationHexes[playerId] = [];
   game.playerFederationHexes[playerId].push(...selectedHexIds);
 
-  addGameLog(game, playerId, 'Federation', `Formed federation (${spentTokens} satellites, reward: ${reward?.label})`);
+  const unitLabel = isIvits ? '우주정거장' : '위성';
+  addGameLog(game, playerId, 'Federation', `Formed federation (${spentTokens} ${unitLabel}, reward: ${reward?.label})`);
   game.hasDoneMainAction = true;
   clampPlayerResources(game);
   io.to(game.id).emit('game_updated', game);
   return true;
 }
+/** 자원 변환 (Free Action) */
+export function executeConvertResource(
+  io: SocketIOServer,
+  game: ServerGameState,
+  playerId: string,
+  type: string,
+  useBrain?: boolean
+): boolean {
+  const player = game.players[playerId];
+  if (!player) return false;
+  const isTaklons = player.faction === 'taklons';
+  const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+
+  let success = false;
+  let logDesc = '';
+
+  // 네뷸라 전용: 3그릇 토큰 → 가이아포머 공간 + 1K (의회 시 2P→1K)
+  if (type === '1power-to-1k-gaiaformer') {
+    if (player.faction !== 'nevlas') return false;
+    if (hasNevlasPI) {
+      if ((player.power3 ?? 0) < 2) return false;
+      player.power3! -= 2;
+      player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 2;
+      player.knowledge = (player.knowledge ?? 0) + 1;
+      logDesc = '2P → Gaiaformer + 1K';
+    } else {
+      if ((player.power3 ?? 0) < 1) return false;
+      player.power3! -= 1;
+      player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
+      player.knowledge = (player.knowledge ?? 0) + 1;
+      logDesc = '1P → Gaiaformer + 1K';
+    }
+    success = true;
+  }
+  else if (type === '3power-to-1ore') {
+    if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
+      player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.ore = (player.ore ?? 0) + 1;
+      logDesc = '2P → 1O'; success = true;
+    } else if (isTaklons) {
+      if (canSpendTaklonsPower(player, 3, 3) && spendTaklonsPower(player, 3, 3, useBrain ?? false)) {
+        player.ore = (player.ore ?? 0) + 1; logDesc = '3P → 1O'; success = true;
+      }
+    } else if ((player.power3 ?? 0) >= 3) {
+      player.power3! -= 3; player.power1 = (player.power1 ?? 0) + 3; player.ore = (player.ore ?? 0) + 1;
+      logDesc = '3P → 1O'; success = true;
+    }
+  }
+  else if (type === '3power-to-2ore') {
+    if (hasNevlasPI && (player.power3 ?? 0) >= 3) {
+      player.power3! -= 3; player.power1 = (player.power1 ?? 0) + 3; player.ore = (player.ore ?? 0) + 2;
+      logDesc = '3P → 2O'; success = true;
+    }
+  }
+  else if (type === '2power-to-1ore-1credit') {
+    if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
+      player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.ore = (player.ore ?? 0) + 1; player.credits = (player.credits ?? 0) + 1;
+      logDesc = '2P → 1O, 1C'; success = true;
+    }
+  }
+  else if (type === '4power-to-1qic') {
+    if (player.faction === 'gleens' && getAcademyRightCount(game, playerId) < 1) return false;
+    if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
+      player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; grantQic(game, playerId, 1);
+      logDesc = '2P → 1Q'; success = true;
+    } else if (isTaklons) {
+      if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? false)) {
+        grantQic(game, playerId, 1); logDesc = '4P → 1Q'; success = true;
+      }
+    } else if ((player.power3 ?? 0) >= 4) {
+      player.power3! -= 4; player.power1 = (player.power1 ?? 0) + 4; grantQic(game, playerId, 1);
+      logDesc = '4P → 1Q'; success = true;
+    }
+  }
+  else if (type === '1power-to-1credit') {
+    if (hasNevlasPI && (player.power3 ?? 0) >= 1) {
+      player.power3! -= 1; player.power1 = (player.power1 ?? 0) + 1; player.credits = (player.credits ?? 0) + 2;
+      logDesc = '1P → 2C'; success = true;
+    } else if (isTaklons) {
+      if (canSpendTaklonsPower(player, 3, 1) && spendTaklonsPower(player, 3, 1, useBrain ?? false)) {
+        player.credits += 1; logDesc = '1P → 1C'; success = true;
+      }
+    } else if ((player.power3 ?? 0) >= 1) {
+      player.power3! -= 1; player.power1 = (player.power1 ?? 0) + 1; player.credits = (player.credits ?? 0) + 1;
+      logDesc = '1P → 1C'; success = true;
+    }
+  }
+  else if (type === '1knowledge-to-1credit' && (player.knowledge ?? 0) >= 1) {
+    player.knowledge! -= 1; player.credits = (player.credits ?? 0) + 1;
+    logDesc = '1K → 1C'; success = true;
+  }
+  else if (type === '1qic-to-1ore' && (player.qic ?? 0) >= 1) {
+    player.qic! -= 1; player.ore = (player.ore ?? 0) + 1;
+    logDesc = '1Q → 1O'; success = true;
+  }
+  else if (type === '1ore-to-1credit' && (player.ore ?? 0) >= 1) {
+    player.ore! -= 1; player.credits = (player.credits ?? 0) + 1;
+    logDesc = '1O → 1C'; success = true;
+  }
+  else if (type === '1ore-to-1token' && (player.ore ?? 0) >= 1) {
+    player.ore! -= 1; player.power1 = (player.power1 ?? 0) + 1;
+    logDesc = '1O → 1 Token'; success = true;
+  }
+  else if (type === '4power-to-1knowledge') {
+    if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
+      player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.knowledge = (player.knowledge ?? 0) + 1;
+      logDesc = '2P → 1K'; success = true;
+    } else if (isTaklons) {
+      if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? false)) {
+        player.knowledge = (player.knowledge ?? 0) + 1; logDesc = '4P → 1K'; success = true;
+      }
+    } else if ((player.power3 ?? 0) >= 4) {
+      player.power3! -= 4; player.power1 = (player.power1 ?? 0) + 4; player.knowledge = (player.knowledge ?? 0) + 1;
+      logDesc = '4P → 1K'; success = true;
+    }
+  }
+
+  if (success) {
+    addGameLog(game, playerId, 'Resource Convert', logDesc, undefined);
+    clampPlayerResources(game);
+    io.to(game.id).emit('game_updated', game);
+    return true;
+  }
+
+  return false;
+}
+
 export function executeBurnPower(game: ServerGameState, playerId: string, moveBrainToBowl3?: boolean): boolean {
   const player = game.players[playerId];
   if (!player) return false;

@@ -918,7 +918,7 @@ export default function Game() {
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
             onEclipseBuildAsteroidMine={(tileId) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId)}
             onBuildMine={(tileId, useGaiaformer) => {
-              if (game.hasDoneMainAction) return;
+              if (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId)) return;
               const tile = game.map.find(t => t.id === tileId);
               if (!tile || !playerId) return;
 
@@ -1053,8 +1053,19 @@ export default function Game() {
           />
         </div>
 
-        {/* Dashboards Area: 보너스 타일 선택 단계면 접었다 펼칠 수 있는 패널, 아니면 라운드 보드 */}
-        {isBonusSelectionPhase ? (
+        {/* Dashboards Area: 라운드 보드를 항상 렌더링하고 보너스 단계 패널은 별도로 표시 */}
+        <div className="p-4 bg-black/40 border-t border-white/5 space-y-4">
+          <div className="max-w-6xl mx-auto">
+            <RoundBoard
+              game={game}
+              playerId={playerId}
+              onPass={() => setShowPassBonusModal(true)}
+              onEndGame={() => GameClient.passRound(gameId!, undefined)}
+            />
+          </div>
+        </div>
+
+        {isBonusSelectionPhase && (
           <div className="border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-4px_24px_rgba(0,0,0,0.4)]">
             <button
               type="button"
@@ -1089,17 +1100,6 @@ export default function Game() {
                 />
               </div>
             )}
-          </div>
-        ) : (
-          <div className="p-4 bg-black/40 border-t border-white/5 space-y-4">
-            <div className="max-w-6xl mx-auto">
-              <RoundBoard
-                game={game}
-                playerId={playerId}
-                onPass={() => setShowPassBonusModal(true)}
-                onEndGame={() => GameClient.passRound(gameId!, undefined)}
-              />
-            </div>
           </div>
         )}
 
@@ -2193,7 +2193,7 @@ export default function Game() {
             const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
             const expanded = expandedPlayerId === id;
             const counts = getStructureCountsForPlayer(game, id);
-            const inc = getNextRoundIncomePreview(id, game);
+            const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
             return (
               <div
                 key={id}
@@ -2368,6 +2368,24 @@ export default function Game() {
                           )}
                         </div>
                       ) : null;
+                    })()}
+
+                    {/* Academy (Right) Special Action Status */}
+                    {(() => {
+                      const hasAcademyRight = game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right');
+                      if (!hasAcademyRight) return null;
+                      const isUsed = p.usedSpecialActions?.includes('academy-qic');
+                      const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
+                      return (
+                        <div className="mt-1">
+                          <span className="text-muted-foreground font-medium">특수 액션 </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded border inline-flex items-center gap-1 ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-zinc-700/50' : 'bg-cyan-900/30 text-cyan-400 border-cyan-500/30'}`}
+                          >
+                            {label}{isUsed ? ' (사용됨)' : ' (사용 가능)'}
+                          </span>
+                        </div>
+                      );
                     })()}
                     {p.faction === 'ivits' && (
                       <div>

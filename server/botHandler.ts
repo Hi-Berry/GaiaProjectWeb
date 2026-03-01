@@ -10,7 +10,8 @@ import {
     executeBotTerranCouncilBenefit,
     executeBotItarsGaiaformerExchange,
     executeBotMoweyipPlaceRing,
-    executeBotBescodsAdvanceLowestTrack
+    executeBotBescodsAdvanceLowestTrack,
+    executeConvertResource
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';

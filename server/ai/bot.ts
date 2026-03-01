@@ -15,7 +15,10 @@ import {
     executeEndTurn,
     executeSelectTechTile,
     executeBotFederation,
-    executeBurnPower
+    executeBurnPower,
+    executeConvertResource,
+    getAcademyLeftCount,
+    getAcademyRightCount
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -48,7 +51,8 @@ type BotAction = {
     | 'select_tech_tile'
     | 'advance_tech'
     | 'form_federation'
-    | 'burn_power';
+    | 'burn_power'
+    | 'convert_resource';
     params: any;
 };
 
@@ -95,6 +99,8 @@ export class BotLogic {
                 io.to(game.id).emit('game_updated', game);
                 return true;
             }
+            case 'convert_resource':
+                return executeConvertResource(io, game, playerId, action.params.type, action.params.useBrain);
             case 'charge_power':
                 return false;
             case 'end_turn':
@@ -166,18 +172,24 @@ export class BotLogic {
             }
 
             // MCTS 켜기 (후보군 탐색)
-            // 연방, 건설, 업그레이드, 연구 등 여러 갈래를 MCTS에 맡깁니다.
             const candidates = this.getCandidateMoves(game, playerId);
             if (candidates.length === 1) return candidates[0];
             if (candidates.length > 1) {
                 if (isSimulate) {
-                    // MCTS 시뮬레이션 내부에서는 가장 점수가 높은 첫 번째 행동을 취하여 재귀를 막습니다.
-                    // (candidates 배열 안에는 이미 Evaluator 휴리스틱 등에 기반한 좋은 순서대로 담겨 있어야 하지만,
-                    // 현재 getCandidateMoves 는 단순히 목록만 가져오므로 0번을 고르면 탐욕적 선택이 됩니다)
                     return candidates[0];
                 }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await MCTS.search(game, playerId, candidates);
+
+                // 패스하기 직전 자원 변환 (Cleanup logic)
+                if (bestAction?.type === 'pass_round') {
+                    const cleanup = this.findCleanupConvertAction(game, playerId);
+                    if (cleanup) {
+                        log(`Bot ${player.name} performs cleanup convert before passing: ${cleanup.params.type}`, 'game', game.id);
+                        return cleanup;
+                    }
+                }
+
                 if (bestAction) return bestAction;
             }
             return null;
@@ -185,6 +197,109 @@ export class BotLogic {
 
         return null;
     }
+
+    /** 패스하기 직전에 다음 라운드 수입으로 인해 버려지는 파워가 생기지 않도록 미리 변환 시도 */
+    private static findCleanupConvertAction(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        if (!player) return null;
+
+        const maxTotalPower = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+        const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
+
+        // 현재 파워 상태와 다음 라운드 수입을 합산하여 예측
+        let p1 = (player.power1 ?? 0) + tokenIncome;
+        let p2 = player.power2 ?? 0;
+        let p3 = player.power3 ?? 0;
+
+        // 수입 단계의 파워 순환 시뮬레이션
+        let remainingCharge = powerIncome;
+        // 1 -> 2
+        const charge1to2 = Math.min(p1, remainingCharge);
+        p1 -= charge1to2;
+        p2 += charge1to2;
+        remainingCharge -= charge1to2;
+        // 2 -> 3
+        const charge2to3 = Math.min(p2, remainingCharge);
+        p2 -= charge2to3;
+        p3 += charge2to3;
+
+        // 만약 p3가 가득 차거나 p2가 비어있는 상태에서 charge가 남으면 낭비되는 파워가 생김
+        // 또는 p3 자금 여유가 충분할 때 자원으로 미리 변환
+        if (p3 >= 1) {
+            // 변환 우선순위: QIC(4) > Ore(3) > Credit(1)
+            if (p3 >= 4 && (player.qic || 0) < 15) {
+                if (player.faction !== 'gleens' || getAcademyLeftCount(game, playerId) > 0) { // 글린은 아카데미 조건 필요 (실제론 gain-1-qic 처리에 이미 있음)
+                    return { type: 'convert_resource', params: { type: '4power-to-1qic' } };
+                }
+            }
+            if (p3 >= 3 && (player.ore ?? 0) < 15) {
+                return { type: 'convert_resource', params: { type: '3power-to-1ore' } };
+            }
+            if (p3 >= 1 && (player.credits ?? 0) < 30) {
+                return { type: 'convert_resource', params: { type: '1power-to-1credit' } };
+            }
+        }
+
+        return null;
+    }
+
+    /** 다음 라운드 수입 단계에서 들어올 파워와 토큰 양 예측 */
+    private static calculateExpectedPowerIncome(game: ServerGameState, playerId: string): { powerIncome: number; tokenIncome: number } {
+        const player = game.players[playerId];
+        if (!player) return { powerIncome: 0, tokenIncome: 0 };
+
+        let powerIncome = 0;
+        let tokenIncome = 0;
+
+        // 1. Faction Base Income
+        const faction = FACTIONS.find(f => f.id === player.faction);
+        tokenIncome += faction?.baseIncome?.powerTokens ?? 0;
+
+        // 2. Bonus Tile Income
+        if (player.bonusTile) {
+            const tile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
+            if (tile?.income?.power) powerIncome += tile.income.power;
+            if (tile?.income?.powerTokens) tokenIncome += tile.income.powerTokens;
+        }
+
+        // 3. Tech Tiles Income
+        for (const tid of player.techTiles || []) {
+            if (tid === 'tech-inc-1o-1p') powerIncome += 1;
+            if (tid === 'tech-act-4p' && !player.usedSpecialActions?.includes(tid)) {
+                // 이 액션은 메인 액션 대신 쓰는 거지만 수입 단계 직전 수동 고려 가능성 (여기선 제외)
+            }
+        }
+
+        // 4. Research Track Income
+        for (const trackId of Object.keys(player.research || {}) as ResearchTrack[]) {
+            const level = player.research[trackId] ?? 0;
+            if (trackId === 'economy') {
+                if (level >= 1) powerIncome += 1;
+                if (level >= 2) powerIncome += 1;
+                if (level >= 3) powerIncome += 1;
+                if (level >= 4) powerIncome += 1;
+            } else if (trackId === 'science') {
+                // 과학 트랙은 충전 없음
+            }
+        }
+
+        // 5. Structure Income
+        const structures = game.map.filter(t => t.ownerId === playerId);
+        // Labs (네뷸라는 연구소당 2P)
+        const labs = structures.filter(t => t.structure === 'research_lab').length;
+        if (labs > 0 && player.faction === 'nevlas') powerIncome += 2 * labs;
+
+        // PI / Academy Income (Power)
+        const hasPI = structures.some(t => t.structure === 'planetary_institute');
+        if (hasPI) {
+            if (player.faction === 'taklons') powerIncome += 4;
+            else if (['terrans', 'xenos', 'ambas', 'ivits', 'firaks'].includes(player.faction || '')) powerIncome += 4;
+        }
+
+        return { powerIncome, tokenIncome };
+    }
+
+    // ... rest of the file stays same
 
     static getCandidateMoves(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
@@ -315,10 +430,10 @@ export class BotLogic {
             const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
 
             for (const ts of tsList) {
-                let score = 70;
-                // 초반 연구소 확보 가점
-                if (round <= 2 && labCount < 2) score += 30;
-                if (labCount === 0) score += 40;
+                let score = 75;
+                // 초반 연구소 확보 가점 (매우 높게 조정)
+                if (round <= 2 && labCount < 2) score += 60;
+                if (labCount === 0) score += 80;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_research_lab');
                 score += this.calculateFinalMissionBonus(game, playerId, ts, 'research_lab');
@@ -359,8 +474,9 @@ export class BotLogic {
         if (ore >= 6 && credits >= 6 && academyCount < 2) {
             const labList = myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
-                let score = 50;
-                if (round >= 4) score += 20;
+                let score = 100; // 베이스 상향
+                if (round <= 3) score += 40; // 초반 아카데미 강력 권장
+                if (round >= 4) score += 10;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, lab, 'academy');
@@ -567,11 +683,12 @@ export class BotLogic {
                     if (totalQicNeeded > 1) continue; // 가이아 1QIC + 거리 QIC = 2 이상이면 비효율
                 }
 
-                let score = (neededQicForRange === 0 ? 90 : 75) - neededQicForRange * 25;
+                let score = (neededQicForRange === 0 ? 130 : 100) - neededQicForRange * 25; // 가이아 건설 베이스 점수 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
+                score += this.calculateThreatScore(game, playerId, tile); // 가이아 탈취 위협 방어 점수 추가
 
                 scored.push({
                     tile,
@@ -583,11 +700,12 @@ export class BotLogic {
 
             // 모행성 (테라포밍 불필요)
             if (tile.type === homeType) {
-                let score = (neededQicForRange === 0 ? 100 : 80) - neededQicForRange * 25;
+                let score = (neededQicForRange === 0 ? 130 : 100) - neededQicForRange * 25; // 모행성 베이스 약간 하향 (업그레이드와 경합 유도)
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
+                score += this.calculateThreatScore(game, playerId, tile); // 다른 플레이어가 뺏을 위험 방어 점수 추가
 
                 scored.push({
                     tile,
@@ -698,20 +816,31 @@ export class BotLogic {
             const totalOre = 1 + terraformCost;
 
             if (ore >= totalOre && credits >= 2) {
-                // TF 레벨 3(1삽=1O)이면 점수 높게, TF 레벨 1(1삽=2O)이면 낮게, 0이면 더 낮게
-                const tfScore = tfLevel >= 3 ? 60 : (tfLevel >= 2 ? 45 : (tfLevel >= 1 ? 35 : 25));
-                let score = tfScore - (remainingSteps * 5) - (neededQicForRange * 25);
+                // [AI 개선] 3O(광석 3개)를 소모하는 테라포밍은 매우 비효율적이므로 점수를 대폭 하향
+                const tfScore = tfLevel >= 3 ? 50 : (tfLevel >= 2 ? 30 : (tfLevel >= 1 ? 5 : -20));
+
+                // 3O 소모 구간(costPerStep >= 3)에서는 패널티 대폭 증가
+                const stepPenalty = costPerStep >= 3 ? (remainingSteps * 30) : (remainingSteps * 10);
+                let score = tfScore - stepPenalty - (neededQicForRange * 25);
+
+                // 광석이 충분하지 않은 초/중반 3O 테라포밍 극단적 패널티
+                if (costPerStep >= 3 && (game.roundNumber <= 3 || ore < 8)) {
+                    score -= 60;
+                }
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
 
-                scored.push({
-                    tile,
-                    score,
-                    action: { type: 'build_mine', params: { tileId: tile.id } }
-                });
+                // 효율이 극도로 낮다면 아예 후보에서 배제 (차라리 기술을 올리거나 패스하도록 유도)
+                if (score >= -10) {
+                    scored.push({
+                        tile,
+                        score,
+                        action: { type: 'build_mine', params: { tileId: tile.id } }
+                    });
+                }
             }
         }
 
@@ -991,13 +1120,13 @@ export class BotLogic {
                 if (faction === 'terran' || faction === 'itars') score += 40;
                 break;
             case 'economy':
-                score += (6 - level) * 20;
-                if (round <= 2) score += 50;
+                score += (6 - level) * 15; // 낮춤 (기존 20)
+                if (round <= 2) score += 20; // 대폭 하향 (기존 50)
                 if (round >= 5) score -= 40;
                 break;
             case 'science':
-                score += (6 - level) * 25;
-                if (round <= 4) score += 30;
+                score += (6 - level) * 20; // 낮춤 (기존 25)
+                if (round <= 4) score += 15; // 낮춤 (기존 30)
                 break;
         }
 
@@ -1141,6 +1270,7 @@ export class BotLogic {
                 case 'gain-2-steps': score = 70; break;
                 case 'gain-2-ore': score = 50; break;
                 case 'gain-7-credits': score = 45; break;
+                case 'gain-1-step': score = 65; break; // 하이브 등 건설을 위해 1단계 전진 중요도 상향
                 case 'qic-action-tech': score = 90; break;
                 case 'qic-action-vp-sector': score = round >= 5 ? 100 : 40; break;
                 default: score = 10;
@@ -1380,5 +1510,65 @@ export class BotLogic {
 
         return score;
     }
-}
 
+    /**
+     * 동적 위협 평가 (Threat Assessment)
+     * 이 타일 주변에 적 플레이어가 침투할 가능성이나 의지가 높은가?
+     */
+    private static calculateThreatScore(game: ServerGameState, playerId: string, tile: HexTile): number {
+        let threatScore = 0;
+        const player = game.players[playerId];
+        const myFactionDef = FACTIONS.find(f => f.id === player.faction);
+
+        // 내가 지을 목적지가 모행성이거나 가이아행성 같은 노른자위 땅일 때 주로 발동
+        if (tile.type !== myFactionDef?.homePlanet && tile.type !== 'gaia') {
+            return 0; // 내 모행성도 아니면 뺏겨도 덜 아픔
+        }
+
+        for (const [otherId, otherPlayer] of Object.entries(game.players)) {
+            if (otherId === playerId || !otherPlayer.faction) continue;
+
+            // 1. 적이 이 타일을 모행성으로 쓰는지 (= 먹기 가장 쉬운 땅)
+            const otherFactionDef = FACTIONS.find(f => f.id === otherPlayer.faction);
+            const otherHomeTp = otherFactionDef?.homePlanet;
+            let targetAttractiveness = 0;
+
+            if (tile.type === otherHomeTp) {
+                targetAttractiveness += 30; // 적에게도 꿀땅임!
+            } else if (tile.type === 'gaia') {
+                targetAttractiveness += 15; // 가이아는 누구에게나 좋음
+            }
+
+            // 2. 적의 테라포밍 단계 및 삽 타일 획득 여부
+            const otherTechTf = otherPlayer.research.terraforming || 0;
+            if (otherTechTf >= 2) targetAttractiveness += 10;
+            // (만약 상대방이 이번 라운드에 테라포밍 보너스 타일 등을 들고 있으면 위협 폭증. 
+            // 단, 현재 서버 상태에서 상대의 보너스 타일/자원까지 상세히 추적하긴 어려우므로 보수적 접근)
+            if ((otherPlayer.ore || 0) >= 3) targetAttractiveness += 5; // 광석 많으면 테라포밍 가능성 높음
+
+            // 3. 적의 도달 가능성 (거리 점수)
+            // 적의 건물 중 가장 가까운 건물과의 거리
+            const otherBuildings = game.map.filter(t => t.ownerId === otherId && t.structure);
+            if (otherBuildings.length === 0) continue;
+
+            const minDist = Math.min(...otherBuildings.map(b => getDistance(b, tile)));
+            const otherRange = getRange(otherPlayer.research.navigation || 0) + (otherPlayer.navigationBonus || 0);
+
+            if (minDist <= otherRange) {
+                // 적이 QIC 없이 도달 가능함 -> 즉각적인 위협
+                threatScore += targetAttractiveness * 1.5;
+            } else if (minDist <= otherRange + 2) {
+                // 적이 QIC 1~2개 쓰면 도달 가능함 -> 잠재적 위협
+                threatScore += targetAttractiveness * 0.8;
+            }
+
+            // 특정 종족 스노우볼 견제 (다카니안, 가이아 프로젝트 종족 등)
+            if (otherPlayer.faction === 'taklons' || otherPlayer.faction === 'terran') {
+                threatScore += 10;
+            }
+        }
+
+        // 최대 방어 위협 보너스 캡 씌우기 (너무 이것만 집착하지 않도록)
+        return Math.min(threatScore, 60);
+    }
+}

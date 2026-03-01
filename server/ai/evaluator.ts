@@ -21,10 +21,10 @@ export class Evaluator {
         const vpWeight = round >= 5 ? 10 : 5;
         score += (player.score || 0) * vpWeight;
 
-        // 2. 자원 가치 평점 (Liquid resources - 대폭 하향하여 소모를 장려)
-        const resourceMultiplier = round <= 2 ? 1.5 : 1.0;
-        score += (player.ore || 0) * 0.5 * resourceMultiplier;
-        score += (player.credits || 0) * 0.1 * resourceMultiplier;
+        // 2. 자원 가치 평점 (Liquid resources - 소모를 강력하게 장려)
+        const resourceMultiplier = round <= 2 ? 1.0 : 0.8; // 초반에 자원을 들고있는 것보다 건물을 짓는게 낫도록 하향
+        score += (player.ore || 0) * 0.4 * resourceMultiplier;
+        score += (player.credits || 0) * 0.08 * resourceMultiplier;
         score += (player.knowledge || 0) * 0.2 * resourceMultiplier;
 
         // QIC valuation: Increases in later rounds to reserve for powerful QIC actions
@@ -39,18 +39,18 @@ export class Evaluator {
         if (player.brainStoneBowl === 2) score += 0.8;
         if (player.brainStoneBowl === 3) score += 1.5;
 
-        // 3. 건물 점수 (Board presence - 가치 상향)
+        // 3. 건물 점수 (Board presence - 가치 대폭 상향)
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
         for (const tile of myStructures) {
             let baseVal = 0;
-            if (tile.structure === 'mine' || tile.structure === 'lost_planet_mine') baseVal = 15;
+            if (tile.structure === 'mine' || tile.structure === 'lost_planet_mine') baseVal = 12; // 광산 가치 약간 조정
             else if (tile.structure === 'trading_station') baseVal = 25;
-            else if (tile.structure === 'research_lab') baseVal = 30;
-            else if (tile.structure === 'planetary_institute') baseVal = 50;
-            else if (tile.structure === 'academy') baseVal = 50;
+            else if (tile.structure === 'research_lab') baseVal = 40; // 상향
+            else if (tile.structure === 'planetary_institute') baseVal = 60; // 상향
+            else if (tile.structure === 'academy') baseVal = 70; // 상향
 
             // Early structures are much more valuable due to income
-            score += baseVal + (baseVal * 0.5 * remainingRounds);
+            score += baseVal + (baseVal * 0.6 * remainingRounds);
         }
 
         // 4. 연구 진행도 (Research - 가중치를 높여 자원 소모 유도)
