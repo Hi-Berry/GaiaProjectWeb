@@ -23,7 +23,7 @@ export function RoundBoard({ game, playerId, onPass, onEndGame }: RoundBoardProp
                 <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-primary" />
                     <CardTitle className="text-sm font-black tracking-widest uppercase text-zinc-400">
-                        Sector Scoring & Timeline
+                        Round Mission & Final Mission
                     </CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
@@ -61,109 +61,161 @@ export function RoundBoard({ game, playerId, onPass, onEndGame }: RoundBoardProp
                     )}
                 </div>
             </CardHeader>
-            <CardContent className="p-4 space-y-6">
-                {/* Round Scoring Tiles */}
-                <div className="grid grid-cols-6 gap-3">
-                    {game.roundScoringTiles.map((tile, index) => {
-                        const isCurrent = (index + 1) === game.roundNumber;
-                        const isPast = (index + 1) < game.roundNumber;
-                        const isSelected = tile.id !== '' && tile.condition !== '';
+            <CardContent className="p-4">
+                <div className="flex flex-row gap-4">
+                    {/* Left Side: Round Scoring Tiles - Fan Shape Layout (Refined) */}
+                    <div className="w-[60%] min-w-0">
+                        <div className="relative h-[220px] flex justify-center items-end bg-zinc-900/20 rounded-2xl border border-white/5 overflow-hidden">
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-primary/20 rounded-full blur-2xl" />
 
-                        return (
-                            <div
-                                key={tile.id || `round-${index + 1}`}
-                                className={`relative group flex flex-col items-center p-3 rounded-xl border transition-all duration-500 ${isCurrent && isSelected
-                                        ? 'bg-primary/10 border-primary border-2 shadow-[0_0_20px_rgba(var(--primary),0.1)] scale-105 z-10'
-                                        : isPast && isSelected
-                                            ? 'bg-zinc-900/50 border-white/5 opacity-30 grayscale'
-                                            : isSelected
-                                                ? 'bg-zinc-900/30 border-white/5 hover:border-white/20'
-                                                : 'bg-zinc-900/20 border-white/5 opacity-50'
-                                    }`}
-                            >
-                                <div className="absolute -top-2 -left-2">
-                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${isCurrent && isSelected ? 'bg-primary text-black' : 'bg-zinc-800 text-zinc-400'
-                                        }`}>
-                                        {index + 1}
+                            {game.roundScoringTiles.map((tile, index) => {
+                                const isCurrent = (index + 1) === game.roundNumber;
+                                const isPast = (index + 1) < game.roundNumber;
+                                const isSelected = tile.id !== '' && tile.condition !== '';
+
+                                // Tighter fan shape for perfect 180 degree contact
+                                const totalTiles = 6;
+                                const startAngle = -75;
+                                const endAngle = 75;
+                                const angleStep = (endAngle - startAngle) / (totalTiles - 1);
+                                const angle = startAngle + (index * angleStep);
+
+                                // Smaller radius to bring tiles together to center
+                                const radius = 55;
+
+                                const getTileImage = (id: string) => {
+                                    if (!id) return null;
+                                    const numStr = id.replace('rs', '');
+                                    return `/image/RS_${numStr}.gif`;
+                                };
+
+                                const tileImg = getTileImage(tile.id);
+
+                                return (
+                                    <div
+                                        key={tile.id || `round-${index + 1}`}
+                                        style={{
+                                            position: 'absolute',
+                                            bottom: '0px',
+                                            left: '50%',
+                                            transformOrigin: 'bottom center',
+                                            transform: `translateX(-50%) rotate(${angle}deg) translateY(${-radius}px)`,
+                                            zIndex: isCurrent ? 30 : 10 + index,
+                                        }}
+                                        className={`group flex flex-col items-center transition-all duration-500 ${isCurrent && isSelected
+                                            ? 'scale-110 drop-shadow-[0_0_20px_rgba(255,255,255,0.15)] z-30'
+                                            : isPast && isSelected
+                                                ? 'opacity-20 grayscale brightness-[0.4] contrast-75'
+                                                : 'opacity-90 hover:opacity-100 hover:scale-105'
+                                            }`}
+                                    >
+                                        {/* Tile Wrapper with specific Gaia Project shape aspect ratio */}
+                                        <div className={`relative w-24 h-36 flex items-center justify-center transition-all duration-300`}>
+                                            {tileImg ? (
+                                                <div className="w-full h-full relative group">
+                                                    <img
+                                                        src={tileImg}
+                                                        alt={tile.condition}
+                                                        className={`w-full h-full object-contain drop-shadow-md ${isCurrent ? 'brightness-110 saturate-[1.1]' : isPast ? 'brightness-50' : 'opacity-90'
+                                                            }`}
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                            (e.target as HTMLImageElement).parentElement!.classList.add('flex', 'items-center', 'justify-center', 'fixed-aspect-fallback');
+                                                        }}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-zinc-900/60 rounded-lg border border-white/5 border-dashed">
+                                                    <div className="text-[10px] font-black text-zinc-600">RD {index + 1}</div>
+                                                    <div className="text-xl font-black text-zinc-700">?</div>
+                                                </div>
+                                            )}
+
+                                            {/* Selection Glow (Current Round) */}
+                                            {isCurrent && (
+                                                <div className="absolute inset-0 bg-primary/10 rounded-xl blur-xl -z-10 animate-pulse" />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-
-                                <div className="mt-2 text-center space-y-1 w-full">
-                                    {isSelected ? (
-                                        <>
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 truncate">
-                                                {tile.condition}
-                                            </div>
-                                            <div className="text-2xl font-black text-white flex items-center justify-center gap-1">
-                                                <span className="text-primary">+</span>
-                                                {tile.vp}
-                                                <Zap className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 truncate">
-                                                미정
-                                            </div>
-                                            <div className="text-lg font-black text-zinc-600 flex items-center justify-center gap-1">
-                                                ?
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                {isCurrent && isSelected && (
-                                    <div className="absolute inset-x-0 -bottom-1 flex justify-center">
-                                        <div className="h-1 w-2/3 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {/* Final Missions (6라운드 종료 시 1/2/3등 18/12/6점, 동점 시 합산 후 나눔) */}
-                <div className="pt-4 border-t border-white/5">
-                    <div className="flex items-center gap-2 mb-3">
-                        <Trophy className="w-3.5 h-3.5 text-yellow-500" />
-                        <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Final Missions (1st 18 / 2nd 12 / 3rd 6 VP)</h4>
+                                );
+                            })}
+                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        {(game.finalMissionIds ?? []).map((missionId) => {
-                            const label = FINAL_MISSION_LABELS[missionId] ?? missionId;
-                            const playerValues = game.turnOrder
-                                .map((pid) => ({
-                                    playerId: pid,
-                                    value: getFinalMissionValue(game, pid, missionId),
-                                    color: FACTIONS.find((f) => f.id === game.players[pid]?.faction)?.color ?? '#888',
-                                }))
-                                .filter((p) => p.value > 0)
-                                .sort((a, b) => b.value - a.value);
-                            return (
-                                <div key={missionId} className="bg-zinc-900/40 p-3 rounded-xl border border-white/5 hover:bg-zinc-900/60 transition-colors">
-                                    <div className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest mb-1.5">{label}</div>
-                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                        {playerValues.length === 0 ? (
-                                            <span className="text-[10px] text-zinc-600">—</span>
-                                        ) : (
-                                            playerValues.map(({ playerId, value, color }) => (
-                                                <span
-                                                    key={playerId}
-                                                    className="text-sm font-bold tabular-nums"
-                                                    style={{ color }}
-                                                    title={game.players[playerId]?.name}
-                                                >
-                                                    {value}
-                                                </span>
-                                            ))
-                                        )}
+
+                    {/* Right Side: Final Missions */}
+                    <div className="w-[40%] flex flex-col justify-center">
+
+                        <div className="grid grid-cols-1 gap-2">
+                            {(game.finalMissionIds ?? []).map((missionId) => {
+                                const label = FINAL_MISSION_LABELS[missionId] ?? missionId;
+                                const missionKeys = Object.keys(FINAL_MISSION_LABELS);
+                                const missionIndex = missionKeys.indexOf(missionId);
+                                const missionImg = missionIndex !== -1 ? `/image/EGS_${missionIndex + 1}.jpg` : null;
+
+                                const playerValues = game.turnOrder
+                                    .map((pid) => ({
+                                        playerId: pid,
+                                        value: getFinalMissionValue(game, pid, missionId),
+                                        color: FACTIONS.find((f) => f.id === game.players[pid]?.faction)?.color ?? '#888',
+                                        name: game.players[pid]?.name
+                                    }))
+                                    .filter((p) => p.value > 0)
+                                    .sort((a, b) => b.value - a.value);
+
+                                return (
+                                    <div key={missionId} className="group rounded-xl overflow-hidden border border-white/10 bg-zinc-900/60 shadow-lg h-24 flex items-stretch">
+                                        {/* Left: Mission Image */}
+                                        <div className="w-1/3 bg-black/40 flex items-center justify-center p-1 border-r border-white/5">
+                                            {missionImg ? (
+                                                <img
+                                                    src={missionImg}
+                                                    alt={label}
+                                                    className="w-full h-full object-contain brightness-100 group-hover:brightness-110 transition-all duration-300"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-800 font-black">
+                                                    {missionId}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Right: Mission Info */}
+                                        <div className="w-2/3 p-2 flex flex-col justify-between bg-zinc-900/40">
+                                            <div className="text-[10px] uppercase font-black text-zinc-300 tracking-wider line-clamp-2 leading-tight">
+                                                {label}
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-auto">
+                                                {playerValues.length === 0 ? (
+                                                    <span className="text-[9px] text-zinc-600 font-bold tracking-tighter uppercase">— No Data —</span>
+                                                ) : (
+                                                    playerValues.map(({ playerId, value, color, name }) => (
+                                                        <div
+                                                            key={playerId}
+                                                            className="flex items-center gap-1 bg-black/40 px-1 py-0.5 rounded border border-white/5"
+                                                            title={name}
+                                                        >
+                                                            <div
+                                                                className="w-1.5 h-1.5 rounded-full"
+                                                                style={{ backgroundColor: color }}
+                                                            />
+                                                            <span
+                                                                className="text-[10px] font-black tabular-nums"
+                                                                style={{ color }}
+                                                            >
+                                                                {value}
+                                                            </span>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
-
             </CardContent>
         </Card>
     );

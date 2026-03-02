@@ -1,9 +1,9 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Gift, Zap, Coins, FlaskConical, Gem, Target, Compass, Mountain, Award } from 'lucide-react';
+import { Gift, Zap, Coins, FlaskConical, Gem, Target, Compass, Mountain, Award, Ship } from 'lucide-react';
 import type { GaiaGameState as GameState, BonusTile } from '@shared/gameConfig';
-import { ALL_BONUS_TILES, FACTIONS, FEDERATION_REWARDS } from '@shared/gameConfig';
+import { ALL_BONUS_TILES, FACTIONS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS } from '@shared/gameConfig';
 
 interface BonusTilesProps {
   game: GameState;
@@ -54,7 +54,6 @@ function BonusTileCard({
   ownerColor,
   isSelectable,
   isUsed,
-  hasAction,
   onSelect,
   onUseAction,
 }: {
@@ -68,113 +67,71 @@ function BonusTileCard({
   onSelect?: () => void;
   onUseAction?: () => void;
 }) {
+  // Find index in ALL_BONUS_TILES to map to BoostTile_n.jpg
+  const tileIndex = ALL_BONUS_TILES.findIndex(t => t.id === tile.id);
+  const tileImg = tileIndex !== -1 ? `/image/BoostTile_${tileIndex + 1}.jpg` : null;
+
   return (
     <div
-      className={`relative p-3 rounded-xl border transition-all duration-300 ${
-        isOwned
-          ? 'bg-primary/10 border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.1)]'
-          : isSelectable
-          ? 'bg-zinc-900/50 border-white/10 hover:border-primary/50 hover:bg-zinc-800/50 cursor-pointer'
-          : 'bg-zinc-900/30 border-white/5 opacity-60'
-      }`}
+      className={`relative rounded-xl overflow-hidden transition-all duration-300 ${isOwned
+        ? 'ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 shadow-[0_0_20px_rgba(var(--primary),0.2)]'
+        : isSelectable
+          ? 'hover:scale-105 hover:shadow-xl cursor-pointer'
+          : 'opacity-70'
+        }`}
+      style={{ width: '100px', height: '160px' }}
       onClick={isSelectable && onSelect ? onSelect : undefined}
     >
+      {tileImg ? (
+        <div className="w-full h-full relative group">
+          <img
+            src={tileImg}
+            alt={tile.label}
+            className={`w-full h-full object-contain brightness-105 saturate-[1.05] ${isUsed ? 'grayscale brightness-50 opacity-40' : ''
+              }`}
+          />
+
+          {/* Action Button Overlay */}
+          {tile.specialAction && isOwned && !isUsed && (
+            <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent flex justify-center">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-7 text-[9px] uppercase border-cyan-500/50 text-cyan-400 bg-black/40 hover:bg-cyan-500/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUseAction?.();
+                }}
+              >
+                Use Action
+              </Button>
+            </div>
+          )}
+
+          {/* Used Overlay */}
+          {isUsed && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/80 px-2 py-1 rounded border border-white/20 text-[10px] font-black text-zinc-500 uppercase tracking-widest rotate-[-12deg]">
+                Action Used
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="w-full h-full bg-zinc-900 flex flex-col items-center justify-center p-2 text-center border border-white/5 uppercase">
+          <div className="text-[10px] font-black text-zinc-500 mb-2">{tile.label}</div>
+          <div className="text-[8px] text-zinc-700 leading-tight">{tile.description}</div>
+        </div>
+      )}
+
       {/* Owner indicator */}
       {isOwned && ownerColor && (
         <div
-          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border-2 border-zinc-900"
+          className="absolute top-1 right-1 w-4 h-4 rounded-full border-2 border-zinc-900 shadow-lg z-20"
           style={{ backgroundColor: ownerColor }}
           title={ownerName}
         />
       )}
-
-      {/* Tile Header */}
-      <div className="flex items-center gap-2 mb-2">
-        {getBonusIcon(tile)}
-        <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200">
-          {tile.label}
-        </span>
-      </div>
-
-      {/* Income Display */}
-      {tile.income && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {tile.income.ore && (
-            <Badge variant="outline" className="text-[8px] bg-orange-500/10 border-orange-500/30 text-orange-400">
-              +{tile.income.ore}O
-            </Badge>
-          )}
-          {tile.income.credits && (
-            <Badge variant="outline" className="text-[8px] bg-yellow-500/10 border-yellow-500/30 text-yellow-400">
-              +{tile.income.credits}C
-            </Badge>
-          )}
-          {tile.income.knowledge && (
-            <Badge variant="outline" className="text-[8px] bg-blue-500/10 border-blue-500/30 text-blue-400">
-              +{tile.income.knowledge}K
-            </Badge>
-          )}
-          {tile.income.qic && (
-            <Badge variant="outline" className="text-[8px] bg-green-500/10 border-green-500/30 text-green-400">
-              +{tile.income.qic}Q
-            </Badge>
-          )}
-          {tile.income.power && (
-            <Badge variant="outline" className="text-[8px] bg-purple-500/10 border-purple-500/30 text-purple-400">
-              +{tile.income.power}P
-            </Badge>
-          )}
-          {tile.income.powerTokens && (
-            <Badge variant="outline" className="text-[8px] bg-violet-500/10 border-violet-500/30 text-violet-400">
-              +{tile.income.powerTokens} Tokens
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {/* Pass Bonus Display */}
-      {tile.passBonus && (
-        <div className="mb-2">
-          <Badge variant="outline" className="text-[8px] bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
-            Pass: {tile.passBonus.vp}VP/{getPassBonusLabel(tile.passBonus.type)}
-          </Badge>
-        </div>
-      )}
-
-      {/* Special Action */}
-      {tile.specialAction && (
-        <div className="mb-2">
-          <Badge variant="outline" className="text-[8px] bg-cyan-500/10 border-cyan-500/30 text-cyan-400">
-            ACT: {getActionLabel(tile.specialAction)}
-          </Badge>
-        </div>
-      )}
-
-      {/* Use Action Button (only for owned tiles) */}
-      {tile.specialAction && isOwned && (
-        <Button
-          size="sm"
-          variant="outline"
-          className={`w-full h-6 text-[8px] uppercase mt-2 ${
-            isUsed
-              ? 'opacity-30 cursor-not-allowed'
-              : 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10'
-          }`}
-          disabled={isUsed}
-          onClick={(e) => {
-            e.stopPropagation();
-            onUseAction?.();
-          }}
-        >
-          {isUsed ? 'Used' : 'Use Action'}
-        </Button>
-      )}
-
-
-      {/* Description Tooltip */}
-      <div className="mt-2 text-[8px] text-zinc-500 leading-tight">
-        {tile.description}
-      </div>
     </div>
   );
 }
@@ -211,65 +168,107 @@ export function BonusTiles({
             <Gift className="w-4 h-4" />
             {isSelectionMode ? 'Select Bonus' : 'Bonus Tiles'}
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {/* Available Bonus Tiles */}
-              {game.availableBonusTiles.map((tile) => (
-                <BonusTileCard
-                  key={tile.id}
-                  tile={tile}
-                  isOwned={false}
-                  isSelectable={isSelectionMode && !!onSelectBonusTile}
-                  onSelect={() => onSelectBonusTile?.(tile.id)}
-                />
-              ))}
+          <div className="flex flex-wrap gap-3">
+            {/* Available Bonus Tiles */}
+            {game.availableBonusTiles.map((tile) => (
+              <BonusTileCard
+                key={tile.id}
+                tile={tile}
+                isOwned={false}
+                isSelectable={isSelectionMode && !!onSelectBonusTile}
+                onSelect={() => onSelectBonusTile?.(tile.id)}
+              />
+            ))}
 
-              {/* Player-owned Bonus Tiles */}
-              {!isSelectionMode &&
-                playerBonusTiles.map(({ tileId, playerId: ownerId, playerName, playerColor }) => {
-                  const tile = ALL_BONUS_TILES.find(t => t.id === tileId);
-                  if (!tile) return null;
+            {/* Player-owned Bonus Tiles */}
+            {!isSelectionMode &&
+              playerBonusTiles.map(({ tileId, playerId: ownerId, playerName, playerColor }) => {
+                const tile = ALL_BONUS_TILES.find(t => t.id === tileId);
+                if (!tile) return null;
 
-                  const isCurrentPlayer = ownerId === playerId;
-                  const owner = game.players[ownerId];
+                const isCurrentPlayer = ownerId === playerId;
+                const owner = game.players[ownerId];
 
-                  return (
-                    <BonusTileCard
-                      key={`owned-${tileId}`}
-                      tile={tile}
-                      isOwned={true}
-                      ownerName={playerName}
-                      ownerColor={playerColor}
-                      isSelectable={false}
-                      isUsed={isCurrentPlayer ? owner?.usedBonusAction : undefined}
-                      hasAction={!!tile.specialAction}
-                      onUseAction={isCurrentPlayer ? onUseBonusAction : undefined}
-                    />
-                  );
-                })}
-              {game.availableBonusTiles.length === 0 && !isSelectionMode && playerBonusTiles.length === 0 && (
-                <div className="text-center text-zinc-500 text-sm py-8 col-span-full">
-                  No bonus tiles available
-                </div>
-              )}
+                return (
+                  <BonusTileCard
+                    key={`owned-${tileId}`}
+                    tile={tile}
+                    isOwned={true}
+                    ownerName={playerName}
+                    ownerColor={playerColor}
+                    isSelectable={false}
+                    isUsed={isCurrentPlayer ? owner?.usedBonusAction : undefined}
+                    hasAction={!!tile.specialAction}
+                    onUseAction={isCurrentPlayer ? onUseBonusAction : undefined}
+                  />
+                );
+              })}
+            {game.availableBonusTiles.length === 0 && !isSelectionMode && playerBonusTiles.length === 0 && (
+              <div className="text-center text-zinc-500 text-sm py-8 col-span-full">
+                No bonus tiles available
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Federation (remaining) — compact, below Bonus Tiles */}
-        <div className="space-y-1.5">
+        {/* Regular Federation Tiles (6 types) */}
+        <div className="space-y-2">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
             <Award className="w-3 h-3" />
-            Federation (remaining)
+            Federation Tiles
           </h3>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-            {FEDERATION_REWARDS.map((r) => {
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
+            {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
+              if (n === 0) return null;
               return (
-                <div
-                  key={r.id}
-                  className="px-1.5 py-1 rounded-md bg-amber-950/40 border border-amber-500/30 flex flex-col items-center justify-center gap-0"
-                >
-                  <span className="text-[9px] font-bold text-amber-200 text-center leading-tight truncate max-w-full">{r.label}</span>
-                  <span className="text-xs font-black text-amber-400">×{n}</span>
+                <div key={r.id} className="relative w-12 h-12 group" title={`${r.label} (${n} left)`}>
+                  {Array.from({ length: n }).map((_, i) => (
+                    <img
+                      key={`${r.id}-${i}`}
+                      src={`/image/Federation_${idx + 1}.gif`}
+                      alt={r.label}
+                      className="absolute w-auto h-12 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      style={{
+                        left: `${i * 4}px`,
+                        top: `${i * -1.5}px`,
+                        zIndex: i,
+                        filter: `drop-shadow(${i * 2}px ${i * 2}px 2px rgba(0,0,0,0.5))`
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Spaceship Federation Reward (1 special type) */}
+        <div className="space-y-2">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
+            <Ship className="w-3 h-3" />
+            Spaceship Federation Reward
+          </h3>
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
+            {SPACESHIP_FEDERATION_REWARDS.map((r, idx) => {
+              const n = pool[r.id] ?? 0;
+              if (n === 0) return null;
+              return (
+                <div key={r.id} className="relative w-12 h-12 group" title={`${r.label} (${n} left)`}>
+                  {Array.from({ length: n }).map((_, i) => (
+                    <img
+                      key={`${r.id}-${i}`}
+                      src={`/image/Federation_${idx + 7}.gif`}
+                      alt={r.label}
+                      className="absolute w-auto h-12 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      style={{
+                        left: `${i * 4}px`,
+                        top: `${i * -1.5}px`,
+                        zIndex: i,
+                        filter: `drop-shadow(${i * 2}px ${i * 2}px 2px rgba(0,0,0,0.5))`
+                      }}
+                    />
+                  ))}
                 </div>
               );
             })}
@@ -364,11 +363,10 @@ export function PlayerBonusTile({
           <Button
             size="sm"
             variant="outline"
-            className={`w-full h-7 text-[9px] uppercase mt-2 ${
-              player.usedBonusAction
-                ? 'opacity-30 cursor-not-allowed bg-zinc-900'
-                : 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10'
-            }`}
+            className={`w-full h-7 text-[9px] uppercase mt-2 ${player.usedBonusAction
+              ? 'opacity-30 cursor-not-allowed bg-zinc-900'
+              : 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10'
+              }`}
             disabled={player.usedBonusAction}
             onClick={onUseBonusAction}
           >

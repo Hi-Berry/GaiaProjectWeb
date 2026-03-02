@@ -139,6 +139,7 @@ export interface HexTile {
   r: number;
   type: PlanetType;
   sector: number;
+  rotation?: number; // Sector rotation (0-5)
   structure: StructureType;
   ownerId: string | null;
   hasGaiaformer?: boolean; // 가이아 포머가 설치되어 있는지
@@ -187,63 +188,7 @@ export interface BonusTile {
 }
 
 export const ALL_BONUS_TILES: BonusTile[] = [
-  // 1. 4pw + 패스 시 큰 건물당 4점 (아카데미/행성학회)
-  {
-    id: 'bon-4pw-bigbuilding',
-    label: '4P | 4VP/Big',
-    description: 'Income: 4 Power. Pass: 4 VP per Academy or Planetary Institute.',
-    income: { power: 4 },
-    passBonus: { type: 'big_building', vp: 4 }
-  },
-  // 2. 1광물 + 패스 시 광산당 1점
-  {
-    id: 'bon-1o-mine',
-    label: '1O | 1VP/Mine',
-    description: 'Income: 1 Ore. Pass: 1 VP per Mine.',
-    income: { ore: 1 },
-    passBonus: { type: 'mine', vp: 1 }
-  },
-  // 3. 1광물 + 패스 시 교역소당 2점
-  {
-    id: 'bon-1o-ts',
-    label: '1O | 2VP/TS',
-    description: 'Income: 1 Ore. Pass: 2 VP per Trading Station.',
-    income: { ore: 1 },
-    passBonus: { type: 'trading_station', vp: 2 }
-  },
-  // 4. 1지식 + 패스 시 연구소당 3점
-  {
-    id: 'bon-1k-lab',
-    label: '1K | 3VP/Lab',
-    description: 'Income: 1 Knowledge. Pass: 3 VP per Research Lab.',
-    income: { knowledge: 1 },
-    passBonus: { type: 'research_lab', vp: 3 }
-  },
-  // 5. 1광물 + 패스 시 남은 가이아포머당 3점
-  {
-    id: 'bon-1o-gaiaformer',
-    label: '1O | 3VP/GF',
-    description: 'Income: 1 Ore. Pass: 3 VP per remaining Gaiaformer.',
-    income: { ore: 1 },
-    passBonus: { type: 'gaiaformer', vp: 3 }
-  },
-  // 6. 1광물 + 패스 시 행성 유형당 1점
-  {
-    id: 'bon-1o-planettype',
-    label: '1O | 1VP/Type',
-    description: 'Income: 1 Ore. Pass: 1 VP per different planet type you colonized.',
-    income: { ore: 1 },
-    passBonus: { type: 'planet_type', vp: 1 }
-  },
-  // 7. 4돈 + 패스 시 가이아 행성당 1점
-  {
-    id: 'bon-4c-gaia',
-    label: '4C | 1VP/Gaia',
-    description: 'Income: 4 Credits. Pass: 1 VP per Gaia planet you colonized.',
-    income: { credits: 4 },
-    passBonus: { type: 'gaia', vp: 1 }
-  },
-  // 8. 2돈 + 테라포밍 1단계 액션
+  // 1. 2돈 + 테라포밍 1단계 액션
   {
     id: 'bon-2c-terraform',
     label: '2C | ACT: TF',
@@ -251,15 +196,44 @@ export const ALL_BONUS_TILES: BonusTile[] = [
     income: { credits: 2 },
     specialAction: 'terraform_step'
   },
-  // 9. 2파워 + 가이아 프로젝트 액션 (보라색 행성에 가이아포머 배치)
+  // 2. 2돈 + 1QIC
   {
-    id: 'bon-2pw-gaiaproject',
-    label: '2P | ACT: GP',
-    description: 'Income: 2 Power. Action: Start Gaia Project on a Transdim planet (once per round).',
-    income: { power: 2 },
-    specialAction: 'gaia_project'
+    id: 'bon-2c-1q',
+    label: '2C | 1Q',
+    description: 'Income: 2 Credits and 1 QIC.',
+    income: { credits: 2, qic: 1 }
   },
-  // 10. 2파워 + 3거리 추가 액션
+  // 3. 1광물 + 1단계에 토큰 2개 추가
+  {
+    id: 'bon-1o-2tokens',
+    label: '1O | +2 Tokens',
+    description: 'Income: 1 Ore and add 2 Power tokens to Bowl I.',
+    income: { ore: 1, powerTokens: 2 }
+  },
+  // 4. 4돈 + 패스 시 가이아 행성당 1점
+  {
+    id: 'bon-4c-gaia',
+    label: '4C | 1VP/Gaia',
+    description: 'Income: 4 Credits. Pass: 1 VP per Gaia planet you colonized.',
+    income: { credits: 4 },
+    passBonus: { type: 'gaia', vp: 1 }
+  },
+  // 5. 1광물 + 1지식
+  {
+    id: 'bon-1o-1k',
+    label: '1O | 1K',
+    description: 'Income: 1 Ore and 1 Knowledge.',
+    income: { ore: 1, knowledge: 1 }
+  },
+  // 6. 1지식 + 패스 시 연구소당 3점
+  {
+    id: 'bon-1k-lab',
+    label: '1K | 3VP/Lab',
+    description: 'Income: 1 Knowledge. Pass: 3 VP per Research Lab.',
+    income: { knowledge: 1 },
+    passBonus: { type: 'research_lab', vp: 3 }
+  },
+  // 7. 2파워 + 3거리 추가 액션
   {
     id: 'bon-2pw-range3',
     label: '2P | ACT: +3 Range',
@@ -267,28 +241,31 @@ export const ALL_BONUS_TILES: BonusTile[] = [
     income: { power: 2 },
     specialAction: 'range_3'
   },
-  // 11. 1광물 + 1단계에 토큰 2개 추가
+  // 8. 1광물 + 패스 시 교역소당 2점
   {
-    id: 'bon-1o-2tokens',
-    label: '1O | +2 Tokens',
-    description: 'Income: 1 Ore and add 2 Power tokens to Bowl I.',
-    income: { ore: 1, powerTokens: 2 }
+    id: 'bon-1o-ts',
+    label: '1O | 2VP/TS',
+    description: 'Income: 1 Ore. Pass: 2 VP per Trading Station.',
+    income: { ore: 1 },
+    passBonus: { type: 'trading_station', vp: 2 }
   },
-  // 12. 1광물 + 1지식
+  // 9. 4pw + 패스 시 큰 건물당 4점 (아카데미/행성학회)
   {
-    id: 'bon-1o-1k',
-    label: '1O | 1K',
-    description: 'Income: 1 Ore and 1 Knowledge.',
-    income: { ore: 1, knowledge: 1 }
+    id: 'bon-4pw-bigbuilding',
+    label: '4P | 4VP/Big',
+    description: 'Income: 4 Power. Pass: 4 VP per Academy or Planetary Institute.',
+    income: { power: 4 },
+    passBonus: { type: 'big_building', vp: 4 }
   },
-  // 13. 2돈 + 1QIC
+  // 10. 1광물 + 패스 시 광산당 1점
   {
-    id: 'bon-2c-1q',
-    label: '2C | 1Q',
-    description: 'Income: 2 Credits and 1 QIC.',
-    income: { credits: 2, qic: 1 }
+    id: 'bon-1o-mine',
+    label: '1O | 1VP/Mine',
+    description: 'Income: 1 Ore. Pass: 1 VP per Mine.',
+    income: { ore: 1 },
+    passBonus: { type: 'mine', vp: 1 }
   },
-  // 14. 3돈 + 패스 시 외곽 브릿지 섹터당 2점
+  // 11. 3돈 + 패스 시 외곽 브릿지 섹터당 2점
   {
     id: 'bon-3c-bridge',
     label: '3C | 2VP/Bridge',
@@ -296,6 +273,38 @@ export const ALL_BONUS_TILES: BonusTile[] = [
     income: { credits: 3 },
     passBonus: { type: 'bridge_sector', vp: 2 }
   },
+  // 12. 2파워 + 가이아 프로젝트 액션
+  {
+    id: 'bon-2pw-gaiaproject',
+    label: '2P | ACT: GP',
+    description: 'Income: 2 Power. Action: Start Gaia Project on a Transdim planet (once per round).',
+    income: { power: 2 },
+    specialAction: 'gaia_project'
+  },
+  // 13. 1광물 + 패스 시 행성 유형당 1점
+  {
+    id: 'bon-1o-planettype',
+    label: '1O | 1VP/Type',
+    description: 'Income: 1 Ore. Pass: 1 VP per different planet type you colonized.',
+    income: { ore: 1 },
+    passBonus: { type: 'planet_type', vp: 1 }
+  },
+
+  // 14. 1광물 + 패스 시 남은 가이아포머당 3점
+  {
+    id: 'bon-1o-gaiaformer',
+    label: '1O | 3VP/GF',
+    description: 'Income: 1 Ore. Pass: 3 VP per remaining Gaiaformer.',
+    income: { ore: 1 },
+    passBonus: { type: 'gaiaformer', vp: 3 }
+  },
+
+
+
+
+
+
+
 ];
 
 export interface ScoringTile {
@@ -308,19 +317,19 @@ export interface ScoringTile {
 
 // Round Mission Pool - 매 라운드마다 랜덤으로 선택
 export const ROUND_MISSION_POOL: ScoringTile[] = [
-  { id: 'rm1', label: 'RM1', condition: 'Mine', vp: 2, triggerType: 'build_mine' }, // 광산 지을때마다 2점
-  { id: 'rm2', label: 'RM2', condition: 'Trading Station', vp: 3, triggerType: 'build_trading_station' }, // 교역소 지을때마다 3점
-  { id: 'rm3', label: 'RM3', condition: 'Trading Station', vp: 4, triggerType: 'build_trading_station' }, // 교역소 지을때마다 4점
-  { id: 'rm4', label: 'RM4', condition: 'Research Lab', vp: 4, triggerType: 'build_research_lab' }, // 연구소 지을때마다 4점
-  { id: 'rm5a', label: 'RM5A', condition: 'Big Building', vp: 5, triggerType: 'build_big_building' }, // 큰건물 지을때마다 5점 (1)
-  { id: 'rm5b', label: 'RM5B', condition: 'Big Building', vp: 5, triggerType: 'build_big_building' }, // 큰건물 지을때마다 5점 (2)
-  { id: 'rm6', label: 'RM6', condition: 'Federation', vp: 5, triggerType: 'federation' }, // 연방 선언하면 5점
-  { id: 'rm7', label: 'RM7', condition: 'New Sector/Bridge', vp: 3, triggerType: 'new_sector' }, // 새로운 섹션 또는 브릿지 색션에 지으면 3점
-  { id: 'rm8', label: 'RM8', condition: 'New Planet Type', vp: 3, triggerType: 'new_planet_type' }, // 새로운 행성 유형에 지으면 3점
-  { id: 'rm9', label: 'RM9', condition: 'Gaia Planet', vp: 3, triggerType: 'build_gaia' }, // 가이아 행성에 지으면 3점
-  { id: 'rm10', label: 'RM10', condition: 'Gaia Planet', vp: 4, triggerType: 'build_gaia' }, // 가이아 행성에 지으면 4점
-  { id: 'rm11', label: 'RM11', condition: 'Research Track', vp: 2, triggerType: 'research_track' }, // 연구 트랙 올릴때마다 2점
-  { id: 'rm12', label: 'RM12', condition: 'Terraform Step', vp: 2, triggerType: 'terraform_step' }, // 테라포밍 할때마다 단계당 2점
+  { id: 'rs1', label: 'RS1', condition: 'Big Building', vp: 5, triggerType: 'build_big_building' }, // 큰건물 지을때마다 5점 (1)
+  { id: 'rs2', label: 'RS2', condition: 'Mine', vp: 2, triggerType: 'build_mine' }, // 광산 지을때마다 2점
+  { id: 'rs3', label: 'RS3', condition: 'Big Building', vp: 5, triggerType: 'build_big_building' }, // 큰건물 지을때마다 5점 (2)
+  { id: 'rs4', label: 'RS4', condition: 'Gaia Planet', vp: 3, triggerType: 'build_gaia' }, // 가이아 행성에 지으면 3점
+  { id: 'rs5', label: 'RS5', condition: 'Gaia Planet', vp: 4, triggerType: 'build_gaia' }, // 가이아 행성에 지으면 4점
+  { id: 'rs6', label: 'RS6', condition: 'Research Track', vp: 2, triggerType: 'research_track' }, // 연구 트랙 올릴때마다 2점
+  { id: 'rs7', label: 'RS7', condition: 'Trading Station', vp: 4, triggerType: 'build_trading_station' }, // 교역소 지을때마다 4점
+  { id: 'rs8', label: 'RS8', condition: 'Federation', vp: 5, triggerType: 'federation' }, // 연방 선언하면 5점
+  { id: 'rs9', label: 'RS9', condition: 'Trading Station', vp: 3, triggerType: 'build_trading_station' }, // 교역소 지을때마다 3점
+  { id: 'rs10', label: 'RS10', condition: 'Terraform Step', vp: 2, triggerType: 'terraform_step' }, // 테라포밍 할때마다 단계당 2점
+  { id: 'rs11', label: 'RS11', condition: 'New Sector/Bridge', vp: 3, triggerType: 'new_sector' }, // 새로운 섹션 또는 브릿지 색션에 지으면 3점
+  { id: 'rs12', label: 'RS12', condition: 'Research Lab', vp: 4, triggerType: 'build_research_lab' }, // 연구소 지을때마다 4점
+  { id: 'rs13', label: 'RS13', condition: 'New Planet Type', vp: 3, triggerType: 'new_planet_type' }, // 새로운 행성 유형에 지으면 3점
 ];
 
 /** 최종미션 ID 목록 (매 게임 9개 중 2개 랜덤 선택). 6라운드 종료 시 1/2/3등 18/12/6점, 동점 시 합산 후 인원수로 나눔 */
@@ -337,14 +346,14 @@ export const FINAL_MISSION_IDS = [
 ] as const;
 
 export const FINAL_MISSION_LABELS: Record<string, string> = {
-  fm_total_structures: '총 건물 수',
-  fm_federation_buildings: '연방 건물 수',
-  fm_sectors: '섹터 수',
-  fm_outer_sectors: '외각 섹터 수',
   fm_gaia_planets: '가이아 행성 수',
   fm_satellites: '위성 수',
-  fm_pi_academy_distance: '의회-아카데미 거리',
   fm_planet_types: '행성 유형 수',
+  fm_sectors: '섹터 수',
+  fm_federation_buildings: '연방 건물 수',
+  fm_total_structures: '총 건물 수',
+  fm_outer_sectors: '외각 섹터 수',
+  fm_pi_academy_distance: '의회-아카데미 거리',
   fm_asteroid_buildings: '소행성 건물 수',
 };
 
@@ -489,24 +498,24 @@ export const FEDERATION_12VP_ID = 'fed-12vp';
 
 /** 연방 보상 타입 (id -> 남은 개수는 game.federationPool) */
 export const FEDERATION_REWARDS = [
-  { id: 'fed-7vp-2o', label: '7 VP 2O', vp: 7, ore: 2 },
   { id: 'fed-7vp-6c', label: '7 VP 6C', vp: 7, credits: 6 },
-  { id: 'fed-6vp-2k', label: '6 VP 2K', vp: 6, knowledge: 2 },
+  { id: 'fed-7vp-2o', label: '7 VP 2O', vp: 7, ore: 2 },
   { id: 'fed-8vp-2token', label: '8 VP 2 Token', vp: 8, powerTokens: 2 },
+  { id: 'fed-6vp-2k', label: '6 VP 2K', vp: 6, knowledge: 2 },
   { id: 'fed-8vp-1q', label: '8 VP 1 QIC', vp: 8, qic: 1 },
   { id: 'fed-12vp', label: '12 VP', vp: 12 },
 ] as const;
 
 /** 우주선 전용 연방 보상 (8종 중 매 게임 1개 랜덤 배치, 수량 1개) */
 export const SPACESHIP_FEDERATION_REWARDS = [
-  { id: 'ship-fed-tech', label: 'Tech Tile' },
   { id: 'ship-fed-4vp4k', label: '4VP 4K' },
-  { id: 'ship-fed-4vp1q2o', label: '4 VP 1Q 2O' },
   { id: 'ship-fed-8vp8c', label: '8 VP 8C' },
-  { id: 'ship-fed-mine-free', label: 'Free Mine (Nav ignore)' },
   { id: 'ship-fed-3tf-mine', label: 'Free Mine (3 Terraform)' },
-  { id: 'ship-fed-12vp', label: '12 VP' },
+  { id: 'ship-fed-4vp1q2o', label: '4 VP 1Q 2O' },
+  { id: 'ship-fed-tech', label: 'Tech Tile' },
   { id: 'ship-fed-7vp3p2t', label: '7 VP +2Tokens' },
+  { id: 'ship-fed-12vp', label: '12 VP' },
+  { id: 'ship-fed-mine-free', label: 'Free Mine (Nav ignore)' },
 ] as const;
 
 /** 플레이어 연방 배열 정규화 (레거시 string[] → FederationEntry[]) */
@@ -565,8 +574,8 @@ export type ArtifactId = typeof ARTIFACTS[number]['id'];
 export const PLANET_COLORS: Record<PlanetType, string> = {
   lost_planet: '#78909C', // Lost Planet (블루-그레이) - 잊혀진 행성  
   terra: '#3B5998',    // Terra (블루) - 더 진한 블루
-  oxide: '#B71C1C',    // Oxide (레드) - 순수한 진한 빨강 (주황과 구분)
-  volcanic: '#E65100', // Volcanic (오렌지) - 선명한 주황
+  oxide: '#E65100',    // Oxide (오렌지) - 원래 주황색 땅
+  volcanic: '#B71C1C', // Volcanic (레드) - 원래 빨간색 땅 (용암)
   desert: '#F9A825',   // Desert (옐로우) - 모래색 옐로우
   swamp: '#4E342E',    // Swamp (브라운) - 더 어두운 갈색
   titanium: '#424242', // Titanium (그레이) - 금속성 회색
@@ -578,10 +587,10 @@ export const PLANET_COLORS: Record<PlanetType, string> = {
   asteroid: '#AB47BC', // Asteroid (퍼플-핑크) - 소행성대
   lost_fleet_ship: '#CFD8DC', // Lost Fleet Ship - 은색
   ship_rebellion: '#D32F2F',  // Rebellion Ship - 붉은색
-  ship_twilight: '#9C27B0',   // Twilight Ship - 보라색
-  ship_tf_mars: '#FF6F00',    // Terraforming Mars Ship - 오렌지
+  ship_twilight: '#7B1FA2',   // Twilight Ship - 보라색
+  ship_tf_mars: '#E64A19',    // TF Mars Ship - 주황색
   ship_eclipse: '#1976D2',    // Eclipse Ship - 파란색
-  proto: '#00ACC1',    // Proto (시안) - 밝은 청록색
+  proto: '#00E5FF',           // Proto (밝은 청록색) - Space Giants 메인 색상
 };
 
 export const SECTOR_COLORS: Record<number, string> = {
@@ -725,7 +734,7 @@ export const FACTIONS: Faction[] = [
     piIncome: { power: 4 }
   },
   {
-    id: 'hadsch_hallas', name: 'Hadsch Hallas', homePlanet: 'oxide', color: PLANET_COLORS.oxide,
+    id: 'hadsch_hallas', name: 'Hadsch Hallas', homePlanet: 'volcanic', color: PLANET_COLORS.volcanic,
     startingTech: { economy: 1 },
     startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
     startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
@@ -733,7 +742,7 @@ export const FACTIONS: Faction[] = [
     piIncome: { power: 4, tokens: 1 }
   },
   {
-    id: 'ivits', name: 'Ivits', homePlanet: 'oxide', color: PLANET_COLORS.oxide,
+    id: 'ivits', name: 'Ivits', homePlanet: 'volcanic', color: PLANET_COLORS.volcanic,
     startingTech: {},
     startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
     startingPower: { bowl1: 2, bowl2: 2, bowl3: 0 },
@@ -743,14 +752,14 @@ export const FACTIONS: Faction[] = [
     piIncome: { power: 4, tokens: 1, qic: 1 }
   },
   {
-    id: 'geodens', name: 'Geodens', homePlanet: 'volcanic', color: PLANET_COLORS.volcanic,
+    id: 'geodens', name: 'Geodens', homePlanet: 'oxide', color: PLANET_COLORS.oxide,
     startingTech: { terraforming: 1 },
     startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
     startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
     piIncome: { power: 4, tokens: 1 }
   },
   {
-    id: 'bal_tak', name: "Bal T'aks", homePlanet: 'volcanic', color: PLANET_COLORS.volcanic,
+    id: 'bal_tak', name: "Bal T'aks", homePlanet: 'oxide', color: PLANET_COLORS.oxide,
     startingTech: { gaiaProject: 1 },
     startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 0 },
     startingPower: { bowl1: 2, bowl2: 2, bowl3: 0 },
@@ -1107,74 +1116,74 @@ export function spendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, powe
 
 // ... (SECTOR_LAYOUTS, SECTOR_OFFSETS, rotateHex, generateMap remain exactly the same as previous)
 export const SECTOR_LAYOUTS: Record<number, { q: number; r: number; type: PlanetType }[]> = {
-  0: [
-    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
-    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'terra' }, { q: 2, r: -1, type: 'transdim' },
-    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'swamp' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'desert' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'volcanic' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'oxide' }
+  0: [ // Map 1
+    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'transdim' }, { q: 2, r: -2, type: 'space' },
+    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'terra' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'oxide' },
+    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'volcanic' },
+    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'swamp' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'space' },
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'desert' }, { q: 0, r: 2, type: 'space' }
   ],
-  1: [
-    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'oxide' }, { q: 2, r: -2, type: 'space' },
-    { q: -1, r: -1, type: 'transdim' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'swamp' }, { q: 2, r: -1, type: 'space' },
-    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'desert' }, { q: -1, r: 1, type: 'ice' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'volcanic' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'titanium' }
+  1: [ // Map 2
+    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'desert' }, { q: 2, r: -2, type: 'space' },
+    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'ice' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'transdim' },
+    { q: -2, r: 0, type: 'titanium' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
+    { q: -2, r: 1, type: 'oxide' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'swamp' }, { q: 1, r: 1, type: 'volcanic' },
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],
-  2: [
+  2: [ // Map 3
     { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'titanium' }, { q: 2, r: -2, type: 'space' },
     { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'ice' }, { q: 2, r: -1, type: 'space' },
     { q: -2, r: 0, type: 'transdim' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'desert' },
     { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'gaia' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'terra' },
     { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],
-  3: [
-    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
-    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'volcanic' }, { q: 2, r: -1, type: 'ice' },
-    { q: -2, r: 0, type: 'terra' }, { q: -1, r: 0, type: 'swamp' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
+  3: [ // Map 4
+    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'terra' },
+    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'swamp' }, { q: 2, r: -1, type: 'space' },
+    { q: -2, r: 0, type: 'titanium' }, { q: -1, r: 0, type: 'volcanic' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
     { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'oxide' }, { q: 1, r: 1, type: 'space' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'titanium' }
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'ice' }, { q: 0, r: 2, type: 'space' }
   ],
-  4: [
-    { q: 0, r: -2, type: 'ice' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'transdim' },
-    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'oxide' },
-    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'gaia' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'space' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'volcanic' }, { q: 0, r: 2, type: 'desert' }
+  4: [ // Map 5
+    { q: 0, r: -2, type: 'transdim' }, { q: 1, r: -2, type: 'volcanic' }, { q: 2, r: -2, type: 'space' },
+    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'space' },
+    { q: -2, r: 0, type: 'ice' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'desert' },
+    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'gaia' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'oxide' },
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],
-  5: [
-    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
-    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'swamp' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'transdim' },
-    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'terra' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'gaia' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'space' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'transdim' }, { q: 0, r: 2, type: 'desert' }
+  5: [ // Map 6
+    { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'desert' },
+    { q: -1, r: -1, type: 'transdim' }, { q: 0, r: -1, type: 'terra' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'transdim' },
+    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'gaia' }, { q: 2, r: 0, type: 'space' },
+    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'swamp' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'space' },
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],
-  6: [
+  6: [ // Map 7
     { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
     { q: -1, r: -1, type: 'swamp' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'gaia' }, { q: 2, r: -1, type: 'space' },
     { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'oxide' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'titanium' },
     { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'gaia' }, { q: 1, r: 1, type: 'space' },
     { q: -2, r: 2, type: 'transdim' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],
-  7: [
-    { q: 0, r: -2, type: 'terra' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'transdim' },
-    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'ice' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'space' },
-    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'titanium' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'volcanic' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'space' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'transdim' }, { q: 0, r: 2, type: 'space' }
+  7: [ // Map 8
+    { q: 0, r: -2, type: 'transdim' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
+    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'titanium' }, { q: 2, r: -1, type: 'space' },
+    { q: -2, r: 0, type: 'terra' }, { q: -1, r: 0, type: 'ice' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
+    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'oxide' }, { q: 1, r: 1, type: 'transdim' },
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],
-  8: [
-    { q: 0, r: -2, type: 'swamp' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
-    { q: -1, r: -1, type: 'space' }, { q: 0, r: -1, type: 'titanium' }, { q: 1, r: -1, type: 'space' }, { q: 2, r: -1, type: 'volcanic' },
+  8: [ // Map 9
+    { q: 0, r: -2, type: 'ice' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
+    { q: -1, r: -1, type: 'transdim' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'gaia' }, { q: 2, r: -1, type: 'space' },
     { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'gaia' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'transdim' },
-    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'ice' }
+    { q: -2, r: 1, type: 'oxide' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'titanium' }, { q: 1, r: 1, type: 'space' },
+    { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'swamp' }
   ],
-  9: [
+  9: [ // Map 10
     { q: 0, r: -2, type: 'transdim' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
     { q: -1, r: -1, type: 'transdim' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'gaia' }, { q: 2, r: -1, type: 'space' },
     { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'space' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'space' },
-    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'desert' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'oxide' },
+    { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'desert' }, { q: 0, r: 1, type: 'space' }, { q: 1, r: 1, type: 'volcanic' },
     { q: -2, r: 2, type: 'space' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'terra' }
   ],
   10: [{ q: 0, r: 0, type: 'deep_space' }, { q: 1, r: -1, type: 'space' }, { q: -1, r: 1, type: 'asteroid' }],
@@ -1229,11 +1238,7 @@ export function generateMap(): HexTile[] {
     }
   }
 
-  const mainOffsets = [
-    { q: 2, r: 4 }, { q: 7, r: 3 }, { q: 12, r: 2 },                 // Row 1 (0-2)
-    { q: -2, r: 9 }, { q: 3, r: 8 }, { q: 8, r: 7 }, { q: 13, r: 6 }, // Row 2 (3-6)
-    { q: -1, r: 13 }, { q: 4, r: 12 }, { q: 9, r: 11 }               // Row 3 (7-9)
-  ];
+  const mainOffsets = SECTOR_CENTERS.filter(c => c.sector <= 9);
 
   const motherPlanets: PlanetType[] = ['terra', 'oxide', 'volcanic', 'desert', 'swamp', 'titanium', 'ice'];
 
@@ -1277,7 +1282,8 @@ export function generateMap(): HexTile[] {
       const r = center.r + rotated.r;
       const key = `${q},${r}`;
       if (!occupied.has(key)) {
-        tiles.push({ id: `tile-${tileId++}`, q, r, type: hex.type, sector: i + 1, structure: null, ownerId: null });
+        // Sector ID should match layout index (0-9) so Map_B(ID+1) aligns with layout
+        tiles.push({ id: `tile-${tileId++}`, q, r, type: hex.type, sector: baseLayouts[i], rotation: rotation, structure: null, ownerId: null });
         occupied.add(key);
       }
     }
@@ -1296,14 +1302,13 @@ export function generateMap(): HexTile[] {
   ];
 
   // Strategy: Place Ships first with distance constraint > 3
+  const availableCoords = [...internalCoords];
   const shipPlacements: { q: number, r: number, type: PlanetType }[] = [];
-  const availableCoords = [...internalCoords].sort(() => Math.random() - 0.5);
-  const remainingOthers = [...others].sort(() => Math.random() - 0.5);
+  const remainingOthers = others.sort(() => Math.random() - 0.5);
 
-  for (const shipType of ships) {
+  ships.forEach(shipType => {
     let placed = false;
-    // Try decreasing distance constraints until placed
-    for (let minDist = 3; minDist >= 0; minDist--) {
+    for (let minDist = 3; minDist >= 1; minDist--) {
       const shuffledCoords = [...availableCoords].sort(() => Math.random() - 0.5);
       for (let i = 0; i < shuffledCoords.length; i++) {
         const coord = shuffledCoords[i];
@@ -1319,7 +1324,7 @@ export function generateMap(): HexTile[] {
       }
       if (placed) break;
     }
-  }
+  });
 
   // Combine placements
   const finalInternalPlacements = [
@@ -1330,43 +1335,43 @@ export function generateMap(): HexTile[] {
   finalInternalPlacements.forEach((p, i) => {
     const key = `${p.q},${p.r}`;
     if (!occupied.has(key)) {
+      // Internal strategic hexes (sector 90) don't have a background image, using generic space or 100
       tiles.push({ id: `internal-${i}`, q: p.q, r: p.r, type: p.type, sector: 90, structure: null, ownerId: null });
       occupied.add(key);
     }
   });
 
   // 3. External Bridge Tiles (8 x 3 Hexes = 24 Hexes)
-  const bridgeOffsets: { q: number, r: number, rotation?: number }[] = [
-    { q: 5, r: 1, rotation: 1 },
-    { q: 10, r: 0, rotation: 1 },
-    { q: 14, r: 3, rotation: 0 },
-    { q: 12, r: 9, rotation: 1 },
-    { q: 5, r: 14, rotation: 0 },
-    { q: 0, r: 15, rotation: 0 },
-    { q: -4, r: 12, rotation: 1 },
-    { q: -2, r: 6, rotation: 0 },
-  ];
+  const bridgeOffsets = SECTOR_CENTERS.filter(c => c.sector >= 11);
+  const bridgeRotations = [1, 1, 0, 1, 0, 0, 1, 0];
+
+  // Map files available: Map_B11, Map_O12, Map_B13, Map_B14, Map_O15, Map_O16, Map_B17, Map_O18
+  const BRIDGE_LAYOUTS: Record<number, PlanetType[]> = {
+    11: ['proto', 'space', 'asteroid'],       // Map_B11
+    12: ['asteroid', 'space', 'space'],       // Map_O12
+    13: ['transdim', 'asteroid', 'space'],    // Map_B13
+    14: ['proto', 'asteroid', 'space'],       // Map_B14 (원시, 소행성, 빈칸)
+    15: ['proto', 'asteroid', 'space'],       // Map_O15
+    16: ['asteroid', 'asteroid', 'space'],    // Map_O16
+    17: ['transdim', 'space', 'space'],       // Map_B17
+    18: ['space', 'space', 'asteroid'],       // Map_O18
+  };
 
   bridgeOffsets.forEach((data, i) => {
     const center = { q: data.q, r: data.r };
-    const spec = BRIDGE_SPECS[i];
+    const sectorBaseId = 11 + i;
+    const planetTypes = BRIDGE_LAYOUTS[sectorBaseId] || ['space', 'space', 'space'];
+    const rotation = bridgeRotations[i];
 
-    // Pick Side A or Side B
-    const choice = Math.random() < 0.5 ? spec.sideA : spec.sideB;
+    // Map to a triangle pointing up (1 top, 2 bottom)
+    const baseCoords = [
+      { q: 0, r: -1 }, // Pos 1 (Top)
+      { q: -1, r: 0 }, // Pos 2 (Bottom-Left)
+      { q: 0, r: 0 },  // Pos 3 (Bottom-Right) - This is our relative center!
+    ];
 
-    // Fill 3 slots with choice types + space
-    const pool: PlanetType[] = [...choice];
-    while (pool.length < 3) pool.push('space');
-
-    // Shuffle the 3 slots
-    const shuffledPool = pool.sort(() => Math.random() - 0.5);
-
-    // Use specified rotation or randomize if not provided
-    const rotation = data.rotation !== undefined ? data.rotation : Math.floor(Math.random() * 6);
-    const layout = SECTOR_LAYOUTS[13]; // Generic 3-hex layout
-
-    layout.forEach((hex, hexIdx) => {
-      const rotated = rotateHex(hex.q, hex.r, rotation);
+    baseCoords.forEach((coord, hexIdx) => {
+      const rotated = rotateHex(coord.q, coord.r, rotation);
       const q = center.q + rotated.q;
       const r = center.r + rotated.r;
       const key = `${q},${r}`;
@@ -1374,8 +1379,9 @@ export function generateMap(): HexTile[] {
         tiles.push({
           id: `bridge-${i}-${hexIdx}`,
           q, r,
-          type: shuffledPool[hexIdx],
-          sector: 11 + i,
+          type: planetTypes[hexIdx],
+          sector: sectorBaseId,
+          rotation: rotation,
           structure: null,
           ownerId: null
         });
@@ -1864,7 +1870,7 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       return buildingCount;
     }
     case 'fm_sectors': {
-      const sectors = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship').map(t => t.sector));
+      const sectors = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship' && t.sector < 11).map(t => t.sector));
       return sectors.size;
     }
     case 'fm_outer_sectors': {
@@ -1954,3 +1960,69 @@ export function hasNearbyPlayersForTradingDiscount(map: HexTile[], tile: HexTile
   }
   return false;
 }
+// Actual Gaia Project sector data - hexagonal sector shape
+// Each sector has 19 hexes: center (1) + ring1 (6) + ring2 (12) = 19
+// Positions are relative to sector center using axial coordinates
+export const SECTOR_HEX_POSITIONS = [
+  // Center (pos 0)
+  { q: 0, r: 0 },
+  // Ring 1 - 6 hexes adjacent to center (pos 1-6)
+  { q: 1, r: -1 },  // top-right
+  { q: 1, r: 0 },   // right
+  { q: 0, r: 1 },   // bottom-right
+  { q: -1, r: 1 },  // bottom-left
+  { q: -1, r: 0 },  // left
+  { q: 0, r: -1 },  // top-left
+  // Ring 2 - 12 hexes outer ring (pos 7-18)
+  { q: 2, r: -2 },  // top
+  { q: 2, r: -1 },  // top-right-1
+  { q: 2, r: 0 },   // right-top
+  { q: 1, r: 1 },   // right-bottom
+  { q: 0, r: 2 },   // bottom-right
+  { q: -1, r: 2 },  // bottom
+  { q: -2, r: 2 },  // bottom-left
+  { q: -2, r: 1 },  // left-bottom
+  { q: -2, r: 0 },  // left-top
+  { q: -1, r: -1 }, // top-left-1
+  { q: 0, r: -2 },  // top-left-2
+  { q: 1, r: -2 },  // top-right-2
+];
+
+// Sector definitions with actual planet layouts
+export const SECTORS: { id: number; planets: { pos: number; type: PlanetType }[] }[] = [
+  { id: 1, planets: [{ pos: 18, type: 'transdim' }, { pos: 6, type: 'terra' }, { pos: 8, type: 'volcanic' }, { pos: 9, type: 'oxide' }, { pos: 4, type: 'swamp' }, { pos: 12, type: 'desert' }] },
+  { id: 2, planets: [{ pos: 18, type: 'desert' }, { pos: 6, type: 'ice' }, { pos: 8, type: 'transdim' }, { pos: 15, type: 'titanium' }, { pos: 14, type: 'volcanic' }, { pos: 3, type: 'swamp' }, { pos: 10, type: 'oxide' }] },
+  { id: 3, planets: [{ pos: 18, type: 'titanium' }, { pos: 1, type: 'ice' }, { pos: 15, type: 'transdim' }, { pos: 9, type: 'desert' }, { pos: 4, type: 'gaia' }, { pos: 10, type: 'terra' }] },
+  { id: 4, planets: [{ pos: 7, type: 'terra' }, { pos: 1, type: 'swamp' }, { pos: 15, type: 'titanium' }, { pos: 5, type: 'oxide' }, { pos: 3, type: 'volcanic' }, { pos: 12, type: 'ice' }] },
+  { id: 5, planets: [{ pos: 17, type: 'transdim' }, { pos: 18, type: 'oxide' }, { pos: 15, type: 'ice' }, { pos: 9, type: 'desert' }, { pos: 4, type: 'gaia' }, { pos: 10, type: 'volcanic' }] },
+  { id: 6, planets: [{ pos: 7, type: 'desert' }, { pos: 16, type: 'transdim' }, { pos: 6, type: 'terra' }, { pos: 8, type: 'transdim' }, { pos: 2, type: 'gaia' }, { pos: 4, type: 'swamp' }] },
+  { id: 7, planets: [{ pos: 16, type: 'swamp' }, { pos: 1, type: 'gaia' }, { pos: 5, type: 'oxide' }, { pos: 9, type: 'titanium' }, { pos: 3, type: 'gaia' }, { pos: 13, type: 'transdim' }] },
+  { id: 8, planets: [{ pos: 17, type: 'transdim' }, { pos: 1, type: 'titanium' }, { pos: 15, type: 'terra' }, { pos: 5, type: 'ice' }, { pos: 3, type: 'volcanic' }, { pos: 10, type: 'transdim' }] },
+  { id: 9, planets: [{ pos: 17, type: 'ice' }, { pos: 16, type: 'transdim' }, { pos: 1, type: 'gaia' }, { pos: 14, type: 'volcanic' }, { pos: 3, type: 'titanium' }, { pos: 11, type: 'swamp' }] },
+  { id: 10, planets: [{ pos: 17, type: 'transdim' }, { pos: 16, type: 'transdim' }, { pos: 1, type: 'gaia' }, { pos: 4, type: 'desert' }, { pos: 10, type: 'oxide' }, { pos: 11, type: 'terra' }] },
+];
+
+// Consolidated Sector center positions (Matching generateMap logic)
+export const SECTOR_CENTERS = [
+  // 10 Internal Sectors (Radius 2, 3-4-3 layout)
+  { q: 2, r: 4, sector: 0 },   // Row 1
+  { q: 7, r: 3, sector: 1 },
+  { q: 12, r: 2, sector: 2 },
+  { q: -2, r: 9, sector: 3 },  // Row 2
+  { q: 3, r: 8, sector: 4 },
+  { q: 8, r: 7, sector: 5 },
+  { q: 13, r: 6, sector: 6 },
+  { q: -1, r: 13, sector: 7 }, // Row 3
+  { q: 4, r: 12, sector: 8 },
+  { q: 9, r: 11, sector: 9 },
+  // External Bridge Sectors 11-18 (Match bridgeOffsets in generateMap)
+  // Adjusted: All shifted right (q+1), Top two (11, 12) shifted down (r+1)
+  { q: 5, r: 2, sector: 11 },   // Original: 5, 1 -> q+1
+  { q: 10, r: 1, sector: 12 },  // Original: 10, 0 -> q+1
+  { q: 15, r: 3, sector: 13 },  // Original: 14, 3 -> q+1
+  { q: 12, r: 10, sector: 14 },  // Original: 12, 9 -> q+1
+  { q: 6, r: 14, sector: 15 },  // Original: 5, 14 -> q+1
+  { q: 1, r: 15, sector: 16 },  // Original: 0, 15 -> q+1
+  { q: -4, r: 13, sector: 17 }, // Original: -4, 12 -> q+1
+  { q: -1, r: 6, sector: 18 },  // Original: -2, 6 -> q+1
+];

@@ -65,7 +65,7 @@ export function BonusSelectionModal({
   mode,
 }: BonusSelectionModalProps) {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-  
+
   const currentPlayer = playerId ? game.players[playerId] : null;
   const currentBonusTile = currentPlayer?.bonusTile
     ? ALL_BONUS_TILES.find(t => t.id === currentPlayer.bonusTile)
@@ -105,110 +105,68 @@ export function BonusSelectionModal({
 
         {/* Current Bonus Tile (only shown in pass mode) */}
         {mode === 'pass' && currentBonusTile && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-            <div className="text-[10px] uppercase font-bold text-red-400 mb-2">
-              Returning This Tile:
+          <div className="mb-6 p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 flex items-center gap-6">
+            <div className="flex flex-col">
+              <div className="text-[10px] uppercase font-bold text-orange-400/70 mb-2 tracking-widest">
+                Returning Current Tile
+              </div>
+              <div className="text-zinc-200 font-black text-lg uppercase">
+                {currentBonusTile.label}
+              </div>
+              <div className="text-zinc-500 text-xs mt-1 max-w-[200px]">
+                {currentBonusTile.description}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {getBonusIcon(currentBonusTile)}
-              <span className="text-sm font-bold text-zinc-200">{currentBonusTile.label}</span>
-              {currentBonusTile.passBonus && (
-                <Badge variant="outline" className="text-[9px] bg-emerald-500/10 border-emerald-500/30 text-emerald-400 ml-auto">
-                  Pass: {currentBonusTile.passBonus.vp}VP/{getPassBonusLabel(currentBonusTile.passBonus.type)}
-                </Badge>
-              )}
+
+            <div className="relative w-16 h-24 rounded-lg overflow-hidden border border-white/10 shadow-lg grayscale opacity-50 ml-auto">
+              {(() => {
+                const idx = ALL_BONUS_TILES.findIndex(t => t.id === currentBonusTile.id);
+                const img = idx !== -1 ? `/image/BoostTile_${idx + 1}.jpg` : null;
+                return img ? (
+                  <img src={img} className="w-full h-full object-contain" alt="returning tile" />
+                ) : null;
+              })()}
             </div>
           </div>
         )}
 
         {/* Available Bonus Tiles Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-1">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 max-h-[500px] overflow-y-auto p-2">
           {game.availableBonusTiles.map((tile) => {
             const isSelected = selectedTileId === tile.id;
+            const tileIndex = ALL_BONUS_TILES.findIndex(t => t.id === tile.id);
+            const tileImg = tileIndex !== -1 ? `/image/BoostTile_${tileIndex + 1}.jpg` : null;
 
             return (
               <div
                 key={tile.id}
                 onClick={() => handleTileClick(tile.id)}
-                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                  isSelected
-                    ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]'
-                    : 'bg-zinc-900/50 border-white/10 hover:border-white/30 hover:bg-zinc-800/50'
-                }`}
+                className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ${isSelected
+                  ? 'ring-4 ring-primary ring-offset-2 ring-offset-zinc-950 scale-105 shadow-[0_0_30px_rgba(var(--primary),0.4)]'
+                  : 'opacity-70 hover:opacity-100 hover:scale-102 grayscale hover:grayscale-0'
+                  }`}
+                style={{ width: '110px', height: '180px' }}
               >
-                {/* Selection indicator */}
+                {tileImg ? (
+                  <img
+                    src={tileImg}
+                    alt={tile.label}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-zinc-900 flex flex-col items-center justify-center p-2 text-center border border-white/5">
+                    <span className="text-[10px] font-black text-zinc-500">{tile.label}</span>
+                  </div>
+                )}
+
+                {/* Selection Overlay */}
                 {isSelected && (
-                  <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="w-4 h-4 text-black" />
+                  <div className="absolute inset-0 bg-primary/10 flex items-center justify-center pointer-events-none">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg">
+                      <Check className="w-5 h-5 text-black" />
+                    </div>
                   </div>
                 )}
-
-                {/* Tile Header */}
-                <div className="flex items-center gap-2 mb-3">
-                  {getBonusIcon(tile)}
-                  <span className="text-[11px] font-black uppercase tracking-wider text-zinc-100">
-                    {tile.label}
-                  </span>
-                </div>
-
-                {/* Income Display */}
-                {tile.income && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {tile.income.ore && (
-                      <Badge variant="outline" className="text-[9px] bg-orange-500/10 border-orange-500/30 text-orange-400">
-                        +{tile.income.ore}O
-                      </Badge>
-                    )}
-                    {tile.income.credits && (
-                      <Badge variant="outline" className="text-[9px] bg-yellow-500/10 border-yellow-500/30 text-yellow-400">
-                        +{tile.income.credits}C
-                      </Badge>
-                    )}
-                    {tile.income.knowledge && (
-                      <Badge variant="outline" className="text-[9px] bg-blue-500/10 border-blue-500/30 text-blue-400">
-                        +{tile.income.knowledge}K
-                      </Badge>
-                    )}
-                    {tile.income.qic && (
-                      <Badge variant="outline" className="text-[9px] bg-green-500/10 border-green-500/30 text-green-400">
-                        +{tile.income.qic}Q
-                      </Badge>
-                    )}
-                    {tile.income.power && (
-                      <Badge variant="outline" className="text-[9px] bg-purple-500/10 border-purple-500/30 text-purple-400">
-                        +{tile.income.power}P
-                      </Badge>
-                    )}
-                    {tile.income.powerTokens && (
-                      <Badge variant="outline" className="text-[9px] bg-violet-500/10 border-violet-500/30 text-violet-400">
-                        +{tile.income.powerTokens} Tok
-                      </Badge>
-                    )}
-                  </div>
-                )}
-
-                {/* Pass Bonus Display */}
-                {tile.passBonus && (
-                  <div className="mb-2">
-                    <Badge variant="outline" className="text-[9px] bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
-                      Pass: {tile.passBonus.vp}VP/{getPassBonusLabel(tile.passBonus.type)}
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Special Action */}
-                {tile.specialAction && (
-                  <div className="mb-2">
-                    <Badge variant="outline" className="text-[9px] bg-cyan-500/10 border-cyan-500/30 text-cyan-400">
-                      ACT: {getActionLabel(tile.specialAction)}
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Description */}
-                <div className="text-[9px] text-zinc-500 leading-relaxed mt-2">
-                  {tile.description}
-                </div>
               </div>
             );
           })}

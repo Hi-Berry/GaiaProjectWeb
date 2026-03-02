@@ -702,11 +702,27 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 <span className="text-[12px] font-bold text-zinc-100">{name}</span>
                                                 {isLocked && <span className="text-[10px] text-amber-400 font-black tracking-widest">LOCKED</span>}
                                             </div>
-                                            {shipFedLabel != null && (
-                                                <div className="text-[11px] text-zinc-300 font-medium">
-                                                    {shipFedTaken ? <span className="text-zinc-500 italic">보상 획득됨</span> : `보상: ${shipFedLabel}`}
-                                                </div>
-                                            )}
+                                            {shipFedId != null && (() => {
+                                                const rewardIndex = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId);
+                                                const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
+                                                return (
+                                                    <div className="flex items-center gap-2 py-1">
+                                                        <span className="text-[11px] text-zinc-400 font-semibold shrink-0">보상:</span>
+                                                        {shipFedTaken ? (
+                                                            <span className="text-zinc-500 italic text-[11px]">획득됨</span>
+                                                        ) : imgUrl ? (
+                                                            <img
+                                                                src={imgUrl}
+                                                                alt={shipFedLabel || 'Spaceship Federation Reward'}
+                                                                className="h-8 w-auto object-contain border border-white/10 rounded shadow-sm"
+                                                                title={shipFedLabel || ''}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-[11px] text-zinc-300 font-medium">{shipFedLabel}</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                             <div className="text-[11px] text-zinc-400 min-h-[2.5rem] leading-tight">
                                                 <span className="text-zinc-500 font-semibold mr-1">탑승:</span>
                                                 {ship.occupants.length > 0

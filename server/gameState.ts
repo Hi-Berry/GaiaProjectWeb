@@ -818,7 +818,7 @@ export function applyAdvancedTechTilePassEffect(game: GaiaGameState, playerId: s
       addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (2 per asteroid)`);
     }
     else if (tileId === 'adv-pass-2vp-outer') {
-      const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
+      const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 11 && t.sector < 20).length;
       const vp = outerCount * 2;
       addScore(game, playerId, vp, 'techTiles', { tileId });
       addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (2 per outer sector)`);

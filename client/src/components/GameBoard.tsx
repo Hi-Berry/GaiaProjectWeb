@@ -6,7 +6,39 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
-import { PLANET_COLORS, SECTOR_COLORS, STRUCTURE_SYMBOLS, FACTIONS, getTerraformSteps, getTerraformStepsForFaction, getTerraformCost, getRange, getEffectiveBaseRange, hasNearbyPlayersForTradingDiscount, isEmptyHex, isPlanetHex, BUILDING_LIMITS, HOME_PLANETS } from '@shared/gameConfig';
+import {
+  PLANET_COLORS,
+  SECTOR_COLORS,
+  STRUCTURE_SYMBOLS,
+  FACTIONS,
+  getTerraformSteps,
+  getTerraformStepsForFaction,
+  getTerraformCost,
+  getRange,
+  getEffectiveBaseRange,
+  hasNearbyPlayersForTradingDiscount,
+  isEmptyHex,
+  isPlanetHex,
+  BUILDING_LIMITS,
+  HOME_PLANETS,
+  SECTOR_CENTERS
+} from '@shared/gameConfig';
+
+const HEX_SIZE = 4.8;
+const SQRT3 = Math.sqrt(3);
+
+function getHexOffset(q: number, r: number, sectorIdx: number) {
+  const center = SECTOR_CENTERS[sectorIdx];
+  if (!center) return { x: 0, y: 0 };
+
+  const dq = q - center.q;
+  const dr = r - center.r;
+
+  const x = HEX_SIZE * SQRT3 * (dq + dr / 2);
+  const y = HEX_SIZE * 1.5 * dr;
+
+  return { x, y };
+}
 
 /** 플레이어 건물 개수 (맵 기준, 아카데미는 left/right 구분) */
 function getStructureCounts(game: GaiaGameState, playerId: string) {
@@ -628,7 +660,7 @@ export function GameBoard({
       return true;
     }
 
-    if (['space', 'deep_space', 'gas_cloud', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) return false;
+    if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) return false;
 
     // 소행성은 가이아 포머가 있어야 함 (발타크: QIC 전환으로 잠긴 포머 제외)
     if (selectedTile.type === 'asteroid') {
@@ -732,34 +764,84 @@ export function GameBoard({
         >
           <HexGrid width={1200} height={1000} viewBox="-50 -50 250 250">
             <defs>
-              {/* 행성 그라디언트 (입체감) */}
-              <radialGradient id="planetGradient" cx="35%" cy="35%" r="65%">
-                <stop offset="0%" stopColor="rgba(255, 255, 255, 0.5)" />
-                <stop offset="70%" stopColor="rgba(255, 255, 255, 0.1)" />
-                <stop offset="100%" stopColor="rgba(0, 0, 0, 0.6)" />
-              </radialGradient>
-
-              {/* 행성 질감 패턴들 */}
-              <pattern id="planetTexture" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-                <circle cx="2" cy="2" r="0.5" fill="rgba(0,0,0,0.1)" />
-                <circle cx="6" cy="6" r="0.4" fill="rgba(0,0,0,0.08)" />
-                <circle cx="5" cy="2" r="0.3" fill="rgba(255,255,255,0.05)" />
+              {/* Tile Special Patterns - using objectBoundingBox for per-hex anchoring */}
+              <pattern id="ts-space" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_100.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
               </pattern>
-
-              {/* 가스 행성 효과 (소용돌이) */}
-              <pattern id="gasTexture" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-                <path d="M 0 5 Q 5 3, 10 5" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" fill="none" />
-                <path d="M 0 7 Q 5 5, 10 7" stroke="rgba(0,0,0,0.1)" strokeWidth="0.4" fill="none" />
+              <pattern id="ts-asteroid" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_110.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
               </pattern>
-
-              {/* 얼음 행성 크리스탈 패턴 */}
-              <pattern id="iceTexture" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
-                <line x1="0" y1="3" x2="6" y2="3" stroke="rgba(255,255,255,0.2)" strokeWidth="0.3" />
-                <line x1="3" y1="0" x2="3" y2="6" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" />
-                <line x1="1" y1="1" x2="5" y2="5" stroke="rgba(200,230,255,0.1)" strokeWidth="0.2" />
+              <pattern id="ts-proto" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_111.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+              </pattern>
+              <pattern id="ts-rebellion" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_112.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+              </pattern>
+              <pattern id="ts-tf-mars" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_113.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+              </pattern>
+              <pattern id="ts-eclipse" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_114.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+              </pattern>
+              <pattern id="ts-twilight" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_115.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
               </pattern>
             </defs>
-            <Layout size={{ x: 4.8, y: 4.8 }} flat={false} spacing={1.0} origin={{ x: 0, y: 0 }}>
+            <g id="sector-backgrounds-layer">
+              {SECTOR_CENTERS.map((center) => {
+                const cx = HEX_SIZE * SQRT3 * (center.q + center.r / 2);
+                const cy = HEX_SIZE * 1.5 * center.r;
+
+                // Find the actual tile at this center to determine layout ID and rotation
+                const slotTile = game.map.find((t: HexTile) => t.q === center.q && t.r === center.r);
+                if (!slotTile || slotTile.sector === null) return null;
+
+                const layoutId = slotTile.sector;
+                const rotation = slotTile.rotation ?? 0;
+                const isExternal = layoutId >= 11 && layoutId !== 90;
+
+                let filename = '';
+                let imgW = 41.57;
+                let imgH = 38.4;
+                let offsetX = imgW / 2;
+                let offsetY = imgH / 2;
+
+                if (layoutId === 90) {
+                  return null; // Do not draw background for internal strategic hexes
+                } else if (isExternal) {
+                  // Hardcoded prefix based on available files: Map_B11, O12, B13, B14, O15, O16, B17, O18
+                  const isSideO = [12, 15, 16, 18].includes(layoutId);
+                  const prefix = isSideO ? 'Map_O' : 'Map_B';
+                  filename = `${prefix}${String(layoutId).padStart(2, '0')}.png`;
+
+                  imgW = 16.62;
+                  imgH = 16.8;
+                  offsetX = 12.47;
+                  offsetY = 12.0;
+                } else {
+                  filename = `Map_B${String(layoutId + 1).padStart(2, '0')}.gif`;
+                  imgW = 41.57;
+                  imgH = 38.4;
+                  offsetX = imgW / 2;
+                  offsetY = imgH / 2;
+                }
+
+                return (
+                  <image
+                    key={`sector-bg-${center.sector}`} // slot index for stable key
+                    href={`/map/${filename}`}
+                    x={cx - offsetX}
+                    y={cy - offsetY}
+                    width={imgW}
+                    height={imgH}
+                    transform={`rotate(${rotation * 60}, ${cx}, ${cy})`}
+                    style={{ pointerEvents: 'none', opacity: 1.0 }}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                );
+              })}
+            </g>
+            <Layout size={{ x: HEX_SIZE, y: HEX_SIZE }} flat={false} spacing={1.0} origin={{ x: 0, y: 0 }}>
               {game.map.map((tile: HexTile) => {
                 const isSelected = selectedTile?.id === tile.id;
                 const isEclipseBuildable = eclipseBuildableTileIds.has(tile.id);
@@ -790,7 +872,7 @@ export function GameBoard({
                     s={-tile.q - tile.r}
                     onClick={() => handleTileClick(tile)}
                     style={{
-                      fill: SECTOR_COLORS[tile.sector] || '#1a1a1a',
+                      fill: 'transparent', // 배경 이미지가 잘 보이도록 투명하게 설정
                       stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FFD700' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
                       strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : 0.2,
                       cursor: 'pointer',
@@ -799,49 +881,22 @@ export function GameBoard({
                       filter: isEclipseBuildable ? 'drop-shadow(0px 0px 8px rgba(34, 197, 94, 0.9))' : isShipActionSelectable ? 'drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.9))' : isHighlighted ? 'drop-shadow(0px 0px 8px rgba(255, 215, 0, 0.8))' : 'none',
                     }}
                   >
-                    {/* Planet Circle (Round Shape) with Texture */}
-                    {tile.type !== 'space' && tile.type !== 'deep_space' && tile.type !== 'lost_fleet_ship' && (
-                      <g>
-                        {/* Shadow/Glow */}
-                        <circle r="3.3" fill="rgba(0,0,0,0.5)" />
-
-                        {/* Base Planet Color */}
-                        <circle
-                          r="3.0"
-                          fill={planetColor}
-                          style={{
-                            filter: 'drop-shadow(0px 0px 3px rgba(0,0,0,0.7))',
-                            opacity: hasStructure ? 0.75 : 1.0
-                          }}
-                        />
-
-                        {/* Texture Layer (타입별로 다른 텍스처) */}
-                        <circle
-                          r="3.0"
-                          fill={tile.type === 'ice' ? 'url(#iceTexture)' :
-                            tile.type === 'gaia' || tile.type === 'transdim' ? 'url(#gasTexture)' :
-                              'url(#planetTexture)'}
-                          style={{ opacity: hasStructure ? 0.3 : 0.5 }}
-                        />
-
-                        {/* 3D Shading Effect */}
-                        <circle
-                          r="3.0"
-                          fill="url(#planetGradient)"
-                          style={{ opacity: hasStructure ? 0.4 : 0.6 }}
-                        />
-
-                        {/* 외곽 테두리 (행성 윤곽 강조) */}
-                        <circle
-                          r="3.0"
-                          fill="none"
-                          stroke="rgba(0,0,0,0.3)"
-                          strokeWidth="0.15"
-                        />
-                      </g>
+                    {/* Planet Circle (Round Shape) removed as they are in the background image */}
+                    {/* Space Texture (ts_100) - Only for sector 90 to avoid blurring background images */}
+                    {(tile.type === 'space' || tile.type === 'deep_space') && tile.sector === 90 && (
+                      <circle r="4.8" fill="url(#ts-space)" fillOpacity={0.1} pointerEvents="none" />
                     )}
-
-                    {(tile.type === 'lost_fleet_ship' || (tile.type && tile.type.startsWith('ship_'))) && renderSpaceship(tile.type)}
+                    {/* Single-hex Strategic Tiles & Ships (Only for sector 90 to prevent drawing on outer bridges) */}
+                    {tile.sector === 90 && (
+                      <>
+                        {tile.type === 'asteroid' && <circle r="4.15" fill="url(#ts-asteroid)" pointerEvents="none" />}
+                        {tile.type === 'proto' && <circle r="4.15" fill="url(#ts-proto)" pointerEvents="none" />}
+                        {tile.type === 'ship_rebellion' && <circle r="4.15" fill="url(#ts-rebellion)" pointerEvents="none" transform="rotate(-90)" />}
+                        {tile.type === 'ship_tf_mars' && <circle r="4.15" fill="url(#ts-tf-mars)" pointerEvents="none" transform="rotate(-90)" />}
+                        {tile.type === 'ship_twilight' && <circle r="4.15" fill="url(#ts-twilight)" pointerEvents="none" transform="rotate(-90)" />}
+                        {tile.type === 'ship_eclipse' && <circle r="4.15" fill="url(#ts-eclipse)" pointerEvents="none" transform="rotate(-90)" />}
+                      </>
+                    )}
 
                     {/* 가이아 포머 표시 (transdim 또는 성숙 가이아에 설치된 경우) */}
                     {(tile.type === 'transdim' || tile.type === 'gaia') && tile.hasGaiaformer && !hasStructure && (
@@ -866,7 +921,7 @@ export function GameBoard({
 
                     {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
 
-                    {/* 모웨이드 링: 해당 건물 파워 수신/연방 시 +2 */}
+                    {/* 모웨이드 링 */}
                     {tile.moweyipRing && (
                       <g>
                         <circle r="2.4" fill="none" stroke="#f59e0b" strokeWidth="0.28" opacity="0.95" />
@@ -874,7 +929,7 @@ export function GameBoard({
                       </g>
                     )}
 
-                    {/* 란티다 기생 광산: 기존 건물 오른쪽 하단에 작은 광산 아이콘 */}
+                    {/* 란티다 기생 광산 */}
                     {tile.parasiticMine && (() => {
                       const parasiticOwner = game.players[tile.parasiticMine!.ownerId];
                       const parasiticFac = parasiticOwner?.faction ? FACTIONS.find(f => f.id === parasiticOwner.faction) : null;
@@ -885,7 +940,7 @@ export function GameBoard({
                       );
                     })()}
 
-                    {/* 위성 표시 (연방 빈공간 가운데, 여러 플레이어면 첫 번째는 중앙·나머지는 둘러싸 배치) */}
+                    {/* 위성 표시 */}
                     {satelliteOwnerIds.length > 0 && satelliteOwnerIds.map((ownerId, idx) => {
                       const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
                       if (!fac) return null;
@@ -900,7 +955,7 @@ export function GameBoard({
                       );
                     })}
 
-                    {/* 하이브 우주정거장 (빈 공간에만, 연방 1파워·거리 기준점) */}
+                    {/* 하이브 우주정거장 */}
                     {tile.spaceStation && (() => {
                       const ssOwner = game.players[tile.spaceStation!.ownerId];
                       const ssFac = ssOwner?.faction ? FACTIONS.find(f => f.id === ssOwner.faction) : null;
@@ -912,23 +967,22 @@ export function GameBoard({
                       );
                     })()}
 
-                    {/* Sector & Coordinate Debug Display */}
-                    <text
-                      y="3.5"
-                      style={{
-                        fill: game.isTestMode ? 'rgba(0, 255, 255, 0.9)' : 'rgba(255,255,255,0.4)',
-                        fontSize: game.isTestMode ? '1.4px' : '1px',
-                        fontWeight: game.isTestMode ? 'bold' : 'normal',
-                        textAnchor: 'middle',
-                        dominantBaseline: 'central',
-                        pointerEvents: 'none',
-                        fontFamily: 'monospace'
-                      }}
-                    >
-                      {game.isTestMode
-                        ? `${tile.q},${tile.r}`
-                        : (tile.type !== 'space' && tile.type !== 'deep_space' ? `S${tile.sector}` : '')}
-                    </text>
+                    {game.isTestMode && (
+                      <text
+                        y="3.5"
+                        style={{
+                          fill: 'rgba(0, 255, 255, 0.9)',
+                          fontSize: '1.4px',
+                          fontWeight: 'bold',
+                          textAnchor: 'middle',
+                          dominantBaseline: 'central',
+                          pointerEvents: 'none',
+                          fontFamily: 'monospace'
+                        }}
+                      >
+                        {`${tile.q},${tile.r}${tile.sector !== null ? ` S${tile.sector}` : ''}`}
+                      </text>
+                    )}
 
                   </Hexagon>
                 );
@@ -970,559 +1024,561 @@ export function GameBoard({
       </div>
 
       {/* 행성/타일 선택 패널: 절대 위치 오버레이로 맵 영역 크기에 영향 없음 */}
-      {selectedTile && (
-        <div className="absolute top-0 right-0 bottom-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-10 overflow-y-auto">
-          <h3 className="font-semibold capitalize">
-            {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Sector {selectedTile.sector} | ({selectedTile.q}, {selectedTile.r})
-          </p>
+      {
+        selectedTile && (
+          <div className="absolute top-0 right-0 bottom-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-10 overflow-y-auto">
+            <h3 className="font-semibold capitalize">
+              {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Sector {selectedTile.sector} | ({selectedTile.q}, {selectedTile.r})
+            </p>
 
-          {/* 엠바스(Ambas) Special: 의회↔광산 교체 — 광산 클릭 시 즉시 교체 */}
-          {ambasSwapPiMineMode && (
-            <div className="space-y-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
-              <p className="text-xs font-semibold text-amber-300">엠바스 Special: PI ↔ 광산 교체</p>
-              <p className="text-xs text-muted-foreground">맵에서 <span className="text-white font-medium">교체할 내 광산</span>을 클릭하면 의회와 위치가 바뀝니다.</p>
-              {onCancelAmbasSwapPiMine && (
-                <Button variant="outline" size="sm" className="w-full text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/20" onClick={onCancelAmbasSwapPiMine}>취소</Button>
-              )}
-            </div>
-          )}
+            {/* 엠바스(Ambas) Special: 의회↔광산 교체 — 광산 클릭 시 즉시 교체 */}
+            {ambasSwapPiMineMode && (
+              <div className="space-y-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                <p className="text-xs font-semibold text-amber-300">엠바스 Special: PI ↔ 광산 교체</p>
+                <p className="text-xs text-muted-foreground">맵에서 <span className="text-white font-medium">교체할 내 광산</span>을 클릭하면 의회와 위치가 바뀝니다.</p>
+                {onCancelAmbasSwapPiMine && (
+                  <Button variant="outline" size="sm" className="w-full text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/20" onClick={onCancelAmbasSwapPiMine}>취소</Button>
+                )}
+              </div>
+            )}
 
-          {/* 파이락(Firaks) Downgrade: 연구소 클릭 시 트랙 선택 다이얼로그로 진행 */}
-          {firaksDowngradeMode && (
-            <div className="space-y-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
-              <p className="text-xs font-semibold text-amber-300">파이락 Special: Downgrade</p>
-              <p className="text-xs text-muted-foreground">맵에서 <span className="text-white font-medium">다운그레이드할 연구소</span>를 클릭하면 트랙 선택 창이 뜹니다.</p>
-              {onCancelFiraksDowngrade && (
-                <Button variant="outline" size="sm" className="w-full text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/20" onClick={onCancelFiraksDowngrade}>취소</Button>
-              )}
-            </div>
-          )}
+            {/* 파이락(Firaks) Downgrade: 연구소 클릭 시 트랙 선택 다이얼로그로 진행 */}
+            {firaksDowngradeMode && (
+              <div className="space-y-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                <p className="text-xs font-semibold text-amber-300">파이락 Special: Downgrade</p>
+                <p className="text-xs text-muted-foreground">맵에서 <span className="text-white font-medium">다운그레이드할 연구소</span>를 클릭하면 트랙 선택 창이 뜹니다.</p>
+                {onCancelFiraksDowngrade && (
+                  <Button variant="outline" size="sm" className="w-full text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/20" onClick={onCancelFiraksDowngrade}>취소</Button>
+                )}
+              </div>
+            )}
 
-          {/* 모웨이드(Moweyip) 링 놓기: 링 없는 본인 건물 클릭 시 링 배치 */}
-          {moweyipPlaceRingMode && (
-            <div className="space-y-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
-              <p className="text-xs font-semibold text-amber-300">모웨이드 Special: 링 놓기</p>
-              <p className="text-xs text-muted-foreground">맵에서 <span className="text-white font-medium">링을 놓을 본인 건물</span>을 클릭하세요. (+2 파워 수신/연방)</p>
-              {onCancelMoweyipPlaceRing && (
-                <Button variant="outline" size="sm" className="w-full text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/20" onClick={onCancelMoweyipPlaceRing}>취소</Button>
-              )}
-            </div>
-          )}
+            {/* 모웨이드(Moweyip) 링 놓기: 링 없는 본인 건물 클릭 시 링 배치 */}
+            {moweyipPlaceRingMode && (
+              <div className="space-y-2 p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                <p className="text-xs font-semibold text-amber-300">모웨이드 Special: 링 놓기</p>
+                <p className="text-xs text-muted-foreground">맵에서 <span className="text-white font-medium">링을 놓을 본인 건물</span>을 클릭하세요. (+2 파워 수신/연방)</p>
+                {onCancelMoweyipPlaceRing && (
+                  <Button variant="outline" size="sm" className="w-full text-xs border-amber-500/50 text-amber-300 hover:bg-amber-500/20" onClick={onCancelMoweyipPlaceRing}>취소</Button>
+                )}
+              </div>
+            )}
 
-          {/* 우주정거장 배치 모드: 빈 우주 타일일 때만 배치 UI, 아니면 안내 + 취소 */}
-          {ivitsSpaceStationMode && (
-            <>
-              {(selectedTile.type === 'space' || selectedTile.type === 'deep_space') && !selectedTile.structure && !selectedTile.spaceStation && currentPlayer?.faction === 'ivits' && onPlaceIvitsSpaceStation && !currentPlayer.usedIvitsSpaceStationThisRound && (() => {
-                const satList = game.satellites?.[selectedTile.id];
-                const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
-                if (mySatellite) return null;
-                const rangeTiles = game.map.filter((t: HexTile) =>
-                  (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
-                );
-                if (rangeTiles.length === 0) return <p className="text-xs text-amber-400">내 건물/우주정거장이 없으면 배치할 수 없습니다.</p>;
-                const baseRange = getRange(currentPlayer!.research?.navigation ?? 0) + (currentPlayer!.navigationBonus ?? 0);
-                const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
-                const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                const qicOk = (currentPlayer!.qic ?? 0) >= neededQIC;
-                return (
-                  <div className="space-y-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                    <p className="text-xs font-semibold text-amber-300">우주정거장 배치</p>
-                    <p className="text-xs text-muted-foreground">
-                      거리: {minDist} | Nav: {baseRange}
-                      {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
-                    </p>
-                    <Button className="w-full text-xs" size="sm" disabled={!qicOk} onClick={() => { onPlaceIvitsSpaceStation(selectedTile.id); setSelectedTile(null); }}>
-                      우주정거장 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
-                    </Button>
-                  </div>
-                );
-              })()}
-              {(!(selectedTile.type === 'space' || selectedTile.type === 'deep_space') || selectedTile.structure || selectedTile.spaceStation) && (
-                <div className="space-y-2 p-2 rounded-lg border border-white/20">
-                  <p className="text-xs text-zinc-400">맵에서 <span className="text-white font-medium">빈 우주 타일(검은 칸)</span>을 클릭하세요.</p>
-                  {onCancelIvitsSpaceStation && (
-                    <Button variant="outline" size="sm" className="w-full text-xs" onClick={onCancelIvitsSpaceStation}>취소</Button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {!ivitsSpaceStationMode && (
-            <>
-              {/* 우주선 입장: 메인 단계에서만 표시 (세팅 단계에서는 무반응 방지) */}
-              {game.currentPhase === 'main' && selectedTile.type?.startsWith('ship_') && onEnterSpaceship && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
-                (() => {
-                  const ship = game.spaceships[selectedTile.id];
-                  const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
-                  const enteredCount = currentPlayer.spaceshipsEntered?.length ?? 0;
-                  const alreadyEntered = currentPlayer.spaceshipsEntered?.includes(selectedTile.id);
-                  const canEnter = isMyTurn && enteredCount < 3 && !alreadyEntered;
-                  const isLocked = !ship.unlocked;
-                  const vpCost = currentPlayer.faction === 'bal_tak' ? 7 : 5;
-                  const needVP = isLocked && (currentPlayer.score ?? 0) < vpCost;
-                  const isItarsOrNevlas = currentPlayer.faction === 'itars' || currentPlayer.faction === 'nevlas';
-                  const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0);
-                  const needToken = isItarsOrNevlas && totalPower < 1;
-                  const baseRange = getEffectiveBaseRange(currentPlayer);
-                  // 거리 출발점: 내 건물 + 내 우주정거장 (서버와 동일)
+            {/* 우주정거장 배치 모드: 빈 우주 타일일 때만 배치 UI, 아니면 안내 + 취소 */}
+            {ivitsSpaceStationMode && (
+              <>
+                {(selectedTile.type === 'space' || selectedTile.type === 'deep_space') && !selectedTile.structure && !selectedTile.spaceStation && currentPlayer?.faction === 'ivits' && onPlaceIvitsSpaceStation && !currentPlayer.usedIvitsSpaceStationThisRound && (() => {
+                  const satList = game.satellites?.[selectedTile.id];
+                  const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
+                  if (mySatellite) return null;
                   const rangeTiles = game.map.filter((t: HexTile) =>
-                    (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
                   );
-                  const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
-                  const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                  const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer.qic ?? 0) * 2);
-                  const qicOk = neededQIC <= (currentPlayer.qic ?? 0);
-                  if (!canEnter) return null;
-                  const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
+                  if (rangeTiles.length === 0) return <p className="text-xs text-amber-400">내 건물/우주정거장이 없으면 배치할 수 없습니다.</p>;
+                  const baseRange = getRange(currentPlayer!.research?.navigation ?? 0) + (currentPlayer!.navigationBonus ?? 0);
+                  const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
+                  const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+                  const qicOk = (currentPlayer!.qic ?? 0) >= neededQIC;
                   return (
-                    <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
-                      <p className="text-xs font-semibold text-white">{shipName} 입장</p>
-                      <p className="text-xs text-zinc-300">{isLocked ? `${vpCost} VP로 입장` : '입장'}{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
-                      {minDist !== Infinity && (
-                        <p className="text-xs text-muted-foreground">
-                          거리: {minDist} | 기본 범위: {baseRange}
-                          {neededQIC > 0 && (
-                            <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>
-                          )}
-                        </p>
-                      )}
-                      {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
-                      {canReach && needVP && <p className="text-xs text-amber-400">잠긴 우주선: {vpCost} VP 필요</p>}
-                      {canReach && isItarsOrNevlas && needToken && <p className="text-xs text-amber-400">입장 비용: 파워 토큰 1개 필요 (1/2/3그릇 순)</p>}
-                      <Button
-                        className="w-full text-xs"
-                        size="sm"
-                        disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
-                        onClick={() => {
-                          onEnterSpaceship(selectedTile.id, !!currentPlayer.rangeBonusActive, neededQIC);
-                          setSelectedTile(null);
-                        }}
-                      >
-                        입장{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
+                    <div className="space-y-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                      <p className="text-xs font-semibold text-amber-300">우주정거장 배치</p>
+                      <p className="text-xs text-muted-foreground">
+                        거리: {minDist} | Nav: {baseRange}
+                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
+                      </p>
+                      <Button className="w-full text-xs" size="sm" disabled={!qicOk} onClick={() => { onPlaceIvitsSpaceStation(selectedTile.id); setSelectedTile(null); }}>
+                        우주정거장 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
                       </Button>
                     </div>
                   );
-                })()
-              )}
+                })()}
+                {(!(selectedTile.type === 'space' || selectedTile.type === 'deep_space') || selectedTile.structure || selectedTile.spaceStation) && (
+                  <div className="space-y-2 p-2 rounded-lg border border-white/20">
+                    <p className="text-xs text-zinc-400">맵에서 <span className="text-white font-medium">빈 우주 타일(검은 칸)</span>을 클릭하세요.</p>
+                    {onCancelIvitsSpaceStation && (
+                      <Button variant="outline" size="sm" className="w-full text-xs" onClick={onCancelIvitsSpaceStation}>취소</Button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
-              {selectedTile.structure && (
-                <div className="p-2 bg-muted rounded">
-                  <p className="text-sm capitalize">Structure: {selectedTile.structure.replace('_', ' ')}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Owner: {selectedTile.ownerId ? (game.players[selectedTile.ownerId]?.name || 'Unknown') : 'None'}
-                  </p>
-                </div>
-              )}
+            {!ivitsSpaceStationMode && (
+              <>
+                {/* 우주선 입장: 메인 단계에서만 표시 (세팅 단계에서는 무반응 방지) */}
+                {game.currentPhase === 'main' && selectedTile.type?.startsWith('ship_') && onEnterSpaceship && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
+                  (() => {
+                    const ship = game.spaceships[selectedTile.id];
+                    const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+                    const enteredCount = currentPlayer.spaceshipsEntered?.length ?? 0;
+                    const alreadyEntered = currentPlayer.spaceshipsEntered?.includes(selectedTile.id);
+                    const canEnter = isMyTurn && enteredCount < 3 && !alreadyEntered;
+                    const isLocked = !ship.unlocked;
+                    const vpCost = currentPlayer.faction === 'bal_tak' ? 7 : 5;
+                    const needVP = isLocked && (currentPlayer.score ?? 0) < vpCost;
+                    const isItarsOrNevlas = currentPlayer.faction === 'itars' || currentPlayer.faction === 'nevlas';
+                    const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0);
+                    const needToken = isItarsOrNevlas && totalPower < 1;
+                    const baseRange = getEffectiveBaseRange(currentPlayer);
+                    // 거리 출발점: 내 건물 + 내 우주정거장 (서버와 동일)
+                    const rangeTiles = game.map.filter((t: HexTile) =>
+                      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+                    );
+                    const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
+                    const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+                    const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer.qic ?? 0) * 2);
+                    const qicOk = neededQIC <= (currentPlayer.qic ?? 0);
+                    if (!canEnter) return null;
+                    const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
+                    return (
+                      <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
+                        <p className="text-xs font-semibold text-white">{shipName} 입장</p>
+                        <p className="text-xs text-zinc-300">{isLocked ? `${vpCost} VP로 입장` : '입장'}{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
+                        {minDist !== Infinity && (
+                          <p className="text-xs text-muted-foreground">
+                            거리: {minDist} | 기본 범위: {baseRange}
+                            {neededQIC > 0 && (
+                              <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>
+                            )}
+                          </p>
+                        )}
+                        {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
+                        {canReach && needVP && <p className="text-xs text-amber-400">잠긴 우주선: {vpCost} VP 필요</p>}
+                        {canReach && isItarsOrNevlas && needToken && <p className="text-xs text-amber-400">입장 비용: 파워 토큰 1개 필요 (1/2/3그릇 순)</p>}
+                        <Button
+                          className="w-full text-xs"
+                          size="sm"
+                          disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
+                          onClick={() => {
+                            onEnterSpaceship(selectedTile.id, !!currentPlayer.rangeBonusActive, neededQIC);
+                            setSelectedTile(null);
+                          }}
+                        >
+                          입장{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
+                        </Button>
+                      </div>
+                    );
+                  })()
+                )}
 
-              {isStartingPhase && canPlaceStartingMine && (
-                <div className="space-y-2">
-                  <p className="text-xs text-blue-400">
-                    {faction?.startingStructure === 'planetary_institute'
-                      ? 'Starting Phase: 의회를 놓으세요'
-                      : 'Starting Phase: Place free mine'}
-                  </p>
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      onPlaceStartingMine(selectedTile.id, faction?.id);
-                      setSelectedTile(null);
-                    }}
-                    data-testid="button-place-starting-mine"
-                  >
-                    {faction?.startingStructure === 'planetary_institute' ? '의회 놓기' : 'Place Starting Mine'}
-                  </Button>
-                </div>
-              )}
+                {selectedTile.structure && (
+                  <div className="p-2 bg-muted rounded">
+                    <p className="text-sm capitalize">Structure: {selectedTile.structure.replace('_', ' ')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Owner: {selectedTile.ownerId ? (game.players[selectedTile.ownerId]?.name || 'Unknown') : 'None'}
+                    </p>
+                  </div>
+                )}
 
-              {/* Transdim 가이아 포머 설치 */}
-              {selectedTile.type === 'transdim' && !selectedTile.hasGaiaformer && !selectedTile.structure && currentPlayer && (
-                <div className="space-y-2">
-                  {(() => {
-                    const total = currentPlayer.gaiaformers ?? 0;
-                    const locked = currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0;
-                    const available = total - locked;
-                    return available > 0 ? (
+                {isStartingPhase && canPlaceStartingMine && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-blue-400">
+                      {faction?.startingStructure === 'planetary_institute'
+                        ? 'Starting Phase: 의회를 놓으세요'
+                        : 'Starting Phase: Place free mine'}
+                    </p>
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        onPlaceStartingMine(selectedTile.id, faction?.id);
+                        setSelectedTile(null);
+                      }}
+                      data-testid="button-place-starting-mine"
+                    >
+                      {faction?.startingStructure === 'planetary_institute' ? '의회 놓기' : 'Place Starting Mine'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Transdim 가이아 포머 설치 */}
+                {selectedTile.type === 'transdim' && !selectedTile.hasGaiaformer && !selectedTile.structure && currentPlayer && (
+                  <div className="space-y-2">
+                    {(() => {
+                      const total = currentPlayer.gaiaformers ?? 0;
+                      const locked = currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0;
+                      const available = total - locked;
+                      return available > 0 ? (
+                        <>
+                          <p className="text-xs text-green-400">가이아 포머 설치 가능</p>
+                          <p className="text-xs text-muted-foreground">
+                            보유: {total}개{locked > 0 ? ` (사용 가능: ${available})` : ''} |
+                            기술 레벨: {currentPlayer.research?.gaiaProject || 0}
+                          </p>
+                          {(() => {
+                            // 거리 체크: Nav + Nav보너스 + 트왈라잇/보너스 +3 (서버 place_gaiaformer와 동일)
+                            const baseRange = getEffectiveBaseRange(currentPlayer);
+                            // 트왈라잇 1K·보너스 타일 +3이 반영되도록 플레이어 객체에서 직접 읽기 (최신 game.players 참조)
+                            const playerForRange = playerId ? game.players[playerId] : null;
+                            const effectiveBaseRange = playerForRange
+                              ? getRange(playerForRange.research?.navigation ?? 0) + (playerForRange.navigationBonus ?? 0) + (playerForRange.tempRangeBonus ? 3 : 0) + (playerForRange.rangeBonusActive ? 3 : 0)
+                              : baseRange;
+                            const rangeTiles = game.map.filter((t: HexTile) =>
+                              (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+                            );
+                            const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
+                            const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
+                            const canReach = minDist <= effectiveBaseRange + ((currentPlayer.qic ?? 0) * 2);
+
+                            return (
+                              <>
+                                {minDist !== Infinity && (
+                                  <p className="text-xs text-muted-foreground">
+                                    거리: {minDist} | 기본 범위: {effectiveBaseRange}
+                                    {(playerForRange?.tempRangeBonus || playerForRange?.rangeBonusActive) && (
+                                      <span className="text-green-400"> (+3 보너스)</span>
+                                    )}
+                                    {neededQIC > 0 && (
+                                      <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>
+                                    )}
+                                  </p>
+                                )}
+                                {!canReach && (
+                                  <p className="text-xs text-red-400">거리가 너무 멉니다</p>
+                                )}
+                                {onPlaceGaiaformer && (
+                                  <Button
+                                    className="w-full"
+                                    variant="secondary"
+                                    disabled={
+                                      (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId))
+                                      || (game.turnOrder[game.currentPlayerIndex] !== playerId)
+                                      || !canReach
+                                      || (neededQIC > 0 && (currentPlayer.qic ?? 0) < neededQIC)
+                                    }
+                                    onClick={() => {
+                                      onPlaceGaiaformer(selectedTile.id, neededQIC);
+                                      setSelectedTile(null);
+                                    }}
+                                  >
+                                    Place Gaiaformer{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
+                                    {game.pendingTFMarsGaiaProject?.playerId === playerId
+                                      ? (game.pendingTFMarsGaiaProject.shipTileId === 'bonus-gaia' ? ' (Bonus)' : ' (TF Mars)')
+                                      : ''}
+                                  </Button>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </>
+                      ) : (
+                        <p className="text-xs text-red-400">가이아 포머가 필요합니다</p>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* 하이브(이비츠) 우주정거장: 빈 공간(space/deep_space), 내 위성 없을 때만, 라운드당 1회 */}
+                {(selectedTile.type === 'space' || selectedTile.type === 'deep_space') && !selectedTile.structure && !selectedTile.spaceStation && currentPlayer?.faction === 'ivits' && onPlaceIvitsSpaceStation && !currentPlayer.usedIvitsSpaceStationThisRound && !game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && (() => {
+                  const satList = game.satellites?.[selectedTile.id];
+                  const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
+                  if (mySatellite) return null;
+                  const rangeTiles = game.map.filter((t: HexTile) =>
+                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
+                  );
+                  if (rangeTiles.length === 0) return null;
+                  const baseRange = getRange(currentPlayer.research?.navigation ?? 0) + (currentPlayer.navigationBonus ?? 0);
+                  const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
+                  const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+                  const qicOk = (currentPlayer.qic ?? 0) >= neededQIC;
+                  return (
+                    <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
+                      <p className="text-xs font-semibold text-white">우주정거장 배치 (하이브)</p>
+                      <p className="text-xs text-muted-foreground">
+                        거리: {minDist} | Nav 범위: {baseRange}
+                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
+                      </p>
+                      <Button
+                        className="w-full text-xs"
+                        size="sm"
+                        disabled={!qicOk}
+                        onClick={() => {
+                          onPlaceIvitsSpaceStation(selectedTile.id);
+                          setSelectedTile(null);
+                        }}
+                      >
+                        우주정거장 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
+                      </Button>
+                    </div>
+                  );
+                })()}
+
+                {/* 거리 5 보상 잊혀진 행성: 빈 우주(위성 없음)에 특수 광산 1개 배치 */}
+                {game.pendingLostPlanet?.playerId === playerId && (selectedTile.type === 'space' || selectedTile.type === 'deep_space') && !selectedTile.structure && !selectedTile.spaceStation && currentPlayer && onPlaceLostPlanet && (() => {
+                  const satList = game.satellites?.[selectedTile.id];
+                  const hasSatellite = Array.isArray(satList) ? satList.length > 0 : !!satList;
+                  if (hasSatellite) return null;
+                  const rangeTiles = game.map.filter((t: HexTile) =>
+                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
+                  );
+                  if (rangeTiles.length === 0) return <p className="text-xs text-amber-400">내 건물/우주정거장이 없으면 배치할 수 없습니다.</p>;
+                  const baseRange = getRange(5) + (currentPlayer.navigationBonus ?? 0);
+                  const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
+                  const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+                  const qicOk = (currentPlayer.qic ?? 0) >= neededQIC;
+                  return (
+                    <div className="space-y-2 p-2 bg-indigo-500/10 rounded-lg border border-indigo-400/30">
+                      <p className="text-xs font-semibold text-indigo-300">잊혀진 행성 (Nav 5)</p>
+                      <p className="text-xs text-muted-foreground">
+                        거리: {minDist} | Nav 5 범위: {baseRange}
+                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
+                      </p>
+                      <Button
+                        className="w-full text-xs"
+                        size="sm"
+                        disabled={!qicOk}
+                        onClick={() => {
+                          onPlaceLostPlanet(selectedTile.id, neededQIC);
+                          setSelectedTile(null);
+                        }}
+                      >
+                        잊혀진 행성 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
+                      </Button>
+                    </div>
+                  );
+                })()}
+
+                {/* Transdim에 가이아 포머가 설치된 경우 다음 라운드 건설 가능 */}
+                {selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && !selectedTile.structure && currentPlayer && (
+                  <div className="space-y-2">
+                    {currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id) ? (
                       <>
-                        <p className="text-xs text-green-400">가이아 포머 설치 가능</p>
-                        <p className="text-xs text-muted-foreground">
-                          보유: {total}개{locked > 0 ? ` (사용 가능: ${available})` : ''} |
-                          기술 레벨: {currentPlayer.research?.gaiaProject || 0}
-                        </p>
-                        {(() => {
-                          // 거리 체크: Nav + Nav보너스 + 트왈라잇/보너스 +3 (서버 place_gaiaformer와 동일)
-                          const baseRange = getEffectiveBaseRange(currentPlayer);
-                          // 트왈라잇 1K·보너스 타일 +3이 반영되도록 플레이어 객체에서 직접 읽기 (최신 game.players 참조)
-                          const playerForRange = playerId ? game.players[playerId] : null;
-                          const effectiveBaseRange = playerForRange
-                            ? getRange(playerForRange.research?.navigation ?? 0) + (playerForRange.navigationBonus ?? 0) + (playerForRange.tempRangeBonus ? 3 : 0) + (playerForRange.rangeBonusActive ? 3 : 0)
-                            : baseRange;
-                          const rangeTiles = game.map.filter((t: HexTile) =>
-                            (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
-                          );
-                          const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
-                          const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
-                          const canReach = minDist <= effectiveBaseRange + ((currentPlayer.qic ?? 0) * 2);
-
-                          return (
-                            <>
-                              {minDist !== Infinity && (
-                                <p className="text-xs text-muted-foreground">
-                                  거리: {minDist} | 기본 범위: {effectiveBaseRange}
-                                  {(playerForRange?.tempRangeBonus || playerForRange?.rangeBonusActive) && (
-                                    <span className="text-green-400"> (+3 보너스)</span>
-                                  )}
-                                  {neededQIC > 0 && (
-                                    <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>
-                                  )}
-                                </p>
-                              )}
-                              {!canReach && (
-                                <p className="text-xs text-red-400">거리가 너무 멉니다</p>
-                              )}
-                              {onPlaceGaiaformer && (
-                                <Button
-                                  className="w-full"
-                                  variant="secondary"
-                                  disabled={
-                                    (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId))
-                                    || (game.turnOrder[game.currentPlayerIndex] !== playerId)
-                                    || !canReach
-                                    || (neededQIC > 0 && (currentPlayer.qic ?? 0) < neededQIC)
-                                  }
-                                  onClick={() => {
-                                    onPlaceGaiaformer(selectedTile.id, neededQIC);
-                                    setSelectedTile(null);
-                                  }}
-                                >
-                                  Place Gaiaformer{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
-                                  {game.pendingTFMarsGaiaProject?.playerId === playerId
-                                    ? (game.pendingTFMarsGaiaProject.shipTileId === 'bonus-gaia' ? ' (Bonus)' : ' (TF Mars)')
-                                    : ''}
-                                </Button>
-                              )}
-                            </>
-                          );
-                        })()}
+                        <p className="text-xs text-green-400">건설 가능</p>
+                        <Button
+                          className="w-full"
+                          variant="secondary"
+                          disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId)}
+                          onClick={() => {
+                            onBuildMine(selectedTile.id);
+                            setSelectedTile(null);
+                          }}
+                        >
+                          Build Mine (1O, 2C)
+                        </Button>
                       </>
                     ) : (
-                      <p className="text-xs text-red-400">가이아 포머가 필요합니다</p>
-                    );
-                  })()}
-                </div>
-              )}
+                      <p className="text-xs text-muted-foreground">가이아 포머 설치됨 (다음 라운드 건설 가능)</p>
+                    )}
+                  </div>
+                )}
 
-              {/* 하이브(이비츠) 우주정거장: 빈 공간(space/deep_space), 내 위성 없을 때만, 라운드당 1회 */}
-              {(selectedTile.type === 'space' || selectedTile.type === 'deep_space') && !selectedTile.structure && !selectedTile.spaceStation && currentPlayer?.faction === 'ivits' && onPlaceIvitsSpaceStation && !currentPlayer.usedIvitsSpaceStationThisRound && !game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && (() => {
-                const satList = game.satellites?.[selectedTile.id];
-                const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
-                if (mySatellite) return null;
-                const rangeTiles = game.map.filter((t: HexTile) =>
-                  (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
-                );
-                if (rangeTiles.length === 0) return null;
-                const baseRange = getRange(currentPlayer.research?.navigation ?? 0) + (currentPlayer.navigationBonus ?? 0);
-                const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
-                const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                const qicOk = (currentPlayer.qic ?? 0) >= neededQIC;
-                return (
-                  <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
-                    <p className="text-xs font-semibold text-white">우주정거장 배치 (하이브)</p>
-                    <p className="text-xs text-muted-foreground">
-                      거리: {minDist} | Nav 범위: {baseRange}
-                      {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
-                    </p>
+                {/* Eclipse 액션3: 6C 지불 후 소행성 선택 시 광산 건설 (가이아포머 없이) */}
+                {isEclipseAsteroidMode && onEclipseBuildAsteroidMine && selectedTile.type === 'asteroid' && !selectedTile.structure && eclipseBuildableTileIds.has(selectedTile.id) && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-green-400">Eclipse: 소행성 광산 건설 가능</p>
                     <Button
-                      className="w-full text-xs"
-                      size="sm"
-                      disabled={!qicOk}
+                      className="w-full bg-primary/20 border-primary text-primary hover:bg-primary/30"
+                      variant="secondary"
                       onClick={() => {
-                        onPlaceIvitsSpaceStation(selectedTile.id);
+                        onEclipseBuildAsteroidMine(selectedTile.id);
                         setSelectedTile(null);
                       }}
+                      data-testid="button-eclipse-build-asteroid"
                     >
-                      우주정거장 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
+                      짓기 (6C 지불됨)
                     </Button>
                   </div>
-                );
-              })()}
+                )}
 
-              {/* 거리 5 보상 잊혀진 행성: 빈 우주(위성 없음)에 특수 광산 1개 배치 */}
-              {game.pendingLostPlanet?.playerId === playerId && (selectedTile.type === 'space' || selectedTile.type === 'deep_space') && !selectedTile.structure && !selectedTile.spaceStation && currentPlayer && onPlaceLostPlanet && (() => {
-                const satList = game.satellites?.[selectedTile.id];
-                const hasSatellite = Array.isArray(satList) ? satList.length > 0 : !!satList;
-                if (hasSatellite) return null;
-                const rangeTiles = game.map.filter((t: HexTile) =>
-                  (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
-                );
-                if (rangeTiles.length === 0) return <p className="text-xs text-amber-400">내 건물/우주정거장이 없으면 배치할 수 없습니다.</p>;
-                const baseRange = getRange(5) + (currentPlayer.navigationBonus ?? 0);
-                const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
-                const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                const qicOk = (currentPlayer.qic ?? 0) >= neededQIC;
-                return (
-                  <div className="space-y-2 p-2 bg-indigo-500/10 rounded-lg border border-indigo-400/30">
-                    <p className="text-xs font-semibold text-indigo-300">잊혀진 행성 (Nav 5)</p>
-                    <p className="text-xs text-muted-foreground">
-                      거리: {minDist} | Nav 5 범위: {baseRange}
-                      {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
-                    </p>
-                    <Button
-                      className="w-full text-xs"
-                      size="sm"
-                      disabled={!qicOk}
-                      onClick={() => {
-                        onPlaceLostPlanet(selectedTile.id, neededQIC);
-                        setSelectedTile(null);
-                      }}
-                    >
-                      잊혀진 행성 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
-                    </Button>
-                  </div>
-                );
-              })()}
-
-              {/* Transdim에 가이아 포머가 설치된 경우 다음 라운드 건설 가능 */}
-              {selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && !selectedTile.structure && currentPlayer && (
-                <div className="space-y-2">
-                  {currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id) ? (
-                    <>
-                      <p className="text-xs text-green-400">건설 가능</p>
+                {/* 란티다 기생 광산: 다른 플레이어 건물이 있는 행성에 테라포밍 없이 1O 2C (의회 있으면 +2K, 연방 포함·업그레이드 불가) */}
+                {currentPlayer?.faction === 'lantids' && selectedTile.structure != null && selectedTile.ownerId !== playerId && selectedTile.ownerId != null && !selectedTile.parasiticMine && onBuildMine && (() => {
+                  const playerTiles = game.map.filter((t: HexTile) => (t.ownerId === playerId || t.parasiticMine?.ownerId === playerId) && (t.structure != null || t.parasiticMine));
+                  const playerForRange = playerId ? game.players[playerId] : null;
+                  const effectiveBaseRange = playerForRange
+                    ? getRange(playerForRange.research?.navigation ?? 0) + (playerForRange.navigationBonus ?? 0) + (playerForRange.tempRangeBonus ? 3 : 0) + (playerForRange.rangeBonusActive ? 3 : 0)
+                    : 0;
+                  const minDist = playerTiles.length > 0 ? Math.min(...playerTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
+                  const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
+                  const canReach = minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);
+                  const canAfford = (currentPlayer?.ore ?? 0) >= 1 && (currentPlayer?.credits ?? 0) >= 2 && (currentPlayer?.qic ?? 0) >= neededQIC;
+                  return (
+                    <div className="space-y-2 p-2 bg-amber-950/30 rounded-lg border border-amber-500/30">
+                      <p className="text-xs text-amber-300 font-semibold">란티다 기생 광산</p>
+                      <p className="text-xs text-muted-foreground">다른 플레이어 건물이 있는 행성에 1O 2C로 건설 (업그레이드 불가, 연방·광산 이벤트 포함)</p>
+                      {minDist !== Infinity && (
+                        <p className="text-xs text-muted-foreground">
+                          거리: {minDist} | 기본 범위: {effectiveBaseRange}
+                          {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>}
+                        </p>
+                      )}
+                      {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
                       <Button
-                        className="w-full"
+                        className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"
                         variant="secondary"
-                        disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId)}
+                        disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !canReach || !canAfford}
                         onClick={() => {
                           onBuildMine(selectedTile.id);
                           setSelectedTile(null);
                         }}
                       >
-                        Build Mine (1O, 2C)
+                        Build Parasitic Mine (1 Ore, 2 Credits){neededQIC > 0 ? ` + ${neededQIC} QIC` : ''}
                       </Button>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">가이아 포머 설치됨 (다음 라운드 건설 가능)</p>
-                  )}
-                </div>
-              )}
+                    </div>
+                  );
+                })()}
 
-              {/* Eclipse 액션3: 6C 지불 후 소행성 선택 시 광산 건설 (가이아포머 없이) */}
-              {isEclipseAsteroidMode && onEclipseBuildAsteroidMine && selectedTile.type === 'asteroid' && !selectedTile.structure && eclipseBuildableTileIds.has(selectedTile.id) && (
-                <div className="space-y-2">
-                  <p className="text-xs text-green-400">Eclipse: 소행성 광산 건설 가능</p>
-                  <Button
-                    className="w-full bg-primary/20 border-primary text-primary hover:bg-primary/30"
-                    variant="secondary"
-                    onClick={() => {
-                      onEclipseBuildAsteroidMine(selectedTile.id);
-                      setSelectedTile(null);
-                    }}
-                    data-testid="button-eclipse-build-asteroid"
-                  >
-                    짓기 (6C 지불됨)
-                  </Button>
-                </div>
-              )}
-
-              {/* 란티다 기생 광산: 다른 플레이어 건물이 있는 행성에 테라포밍 없이 1O 2C (의회 있으면 +2K, 연방 포함·업그레이드 불가) */}
-              {currentPlayer?.faction === 'lantids' && selectedTile.structure != null && selectedTile.ownerId !== playerId && selectedTile.ownerId != null && !selectedTile.parasiticMine && onBuildMine && (() => {
-                const playerTiles = game.map.filter((t: HexTile) => (t.ownerId === playerId || t.parasiticMine?.ownerId === playerId) && (t.structure != null || t.parasiticMine));
-                const playerForRange = playerId ? game.players[playerId] : null;
-                const effectiveBaseRange = playerForRange
-                  ? getRange(playerForRange.research?.navigation ?? 0) + (playerForRange.navigationBonus ?? 0) + (playerForRange.tempRangeBonus ? 3 : 0) + (playerForRange.rangeBonusActive ? 3 : 0)
-                  : 0;
-                const minDist = playerTiles.length > 0 ? Math.min(...playerTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
-                const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
-                const canReach = minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);
-                const canAfford = (currentPlayer?.ore ?? 0) >= 1 && (currentPlayer?.credits ?? 0) >= 2 && (currentPlayer?.qic ?? 0) >= neededQIC;
-                return (
-                  <div className="space-y-2 p-2 bg-amber-950/30 rounded-lg border border-amber-500/30">
-                    <p className="text-xs text-amber-300 font-semibold">란티다 기생 광산</p>
-                    <p className="text-xs text-muted-foreground">다른 플레이어 건물이 있는 행성에 1O 2C로 건설 (업그레이드 불가, 연방·광산 이벤트 포함)</p>
-                    {minDist !== Infinity && (
-                      <p className="text-xs text-muted-foreground">
-                        거리: {minDist} | 기본 범위: {effectiveBaseRange}
-                        {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>}
-                      </p>
-                    )}
-                    {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
+                {canBuildMine && mineBuildCost && (
+                  <div className="space-y-2">
                     <Button
-                      className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"
+                      className="w-full"
                       variant="secondary"
-                      disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !canReach || !canAfford}
+                      disabled={game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)}
                       onClick={() => {
-                        onBuildMine(selectedTile.id);
+                        onBuildMine(selectedTile.id, selectedTile.type === 'asteroid' ? true : undefined);
                         setSelectedTile(null);
                       }}
+                      data-testid="button-build-mine"
                     >
-                      Build Parasitic Mine (1 Ore, 2 Credits){neededQIC > 0 ? ` + ${neededQIC} QIC` : ''}
-                    </Button>
-                  </div>
-                );
-              })()}
-
-              {canBuildMine && mineBuildCost && (
-                <div className="space-y-2">
-                  <Button
-                    className="w-full"
-                    variant="secondary"
-                    disabled={game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)}
-                    onClick={() => {
-                      onBuildMine(selectedTile.id, selectedTile.type === 'asteroid' ? true : undefined);
-                      setSelectedTile(null);
-                    }}
-                    data-testid="button-build-mine"
-                  >
-                    {selectedTile.type === 'asteroid' ? (
-                      <>Build Mine (Free - Use 1 Gaiaformer)</>
-                    ) : (selectedTile.type === 'gaia' && currentPlayer?.pendingGaiaformerTiles?.includes(selectedTile.id)) || (selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && currentPlayer?.pendingGaiaformerTiles?.includes(selectedTile.id)) ? (
-                      <>Build Mine (1 Ore, 2 Credits)</>
-                    ) : selectedTile.type === 'proto' ? (
-                      <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
-                        {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) - +6 VP</>
-                    ) : selectedTile.type === 'gaia' && currentPlayer?.faction === 'gleens' ? (
-                      <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits{mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) — Gleens +2 VP</>
-                    ) : (
-                      <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
-                        {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`})</>
-                    )}
-                  </Button>
-                  {mineBuildCost.terraformSteps > 0 && (
-                    <div className="text-xs space-y-1">
-                      <div className={`${mineBuildCost.needsExtraTerraforming ? 'text-red-400' : 'text-amber-400'}`}>
-                        Terraforming: {mineBuildCost.terraformSteps} step{mineBuildCost.terraformSteps > 1 ? 's' : ''}
-                        @ {getTerraformCost(mineBuildCost.terraformingLevel)}/step
-                        {mineBuildCost.terraformDiscount && mineBuildCost.terraformDiscount > 0 && (
-                          <span className="text-green-400 ml-1">
-                            (-{mineBuildCost.terraformDiscount} free)
-                          </span>
-                        )}
-                        {mineBuildCost.needsExtraTerraforming && ' ⚠️'}
-                      </div>
-                      {mineBuildCost.needsExtraTerraforming && (
-                        <div className="text-red-400 text-[10px] font-bold bg-red-500/10 p-1 rounded border border-red-500/30">
-                          Terraforming Level {mineBuildCost.terraformingLevel} - Extra terraforming required!
-                        </div>
+                      {selectedTile.type === 'asteroid' ? (
+                        <>Build Mine (Free - Use 1 Gaiaformer)</>
+                      ) : (selectedTile.type === 'gaia' && currentPlayer?.pendingGaiaformerTiles?.includes(selectedTile.id)) || (selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && currentPlayer?.pendingGaiaformerTiles?.includes(selectedTile.id)) ? (
+                        <>Build Mine (1 Ore, 2 Credits)</>
+                      ) : selectedTile.type === 'proto' ? (
+                        <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
+                          {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) - +6 VP</>
+                      ) : selectedTile.type === 'gaia' && currentPlayer?.faction === 'gleens' ? (
+                        <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits{mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) — Gleens +2 VP</>
+                      ) : (
+                        <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
+                          {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`})</>
                       )}
-                    </div>
-                  )}
-                </div>
-              )}
+                    </Button>
+                    {mineBuildCost.terraformSteps > 0 && (
+                      <div className="text-xs space-y-1">
+                        <div className={`${mineBuildCost.needsExtraTerraforming ? 'text-red-400' : 'text-amber-400'}`}>
+                          Terraforming: {mineBuildCost.terraformSteps} step{mineBuildCost.terraformSteps > 1 ? 's' : ''}
+                          @ {getTerraformCost(mineBuildCost.terraformingLevel)}/step
+                          {mineBuildCost.terraformDiscount && mineBuildCost.terraformDiscount > 0 && (
+                            <span className="text-green-400 ml-1">
+                              (-{mineBuildCost.terraformDiscount} free)
+                            </span>
+                          )}
+                          {mineBuildCost.needsExtraTerraforming && ' ⚠️'}
+                        </div>
+                        {mineBuildCost.needsExtraTerraforming && (
+                          <div className="text-red-400 text-[10px] font-bold bg-red-500/10 p-1 rounded border border-red-500/30">
+                            Terraforming Level {mineBuildCost.terraformingLevel} - Extra terraforming required!
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {/* Upgrade Options */}
-              {selectedTile.ownerId === playerId && playerId && (() => {
-                const counts = getStructureCounts(game, playerId);
-                const canUpgradeMineToTS = counts.tsCount < BUILDING_LIMITS.trading_station;
-                const canUpgradeTSToLab = counts.labCount < BUILDING_LIMITS.research_lab;
-                const canUpgradeTSToPI = counts.piCount < BUILDING_LIMITS.planetary_institute;
-                const academyTotal = counts.academyLeft + counts.academyRight;
-                const canBuildAcademyLeft = academyTotal < BUILDING_LIMITS.academy && counts.academyLeft < 1;
-                const canBuildAcademyRight = academyTotal < BUILDING_LIMITS.academy && counts.academyRight < 1;
-                return (
-                  <div className="space-y-2">
-                    {selectedTile.structure === 'mine' && (
-                      canUpgradeMineToTS ? (
+                {/* Upgrade Options */}
+                {selectedTile.ownerId === playerId && playerId && (() => {
+                  const counts = getStructureCounts(game, playerId);
+                  const canUpgradeMineToTS = counts.tsCount < BUILDING_LIMITS.trading_station;
+                  const canUpgradeTSToLab = counts.labCount < BUILDING_LIMITS.research_lab;
+                  const canUpgradeTSToPI = counts.piCount < BUILDING_LIMITS.planetary_institute;
+                  const academyTotal = counts.academyLeft + counts.academyRight;
+                  const canBuildAcademyLeft = academyTotal < BUILDING_LIMITS.academy && counts.academyLeft < 1;
+                  const canBuildAcademyRight = academyTotal < BUILDING_LIMITS.academy && counts.academyRight < 1;
+                  return (
+                    <div className="space-y-2">
+                      {selectedTile.structure === 'mine' && (
+                        canUpgradeMineToTS ? (
+                          (() => {
+                            const tsCreditCost = hasNearbyPlayersForTradingDiscount(game.map, selectedTile, playerId) ? 3 : 6;
+                            return (
+                              <Button
+                                className="w-full"
+                                variant="secondary"
+                                disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !!(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)}
+                                onClick={() => {
+                                  if (currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0) return;
+                                  onUpgrade(selectedTile.id, 'trading_station');
+                                  setSelectedTile(null);
+                                }}
+                              >
+                                Upgrade to Trading Station (2O, {tsCreditCost}C)
+                              </Button>
+                            );
+                          })()
+                        ) : (
+                          <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (교역소 4개 한도)</p>
+                        )
+                      )}
+                      {selectedTile.structure === 'trading_station' && (
                         (() => {
-                          const tsCreditCost = hasNearbyPlayersForTradingDiscount(game.map, selectedTile, playerId) ? 3 : 6;
+                          const isBescods = currentPlayer?.faction === 'bescods';
+                          const canUpgradeTS = canUpgradeTSToLab || (!isBescods && canUpgradeTSToPI) || (isBescods && (canBuildAcademyLeft || canBuildAcademyRight));
+                          if (!canUpgradeTS) return <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (의회·연구소·아카데미 한도)</p>;
                           return (
-                            <Button
-                              className="w-full"
-                              variant="secondary"
-                              disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !!(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)}
-                              onClick={() => {
-                                if (currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0) return;
-                                onUpgrade(selectedTile.id, 'trading_station');
-                                setSelectedTile(null);
-                              }}
-                            >
-                              Upgrade to Trading Station (2O, {tsCreditCost}C)
-                            </Button>
+                            <>
+                              {canUpgradeTSToLab && (
+                                <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !!(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)} onClick={() => { if (currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0) return; onUpgrade(selectedTile.id, 'research_lab'); setSelectedTile(null); }}>
+                                  Upgrade to Lab (3O, 5C)
+                                </Button>
+                              )}
+                              {!isBescods && canUpgradeTSToPI && (
+                                <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !!(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)} onClick={() => { if (currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0) return; onUpgrade(selectedTile.id, 'planetary_institute'); setSelectedTile(null); }}>
+                                  Upgrade to PI (4O, 6C)
+                                </Button>
+                              )}
+                              {isBescods && canBuildAcademyLeft && (
+                                <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_left'); setSelectedTile(null); }}>
+                                  Academy (왼쪽) — 수익 2K (6O, 6C) 매안
+                                </Button>
+                              )}
+                              {isBescods && canBuildAcademyRight && (
+                                <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_right'); setSelectedTile(null); }}>
+                                  Academy (오른쪽) — Special 1QIC (6O, 6C) 매안
+                                </Button>
+                              )}
+                            </>
                           );
                         })()
-                      ) : (
-                        <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (교역소 4개 한도)</p>
-                      )
-                    )}
-                    {selectedTile.structure === 'trading_station' && (
-                      (() => {
-                        const isBescods = currentPlayer?.faction === 'bescods';
-                        const canUpgradeTS = canUpgradeTSToLab || (!isBescods && canUpgradeTSToPI) || (isBescods && (canBuildAcademyLeft || canBuildAcademyRight));
-                        if (!canUpgradeTS) return <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (의회·연구소·아카데미 한도)</p>;
-                        return (
-                          <>
-                            {canUpgradeTSToLab && (
-                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !!(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)} onClick={() => { if (currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0) return; onUpgrade(selectedTile.id, 'research_lab'); setSelectedTile(null); }}>
-                                Upgrade to Lab (3O, 5C)
+                      )}
+                      {selectedTile.structure === 'research_lab' && (
+                        (() => {
+                          const isBescods = currentPlayer?.faction === 'bescods';
+                          if (isBescods) {
+                            if (!canUpgradeTSToPI) return <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (의회 1개 한도)</p>;
+                            return (
+                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'planetary_institute'); setSelectedTile(null); }}>
+                                Upgrade to PI (4O, 6C) 매안
                               </Button>
-                            )}
-                            {!isBescods && canUpgradeTSToPI && (
-                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !!(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)} onClick={() => { if (currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0) return; onUpgrade(selectedTile.id, 'planetary_institute'); setSelectedTile(null); }}>
-                                Upgrade to PI (4O, 6C)
-                              </Button>
-                            )}
-                            {isBescods && canBuildAcademyLeft && (
-                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_left'); setSelectedTile(null); }}>
-                                Academy (왼쪽) — 수익 2K (6O, 6C) 매안
-                              </Button>
-                            )}
-                            {isBescods && canBuildAcademyRight && (
-                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_right'); setSelectedTile(null); }}>
-                                Academy (오른쪽) — Special 1QIC (6O, 6C) 매안
-                              </Button>
-                            )}
-                          </>
-                        );
-                      })()
-                    )}
-                    {selectedTile.structure === 'research_lab' && (
-                      (() => {
-                        const isBescods = currentPlayer?.faction === 'bescods';
-                        if (isBescods) {
-                          if (!canUpgradeTSToPI) return <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (의회 1개 한도)</p>;
-                          return (
-                            <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'planetary_institute'); setSelectedTile(null); }}>
-                              Upgrade to PI (4O, 6C) 매안
-                            </Button>
+                            );
+                          }
+                          return (canBuildAcademyLeft || canBuildAcademyRight) ? (
+                            <>
+                              {canBuildAcademyLeft && (
+                                <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_left'); setSelectedTile(null); }}>
+                                  Academy (왼쪽) — 수익 {game.players[playerId]?.faction === 'itars' ? '3K' : '2K'} (6O, 6C)
+                                </Button>
+                              )}
+                              {canBuildAcademyRight && (
+                                <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_right'); setSelectedTile(null); }}>
+                                  Academy (오른쪽) — Special {game.players[playerId]?.faction === 'bal_tak' ? '4C' : '1QIC'} (6O, 6C)
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (아카데미 2개 한도)</p>
                           );
-                        }
-                        return (canBuildAcademyLeft || canBuildAcademyRight) ? (
-                          <>
-                            {canBuildAcademyLeft && (
-                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_left'); setSelectedTile(null); }}>
-                                Academy (왼쪽) — 수익 {game.players[playerId]?.faction === 'itars' ? '3K' : '2K'} (6O, 6C)
-                              </Button>
-                            )}
-                            {canBuildAcademyRight && (
-                              <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_right'); setSelectedTile(null); }}>
-                                Academy (오른쪽) — Special {game.players[playerId]?.faction === 'bal_tak' ? '4C' : '1QIC'} (6O, 6C)
-                              </Button>
-                            )}
-                          </>
-                        ) : (
-                          <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (아카데미 2개 한도)</p>
-                        );
-                      })()
-                    )}
-                  </div>
-                );
-              })()}
+                        })()
+                      )}
+                    </div>
+                  );
+                })()}
 
-            </>
-          )}
+              </>
+            )}
 
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setSelectedTile(null)}
-            data-testid="button-close-tile"
-          >
-            Close
-          </Button>
-        </div>
-      )}
-    </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setSelectedTile(null)}
+              data-testid="button-close-tile"
+            >
+              Close
+            </Button>
+          </div>
+        )
+      }
+    </div >
   );
 }

@@ -85,7 +85,14 @@ export class MemStorage implements IStorage {
 
   async createTile(tile: InsertTile): Promise<Tile> {
     const id = this.tileIdCounter++;
-    const newTile: Tile = { ...tile, id, sector: tile.sector ?? null, structure: tile.structure ?? null, ownerId: tile.ownerId ?? null };
+    const newTile: Tile = {
+      ...tile,
+      id,
+      sector: tile.sector ?? null,
+      rotation: tile.rotation ?? 0,
+      structure: tile.structure ?? null,
+      ownerId: tile.ownerId ?? null
+    };
     this.tiles.set(id, newTile);
     return newTile;
   }

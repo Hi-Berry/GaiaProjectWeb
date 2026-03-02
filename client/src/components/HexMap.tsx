@@ -7,27 +7,25 @@ import { useState, useRef, useCallback } from 'react';
 import { TileActionModal } from './TileActionModal';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import type { Tile } from '@shared/schema';
+import { SECTOR_CENTERS, PLANET_COLORS } from '@shared/gameConfig';
 
-const PLANET_COLORS: Record<string, string> = {
-  terra: '#2E5EAA',
-  oxide: '#D64045',
-  volcanic: '#ED9B40',
-  desert: '#FFE74C',
-  swamp: '#5C4D3C',
-  titanium: '#8D99AE',
-  ice: '#E0FBFC',
-  transdim: '#9D4EDD',
-  gaia: '#38B000',
-  space: '#1a1d29',
-  deep_space: '#0d0f14',
-  asteroid: '#EC4899',
-  gas_cloud: '#6b5b95',
-  lost_fleet_ship: '#E2E8F0',
-  ship_rebellion: '#EF4444',
-  ship_twilight: '#A855F7',
-  ship_tf_mars: '#F97316',
-  ship_eclipse: '#3B82F6',
-};
+const HEX_SIZE = 4.8;
+const SQRT3 = Math.sqrt(3);
+
+function getHexOffset(q: number, r: number, sectorIdx: number) {
+  const center = SECTOR_CENTERS[sectorIdx];
+  if (!center) return { x: 0, y: 0 };
+
+  const dq = q - center.q;
+  const dr = r - center.r;
+
+  // Pointy top layout math
+  const x = HEX_SIZE * SQRT3 * (dq + dr / 2);
+  const y = HEX_SIZE * 1.5 * dr;
+
+  return { x, y };
+}
+
 
 const SECTOR_COLORS: Record<number, string> = {
   0: 'rgba(255, 100, 100, 0.6)',
@@ -161,45 +159,141 @@ export function HexMap() {
         }}
       >
         <HexGrid width={1400} height={1200} viewBox="-50 -50 250 250">
-          <Layout size={{ x: 4.8, y: 4.8 }} flat={false} spacing={1.0} origin={{ x: 0, y: 0 }}>
-            {tiles.map((tile) => (
-              <Hexagon
-                key={tile.id}
-                q={tile.q}
-                r={tile.r}
-                s={-tile.q - tile.r}
-                style={{
-                  fill: (tile.sector !== null && tile.sector >= 11 && tile.sector < 20)
-                    ? "rgba(128, 0, 128, 0.15)" // bridge highlight C-sectors with purple
-                    : '#1a1a1a',
-                  stroke: tile.structure
-                    ? 'rgba(255,215,0,0.8)'
-                    : tile.sector !== null
-                      ? SECTOR_COLORS[tile.sector]
-                      : 'rgba(255,255,255,0.2)',
-                  strokeWidth: tile.structure ? '0.8px' : '0.2px',
-                  cursor: 'pointer',
-                  fillOpacity: 1.0,
-                }}
-                className="hex"
-                onClick={() => handleTileClick(tile)}
-                data-testid={`hex-tile-${tile.id}`}
-              >
-                {/* Planet Circle */}
-                {tile.type !== 'space' && tile.type !== 'deep_space' && (
-                  <g>
-                    <circle r="3.2" fill="rgba(0,0,0,0.4)" />
-                    <circle
-                      r="3.0"
-                      fill={PLANET_COLORS[tile.type] || PLANET_COLORS.space}
-                    />
-                  </g>
-                )}
-                <Text className="hex-text" style={{ fontSize: '1px', opacity: 0.5 }}>
-                  {tile.sector}
-                </Text>
-              </Hexagon>
-            ))}
+          <defs>
+            {/* Tile Special Patterns - using objectBoundingBox for per-hex anchoring */}
+            <pattern id="ts-space" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_100.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-asteroid" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_110.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-proto" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_111.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-rebellion" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_112.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-tf-mars" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_113.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-eclipse" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_114.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-twilight" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_115.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-gas-cloud" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_113.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-transdim" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_114.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+            <pattern id="ts-deep-space" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_115.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
+          </defs>
+          <g id="sector-backgrounds-layer">
+            {SECTOR_CENTERS.map((center) => {
+              const cx = HEX_SIZE * SQRT3 * (center.q + center.r / 2);
+              const cy = HEX_SIZE * 1.5 * center.r;
+
+              // Find the actual tile at this center to determine layout ID and rotation
+              const slotTile = tiles.find(t => t.q === center.q && t.r === center.r);
+              if (!slotTile || slotTile.sector === null) return null;
+
+              const layoutId = slotTile.sector;
+              const rotation = slotTile.rotation ?? 0;
+              const isExternal = layoutId >= 11 && layoutId !== 90;
+
+              let filename = '';
+              let imgSize = 45; // inner default
+
+              let imgW = 45;
+              let imgH = 45;
+              let offsetX = imgW / 2;
+              let offsetY = imgH / 2;
+
+              if (layoutId === 90) {
+                return null; // Don't draw background for internal strategic hexes
+              } else if (isExternal) {
+                // Hardcoded prefix based on available files: Map_B11, O12, B13, B14, O15, O16, B17, O18
+                const isSideO = [12, 15, 16, 18].includes(layoutId);
+                const prefix = isSideO ? 'Map_O' : 'Map_B';
+                filename = `${prefix}${String(layoutId).padStart(2, '0')}.png`;
+
+                imgW = 16.62;
+                imgH = 16.8;
+                offsetX = 12.47;
+                offsetY = 12.0;
+              } else {
+                filename = `Map_B${String(layoutId + 1).padStart(2, '0')}.gif`;
+                imgW = 45;
+                imgH = 45;
+                offsetX = imgW / 2;
+                offsetY = imgH / 2;
+              }
+
+              return (
+                <image
+                  key={`sector-bg-${center.sector}`} // slot index for stable key
+                  href={`/map/${filename}`}
+                  x={cx - offsetX}
+                  y={cy - offsetY}
+                  width={imgW}
+                  height={imgH}
+                  transform={`rotate(${rotation * 60}, ${cx}, ${cy})`}
+                  style={{ pointerEvents: 'none', opacity: 1.0 }}
+                />
+              );
+            })}
+          </g>
+
+          <Layout size={{ x: HEX_SIZE, y: HEX_SIZE }} flat={false} spacing={1.0} origin={{ x: 0, y: 0 }}>
+            {tiles.map((tile) => {
+              return (
+                <Hexagon
+                  key={tile.id}
+                  q={tile.q}
+                  r={tile.r}
+                  s={-tile.q - tile.r}
+                  style={{
+                    fill: 'transparent', // 배경 이미지가 잘 보이도록 투명하게 설정
+                    stroke: tile.structure
+                      ? 'rgba(255,215,0,0.8)'
+                      : tile.sector !== null
+                        ? SECTOR_COLORS[tile.sector]
+                        : 'rgba(255,255,255,0.2)',
+                    strokeWidth: tile.structure ? '0.8px' : '0.2px',
+                    cursor: 'pointer',
+                    fillOpacity: 1.0,
+                  }}
+                  className="hex"
+                  onClick={() => handleTileClick(tile)}
+                  data-testid={`hex-tile-${tile.id}`}
+                >
+                  {/* Planet Overlays removed as they are in the background image */}
+                  {/* Space Texture (ts_100) - Only for sector 90 (gap hexes) to avoid blurring sector background images */}
+                  {(tile.type === 'space' || tile.type === 'deep_space') && tile.sector === 90 && (
+                    <circle r="4.8" fill="url(#ts-space)" fillOpacity={0.15} pointerEvents="none" />
+                  )}
+                  {/* Single-hex Strategic Tiles & Ships (Only for sector 90 to prevent drawing on outer bridges) */}
+                  {tile.sector === 90 && (
+                    <>
+                      {tile.type === 'asteroid' && <circle r="4.15" fill="url(#ts-asteroid)" pointerEvents="none" />}
+                      {tile.type === 'proto' && <circle r="4.15" fill="url(#ts-proto)" pointerEvents="none" />}
+                      {tile.type === 'ship_rebellion' && <circle r="4.15" fill="url(#ts-rebellion)" pointerEvents="none" transform="rotate(-90)" />}
+                      {tile.type === 'ship_tf_mars' && <circle r="4.15" fill="url(#ts-tf-mars)" pointerEvents="none" transform="rotate(-90)" />}
+                      {tile.type === 'ship_twilight' && <circle r="4.15" fill="url(#ts-twilight)" pointerEvents="none" transform="rotate(-90)" />}
+                      {tile.type === 'ship_eclipse' && <circle r="4.15" fill="url(#ts-eclipse)" pointerEvents="none" transform="rotate(-90)" />}
+                    </>
+                  )}
+                  {/* Outer Sector Highlight Overlay removed as it makes the image blurry */}
+
+                  {/* Sector number removed to keep the map clean */}
+
+                </Hexagon>
+              );
+            })}
           </Layout>
         </HexGrid>
       </motion.div>

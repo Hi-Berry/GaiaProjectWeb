@@ -1598,27 +1598,48 @@ export default function Game() {
                 <div className="grid grid-cols-2 gap-2 py-4">
                   {FEDERATION_REWARDS.filter((r) => (game.federationPool?.[r.id] ?? 0) > 0).map((reward) => {
                     const remaining = game.federationPool?.[reward.id] ?? 0;
+                    const rewardIndex = FEDERATION_REWARDS.findIndex(r => r.id === reward.id);
+                    const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 1}.gif` : null;
+
                     return (
                       <Button
                         key={reward.id}
                         variant="outline"
-                        className="bg-zinc-800 border-zinc-600"
+                        className="bg-zinc-800 border-zinc-600 h-16 px-4"
                         onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
                       >
-                        {reward.label} <span className="text-zinc-500 text-[10px] ml-1">({remaining}개 남음)</span>
+                        <div className="flex flex-col items-center gap-1">
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={reward.label} className="h-10 w-auto object-contain" />
+                          ) : (
+                            <span className="font-bold">{reward.label}</span>
+                          )}
+                          <span className="text-zinc-500 text-[10px]">({remaining} left)</span>
+                        </div>
                       </Button>
                     );
                   })}
-                  {shipRewardsAvailable.map(({ shipType, reward }) => reward && (
-                    <Button
-                      key={`${shipType}-${reward.id}`}
-                      variant="outline"
-                      className="bg-cyan-950/50 border-cyan-500/50"
-                      onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
-                    >
-                      🚀 {reward.label}
-                    </Button>
-                  ))}
+                  {shipRewardsAvailable.map(({ shipType, reward }) => {
+                    if (!reward) return null;
+                    const rewardIndex = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === reward.id);
+                    const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
+                    return (
+                      <Button
+                        key={`${shipType}-${reward.id}`}
+                        variant="outline"
+                        className="bg-cyan-950/50 border-cyan-500/50 h-16 px-4"
+                        onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={reward.label} className="h-10 w-auto object-contain" />
+                          ) : (
+                            <span className="font-bold">🚀 {reward.label}</span>
+                          )}
+                        </div>
+                      </Button>
+                    );
+                  })}
                 </div>
               </AlertDialogContent>
             </AlertDialog>
@@ -2307,15 +2328,41 @@ export default function Game() {
                         <span className="text-muted-foreground font-medium">연방 </span>
                         <span className="flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
                           {fedEntries.map((f, i) => {
-                            const label = FEDERATION_REWARDS.find((r) => r.id === f.rewardId)?.label ?? SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId)?.label ?? f.rewardId;
+                            const reward = FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId);
+                            const label = reward?.label ?? f.rewardId;
+
+                            // Determine image index
+                            let imgIdx = -1;
+                            const regIdx = FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
+                            if (regIdx !== -1) {
+                              imgIdx = regIdx + 1;
+                            } else {
+                              const shipIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
+                              if (shipIdx !== -1) imgIdx = shipIdx + 7;
+                            }
+                            const imgUrl = imgIdx !== -1 ? `/image/Federation_${imgIdx}.gif` : null;
+
                             return (
-                              <span
+                              <div
                                 key={`${f.rewardId}-${i}`}
-                                className={f.isGreen ? 'text-green-500 font-medium' : 'text-red-400'}
-                                title={f.isGreen ? '초록: 미사용' : '빨강: 사용됨'}
+                                className="relative group cursor-help"
+                                title={`${label} (${f.isGreen ? '미사용' : '사용됨'})`}
                               >
-                                {label}{f.isGreen ? ' ●' : ' ○'}
-                              </span>
+                                {imgUrl ? (
+                                  <img
+                                    src={imgUrl}
+                                    className={`h-7 w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
+                                    alt={label}
+                                  />
+                                ) : (
+                                  <span className={f.isGreen ? 'text-green-500 font-medium' : 'text-red-400'}>
+                                    {label}{f.isGreen ? ' ●' : ' ○'}
+                                  </span>
+                                )}
+                                {f.isGreen && (
+                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full border border-black shadow-sm" />
+                                )}
+                              </div>
                             );
                           })}
                         </span>

@@ -11,6 +11,7 @@ export const tiles = pgTable("tiles", {
   r: integer("r").notNull(), // Axial coordinate r
   type: text("type").notNull(), // Planet type: 'terra', 'oxide', 'volcanic', 'desert', 'swamp', 'titanium', 'ice', 'transdim', 'gaia', 'space', 'deep_space'
   sector: integer("sector"), // Which map sector this tile belongs to (optional, for modular board)
+  rotation: integer("rotation").default(0), // Sector rotation (0-5)
   structure: text("structure"), // 'mine', 'trading_station', 'research_lab', 'academy', 'planetary_institute', 'gaia_former', 'ship'
   ownerId: integer("owner_id"), // Player ID who owns the structure
 });
