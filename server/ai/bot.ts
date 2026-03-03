@@ -223,19 +223,20 @@ export class BotLogic {
         p2 -= charge2to3;
         p3 += charge2to3;
 
-        // 만약 p3가 가득 차거나 p2가 비어있는 상태에서 charge가 남으면 낭비되는 파워가 생김
-        // 또는 p3 자금 여유가 충분할 때 자원으로 미리 변환
-        if (p3 >= 1) {
+        // 만약 수입 단계에서 낭비되는 파워가 생길 것으로 예측된다면,
+        // *현재* 보유한 p3를 자원으로 미리 변환 (에러 방지: 시뮬레이션된 p3가 아닌 현재 p3 기준)
+        const currentP3 = player.power3 ?? 0;
+        if (p3 > (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0) || p3 >= 1) {
             // 변환 우선순위: QIC(4) > Ore(3) > Credit(1)
-            if (p3 >= 4 && (player.qic || 0) < 15) {
-                if (player.faction !== 'gleens' || getAcademyLeftCount(game, playerId) > 0) { // 글린은 아카데미 조건 필요 (실제론 gain-1-qic 처리에 이미 있음)
+            if (currentP3 >= 4 && (player.qic || 0) < 15) {
+                if (player.faction !== 'gleens' || getAcademyRightCount(game, playerId) > 0) {
                     return { type: 'convert_resource', params: { type: '4power-to-1qic' } };
                 }
             }
-            if (p3 >= 3 && (player.ore ?? 0) < 15) {
+            if (currentP3 >= 3 && (player.ore ?? 0) < 15) {
                 return { type: 'convert_resource', params: { type: '3power-to-1ore' } };
             }
-            if (p3 >= 1 && (player.credits ?? 0) < 30) {
+            if (currentP3 >= 1 && (player.credits ?? 0) < 30) {
                 return { type: 'convert_resource', params: { type: '1power-to-1credit' } };
             }
         }
@@ -303,7 +304,14 @@ export class BotLogic {
 
     static getCandidateMoves(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
-        if (!player) return [];
+        if (!player || player.hasPassed) return [];
+
+        // Check if it's actually this player's turn (important for MCTS simulation drift)
+        const currentPlayerId = game.turnOrder[game.currentPlayerIndex];
+        if (currentPlayerId !== playerId && game.currentPhase === 'main') {
+            // If it's not our turn, we can't do anything
+            return [];
+        }
 
         // 이미 메인 액션을 수행했더라도 pendingShipTechMine 상태면 광산 건설이 강제됨
         if (game.hasDoneMainAction && !game.pendingShipTechMine) {
@@ -362,7 +370,9 @@ export class BotLogic {
             if (track) candidates.push({ type: 'advance_research', params: { trackId: track } });
         }
 
-        log(`Bot ${player.name} found ${candidates.length} non-pass candidates in Round ${game.roundNumber}`, 'game', game.id);
+        if (!game.simulation) {
+            log(`Bot ${player.name} found ${candidates.length} non-pass candidates in Round ${game.roundNumber}`, 'game', game.id);
+        }
 
         // 9. 패스 (항상 후보에 포함하여 MCTS가 조기 패스의 이점을 계산하게 함)
         if (!player.hasPassed) {
@@ -643,6 +653,9 @@ export class BotLogic {
         const tfLevel = player.research.terraforming ?? 0;
         const pendingSteps = player.pendingTerraformSteps || 0;
 
+        // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
+        const rangeBonusValue = range >= 2 ? 30 : 0;
+
         // 모든 잠재적 광산 후보 평가
         const candidates = game.map.filter(t =>
             !t.ownerId &&
@@ -689,6 +702,7 @@ export class BotLogic {
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateThreatScore(game, playerId, tile); // 가이아 탈취 위협 방어 점수 추가
+                score += rangeBonusValue; // 2거리 확보 가점
 
                 scored.push({
                     tile,
@@ -706,6 +720,7 @@ export class BotLogic {
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
                 score += this.calculateThreatScore(game, playerId, tile); // 다른 플레이어가 뺏을 위험 방어 점수 추가
+                score += rangeBonusValue; // 2거리 확보 가점
 
                 scored.push({
                     tile,
@@ -729,6 +744,7 @@ export class BotLogic {
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
+                score += rangeBonusValue; // 2거리 확보 가점
 
                 scored.push({
                     tile,
@@ -1088,18 +1104,21 @@ export class BotLogic {
         const faction = player.faction;
         let score = 0;
 
+        const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+
         // 1. 기본 트랙 가치 (동적 계산)
         switch (track) {
             case 'terraforming':
                 score += (6 - level) * 12;
                 if (round <= 3) score += 25;
+                // [사용자 전략] 아카데미 빌드 시 테라포밍 1단계 우선
+                if (level === 0 && round <= 2) score += 30;
                 break;
             case 'navigation':
                 score += (6 - level) * 10;
                 // [동적 분석] 항해를 올렸을 때 새로 닿는 행성이 있는가?
                 const currentRange = BotLogic.getEffectiveBaseRange(player);
                 const nextRange = getRange(level + 1) + (player.navigationBonus || 0);
-                const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
                 const reachableNow = new Set(game.map.filter(t => !t.ownerId && BotLogic.isPlanetHex(t) && myStructures.some(s => getDistance(s, t) <= currentRange)));
                 const reachableNext = new Set(game.map.filter(t => !t.ownerId && BotLogic.isPlanetHex(t) && myStructures.some(s => getDistance(s, t) <= nextRange)));
 
@@ -1107,26 +1126,40 @@ export class BotLogic {
                 if (newPlanets.length > 0) {
                     score += newPlanets.length * 15; // 새로운 행성 개수당 가점
                 } else if (reachableNext.size === 0 && round <= 4) {
-                    // 지금도 앞으로도 닿는 곳이 없으면 항해 우선순위 대폭 상승 (고립 방지)
                     score += 40;
+                }
+
+                // [사용자 전략] 연구소 건설(또는 계획) + 지식 확보 시 항해 점수 대폭 강화
+                const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
+                if (labCount >= 1 && (player.knowledge || 0) >= 3) {
+                    score += 50;
+                }
+                // [사용자 전략] 2거리에 도달하면 이후에 광산을 최대한 많이 짓도록 유도 (항해 자체보다는 다른 행동 가점)
+                if (nextRange >= 2) {
+                    score += 20;
                 }
                 break;
             case 'artificialIntelligence':
                 score += (6 - level) * 15;
-                if (round >= 4) score += 20; // 후반 QIC 액션 대비
+                if (round >= 4) score += 20;
                 break;
             case 'gaiaProject':
                 score += (6 - level) * 8;
                 if (faction === 'terran' || faction === 'itars') score += 40;
                 break;
             case 'economy':
-                score += (6 - level) * 15; // 낮춤 (기존 20)
-                if (round <= 2) score += 20; // 대폭 하향 (기존 50)
+                score += (6 - level) * 15;
+                if (round <= 2) score += 20;
                 if (round >= 5) score -= 40;
+                // [사용자 전략] 아카데미 건설 시 경제 2단계까지 우선순위 강화
+                const academyCount = myStructures.filter(t => t.structure === 'academy').length;
+                if (academyCount >= 1 && level < 2) {
+                    score += 45;
+                }
                 break;
             case 'science':
-                score += (6 - level) * 20; // 낮춤 (기존 25)
-                if (round <= 4) score += 15; // 낮춤 (기존 30)
+                score += (6 - level) * 15; // 대폭 축소 (기존 20)
+                if (round <= 2) score += 5; // 초반 편향 제거 (기존 15)
                 break;
         }
 
@@ -1163,10 +1196,12 @@ export class BotLogic {
         // 선택 가능한 타일 중 가장 가치 있는 것 선택
         // 1. 일반 기술 타일 우선순위
         const priorities = [
-            'tech-7vp', 'tech-1o-1q', 'tech-1k-planet', 'tech-1o-1c-1q',
+            'tech-act-4p', 'tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-1o-1q',
+            'tech-7vp', 'tech-1k-planet', 'tech-1o-1c-1q',
             'tech-income-1o-1k', 'tech-income-4c', 'tech-income-1k-1c',
             'tech-gaia-3vp', 'tech-step-vp'
         ];
+        // 4P 액션 타일, 수익 타일, 1O1Q 타일을 최우선 순위로 조정
 
         // 현재 풀에서 가능한 타일 찾기
         const available = game.techTilesPool.filter(t => t && !player.techTiles.includes(t.id));

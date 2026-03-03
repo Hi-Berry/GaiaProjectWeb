@@ -21,7 +21,8 @@ import {
   isPlanetHex,
   BUILDING_LIMITS,
   HOME_PLANETS,
-  SECTOR_CENTERS
+  SECTOR_CENTERS,
+  getGaiaBaseQic
 } from '@shared/gameConfig';
 
 const HEX_SIZE = 4.8;
@@ -634,7 +635,7 @@ export function GameBoard({
       if (currentPlayer.faction === 'gleens') {
         oreCost += 1;
       } else {
-        qicCost += 1;
+        qicCost += getGaiaBaseQic(faction.id);
       }
     }
 

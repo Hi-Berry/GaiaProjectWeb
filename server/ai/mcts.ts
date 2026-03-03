@@ -24,8 +24,10 @@ export class MCTS {
         if (possibleActions.length === 0) return null;
         if (possibleActions.length === 1) return possibleActions[0];
 
+        const rootStore = StateCloner.cloneGameState(initialState);
+        rootStore.simulation = true;
         const root: MCTSNode = {
-            state: StateCloner.cloneGameState(initialState),
+            state: rootStore,
             action: null,
             parent: null,
             children: [],
@@ -112,6 +114,7 @@ export class MCTS {
         const action = node.untriedActions.splice(actionIndex, 1)[0];
 
         const newState = StateCloner.cloneGameState(node.state);
+        newState.simulation = true;
 
         // Emulate action (this is tricky because performAction requires an IO socket, which we don't really want to trigger events for during MCTS)
         // For MCTS to truly work, execute functions need a 'mock' mode or we use a separate simulation engine.
@@ -136,6 +139,7 @@ export class MCTS {
     private static async simulate(state: ServerGameState, playerId: string): Promise<number> {
         // Rollout phase. Take a few random pseudo-random moves.
         let currentState = StateCloner.cloneGameState(state);
+        currentState.simulation = true;
         const dummyIo = { to: () => ({ emit: () => { } }) } as any;
 
         // Simulate 2 steps ahead greedily instead of fully random to avoid terrible play

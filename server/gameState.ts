@@ -77,6 +77,7 @@ export interface ServerGameState extends GaiaGameState {
   botPlayerIds?: string[];
   turnStartState?: Record<string, any>; // [playerId]: PlayerTurnState
   isBotExecuting?: boolean; // 봇 로직이 실행 중인지 확인하는 락
+  simulation?: boolean; // MCTS 시뮬레이션 중인지 여부 (로그 억제용)
 }
 
 
@@ -115,7 +116,8 @@ function ensureScoreBreakdown(player: PlayerState): ScoreBreakdown {
 }
 
 /** Debug Log: console + file (if game.id exists) */
-export function debugLog(game: { id: string }, message: string, source = "game") {
+export function debugLog(game: { id: string; simulation?: boolean }, message: string, source = "game") {
+  if (game.simulation) return;
   log(message, source, game.id);
 }
 
@@ -419,10 +421,10 @@ export function getFederationBuildingPower(
   return sum;
 }
 
-/** 행성만으로 연결된 컴포넌트 (해당 행성 타일 ID 포함, 인접 행성만 BFS) */
-export function getPlanetConnectedComponent(game: ServerGameState, startTileId: string): Set<string> {
+/** 행성만으로 연결된 컴포넌트 (해당 행성 타일 ID 포함, 인접 행성 중 내 건물만 BFS) */
+export function getPlanetConnectedComponent(game: ServerGameState, playerId: string, startTileId: string): Set<string> {
   const start = game.map.find(t => t.id === startTileId);
-  if (!start || !isPlanetHex(start)) return new Set();
+  if (!start || !isPlanetHex(start) || start.ownerId !== playerId || !start.structure || start.structure === 'ship') return new Set();
   const component = new Set<string>();
   const queue: string[] = [startTileId];
   component.add(startTileId);
@@ -432,6 +434,7 @@ export function getPlanetConnectedComponent(game: ServerGameState, startTileId: 
     const neighbors = getNeighbors(game.map, tile);
     for (const n of neighbors) {
       if (!isPlanetHex(n)) continue;
+      if (n.ownerId !== playerId || !n.structure || n.structure === 'ship') continue;
       if (component.has(n.id)) continue;
       component.add(n.id);
       queue.push(n.id);
@@ -440,8 +443,8 @@ export function getPlanetConnectedComponent(game: ServerGameState, startTileId: 
   return component;
 }
 
-/** 선택된 빈공간들 + 인접 행성들(및 행성끼리 연결된 전체) → 연방에 포함된 행성 타일 ID 집합. 건물끼리 붙어 있으면 한 연방에 같이 포함 */
-export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState, selectedHexIds: string[]): Set<string> {
+/** 선택된 빈공간들 + 인접 행성들(및 행성끼리 연결된 본인 건물 전체) → 연방에 포함된 행성 타일 ID 집합. 건물끼리 붙어 있으면 한 연방에 같이 포함 */
+export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState, playerId: string, selectedHexIds: string[]): Set<string> {
   const planetIds = new Set<string>();
   for (const hexId of selectedHexIds) {
     const tile = game.map.find(t => t.id === hexId);
@@ -450,7 +453,7 @@ export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState,
     for (const n of neighbors) {
       if (isPlanetHex(n)) {
         // 인접 행성뿐 아니라, 그 행성과 행성끼리 연결된 전체 컴포넌트 포함
-        const component = getPlanetConnectedComponent(game, n.id);
+        const component = getPlanetConnectedComponent(game, playerId, n.id);
         component.forEach(id => planetIds.add(id));
       }
     }
@@ -489,11 +492,11 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
     const tile = game.map.find(t => t.id === hexId);
     if (!tile) return;
     if (isPlanetHex(tile)) {
-      getPlanetConnectedComponent(game, hexId).forEach(pid => planetIds.add(pid));
+      getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIds.add(pid));
     }
     getNeighbors(game.map, tile).forEach(n => {
       if (isPlanetHex(n)) {
-        getPlanetConnectedComponent(game, n.id).forEach(pid => planetIds.add(pid));
+        getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIds.add(pid));
       }
     });
   });
@@ -3417,7 +3420,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           else arr.push(tileId);
           game.federationMode.selectedPlanetIds = arr;
         } else {
-          const component = getPlanetConnectedComponent(game, tileId);
+          const component = getPlanetConnectedComponent(game, playerId, tileId);
           const power = getFederationBuildingPower(game, playerId, component);
           const requiredPower = getFederationRequiredPower(game, playerId);
           if (power >= requiredPower) {
@@ -3450,11 +3453,11 @@ export function setupGameServer(httpServer: HTTPServer) {
         const tile = game.map.find(t => t.id === hexId);
         if (!tile) return;
         if (isPlanetHex(tile)) {
-          getPlanetConnectedComponent(game, hexId).forEach(pid => planetIdsForPower.add(pid));
+          getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIdsForPower.add(pid));
         }
         getNeighbors(game.map, tile).forEach(n => {
           if (isPlanetHex(n)) {
-            getPlanetConnectedComponent(game, n.id).forEach(pid => planetIdsForPower.add(pid));
+            getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIdsForPower.add(pid));
           }
         });
       });
@@ -4530,7 +4533,17 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   const pendingTerraformSteps = player.pendingTerraformSteps || 0;
   const standardMineOre = freeMine ? 0 : 1, standardMineCredits = freeMine ? 0 : 2;
 
-  if (tile.type === 'gaia') {
+  if ((tile.type === 'transdim' || tile.type === 'gaia') && player.pendingGaiaformerTiles?.includes(tileId)) {
+    // 가이아 포머 회수 시: QIC 비용 면제, 광산 비용 1광석, 2돈만
+    if ((player.ore ?? 0) < standardMineOre || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
+      debugLog(game, `executeBuildMine failed (Gaiaformer reclaim): Insufficient resources (Ore: ${player.ore}/${standardMineOre}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
+      return false;
+    }
+    player.ore = (player.ore ?? 0) - standardMineOre;
+    player.credits = (player.credits ?? 0) - standardMineCredits;
+    player.qic = (player.qic ?? 0) - neededQIC;
+    terraformSteps = 0;
+  } else if (tile.type === 'gaia') {
     const isGleens = player.faction === 'gleens';
     if (isGleens) {
       if ((player.ore ?? 0) < (standardMineOre + 1) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {

@@ -2302,12 +2302,12 @@ export default function Game() {
                       </div>
                       <div className="w-[1px] h-3 bg-white/10 shrink-0" />
                       <div className="flex gap-2 items-center">
-                        <span className="text-blue-400 font-bold text-[10px] leading-none flex items-center">
-                          {p.power1 ?? 0}
-                          {inc.powerTokens > 0 && <span className="text-[9px] text-zinc-500 font-medium ml-0.5">({`+${inc.powerTokens}`})</span>}
-                        </span>
+                        <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
                         <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
                         <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
+                        {inc.powerTokens > 0 && (
+                          <span className="text-[9px] text-zinc-500 font-bold ml-1">({`+${inc.powerTokens}T`})</span>
+                        )}
                         {inc.powerCharge > 0 && (
                           <span className="flex items-center text-zinc-500 font-bold ml-1">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="mr-0.5">
@@ -2409,47 +2409,131 @@ export default function Game() {
                           <span className="text-muted-foreground">보너스 </span>
                           <span className="text-amber-200/90 font-medium">{bonus.label}</span>
                           {bonus.specialAction && (
-                            <span className="text-zinc-500 ml-1">
-                              스페셜 <span className={p.usedBonusAction ? 'text-red-400/90' : 'text-green-400/90'}>{p.usedBonusAction ? '사용함' : '미사용'}</span>
+                            <span className="text-zinc-500 ml-1 text-[8px] opacity-70">
+                              (Special)
                             </span>
                           )}
                         </div>
                       ) : null;
                     })()}
 
-                    {/* Academy (Right) Special Action Status */}
-                    {(() => {
-                      const hasAcademyRight = game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right');
-                      if (!hasAcademyRight) return null;
-                      const isUsed = p.usedSpecialActions?.includes('academy-qic');
-                      const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
-                      return (
-                        <div className="mt-1">
-                          <span className="text-muted-foreground font-medium">특수 액션 </span>
-                          <span
-                            className={`px-1.5 py-0.5 rounded border inline-flex items-center gap-1 ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-zinc-700/50' : 'bg-cyan-900/30 text-cyan-400 border-cyan-500/30'}`}
-                          >
-                            {label}{isUsed ? ' (사용됨)' : ' (사용 가능)'}
+                    {/* Unified Special Actions Status */}
+                    <div className="mt-1 pb-1 space-y-1">
+                      <span className="text-muted-foreground font-medium block h-4">스페셜 액션</span>
+                      <div className="flex flex-wrap gap-1">
+                        {/* Bonus Tile Special Action */}
+                        {(() => {
+                          const bonus = ALL_BONUS_TILES.find((t) => t.id === p.bonusTile);
+                          if (!bonus?.specialAction) return null;
+                          const isUsed = p.usedBonusAction;
+                          const actionNames: Record<string, string> = {
+                            'terraform_step': '1테라',
+                            'gaia_project': '가이아',
+                            'range_3': '+3거리'
+                          };
+                          const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
+                          return (
+                            <span
+                              key="bonus-spec"
+                              className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold'}`}
+                              title={`보너스 타일: ${bonus.label}`}
+                            >
+                              보너스:{actionLabel}
+                            </span>
+                          );
+                        })()}
+
+                        {/* Tech Tile Special Actions */}
+                        {(p.techTiles ?? []).map((tid) => {
+                          const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
+                          if (!tile?.specialAction) return null;
+                          const isUsed = p.usedTechActions?.includes(tid);
+                          return (
+                            <span
+                              key={`tech-spec-${tid}`}
+                              className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold'}`}
+                              title={`기술 타일: ${tile.label}`}
+                            >
+                              기술:{tile.label}
+                            </span>
+                          );
+                        })}
+
+                        {/* Academy (Right) Special Action */}
+                        {(() => {
+                          const hasAcademyRight = game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right');
+                          if (!hasAcademyRight) return null;
+                          const isUsed = p.usedSpecialActions?.includes('academy-qic');
+                          const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
+                          return (
+                            <span
+                              key="academy-spec"
+                              className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold'}`}
+                            >
+                              {label}
+                            </span>
+                          );
+                        })()}
+
+                        {/* Faction Specific Specials */}
+                        {p.faction === 'bescods' && (() => {
+                          const isUsed = p.usedSpecialActions?.includes('bescods-advance-lowest');
+                          return (
+                            <span key="bescods-spec" className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold'}`}>
+                              매안:최저트랙+1
+                            </span>
+                          );
+                        })()}
+
+                        {p.faction === 'ivits' && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${p.usedIvitsSpaceStationThisRound ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold'}`}>
+                            하이브:우주정거장
                           </span>
-                        </div>
-                      );
-                    })()}
-                    {p.faction === 'ivits' && (
-                      <div>
-                        <span className="text-muted-foreground">우주정거장 </span>
-                        <span className={p.usedIvitsSpaceStationThisRound ? 'text-red-400/90' : 'text-green-400/90'}>
-                          {p.usedIvitsSpaceStationThisRound ? '사용함' : '미사용'}
-                        </span>
+                        )}
+
+                        {p.faction === 'moweyip' && game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('moweyip-place-ring') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold'}`}>
+                            모웨이드:링
+                          </span>
+                        )}
+
+                        {p.faction === 'ambas' && game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('ambas-swap-pi-mine') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'}`}>
+                            엠바스:PI-Mine교체
+                          </span>
+                        )}
+
+                        {p.faction === 'firaks' && game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('firaks-downgrade') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-red-500/20 text-red-400 border-red-500/40 font-bold'}`}>
+                            파이락:다운그레이드
+                          </span>
+                        )}
+
+                        {p.faction === 'gleens' && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('gleens-2nav') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold'}`}>
+                            글린:+2항해
+                          </span>
+                        )}
+
+                        {p.faction === 'space_giants' && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('space_giants-2tf') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold'}`}>
+                            거인:2테라
+                          </span>
+                        )}
+
+                        {p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId && (
+                          <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('tinkeroid-special') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold'}`}>
+                            팅커:{p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}
+                          </span>
+                        )}
+
+                        {p.faction === 'bal_tak' && (p.balTakGaiaformersUsedForQic ?? 0) > 0 && (
+                          <span className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold">
+                            포머→QIC:{p.balTakGaiaformersUsedForQic}회
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {p.faction === 'moweyip' && game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === id && t.structure === 'planetary_institute') && (
-                      <div>
-                        <span className="text-muted-foreground">링 놓기 (Special) </span>
-                        <span className={(p as any).usedSpecialActions?.includes('moweyip-place-ring') ? 'text-red-400/90' : 'text-green-400/90'}>
-                          {(p as any).usedSpecialActions?.includes('moweyip-place-ring') ? '사용함' : '미사용'}
-                        </span>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )
                 }

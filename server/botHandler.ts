@@ -16,15 +16,20 @@ import {
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
 
+const botExecutingGames = new Set<string>();
+
 /**
  * Execute bot turn if current player is a bot
  * Called after any game state update during main phase
  */
 export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGameState): Promise<void> {
-    log(`[BotHandler] executeBotTurnIfNeeded called. isExecuting=${game.isBotExecuting}, phase=${game.currentPhase}`, 'game');
     if (game.currentPhase === 'lobby') return;
     if (!game.botPlayerIds || game.botPlayerIds.length === 0) return;
-    if (game.isBotExecuting) return;
+
+    // Module level lock to prevent concurrent executions for the same game
+    if (botExecutingGames.has(game.id)) {
+        return;
+    }
 
     // Determine current player ID based on phase
     let currentPlayerId: string | null = null;
@@ -54,17 +59,18 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         (game.pendingAdvancedTechTrackAdvance && game.botPlayerIds.includes(game.pendingAdvancedTechTrackAdvance.playerId));
 
     if (!isBotTurn && !hasPendingBotAutoChoice) {
-        log(`[BotHandler] Not a bot's turn and no pending bot choices. Skipping. currentPlayer=${currentPlayerId}`, 'game');
         return;
     }
 
+    botExecutingGames.add(game.id);
     game.isBotExecuting = true;
     try {
         await doBotTurn(io, game);
     } catch (error) {
-        log(`Bot turn execution error: ${error}`, 'error');
+        log(`Bot turn execution error for game ${game.id}: ${error}`, 'error');
     } finally {
         game.isBotExecuting = false;
+        botExecutingGames.delete(game.id);
     }
 }
 

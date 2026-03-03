@@ -95,7 +95,7 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    log(`Global error handler caught: ${message}`, 'error');
   });
 
   // importantly only setup vite in development and after
@@ -130,3 +130,12 @@ app.use((req, res, next) => {
   setupGameServer(httpServer);
   log('Game server initialized on same port', 'socket.io');
 })();
+
+// Prevent server from crashing on unhandled errors
+process.on('unhandledRejection', (reason, promise) => {
+  log(`Unhandled Rejection at: ${promise}, reason: ${reason}`, 'error');
+});
+
+process.on('uncaughtException', (err) => {
+  log(`Uncaught Exception thrown: ${err.message}\n${err.stack}`, 'error');
+});

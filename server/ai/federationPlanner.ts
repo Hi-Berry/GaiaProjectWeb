@@ -69,7 +69,7 @@ export class FederationPlanner {
         const player = game.players[playerId];
 
         // Always include the starting planet's connected component
-        const initialComponent = getPlanetConnectedComponent(game, startTile.id);
+        const initialComponent = getPlanetConnectedComponent(game, playerId, startTile.id);
         initialComponent.forEach(id => selectedPlanetIds.add(id));
 
         let currentPower = getFederationBuildingPower(game, playerId, selectedPlanetIds);
@@ -117,7 +117,7 @@ export class FederationPlanner {
 
             getNeighbors(game.map, currentTile).forEach(n => {
                 if (isPlanetHex(n) && n.ownerId === playerId && n.structure && n.structure !== 'ship' && !fedHexes.includes(n.id)) {
-                    const comp = getPlanetConnectedComponent(game, n.id);
+                    const comp = getPlanetConnectedComponent(game, playerId, n.id);
                     // Check if this component is already included
                     let hasNew = false;
                     comp.forEach(cid => {

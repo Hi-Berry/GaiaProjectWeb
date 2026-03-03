@@ -166,6 +166,7 @@ export interface TechTile {
   label: string;
   description: string;
   isAdvanced?: boolean;
+  specialAction?: string | null;
 }
 
 export interface BonusTile {
@@ -628,7 +629,7 @@ export const ALL_TECH_TILES: TechTile[] = [
   { id: 'tech-imm-1o-1q', label: '1O, 1Q', description: 'Gain 1 Ore and 1 QIC immediately.' },
   { id: 'tech-gaia-3vp', label: 'Gaia: +3VP', description: 'When you build a Mine on a Gaia Planet, gain 3 VP.' },
   { id: 'tech-big-4str', label: 'Big: 4Str', description: 'Your Planetary Institute and Academies count as 4 strength for Federations.' },
-  { id: 'tech-act-4p', label: 'ACT: 4P', description: 'Action: Gain 4 Power. (Use once per round)' },
+  { id: 'tech-act-4p', label: 'ACT: 4P', description: 'Action: Gain 4 Power. (Use once per round)', specialAction: '4power' },
 ];
 
 /** 우주선 전용 기술 타일 (해당 우주선 입장 시에만 선택 가능) */
@@ -658,9 +659,9 @@ export const BRIDGE_SPECS: { sideA: PlanetType[], sideB: PlanetType[] }[] = [
 
 export const ALL_ADVANCED_TECH_TILES: TechTile[] = [
   // 1. 액션으로 자원 얻기 (3개)
-  { id: 'adv-act-3k', label: 'ACT: 3K', description: 'Action: Gain 3 Knowledge.', isAdvanced: true },
-  { id: 'adv-act-3o', label: 'ACT: 3O', description: 'Action: Gain 3 Ore.', isAdvanced: true },
-  { id: 'adv-act-1q-5c', label: 'ACT: 1Q+5C', description: 'Action: Gain 1 QIC and 5 Credits.', isAdvanced: true },
+  { id: 'adv-act-3k', label: 'ACT: 3K', description: 'Action: Gain 3 Knowledge.', isAdvanced: true, specialAction: '3knowledge' },
+  { id: 'adv-act-3o', label: 'ACT: 3O', description: 'Action: Gain 3 Ore.', isAdvanced: true, specialAction: '3ore' },
+  { id: 'adv-act-1q-5c', label: 'ACT: 1Q+5C', description: 'Action: Gain 1 QIC and 5 Credits.', isAdvanced: true, specialAction: '1qic_5credits' },
 
   // 2. 액션마다 점수 얻기 (5개)
   { id: 'adv-vp-build-mine', label: '3VP/Mine Built', description: 'Gain 3VP each time you build a mine.', isAdvanced: true },
@@ -1759,7 +1760,7 @@ export const GaiaProjectGame: Game<GaiaGameState> = {
 };
 
 /** 기본 7색상 행성 (테라포밍 휠, 확장 규칙에서 1/2/3단계 지정에 사용) */
-export const HOME_PLANETS: PlanetType[] = ['terra', 'ice', 'titanium', 'swamp', 'desert', 'volcanic', 'oxide'];
+export const HOME_PLANETS: PlanetType[] = ['terra', 'oxide', 'volcanic', 'desert', 'swamp', 'titanium', 'ice'];
 
 export function getTerraformSteps(from: PlanetType, to: PlanetType): number {
   if (from === to) return 0;
