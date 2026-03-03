@@ -27,36 +27,27 @@ def colorize_image(img_rgba, hex_color):
     return tinted
 
 def make_transparent_and_clean(img):
-    """
-    외부의 흰색 배경만 투명하게 만들고, 건물 내부의 흰색 공간은 불투명하게 보존합니다.
-    추가로 테두리에 남은 격자 선이나 노이즈성 블록을 완벽하게 밀어냅니다.
-    """
     from PIL import ImageDraw
-    gray = img.convert('L')
     
-    # 임계값을 230으로 높여 밝은 회색 건물 면이 배경으로 오인되지 않도록 함
-    # (흰 배경은 240+ / 건물 밝은 면은 180~220 수준)
+    # 건물이 중앙에 위치한다는 것을 가정하고, 가장자리에 있는 모든 노이즈/격자선을 무식하게 흰색으로 덮어버립니다.
+    # 좌, 우, 상, 하 여백이 다르므로 각각 알맞은 두께로 덮습니다. (왼쪽 격자선 잔여물 제거)
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
+    wipe_left = 60
+    wipe_right = 50
+    wipe_top = 40
+    wipe_bottom = 45 
+    draw.rectangle([0, 0, w, wipe_top], fill=(255, 255, 255, 255))
+    draw.rectangle([0, h - wipe_bottom, w, h], fill=(255, 255, 255, 255))
+    draw.rectangle([0, 0, wipe_left, h], fill=(255, 255, 255, 255))
+    draw.rectangle([w - wipe_right, 0, w, h], fill=(255, 255, 255, 255))
+
+    gray = img.convert('L')
     bw = gray.point(lambda p: 255 if p > 230 else 0)
     
-    # 네 모서리가 아닌 '전체 테두리 픽셀'을 순회하며 floodfill을 쏩니다
-    # 이렇게 하면 끄트머리에 구멍이 나거나 끊긴 테두리 잔상도 틈새로 파고들어 지워집니다.
-    edges = []
-    w, h = bw.width, bw.height
-    for x in range(w):
-        edges.append((x, 0))
-        edges.append((x, h - 1))
-    for y in range(1, h - 1):
-        edges.append((0, y))
-        edges.append((w - 1, y))
-        
-    bw_pixels = bw.load()
-    for x, y in edges:
-        # 가장자리가 흰색(255) 혹은 검은색(0, 노이즈 선)이더라도 바깥쪽 테두리면 무조건 투명 영역(128)으로 침투 시도
-        # (원치 않는 내부 침투를 막기 위해 임계값 기반 floodfill 적용)
-        if bw_pixels[x, y] == 255:
-            ImageDraw.floodfill(bw, (x, y), 128)
-            
-    # 바깥 배경(128)은 완전 투명(0), 건물 내부(255) 및 윤곽선(0)은 완전 불투명(255)
+    # 테두리를 모두 흰색으로 덮었으므로, (0,0) 좌표는 무조건 배경(흰색). 여기서 한 번만 floodfill 하면 됩니다.
+    ImageDraw.floodfill(bw, (0, 0), 128)
+    
     mask = bw.point(lambda p: 0 if p == 128 else 255)
     
     img = img.convert("RGBA")
@@ -86,12 +77,12 @@ def process_buildings(source_path, dest_dir):
 
     # 건물별 스케일 비율 (1.0 = 캔버스 꽉 채움, 0.7 = 70% 크기로 축소)
     BUILDING_SCALE = {
-        "planetary_institute": 0.75,
-        "research_lab":        0.75,
+        "planetary_institute": 0.70,
+        "research_lab":        0.60,
         "mine":                0.60,
-        "academy":             0.75,
-        "gaiaformer":          0.75,
-        "trading_station":     0.75,
+        "academy":             0.70,
+        "gaiaformer":          0.55,
+        "trading_station":     0.60,
     }
 
     # gameConfig.ts에 기반한 종족(행성)별 기준 색상표 + 다카니안/팅커로이드 소행성
@@ -103,7 +94,6 @@ def process_buildings(source_path, dest_dir):
         'swamp': '#8B5A2B',    # 갈색(Swamp)을 더 밝고 따뜻한 톤으로 변경하여 구별감 향상 (#4E342E -> #8B5A2B)
         'titanium': '#757575', # 회색(Titanium)을 더 밝은 은회색으로 변경하여 갈색과 대비되게 함 (#424242 -> #757575)
         'ice': '#B3E5FC',
-        'gaia': '#2E7D32',
         'proto': '#00E5FF',
         'asteroid': '#AB47BC'  # 소행성 색상 추가
     }
@@ -111,16 +101,10 @@ def process_buildings(source_path, dest_dir):
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir, exist_ok=True)
 
-    # 실측 기반 비대칭 마진: 각 면의 테두리 위치가 다름 (상=30px, 좌=56px, 우=35px, 하=14px)
-    # 테두리를 정확히 제거하되 건물 면은 보존하는 최소 마진
-    M_TOP    = 32
-    M_LEFT   = 57
-    M_RIGHT  = 36   # mine 오른쪽 건물 면(35px 안쪽)을 1px 남기고 테두리만 제거
-    M_BOTTOM = 15
-
-    # 모든 건물이 동일한 표준 캔버스 크기에 중앙 배치됨
-    canvas_w = cell_w - M_LEFT - M_RIGHT
-    canvas_h = cell_h - M_TOP  - M_BOTTOM
+    # 픽셀에 의존하는 하드코딩된 마진을 제거합니다. 
+    # 통일된 캔버스 크기를 260x260 정도로 지정합니다.
+    canvas_w = 260
+    canvas_h = 260
 
     for idx, b_name in enumerate(layouts):
         if not b_name:
@@ -129,20 +113,15 @@ def process_buildings(source_path, dest_dir):
         col = idx % 3
         row = idx // 3
 
-        # 테두리를 정밀하게 제거 (각 면 개별 마진)
-        left  = col * cell_w + M_LEFT
-        upper = row * cell_h + M_TOP
-        right = (col + 1) * cell_w - M_RIGHT
-        lower = (row + 1) * cell_h - M_BOTTOM
+        # 영역을 단순히 1/6 그리드로 크게 자릅니다.
+        left  = col * cell_w
+        upper = row * cell_h
+        right = (col + 1) * cell_w
+        lower = (row + 1) * cell_h
         cell = img.crop((left, upper, right, lower))
 
-        # 흰색 패딩을 추가해 floodfill이 테두리 제거된 이미지 밖에서만 시작하도록 보장
-        pad = 12
-        padded = Image.new("RGBA", (cell.width + pad * 2, cell.height + pad * 2), (255, 255, 255, 255))
-        padded.paste(cell, (pad, pad))
-
-        # 2. 배경 지우기
-        transparent_cell = make_transparent_and_clean(padded)
+        # 2. 배경 지우기 (가장자리 40px을 무조건 삭제하여 격자선 방어)
+        transparent_cell = make_transparent_and_clean(cell)
 
         # 3. 알맹이(그려진 부분)만 타이트하게 크롭
         bbox = transparent_cell.getbbox()
@@ -159,10 +138,21 @@ def process_buildings(source_path, dest_dir):
         transparent_cell = transparent_cell.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
         # 5. 표준 캔버스에 중앙 배치 (모든 건물 동일 크기로 통일)
+        # 기본적으로 수직, 수평 중앙에 정렬하되, 교역소(trading_station) 등
+        # 바닥면이 넓은 건물이 하늘에 뜨지 않도록 필요시 하단 정렬 처리 가능
         bw, bh = transparent_cell.size
         canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
         paste_x = max(0, (canvas_w - bw) // 2)
+        
+        # if b_name == "trading_station":
+        #     # 교역소 등 형태가 넙적한 모델은 수직으로 중앙에 놓으면 허공에 뜬 것처럼 보임
+        #     # 따라서 캔버스의 하단 여백을 조금만 남기고 아래로 내림 (예: 여백 20px)
+        #     paste_y = canvas_h - bh - 20
+        # else:
+        # paste_y = max(0, (canvas_h - bh) // 2)
         paste_y = max(0, (canvas_h - bh) // 2)
+
+
         canvas.paste(transparent_cell, (paste_x, paste_y))
 
         # 6. 색상별로 저장

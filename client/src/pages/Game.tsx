@@ -231,7 +231,7 @@ export default function Game() {
         setIsResearchOpen(prev => !prev);
         setIsBonusTilesOpen(false);
       }
-      if (e.key.toLowerCase() === 'b') {
+      if (e.key.toLowerCase() === 'e') {
         setIsBonusTilesOpen(prev => !prev);
         setIsResearchOpen(false);
       }
@@ -1053,17 +1053,7 @@ export default function Game() {
           />
         </div>
 
-        {/* Dashboards Area: 라운드 보드를 항상 렌더링하고 보너스 단계 패널은 별도로 표시 */}
-        <div className="p-4 bg-black/40 border-t border-white/5 space-y-4">
-          <div className="max-w-6xl mx-auto">
-            <RoundBoard
-              game={game}
-              playerId={playerId}
-              onPass={() => setShowPassBonusModal(true)}
-              onEndGame={() => GameClient.passRound(gameId!, undefined)}
-            />
-          </div>
-        </div>
+        {/* Dashboards Area: 제거 (라운드 보드를 오버레이로 이동함) */}
 
         {isBonusSelectionPhase && (
           <div className="border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-4px_24px_rgba(0,0,0,0.4)]">
@@ -1110,8 +1100,8 @@ export default function Game() {
               <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-2xl border border-white/5 shadow-2xl">
                 <div className="flex items-center gap-4">
                   <Gift className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-black uppercase tracking-widest text-white">Bonus Tiles</h2>
-                  <Badge className="bg-primary/20 text-primary border-primary/20">Hotkey: B</Badge>
+                  <h2 className="text-xl font-black uppercase tracking-widest text-white">Tactical Overview</h2>
+                  <Badge className="bg-primary/20 text-primary border-primary/20">Hotkey: E</Badge>
                 </div>
                 <Button
                   variant="ghost"
@@ -1122,7 +1112,16 @@ export default function Game() {
                   ✕
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-2 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-4 space-y-8 custom-scrollbar">
+                <div className="max-w-6xl mx-auto">
+                  <RoundBoard
+                    game={game}
+                    playerId={playerId}
+                    onPass={() => setShowPassBonusModal(true)}
+                    onEndGame={() => GameClient.passRound(gameId!, undefined)}
+                  />
+                </div>
+                <div className="h-[1px] bg-white/5 w-full" />
                 <BonusTiles
                   game={game}
                   playerId={playerId}
@@ -1605,12 +1604,12 @@ export default function Game() {
                       <Button
                         key={reward.id}
                         variant="outline"
-                        className="bg-zinc-800 border-zinc-600 h-16 px-4"
+                        className="bg-zinc-800 border-zinc-600 h-24 px-4"
                         onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
                       >
-                        <div className="flex flex-col items-center gap-1">
+                        <div className="flex flex-col items-center gap-2">
                           {imgUrl ? (
-                            <img src={imgUrl} alt={reward.label} className="h-10 w-auto object-contain" />
+                            <img src={imgUrl} alt={reward.label} className="h-16 w-auto object-contain" />
                           ) : (
                             <span className="font-bold">{reward.label}</span>
                           )}
@@ -1627,12 +1626,12 @@ export default function Game() {
                       <Button
                         key={`${shipType}-${reward.id}`}
                         variant="outline"
-                        className="bg-cyan-950/50 border-cyan-500/50 h-16 px-4"
+                        className="bg-cyan-950/50 border-cyan-500/50 h-24 px-4"
                         onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
                       >
-                        <div className="flex flex-col items-center gap-1">
+                        <div className="flex flex-col items-center gap-2">
                           {imgUrl ? (
-                            <img src={imgUrl} alt={reward.label} className="h-10 w-auto object-contain" />
+                            <img src={imgUrl} alt={reward.label} className="h-16 w-auto object-contain" />
                           ) : (
                             <span className="font-bold">🚀 {reward.label}</span>
                           )}
