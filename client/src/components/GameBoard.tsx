@@ -65,214 +65,54 @@ const getDistance = (a: { q: number; r: number }, b: { q: number; r: number }) =
   return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
 };
 
-// 건물 렌더링 함수 - 가이아 프로젝트 기하학적 정확한 형태 (2배 확대)
+// 건물 렌더링 함수 - 새로 생성된 종족별 건물 PNG 에셋 적용
 const renderStructure = (structureType: StructureType, color: string, ownerColor?: string) => {
-  const strokeColor = '#000';
-  const highlightColor = lightenColor(color, 50);
-  const shadowColor = darkenColor(color, 35);
-  const scale = 2.2; // 전체 크기 확대 (기존 1.7 -> 2.2)
+  // color 헥스코드(ownerColor 우선)로 원래 종족(행성) 이름을 역추적하여 파일명으로 활용
+  const targetColorHex = (ownerColor || color || '').toUpperCase();
 
-  switch (structureType) {
-    case 'mine':
-    case 'lost_planet_mine':
-      // Mine / 잊혀진 행성: 단순한 박스형 + 작은 돌기들 (잊혀진 행성은 O 없음, 업그레이드 불가)
-      return (
-        <g transform="translate(0, 0.2)">
-          {/* 바닥 그림자 */}
-          <ellipse cx="0" cy={0.75 * scale} rx={0.65 * scale} ry={0.18 * scale} fill="rgba(0,0,0,0.6)" />
-
-          {/* 정육면체 본체 */}
-          <rect
-            x={-0.5 * scale}
-            y={-0.15 * scale}
-            width={1 * scale}
-            height={1 * scale}
-            fill={color}
-            stroke={strokeColor}
-            strokeWidth={0.09 * scale}
-          />
-
-          {/* 왼쪽 측면 */}
-          <path
-            d={`M ${-0.5 * scale} ${-0.15 * scale} L ${-0.85 * scale} ${-0.4 * scale} L ${-0.85 * scale} ${0.6 * scale} L ${-0.5 * scale} ${0.85 * scale} Z`}
-            fill={shadowColor}
-            stroke={strokeColor}
-            strokeWidth={0.09 * scale}
-          />
-
-          {/* 윗면 */}
-          <path
-            d={`M ${-0.5 * scale} ${-0.15 * scale} L 0 ${-0.4 * scale} L ${0.5 * scale} ${-0.15 * scale} L 0 ${0.1 * scale} Z`}
-            fill={highlightColor}
-            stroke={strokeColor}
-            strokeWidth={0.09 * scale}
-          />
-
-          {/* 작은 돌기들 (디테일) */}
-          <rect x={-0.15 * scale} y={-0.55 * scale} width={0.3 * scale} height={0.15 * scale} fill={color} stroke={strokeColor} strokeWidth={0.06 * scale} />
-          <circle cx={-0.25 * scale} cy={-0.3 * scale} r={0.08 * scale} fill={highlightColor} stroke={strokeColor} strokeWidth={0.05 * scale} />
-          <circle cx={0.25 * scale} cy={-0.25 * scale} r={0.08 * scale} fill={highlightColor} stroke={strokeColor} strokeWidth={0.05 * scale} />
-        </g>
-      );
-
-    case 'trading_station':
-      // Trading Station: L자형 고층 건물 (하단 넓은 베이스 + 상단 타워)
-      return (
-        <g transform="translate(0, -0.2)">
-          {/* 바닥 그림자 */}
-          <ellipse cx="0" cy={1.3 * scale} rx={1 * scale} ry={0.28 * scale} fill="rgba(0,0,0,0.6)" />
-
-          {/* 하단 블록 (넓은 베이스) - 앞면 */}
-          <rect
-            x={-0.75 * scale}
-            y={0.4 * scale}
-            width={1.5 * scale}
-            height={0.85 * scale}
-            fill={color}
-            stroke={strokeColor}
-            strokeWidth={0.11 * scale}
-          />
-
-          {/* 하단 블록 왼쪽 측면 */}
-          <path
-            d={`M ${-0.75 * scale} ${0.4 * scale} L ${-1 * scale} ${0.2 * scale} L ${-1 * scale} ${1.05 * scale} L ${-0.75 * scale} ${1.25 * scale} Z`}
-            fill={shadowColor}
-            stroke={strokeColor}
-            strokeWidth={0.11 * scale}
-          />
-
-          {/* 하단 블록 윗면 */}
-          <path
-            d={`M ${-0.75 * scale} ${0.4 * scale} L 0 ${0.2 * scale} L ${0.75 * scale} ${0.4 * scale} L 0 ${0.6 * scale} Z`}
-            fill={highlightColor}
-            stroke={strokeColor}
-            strokeWidth={0.11 * scale}
-          />
-
-          {/* 상단 타워 (하단 위에 올라간 높은 블록) - 앞면 */}
-          <rect
-            x={-0.45 * scale}
-            y={-0.65 * scale}
-            width={0.9 * scale}
-            height={1.05 * scale}
-            fill={darkenColor(color, 5)}
-            stroke={strokeColor}
-            strokeWidth={0.11 * scale}
-          />
-
-          {/* 상단 타워 왼쪽 측면 */}
-          <path
-            d={`M ${-0.45 * scale} ${-0.65 * scale} L ${-0.7 * scale} ${-0.8 * scale} L ${-0.7 * scale} ${0.2 * scale} L ${-0.45 * scale} ${0.4 * scale} Z`}
-            fill={darkenColor(color, 30)}
-            stroke={strokeColor}
-            strokeWidth={0.11 * scale}
-          />
-
-          {/* 상단 타워 윗면 */}
-          <path
-            d={`M ${-0.45 * scale} ${-0.65 * scale} L 0 ${-0.8 * scale} L ${0.45 * scale} ${-0.65 * scale} L 0 ${-0.5 * scale} Z`}
-            fill={lightenColor(color, 60)}
-            stroke={strokeColor}
-            strokeWidth={0.11 * scale}
-          />
-        </g>
-      );
-
-    case 'research_lab':
-      // Research Lab: 원통형 베이스 + 층층이 쌓인 돔 + 수직 핀들
-      return (
-        <g transform="translate(0, -0.3)">
-          {/* 바닥 그림자 */}
-          <ellipse cx="0" cy={1.5 * scale} rx={1 * scale} ry={0.28 * scale} fill="rgba(0,0,0,0.6)" />
-
-          {/* 원통형 베이스 */}
-          <ellipse cx="0" cy={0.9 * scale} rx={0.85 * scale} ry={0.3 * scale} fill={color} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          <rect x={-0.85 * scale} y={0.2 * scale} width={1.7 * scale} height={0.7 * scale} fill={color} stroke="none" />
-          <ellipse cx="0" cy={0.2 * scale} rx={0.85 * scale} ry={0.3 * scale} fill={highlightColor} stroke={strokeColor} strokeWidth={0.1 * scale} />
-
-          {/* 층층이 쌓인 돔 */}
-          <ellipse cx="0" cy={-0.1 * scale} rx={0.75 * scale} ry={0.28 * scale} fill={darkenColor(color, 5)} stroke={strokeColor} strokeWidth={0.09 * scale} />
-          <ellipse cx="0" cy={-0.5 * scale} rx={0.6 * scale} ry={0.24 * scale} fill={darkenColor(color, 8)} stroke={strokeColor} strokeWidth={0.08 * scale} />
-          <ellipse cx="0" cy={-0.8 * scale} rx={0.4 * scale} ry={0.18 * scale} fill={lightenColor(color, 40)} stroke={strokeColor} strokeWidth={0.08 * scale} />
-
-          {/* 수직 핀들 (양쪽) */}
-          <rect x={-0.95 * scale} y={0 * scale} width={0.12 * scale} height={0.9 * scale} fill={shadowColor} stroke={strokeColor} strokeWidth={0.06 * scale} />
-          <rect x={0.83 * scale} y={0 * scale} width={0.12 * scale} height={0.9 * scale} fill={shadowColor} stroke={strokeColor} strokeWidth={0.06 * scale} />
-          <rect x={-0.5 * scale} y={0.1 * scale} width={0.1 * scale} height={0.7 * scale} fill={darkenColor(color, 15)} stroke={strokeColor} strokeWidth={0.05 * scale} />
-          <rect x={0.4 * scale} y={0.1 * scale} width={0.1 * scale} height={0.7 * scale} fill={darkenColor(color, 15)} stroke={strokeColor} strokeWidth={0.05 * scale} />
-        </g>
-      );
-
-    case 'planetary_institute':
-      // PI: 거대한 계단식 피라미드 + 중앙 꼭대기 돔
-      return (
-        <g transform="translate(0, -0.6)">
-          {/* 바닥 그림자 */}
-          <ellipse cx="0" cy={2.1 * scale} rx={1.6 * scale} ry={0.42 * scale} fill="rgba(0,0,0,0.65)" />
-
-          {/* 1층 (가장 넓은 기단) */}
-          <rect x={-1.4 * scale} y={1.4 * scale} width={2.8 * scale} height={0.6 * scale} fill={color} stroke={strokeColor} strokeWidth={0.12 * scale} />
-          <path d={`M ${-1.4 * scale} ${1.4 * scale} L ${-1.8 * scale} ${1.1 * scale} L ${-1.8 * scale} ${1.7 * scale} L ${-1.4 * scale} ${2 * scale} Z`} fill={shadowColor} stroke={strokeColor} strokeWidth={0.12 * scale} />
-          <path d={`M ${-1.4 * scale} ${1.4 * scale} L 0 ${1.1 * scale} L ${1.4 * scale} ${1.4 * scale} L 0 ${1.7 * scale} Z`} fill={highlightColor} stroke={strokeColor} strokeWidth={0.12 * scale} />
-
-          {/* 2층 */}
-          <rect x={-1.1 * scale} y={0.8 * scale} width={2.2 * scale} height={0.6 * scale} fill={darkenColor(color, 5)} stroke={strokeColor} strokeWidth={0.11 * scale} />
-          <path d={`M ${-1.1 * scale} ${0.8 * scale} L ${-1.45 * scale} ${0.55 * scale} L ${-1.45 * scale} ${1.15 * scale} L ${-1.1 * scale} ${1.4 * scale} Z`} fill={darkenColor(color, 30)} stroke={strokeColor} strokeWidth={0.11 * scale} />
-          <path d={`M ${-1.1 * scale} ${0.8 * scale} L 0 ${0.55 * scale} L ${1.1 * scale} ${0.8 * scale} L 0 ${1.05 * scale} Z`} fill={lightenColor(color, 45)} stroke={strokeColor} strokeWidth={0.11 * scale} />
-
-          {/* 3층 */}
-          <rect x={-0.8 * scale} y={0.2 * scale} width={1.6 * scale} height={0.6 * scale} fill={darkenColor(color, 8)} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          <path d={`M ${-0.8 * scale} ${0.2 * scale} L ${-1.1 * scale} ${0 * scale} L ${-1.1 * scale} ${0.6 * scale} L ${-0.8 * scale} ${0.8 * scale} Z`} fill={darkenColor(color, 33)} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          <path d={`M ${-0.8 * scale} ${0.2 * scale} L 0 ${0 * scale} L ${0.8 * scale} ${0.2 * scale} L 0 ${0.4 * scale} Z`} fill={lightenColor(color, 50)} stroke={strokeColor} strokeWidth={0.1 * scale} />
-
-          {/* 중앙 꼭대기 돔 */}
-          <ellipse cx="0" cy={-0.2 * scale} rx={0.5 * scale} ry={0.3 * scale} fill={lightenColor(color, 55)} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          <ellipse cx="0" cy={-0.5 * scale} rx={0.35 * scale} ry={0.22 * scale} fill={lightenColor(color, 65)} stroke={strokeColor} strokeWidth={0.09 * scale} />
-        </g>
-      );
-
-    case 'academy':
-      // Academy: 연구소처럼 원통형 베이스 + 층층이 돔 (동그란 형태)
-      return (
-        <g transform="translate(0, -0.4)">
-          {/* 바닥 그림자 */}
-          <ellipse cx="0" cy={1.6 * scale} rx={1.1 * scale} ry={0.32 * scale} fill="rgba(0,0,0,0.6)" />
-          {/* 원통형 베이스 */}
-          <ellipse cx="0" cy={1 * scale} rx={1 * scale} ry={0.35 * scale} fill={color} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          <rect x={-1 * scale} y={0.3 * scale} width={2 * scale} height={0.7 * scale} fill={color} stroke="none" />
-          <ellipse cx="0" cy={0.3 * scale} rx={1 * scale} ry={0.35 * scale} fill={highlightColor} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          {/* 층층이 돔 (연구소보다 약간 크게) */}
-          <ellipse cx="0" cy={-0.1 * scale} rx={0.9 * scale} ry={0.32 * scale} fill={darkenColor(color, 5)} stroke={strokeColor} strokeWidth={0.1 * scale} />
-          <ellipse cx="0" cy={-0.5 * scale} rx={0.7 * scale} ry={0.28 * scale} fill={darkenColor(color, 10)} stroke={strokeColor} strokeWidth={0.09 * scale} />
-          <ellipse cx="0" cy={-0.85 * scale} rx={0.5 * scale} ry={0.22 * scale} fill={lightenColor(color, 35)} stroke={strokeColor} strokeWidth={0.08 * scale} />
-          {/* 양쪽 핀들 */}
-          <rect x={-1.1 * scale} y={0.1 * scale} width={0.14 * scale} height={0.9 * scale} fill={shadowColor} stroke={strokeColor} strokeWidth={0.06 * scale} />
-          <rect x={0.96 * scale} y={0.1 * scale} width={0.14 * scale} height={0.9 * scale} fill={shadowColor} stroke={strokeColor} strokeWidth={0.06 * scale} />
-        </g>
-      );
-
-    default:
-      return null;
+  let colorName = 'titanium'; // 기본값 (회색조)
+  for (const [key, hex] of Object.entries(PLANET_COLORS)) {
+    if (hex.toUpperCase() === targetColorHex) {
+      colorName = key;
+      break;
+    }
   }
+
+  // 렌더링할 건물 타입 매핑
+  let buildingType = structureType as string;
+  if (buildingType === 'lost_planet_mine') buildingType = 'mine';
+  if (buildingType === 'academy_left' || buildingType === 'academy_right') buildingType = 'academy';
+
+  // 아카데미, 의회 등은 이미지가 크므로 스케일 적용 (더 크게 조정 -> 피드백 5% 축소)
+  let scaleW = 11.75;
+  let scaleH = 11.75;
+
+  if (buildingType === 'mine') {
+    scaleW = 7.875; scaleH = 7.875;
+  } else if (buildingType === 'trading_station') {
+    // 피드백: 5% 축소
+    scaleW = 8.98; scaleH = 8.98;
+  } else if (buildingType === 'research_lab') {
+    // 피드백: 5% 축소
+    scaleW = 9.83; scaleH = 9.83;
+  }
+
+  // Bounding box 타이트 크롭 후에는 이미지가 여백 없이 꽉 차므로 
+  // 정중앙 위치를 위해 Y 오프셋을 정확히 절반(-scaleH / 2)으로 둡니다.
+  const offsetY = -scaleH / 2;
+
+  return (
+    <g transform={`translate(${-scaleW / 2}, ${offsetY})`}>
+      <image
+        href={`/image/buildings/${colorName}_${buildingType}.png`}
+        width={scaleW}
+        height={scaleH}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ pointerEvents: 'none' }}
+      />
+    </g>
+  );
 };
-
-// 색상 밝게 하는 유틸 함수
-function lightenColor(hex: string, percent: number): string {
-  const num = parseInt(hex.replace('#', ''), 16);
-  const r = Math.min(255, ((num >> 16) & 0xFF) + percent);
-  const g = Math.min(255, ((num >> 8) & 0xFF) + percent);
-  const b = Math.min(255, (num & 0xFF) + percent);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-}
-
-// 색상 어둡게 하는 유틸 함수
-function darkenColor(hex: string, percent: number): string {
-  const num = parseInt(hex.replace('#', ''), 16);
-  const r = Math.max(0, ((num >> 16) & 0xFF) - percent);
-  const g = Math.max(0, ((num >> 8) & 0xFF) - percent);
-  const b = Math.max(0, (num & 0xFF) - percent);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-}
 
 interface GameBoardProps {
   game: GaiaGameState;
@@ -900,26 +740,37 @@ export function GameBoard({
                     )}
 
                     {/* 가이아 포머 표시 (transdim 또는 성숙 가이아에 설치된 경우) */}
-                    {(tile.type === 'transdim' || tile.type === 'gaia') && tile.hasGaiaformer && !hasStructure && (
-                      <g transform="translate(0, 1.5)">
-                        <circle r="1.2" fill="rgba(34, 197, 94, 0.3)" />
-                        <circle r="1" fill="#22c55e" stroke="#16a34a" strokeWidth="0.15" />
-                        <text
-                          y="0.2"
-                          style={{
-                            fill: '#fff',
-                            fontSize: '1px',
-                            fontWeight: 'bold',
-                            textAnchor: 'middle',
-                            dominantBaseline: 'central',
-                            pointerEvents: 'none'
-                          }}
-                        >
-                          GF
-                        </text>
-                      </g>
-                    )}
+                    {tile.hasGaiaformer && (() => {
+                      // ownerId가 있으면 그 플레이어의 색상을, 없으면 로컬 playerId의 색상을 사용 (이전 로직 유지)
+                      const gaiaOwnerId = tile.ownerId || playerId;
+                      const ownerFaction = gaiaOwnerId ? (game.players[gaiaOwnerId]?.faction ? FACTIONS.find(f => f.id === game.players[gaiaOwnerId].faction) : null) : null;
 
+                      const targetColorHex = (ownerFaction?.color || '#4CAF50').toUpperCase();
+                      let colorName = 'titanium';
+                      for (const [key, hex] of Object.entries(PLANET_COLORS)) {
+                        if (hex.toUpperCase() === targetColorHex) {
+                          colorName = key;
+                          break;
+                        }
+                      }
+
+                      // 가이아포머 스케일 지정
+                      const scaleW = 9;
+                      const scaleH = 9;
+                      const offsetY = -scaleH / 2;
+
+                      return (
+                        <g transform={`translate(${-scaleW / 2}, ${offsetY})`}>
+                          <image
+                            href={`/image/buildings/${colorName}_gaiaformer.png`}
+                            width={scaleW}
+                            height={scaleH}
+                            preserveAspectRatio="xMidYMid meet"
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </g>
+                      );
+                    })()}
                     {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
 
                     {/* 모웨이드 링 */}
