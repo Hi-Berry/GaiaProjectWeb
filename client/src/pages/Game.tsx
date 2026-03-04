@@ -91,6 +91,29 @@ export default function Game() {
   const [isBonusSelectionPanelExpanded, setIsBonusSelectionPanelExpanded] = useState(true);
   /** 오른쪽 플레이어 요약: 클릭 시 펼쳐서 연방·기술타일·인공물·Special 사용여부 등 표시 */
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+  /** 맵 줌/팬: 페이즈 전환 시에도 유지 (localStorage 연동) */
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const [isZoomInitialized, setIsZoomInitialized] = useState(false);
+
+  // 로컬 스토리지 로드 (gameId가 준비되면 한 번만)
+  useEffect(() => {
+    if (gameId && !isZoomInitialized) {
+      const savedZoom = localStorage.getItem(`game-zoom-${gameId}`);
+      const savedPan = localStorage.getItem(`game-pan-${gameId}`);
+      if (savedZoom) setMapZoom(parseFloat(savedZoom));
+      if (savedPan) setMapPan(JSON.parse(savedPan));
+      setIsZoomInitialized(true);
+    }
+  }, [gameId, isZoomInitialized]);
+
+  // 로컬 스토리지 저장 (초기화 완료 후에만)
+  useEffect(() => {
+    if (gameId && isZoomInitialized) {
+      localStorage.setItem(`game-zoom-${gameId}`, mapZoom.toString());
+      localStorage.setItem(`game-pan-${gameId}`, JSON.stringify(mapPan));
+    }
+  }, [gameId, mapZoom, mapPan, isZoomInitialized]);
 
   // 패스 시 보너스 타일 선택 대기 상태 확인
   const isPendingBonusSelection = game?.pendingBonusSelection === playerId;
@@ -128,12 +151,14 @@ export default function Game() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key.toLowerCase() === 'f') {
+        const isMyTurn = game?.turnOrder[game?.currentPlayerIndex ?? -1] === playerId;
+        if (!isMyTurn || game?.currentPhase !== 'main') return;
         setIsFreeActionsOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [game, playerId]);
 
   const handleConfirm = () => {
     if (!pendingAction || !gameId) return;
@@ -245,7 +270,7 @@ export default function Game() {
         setIsResearchOpen(prev => !prev);
         setIsBonusTilesOpen(false);
       }
-      if (e.key.toLowerCase() === 'e') {
+      if (e.key.toLowerCase() === 't') {
         setIsBonusTilesOpen(prev => !prev);
         setIsResearchOpen(false);
       }
@@ -657,9 +682,9 @@ export default function Game() {
   const isHost = game && playerId === game.hostId;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background font-sans text-foreground">
-      {/* Sidebar */}
-      <div className="w-80 border-r border-border bg-card flex flex-col shadow-2xl z-20">
+    <div className="flex h-screen overflow-hidden bg-background font-sans text-foreground relative">
+      {/* Sidebar Overlay */}
+      <div className="absolute left-0 top-0 bottom-0 w-80 flex flex-col z-20 pointer-events-none *:pointer-events-auto">
         {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
         {isHost && game && game.turnOrder.length > 1 && (
           <div className="p-2 border-b border-border">
@@ -746,20 +771,26 @@ export default function Game() {
             </Button>
           </div>
         )}
-        <div className="p-4 border-t border-border mt-auto space-y-2">
-          <Button
-            variant={isFreeActionsOpen ? 'default' : 'outline'}
-            className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-purple-500/40 text-purple-300 hover:bg-purple-500/20"
-            onClick={() => {
-              setIsFreeActionsOpen(!isFreeActionsOpen);
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-purple-500/30 border-purple-500/50 text-[8px]">F</Badge>
-              Free Actions
-            </div>
-            {isFreeActionsOpen ? 'Close' : 'Open'}
-          </Button>
+        <div className="p-4 mt-auto space-y-2 pointer-events-none *:pointer-events-auto">
+          {(() => {
+            const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main';
+            return (
+              <Button
+                variant={isFreeActionsOpen ? 'default' : 'outline'}
+                className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-purple-500/40 text-purple-300 hover:bg-purple-500/20 disabled:opacity-30"
+                disabled={!canUseFreeActions}
+                onClick={() => {
+                  if (canUseFreeActions) setIsFreeActionsOpen(!isFreeActionsOpen);
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-purple-500/30 border-purple-500/50 text-[8px]">F</Badge>
+                  Free Actions
+                </div>
+                {isFreeActionsOpen ? 'Close' : 'Open'}
+              </Button>
+            );
+          })()}
           <Button
             variant={isBonusTilesOpen ? 'default' : 'outline'}
             className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95"
@@ -769,8 +800,8 @@ export default function Game() {
             }}
           >
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-black/50 border-white/20 text-[8px]">B</Badge>
-              Bonus Tiles
+              <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-black/50 border-white/20 text-[8px]">T</Badge>
+              Tactical Overview
             </div>
             {isBonusTilesOpen ? 'Close' : 'Open'}
           </Button>
@@ -788,6 +819,22 @@ export default function Game() {
             </div>
             {isResearchOpen ? 'Close' : 'Open'}
           </Button>
+          {/* 아카데미(오른쪽) 보유 시: QIC 받기 (Special) */}
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !currentPlayer?.usedSpecialActions?.includes('academy-qic') && game?.map?.some((t: { ownerId: string | null; structure: string | null; academyType?: string }) => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right') && (
+            <Button
+              variant="outline"
+              className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20"
+              onClick={() => {
+                if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-cyan-500/30 border-cyan-500/50 text-[8px]">S</Badge>
+                {currentPlayer?.faction === 'bal_tak' ? '아카데미 (4C)' : '아카데미 QIC'}
+              </div>
+              Special
+            </Button>
+          )}
           {/* 하이브 전용: 우주정거장 놓기 (Special) — 클릭 시 모달 + 배치 모드 */}
           {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'ivits' && !currentPlayer.usedIvitsSpaceStationThisRound && (
             <Button
@@ -943,6 +990,10 @@ export default function Game() {
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
             onEclipseBuildAsteroidMine={(tileId) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId)}
+            zoomValue={mapZoom}
+            panValue={mapPan}
+            onZoomChange={setMapZoom}
+            onPanChange={setMapPan}
             onBuildMine={(tileId, useGaiaformer) => {
               if (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId)) return;
               const tile = game.map.find(t => t.id === tileId);
@@ -1079,44 +1130,63 @@ export default function Game() {
         </div>
 
         {/* Dashboards Area: 제거 (라운드 보드를 오버레이로 이동함) */}
-
-        {isBonusSelectionPhase && (
-          <div className="border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-4px_24px_rgba(0,0,0,0.4)]">
-            <button
-              type="button"
-              onClick={() => setIsBonusSelectionPanelExpanded((v) => !v)}
-              className="flex items-center justify-between gap-4 w-full px-4 py-3 hover:bg-white/5 transition-colors text-left"
+        <AnimatePresence>
+          {isBonusSelectionPhase && (
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute bottom-0 left-0 right-[340px] border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-40"
             >
-              <div className="flex items-center gap-3">
-                <Gift className="w-5 h-5 text-primary shrink-0" />
-                <span className="font-black uppercase tracking-widest text-white">
-                  Bonus Tile Selection
-                </span>
-                {isMyTurnBonusSelection ? (
-                  <span className="text-xs text-zinc-400">Select your bonus tile</span>
-                ) : (
-                  <span className="text-xs text-amber-400/90 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    Waiting for {waitingPlayerBonus?.name ?? 'other player'}...
+              <button
+                type="button"
+                onClick={() => setIsBonusSelectionPanelExpanded((v) => !v)}
+                className="flex items-center justify-between gap-4 w-full px-6 py-4 hover:bg-white/5 transition-colors text-left"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Gift className="w-6 h-6 text-primary shrink-0" />
+                    {isMyTurnBonusSelection && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full animate-ping" />
+                    )}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-black uppercase tracking-[0.2em] text-white text-sm">
+                      Bonus Tile Selection
+                    </span>
+                    {isMyTurnBonusSelection ? (
+                      <span className="text-[10px] text-zinc-400 font-medium">It's your turn to choose a bonus tile</span>
+                    ) : (
+                      <span className="text-[10px] text-amber-400/90 flex items-center gap-1.5 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        Waiting for {waitingPlayerBonus?.name ?? 'other player'}...
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-8 w-px bg-white/10" />
+                  <span className="text-zinc-400 p-2 hover:bg-white/5 rounded-full transition-colors">
+                    {isBonusSelectionPanelExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
                   </span>
-                )}
-              </div>
-              <span className="text-zinc-400 shrink-0">
-                {isBonusSelectionPanelExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
-              </span>
-            </button>
-            {isBonusSelectionPanelExpanded && (
-              <div className="px-4 pb-4 pt-1 max-h-[50vh] overflow-y-auto border-t border-white/5">
-                <BonusTiles
-                  game={game}
-                  playerId={playerId}
-                  isSelectionMode={isMyTurnBonusSelection}
-                  onSelectBonusTile={(tileId) => GameClient.selectBonusTile(gameId!, tileId)}
-                />
-              </div>
-            )}
-          </div>
-        )}
+                </div>
+              </button>
+              {isBonusSelectionPanelExpanded && (
+                <div className="px-6 pb-6 pt-2 max-h-[45vh] overflow-y-auto border-t border-white/5 custom-scrollbar bg-black/20">
+                  <div className="max-w-6xl mx-auto">
+                    <BonusTiles
+                      game={game}
+                      playerId={playerId}
+                      isSelectionMode={isMyTurnBonusSelection}
+                      onSelectBonusTile={(tileId) => GameClient.selectBonusTile(gameId!, tileId)}
+                    />
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Bonus Tiles Overlay */}
         {isBonusTilesOpen && (
@@ -2283,7 +2353,13 @@ export default function Game() {
             return (
               <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
                 <div
-                  className={`rounded-lg border text-sm overflow-visible ${isYou ? 'bg-primary/15 border-primary/50' : 'bg-muted/50 border-border'} relative`}
+                  className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
+                    ${isCurrentTurn && !p.hasPassed
+                      ? 'border-amber-400/80 bg-amber-500/10 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
+                      : isYou
+                        ? 'bg-primary/15 border-primary/50'
+                        : 'bg-muted/50 border-border'
+                    }`}
                 >
                   <PopoverTrigger asChild>
                     <div
@@ -2304,7 +2380,9 @@ export default function Game() {
                             {/* Toggles */}
                             {isYou && <span className="text-[10px] text-primary flex-shrink-0">(나)</span>}
                             {isCurrentTurn && !p.hasPassed && (
-                              <span className="text-[9px] bg-primary/30 text-primary px-1.5 py-0.5 rounded flex-shrink-0">턴</span>
+                              <span className="flex items-center gap-1 flex-shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
+                              </span>
                             )}
                           </div>
                         </div>
@@ -2321,8 +2399,8 @@ export default function Game() {
                         {/* Resources */}
                         <div className="grid grid-cols-4 gap-x-1 gap-y-0.5 text-[10px] text-muted-foreground">
                           <span className="flex items-baseline">
-                            <span className="text-orange-400 mr-1 font-bold">ORE</span>
-                            <span style={{ color: '#E85D04' }} className="font-black ml-0.5 text-xs">{p.ore ?? 0}</span>
+                            <span className="text-zinc-300 mr-1 font-bold">ORE</span>
+                            <span style={{ color: '#f5f5f0' }} className="font-black ml-0.5 text-xs">{p.ore ?? 0}</span>
                             {inc.ore > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.ore}`})</span>}
                           </span>
                           <span className="flex items-baseline">
@@ -2341,7 +2419,7 @@ export default function Game() {
                             {inc.qic > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.qic}`})</span>}
                           </span>
 
-                          <div className="col-span-4 flex items-center justify-between border-t border-white/10 pt-1 mt-0.5">
+                          <div className="col-span-4 flex items-center justify-between border-t border-white/5 pt-0.5 mt-0 gap-1">
                             {/* Gaiaformers Status - Dots (Highlighted = Available, X = Destroyed, Dim = Map) */}
                             <div className="flex gap-1 items-center" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
                               {(() => {
@@ -2351,20 +2429,20 @@ export default function Game() {
                                 const destroyedGF = p.destroyedGaiaformers ?? 0;
                                 const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
 
-                                if (totalGF === 0) return <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-tighter">No Gf</span>;
+                                if (totalGF === 0) return <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-tighter leading-none opacity-40">No GF</span>;
 
                                 const dots = [];
-                                // 1. Destroyed (X)
+                                // 1. Destroyed (Red)
                                 for (let i = 0; i < destroyedGF; i++) {
-                                  dots.push(<span key={`d-${i}`} className="text-red-500 font-black text-[10px] leading-none mb-0.5">X</span>);
+                                  dots.push(<div key={`d-${i}`} className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.4)]" />);
                                 }
                                 // 2. Available (Glow)
                                 for (let i = 0; i < availableGF; i++) {
                                   dots.push(<div key={`a-${i}`} className="w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
                                 }
-                                // 3. On Map (Dim)
+                                // 3. On Map (Purple)
                                 for (let i = 0; i < onMapGF; i++) {
-                                  dots.push(<div key={`m-${i}`} className="w-1.5 h-1.5 rounded-full bg-teal-950 border border-teal-500/20 transition-colors" />);
+                                  dots.push(<div key={`m-${i}`} className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_3px_rgba(168,85,247,0.4)] transition-colors" />);
                                 }
 
                                 return dots.slice(0, totalGF); // Ensure we don't exceed total capacity displayed
@@ -2379,9 +2457,27 @@ export default function Game() {
                                 </div>
                                 <div className="w-[1px] h-3 bg-white/10 shrink-0" />
                                 <div className="flex gap-1.5 items-center">
-                                  <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
-                                  <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
-                                  <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
+                                  <span className="flex items-center gap-0.5">
+                                    <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
+                                    {p.faction === 'taklons' && (p as any).brainStoneBowl === 1 && !(p as any).brainStoneInGaia && (
+                                      <span className="text-[8px] leading-none">🧠</span>
+                                    )}
+                                  </span>
+                                  <span className="flex items-center gap-0.5">
+                                    <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
+                                    {p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia && (
+                                      <span className="text-[8px] leading-none">🧠</span>
+                                    )}
+                                  </span>
+                                  <span className="flex items-center gap-0.5">
+                                    <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
+                                    {p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia && (
+                                      <span className="text-[8px] leading-none">🧠</span>
+                                    )}
+                                  </span>
+                                  {p.faction === 'taklons' && (p as any).brainStoneInGaia && (
+                                    <span className="text-emerald-400 text-[8px] font-bold" title="브레인스톤: 가이아 구역">🧠G</span>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex gap-1.5 items-center justify-end">
@@ -2417,9 +2513,6 @@ export default function Game() {
                             />
                           );
                         })()}
-                        <span className="text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity text-[10px] mt-2 font-bold tracking-tighter">
-                          상세 ◀
-                        </span>
                       </div>
                     </div>
                   </PopoverTrigger>
@@ -2505,45 +2598,28 @@ export default function Game() {
                         </div>
                       )}
                       {p.bonusTile && (() => {
-                        const bonus = ALL_BONUS_TILES.find((t) => t.id === p.bonusTile);
-                        return bonus ? (
-                          <div>
-                            <span className="text-muted-foreground">보너스 </span>
-                            <span className="text-amber-200/90 font-medium">{bonus.label}</span>
-                            {bonus.specialAction && (
-                              <span className="text-zinc-500 ml-1 text-[8px] opacity-70">
-                                (Special)
-                              </span>
-                            )}
+                        const bonus = ALL_BONUS_TILES.find(t => t.id === p.bonusTile);
+                        if (!bonus?.specialAction) return null;
+                        const actionNames: Record<string, string> = {
+                          'terraform_step': '1테라',
+                          'gaia_project': '가이아',
+                          'range_3': '+3거리'
+                        };
+                        const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
+                        const isUsed = p.usedBonusAction;
+                        return (
+                          <div className="mb-1">
+                            <span className={`px-1.5 py-0.5 rounded-[3px] text-[9px] border ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold'}`}>
+                              보너스 Special: {actionLabel}
+                            </span>
                           </div>
-                        ) : null;
+                        );
                       })()}
 
                       {/* Unified Special Actions Status */}
                       <div className="mt-1 pb-1 space-y-1">
                         <span className="text-muted-foreground font-medium block h-4">스페셜 액션</span>
                         <div className="flex flex-wrap gap-1">
-                          {/* Bonus Tile Special Action */}
-                          {(() => {
-                            const bonus = ALL_BONUS_TILES.find((t) => t.id === p.bonusTile);
-                            if (!bonus?.specialAction) return null;
-                            const isUsed = p.usedBonusAction;
-                            const actionNames: Record<string, string> = {
-                              'terraform_step': '1테라',
-                              'gaia_project': '가이아',
-                              'range_3': '+3거리'
-                            };
-                            const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
-                            return (
-                              <span
-                                key="bonus-spec"
-                                className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold'}`}
-                                title={`보너스 타일: ${bonus.label}`}
-                              >
-                                보너스:{actionLabel}
-                              </span>
-                            );
-                          })()}
 
                           {/* Tech Tile Special Actions */}
                           {(p.techTiles ?? []).map((tid) => {
@@ -2650,8 +2726,8 @@ export default function Game() {
           </Badge>
         </div>
 
-        {/* Game Log */}
-        <div className="mt-4 pt-4 border-t flex-1 flex flex-col min-h-0">
+        {/* Game Log - Expanded height */}
+        <div className="mt-4 pt-4 border-t flex-[3] flex flex-col min-h-[300px]">
           <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm shrink-0">
             <Clock className="w-4 h-4" />
             Game Log
@@ -2707,6 +2783,17 @@ export default function Game() {
                         <span className="text-zinc-400 font-medium">{log.details}</span>
                       )}
                     </div>
+
+                    {/* Sub Logs (Nested actions like power reception) */}
+                    {log.subLogs && log.subLogs.length > 0 && (
+                      <div className="mt-1 pl-2 border-l border-white/10 space-y-0.5">
+                        {log.subLogs.map((sub, sidx) => (
+                          <div key={sidx} className="text-[10px] text-zinc-500 font-medium leading-tight opacity-80 hover:opacity-100 transition-opacity">
+                            {sub.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -2714,8 +2801,8 @@ export default function Game() {
           </div>
         </div>
 
-        {/* Debug Panel - now inside sidebar */}
-        <div className="mt-4 pt-4 border-t flex-1 overflow-y-auto">
+        {/* Debug Panel - reduced flex to give more space to log */}
+        <div className="mt-8 pt-6 border-t-2 border-white/5 flex-none overflow-y-auto max-h-[30vh]">
           <DebugPanel game={game} playerId={playerId} />
         </div>
 
@@ -2727,6 +2814,9 @@ export default function Game() {
           playerId={playerId}
           isCurrentTurn={isCurrentTurn}
           onConvertResource={(type, useBrain) => GameClient.convertResource(gameId!, type, useBrain)}
+          onBurnPower={(useBrain) => {
+            if (gameId) GameClient.burnPower(gameId, useBrain);
+          }}
           onUseBalTakGaiaformerToQic={() => {
             if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
           }}

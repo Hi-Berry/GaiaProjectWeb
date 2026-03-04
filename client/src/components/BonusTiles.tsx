@@ -20,7 +20,7 @@ function getBonusIcon(tile: BonusTile) {
   if (tile.income?.power && tile.income.power >= 4) return <Zap className="w-3 h-3 text-purple-400" />;
   if (tile.income?.knowledge) return <FlaskConical className="w-3 h-3 text-blue-400" />;
   if (tile.income?.credits && tile.income.credits >= 3) return <Coins className="w-3 h-3 text-yellow-400" />;
-  if (tile.income?.ore) return <Gem className="w-3 h-3 text-orange-400" />;
+  if (tile.income?.ore) return <Gem className="w-3 h-3 text-zinc-400" />;
   return <Gift className="w-3 h-3 text-zinc-400" />;
 }
 
@@ -313,7 +313,7 @@ export function PlayerBonusTile({
         {/* Income badges */}
         <div className="flex flex-wrap gap-1 mb-2">
           {tile.income?.ore && (
-            <Badge variant="outline" className="text-[7px] bg-orange-500/10 border-orange-500/20 text-orange-400 px-1.5 py-0">
+            <Badge variant="outline" className="text-[7px] bg-zinc-500/10 border-zinc-500/20 text-zinc-100 px-1.5 py-0">
               +{tile.income.ore}O
             </Badge>
           )}

@@ -17,6 +17,7 @@ interface FreeActionsDialogProps {
     playerId: string | null;
     isCurrentTurn: boolean;
     onConvertResource: (type: string, useBrain?: boolean) => void;
+    onBurnPower: (useBrain?: boolean) => void;
     onUseBalTakGaiaformerToQic?: () => void;
     onUndoFreeAction?: () => void;
 }
@@ -28,6 +29,7 @@ export function FreeActionsDialog({
     playerId,
     isCurrentTurn,
     onConvertResource,
+    onBurnPower,
     onUseBalTakGaiaformerToQic,
     onUndoFreeAction,
 }: FreeActionsDialogProps) {
@@ -76,7 +78,7 @@ export function FreeActionsDialog({
                         <div className="grid grid-cols-4 gap-2 border border-white/10 rounded-lg p-2 bg-zinc-900/40">
                             <div className="text-center">
                                 <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Ore</div>
-                                <div className="text-sm font-black text-orange-400">{currentPlayer.ore}</div>
+                                <div className="text-sm font-black text-zinc-100">{currentPlayer.ore}</div>
                             </div>
                             <div className="text-center">
                                 <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Know</div>
@@ -113,6 +115,41 @@ export function FreeActionsDialog({
                         </div>
 
                         <h4 className="text-xs uppercase font-black tracking-[0.2em] text-muted-foreground text-center">
+                            Power Actions
+                        </h4>
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-10 text-[11px] bg-purple-900/20 hover:bg-purple-900/40 border-purple-500/30 text-purple-200"
+                                    disabled={!isCurrentTurn || (currentPlayer.power2 ?? 0) < 2}
+                                    onClick={() => onBurnPower(false)}
+                                    title="Bowl 2: 2 tokens -> Bowl 3: 1 token (Itars: 1 into Gaia)"
+                                >
+                                    Power Burn (2➔1)
+                                </Button>
+                                {currentPlayer.faction === 'taklons' && (currentPlayer as any).brainStoneBowl === 2 && !(currentPlayer as any).brainStoneInGaia && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-10 text-[11px] bg-amber-900/30 hover:bg-amber-800/40 border-amber-500/40 text-amber-200"
+                                        disabled={!isCurrentTurn || (currentPlayer.power2 ?? 0) < 2}
+                                        onClick={() => onBurnPower(true)}
+                                        title="Bowl 2: Brainstone -> Bowl 3"
+                                    >
+                                        Burn Brainstone
+                                    </Button>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-zinc-500 text-center leading-tight">
+                                {currentPlayer.faction === 'itars'
+                                    ? "Itars: Bowl 2에서 2개를 제거하여 1개는 Bowl 3로, 1개는 가이아 구역으로 보냅니다."
+                                    : "Bowl 2에서 2개를 제거하여 1개는 Bowl 3로 보냅니다 (토큰 1개 영구 손실)."}
+                            </p>
+                        </div>
+
+                        <h4 className="text-xs uppercase font-black tracking-[0.2em] text-muted-foreground text-center mt-4">
                             Trade Conversions
                         </h4>
                         <div className="grid grid-cols-2 gap-2">

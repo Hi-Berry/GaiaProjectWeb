@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { HexGrid, Layout, Hexagon, Text } from 'react-hexgrid';
 import { motion } from 'framer-motion';
 
@@ -155,6 +155,11 @@ interface GameBoardProps {
   moweyipPlaceRingMode?: boolean;
   onMoweyipPlaceRing?: (tileId: string) => void;
   onCancelMoweyipPlaceRing?: () => void;
+  /** 줌/팬 상태 외부 제어 (phase 전환 시에도 유지) */
+  zoomValue?: number;
+  panValue?: { x: number; y: number };
+  onZoomChange?: (zoom: number) => void;
+  onPanChange?: (pan: { x: number; y: number }) => void;
 }
 
 
@@ -194,11 +199,62 @@ export function GameBoard({
   moweyipPlaceRingMode = false,
   onMoweyipPlaceRing,
   onCancelMoweyipPlaceRing,
+  zoomValue,
+  panValue,
+  onZoomChange,
+  onPanChange,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoomInternal] = useState(zoomValue ?? 1);
+  const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
+  const isSyncingRef = useRef(false);
+
+  // 부모 props(zoomValue, panValue)가 변경되면(예: 페이즈 전환 후 리마운트) 내부 상태 동기화
+  useEffect(() => {
+    if (zoomValue !== undefined && Math.abs(zoomValue - zoom) > 0.001) {
+      isSyncingRef.current = true;
+      setZoomInternal(zoomValue);
+      setTimeout(() => { isSyncingRef.current = false; }, 0);
+    }
+  }, [zoomValue]);
+
+  useEffect(() => {
+    if (panValue !== undefined && (Math.abs(panValue.x - pan.x) > 0.1 || Math.abs(panValue.y - pan.y) > 0.1)) {
+      isSyncingRef.current = true;
+      setPanInternal(panValue);
+      setTimeout(() => { isSyncingRef.current = false; }, 0);
+    }
+  }, [panValue?.x, panValue?.y]);
+
+  const setZoom = (v: number | ((prev: number) => number)) => {
+    setZoomInternal(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      // onZoomChange는 useEffect를 통해 호출하거나 여기서 직접 호출 (안전하게 감쌀 것)
+      return next;
+    });
+  };
+
+  const setPan = (v: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => {
+    setPanInternal(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      return next;
+    });
+  };
+
+  // 내부 상태가 바뀌었을 때만 부모 알림 (useEffect 사용)
+  // 마운트 시에는 부모 값으로 이미 초기화되었으므로 리셋 방지를 위해 동기화 중이 아닐 때만 업데이트
+  useEffect(() => {
+    if (!isSyncingRef.current) {
+      onZoomChange?.(zoom);
+    }
+  }, [zoom]);
+
+  useEffect(() => {
+    if (!isSyncingRef.current) {
+      onPanChange?.(pan);
+    }
+  }, [pan.x, pan.y]);
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [hasDragged, setHasDragged] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -769,6 +825,14 @@ export function GameBoard({
                         </g>
                       );
                     })()}
+
+                    {/* 파괴된 (spent) 가이아포머 표시 (소행성 등) */}
+                    {tile.destroyedGaiaformer && (
+                      <g>
+                        <circle r="1.3" fill="none" stroke="#ef4444" strokeWidth="0.45" opacity="0.8" />
+                        <circle r="0.9" fill="#ef4444" opacity="0.3" />
+                      </g>
+                    )}
                     {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
 
                     {/* 모웨이드 링 */}
@@ -866,11 +930,12 @@ export function GameBoard({
           >
             <RotateCcw className="w-4 h-4" />
           </Button>
+          <div className="bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-zinc-300 text-center shadow-xl">
+            {Math.round(zoom * 100)}%
+          </div>
         </div>
 
-        <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg p-3 border border-white/10">
-          <p className="text-xs text-muted-foreground">Scroll to zoom | Drag to pan</p>
-        </div>
+
       </div>
 
       {/* 행성/타일 선택 패널: 절대 위치 오버레이로 맵 영역 크기에 영향 없음 */}

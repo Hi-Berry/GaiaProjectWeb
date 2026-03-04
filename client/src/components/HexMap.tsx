@@ -334,10 +334,6 @@ export function HexMap() {
         </div>
       </div>
 
-      {/* Instructions */}
-      <div className="absolute top-4 left-4 bg-card/60 backdrop-blur border border-white/10 px-3 py-2 rounded-lg text-xs text-muted-foreground">
-        <span className="opacity-70">Scroll to zoom | Drag to pan</span>
-      </div>
 
       <TileActionModal
         tile={selectedTile}
