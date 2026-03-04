@@ -96,11 +96,10 @@ export function TechTileSelectionModal({
                   <div
                     key={track.id}
                     onClick={() => handleTileClick(tile.id)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]'
-                        : 'bg-zinc-900/50 border-white/10 hover:border-white/30 hover:bg-zinc-800/50'
-                    }`}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected
+                      ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]'
+                      : 'bg-zinc-900/50 border-white/10 hover:border-white/30 hover:bg-zinc-800/50'
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <Badge variant="outline" className="text-[9px] font-black uppercase">
@@ -112,9 +111,13 @@ export function TechTileSelectionModal({
                         </div>
                       )}
                     </div>
-                    <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">
-                      {tile.label}
-                    </div>
+                    {tile.image ? (
+                      <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain mb-2" />
+                    ) : (
+                      <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">
+                        {tile.label}
+                      </div>
+                    )}
                     <div className="text-[9px] text-zinc-400 line-clamp-2">
                       {tile.description}
                     </div>
@@ -143,12 +146,15 @@ export function TechTileSelectionModal({
                     <div
                       key={tile.id}
                       onClick={() => { setSelectedTileId(tile.id); setSelectedTrackId(null); }}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        isSelected ? 'bg-cyan-500/20 border-cyan-500' : 'bg-zinc-900/50 border-cyan-500/30 hover:border-cyan-500/60'
-                      }`}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'bg-cyan-500/20 border-cyan-500' : 'bg-zinc-900/50 border-cyan-500/30 hover:border-cyan-500/60'
+                        }`}
                     >
                       <Badge variant="outline" className="text-[9px] font-black uppercase bg-cyan-500/10 border-cyan-500/30 text-cyan-400 mb-2">Ship</Badge>
-                      <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">{tile.label}</div>
+                      {tile.image ? (
+                        <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain mb-2" />
+                      ) : (
+                        <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">{tile.label}</div>
+                      )}
                       <div className="text-[9px] text-zinc-400 line-clamp-2">{tile.description}</div>
                     </div>
                   );
@@ -171,11 +177,10 @@ export function TechTileSelectionModal({
                   <div
                     key={tile.id}
                     onClick={() => handleTileClick(tile.id)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-yellow-500/20 border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
-                        : 'bg-zinc-900/50 border-yellow-500/20 hover:border-yellow-500/50 hover:bg-zinc-800/50'
-                    }`}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected
+                      ? 'bg-yellow-500/20 border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
+                      : 'bg-zinc-900/50 border-yellow-500/20 hover:border-yellow-500/50 hover:bg-zinc-800/50'
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <Badge variant="outline" className="text-[9px] font-black uppercase bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
@@ -187,9 +192,13 @@ export function TechTileSelectionModal({
                         </div>
                       )}
                     </div>
-                    <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">
-                      {tile.label}
-                    </div>
+                    {tile.image ? (
+                      <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain mb-2" />
+                    ) : (
+                      <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">
+                        {tile.label}
+                      </div>
+                    )}
                     <div className="text-[9px] text-zinc-400 line-clamp-2">
                       {tile.description}
                     </div>
@@ -219,11 +228,10 @@ export function TechTileSelectionModal({
                     <button
                       key={track.id}
                       onClick={() => setSelectedTrackId(track.id)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        isSelected
-                          ? 'bg-primary/20 border-primary'
-                          : 'bg-zinc-900/50 border-white/10 hover:border-white/30'
-                      }`}
+                      className={`p-3 rounded-lg border-2 transition-all ${isSelected
+                        ? 'bg-primary/20 border-primary'
+                        : 'bg-zinc-900/50 border-white/10 hover:border-white/30'
+                        }`}
                     >
                       <div className="text-[10px] font-black uppercase text-zinc-100">
                         {track.name}

@@ -166,6 +166,7 @@ export interface TechTile {
   id: string;
   label: string;
   description: string;
+  image?: string;
   isAdvanced?: boolean;
   specialAction?: string | null;
 }
@@ -624,22 +625,22 @@ export const INITIAL_POWER_ACTIONS: PowerAction[] = [
 ];
 
 export const ALL_TECH_TILES: TechTile[] = [
-  { id: 'tech-inc-1o-1p', label: 'INC: 1O, 1P', description: 'Income Phase: Gain 1 Ore and 1 Power Charge.' },
-  { id: 'tech-inc-4c', label: 'INC: 4C', description: 'Income Phase: Gain 4 Credits.' },
-  { id: 'tech-inc-1k-1c', label: 'INC: 1K, 1C', description: 'Income Phase: Gain 1 Knowledge and 1 Credit.' },
-  { id: 'tech-imm-7vp', label: '7VP', description: 'Gain 7 VP immediately. One-time bonus.' },
-  { id: 'tech-imm-1k-planet', label: '1K/Type', description: 'Gain 1 Knowledge for each planet type you have colonized.' },
-  { id: 'tech-imm-1o-1q', label: '1O, 1Q', description: 'Gain 1 Ore and 1 QIC immediately.' },
-  { id: 'tech-gaia-3vp', label: 'Gaia: +3VP', description: 'When you build a Mine on a Gaia Planet, gain 3 VP.' },
-  { id: 'tech-big-4str', label: 'Big: 4Str', description: 'Your Planetary Institute and Academies count as 4 strength for Federations.' },
-  { id: 'tech-act-4p', label: 'ACT: 4P', description: 'Action: Gain 4 Power. (Use once per round)', specialAction: '4power' },
+  { id: 'tech-inc-1o-1p', label: 'INC: 1O, 1P', description: 'Income Phase: Gain 1 Ore and 1 Power Charge.', image: '/tech/TechTile_B1.png' },
+  { id: 'tech-inc-4c', label: 'INC: 4C', description: 'Income Phase: Gain 4 Credits.', image: '/tech/TechTile_B2.png' },
+  { id: 'tech-inc-1k-1c', label: 'INC: 1K, 1C', description: 'Income Phase: Gain 1 Knowledge and 1 Credit.', image: '/tech/TechTile_B3.png' },
+  { id: 'tech-imm-7vp', label: '7VP', description: 'Gain 7 VP immediately. One-time bonus.', image: '/tech/TechTile_B4.png' },
+  { id: 'tech-imm-1k-planet', label: '1K/Type', description: 'Gain 1 Knowledge for each planet type you have colonized.', image: '/tech/TechTile_B5.png' },
+  { id: 'tech-imm-1o-1q', label: '1O, 1Q', description: 'Gain 1 Ore and 1 QIC immediately.', image: '/tech/TechTile_B6.png' },
+  { id: 'tech-gaia-3vp', label: 'Gaia: +3VP', description: 'When you build a Mine on a Gaia Planet, gain 3 VP.', image: '/tech/TechTile_B7.png' },
+  { id: 'tech-big-4str', label: 'Big: 4Str', description: 'Your Planetary Institute and Academies count as 4 strength for Federations.', image: '/tech/TechTile_B8.png' },
+  { id: 'tech-act-4p', label: 'ACT: 4P', description: 'Action: Gain 4 Power. (Use once per round)', specialAction: '4power', image: '/tech/TechTile_B9.png' },
 ];
 
 /** 우주선 전용 기술 타일 (해당 우주선 입장 시에만 선택 가능) */
 export const SHIP_TECH_TILES: TechTile[] = [
-  { id: 'ship-tech-nav+1', label: 'Ship: Nav+1', description: 'Permanent +1 to Navigation (range).', isAdvanced: true },
-  { id: 'ship-tech-1o3k', label: 'Ship: 1O 3K', description: 'Immediately gain 1 Ore and 3 Knowledge.', isAdvanced: true },
-  { id: 'ship-tech-2tf-mine', label: 'Ship: 2TF+Mine', description: '2 terraform steps then build 1 mine for free (no ore/credits).', isAdvanced: true },
+  { id: 'ship-tech-nav+1', label: 'Ship: Nav+1', description: 'Permanent +1 to Navigation (range).', isAdvanced: true, image: '/tech/TechTile_B10.png' },
+  { id: 'ship-tech-1o3k', label: 'Ship: 1O 3K', description: 'Immediately gain 1 Ore and 3 Knowledge.', isAdvanced: true, image: '/tech/TechTile_B11.png' },
+  { id: 'ship-tech-2tf-mine', label: 'Ship: 2TF+Mine', description: '2 terraform steps then build 1 mine for free (no ore/credits).', isAdvanced: true, image: '/tech/TechTile_B12.png' },
 ];
 
 /** 우주선 타입별 전용 기술 타일 ID (각 우주선 1개씩) */
@@ -662,35 +663,35 @@ export const BRIDGE_SPECS: { sideA: PlanetType[], sideB: PlanetType[] }[] = [
 
 export const ALL_ADVANCED_TECH_TILES: TechTile[] = [
   // 1. 액션으로 자원 얻기 (3개)
-  { id: 'adv-act-3k', label: 'ACT: 3K', description: 'Action: Gain 3 Knowledge.', isAdvanced: true, specialAction: '3knowledge' },
-  { id: 'adv-act-3o', label: 'ACT: 3O', description: 'Action: Gain 3 Ore.', isAdvanced: true, specialAction: '3ore' },
-  { id: 'adv-act-1q-5c', label: 'ACT: 1Q+5C', description: 'Action: Gain 1 QIC and 5 Credits.', isAdvanced: true, specialAction: '1qic_5credits' },
+  { id: 'adv-act-3k', label: 'ACT: 3K', description: 'Action: Gain 3 Knowledge.', isAdvanced: true, specialAction: '3knowledge', image: '/tech/TechTile_A1.png' },
+  { id: 'adv-act-3o', label: 'ACT: 3O', description: 'Action: Gain 3 Ore.', isAdvanced: true, specialAction: '3ore', image: '/tech/TechTile_A2.png' },
+  { id: 'adv-act-1q-5c', label: 'ACT: 1Q+5C', description: 'Action: Gain 1 QIC and 5 Credits.', isAdvanced: true, specialAction: '1qic_5credits', image: '/tech/TechTile_A3.png' },
 
   // 2. 액션마다 점수 얻기 (5개)
-  { id: 'adv-vp-build-mine', label: '3VP/Mine Built', description: 'Gain 3VP each time you build a mine.', isAdvanced: true },
-  { id: 'adv-vp-build-ts', label: '3VP/TS Built', description: 'Gain 3VP each time you build a trading station.', isAdvanced: true },
-  { id: 'adv-vp-research', label: '2VP/Research', description: 'Gain 2VP each time you advance on a research track.', isAdvanced: true },
-  { id: 'adv-vp-terraform', label: '2VP/Terraform', description: 'Gain 2VP for each terraforming step.', isAdvanced: true },
-  { id: 'adv-vp-qic-action', label: '4VP/QIC Action', description: 'Gain 4VP each time you take a QIC action.', isAdvanced: true },
+  { id: 'adv-vp-build-mine', label: '3VP/Mine Built', description: 'Gain 3VP each time you build a mine.', isAdvanced: true, image: '/tech/TechTile_A4.png' },
+  { id: 'adv-vp-build-ts', label: '3VP/TS Built', description: 'Gain 3VP each time you build a trading station.', isAdvanced: true, image: '/tech/TechTile_A5.png' },
+  { id: 'adv-vp-research', label: '2VP/Research', description: 'Gain 2VP each time you advance on a research track.', isAdvanced: true, image: '/tech/TechTile_A6.png' },
+  { id: 'adv-vp-terraform', label: '2VP/Terraform', description: 'Gain 2VP for each terraforming step.', isAdvanced: true, image: '/tech/TechTile_A7.png' },
+  { id: 'adv-vp-qic-action', label: '4VP/QIC Action', description: 'Gain 4VP each time you take a QIC action.', isAdvanced: true, image: '/tech/TechTile_A8.png' },
 
   // 3. 일시불 자원 (1개)
-  { id: 'adv-imm-1o-sector', label: '1O/Sector', description: 'Immediately gain 1 Ore for each sector you occupy.', isAdvanced: true },
+  { id: 'adv-imm-1o-sector', label: '1O/Sector', description: 'Immediately gain 1 Ore for each sector you occupy.', isAdvanced: true, image: '/tech/TechTile_A9.png' },
 
   // 4. 일시불 점수 (7개)
-  { id: 'adv-imm-4vp-ts', label: '4VP/TS', description: 'Immediately gain 4VP for each trading station (counted after upgrade if taken with Lab).', isAdvanced: true },
-  { id: 'adv-imm-2vp-mine', label: '2VP/Mine', description: 'Immediately gain 2VP for each mine.', isAdvanced: true },
-  { id: 'adv-imm-2vp-sector', label: '2VP/Sector', description: 'Immediately gain 2VP for each sector you occupy.', isAdvanced: true },
-  { id: 'adv-imm-4vp-outer', label: '4VP/Outer', description: 'Immediately gain 4VP for each outer sector (C-sectors) you occupy.', isAdvanced: true },
-  { id: 'adv-imm-6vp-big', label: '6VP/Big Bldg', description: 'Immediately gain 6VP for each big building (PI & Academy).', isAdvanced: true },
-  { id: 'adv-imm-2vp-gaia', label: '2VP/Gaia', description: 'Immediately gain 2VP for each Gaia planet you occupy.', isAdvanced: true },
-  { id: 'adv-imm-5vp-fed', label: '5VP/Federation', description: 'Immediately gain 5VP for each federation.', isAdvanced: true },
+  { id: 'adv-imm-4vp-ts', label: '4VP/TS', description: 'Immediately gain 4VP for each trading station (counted after upgrade if taken with Lab).', isAdvanced: true, image: '/tech/TechTile_A10.png' },
+  { id: 'adv-imm-2vp-mine', label: '2VP/Mine', description: 'Immediately gain 2VP for each mine.', isAdvanced: true, image: '/tech/TechTile_A11.png' },
+  { id: 'adv-imm-2vp-sector', label: '2VP/Sector', description: 'Immediately gain 2VP for each sector you occupy.', isAdvanced: true, image: '/tech/TechTile_A12.png' },
+  { id: 'adv-imm-4vp-outer', label: '4VP/Outer', description: 'Immediately gain 4VP for each outer sector (C-sectors) you occupy.', isAdvanced: true, image: '/tech/TechTile_A13.png' },
+  { id: 'adv-imm-6vp-big', label: '6VP/Big Bldg', description: 'Immediately gain 6VP for each big building (PI & Academy).', isAdvanced: true, image: '/tech/TechTile_A14.png' },
+  { id: 'adv-imm-2vp-gaia', label: '2VP/Gaia', description: 'Immediately gain 2VP for each Gaia planet you occupy.', isAdvanced: true, image: '/tech/TechTile_A15.png' },
+  { id: 'adv-imm-5vp-fed', label: '5VP/Federation', description: 'Immediately gain 5VP for each federation.', isAdvanced: true, image: '/tech/TechTile_A16.png' },
 
   // 5. 패스 시 점수 (5개)
-  { id: 'adv-pass-1vp-type', label: 'Pass:1VP/Type', description: 'When passing: Gain 1VP for each planet type you colonized.', isAdvanced: true },
-  { id: 'adv-pass-3vp-lab', label: 'Pass:3VP/Lab', description: 'When passing: Gain 3VP for each research lab.', isAdvanced: true },
-  { id: 'adv-pass-3vp-fed', label: 'Pass:3VP/Fed', description: 'When passing: Gain 3VP for each federation.', isAdvanced: true },
-  { id: 'adv-pass-2vp-asteroid', label: 'Pass:2VP/Asteroid', description: 'When passing: Gain 2VP for each asteroid you occupy.', isAdvanced: true },
-  { id: 'adv-pass-2vp-outer', label: 'Pass:2VP/Outer', description: 'When passing: Gain 2VP for each outer sector (C-sectors) you occupy.', isAdvanced: true },
+  { id: 'adv-pass-1vp-type', label: 'Pass:1VP/Type', description: 'When passing: Gain 1VP for each planet type you colonized.', isAdvanced: true, image: '/tech/TechTile_A17.png' },
+  { id: 'adv-pass-3vp-lab', label: 'Pass:3VP/Lab', description: 'When passing: Gain 3VP for each research lab.', isAdvanced: true, image: '/tech/TechTile_A18.png' },
+  { id: 'adv-pass-3vp-fed', label: 'Pass:3VP/Fed', description: 'When passing: Gain 3VP for each federation.', isAdvanced: true, image: '/tech/TechTile_A19.png' },
+  { id: 'adv-pass-2vp-asteroid', label: 'Pass:2VP/Asteroid', description: 'When passing: Gain 2VP for each asteroid you occupy.', isAdvanced: true, image: '/tech/TechTile_A20.png' },
+  { id: 'adv-pass-2vp-outer', label: 'Pass:2VP/Outer', description: 'When passing: Gain 2VP for each outer sector (C-sectors) you occupy.', isAdvanced: true, image: '/tech/TechTile_A21.png' },
 ];
 
 export interface Faction {

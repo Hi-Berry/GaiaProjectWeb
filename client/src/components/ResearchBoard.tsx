@@ -134,10 +134,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 key={tile.id}
                                                 type="button"
                                                 onClick={() => onSelectTechTile && onSelectTechTile(tile.id, track.id)}
-                                                className="p-2 rounded-lg border border-white/20 bg-zinc-900/80 hover:border-yellow-500/50 relative group w-full text-left"
+                                                className="p-2 rounded-lg border border-white/20 bg-zinc-900/80 hover:border-yellow-500/50 relative group w-full flex flex-col items-center gap-1"
                                             >
-                                                <div className="text-[9px] font-bold text-zinc-100 truncate">{tile.label}</div>
-                                                <div className="text-[8px] text-zinc-500 truncate" title={tile.description}>{tile.description}</div>
+                                                {tile.image ? (
+                                                    <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />
+                                                ) : (
+                                                    <div className="text-[9px] font-bold text-zinc-100 truncate">{tile.label}</div>
+                                                )}
                                                 <div className="absolute -top-1 -right-1 bg-yellow-600 text-white text-[8px] px-1 rounded-full font-bold shadow-sm">
                                                     {count}
                                                 </div>
@@ -163,10 +166,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 key={tile.id}
                                                 type="button"
                                                 onClick={() => setSelectedTileIdNeedingTrack(tile.id)}
-                                                className="p-2 rounded-lg border border-yellow-500/30 bg-zinc-900/80 hover:border-yellow-500 relative group"
+                                                className="p-2 rounded-lg border border-yellow-500/30 bg-zinc-900/80 hover:border-yellow-500 relative group flex flex-col items-center gap-1"
                                             >
-                                                <div className="text-[9px] font-bold text-zinc-100 truncate">{tile.label}</div>
-                                                <div className="text-[8px] text-zinc-500 truncate">{tile.description}</div>
+                                                {tile.image ? (
+                                                    <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />
+                                                ) : (
+                                                    <div className="text-[9px] font-bold text-zinc-100 truncate">{tile.label}</div>
+                                                )}
                                                 <div className="absolute -top-1 -right-1 bg-yellow-600 text-white text-[8px] px-1 rounded-full font-bold shadow-sm">
                                                     {count}
                                                 </div>
@@ -196,10 +202,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         key={tile.id}
                                                         type="button"
                                                         onClick={() => onSelectTechTile(tile.id)}
-                                                        className="p-3 rounded-lg border-2 border-yellow-500/40 bg-zinc-900/80 hover:border-yellow-500 text-left relative group"
+                                                        className="p-2 rounded-lg border-2 border-yellow-500/40 bg-zinc-900/80 hover:border-yellow-500 flex flex-col items-center gap-1 relative group"
                                                     >
-                                                        <div className="text-[10px] font-bold text-zinc-100">{tile.label}</div>
-                                                        <div className="text-[8px] text-zinc-500 truncate">{tile.description}</div>
+                                                        {tile.image ? (
+                                                            <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />
+                                                        ) : (
+                                                            <div className="text-[10px] font-bold text-zinc-100">{tile.label}</div>
+                                                        )}
                                                         {count > 0 && (
                                                             <div className="absolute -top-1 -right-1 bg-yellow-600 text-white text-[8px] px-1 rounded-full font-bold shadow-sm">
                                                                 {count}
@@ -310,8 +319,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         }
                                                     }}
                                                 >
-                                                    <div className="text-[9px] font-black text-center text-zinc-100 uppercase truncate leading-none py-1">
-                                                        {trackTile.label}
+                                                    <div className="flex flex-col items-center justify-center gap-0.5">
+                                                        {trackTile.image ? (
+                                                            <img src={trackTile.image} alt={trackTile.label} className="h-[60px] w-auto object-contain" />
+                                                        ) : (
+                                                            <div className="text-[9px] font-black text-center text-zinc-100 uppercase truncate leading-none py-1">
+                                                                {trackTile.label}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {/* Count Badge */}
                                                     {(() => {
@@ -411,10 +426,27 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         }`}
                                                 >
                                                     <span className="absolute top-0 left-1 text-[8px] font-bold text-zinc-700">L{level}</span>
-                                                    <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">
-                                                        {level === 5 && track.id === 'terraforming' && game.federationOnTerraforming5
-                                                            ? (FEDERATION_REWARDS.find(r => r.id === game.federationOnTerraforming5)?.label ?? 'L5 연방')
-                                                            : getTrackBonus(track.id, level)}
+                                                    <div className="flex flex-col items-center justify-center p-0.5">
+                                                        {level === 5 && track.id === 'terraforming' && game.federationOnTerraforming5 ? (() => {
+                                                            const rewardIdx = FEDERATION_REWARDS.findIndex(r => r.id === game.federationOnTerraforming5);
+                                                            const label = FEDERATION_REWARDS[rewardIdx]?.label || 'L5 Federation';
+                                                            return rewardIdx !== -1 ? (
+                                                                <img
+                                                                    src={`/image/Federation_${rewardIdx + 1}.gif`}
+                                                                    alt={label}
+                                                                    className="h-20 w-auto object-contain"
+                                                                    title={label}
+                                                                />
+                                                            ) : (
+                                                                <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">
+                                                                    {label}
+                                                                </div>
+                                                            );
+                                                        })() : (
+                                                            <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">
+                                                                {getTrackBonus(track.id, level)}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="flex flex-wrap items-center justify-center gap-1 p-1">
                                                         {players
@@ -453,8 +485,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 if (canTakeAdvanced && advTile?.id) onSelectAdvancedTechTile(advTile.id, track.id as ResearchTrack);
                                                             }}
                                                         >
-                                                            <div className="text-[9px] font-black text-center text-zinc-100 uppercase truncate leading-none py-1">
-                                                                {advTile?.label}
+                                                            <div className="flex flex-col items-center justify-center">
+                                                                {advTile?.image ? (
+                                                                    <img src={advTile.image} alt={advTile?.label} className="h-[60px] w-auto object-contain" />
+                                                                ) : (
+                                                                    <div className="text-[9px] font-black text-center text-zinc-100 uppercase truncate leading-none py-1">
+                                                                        {advTile?.label}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             {canTakeAdvanced && <div className="text-[7px] text-cyan-400 text-center">클릭 시 고급 획득</div>}
                                                             {/* Tooltip */}
@@ -511,7 +549,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         }
                                     }}
                                 >
-                                    <div className="text-[9px] font-black text-center text-zinc-100 uppercase truncate leading-none py-1">{tile.label}</div>
+                                    <div className="flex flex-col items-center justify-center gap-1">
+                                        {tile.image ? (
+                                            <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />
+                                        ) : (
+                                            <div className="text-[9px] font-black text-center text-zinc-100 uppercase truncate leading-none py-1">{tile.label}</div>
+                                        )}
+                                    </div>
                                     <div className="absolute -top-1 -right-1 bg-yellow-600 text-white text-[8px] px-1 rounded-full font-bold shadow-sm z-10">
                                         {count}
                                     </div>
@@ -554,8 +598,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     onClick={() => canTakeExtra && onSelectAdvancedTechTile(extra.id)}
                                     className="w-full h-full min-h-[3.5rem] p-2 pt-6 pb-2 text-left flex flex-col justify-center hover:bg-cyan-500/10 disabled:opacity-60 disabled:cursor-default"
                                 >
-                                    <div className="text-[10px] font-bold text-zinc-100 truncate">{extra.label}</div>
-                                    <div className="text-[8px] text-zinc-500 truncate" title={extra.description}>{extra.description}</div>
+                                    <div className="flex items-center justify-center gap-2">
+                                        {extra.image ? (
+                                            <img src={extra.image} alt={extra.label} className="h-10 w-auto object-contain" />
+                                        ) : (
+                                            <div className="text-[10px] font-bold text-zinc-100 truncate">{extra.label}</div>
+                                        )}
+                                        <div className="flex flex-col">
+                                            <div className="text-[10px] font-bold text-zinc-100 truncate">{extra.label}</div>
+                                            <div className="text-[8px] text-zinc-500 truncate" title={extra.description}>{extra.description}</div>
+                                        </div>
+                                    </div>
                                 </button>
                             </div>
                         );
@@ -702,59 +755,82 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 <span className="text-[12px] font-bold text-zinc-100">{name}</span>
                                                 {isLocked && <span className="text-[10px] text-amber-400 font-black tracking-widest">LOCKED</span>}
                                             </div>
-                                            {shipFedId != null && (() => {
-                                                const rewardIndex = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId);
-                                                const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
-                                                return (
-                                                    <div className="flex items-center gap-2 py-1">
-                                                        <span className="text-[11px] text-zinc-400 font-semibold shrink-0">보상:</span>
-                                                        {shipFedTaken ? (
-                                                            <span className="text-zinc-500 italic text-[11px]">획득됨</span>
-                                                        ) : imgUrl ? (
-                                                            <img
-                                                                src={imgUrl}
-                                                                alt={shipFedLabel || 'Spaceship Federation Reward'}
-                                                                className="h-8 w-auto object-contain border border-white/10 rounded shadow-sm"
-                                                                title={shipFedLabel || ''}
-                                                            />
-                                                        ) : (
-                                                            <span className="text-[11px] text-zinc-300 font-medium">{shipFedLabel}</span>
-                                                        )}
+                                            <div className="flex gap-3 items-start min-h-[100px]">
+                                                {/* Left: Reward & Occupants */}
+                                                <div className="flex-1 space-y-2">
+                                                    {shipFedId != null && (() => {
+                                                        const rewardIndex = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId);
+                                                        const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
+                                                        return (
+                                                            <div className="flex items-center gap-2 py-1">
+                                                                <span className="text-[11px] text-zinc-400 font-semibold shrink-0">보상:</span>
+                                                                {shipFedTaken ? (
+                                                                    <span className="text-zinc-500 italic text-[11px]">획득됨</span>
+                                                                ) : imgUrl ? (
+                                                                    <img
+                                                                        src={imgUrl}
+                                                                        alt={shipFedLabel || 'Spaceship Federation Reward'}
+                                                                        className="h-20 w-auto object-contain border border-white/10 rounded shadow-sm"
+                                                                        title={shipFedLabel || ''}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-[11px] text-zinc-300 font-medium">{shipFedLabel}</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    <div className="text-[11px] text-zinc-400 leading-tight">
+                                                        <span className="text-zinc-500 font-semibold mr-1">탑승:</span>
+                                                        {ship.occupants.length > 0
+                                                            ? ship.occupants.map((pid) => game.players[pid]?.name ?? pid).join(', ')
+                                                            : '—'}
                                                     </div>
-                                                );
-                                            })()}
-                                            <div className="text-[11px] text-zinc-400 min-h-[2.5rem] leading-tight">
-                                                <span className="text-zinc-500 font-semibold mr-1">탑승:</span>
-                                                {ship.occupants.length > 0
-                                                    ? ship.occupants.map((pid) => game.players[pid]?.name ?? pid).join(', ')
-                                                    : '—'}
+                                                </div>
+
+                                                {/* Right: Tech Tile or Artifacts */}
+                                                <div className="w-[180px] shrink-0">
+                                                    {techTile && (
+                                                        <div className="p-2 bg-zinc-800/80 rounded-lg border border-yellow-500/30 flex items-center gap-2">
+                                                            {techTile.image ? (
+                                                                <img src={techTile.image} alt={techTile.label} className="h-[60px] w-auto object-contain" />
+                                                            ) : (
+                                                                <div className="w-10 h-10 bg-zinc-900 rounded flex items-center justify-center text-[8px] text-zinc-500">No Img</div>
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-[9px] font-black text-yellow-500/90 uppercase mb-0.5 tracking-tight truncate">Technology</div>
+                                                                <div className="text-[10px] font-bold text-zinc-100 mb-0.5 truncate">{techTile.label}</div>
+                                                                <div className="text-[9px] text-zinc-400 line-clamp-2 leading-tight" title={techTile.description}>{techTile.description}</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {tile.type === 'ship_twilight' && (game.twilightArtifactSlots?.length ?? 0) > 0 && (
+                                                        <div className="p-1">
+
+                                                            <div className="grid grid-cols-2 gap-1.5">
+                                                                {(game.twilightArtifactSlots ?? []).map((aid, idx) => {
+                                                                    if (!aid) return <div key={idx} className="h-16 rounded border border-dashed border-white/5 bg-black/20" />;
+                                                                    const art = ARTIFACTS.find(a => a.id === aid);
+                                                                    if (!art) return null;
+                                                                    const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
+                                                                    const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
+
+                                                                    const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0);
+                                                                    const canTake = isInShip && onTakeTwilightArtifact && game.turnOrder?.[game.currentPlayerIndex ?? 0] === playerId && !game.hasDoneMainAction && totalPower >= 6;
+                                                                    return (
+                                                                        <Button key={idx} size="sm" variant="outline" className="h-16 p-1 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40" disabled={!canTake} onClick={() => onTakeTwilightArtifact?.(aid)} title={`${art.label}: ${art.description}`}>
+                                                                            {artImgUrl ? (
+                                                                                <img src={artImgUrl} alt={art.label} className="h-full w-auto object-contain" />
+                                                                            ) : (
+                                                                                <span className="text-[8px] font-bold text-center leading-none">{art.label}</span>
+                                                                            )}
+                                                                        </Button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {techTile && (
-                                                <div className="p-2 bg-zinc-800/80 rounded-lg border border-yellow-500/30">
-                                                    <div className="text-[9px] font-black text-yellow-500/90 uppercase mb-0.5 tracking-tight">Technology</div>
-                                                    <div className="text-[11px] font-bold text-zinc-100 mb-0.5">{techTile.label}</div>
-                                                    <div className="text-[10px] text-zinc-400 leading-snug" title={techTile.description}>{techTile.description}</div>
-                                                </div>
-                                            )}
-                                            {tile.type === 'ship_twilight' && (game.twilightArtifactSlots?.length ?? 0) > 0 && (
-                                                <div className="p-2 bg-purple-900/30 rounded-lg border border-purple-500/40">
-                                                    <div className="text-[10px] font-black text-purple-300 uppercase mb-1.5 tracking-tighter">Artifacts (6P → 1/2/3)</div>
-                                                    <div className="grid grid-cols-2 gap-1.5">
-                                                        {(game.twilightArtifactSlots ?? []).map((aid, idx) => {
-                                                            if (!aid) return null;
-                                                            const art = ARTIFACTS.find(a => a.id === aid);
-                                                            if (!art) return null;
-                                                            const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0);
-                                                            const canTake = isInShip && onTakeTwilightArtifact && game.turnOrder?.[game.currentPlayerIndex ?? 0] === playerId && !game.hasDoneMainAction && totalPower >= 6;
-                                                            return (
-                                                                <Button key={idx} size="sm" variant="outline" className="text-[10px] font-bold h-auto py-1.5 px-2 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40" disabled={!canTake} onClick={() => onTakeTwilightArtifact?.(aid)} title={art.description}>
-                                                                    {art.label}
-                                                                </Button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
                                             <div className="space-y-1.5 pt-2 border-t border-white/5">
                                                 <div className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">Actions ({actionsUsedCount}/3)</div>
                                                 <div className="grid grid-cols-3 gap-1.5">
