@@ -123,7 +123,6 @@ interface GameBoardProps {
   onAdvanceTech: (trackId: ResearchTrack) => void;
   onUsePowerAction: (actionId: string) => void;
   onEndTurn: () => void;
-  onPass: () => void;
   highlightedTileId?: string | null;
   onPlaceGaiaformer?: (tileId: string, qicUsed?: number) => void;
   onEnterSpaceship?: (tileId: string, useRangeBonus: boolean, qicToUse: number) => void;
@@ -168,7 +167,6 @@ export function GameBoard({
   onAdvanceTech,
   onUsePowerAction,
   onEndTurn,
-  onPass,
   highlightedTileId,
   onPlaceGaiaformer,
   onEnterSpaceship,

@@ -3,6 +3,7 @@ import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './index';
+import { StateCloner } from './ai/stateCloner';
 import type {
   GaiaGameState,
   PlayerState,
@@ -2867,6 +2868,11 @@ export function setupGameServer(httpServer: HTTPServer) {
       const action = player.hadschHallasPIActions.find(a => a.id === actionId);
       if (!action) return;
       if ((player.credits ?? 0) < action.costCredits) return;
+
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       player.credits = (player.credits ?? 0) - action.costCredits;
       if (actionId === 'hh-4c-1qic') grantQic(game, playerId, 1);
       else if (actionId === 'hh-4c-1k') player.knowledge = (player.knowledge ?? 0) + 1;
@@ -2885,6 +2891,10 @@ export function setupGameServer(httpServer: HTTPServer) {
       if (player?.faction !== 'bal_tak') return;
       if (getEffectiveGaiaformers(player) < 1) return;
 
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
       grantQic(game, playerId, 1);
       addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", '1 포머 사용 (다음 라운드까지 복귀)', undefined);
@@ -2896,6 +2906,11 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
+      // Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (최초 1회만)
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       if (executeConvertResource(io, game, playerId, type, useBrain)) {
         // 이미 executeConvertResource에서 clamp 및 emit을 수행함
       }
@@ -2905,8 +2920,32 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       if (executeBurnPower(game, playerId, moveBrainToBowl3)) {
         clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+      }
+    });
+
+    socket.on('undo_free_action', ({ gameId }) => {
+      const game = games.get(gameId); if (!game) return;
+      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+
+      if (!game.freeActionUndoState) return;
+
+      try {
+        const restoredGame = JSON.parse(game.freeActionUndoState) as ServerGameState;
+        // 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
+        // 통째로 덮어쓰고, Map에 반영.
+        games.set(gameId, restoredGame);
+        const player = restoredGame.players[playerId];
+        log(`Player ${player?.name} undone all free actions`, 'game');
+        addGameLog(restoredGame, playerId, 'Undo Free Action', 'Reverted free actions');
+        io.to(gameId).emit('game_updated', restoredGame);
+      } catch (err) {
+        log(`Failed to restore freeActionUndoState: ${err}`, 'error');
       }
     });
 
@@ -4163,6 +4202,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 export function saveActionStartState(game: ServerGameState, playerId: string) {
   if (game.hasDoneMainAction) return;
+
+  // 메인 액션이 시작되면 Free Action Undo 내역을 삭제해 더 이상 되돌리지 못하게 한다.
+  game.freeActionUndoState = undefined;
+
   if (!game.turnStartState) game.turnStartState = {};
   game.turnStartState[playerId] = {
     playerState: JSON.parse(JSON.stringify(game.players[playerId])),

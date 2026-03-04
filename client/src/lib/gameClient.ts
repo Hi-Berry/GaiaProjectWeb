@@ -300,6 +300,11 @@ export const GameClient = {
     getSocket().emit('confirm_advanced_tech_cover', { gameId, coverTileId });
   },
 
+  undoFreeAction(gameId: string) {
+    const s = getSocket();
+    s.emit('undo_free_action', { gameId });
+  },
+
   useSpecialAction(gameId: string, actionId: string) {
     const s = getSocket();
     s.emit('use_special_action', { gameId, actionId });

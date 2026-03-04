@@ -41,7 +41,6 @@ interface PlayerPanelProps {
   playerId: string | null;
   isCurrentTurn: boolean;
   onEndTurn: () => void;
-  onPass: () => void;
   onAdvanceTech: (trackId: ResearchTrack) => void;
   onConvertResource: (type: string, useBrain?: boolean) => void;
   onBurnPower: (moveBrainToBowl3?: boolean) => void;
@@ -193,82 +192,9 @@ function PowerCycle({ power1, power2, power3, gaiaformerPower, gaiaformers, pend
   );
 }
 
-function TurnSequence({ game }: { game: GameState }) {
-  const activePlayers = game.turnOrder.filter(id => !game.players[id]?.hasPassed);
-  const passedPlayers = game.passingOrder || [];
-
-  const renderPlayerItem = (id: string, index: number, isCurrent: boolean, hasPassed: boolean) => {
-    const p = game.players[id];
-    if (!p) return null;
-    const faction = p.faction ? FACTIONS.find(f => f.id === p.faction) : null;
-
-    return (
-      <div
-        key={id}
-        className={`flex flex-col gap-1 p-2 rounded-lg transition-all duration-300 ${isCurrent
-          ? 'bg-primary/10 border border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.05)]'
-          : 'bg-zinc-900/20 border border-white/5'
-          } ${hasPassed ? 'opacity-40 grayscale-[0.5]' : ''}`}
-      >
-        <div className="flex items-center gap-2.5">
-          <div className={`text-[9px] font-black w-3 text-center ${isCurrent ? 'text-primary' : 'text-zinc-600'}`}>
-            {index}
-          </div>
-          <div
-            className={`w-2 h-2 rounded-full shadow-sm ${isCurrent ? 'animate-pulse' : ''}`}
-            style={{ backgroundColor: faction?.color || '#444' }}
-          />
-          <div className={`text-[11px] font-bold flex-1 truncate ${isCurrent ? 'text-white' : 'text-zinc-400'}`}>
-            {faction ? `${faction.name} (${p.name})` : p.name}
-          </div>
-          {isCurrent && !hasPassed && (
-            <div className="flex gap-1">
-              <span className="text-[7px] uppercase font-black text-primary tracking-widest">Active</span>
-            </div>
-          )}
-          {hasPassed && (
-            <span className="text-[7px] uppercase font-black text-zinc-600 tracking-widest">Passed</span>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Active Turn Order */}
-      {activePlayers.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Turn Order</h4>
-            <Badge variant="outline" className="text-[8px] border-zinc-800 text-zinc-500">ROUND {game.roundNumber}</Badge>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {game.turnOrder.map((id, index) => {
-              if (game.players[id]?.hasPassed) return null;
-              return renderPlayerItem(id, index + 1, index === game.currentPlayerIndex, false);
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Next Round Order (Passed) */}
-      {passedPlayers.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-white/5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-amber-500/70">Next Round Order</h4>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {passedPlayers.map((id, index) => renderPlayerItem(id, index + 1, false, true))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function PlayerPanel({
-  game, playerId, isCurrentTurn, onEndTurn, onPass,
+  game, playerId, isCurrentTurn, onEndTurn,
   onAdvanceTech, onConvertResource, onBurnPower, onExit, onUseBonusAction, onUseAcademyQic, onUseGleens2Nav,
   onUseBalTakGaiaformerToQic
 }: PlayerPanelProps) {
@@ -289,7 +215,7 @@ export function PlayerPanel({
 
   return (
     <Card className="h-full overflow-y-auto border-0 rounded-none bg-[#0a0a0b] text-zinc-100 custom-scrollbar shadow-inner">
-      <CardHeader className="pb-4 pt-6 px-4 space-y-4">
+      <CardHeader className="pb-2 pt-4 px-4 space-y-2">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <CardTitle className="text-lg font-black tracking-tighter text-white flex items-center gap-2">
@@ -304,9 +230,8 @@ export function PlayerPanel({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-y-auto px-5 py-6 space-y-8 scrollbar-hide">
+      <CardContent className="flex-1 overflow-y-auto px-4 py-3 space-y-5 scrollbar-hide">
         {/* Turn Sequence */}
-        <TurnSequence game={game} />
 
         {/* 확장 4종족: 테라포밍 요약 (1/2/3단계 땅 표기) */}
         {currentPlayer?.faction === 'moweyip' && (game as { moweyipThreeStepPlanets?: string[] }).moweyipThreeStepPlanets && (
@@ -408,101 +333,7 @@ export function PlayerPanel({
           />
         </div>
 
-        {/* Free Actions */}
-        <div className="space-y-3 bg-zinc-900/30 p-3 rounded-xl border border-white/5">
-          <h4 className="text-[9px] uppercase font-black tracking-[0.2em] text-muted-foreground text-center">Trade Conversions</h4>
-          <div className="grid grid-cols-2 gap-2">
-            {currentPlayer?.faction === 'taklons' ? (
-              <>
-                <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 3} onClick={() => onConvertResource('3power-to-1ore', false)}>3P ➔ 1O</Button>
-                {canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 3) && (currentPlayer as { brainStoneBowl?: number }).brainStoneBowl === 3 && !(currentPlayer as { brainStoneInGaia?: boolean }).brainStoneInGaia && (currentPlayer.power3 ?? 0) >= 1 && (
-                  <Button variant="outline" size="sm" className="h-8 text-[9px] bg-amber-900/50 hover:bg-amber-800 border-amber-500/40" disabled={!isCurrentTurn} onClick={() => onConvertResource('3power-to-1ore', true)}>3P ➔ 1O (B)</Button>
-                )}
-              </>
-            ) : (
-              <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < (hasNevlasPI ? 2 : 3)} onClick={() => onConvertResource('3power-to-1ore')}>{hasNevlasPI ? '2P ➔ 1O' : '3P ➔ 1O'}</Button>
-            )}
-            {!(currentPlayer?.faction === 'gleens' && academyRightCount < 1) && (
-              currentPlayer?.faction === 'taklons' ? (
-                <>
-                  <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 4} onClick={() => onConvertResource('4power-to-1qic', false)}>4P ➔ 1Q</Button>
-                  {canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 4) && (currentPlayer as { brainStoneBowl?: number }).brainStoneBowl === 3 && !(currentPlayer as { brainStoneInGaia?: boolean }).brainStoneInGaia && (currentPlayer.power3 ?? 0) >= 2 && (
-                    <Button variant="outline" size="sm" className="h-8 text-[9px] bg-amber-900/50 hover:bg-amber-800 border-amber-500/40" disabled={!isCurrentTurn} onClick={() => onConvertResource('4power-to-1qic', true)}>4P ➔ 1Q (B)</Button>
-                  )}
-                </>
-              ) : (
-                <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < (hasNevlasPI ? 2 : 4)} onClick={() => onConvertResource('4power-to-1qic')}>{hasNevlasPI ? '2P ➔ 1Q' : '4P ➔ 1Q'}</Button>
-              )
-            )}
-            {currentPlayer?.faction === 'taklons' ? (
-              <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || !canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 1)} onClick={() => onConvertResource('1power-to-1credit', false)}>1P ➔ 1C</Button>
-            ) : (
-              <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 1} onClick={() => onConvertResource('1power-to-1credit')}>{hasNevlasPI ? '1P ➔ 2C' : '1P ➔ 1C'}</Button>
-            )}
-            {hasNevlasPI && (
-              <>
-                <Button variant="outline" size="sm" className="h-8 text-[9px] bg-cyan-900/40 hover:bg-cyan-800/50 border-cyan-500/40" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 3} onClick={() => onConvertResource('3power-to-2ore')}>3P ➔ 2O</Button>
-                <Button variant="outline" size="sm" className="h-8 text-[9px] bg-cyan-900/40 hover:bg-cyan-800/50 border-cyan-500/40" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 2} onClick={() => onConvertResource('2power-to-1ore-1credit')}>2P ➔ 1O1C</Button>
-              </>
-            )}
-            {currentPlayer?.faction === 'nevlas' && (
-              <Button variant="outline" size="sm" className="h-8 text-[9px] bg-cyan-900/40 hover:bg-cyan-800/50 border-cyan-500/40" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < (hasNevlasPI ? 2 : 1)} onClick={() => onConvertResource('1power-to-1k-gaiaformer')}>{hasNevlasPI ? '2P ➔ 가이어+1K' : '1P ➔ 가이어+1K'}</Button>
-            )}
-            <Button
-              variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800"
-              disabled={!isCurrentTurn || currentPlayer.knowledge < 1}
-              onClick={() => onConvertResource('1knowledge-to-1credit')}
-            >
-              1K ➔ 1C
-            </Button>
-            <Button
-              variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800"
-              disabled={!isCurrentTurn || (currentPlayer.qic ?? 0) < 1}
-              onClick={() => onConvertResource('1qic-to-1ore')}
-            >
-              1Q ➔ 1O
-            </Button>
-            <Button
-              variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800"
-              disabled={!isCurrentTurn || (currentPlayer.ore ?? 0) < 1}
-              onClick={() => onConvertResource('1ore-to-1credit')}
-            >
-              1O ➔ 1C
-            </Button>
-            <Button
-              variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800"
-              disabled={!isCurrentTurn || (currentPlayer.ore ?? 0) < 1}
-              onClick={() => onConvertResource('1ore-to-1token')}
-            >
-              1O ➔ 1 Token
-            </Button>
-            {currentPlayer?.faction === 'taklons' ? (
-              <>
-                <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 4} onClick={() => onConvertResource('4power-to-1knowledge', false)}>4P ➔ 1K</Button>
-                {canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 4) && (currentPlayer as { brainStoneBowl?: number }).brainStoneBowl === 3 && !(currentPlayer as { brainStoneInGaia?: boolean }).brainStoneInGaia && (currentPlayer.power3 ?? 0) >= 2 && (
-                  <Button variant="outline" size="sm" className="h-8 text-[9px] bg-amber-900/50 hover:bg-amber-800 border-amber-500/40" disabled={!isCurrentTurn} onClick={() => onConvertResource('4power-to-1knowledge', true)}>4P ➔ 1K (B)</Button>
-                )}
-              </>
-            ) : (
-              <Button variant="outline" size="sm" className="h-8 text-[9px] bg-zinc-900/50 hover:bg-zinc-800" disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < (hasNevlasPI ? 2 : 4)} onClick={() => onConvertResource('4power-to-1knowledge')}>{hasNevlasPI ? '2P ➔ 1K' : '4P ➔ 1K'}</Button>
-            )}
-            {currentPlayer?.faction === 'bal_tak' && onUseBalTakGaiaformerToQic && (() => {
-              const locked = (currentPlayer as any).balTakGaiaformersUsedForQic ?? 0;
-              const effectiveFormers = Math.max(0, (currentPlayer.gaiaformers ?? 0) - locked);
-              return (
-                <Button
-                  variant="outline" size="sm"
-                  className="h-8 text-[9px] bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-200"
-                  disabled={!isCurrentTurn || effectiveFormers < 1}
-                  onClick={() => onUseBalTakGaiaformerToQic()}
-                  title={locked > 0 ? `포머 ${locked}개 잠김 (다음 라운드 복귀)` : undefined}
-                >
-                  1 포머 → 1 QIC{locked > 0 ? ` (잠김: ${locked})` : ''}
-                </Button>
-              );
-            })()}
-          </div>
-        </div>
+
 
 
 

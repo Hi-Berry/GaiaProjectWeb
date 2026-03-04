@@ -175,8 +175,8 @@ export function BonusTiles({
                 key={tile.id}
                 tile={tile}
                 isOwned={false}
-                isSelectable={isSelectionMode && !!onSelectBonusTile}
-                onSelect={() => onSelectBonusTile?.(tile.id)}
+                isSelectable={isSelectionMode || !!onSelectBonusTile}
+                onSelect={onSelectBonusTile ? () => onSelectBonusTile(tile.id) : undefined}
               />
             ))}
 

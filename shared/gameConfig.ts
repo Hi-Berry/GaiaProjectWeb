@@ -486,6 +486,8 @@ export interface GaiaGameState {
   tinkeroidsThreeStepPlanets?: PlanetType[];
   /** 팅커로이드: 라운드 시작 시 Special 1개 선택 대기 (옵션 1개면 자동 지정) */
   pendingTinkeroidSpecialChoice?: { playerId: string; round: number; options: string[] } | null;
+  /** Undo용 전체 게임 상태 스냅샷 (StateCloner.cloneGameState로 JSON화). 프리액션 첫 수행 직전에 저장됨 */
+  freeActionUndoState?: string;
 }
 
 /** 연방 1개: rewardId + 초록(5단계/고급타일 획득에 사용 가능) 또는 빨강(이미 사용). 12점 연방은 획득 시 빨강 */
