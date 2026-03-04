@@ -143,6 +143,7 @@ export interface HexTile {
   structure: StructureType;
   ownerId: string | null;
   hasGaiaformer?: boolean; // 가이아 포머가 설치되어 있는지
+  destroyedGaiaformer?: boolean; // 소행성 등에 설치되어 파괴되었는지 여부 (빨간 원 표시용)
   /** 아카데미: 'left' = 수익 2K, 'right' = Special 액션 1QIC (없으면 기존 호환용 left) */
   academyType?: 'left' | 'right';
   /** 란티다 기생 광산 (이 타일에 다른 플레이어 건물이 있고, 란티다가 기생 광산을 지은 경우) */
@@ -487,6 +488,8 @@ export interface GaiaGameState {
   tinkeroidsThreeStepPlanets?: PlanetType[];
   /** 팅커로이드: 라운드 시작 시 Special 1개 선택 대기 (옵션 1개면 자동 지정) */
   pendingTinkeroidSpecialChoice?: { playerId: string; round: number; options: string[] } | null;
+  /** Undo용 전체 게임 상태 스냅샷 (StateCloner.cloneGameState로 JSON화). 프리액션 첫 수행 직전에 저장됨 */
+  freeActionUndoState?: string;
 }
 
 /** 연방 1개: rewardId + 초록(5단계/고급타일 획득에 사용 가능) 또는 빨강(이미 사용). 12점 연방은 획득 시 빨강 */
@@ -1163,7 +1166,7 @@ export const SECTOR_LAYOUTS: Record<number, { q: number; r: number; type: Planet
   6: [ // Map 7
     { q: 0, r: -2, type: 'space' }, { q: 1, r: -2, type: 'space' }, { q: 2, r: -2, type: 'space' },
     { q: -1, r: -1, type: 'swamp' }, { q: 0, r: -1, type: 'space' }, { q: 1, r: -1, type: 'gaia' }, { q: 2, r: -1, type: 'space' },
-    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'oxide' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'titanium' },
+    { q: -2, r: 0, type: 'space' }, { q: -1, r: 0, type: 'volcanic' }, { q: 0, r: 0, type: 'space' }, { q: 1, r: 0, type: 'space' }, { q: 2, r: 0, type: 'titanium' },
     { q: -2, r: 1, type: 'space' }, { q: -1, r: 1, type: 'space' }, { q: 0, r: 1, type: 'gaia' }, { q: 1, r: 1, type: 'space' },
     { q: -2, r: 2, type: 'transdim' }, { q: -1, r: 2, type: 'space' }, { q: 0, r: 2, type: 'space' }
   ],

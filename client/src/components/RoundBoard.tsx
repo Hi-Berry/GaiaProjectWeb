@@ -8,11 +8,10 @@ import { Calendar, Trophy, Zap } from 'lucide-react';
 interface RoundBoardProps {
     game: GameState;
     playerId: string | null;
-    onPass?: () => void;
     onEndGame?: () => void;
 }
 
-export function RoundBoard({ game, playerId, onPass, onEndGame }: RoundBoardProps) {
+export function RoundBoard({ game, playerId, onEndGame }: RoundBoardProps) {
     const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
     const canPass = isCurrentTurn && !game.hasDoneMainAction;
     const isRound6 = game.roundNumber === 6;
@@ -33,30 +32,18 @@ export function RoundBoard({ game, playerId, onPass, onEndGame }: RoundBoardProp
                             Round {game.roundNumber || 1}
                         </Badge>
                     </div>
-                    {onPass && (
+                    {game.roundNumber === 6 && onEndGame && (
                         <>
                             <div className="h-6 w-[1px] bg-white/10" />
-                            {isRound6 ? (
-                                <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    disabled={!canPass}
-                                    onClick={onEndGame}
-                                    className="text-[10px] font-black uppercase tracking-widest px-3 h-7"
-                                >
-                                    End Game
-                                </Button>
-                            ) : (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!canPass}
-                                    onClick={onPass}
-                                    className="text-[10px] font-black uppercase tracking-widest px-3 h-7 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                                >
-                                    Pass
-                                </Button>
-                            )}
+                            <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={!canPass}
+                                onClick={onEndGame}
+                                className="text-[10px] font-black uppercase tracking-widest px-3 h-7"
+                            >
+                                End Game
+                            </Button>
                         </>
                     )}
                 </div>

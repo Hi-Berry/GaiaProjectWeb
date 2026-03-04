@@ -29,7 +29,7 @@ function getBonusIcon(tile: BonusTile) {
   if (tile.income?.power && tile.income.power >= 4) return <Zap className="w-4 h-4 text-purple-400" />;
   if (tile.income?.knowledge) return <FlaskConical className="w-4 h-4 text-blue-400" />;
   if (tile.income?.credits && tile.income.credits >= 3) return <Coins className="w-4 h-4 text-yellow-400" />;
-  if (tile.income?.ore) return <Gem className="w-4 h-4 text-orange-400" />;
+  if (tile.income?.ore) return <Gem className="w-4 h-4 text-zinc-400" />;
   return <Gift className="w-4 h-4 text-zinc-400" />;
 }
 

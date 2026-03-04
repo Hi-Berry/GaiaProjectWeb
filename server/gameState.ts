@@ -3,6 +3,7 @@ import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './index';
+import { StateCloner } from './ai/stateCloner';
 import type {
   GaiaGameState,
   PlayerState,
@@ -558,8 +559,16 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
     const autoAcceptOne = vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
     if (autoAcceptOne) {
       addScore(game, playerId, -vpCost, 'powerReceived');
-      chargePower(targetPlayer, maxAffordable);
-      addGameLog(game, playerId, '↳ Received Power', `+${maxAffordable}P from ${sourcePlayer?.name}`, tileId);
+      applyPlayerPowerCharge(game, playerId, maxAffordable);
+      const text = `+${maxAffordable}P`;
+      const added = addSubLogToLastAction(game, sourcePlayerId, {
+        playerId,
+        playerName: targetPlayer.name,
+        text: `↳ Received Power ${text} ${targetPlayer.name}`
+      });
+      if (!added) {
+        addGameLog(game, playerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, tileId);
+      }
       continue;
     }
     // Bot Auto-Accept Logic
@@ -567,8 +576,16 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
       const shouldAccept = true;
       if (shouldAccept) {
         addScore(game, playerId, -vpCost, 'powerReceived');
-        chargePower(targetPlayer, maxAffordable);
-        addGameLog(game, playerId, '↳ Received Power', `+${maxAffordable}P from ${sourcePlayer?.name}`, tileId);
+        applyPlayerPowerCharge(game, playerId, maxAffordable);
+        const text = `+${maxAffordable}P`;
+        const added = addSubLogToLastAction(game, sourcePlayerId, {
+          playerId,
+          playerName: targetPlayer.name,
+          text: `↳ Received Power ${text} ${targetPlayer.name}`
+        });
+        if (!added) {
+          addGameLog(game, playerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, tileId);
+        }
       }
       continue;
     }
@@ -582,6 +599,36 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
       tileId,
       responded: false
     });
+  }
+}
+
+/** 특정 플레이어에 대해 파워 충전 처리 (타클론 브레인스톤 및 의회 보너스 포함) */
+function applyPlayerPowerCharge(game: GaiaGameState, playerId: string, amount: number, options?: { brainFirst?: boolean; piAddFirst?: boolean }) {
+  const player = game.players[playerId];
+  if (!player) return;
+
+  const isTaklons = player.faction === 'taklons';
+  const hasPI = isTaklons && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+  const brainFirst = options?.brainFirst !== false; // Default true
+  const piAddFirst = options?.piAddFirst === true; // Default false (charge power from structures first, then add token)
+
+  if (isTaklons) {
+    if (hasPI) {
+      if (piAddFirst) {
+        // PI 보너스 토큰 먼저 추가하고 충전
+        player.power1 = (player.power1 || 0) + 1;
+        chargePowerTaklons(player, amount + 1, brainFirst);
+      } else {
+        // 건물 파워 먼저 충전하고 토큰 추가 후 충전
+        chargePowerTaklons(player, amount, brainFirst);
+        player.power1 = (player.power1 || 0) + 1;
+        chargePowerTaklons(player, 1, brainFirst);
+      }
+    } else {
+      chargePowerTaklons(player, amount, brainFirst);
+    }
+  } else {
+    chargePower(player, amount);
   }
 }
 
@@ -640,18 +687,38 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
     game.gameLog = [];
   }
   const player = game.players[playerId];
-  if (player) {
+  if (!player) return;
+
+  const CONSOLIDATABLE_ACTIONS = ['Resource Convert', 'Burn 2 Power', 'Power Burn', 'Burn 2 Power (Itars)', 'Free Actions'];
+  const isConsolidatable = CONSOLIDATABLE_ACTIONS.includes(action);
+
+  const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
+
+  if (isConsolidatable && lastLog && lastLog.playerId === playerId && CONSOLIDATABLE_ACTIONS.includes(lastLog.action)) {
+    // Consolidate into the last log
+    lastLog.action = 'Free Actions';
+    const newDetail = details || action;
+    if (lastLog.details) {
+      if (!lastLog.details.includes(newDetail)) {
+        lastLog.details += `, ${newDetail}`;
+      }
+    } else {
+      lastLog.details = newDetail;
+    }
+    lastLog.timestamp = Date.now(); // Update timestamp to keep it at the top if sorted
+  } else {
     game.gameLog.push({
       timestamp: Date.now(),
       playerId,
       playerName: player.name,
-      action,
-      details,
+      action: isConsolidatable ? 'Free Actions' : action,
+      details: details || (isConsolidatable ? action : undefined),
       tileId,
     });
-    if (game.gameLog.length > 100) {
-      game.gameLog.shift();
-    }
+  }
+
+  if (game.gameLog.length > 100) {
+    game.gameLog.shift();
   }
 }
 
@@ -2867,6 +2934,11 @@ export function setupGameServer(httpServer: HTTPServer) {
       const action = player.hadschHallasPIActions.find(a => a.id === actionId);
       if (!action) return;
       if ((player.credits ?? 0) < action.costCredits) return;
+
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       player.credits = (player.credits ?? 0) - action.costCredits;
       if (actionId === 'hh-4c-1qic') grantQic(game, playerId, 1);
       else if (actionId === 'hh-4c-1k') player.knowledge = (player.knowledge ?? 0) + 1;
@@ -2885,6 +2957,10 @@ export function setupGameServer(httpServer: HTTPServer) {
       if (player?.faction !== 'bal_tak') return;
       if (getEffectiveGaiaformers(player) < 1) return;
 
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
       grantQic(game, playerId, 1);
       addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", '1 포머 사용 (다음 라운드까지 복귀)', undefined);
@@ -2896,6 +2972,11 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
+      // Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (최초 1회만)
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       if (executeConvertResource(io, game, playerId, type, useBrain)) {
         // 이미 executeConvertResource에서 clamp 및 emit을 수행함
       }
@@ -2905,8 +2986,32 @@ export function setupGameServer(httpServer: HTTPServer) {
       const game = games.get(gameId); if (!game) return;
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
+      if (!game.freeActionUndoState) {
+        game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+      }
+
       if (executeBurnPower(game, playerId, moveBrainToBowl3)) {
         clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+      }
+    });
+
+    socket.on('undo_free_action', ({ gameId }) => {
+      const game = games.get(gameId); if (!game) return;
+      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+
+      if (!game.freeActionUndoState) return;
+
+      try {
+        const restoredGame = JSON.parse(game.freeActionUndoState) as ServerGameState;
+        // 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
+        // 통째로 덮어쓰고, Map에 반영.
+        games.set(gameId, restoredGame);
+        const player = restoredGame.players[playerId];
+        log(`Player ${player?.name} undone all free actions`, 'game');
+        addGameLog(restoredGame, playerId, 'Undo Free Action', 'Reverted free actions');
+        io.to(gameId).emit('game_updated', restoredGame);
+      } catch (err) {
+        log(`Failed to restore freeActionUndoState: ${err}`, 'error');
       }
     });
 
@@ -4163,6 +4268,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 export function saveActionStartState(game: ServerGameState, playerId: string) {
   if (game.hasDoneMainAction) return;
+
+  // 메인 액션이 시작되면 Free Action Undo 내역을 삭제해 더 이상 되돌리지 못하게 한다.
+  game.freeActionUndoState = undefined;
+
   if (!game.turnStartState) game.turnStartState = {};
   game.turnStartState[playerId] = {
     playerState: JSON.parse(JSON.stringify(game.players[playerId])),
@@ -4495,6 +4604,10 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     const rm7QualifyAsteroid = qualifiesForNewSectorRoundMission(game, playerId, tileId);
     tile.structure = 'mine';
     tile.ownerId = playerId;
+    tile.destroyedGaiaformer = true; // 가이아포머 파괴 상태 저장
+    // 소행성 광산 건설 시 가이아포머 1개 파괴
+    player.gaiaformers = Math.max(0, (player.gaiaformers ?? 0) - 1);
+    player.destroyedGaiaformers = (player.destroyedGaiaformers ?? 0) + 1;
     addGameLog(game, playerId, 'Built Mine on Asteroid', `Free (Used 1 Gaiaformer, ${player.gaiaformers} remaining)`, tileId);
     applyRoundMissionScore(game, playerId, 'build_mine');
     if (rm7QualifyAsteroid) applyRoundMissionScore(game, playerId, 'new_sector');
@@ -5992,35 +6105,17 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 
   if (accept) {
     addScore(game, actualTargetId, -offer.vpCost, 'powerReceived');
-    const isTaklons = targetPlayer.faction === 'taklons';
-    const hasPI = isTaklons && game.map.some(t => t.ownerId === actualTargetId && t.structure === 'planetary_institute');
-    const brainFirstVal = isTaklons ? (brainFirst !== false) : true;
-
-    if (isTaklons) {
-      if (hasPI && piAddFirst === true) {
-        chargePowerTaklons(targetPlayer, 1, brainFirstVal);
-        targetPlayer.power1 = (targetPlayer.power1 || 0) + 1;
-        chargePowerTaklons(targetPlayer, offer.amount, brainFirstVal);
-      } else if (hasPI && piAddFirst === false) {
-        chargePowerTaklons(targetPlayer, offer.amount, brainFirstVal);
-        chargePowerTaklons(targetPlayer, 1, brainFirstVal);
-        targetPlayer.power1 = (targetPlayer.power1 || 0) + 1;
-      } else {
-        chargePowerTaklons(targetPlayer, offer.amount, brainFirstVal);
-      }
-    } else {
-      chargePower(targetPlayer, offer.amount);
-    }
+    applyPlayerPowerCharge(game, actualTargetId, offer.amount, { brainFirst, piAddFirst });
 
     const sourcePlayer = game.players[offer.sourcePlayerId];
-    const text = `+${offer.amount}P (-${offer.vpCost}VP)`;
+    const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
     const added = addSubLogToLastAction(game, offer.sourcePlayerId, {
       playerId: actualTargetId,
       playerName: targetPlayer.name,
-      text: `↳ ${targetPlayer.name} Received Power: ${text}`
+      text: `↳ Received Power ${text} ${targetPlayer.name}`
     });
     if (!added) {
-      addGameLog(game, actualTargetId, 'Received Power', `${text} from ${sourcePlayer.name}`, offer.tileId);
+      addGameLog(game, actualTargetId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
     }
     log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game');
   } else {
@@ -6223,7 +6318,7 @@ export function executeConvertResource(
   }
 
   if (success) {
-    addGameLog(game, playerId, 'Resource Convert', logDesc, undefined);
+    addGameLog(game, playerId, 'Free Actions', logDesc, undefined);
     clampPlayerResources(game);
     io.to(game.id).emit('game_updated', game);
     return true;
@@ -6257,9 +6352,10 @@ export function executeBurnPower(game: ServerGameState, playerId: string, moveBr
     player.power3 += 1;
     if (player.faction === 'itars') {
       player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
-      addGameLog(game, playerId, 'Burn 2 Power (Itars)', `1 token to Bowl III, 1 to Gaia area (→Bowl I next round)`);
+      addGameLog(game, playerId, 'Power Burn', `1 token to Bowl III, 1 to Gaia area`);
       log(`Player ${player.name} (Itars) burned 2 power: 1 token to Bowl III, 1 to Gaia area (→Bowl I next round)`, 'game');
     } else {
+      addGameLog(game, playerId, 'Power Burn', `Bowl II -> III`);
       log(`Player ${player.name} burned 2 power (Bowl II -> III)`, 'game');
     }
   }
