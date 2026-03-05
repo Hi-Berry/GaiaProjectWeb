@@ -56,6 +56,7 @@ function BonusTileCard({
   isSelectable,
   isUsed,
   onSelect,
+  hasAction,
   onUseAction,
   isMini,
 }: {
@@ -96,22 +97,7 @@ function BonusTileCard({
               }`}
           />
 
-          {/* Action Button Overlay */}
-          {tile.specialAction && isOwned && !isUsed && (
-            <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent flex justify-center">
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full h-7 text-[9px] uppercase border-cyan-500/50 text-cyan-400 bg-black/40 hover:bg-cyan-500/20"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUseAction?.();
-                }}
-              >
-                Use Action
-              </Button>
-            </div>
-          )}
+
 
           {/* Used Overlay */}
           {isUsed && (
@@ -136,6 +122,22 @@ function BonusTileCard({
           style={{ backgroundColor: ownerColor }}
           title={ownerName}
         />
+      )}
+
+      {/* Special Action Overlay on Hover */}
+      {isOwned && hasAction && onUseAction && !isUsed && (
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col justify-center items-center transition-opacity duration-200 z-30">
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onUseAction();
+            }}
+            className="h-8 px-3 text-[10px] font-black uppercase bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg pointer-events-auto shadow-cyan-900/50 border border-cyan-400/50"
+          >
+            Use Action
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -166,17 +168,17 @@ export function BonusTiles({
 
   const pool = game.federationPool ?? {};
   return (
-    <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none' : ''}`}>
-      <CardContent className={`${isMini ? 'p-1' : 'p-4'} space-y-6`}>
+    <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none bg-transparent' : ''}`}>
+      <CardContent className={`${isMini ? 'p-0.5' : 'p-4'} ${isMini ? 'space-y-1' : 'space-y-6'}`}>
         {/* Bonus Tiles — first */}
-        <div className="space-y-3">
+        <div className={isMini ? '' : 'space-y-3'}>
           {!isMini && (
             <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
               <Gift className="w-4 h-4" />
               {isSelectionMode ? 'Select Bonus' : 'Bonus Tiles'}
             </h3>
           )}
-          <div className={`${isMini ? 'grid grid-cols-3 gap-1.5 justify-items-center' : 'flex flex-wrap gap-3'}`}>
+          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-[1px] pb-1' : 'flex flex-wrap gap-3'}`}>
             {/* Available Bonus Tiles */}
             {game.availableBonusTiles.map((tile) => (
               <BonusTileCard
@@ -213,29 +215,24 @@ export function BonusTiles({
                   />
                 );
               })}
-            {game.availableBonusTiles.length === 0 && !isSelectionMode && playerBonusTiles.length === 0 && (
-              <div className="text-center text-zinc-500 text-sm py-8 col-span-full">
-                No bonus tiles available
-              </div>
-            )}
           </div>
         </div>
 
         {/* Federation Tiles */}
-        <div className="space-y-2">
+        <div className={isMini ? '' : 'space-y-2'}>
           {!isMini && (
             <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5 border-t border-white/5 pt-3">
               <Award className="w-3 h-3" />
               Federation Tiles
             </h3>
           )}
-          <div className={`${isMini ? 'grid grid-cols-4 gap-2 justify-items-center' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
+          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-4 h-10 items-center px-1' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
             {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
               const size = isMini ? 32 : 56;
               return (
-                <div key={r.id} className="relative group" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
+                <div key={r.id} className="relative group shrink-0" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
                   {Array.from({ length: Math.min(n, 3) }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}
@@ -264,7 +261,7 @@ export function BonusTiles({
               if (n === 0) return null;
               const size = isMini ? 32 : 56;
               return (
-                <div key={r.id} className="relative group" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
+                <div key={r.id} className="relative group shrink-0" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
                   {Array.from({ length: Math.min(n, 3) }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}

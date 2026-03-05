@@ -59,7 +59,8 @@ type PotentialAction =
   | { type: 'advanceTech', trackId: ResearchTrack }
   | { type: 'usePowerAction', actionId: string }
   | { type: 'useTechAction', tileId: string }
-  | { type: 'useSpecialAction', actionId: string };
+  | { type: 'useSpecialAction', actionId: string }
+  | { type: 'bonusAction' };
 
 export default function Game() {
   const params = useParams<{ matchID: string }>();
@@ -182,13 +183,20 @@ export default function Game() {
   const handleConfirm = () => {
     if (!pendingAction || !gameId) return;
 
-    switch (pendingAction.type) {
-      case 'buildMine': GameClient.buildMine(gameId, pendingAction.tileId, pendingAction.useGaiaformer); break;
-      case 'upgrade': GameClient.upgradeStructure(gameId, pendingAction.tileId, pendingAction.target); break;
-      case 'advanceTech': GameClient.advanceTech(gameId, pendingAction.trackId); break;
-      case 'usePowerAction': GameClient.usePowerAction(gameId, pendingAction.actionId); break;
-      case 'useTechAction': GameClient.useTechAction(gameId, pendingAction.tileId); break;
-      case 'useSpecialAction': GameClient.useSpecialAction(gameId, pendingAction.actionId); break;
+    if (pendingAction.type === 'buildMine') {
+      GameClient.buildMine(gameId, (pendingAction as any).tileId, (pendingAction as any).useGaiaformer);
+    } else if (pendingAction.type === 'upgrade') {
+      GameClient.upgradeStructure(gameId, (pendingAction as any).tileId, (pendingAction as any).target);
+    } else if (pendingAction.type === 'advanceTech') {
+      GameClient.advanceTech(gameId, (pendingAction as any).trackId);
+    } else if (pendingAction.type === 'usePowerAction') {
+      GameClient.usePowerAction(gameId, (pendingAction as any).actionId);
+    } else if (pendingAction.type === 'useTechAction') {
+      GameClient.useTechAction(gameId, (pendingAction as any).tileId);
+    } else if (pendingAction.type === 'useSpecialAction') {
+      GameClient.useSpecialAction(gameId, (pendingAction as any).actionId);
+    } else if (pendingAction.type === 'bonusAction') {
+      GameClient.useBonusAction(gameId);
     }
 
     setPendingAction(null);
@@ -295,9 +303,11 @@ export default function Game() {
         return;
       }
 
-      // 일반적인 턴 전환
-      setPlayerId(currentActivePlayerId);
-      storePlayerId(gameId, currentActivePlayerId);
+      // 일반적인 턴 전환 (봇이 아닐 때만 자동 전환)
+      if (!game.botPlayerIds?.includes(currentActivePlayerId)) {
+        setPlayerId(currentActivePlayerId);
+        storePlayerId(gameId, currentActivePlayerId);
+      }
     }
   }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.pendingBonusSelection, playerId]);
 
@@ -806,22 +816,23 @@ export default function Game() {
             setLocation('/');
           }}
           onUseBonusAction={() => {
-            // 테라포밍 액션인 경우 Research Board 닫기
             const player = game.players[playerId!];
+            if (player.usedBonusAction) return;
+            // 테라포밍 액션인 경우 Research Board 닫기
             const bonusTile = game.availableBonusTiles.find(t => t.id === player.bonusTile) ||
               (player.bonusTile ? ALL_BONUS_TILES.find(t => t.id === player.bonusTile) : null);
             if (bonusTile?.specialAction === 'terraform_step') {
               setIsResearchOpen(false);
             }
-            GameClient.useBonusAction(gameId!);
+            setPendingAction({ type: 'bonusAction' });
           }}
           onUseAcademyQic={() => {
             if (game.hasDoneMainAction) return;
-            if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
+            setPendingAction({ type: 'useSpecialAction', actionId: 'academy-qic' });
           }}
           onUseGleens2Nav={() => {
             if (game.hasDoneMainAction) return;
-            if (gameId) GameClient.useSpecialAction(gameId, 'gleens-2nav');
+            setPendingAction({ type: 'useSpecialAction', actionId: 'gleens-2nav' });
           }}
           onUseBalTakGaiaformerToQic={() => {
             if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
@@ -892,7 +903,8 @@ export default function Game() {
               variant="outline"
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20"
               onClick={() => {
-                if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
+                if (game.hasDoneMainAction) return;
+                setPendingAction({ type: 'useSpecialAction', actionId: 'academy-qic' });
               }}
             >
               <div className="flex items-center gap-2">
@@ -944,7 +956,7 @@ export default function Game() {
               Special
             </Button>
           )}
-          {/* 파이락(Firaks) 전용: Downgrade (Special) — 의회 보유 시 연구소→교역소 + 트랙 1칸, 라운드당 1회 */}
+          {/* 파이락(Firaks) Downgrade: 의회 보유 시 연구소→교역소 + 트랙 1칸, 라운드당 1회 */}
           {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (
             <Button
               variant={firaksDowngradeMode ? 'default' : 'outline'}
@@ -958,7 +970,7 @@ export default function Game() {
               Special
             </Button>
           )}
-          {/* 모웨이드(Moweyip) 전용: 링 놓기 (Special) — 의회 보유 시 본인 건물 하나에 링 배치 (+2 파워 수신/연방), 라운드당 1회 */}
+          {/* 모웨이드(Moweyip) 전용: 링 놓기 — 의회 보유 시 본인 건물 하나에 링 배치 (+2 파워 수신/연방), 라운드당 1회 */}
           {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'moweyip' && !currentPlayer?.usedSpecialActions?.includes('moweyip-place-ring') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null; moweyipRing?: boolean }) => t.ownerId === playerId && t.structure && t.structure !== 'ship' && !t.moweyipRing) && (
             <Button
               variant={moweyipPlaceRingMode ? 'default' : 'outline'}
@@ -977,7 +989,10 @@ export default function Game() {
             <Button
               variant="outline"
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
-              onClick={() => gameId && GameClient.useSpecialAction(gameId, 'space_giants-2tf')}
+              onClick={() => {
+                if (game.hasDoneMainAction) return;
+                setPendingAction({ type: 'useSpecialAction', actionId: 'space_giants-2tf' });
+              }}
             >
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-amber-500/30 border-amber-500/50 text-[8px]">S</Badge>
@@ -991,7 +1006,12 @@ export default function Game() {
             <Button
               variant="outline"
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
-              onClick={() => gameId && currentPlayer?.tinkeroidRoundSpecialId && GameClient.useSpecialAction(gameId, currentPlayer.tinkeroidRoundSpecialId)}
+              onClick={() => {
+                if (game.hasDoneMainAction) return;
+                if (currentPlayer?.tinkeroidRoundSpecialId) {
+                  setPendingAction({ type: 'useSpecialAction', actionId: currentPlayer.tinkeroidRoundSpecialId });
+                }
+              }}
             >
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-amber-500/30 border-amber-500/50 text-[8px]">S</Badge>
@@ -1072,10 +1092,13 @@ export default function Game() {
 
               // Check distance and reachability (+3 거리 보너스 반영)
               const baseRange = getEffectiveBaseRange(player);
-              const playerStructures = game.map.filter(t => t.ownerId === playerId && (t.structure !== null && t.structure !== 'ship'));
-              if (playerStructures.length === 0) return;
+              const rangeTiles = game.map.filter(t =>
+                (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
+                (t.spaceStation?.ownerId === playerId)
+              );
+              if (rangeTiles.length === 0) return;
 
-              const minDist = Math.min(...playerStructures.map(t => getDistance(t, tile)));
+              const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 
               // Calculate maximum possible range with all available QIC
               const maxPossibleRange = baseRange + (player.qic * 2);
@@ -1297,14 +1320,15 @@ export default function Game() {
                     }
                   }}
                   onUseBonusAction={() => {
-                    // 테라포밍 액션인 경우 Research Board 닫기
                     const player = game.players[playerId!];
+                    if (player.usedBonusAction) return;
+                    // 테라포밍 액션인 경우 Research Board 닫기
                     const bonusTile = game.availableBonusTiles.find(t => t.id === player.bonusTile) ||
                       (player.bonusTile ? ALL_BONUS_TILES.find(t => t.id === player.bonusTile) : null);
                     if (bonusTile?.specialAction === 'terraform_step') {
                       setIsResearchOpen(false);
                     }
-                    GameClient.useBonusAction(gameId!);
+                    setPendingAction({ type: 'bonusAction' });
                   }}
                 />
               </div>
@@ -1777,7 +1801,7 @@ export default function Game() {
         {/* Twilight 액션1: 보유 연방 중 하나 선택해서 해택 재수령 */}
         {game.pendingTwilightFederation && game.pendingTwilightFederation.playerId === playerId && gameId && (() => {
           const myFedIds = getFederationEntries(currentPlayer as PlayerState).map((f) => f.rewardId);
-          const myRewards = myFedIds.map((id) => FEDERATION_REWARDS.find((r) => r.id === id)).filter(Boolean);
+          const myRewards = myFedIds.map((id) => FEDERATION_REWARDS.find((r) => r.id === id) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === id)).filter(Boolean);
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
               <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
@@ -2280,7 +2304,7 @@ export default function Game() {
       <div className="w-[340px] border-l border-border bg-card p-4 flex flex-col overflow-y-auto">
         {/* Confirmation Overlay - Ultra-slim horizontal layout at top-20 with smooth drop-down */}
         <AnimatePresence>
-          {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
+          {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
             <motion.div
               initial={{ y: -50, x: '-50%', opacity: 0 }}
               animate={{ y: 0, x: '-50%', opacity: 1 }}
@@ -2452,6 +2476,48 @@ export default function Game() {
             const counts = getStructureCountsForPlayer(game, id);
             const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
             const hasPassed = p.hasPassed;
+
+            const renderActionBtn = (
+              isUsed: boolean,
+              canUse: boolean,
+              actionId: string,
+              label: string,
+              colorStr: string,
+              activeClass: string,
+              title?: string
+            ) => {
+              if (canUse && !isUsed) {
+                return (
+                  <button
+                    key={actionId}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (gameId) {
+                        if (actionId === 'bonusAction') {
+                          setPendingAction({ type: 'bonusAction' });
+                        } else {
+                          setPendingAction({ type: 'useSpecialAction', actionId });
+                        }
+                      }
+                    }}
+                    className={`px-1 py-0.5 rounded-[3px] text-[9px] border cursor-pointer active:scale-95 transition-all shadow-sm ${activeClass}`}
+                    title={title}
+                  >
+                    {label} 사용
+                  </button>
+                );
+              }
+              return (
+                <span
+                  key={actionId}
+                  className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : colorStr}`}
+                  title={title}
+                >
+                  {label}
+                </span>
+              );
+            };
+
             return (
               <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
                 <div
@@ -2753,11 +2819,18 @@ export default function Game() {
                         };
                         const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
                         const isUsed = p.usedBonusAction;
+                        const canUse = isYou && isCurrentTurn && !game.hasDoneMainAction;
                         return (
                           <div className="mb-1">
-                            <span className={`px-1.5 py-0.5 rounded-[3px] text-[9px] border ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold'}`}>
-                              보너스 Special: {actionLabel}
-                            </span>
+                            {renderActionBtn(
+                              isUsed,
+                              canUse,
+                              'bonusAction',
+                              `보너스 Special: ${actionLabel}`,
+                              'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold',
+                              'bg-emerald-600 hover:bg-emerald-500 text-white font-bold',
+                              `보너스 타일 액션: ${actionLabel}`
+                            )}
                           </div>
                         );
                       })()}
@@ -2766,96 +2839,152 @@ export default function Game() {
                       <div className="mt-1 pb-1 space-y-1">
                         <span className="text-muted-foreground font-medium block h-4">스페셜 액션</span>
                         <div className="flex flex-wrap gap-1">
-
-                          {/* Tech Tile Special Actions */}
-                          {(p.techTiles ?? []).map((tid) => {
-                            const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
-                            if (!tile?.specialAction) return null;
-                            const isUsed = p.usedTechActions?.includes(tid);
-                            return (
-                              <span
-                                key={`tech-spec-${tid}`}
-                                className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold'}`}
-                                title={`기술 타일: ${tile.label}`}
-                              >
-                                기술:{tile.label}
-                              </span>
-                            );
-                          })}
-
-                          {/* Academy (Right) Special Action */}
                           {(() => {
+                            const actionNodes: React.ReactNode[] = [];
+                            const canDoMain = isYou && isCurrentTurn && !game.hasDoneMainAction;
+
+                            // Tech Tile Special Actions
+                            (p.techTiles ?? []).forEach((tid) => {
+                              const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
+                              if (!tile?.specialAction) return;
+                              const isUsed = p.usedTechActions?.includes(tid) ?? false;
+                              actionNodes.push(
+                                renderActionBtn(
+                                  isUsed, canDoMain, tid, `기술:${tile.label}`,
+                                  'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold',
+                                  'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold hover:bg-amber-500/40',
+                                  `기술 타일: ${tile.label}`
+                                )
+                              );
+                            });
+
+                            // Academy (Right)
                             const hasAcademyRight = game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right');
-                            if (!hasAcademyRight) return null;
-                            const isUsed = p.usedSpecialActions?.includes('academy-qic');
-                            const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
-                            return (
-                              <span
-                                key="academy-spec"
-                                className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold'}`}
-                              >
-                                {label}
-                              </span>
-                            );
+                            if (hasAcademyRight) {
+                              const isUsed = p.usedSpecialActions?.includes('academy-qic') ?? false;
+                              const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
+                              actionNodes.push(
+                                renderActionBtn(
+                                  isUsed, canDoMain, 'academy-qic', label,
+                                  'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold',
+                                  'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold hover:bg-cyan-500/40'
+                                )
+                              );
+                            }
+
+                            // Bescods
+                            if (p.faction === 'bescods') {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  p.usedSpecialActions?.includes('bescods-advance-lowest') ?? false, canDoMain, 'bescods-advance-lowest', '매안:최저트랙+1',
+                                  'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold',
+                                  'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold hover:bg-blue-500/40'
+                                )
+                              );
+                            }
+
+                            // Ivits
+                            if (p.faction === 'ivits') {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  p.usedIvitsSpaceStationThisRound ?? false, canDoMain, 'ivits-space-station', '하이브:우주정거장',
+                                  'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold',
+                                  'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold hover:bg-orange-500/40'
+                                )
+                              );
+                            }
+
+                            // Moweyip
+                            const hasPI = game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
+                            if (p.faction === 'moweyip' && hasPI) {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  (p as any).usedSpecialActions?.includes('moweyip-place-ring') ?? false, canDoMain, 'moweyip-place-ring', '모웨이드:링',
+                                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold',
+                                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold hover:bg-emerald-500/40'
+                                )
+                              );
+                            }
+
+                            // Ambas
+                            if (p.faction === 'ambas' && hasPI) {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  (p as any).usedSpecialActions?.includes('ambas-swap-pi-mine') ?? false, canDoMain, 'ambas-swap-pi-mine', '엠바스:PI-Mine교체',
+                                  'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
+                                  'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold hover:bg-amber-500/40'
+                                )
+                              );
+                            }
+
+                            // Firaks
+                            if (p.faction === 'firaks' && hasPI) {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  (p as any).usedSpecialActions?.includes('firaks-downgrade') ?? false, canDoMain, 'firaks-downgrade', '파이락:다운그레이드',
+                                  'bg-red-500/20 text-red-400 border-red-500/40 font-bold',
+                                  'bg-red-500/20 text-red-400 border-red-500/40 font-bold hover:bg-red-500/40'
+                                )
+                              );
+                            }
+
+                            // Gleens
+                            if (p.faction === 'gleens') {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  (p as any).usedSpecialActions?.includes('gleens-2nav') ?? false, canDoMain, 'gleens-2nav', '글린:+2항해',
+                                  'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold',
+                                  'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold hover:bg-teal-500/40'
+                                )
+                              );
+                            }
+
+                            // Space Giants
+                            if (p.faction === 'space_giants') {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '거인:2테라',
+                                  'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold',
+                                  'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold hover:bg-orange-500/40'
+                                )
+                              );
+                            }
+
+                            // Tinkeroids
+                            if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
+                              actionNodes.push(
+                                renderActionBtn(
+                                  (p as any).usedSpecialActions?.includes('tinkeroid-special') ?? false, canDoMain, 'tinkeroid-special', `팅커:${p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`,
+                                  'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold',
+                                  'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold hover:bg-pink-500/40'
+                                )
+                              );
+                            }
+
+                            // BalTak Manual QIC Conversion (Info + Action)
+                            if (p.faction === 'bal_tak') {
+                              if ((p.balTakGaiaformersUsedForQic ?? 0) > 0) {
+                                actionNodes.push(
+                                  <span key="bal_tak-qic-info" className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold cursor-help" title="포머를 QIC 대신 사용한 누적 횟수">
+                                    포머→QIC:{p.balTakGaiaformersUsedForQic}회
+                                  </span>
+                                );
+                              }
+                              if (canDoMain && (p.gaiaformers ?? 0) > 0) {
+                                actionNodes.push(
+                                  <button
+                                    key="bal_tak-to-qic-btn"
+                                    onClick={(e) => { e.stopPropagation(); if (gameId) GameClient.useBalTakGaiaformerToQic(gameId); }}
+                                    className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border-emerald-500/30 font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
+                                  >
+                                    포머→QIC 수동변환
+                                  </button>
+                                );
+                              }
+                            }
+
+                            return actionNodes;
                           })()}
-
-                          {/* Faction Specific Specials */}
-                          {p.faction === 'bescods' && (() => {
-                            const isUsed = p.usedSpecialActions?.includes('bescods-advance-lowest');
-                            return (
-                              <span key="bescods-spec" className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold'}`}>
-                                매안:최저트랙+1
-                              </span>
-                            );
-                          })()}
-
-                          {p.faction === 'ivits' && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${p.usedIvitsSpaceStationThisRound ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold'}`}>
-                              하이브:우주정거장
-                            </span>
-                          )}
-
-                          {p.faction === 'moweyip' && game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('moweyip-place-ring') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold'}`}>
-                              모웨이드:링
-                            </span>
-                          )}
-
-                          {p.faction === 'ambas' && game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('ambas-swap-pi-mine') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'}`}>
-                              엠바스:PI-Mine교체
-                            </span>
-                          )}
-
-                          {p.faction === 'firaks' && game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('firaks-downgrade') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-red-500/20 text-red-400 border-red-500/40 font-bold'}`}>
-                              파이락:다운그레이드
-                            </span>
-                          )}
-
-                          {p.faction === 'gleens' && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('gleens-2nav') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold'}`}>
-                              글린:+2항해
-                            </span>
-                          )}
-
-                          {p.faction === 'space_giants' && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('space_giants-2tf') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold'}`}>
-                              거인:2테라
-                            </span>
-                          )}
-
-                          {p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId && (
-                            <span className={`px-1 py-0.5 rounded-[3px] text-[9px] border ${(p as any).usedSpecialActions?.includes('tinkeroid-special') ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : 'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold'}`}>
-                              팅커:{p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}
-                            </span>
-                          )}
-
-                          {p.faction === 'bal_tak' && (p.balTakGaiaformersUsedForQic ?? 0) > 0 && (
-                            <span className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold">
-                              포머→QIC:{p.balTakGaiaformersUsedForQic}회
-                            </span>
-                          )}
                         </div>
                       </div>
                     </PopoverContent>
@@ -2989,7 +3118,7 @@ export default function Game() {
                 if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
               }}
               className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-              style={{ maxHeight: '60vh' }}
+              style={{ maxHeight: '90vh' }}
             >
               <div
                 className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
@@ -3044,7 +3173,7 @@ export default function Game() {
                 if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
               }}
               className="fixed z-[110] w-[300px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-              style={{ maxHeight: '45vh' }}
+              style={{ maxHeight: '90vh' }}
             >
               <div
                 className="bg-amber-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
@@ -3077,6 +3206,6 @@ export default function Game() {
         </AnimatePresence>
 
       </div>
-    </div>
+    </div >
   );
 }

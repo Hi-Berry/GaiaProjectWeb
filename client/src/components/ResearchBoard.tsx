@@ -78,7 +78,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </CardTitle>
                 </CardHeader>
             )}
-            <CardContent className={`${isMini ? 'p-2 space-y-2' : 'p-4 space-y-8'}`}>
+            <CardContent className={`${isMini ? 'p-1.5 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
                 {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && onEndTurn && (
                     <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10">
@@ -287,18 +287,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                 {/* Research Tracks — Mini View: vertical columns (like real board) */}
                 {isMini ? (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-0">
                         {/* 6 track columns */}
-                        <div className="grid grid-cols-6 gap-1">
+                        <div className="grid grid-cols-6 gap-1 mb-0">
                             {RESEARCH_TRACKS.map((track) => {
                                 const trackTile = getFirstTrackTile(game.techTilesByTrack, track.id as ResearchTrack);
                                 const advTile = game.advancedTechTilesByTrack?.[track.id as ResearchTrack];
-                                const tileCount = (game.techTilesByTrack[track.id as ResearchTrack] || []).filter(t => t).length;
                                 const navBlocked = track.id === 'navigation' && !balTakCanAdvanceNav;
                                 return (
                                     <div
                                         key={track.id}
-                                        className={`flex flex-col items-stretch gap-0.5 rounded-lg p-0.5 relative ${navBlocked ? 'opacity-50 grayscale bg-black/40' : ''}`}
+                                        className={`flex flex-col items-stretch gap-0 rounded-lg p-0.5 relative ${navBlocked ? 'opacity-50 grayscale bg-black/40' : ''}`}
                                         style={{ backgroundColor: navBlocked ? 'transparent' : `${track.color}08`, borderTop: `1px solid ${navBlocked ? '#333' : `${track.color}40`}` }}
                                     >
                                         {/* Restricted (Locked) Overlay for Bal'Tak Nav */}
@@ -314,7 +313,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         </div>
 
                                         {/* Advanced Tech Tile (top) */}
-                                        <div className="h-6 w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border border-cyan-500/10 group relative">
+                                        <div className="h-[44px] w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border border-cyan-500/10 group relative">
                                             {advTile?.image ? (
                                                 <>
                                                     <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
@@ -363,13 +362,12 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         })}
 
                                         {/* Standard Tech Tile (bottom) */}
-                                        <div className="h-6 w-full rounded overflow-hidden flex items-center justify-center bg-zinc-900/60 border border-yellow-500/10 relative group cursor-pointer hover:border-yellow-500/40 transition-colors mt-0.5"
+                                        <div className="h-[44px] w-full rounded overflow-hidden flex items-center justify-center bg-zinc-900/60 border border-yellow-500/10 relative group cursor-pointer hover:border-yellow-500/40 transition-colors"
                                             onClick={(e) => { e.stopPropagation(); if (trackTile) onGainTechTile(trackTile.id); }}
                                         >
                                             {trackTile?.image ? (
                                                 <>
                                                     <img src={trackTile.image} alt={trackTile.label} className="w-full h-full object-contain" />
-                                                    <div className="absolute -top-0.5 -right-0.5 bg-yellow-600/90 text-white text-[5px] w-2.5 h-2.5 rounded-full font-black flex items-center justify-center z-20 shadow-sm">{tileCount}</div>
                                                     <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-[130] w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none">
                                                         <span className="text-yellow-400 font-bold block mb-0.5">{trackTile.label}</span>{trackTile.description}
                                                     </div>
@@ -383,7 +381,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             })}
                         </div>
 
-                        {/* Pool Tech Tiles (3 extra tiles not in any track) */}
+                        {/* Pool Tech Tiles (3 extra tiles not in any track) — ZERO GAP */}
                         {game.techTilesPool && game.techTilesPool.filter(t => t).length > 0 && (() => {
                             const pool: TechTile[] = game.techTilesPool!.filter((t): t is TechTile => t != null);
                             const seen: { tile: TechTile; count: number }[] = [];
@@ -392,21 +390,18 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 if (ex) ex.count++; else seen.push({ tile: t, count: 1 });
                             });
                             return (
-                                <div className="pt-0.5 mt-0.5 border-t border-white/5">
-                                    <div className="flex gap-1 flex-wrap justify-center py-1">
-                                        {seen.map(({ tile, count }) => (
+                                <div className="border-t border-white/5">
+                                    <div className="flex gap-1 flex-wrap justify-center p-0">
+                                        {seen.map(({ tile }) => (
                                             <div
                                                 key={tile.id}
-                                                className="relative h-6 w-9 rounded-md overflow-hidden bg-zinc-900/60 border border-yellow-500/10 hover:border-yellow-500/30 cursor-pointer group transition-all"
+                                                className="relative h-[44px] w-[44px] rounded-md overflow-hidden bg-zinc-900/60 border border-yellow-500/10 hover:border-yellow-500/30 cursor-pointer group transition-all"
                                                 onClick={() => onGainTechTile(tile.id)}
                                             >
                                                 {tile.image ? (
                                                     <img src={tile.image} alt={tile.label} className="w-full h-full object-contain" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{tile.label}</div>
-                                                )}
-                                                {count > 1 && (
-                                                    <div className="absolute -top-0.5 -right-0.5 bg-yellow-600/90 text-white text-[5px] w-2.5 h-2.5 rounded-full font-black flex items-center justify-center z-20 shadow-sm">{count}</div>
                                                 )}
                                                 <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
                                                     <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
@@ -421,7 +416,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                         })()}
 
                         {/* Power Actions — compact pills */}
-                        <div className="pt-1 border-t border-white/10">
+                        <div className="pt-1 border-t border-white/10 mt-1">
                             <div className="text-[7px] uppercase font-black text-zinc-500 mb-1">Power Actions</div>
                             <div className="flex flex-wrap gap-1">
                                 {game.powerActions.map((action) => (
@@ -439,6 +434,122 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 ))}
                             </div>
                         </div>
+
+                        {/* Spaceships — 2x2 Grid for Mini View */}
+                        {game.spaceships && Object.keys(game.spaceships).length > 0 && (
+                            <div className="pt-1 border-t border-white/10 mt-1">
+                                <div className="text-[7px] uppercase font-black text-zinc-500 mb-1">Spaceships</div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].map((shipType) => {
+                                        const tile = game.map.find((t) => t.type === shipType);
+                                        if (!tile || !game.spaceships?.[tile.id]) return null;
+                                        const ship = game.spaceships![tile.id];
+                                        const isLocked = !ship.unlocked;
+                                        const usedIndices = ship.usedActionIndices ?? [];
+                                        const shipFedId = game.spaceshipFederationByShip?.[tile.type];
+                                        const rewardIndex = shipFedId != null ? SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId) : -1;
+                                        const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
+                                        const techId = game.shipTechByShip?.[tile.type] ?? SHIP_TECH_BY_SHIP[tile.type];
+                                        const techTile = techId ? SHIP_TECH_TILES.find((t) => t.id === techId) : null;
+                                        const actionLabels = SHIP_ACTION_LABELS[tile.type] || ['—', '—', '—'];
+
+                                        return (
+                                            <div key={tile.id} className={`p-1.5 rounded bg-zinc-900/60 border border-white/5 relative flex flex-col gap-1 ${isLocked ? 'grayscale opacity-60' : ''}`}>
+                                                <div className="flex justify-between items-start border-b border-white/5 pb-0.5">
+                                                    <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate w-full">{SHIP_NAMES[tile.type]}</span>
+                                                    {isLocked && <Lock className="w-1.5 h-1.5 text-amber-500 shrink-0 ml-1" />}
+                                                </div>
+                                                
+                                                <div className="flex items-center gap-0.5">
+                                                    {/* Federation Reward (Reduced to 80%) */}
+                                                    <div className="w-[35px] h-[35px] shrink-0 flex items-center justify-center">
+                                                        {imgUrl ? (
+                                                            <img src={imgUrl} alt="Fed" className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <div className="w-full h-full rounded bg-black/40 border border-white/5" />
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* Tech Tile or Artifacts (Twilight 2x2 - Maximum Enlarged) */}
+                                                    <div className={`${tile.type === 'ship_twilight' ? 'w-[114px] h-[76px]' : 'w-[44px] h-[44px]'} shrink-0 flex items-center justify-start relative`}>
+                                                        {tile.type === 'ship_twilight' ? (
+                                                            <div className="grid grid-cols-2 gap-[2px]">
+                                                                {[0, 1, 2, 3].map((idx) => {
+                                                                    const aid = game.twilightArtifactSlots?.[idx];
+                                                                    if (!aid) return <div key={idx} className="w-[54px] h-[35px] rounded-[1px] border border-dashed border-white/10" />;
+                                                                    const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
+                                                                    const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
+                                                                    return (
+                                                                        <div key={idx} className="w-[54px] h-[35px] rounded-[2px] bg-purple-900/40 overflow-hidden border border-purple-500/20 shadow-sm">
+                                                                            {artImgUrl && <img src={artImgUrl} alt="Art" className="w-full h-full object-contain" />}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            techTile && (
+                                                                <div className="w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden">
+                                                                    {techTile.image ? (
+                                                                        <img src={techTile.image} alt="Tech" className="w-full h-full object-contain" />
+                                                                    ) : (
+                                                                        <div className="text-[5px] text-zinc-500">T</div>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-0.5 ml-auto">
+                                                        {[0, 1, 2].map(idx => (
+                                                            <div key={idx} className={`w-1 h-1 rounded-full ${usedIndices.includes(idx + 1) ? 'bg-zinc-600' : 'bg-green-500'}`} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Action Labels - Horizontal Buttons (Like Power Actions) */}
+                                                <div className="flex gap-0.5 mt-0.5">
+                                                    {actionLabels.map((label, idx) => {
+                                                        const isUsed = usedIndices.includes(idx + 1);
+                                                        const actionNum = idx + 1;
+                                                        const isInShip = playerId && ship.occupants.includes(playerId);
+                                                        const canUse = isInShip && onUseShipAction && !isUsed && usedIndices.length < 3;
+
+                                                        return (
+                                                            <button
+                                                                key={idx}
+                                                                disabled={!canUse}
+                                                                onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
+                                                                className={`flex-1 text-[5px] leading-tight px-0.5 py-1 rounded-[2px] border transition-all font-black text-center ${isUsed
+                                                                    ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed'
+                                                                    : canUse
+                                                                        ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer'
+                                                                        : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
+                                                                title={label + (isUsed ? ' (이미 사용됨)' : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                <div className="flex justify-between items-end mt-auto pt-1">
+                                                    {/* Occupants */}
+                                                    <div className="flex gap-0.5">
+                                                        {ship.occupants.map(pid => {
+                                                            const p = game.players[pid];
+                                                            const faction = FACTIONS.find(f => f.id === p?.faction);
+                                                            return (
+                                                                <div key={pid} className="w-1.5 h-1.5 rounded-full border border-black/40 shadow-sm" style={{ backgroundColor: faction?.color || '#fff' }} />
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className={`grid grid-cols-6 gap-3`}>

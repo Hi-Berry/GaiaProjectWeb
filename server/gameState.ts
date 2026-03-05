@@ -5109,9 +5109,6 @@ export function executePlaceStartingMine(
     delete (game as any).startingMineSequence;
     const allHaveFaction = Object.values(game.players).every(p => p.faction !== null);
     if (allHaveFaction) {
-      const numPlayers = Object.keys(game.players).length;
-      const shuffledBonusTiles = [...ALL_BONUS_TILES].sort(() => Math.random() - 0.5);
-      game.availableBonusTiles = shuffledBonusTiles.slice(0, numPlayers + 3);
       game.currentPlayerIndex = game.turnOrder.length - 1;
       game.pendingBonusSelection = game.turnOrder[game.currentPlayerIndex];
       game.currentPhase = 'bonusSelection';
