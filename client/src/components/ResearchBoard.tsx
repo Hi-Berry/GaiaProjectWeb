@@ -287,9 +287,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                         return (
                             <div
                                 key={track.id}
-                                className={`flex flex-col gap-2 p-1 rounded transition-colors group ${navBlocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
+                                className={`flex flex-col gap-2 p-1.5 rounded-xl transition-all duration-300 group border border-transparent z-10 hover:z-[100] ${navBlocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-white/10'}`}
                                 onClick={() => { if (!navBlocked) handleTrackClick(track.id as ResearchTrack); }}
                                 title={navBlocked ? "발타크: 의회 건설 후 Nav 트랙 진행 가능" : undefined}
+                                style={{
+                                    backgroundColor: `${track.color}10`,
+                                    boxShadow: `inset 0 0 20px ${track.color}10`
+                                }}
                             >
                                 {/* Track Title */}
                                 <div className="text-[10px] font-black uppercase tracking-tighter text-center truncate px-1" style={{ color: track.color }}>
@@ -297,14 +301,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 </div>
 
                                 {/* Track Levels & Tiles Stack */}
-                                <div className="flex flex-col-reverse gap-1 bg-zinc-900/30 p-1 rounded-xl border border-white/5 relative">
+                                <div className="flex flex-col-reverse gap-1 p-1.5 rounded-lg border border-white/5 relative bg-black/20 backdrop-blur-sm" style={{ borderLeftColor: `${track.color}40`, borderLeftWidth: '2px' }}>
                                     {/* Standard Tech Tile Slot (Exactly under Level 0) - 빈 칸이어도 자리 유지 */}
                                     {getFirstTrackTile(game.techTilesByTrack, track.id as ResearchTrack) ? (
                                         (() => {
                                             const trackTile = getFirstTrackTile(game.techTilesByTrack, track.id as ResearchTrack)!;
                                             return (
                                                 <div
-                                                    className="mt-1 p-2 bg-zinc-900/60 rounded-lg border border-yellow-500/20 hover:border-yellow-500/50 transition-all cursor-pointer group relative shadow-lg"
+                                                    className="mt-1 p-2 bg-zinc-900/60 rounded-lg border border-yellow-500/20 hover:border-yellow-500/50 transition-all cursor-pointer group relative shadow-lg z-10 hover:z-20"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         if (pendingTech && onSelectTechTile) {
@@ -338,7 +342,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         );
                                                     })()}
                                                     {/* Tooltip */}
-                                                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-50 w-48 p-2 bg-zinc-950 border border-yellow-500/20 rounded-lg shadow-2xl">
+                                                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-48 p-2 bg-zinc-950 border border-yellow-500/20 rounded-lg shadow-2xl">
                                                         <div className="text-[10px] font-black text-yellow-500 mb-1 uppercase pb-1 border-b border-white/5">
                                                             {trackTile.label}
                                                         </div>
@@ -422,8 +426,12 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 )}
 
                                                 <div
-                                                    className={`h-12 rounded border flex flex-col items-center justify-center relative transition-all ${level === 5 ? 'border-primary/50 bg-primary/5 shadow-[inset_0_0_10px_rgba(var(--primary),0.1)]' : 'border-white/5'
+                                                    className={`h-12 rounded border flex flex-col items-center justify-center relative transition-all z-10 hover:z-20 ${level === 5 ? 'border-primary/50 bg-primary/5 shadow-[inset_0_0_10px_rgba(var(--primary),0.1)]' : 'border-white/5'
                                                         }`}
+                                                    style={{
+                                                        backgroundColor: level > 0 ? `${track.color}${level === 5 ? '30' : '15'}` : undefined,
+                                                        borderColor: level > 0 ? `${track.color}40` : undefined
+                                                    }}
                                                 >
                                                     <span className="absolute top-0 left-1 text-[8px] font-bold text-zinc-700">L{level}</span>
                                                     <div className="flex flex-col items-center justify-center p-0.5">
@@ -434,7 +442,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 <img
                                                                     src={`/image/Federation_${rewardIdx + 1}.gif`}
                                                                     alt={label}
-                                                                    className="h-20 w-auto object-contain"
+                                                                    className="h-16 w-auto object-contain"
                                                                     title={label}
                                                                 />
                                                             ) : (
@@ -459,7 +467,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                         className="w-4 h-4 rounded-full border border-white/20 shadow-lg cursor-help group relative"
                                                                         style={{ backgroundColor: faction?.color || '#fff' }}
                                                                     >
-                                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-50">
+                                                                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110]">
                                                                             <Badge variant="outline" className="bg-zinc-950 text-[8px] whitespace-nowrap border-white/20">
                                                                                 {p.name}
                                                                             </Badge>
@@ -479,7 +487,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         && (game.players[playerId]?.techTiles || []).filter((id: string) => !isTechTileCovered(game.players[playerId], id) && !id.startsWith('adv-')).length >= 1;
                                                     return (
                                                         <div
-                                                            className={`mt-1 py-1.5 px-2 rounded border transition-all group relative shadow-[0_0_10px_rgba(6,182,212,0.1)] ${canTakeAdvanced ? 'bg-gradient-to-b from-cyan-900/40 to-cyan-950/60 border-cyan-500/30 hover:border-cyan-400 cursor-pointer' : 'bg-gradient-to-b from-cyan-900/40 to-cyan-950/60 border-cyan-500/30 cursor-help'}`}
+                                                            className={`mt-1 py-1.5 px-2 rounded border transition-all group relative z-10 hover:z-20 shadow-[0_0_10px_rgba(6,182,212,0.1)] ${canTakeAdvanced ? 'bg-gradient-to-b from-cyan-900/40 to-cyan-950/60 border-cyan-500/30 hover:border-cyan-400 cursor-pointer' : 'bg-gradient-to-b from-cyan-900/40 to-cyan-950/60 border-cyan-500/30 cursor-help'}`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 if (canTakeAdvanced && advTile?.id) onSelectAdvancedTechTile(advTile.id, track.id as ResearchTrack);
@@ -496,7 +504,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             </div>
                                                             {canTakeAdvanced && <div className="text-[7px] text-cyan-400 text-center">클릭 시 고급 획득</div>}
                                                             {/* Tooltip */}
-                                                            <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 hidden group-hover:block z-50 w-56 p-3 bg-zinc-950 border border-cyan-500/40 rounded-xl shadow-2xl backdrop-blur-md">
+                                                            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-56 p-3 bg-zinc-950 border border-cyan-500/40 rounded-xl shadow-2xl backdrop-blur-md">
                                                                 <div className="flex items-center gap-2 mb-1.5 border-b border-white/10 pb-1">
                                                                     <div className="w-2 h-2 rounded-full bg-cyan-400" />
                                                                     <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Advanced Tech</span>
@@ -539,7 +547,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             return (
                                 <div
                                     key={tile.id}
-                                    className={`w-40 bg-zinc-900/60 p-2 rounded-lg border border-yellow-500/20 hover:border-yellow-500/50 transition-all group relative shadow-lg ${isUsed ? 'grayscale opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                    className={`w-40 bg-zinc-900/60 p-2 rounded-lg border border-yellow-500/20 hover:border-yellow-500/50 transition-all group relative shadow-lg z-10 hover:z-20 ${isUsed ? 'grayscale opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                     onClick={() => {
                                         if (isUsed) return;
                                         if (isAction && hasTile) {
@@ -559,7 +567,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     <div className="absolute -top-1 -right-1 bg-yellow-600 text-white text-[8px] px-1 rounded-full font-bold shadow-sm z-10">
                                         {count}
                                     </div>
-                                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-50 w-48 p-2 bg-zinc-950 border border-yellow-500/20 rounded-lg shadow-2xl">
+                                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-48 p-2 bg-zinc-950 border border-yellow-500/20 rounded-lg shadow-2xl">
                                         <div className="text-[10px] font-black text-yellow-500 mb-1 uppercase pb-1 border-b border-white/5">{tile.label}</div>
                                         <p className="text-[10px] text-zinc-300 leading-relaxed font-medium">{tile.description}</p>
                                     </div>
@@ -770,7 +778,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     <img
                                                                         src={imgUrl}
                                                                         alt={shipFedLabel || 'Spaceship Federation Reward'}
-                                                                        className="h-20 w-auto object-contain border border-white/10 rounded shadow-sm"
+                                                                        className="h-16 w-auto object-contain border border-white/10 rounded shadow-sm"
                                                                         title={shipFedLabel || ''}
                                                                     />
                                                                 ) : (

@@ -222,13 +222,13 @@ export function BonusTiles({
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
               return (
-                <div key={r.id} className="relative w-20 h-20 group" title={`${r.label} (${n} left)`}>
+                <div key={r.id} className="relative w-16 h-16 group" title={`${r.label} (${n} left)`}>
                   {Array.from({ length: n }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}
                       src={`/image/Federation_${idx + 1}.gif`}
                       alt={r.label}
-                      className="absolute w-auto h-20 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      className="absolute w-auto h-16 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
                       style={{
                         left: `${i * 4}px`,
                         top: `${i * -1.5}px`,
@@ -254,13 +254,13 @@ export function BonusTiles({
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
               return (
-                <div key={r.id} className="relative w-20 h-20 group" title={`${r.label} (${n} left)`}>
+                <div key={r.id} className="relative w-16 h-16 group" title={`${r.label} (${n} left)`}>
                   {Array.from({ length: n }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}
                       src={`/image/Federation_${idx + 7}.gif`}
                       alt={r.label}
-                      className="absolute w-auto h-20 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      className="absolute w-auto h-16 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
                       style={{
                         left: `${i * 4}px`,
                         top: `${i * -1.5}px`,

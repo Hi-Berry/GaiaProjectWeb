@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -1634,13 +1634,41 @@ export default function Game() {
                           <div className="space-y-3 border border-amber-500/30 rounded-lg p-3 bg-amber-500/5">
                             <div className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">타클론 선택</div>
                             <div className="flex gap-2">
-                              <Button size="sm" variant={powerOfferBrainFirst ? 'default' : 'outline'} className="flex-1 text-xs bg-amber-600 hover:bg-amber-500" onClick={() => setPowerOfferBrainFirst(true)}>브레인 스톤 우선</Button>
-                              <Button size="sm" variant={!powerOfferBrainFirst ? 'default' : 'outline'} className="flex-1 text-xs border-amber-500/50" onClick={() => setPowerOfferBrainFirst(false)}>다른 파워 우선</Button>
+                              <Button
+                                size="sm"
+                                variant={powerOfferBrainFirst ? 'default' : 'outline'}
+                                className={`flex-1 text-xs ${powerOfferBrainFirst ? 'bg-amber-600 hover:bg-amber-500' : 'border-amber-500/50 text-amber-200/50'}`}
+                                onClick={() => setPowerOfferBrainFirst(true)}
+                              >
+                                브레인 스톤 우선
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={!powerOfferBrainFirst ? 'default' : 'outline'}
+                                className={`flex-1 text-xs ${!powerOfferBrainFirst ? 'bg-amber-600 hover:bg-amber-500' : 'border-amber-500/50 text-amber-200/50'}`}
+                                onClick={() => setPowerOfferBrainFirst(false)}
+                              >
+                                다른 파워 우선
+                              </Button>
                             </div>
                             {game?.map && (currentPlayer as PlayerState) && game.map.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
                               <div className="flex gap-2 pt-1 border-t border-amber-500/20">
-                                <Button size="sm" variant={powerOfferPiAddFirst ? 'default' : 'outline'} className="flex-1 text-xs bg-amber-600/80 hover:bg-amber-500/80" onClick={() => setPowerOfferPiAddFirst(true)}>1그릇 추가 후 수령</Button>
-                                <Button size="sm" variant={!powerOfferPiAddFirst ? 'default' : 'outline'} className="flex-1 text-xs border-amber-500/50" onClick={() => setPowerOfferPiAddFirst(false)}>수령 후 1그릇 추가</Button>
+                                <Button
+                                  size="sm"
+                                  variant={powerOfferPiAddFirst ? 'default' : 'outline'}
+                                  className={`flex-1 text-xs ${powerOfferPiAddFirst ? 'bg-amber-600/80 hover:bg-amber-500/80' : 'border-amber-500/50 text-amber-200/50'}`}
+                                  onClick={() => setPowerOfferPiAddFirst(true)}
+                                >
+                                  1그릇 추가 후 수령
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={!powerOfferPiAddFirst ? 'default' : 'outline'}
+                                  className={`flex-1 text-xs ${!powerOfferPiAddFirst ? 'bg-amber-600/80 hover:bg-amber-500/80' : 'border-amber-500/50 text-amber-200/50'}`}
+                                  onClick={() => setPowerOfferPiAddFirst(false)}
+                                >
+                                  수령 후 1그릇 추가
+                                </Button>
                               </div>
                             )}
                           </div>
@@ -1745,7 +1773,7 @@ export default function Game() {
                       >
                         <div className="flex flex-col items-center gap-2">
                           {imgUrl ? (
-                            <img src={imgUrl} alt={reward.label} className="h-16 w-auto object-contain" />
+                            <img src={imgUrl} alt={reward.label} className="h-[52px] w-auto object-contain" />
                           ) : (
                             <span className="font-bold">{reward.label}</span>
                           )}
@@ -1767,7 +1795,7 @@ export default function Game() {
                       >
                         <div className="flex flex-col items-center gap-2">
                           {imgUrl ? (
-                            <img src={imgUrl} alt={reward.label} className="h-16 w-auto object-contain" />
+                            <img src={imgUrl} alt={reward.label} className="h-[52px] w-auto object-contain" />
                           ) : (
                             <span className="font-bold">🚀 {reward.label}</span>
                           )}
@@ -2340,7 +2368,13 @@ export default function Game() {
           Players
         </h3>
         <div className="space-y-2">
-          {(game.turnOrder ?? Object.keys(game.players)).map((id) => {
+          {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
+            const pa = game.players[a];
+            const pb = game.players[b];
+            if (pa?.hasPassed && !pb?.hasPassed) return 1;
+            if (!pa?.hasPassed && pb?.hasPassed) return -1;
+            return 0;
+          })).map((id) => {
             const p = game.players[id] as PlayerState | undefined;
             if (!p) return null;
             const fedEntries = getFederationEntries(p);
@@ -2350,22 +2384,23 @@ export default function Game() {
             const expanded = expandedPlayerId === id;
             const counts = getStructureCountsForPlayer(game, id);
             const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
+            const hasPassed = p.hasPassed;
             return (
               <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
                 <div
                   className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
-                    ${isCurrentTurn && !p.hasPassed
+                    ${isCurrentTurn && !hasPassed
                       ? 'border-amber-400/80 bg-amber-500/10 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
                       : isYou
                         ? 'bg-primary/15 border-primary/50'
                         : 'bg-muted/50 border-border'
-                    }`}
+                    } ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}
                 >
                   <PopoverTrigger asChild>
                     <div
                       role="button"
                       tabIndex={0}
-                      className="w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group"
+                      className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
                     >
                       {/* Left: Main info, Buildings, Resources */}
                       <div className="flex-1 flex flex-col p-2.5 pr-2 min-w-0">
@@ -2379,10 +2414,13 @@ export default function Game() {
                             </span>
                             {/* Toggles */}
                             {isYou && <span className="text-[10px] text-primary flex-shrink-0">(나)</span>}
-                            {isCurrentTurn && !p.hasPassed && (
+                            {isCurrentTurn && !hasPassed && (
                               <span className="flex items-center gap-1 flex-shrink-0">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
                               </span>
+                            )}
+                            {hasPassed && (
+                              <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1 ml-auto">PASSED</span>
                             )}
                           </div>
                         </div>
@@ -2546,13 +2584,13 @@ export default function Game() {
                                   {imgUrl ? (
                                     <img
                                       src={imgUrl}
-                                      className={`h-7 w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
+                                      className={`h-[22px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
                                       alt={label}
                                     />
                                   ) : (
-                                    <span className={f.isGreen ? 'text-green-500 font-medium' : 'text-red-400'}>
-                                      {label}{f.isGreen ? ' ●' : ' ○'}
-                                    </span>
+                                    <Badge variant="outline" className={`text-[8px] px-1 py-0 ${f.isGreen ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+                                      {label}
+                                    </Badge>
                                   )}
                                   {f.isGreen && (
                                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full border border-black shadow-sm" />
@@ -2566,19 +2604,39 @@ export default function Game() {
                       {(p.techTiles?.length ?? 0) > 0 && (
                         <div>
                           <span className="text-muted-foreground font-medium">기술 타일 </span>
-                          <div className="flex flex-wrap gap-1 mt-0.5">
+                          <div className="flex flex-wrap gap-1.5 mt-1">
                             {(p.techTiles ?? []).map((tileId) => {
-                              const tile = ALL_TECH_TILES.find((t) => t.id === tileId) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tileId);
+                              const tile = ALL_TECH_TILES.find((t) => t.id === tileId) ??
+                                SHIP_TECH_TILES.find((t) => t.id === tileId) ??
+                                ALL_ADVANCED_TECH_TILES.find((t) => t.id === tileId);
                               const covered = isTechTileCovered(p, tileId);
-                              const isAdv = tileId.startsWith('adv-');
+
+                              if (!tile?.image) {
+                                const isAdv = tileId.startsWith('adv-');
+                                return (
+                                  <span
+                                    key={tileId}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] ${covered ? 'bg-zinc-700/60 text-zinc-500 line-through' : isAdv ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/30' : 'bg-yellow-900/30 text-yellow-200/90 border border-yellow-500/20'}`}
+                                    title={tile?.description}
+                                  >
+                                    {tile?.label ?? tileId}
+                                  </span>
+                                );
+                              }
+
                               return (
-                                <span
-                                  key={tileId}
-                                  className={`px-1.5 py-0.5 rounded ${covered ? 'bg-zinc-700/60 text-zinc-500 line-through' : isAdv ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/30' : 'bg-yellow-900/30 text-yellow-200/90 border border-yellow-500/20'}`}
-                                  title={tile?.description}
-                                >
-                                  {tile?.label ?? tileId}{covered ? ' (덮힘)' : ''}
-                                </span>
+                                <div key={tileId} className="relative group cursor-help" title={`${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}`}>
+                                  <img
+                                    src={tile.image}
+                                    alt={tile.label}
+                                    className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-40 brightness-50' : 'hover:scale-110 shadow-sm shadow-black'}`}
+                                  />
+                                  {covered && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <div className="w-full h-0.5 bg-red-500/50 rotate-45" />
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
@@ -2590,8 +2648,29 @@ export default function Game() {
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {(p.artifacts ?? []).map((aid) => {
                               const art = ARTIFACTS.find((a) => a.id === aid);
+                              const artIndex = ARTIFACTS.findIndex((a) => a.id === aid);
+                              const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
                               return art ? (
-                                <span key={aid} className="px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-200 text-[9px]" title={art.description}>{art.label}</span>
+                                <div key={aid} className="relative group cursor-help" title={`${art.label}: ${art.description}`}>
+                                  {artImgUrl ? (
+                                    <img
+                                      src={artImgUrl}
+                                      alt={art.label}
+                                      className="w-10 h-auto object-contain rounded border border-purple-500/30 bg-purple-900/20 hover:scale-110 shadow-sm shadow-black transition-all"
+                                    />
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-200 text-[9px]">{art.label}</span>
+                                  )}
+                                  {/* Tooltip */}
+                                  <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-48 p-2 bg-zinc-950 border border-purple-500/20 rounded-lg shadow-2xl">
+                                    <div className="text-[10px] font-black text-purple-400 mb-1 uppercase pb-1 border-b border-white/5">
+                                      {art.label}
+                                    </div>
+                                    <p className="text-[10px] text-zinc-300 leading-relaxed font-medium">
+                                      {art.description}
+                                    </p>
+                                  </div>
+                                </div>
                               ) : null;
                             })}
                           </div>

@@ -81,11 +81,11 @@ export function FreeActionsDialog({
                                 <div className="text-sm font-black text-zinc-100">{currentPlayer.ore}</div>
                             </div>
                             <div className="text-center">
-                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Know</div>
+                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Knowledge</div>
                                 <div className="text-sm font-black text-blue-400">{currentPlayer.knowledge}</div>
                             </div>
                             <div className="text-center">
-                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Cred</div>
+                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Credit</div>
                                 <div className="text-sm font-black text-yellow-400">{currentPlayer.credits}</div>
                             </div>
                             <div className="text-center">
@@ -93,15 +93,15 @@ export function FreeActionsDialog({
                                 <div className="text-sm font-black text-green-400">{currentPlayer.qic}</div>
                             </div>
                             <div className="text-center">
-                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">PW 1</div>
+                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Power 1</div>
                                 <div className="text-sm font-black text-purple-400">{currentPlayer.power1}</div>
                             </div>
                             <div className="text-center">
-                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">PW 2</div>
+                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Power 2</div>
                                 <div className="text-sm font-black text-purple-300">{currentPlayer.power2}</div>
                             </div>
                             <div className="text-center">
-                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">PW 3</div>
+                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Power 3</div>
                                 <div className="text-sm font-black text-purple-200">{currentPlayer.power3}</div>
                             </div>
                             {currentPlayer.faction === 'taklons' && (
@@ -162,7 +162,7 @@ export function FreeActionsDialog({
                                         disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 3}
                                         onClick={() => onConvertResource('3power-to-1ore', false)}
                                     >
-                                        3P ➔ 1O
+                                        3 Power ➔ 1 Ore
                                     </Button>
                                     {canSpendTaklonsPower(
                                         currentPlayer as Parameters<typeof canSpendTaklonsPower>[0],
@@ -181,7 +181,7 @@ export function FreeActionsDialog({
                                                 disabled={!isCurrentTurn}
                                                 onClick={() => onConvertResource('3power-to-1ore', true)}
                                             >
-                                                3P ➔ 1O (B)
+                                                3 Power ➔ 1 Ore (B)
                                             </Button>
                                         )}
                                 </>
@@ -196,7 +196,7 @@ export function FreeActionsDialog({
                                     }
                                     onClick={() => onConvertResource('3power-to-1ore')}
                                 >
-                                    {hasNevlasPI ? '2P ➔ 1O' : '3P ➔ 1O'}
+                                    {hasNevlasPI ? '2 Power ➔ 1 Ore' : '3 Power ➔ 1 Ore'}
                                 </Button>
                             )}
                             {!(
@@ -213,7 +213,7 @@ export function FreeActionsDialog({
                                             }
                                             onClick={() => onConvertResource('4power-to-1qic', false)}
                                         >
-                                            4P ➔ 1Q
+                                            4 Power ➔ 1 QIC
                                         </Button>
                                         {canSpendTaklonsPower(
                                             currentPlayer as Parameters<
@@ -236,7 +236,7 @@ export function FreeActionsDialog({
                                                         onConvertResource('4power-to-1qic', true)
                                                     }
                                                 >
-                                                    4P ➔ 1Q (B)
+                                                    4 Power ➔ 1 QIC (B)
                                                 </Button>
                                             )}
                                     </>
@@ -251,7 +251,7 @@ export function FreeActionsDialog({
                                         }
                                         onClick={() => onConvertResource('4power-to-1qic')}
                                     >
-                                        {hasNevlasPI ? '2P ➔ 1Q' : '4P ➔ 1Q'}
+                                        {hasNevlasPI ? '2 Power ➔ 1 QIC' : '4 Power ➔ 1 QIC'}
                                     </Button>
                                 ))}
                             {currentPlayer?.faction === 'taklons' ? (
@@ -271,7 +271,7 @@ export function FreeActionsDialog({
                                     }
                                     onClick={() => onConvertResource('1power-to-1credit', false)}
                                 >
-                                    1P ➔ 1C
+                                    1 Power ➔ 1 Credit
                                 </Button>
                             ) : (
                                 <Button
@@ -281,7 +281,7 @@ export function FreeActionsDialog({
                                     disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 1}
                                     onClick={() => onConvertResource('1power-to-1credit')}
                                 >
-                                    {hasNevlasPI ? '1P ➔ 2C' : '1P ➔ 1C'}
+                                    {hasNevlasPI ? '1 Power ➔ 2 Credit' : '1 Power ➔ 1 Credit'}
                                 </Button>
                             )}
                             {hasNevlasPI && (
@@ -293,7 +293,7 @@ export function FreeActionsDialog({
                                         disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 3}
                                         onClick={() => onConvertResource('3power-to-2ore')}
                                     >
-                                        3P ➔ 2O
+                                        3 Power ➔ 2 Ore
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -302,7 +302,7 @@ export function FreeActionsDialog({
                                         disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 2}
                                         onClick={() => onConvertResource('2power-to-1ore-1credit')}
                                     >
-                                        2P ➔ 1O 1C
+                                        2 Power ➔ 1 Ore 1 Credit
                                     </Button>
                                 </>
                             )}
@@ -327,7 +327,7 @@ export function FreeActionsDialog({
                                 disabled={!isCurrentTurn || currentPlayer.knowledge < 1}
                                 onClick={() => onConvertResource('1knowledge-to-1credit')}
                             >
-                                1K ➔ 1C
+                                1 Know ➔ 1 Credit
                             </Button>
                             <Button
                                 variant="outline"
@@ -336,7 +336,7 @@ export function FreeActionsDialog({
                                 disabled={!isCurrentTurn || (currentPlayer.qic ?? 0) < 1}
                                 onClick={() => onConvertResource('1qic-to-1ore')}
                             >
-                                1Q ➔ 1O
+                                1 QIC ➔ 1 Ore
                             </Button>
                             <Button
                                 variant="outline"
@@ -345,7 +345,7 @@ export function FreeActionsDialog({
                                 disabled={!isCurrentTurn || (currentPlayer.ore ?? 0) < 1}
                                 onClick={() => onConvertResource('1ore-to-1credit')}
                             >
-                                1O ➔ 1C
+                                1 Ore ➔ 1 Credit
                             </Button>
                             <Button
                                 variant="outline"
@@ -354,7 +354,7 @@ export function FreeActionsDialog({
                                 disabled={!isCurrentTurn || (currentPlayer.ore ?? 0) < 1}
                                 onClick={() => onConvertResource('1ore-to-1token')}
                             >
-                                1O ➔ 1 Token
+                                1 Ore ➔ 1 Token
                             </Button>
                             {currentPlayer?.faction === 'taklons' ? (
                                 <>
@@ -369,7 +369,7 @@ export function FreeActionsDialog({
                                             onConvertResource('4power-to-1knowledge', false)
                                         }
                                     >
-                                        4P ➔ 1K
+                                        4 Power ➔ 1 Know
                                     </Button>
                                     {canSpendTaklonsPower(
                                         currentPlayer as Parameters<typeof canSpendTaklonsPower>[0],
@@ -390,7 +390,7 @@ export function FreeActionsDialog({
                                                     onConvertResource('4power-to-1knowledge', true)
                                                 }
                                             >
-                                                4P ➔ 1K (B)
+                                                4 Power ➔ 1 Know (B)
                                             </Button>
                                         )}
                                 </>
@@ -405,7 +405,7 @@ export function FreeActionsDialog({
                                     }
                                     onClick={() => onConvertResource('4power-to-1knowledge')}
                                 >
-                                    {hasNevlasPI ? '2P ➔ 1K' : '4P ➔ 1K'}
+                                    {hasNevlasPI ? '2 Power ➔ 1 Know' : '4 Power ➔ 1 Know'}
                                 </Button>
                             )}
                             {currentPlayer?.faction === 'bal_tak' &&
