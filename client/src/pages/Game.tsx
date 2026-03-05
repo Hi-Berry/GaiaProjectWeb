@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
 
@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2 } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -133,6 +133,23 @@ export default function Game() {
   const isHostSessionRef = useRef(
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
   );
+  const [isResearchPinned, setIsResearchPinned] = useState(
+    gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) === 'true' : false
+  );
+  const [isBonusPinned, setIsBonusPinned] = useState(
+    gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
+  );
+  const [researchPos, setResearchPos] = useState(() => {
+    const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
+    return saved ? JSON.parse(saved) : { x: 20, y: 150 };
+  });
+  const [bonusPos, setBonusPos] = useState(() => {
+    const saved = gameId ? localStorage.getItem(`bonus-pos-${gameId}`) : null;
+    return saved ? JSON.parse(saved) : { x: 20, y: 550 };
+  });
+
+  const researchDragControls = useDragControls();
+  const bonusDragControls = useDragControls();
   const [showGameEndScore, setShowGameEndScore] = useState(false);
 
   // Sound notification tracking
@@ -709,39 +726,67 @@ export default function Game() {
       <div className="absolute left-0 top-0 bottom-0 w-80 flex flex-col z-20 pointer-events-none *:pointer-events-auto">
         {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
         {isHost && game && game.turnOrder.length > 1 && (
-          <div className="p-2 border-b border-border">
+          <div className="p-2 border-b border-border space-y-2">
             <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
               <Gamepad2 className="w-3.5 h-3.5" />
-              조작할 플레이어
+              조작할 플레이어 & 보드 고정
             </label>
-            <Select
-              value={playerId ?? ''}
-              onValueChange={async (id) => {
-                if (!gameId || id === playerId) return;
-                try {
-                  const { game: updated } = await GameClient.switchPlayer(gameId, id);
-                  setGame(updated);
-                  setPlayerId(id);
-                  storePlayerId(gameId, id);
-                } catch (e: any) {
-                  toast({ title: '전환 실패', description: e?.message, variant: 'destructive' });
-                }
-              }}
-            >
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="플레이어 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {game.turnOrder.map((id) => {
-                  const p = game.players[id];
-                  return (
-                    <SelectItem key={id} value={id} className="text-xs">
-                      {p?.name ?? id} {id === game.hostId ? '(Host)' : ''}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-1">
+              <Select
+                value={playerId ?? ''}
+                onValueChange={async (id) => {
+                  if (!gameId || id === playerId) return;
+                  try {
+                    const { game: updated } = await GameClient.switchPlayer(gameId, id);
+                    setGame(updated);
+                    setPlayerId(id);
+                    storePlayerId(gameId, id);
+                  } catch (e: any) {
+                    toast({ title: '전환 실패', description: e?.message, variant: 'destructive' });
+                  }
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs flex-1">
+                  <SelectValue placeholder="플레이어 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {game.turnOrder.map((id) => {
+                    const p = game.players[id];
+                    return (
+                      <SelectItem key={id} value={id} className="text-xs">
+                        {p?.name ?? id} {id === game.hostId ? '(Host)' : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <Button
+                variant={isResearchPinned ? 'default' : 'outline'}
+                size="icon"
+                className={`h-9 w-9 shrink-0 ${isResearchPinned ? 'bg-blue-600 hover:bg-blue-500' : ''}`}
+                onClick={() => {
+                  const newVal = !isResearchPinned;
+                  setIsResearchPinned(newVal);
+                  if (gameId) localStorage.setItem(`is-research-pinned-${gameId}`, String(newVal));
+                }}
+                title="연구 보드 고정 (Research Board Pin)"
+              >
+                <FlaskConical className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={isBonusPinned ? 'default' : 'outline'}
+                size="icon"
+                className={`h-9 w-9 shrink-0 ${isBonusPinned ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
+                onClick={() => {
+                  const newVal = !isBonusPinned;
+                  setIsBonusPinned(newVal);
+                  if (gameId) localStorage.setItem(`is-bonus-pinned-${gameId}`, String(newVal));
+                }}
+                title="보너스 타일 고정 (Bonus Tiles Pin)"
+              >
+                <Gift className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         )}
         <PlayerPanel
@@ -2925,6 +2970,111 @@ export default function Game() {
             if (gameId) GameClient.undoFreeAction(gameId);
           }}
         />
+
+        {/* Pinned Mini Boards — Floating Panels (At the end for better z-index and stability) */}
+        <AnimatePresence>
+          {isResearchPinned && (
+            <motion.div
+              key="research-mini"
+              drag
+              dragControls={researchDragControls}
+              dragListener={false}
+              dragMomentum={false}
+              initial={researchPos}
+              animate={researchPos}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
+              onDragEnd={(_, info) => {
+                const newPos = { x: researchPos.x + info.offset.x, y: researchPos.y + info.offset.y };
+                setResearchPos(newPos);
+                if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
+              }}
+              className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+              style={{ maxHeight: '60vh' }}
+            >
+              <div
+                className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
+                onPointerDown={(e) => researchDragControls.start(e)}
+              >
+                <span className="text-[11px] font-black uppercase text-blue-200 flex items-center gap-2 select-none">
+                  <FlaskConical className="w-3.5 h-3.5" /> Research Board
+                </span>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-blue-300 hover:text-white" onClick={() => { setIsResearchPinned(false); localStorage.setItem(`is-research-pinned-${gameId}`, 'false'); }}>
+                  ✕
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 px-2 py-2">
+                <ResearchBoard
+                  game={game}
+                  playerId={playerId}
+                  isMini={true}
+                  onUsePowerAction={(actionId) => GameClient.usePowerAction(gameId!, actionId)}
+                  onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
+                  onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
+                  onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
+                  onUseTechAction={(tileId) => setPendingAction({ type: 'useTechAction', tileId })}
+                  onAdvanceTech={(trackId) => {
+                    if (game.hasDoneMainAction) return;
+                    setAdvanceTechDialog({ open: true, trackId });
+                  }}
+                  onSelectTechTile={(techTileId, trackId) => GameClient.selectTechTile(gameId!, techTileId, trackId)}
+                  onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
+                  onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
+                  onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
+                  onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
+                  onEndTurn={() => GameClient.endTurn(gameId!)}
+                  onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
+                />
+              </ScrollArea>
+            </motion.div>
+          )}
+
+          {isBonusPinned && (
+            <motion.div
+              key="bonus-mini"
+              drag
+              dragControls={bonusDragControls}
+              dragListener={false}
+              dragMomentum={false}
+              initial={bonusPos}
+              animate={bonusPos}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
+              onDragEnd={(_, info) => {
+                const newPos = { x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y };
+                setBonusPos(newPos);
+                if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
+              }}
+              className="fixed z-[110] w-[300px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+              style={{ maxHeight: '45vh' }}
+            >
+              <div
+                className="bg-amber-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
+                onPointerDown={(e) => bonusDragControls.start(e)}
+              >
+                <span className="text-[11px] font-black uppercase text-amber-200 flex items-center gap-2 select-none">
+                  <Gift className="w-3.5 h-3.5" /> Bonus Tiles
+                </span>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-300 hover:text-white" onClick={() => { setIsBonusPinned(false); localStorage.setItem(`is-bonus-pinned-${gameId}`, 'false'); }}>
+                  ✕
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 px-2 py-1">
+                <BonusTiles
+                  game={game}
+                  playerId={playerId}
+                  isMini={true}
+                  onSelectBonusTile={(id) => {
+                    if (game.roundNumber === 6) {
+                      GameClient.passRound(gameId!, undefined);
+                    } else {
+                      setConfirmPassWithTileId(id);
+                    }
+                  }}
+                  onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
+                />
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>

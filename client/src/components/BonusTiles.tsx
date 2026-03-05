@@ -11,6 +11,7 @@ interface BonusTilesProps {
   onSelectBonusTile?: (tileId: string) => void;
   onUseBonusAction?: () => void;
   isSelectionMode?: boolean;
+  isMini?: boolean;
 }
 
 function getBonusIcon(tile: BonusTile) {
@@ -56,6 +57,7 @@ function BonusTileCard({
   isUsed,
   onSelect,
   onUseAction,
+  isMini,
 }: {
   tile: BonusTile;
   isOwned: boolean;
@@ -66,20 +68,23 @@ function BonusTileCard({
   hasAction?: boolean;
   onSelect?: () => void;
   onUseAction?: () => void;
+  isMini?: boolean;
 }) {
-  // Find index in ALL_BONUS_TILES to map to BoostTile_n.jpg
   const tileIndex = ALL_BONUS_TILES.findIndex(t => t.id === tile.id);
   const tileImg = tileIndex !== -1 ? `/image/BoostTile_${tileIndex + 1}.jpg` : null;
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden transition-all duration-300 ${isOwned
-        ? 'ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 shadow-[0_0_20px_rgba(var(--primary),0.2)]'
+      className={`relative rounded-lg overflow-hidden transition-all duration-300 ${isOwned
+        ? 'ring-2 ring-primary ring-offset-1 ring-offset-zinc-950 shadow-[0_0_15px_rgba(var(--primary),0.2)]'
         : isSelectable
           ? 'hover:scale-105 hover:shadow-xl cursor-pointer'
           : 'opacity-70'
         }`}
-      style={{ width: '100px', height: '160px' }}
+      style={{
+        width: isMini ? '42px' : '80px',
+        height: isMini ? '68px' : '128px'
+      }}
       onClick={isSelectable && onSelect ? onSelect : undefined}
     >
       {tileImg ? (
@@ -111,8 +116,8 @@ function BonusTileCard({
           {/* Used Overlay */}
           {isUsed && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-black/80 px-2 py-1 rounded border border-white/20 text-[10px] font-black text-zinc-500 uppercase tracking-widest rotate-[-12deg]">
-                Action Used
+              <div className={`bg-black/80 px-1 py-0.5 rounded border border-white/20 font-black text-zinc-500 uppercase tracking-widest rotate-[-12deg] ${isMini ? 'text-[6px]' : 'text-[8px]'}`}>
+                Used
               </div>
             </div>
           )}
@@ -142,6 +147,7 @@ export function BonusTiles({
   onSelectBonusTile,
   onUseBonusAction,
   isSelectionMode = false,
+  isMini = false,
 }: BonusTilesProps) {
   const currentPlayer = playerId ? game.players[playerId] : null;
 
@@ -160,21 +166,24 @@ export function BonusTiles({
 
   const pool = game.federationPool ?? {};
   return (
-    <Card className="w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron">
-      <CardContent className="p-4 space-y-6">
+    <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none' : ''}`}>
+      <CardContent className={`${isMini ? 'p-1' : 'p-4'} space-y-6`}>
         {/* Bonus Tiles — first */}
         <div className="space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
-            <Gift className="w-4 h-4" />
-            {isSelectionMode ? 'Select Bonus' : 'Bonus Tiles'}
-          </h3>
-          <div className="flex flex-wrap gap-3">
+          {!isMini && (
+            <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <Gift className="w-4 h-4" />
+              {isSelectionMode ? 'Select Bonus' : 'Bonus Tiles'}
+            </h3>
+          )}
+          <div className={`${isMini ? 'grid grid-cols-3 gap-1.5 justify-items-center' : 'flex flex-wrap gap-3'}`}>
             {/* Available Bonus Tiles */}
             {game.availableBonusTiles.map((tile) => (
               <BonusTileCard
                 key={tile.id}
                 tile={tile}
                 isOwned={false}
+                isMini={isMini}
                 isSelectable={isSelectionMode || !!onSelectBonusTile}
                 onSelect={onSelectBonusTile ? () => onSelectBonusTile(tile.id) : undefined}
               />
@@ -194,6 +203,7 @@ export function BonusTiles({
                     key={`owned-${tileId}`}
                     tile={tile}
                     isOwned={true}
+                    isMini={isMini}
                     ownerName={playerName}
                     ownerColor={playerColor}
                     isSelectable={false}
@@ -211,64 +221,70 @@ export function BonusTiles({
           </div>
         </div>
 
-        {/* Regular Federation Tiles (6 types) */}
+        {/* Federation Tiles */}
         <div className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
-            <Award className="w-3 h-3" />
-            Federation Tiles
-          </h3>
-          <div className="flex flex-wrap gap-x-8 gap-y-4">
+          {!isMini && (
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5 border-t border-white/5 pt-3">
+              <Award className="w-3 h-3" />
+              Federation Tiles
+            </h3>
+          )}
+          <div className={`${isMini ? 'grid grid-cols-4 gap-2 justify-items-center' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
             {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
+              const size = isMini ? 32 : 56;
               return (
-                <div key={r.id} className="relative w-16 h-16 group" title={`${r.label} (${n} left)`}>
-                  {Array.from({ length: n }).map((_, i) => (
+                <div key={r.id} className="relative group" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
+                  {Array.from({ length: Math.min(n, 3) }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}
                       src={`/image/Federation_${idx + 1}.gif`}
                       alt={r.label}
-                      className="absolute w-auto h-16 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      className="absolute object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
                       style={{
-                        left: `${i * 4}px`,
-                        top: `${i * -1.5}px`,
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        left: `${i * (isMini ? 2 : 4)}px`,
+                        top: `${i * (isMini ? -1 : -1.5)}px`,
                         zIndex: i,
-                        filter: `drop-shadow(${i * 2}px ${i * 2}px 2px rgba(0,0,0,0.5))`
                       }}
                     />
                   ))}
+                  {n > 3 && (
+                    <div className="absolute -bottom-1 -right-1 bg-amber-600 text-[8px] font-black px-1 rounded-full z-10">
+                      {n}
+                    </div>
+                  )}
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Spaceship Federation Reward (1 special type) */}
-        <div className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
-            <Ship className="w-3 h-3" />
-            Spaceship Federation Reward
-          </h3>
-          <div className="flex flex-wrap gap-x-8 gap-y-4">
             {SPACESHIP_FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
+              const size = isMini ? 32 : 56;
               return (
-                <div key={r.id} className="relative w-16 h-16 group" title={`${r.label} (${n} left)`}>
-                  {Array.from({ length: n }).map((_, i) => (
+                <div key={r.id} className="relative group" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
+                  {Array.from({ length: Math.min(n, 3) }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}
                       src={`/image/Federation_${idx + 7}.gif`}
                       alt={r.label}
-                      className="absolute w-auto h-16 object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      className="absolute object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
                       style={{
-                        left: `${i * 4}px`,
-                        top: `${i * -1.5}px`,
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        left: `${i * (isMini ? 2 : 4)}px`,
+                        top: `${i * (isMini ? -1 : -1.5)}px`,
                         zIndex: i,
-                        filter: `drop-shadow(${i * 2}px ${i * 2}px 2px rgba(0,0,0,0.5))`
                       }}
                     />
                   ))}
+                  {n > 3 && (
+                    <div className="absolute -bottom-1 -right-1 bg-cyan-600 text-[8px] font-black px-1 rounded-full z-10">
+                      {n}
+                    </div>
+                  )}
                 </div>
               );
             })}
