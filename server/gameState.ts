@@ -1417,6 +1417,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
       mapState: JSON.parse(JSON.stringify(game.map)),
       spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
       gameLogLength: game.gameLog?.length || 0,
+      fullGameState: JSON.parse(JSON.stringify(game)),
     };
   }
   clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
@@ -2396,75 +2397,17 @@ export function setupGameServer(httpServer: HTTPServer) {
       game.pendingTFMarsGaiaProject = null;
 
       if (isBonusGaia) {
-        // 보너스 타일 가이아 프로젝트 건너뛰기 → 타일 반납 후 패스 (TF Mars 2번과 동일 플로우)
-        const player = game.players[playerId];
-        const currentBonusTileId = player.bonusTile;
-        if (currentBonusTileId) {
-          if (!game.nextRoundBonusTiles) game.nextRoundBonusTiles = {};
-          game.nextRoundBonusTiles[playerId] = currentBonusTileId;
-          const oldTile = ALL_BONUS_TILES.find(t => t.id === currentBonusTileId);
-          if (oldTile) game.availableBonusTiles.push(oldTile);
-          player.bonusTile = null;
-        }
-        addGameLog(game, playerId, 'Bonus: Gaia Project', 'skipped', 'bonus-gaia');
-        player.hasPassed = true;
-        if (!game.passingOrder.includes(playerId)) game.passingOrder.push(playerId);
-        game.hasDoneMainAction = false;
-
-        const allPassed = game.turnOrder.every(pid => game.players[pid].hasPassed);
-        if (allPassed) {
-          game.roundNumber++;
-          (game as any).incomePhaseAppliedThisRound = false;
-          game.powerActions.forEach(a => { a.isUsed = false; });
-          Object.values(game.players).forEach(p => {
-            if (p.hadschHallasPIActions) p.hadschHallasPIActions.forEach(a => { a.isUsed = false; });
-            p.usedIvitsSpaceStationThisRound = false;
-            if (p.faction === 'bal_tak') p.balTakGaiaformersUsedForQic = 0;
-          });
-          if (game.spaceships) {
-            Object.keys(game.spaceships).forEach(id => {
-              game.spaceships![id].actionsUsed = 0;
-              game.spaceships![id].usedActionIndices = [];
-            });
-          }
-          game.turnOrder = [...game.passingOrder];
-          game.passingOrder = [];
-          if (game.nextRoundBonusTiles) {
-            Object.entries(game.nextRoundBonusTiles).forEach(([pid, tileId]) => {
-              const p = game.players[pid];
-              const tileIndex = game.availableBonusTiles.findIndex(t => t.id === tileId);
-              if (tileIndex !== -1) {
-                p.bonusTile = tileId;
-                game.availableBonusTiles.splice(tileIndex, 1);
-                p.usedBonusAction = false;
-                log(`Player ${p.name} received next round bonus tile: ${tileId}`, 'game');
-              }
-            });
-            game.nextRoundBonusTiles = {};
-          }
-          Object.values(game.players).forEach(p => { p.hasPassed = false; });
-          game.currentPlayerIndex = 0;
-          triggerIncomePhase(game);
-        } else {
-          game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
-          while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
-            game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
-          }
-        }
-        const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
-        if (newCurrentPlayerId) {
-          if (!game.turnStartState) game.turnStartState = {};
-          game.turnStartState[newCurrentPlayerId] = {
-            playerState: JSON.parse(JSON.stringify(game.players[newCurrentPlayerId])),
-            mapState: JSON.parse(JSON.stringify(game.map)),
-            spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-            gameLogLength: game.gameLog?.length || 0,
-          };
-        }
+        // 보너스 타일 가이아 프로젝트 건너뛰기 -> 타일 반납 및 패스하지 않음. 턴만 종료하도록 유도.
+        addGameLog(game, playerId, 'Bonus: Gaia Project', 'skipped (no placement)', 'bonus-gaia');
+        game.hasDoneMainAction = true; // 메인 액션 소모함
       } else {
+        // TF Mars 액션2 스킵
         addGameLog(game, playerId, 'TF Mars: Gaia Project', 'skipped', pending.shipTileId);
+        game.hasDoneMainAction = true;
       }
-      clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+
+      clampPlayerResources(game);
+      io.to(game.id).emit('game_updated', game);
     });
 
     // Eclipse 액션2: 선택한 연구 트랙 1칸 진행 (비용은 이미 use_ship_action에서 차감됨)
@@ -2582,6 +2525,11 @@ export function setupGameServer(httpServer: HTTPServer) {
           case 'ship-fed-mine-free':
           case 'ship-fed-3tf-mine':
             addGameLog(game, playerId, 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, pending.shipTileId);
+            if (shipReward.id === 'ship-fed-3tf-mine') {
+              player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
+              player.spaceshipFed3TfMineFree = true;
+              log(`Player ${player.name} received 3 terraform steps from ship-fed-3tf-mine`, 'game');
+            }
             break;
           default:
             return;
@@ -2692,16 +2640,9 @@ export function setupGameServer(httpServer: HTTPServer) {
       log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game');
 
       if (fromTFMars && isBonusGaia) {
-        // 보너스 타일 즉포 가이아: 타일만 반납하고 턴 유지 → 같은 턴에 해당 타일에 건설 가능
-        const currentBonusTileId = player.bonusTile;
-        if (currentBonusTileId) {
-          if (!game.nextRoundBonusTiles) game.nextRoundBonusTiles = {};
-          game.nextRoundBonusTiles[playerId] = currentBonusTileId;
-          const oldTile = ALL_BONUS_TILES.find(t => t.id === currentBonusTileId);
-          if (oldTile) game.availableBonusTiles.push(oldTile);
-          player.bonusTile = null;
-        }
-        // 패스/라운드 진행 없음 → 현재 플레이어 턴 유지, 같은 액션에서 건설 가능
+        // 보너스 타일 즉포 가이아: 타일 반납하지 않고 턴만 소모 처리
+        addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');
+        game.hasDoneMainAction = true;
       } else if (fromTFMars) {
         // TF Mars 액션2로 수행한 가이아 프로젝트는 메인 액션 소모 없음 → 턴 유지
       } else {
@@ -2833,13 +2774,27 @@ export function setupGameServer(httpServer: HTTPServer) {
       if (!startState) return;
 
       log(`Player ${game.players[playerId].name} reset turn`, 'game');
-      // Deep restore
-      game.players[playerId] = JSON.parse(JSON.stringify(startState.playerState));
-      game.map = JSON.parse(JSON.stringify(startState.mapState));
-      if (startState.spaceshipsState) game.spaceships = JSON.parse(JSON.stringify(startState.spaceshipsState));
-      if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
-      game.hasDoneMainAction = false;
-      clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+
+      if (startState.fullGameState) {
+        // 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
+        const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+
+        // 중요: restored 상태가 최신 게임 상태가 되도록 Map에 다시 저장
+        games.set(gameId, restored);
+
+        // 복구된 상태에 대해 자원 클램핑 및 클라이언트 업데이트 전송
+        clampPlayerResources(restored);
+        io.to(gameId).emit('game_updated', restored);
+      } else {
+        // 하위 호환성용 (기존 필드 복구)
+        game.players[playerId] = JSON.parse(JSON.stringify(startState.playerState));
+        game.map = JSON.parse(JSON.stringify(startState.mapState));
+        if (startState.spaceshipsState) game.spaceships = JSON.parse(JSON.stringify(startState.spaceshipsState));
+        if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
+        game.hasDoneMainAction = false;
+        clampPlayerResources(game);
+        io.to(gameId).emit('game_updated', game);
+      }
     });
 
     /** 아이타 의회: 가이아포머 토큰 4개 제거하고 기술 타일 1개 vs 그만하고 나머지 1그릇 복귀 */
@@ -3321,6 +3276,19 @@ export function setupGameServer(httpServer: HTTPServer) {
           addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', undefined);
           log(`Player ${player.name} (Tinkeroid) used special: +3 TF`, 'game');
         }
+      }
+
+      // 4파워 기술 타일 (Tech Tile Special Action)
+      if (actionId === 'tech-act-4p') {
+        if (!player.techTiles.includes(actionId) || player.usedTechActions.includes(actionId)) return;
+        if (isTechTileCovered(player, actionId)) return;
+
+        saveActionStartState(game, playerId);
+        if (player.faction === 'taklons') chargePowerTaklons(player, 4, true);
+        else chargePower(player, 4);
+        player.usedTechActions.push(actionId);
+        game.hasDoneMainAction = true;
+        addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power (via Special Action)');
       }
 
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -3805,6 +3773,10 @@ export function setupGameServer(httpServer: HTTPServer) {
       game.hasDoneMainAction = false;
       const prevPlayerIndex = game.currentPlayerIndex;
       const prevPlayerId = game.turnOrder[prevPlayerIndex];
+
+      // 턴이 끝난 플레이어의 이전 상태 저장 데이터 삭제
+      if (game.turnStartState) delete game.turnStartState[prevPlayerId];
+
       if (game.players[prevPlayerId]) game.players[prevPlayerId].tempRangeBonus = false;
       game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
       while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
@@ -3812,15 +3784,16 @@ export function setupGameServer(httpServer: HTTPServer) {
         if (Object.values(game.players).every(p => p.hasPassed)) break;
       }
 
-      // 다음 플레이어의 턴 시작 상태 저장 (Reset 시 복원용, 우주선 액션 포함)
+      // 다음 플레이어의 턴 시작 상태 저장 (Reset 시 복원용)
       const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
-      if (newCurrentPlayerId) {
+      if (newCurrentPlayerId && !game.players[newCurrentPlayerId].hasPassed) {
         if (!game.turnStartState) game.turnStartState = {};
         game.turnStartState[newCurrentPlayerId] = {
           playerState: JSON.parse(JSON.stringify(game.players[newCurrentPlayerId])),
           mapState: JSON.parse(JSON.stringify(game.map)),
           spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
           gameLogLength: game.gameLog?.length || 0,
+          fullGameState: JSON.parse(JSON.stringify(game)),
         };
       }
 
@@ -4267,6 +4240,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 }
 
 export function saveActionStartState(game: ServerGameState, playerId: string) {
+  // 이미 해당 플레이어의 턴 시작 상태가 저장되어 있다면(이 턴의 첫 번째 액션이 아니라면) 덮어쓰지 않는다.
+  if (game.turnStartState?.[playerId]) return;
   if (game.hasDoneMainAction) return;
 
   // 메인 액션이 시작되면 Free Action Undo 내역을 삭제해 더 이상 되돌리지 못하게 한다.
@@ -4278,6 +4253,7 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
     mapState: JSON.parse(JSON.stringify(game.map)),
     spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
     gameLogLength: game.gameLog?.length || 0,
+    fullGameState: JSON.parse(JSON.stringify(game)),
   };
 }
 
@@ -4397,9 +4373,16 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
     } else if (isRebellionGain && !selectedTrack) {
       addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
     }
+
+    // 풀에서 해당 칸이 존재하는지 확인
+    const poolIndex = game.techTilesPool.findIndex(t => t && t.id === techTileId);
+    if (poolIndex === -1 && !isRebellionGain) {
+      log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game');
+      return;
+    }
+
     if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
     // 풀에서 해당 칸만 빈 칸으로 표시 (splice로 당기지 않음)
-    const poolIndex = game.techTilesPool.findIndex(t => t && t.id === techTileId);
     if (poolIndex !== -1) (game.techTilesPool as (typeof game.techTilesPool[0] | null)[])[poolIndex] = null;
   }
 
@@ -4454,10 +4437,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   }
   const player = game.players[playerId];
   const isTerraformingPowerActionBuild = (player.pendingTerraformSteps || 0) > 0;
-  if (game.hasDoneMainAction && !isTerraformingPowerActionBuild) {
+  const isPendingGaiaBuild = (player.pendingGaiaformerTiles || []).includes(tileId);
+  if (game.hasDoneMainAction && !isTerraformingPowerActionBuild && !isPendingGaiaBuild) {
     debugLog(game, `executeBuildMine failed: Player ${playerId} has already done a main action`, 'error');
     return false;
   }
+
   if (game.currentPhase !== 'main') {
     debugLog(game, `executeBuildMine failed: Current phase is ${game.currentPhase}, expected 'main'`, 'error');
     return false;
@@ -4502,6 +4487,14 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     const rm7Qualify = qualifiesForNewSectorRoundMission(game, playerId, tileId);
     tile.structure = 'mine';
     tile.ownerId = playerId;
+
+    if (tile.hasGaiaformer && player.pendingGaiaformerTiles?.includes(tileId)) {
+      tile.hasGaiaformer = false;
+      player.gaiaformers = (player.gaiaformers ?? 0) + 1;
+      player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
+      addGameLog(game, playerId, 'Gaiaformer Returned', 'Moved back to faction board', tileId);
+    }
+
     addGameLog(game, playerId, 'Spaceship Fed', 'Mine 1 free (no Nav)', tileId);
     applyRoundMissionScore(game, playerId, 'build_mine');
     if (rm7Qualify) applyRoundMissionScore(game, playerId, 'new_sector');
@@ -4704,6 +4697,13 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   const rm7QualifyMine = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 
   tile.structure = 'mine'; tile.ownerId = playerId;
+
+  if (tile.hasGaiaformer && player.pendingGaiaformerTiles?.includes(tileId)) {
+    tile.hasGaiaformer = false;
+    player.gaiaformers = (player.gaiaformers ?? 0) + 1;
+    player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
+    addGameLog(game, playerId, 'Gaiaformer Returned', 'Moved back to faction board', tileId);
+  }
 
   if (darkaniansPiNewSectorBonus) {
     player.knowledge = (player.knowledge ?? 0) + 1;
@@ -5376,10 +5376,26 @@ export function executePassRound(
     }
 
     // Next player
+    if (game.turnStartState) delete game.turnStartState[playerId];
     game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
     while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
       game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
+      if (Object.values(game.players).every(p => p.hasPassed)) break;
     }
+
+    // 다음 플레이어 지정을 위한 스냅샷 저장
+    const nextId = game.turnOrder[game.currentPlayerIndex];
+    if (nextId && !game.players[nextId].hasPassed) {
+      if (!game.turnStartState) game.turnStartState = {};
+      game.turnStartState[nextId] = {
+        playerState: JSON.parse(JSON.stringify(game.players[nextId])),
+        mapState: JSON.parse(JSON.stringify(game.map)),
+        spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+        gameLogLength: game.gameLog?.length || 0,
+        fullGameState: JSON.parse(JSON.stringify(game)),
+      };
+    }
+
     clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
     // 6라운드에서도 사람이 패스한 후 다음 플레이어가 봇이면 자동 실행될 수 있도록 트리거 추가

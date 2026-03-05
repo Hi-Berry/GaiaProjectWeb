@@ -142,11 +142,11 @@ export default function Game() {
   );
   const [researchPos, setResearchPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
-    return saved ? JSON.parse(saved) : { x: 20, y: 150 };
+    return saved ? JSON.parse(saved) : { x: 20, y: 90 };
   });
   const [bonusPos, setBonusPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`bonus-pos-${gameId}`) : null;
-    return saved ? JSON.parse(saved) : { x: 20, y: 550 };
+    return saved ? JSON.parse(saved) : { x: 380, y: 90 };
   });
 
   const researchDragControls = useDragControls();
@@ -663,7 +663,10 @@ export default function Game() {
         let needsExtraTerraforming = false;
 
         if (tile.type === 'gaia') {
-          if (faction.id === 'gleens') {
+          if (tile.hasGaiaformer) {
+            // 포머 설치된 곳은 Qic 소모 없음
+          }
+          else if (faction.id === 'gleens') {
             oreCost += 1;
           } else {
             qicCost += getGaiaBaseQic(faction.id);
@@ -1082,11 +1085,12 @@ export default function Game() {
             onZoomChange={setMapZoom}
             onPanChange={setMapPan}
             onBuildMine={(tileId, useGaiaformer) => {
-              if (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId)) return;
+              const player = game.players[playerId!];
+              const isPendingGaiaBuild = (player?.pendingGaiaformerTiles || []).includes(tileId);
+              if (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && !isPendingGaiaBuild) return;
               const tile = game.map.find(t => t.id === tileId);
               if (!tile || !playerId) return;
 
-              const player = game.players[playerId];
               const faction = FACTIONS.find(f => f.id === player.faction);
               if (!faction) return;
 
@@ -1280,7 +1284,7 @@ export default function Game() {
 
         {/* Bonus Tiles Overlay */}
         {isBonusTilesOpen && (
-          <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
+          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
             <div className="w-full max-w-5xl h-full flex flex-col gap-4">
               <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-2xl border border-white/5 shadow-2xl">
                 <div className="flex items-center gap-4">
@@ -1338,7 +1342,7 @@ export default function Game() {
 
         {/* Research Board Overlay */}
         {isResearchOpen && (
-          <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
+          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
             <div className="w-full max-w-7xl h-full flex flex-col gap-4">
               <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-2xl border border-white/5 shadow-2xl">
                 <div className="flex items-center gap-4">
@@ -2016,23 +2020,16 @@ export default function Game() {
 
         {/* TF Mars 액션2 / 보너스 타일(2P|ACT:GP): 가이아 프로젝트 (Transdim에 가이아포머 배치) */}
         {game.pendingTFMarsGaiaProject && game.pendingTFMarsGaiaProject.playerId === playerId && gameId && (
-          <AlertDialog open={true} onOpenChange={() => { }}>
-            <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
-                  {game.pendingTFMarsGaiaProject.shipTileId === 'bonus-gaia' ? 'Bonus: 가이아 프로젝트' : 'TF Mars: 가이아 프로젝트'}
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-zinc-300">
-                  포밍 보너스 타일과 동일한 액션: 보라색(Transdim) 행성에 가이아포머를 배치하세요. 맵에서 배치할 타일을 선택하거나, 불가능하면 건너뛰기를 누르세요.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="flex justify-end pt-2">
-                <Button variant="outline" className="bg-zinc-800 border-zinc-600" onClick={() => GameClient.skipTFMarsGaiaProject(gameId)}>
-                  건너뛰기
-                </Button>
-              </div>
-            </AlertDialogContent>
-          </AlertDialog>
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-4 py-3 rounded-lg bg-zinc-900 border border-purple-500 shadow-2xl">
+            <span className="text-purple-300 font-medium whitespace-nowrap">
+              {game.pendingTFMarsGaiaProject.shipTileId === 'bonus-gaia'
+                ? '보너스 액션: 보라색(Transdim) 행성에 가이아포머 배치'
+                : 'TF Mars 액션: 보라색(Transdim) 행성에 가이아포머 배치'}
+            </span>
+            <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0" onClick={() => GameClient.skipTFMarsGaiaProject(gameId)}>
+              액션포기
+            </Button>
+          </div>
         )}
 
         {/* Eclipse 액션2: 연구 트랙 선택 (2K+3P로 원하는 트랙 1칸) */}

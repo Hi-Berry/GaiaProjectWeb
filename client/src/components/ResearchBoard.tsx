@@ -89,7 +89,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </div>
                 )}
                 {/* 기술 타일 선택 (R창 내, 팝업 없음) */}
-                {pendingTech && onSelectTechTile && (
+                {pendingTech && onSelectTechTile && !isMini && (
                     <div className="space-y-3 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-yellow-400">
                             {selectedTileIdNeedingTrack ? '올릴 기술 라인을 클릭해주세요' : '기술 타일을 선택하세요'}
@@ -231,7 +231,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 )}
 
                 {/* 고급 기술 타일: 덮을 일반 타일 선택 */}
-                {pendingAdvancedCover && onConfirmAdvancedTechCover && currentPlayer && (
+                {pendingAdvancedCover && onConfirmAdvancedTechCover && currentPlayer && !isMini && (
                     <div className="space-y-3 p-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-cyan-400">덮을 일반 기술 타일을 선택하세요</h4>
                         <p className="text-[9px] text-zinc-400">선택한 타일은 고급 타일에 의해 덮이며, 수입·액션·큰건물 보너스가 적용되지 않습니다.</p>
@@ -257,7 +257,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 )}
 
                 {/* 우주선 기술 타일 / 고급 기술 타일 획득 후: 올릴 트랙 선택 (6개 중 1개) */}
-                {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && (
+                {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && !isMini && (
                     <div className="space-y-3 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400">올릴 기술 라인을 클릭하세요</h4>
                         <p className="text-[9px] text-zinc-400">{pendingAdvTechTrack ? '고급 기술 타일 보상' : '우주선 기술 타일 보상'} — 6개 트랙 중 하나를 선택하세요.</p>
@@ -459,7 +459,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate w-full">{SHIP_NAMES[tile.type]}</span>
                                                     {isLocked && <Lock className="w-1.5 h-1.5 text-amber-500 shrink-0 ml-1" />}
                                                 </div>
-                                                
+
                                                 <div className="flex items-center gap-0.5">
                                                     {/* Federation Reward (Reduced to 80%) */}
                                                     <div className="w-[35px] h-[35px] shrink-0 flex items-center justify-center">
@@ -469,7 +469,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             <div className="w-full h-full rounded bg-black/40 border border-white/5" />
                                                         )}
                                                     </div>
-                                                    
+
                                                     {/* Tech Tile or Artifacts (Twilight 2x2 - Maximum Enlarged) */}
                                                     <div className={`${tile.type === 'ship_twilight' ? 'w-[114px] h-[76px]' : 'w-[44px] h-[44px]'} shrink-0 flex items-center justify-start relative`}>
                                                         {tile.type === 'ship_twilight' ? (

@@ -681,6 +681,9 @@ export function GameBoard({
               <pattern id="ts-twilight" patternContentUnits="objectBoundingBox" width="1" height="1">
                 <image href="/map/ts_115.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
               </pattern>
+              <pattern id="ts-forming" patternContentUnits="objectBoundingBox" width="1" height="1">
+                <image href="/map/ts_forming.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+              </pattern>
             </defs>
             <g id="sector-backgrounds-layer">
               {SECTOR_CENTERS.map((center) => {
@@ -791,6 +794,11 @@ export function GameBoard({
                         {tile.type === 'ship_twilight' && <circle r="4.15" fill="url(#ts-twilight)" pointerEvents="none" transform="rotate(-90)" />}
                         {tile.type === 'ship_eclipse' && <circle r="4.15" fill="url(#ts-eclipse)" pointerEvents="none" transform="rotate(-90)" />}
                       </>
+                    )}
+
+                    {/* 가이아 행성으로 변환된(또는 원래) 땅 오버레이 (ts_forming.png) */}
+                    {tile.type === 'gaia' && (
+                      <circle r="4.15" fill="url(#ts-forming)" pointerEvents="none" />
                     )}
 
                     {/* 가이아 포머 표시 (transdim 또는 성숙 가이아에 설치된 경우) */}

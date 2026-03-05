@@ -182,6 +182,9 @@ export function HexMap() {
             <pattern id="ts-twilight" patternContentUnits="objectBoundingBox" width="1" height="1">
               <image href="/map/ts_115.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
             </pattern>
+            <pattern id="ts-forming" patternContentUnits="objectBoundingBox" width="1" height="1">
+              <image href="/map/ts_forming.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
+            </pattern>
             <pattern id="ts-gas-cloud" patternContentUnits="objectBoundingBox" width="1" height="1">
               <image href="/map/ts_113.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
             </pattern>
@@ -288,6 +291,11 @@ export function HexMap() {
                     </>
                   )}
                   {/* Outer Sector Highlight Overlay removed as it makes the image blurry */}
+
+                  {/* 가이아 행성 오버레이 (ts_forming.png) */}
+                  {tile.type === 'gaia' && (
+                    <circle r="4.15" fill="url(#ts-forming)" pointerEvents="none" />
+                  )}
 
                   {/* Sector number removed to keep the map clean */}
 
