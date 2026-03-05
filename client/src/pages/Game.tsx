@@ -130,7 +130,9 @@ export default function Game() {
   const [powerOfferBrainFirst, setPowerOfferBrainFirst] = useState(true);
   const [powerOfferPiAddFirst, setPowerOfferPiAddFirst] = useState(true);
   /** 한 컴퓨터 4인플: 방장 브라우저인지 (턴 바뀔 때 조작 플레이어 자동 전환용) */
-  const isHostSessionRef = useRef(false);
+  const isHostSessionRef = useRef(
+    gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
+  );
   const [showGameEndScore, setShowGameEndScore] = useState(false);
 
   // Sound notification tracking
@@ -254,13 +256,33 @@ export default function Game() {
 
   // 방장 세션 표시: 초기 로드/재접속 시에도 설정 (game_updated만으로는 첫 로드에서 설정 안 됨)
   useEffect(() => {
-    if (game && playerId && game.hostId === playerId) isHostSessionRef.current = true;
-  }, [game?.hostId, playerId]);
+    if (game && playerId && game.hostId === playerId) {
+      isHostSessionRef.current = true;
+      if (gameId) localStorage.setItem(`is-host-${gameId}`, 'true');
+    }
+  }, [game?.hostId, playerId, gameId]);
 
-  // 한 컴퓨터 4인플: 방장일지라도 리소스 고정을 위해 조작 플레이어 자동 전환 비활성화
+  // 한 컴퓨터 4인플: 방장일 경우 현재 턴 플레이어로 자동 전환 (로컬 멀티플레이용)
   useEffect(() => {
-    // UI 고정 요청에 따라, 현재 턴 플레이어로 자동 전환되지 않게 함
-  }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.players, playerId]);
+    if (!gameId || !game || !isHostSessionRef.current) return;
+
+    // 현재 턴 플레이어 ID 확인
+    const currentActivePlayerId = game.turnOrder[game.currentPlayerIndex];
+    if (currentActivePlayerId && currentActivePlayerId !== playerId) {
+      // 보너스 타일 선택 중일 때는 해당 선택 대기 유저로 전환
+      if (game.currentPhase === 'bonusSelection' && game.pendingBonusSelection) {
+        if (game.pendingBonusSelection !== playerId) {
+          setPlayerId(game.pendingBonusSelection);
+          storePlayerId(gameId, game.pendingBonusSelection);
+        }
+        return;
+      }
+
+      // 일반적인 턴 전환
+      setPlayerId(currentActivePlayerId);
+      storePlayerId(gameId, currentActivePlayerId);
+    }
+  }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.pendingBonusSelection, playerId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -679,7 +701,7 @@ export default function Game() {
 
   const cost = pendingAction ? getActionCost(pendingAction) : null;
 
-  const isHost = game && playerId === game.hostId;
+  const isHost = (game && playerId === game.hostId) || isHostSessionRef.current;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background font-sans text-foreground relative">
