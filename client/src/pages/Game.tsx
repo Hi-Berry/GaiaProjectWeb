@@ -135,10 +135,10 @@ export default function Game() {
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
   );
   const [isResearchPinned, setIsResearchPinned] = useState(
-    gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) === 'true' : false
+    gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) !== 'false' : true
   );
   const [isBonusPinned, setIsBonusPinned] = useState(
-    gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
+    gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) !== 'false' : true
   );
   const [researchPos, setResearchPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
@@ -1227,7 +1227,7 @@ export default function Game() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute bottom-0 left-0 right-[340px] border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-40"
+              className="absolute bottom-0 left-0 right-[340px] border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120]"
             >
               <button
                 type="button"
@@ -3172,7 +3172,7 @@ export default function Game() {
                 setBonusPos(newPos);
                 if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
               }}
-              className="fixed z-[110] w-[300px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+              className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
               style={{ maxHeight: '90vh' }}
             >
               <div
@@ -3180,26 +3180,34 @@ export default function Game() {
                 onPointerDown={(e) => bonusDragControls.start(e)}
               >
                 <span className="text-[11px] font-black uppercase text-amber-200 flex items-center gap-2 select-none">
-                  <Gift className="w-3.5 h-3.5" /> Bonus Tiles
+                  <Gift className="w-3.5 h-3.5" /> Tactical Overview
                 </span>
                 <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-300 hover:text-white" onClick={() => { setIsBonusPinned(false); localStorage.setItem(`is-bonus-pinned-${gameId}`, 'false'); }}>
                   ✕
                 </Button>
               </div>
               <ScrollArea className="flex-1 px-2 py-1">
-                <BonusTiles
-                  game={game}
-                  playerId={playerId}
-                  isMini={true}
-                  onSelectBonusTile={(id) => {
-                    if (game.roundNumber === 6) {
-                      GameClient.passRound(gameId!, undefined);
-                    } else {
-                      setConfirmPassWithTileId(id);
-                    }
-                  }}
-                  onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
-                />
+                <div className="flex flex-col gap-4">
+                  <RoundBoard
+                    game={game}
+                    playerId={playerId}
+                    isMini={true}
+                  />
+                  <div className="h-[1px] bg-white/10 w-full" />
+                  <BonusTiles
+                    game={game}
+                    playerId={playerId}
+                    isMini={true}
+                    onSelectBonusTile={(id) => {
+                      if (game.roundNumber === 6) {
+                        GameClient.passRound(gameId!, undefined);
+                      } else {
+                        setConfirmPassWithTileId(id);
+                      }
+                    }}
+                    onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
+                  />
+                </div>
               </ScrollArea>
             </motion.div>
           )}
