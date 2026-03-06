@@ -18,7 +18,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DebugPanel } from '@/components/DebugPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +42,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -483,129 +485,360 @@ export default function Game() {
   const GameEndScoreModal = () => {
     if (game.currentPhase !== 'gameEnd') return null;
 
-    const getTechTileLabel = (tileId: string) => {
-      const t = ALL_TECH_TILES.find(x => x.id === tileId) || ALL_ADVANCED_TECH_TILES.find(x => x.id === tileId);
-      return t?.label ?? tileId;
-    };
-    const sortedPlayerIds = game.turnOrder.length ? [...game.turnOrder] : Object.keys(game.players);
-    const playersWithScores = sortedPlayerIds
+    const playersWithScores = game.turnOrder
       .map(pid => ({ pid, player: game.players[pid], faction: FACTIONS.find(f => f.id === game.players[pid]?.faction) }))
       .filter(x => x.player)
       .sort((a, b) => (b.player!.score ?? 0) - (a.player!.score ?? 0));
 
+    const getRoundMissionImage = (id: string) => {
+      if (!id) return null;
+      const numStr = id.replace('rs', '');
+      return `/image/RS_${numStr}.gif`;
+    };
+
+    const getFinalMissionImage = (missionId: string) => {
+      const missionKeys = Object.keys(FINAL_MISSION_LABELS);
+      const missionIndex = missionKeys.indexOf(missionId);
+      return missionIndex !== -1 ? `/image/EGS_${missionIndex + 1}.jpg` : null;
+    };
+
+    const getBonusTileImage = (tileId: string) => {
+      const tileIndex = ALL_BONUS_TILES.findIndex(t => t.id === tileId);
+      return tileIndex !== -1 ? `/image/BoostTile_${tileIndex + 1}.jpg` : null;
+    };
+
+    const getFederationImage = (rewardId: string) => {
+      let rewardIndex = FEDERATION_REWARDS.findIndex(r => r.id === rewardId);
+      if (rewardIndex !== -1) return `/image/Federation_${rewardIndex + 1}.gif`;
+      rewardIndex = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === rewardId);
+      if (rewardIndex !== -1) return `/image/Federation_${rewardIndex + 7}.gif`;
+      return null;
+    };
+
+    const getTechTileImage = (tileId: string) => {
+      const t = ALL_TECH_TILES.find(x => x.id === tileId) || ALL_ADVANCED_TECH_TILES.find(x => x.id === tileId) || (SHIP_TECH_TILES as any[]).find(x => x.id === tileId);
+      return t?.image ?? null;
+    };
+
     return (
       <AlertDialog open={showGameEndScore} onOpenChange={setShowGameEndScore}>
-        <AlertDialogContent className="bg-zinc-950 border-zinc-700 max-w-4xl max-h-[90vh] overflow-y-auto">
-          <AlertDialogHeader>
+        <AlertDialogContent className="bg-zinc-950/95 border-zinc-700 max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 shadow-2xl shadow-black">
+          <AlertDialogHeader className="p-6 pb-2">
             <div className="flex items-center justify-between">
-              <AlertDialogTitle className="text-2xl font-black uppercase tracking-widest text-amber-400">게임 종료 — 최종 점수</AlertDialogTitle>
+              <AlertDialogTitle className="text-3xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500 drop-shadow-sm font-orbitron">
+                🏆 FINAL VICTORY BOARD
+              </AlertDialogTitle>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowGameEndScore(false)} className="border-zinc-600 text-zinc-300">닫기 (맵 보기)</Button>
-                <Button variant="destructive" onClick={() => setLocation('/')}>로비로 나가기</Button>
+                <Button variant="outline" onClick={() => setShowGameEndScore(false)} className="border-zinc-700 hover:bg-zinc-800 text-zinc-300 font-bold uppercase tracking-widest text-xs h-9">
+                  Keep Exploring
+                </Button>
+                <Button variant="destructive" onClick={() => setLocation('/')} className="font-bold uppercase tracking-widest text-xs h-9 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                  Exit to Lobby
+                </Button>
               </div>
             </div>
           </AlertDialogHeader>
-          <div className="space-y-4 py-4">
-            {playersWithScores.map(({ pid, player, faction }, idx) => {
-              const b = player!.scoreBreakdown;
-              const color = faction?.color ?? '#888';
-              return (
-                <div key={pid} className="rounded-xl border border-white/10 bg-zinc-900/60 overflow-hidden">
-                  <div className="px-4 py-3 flex items-center justify-between border-b border-white/10" style={{ borderLeftWidth: 4, borderLeftColor: color }}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg font-bold" style={{ color }}>{player!.name}</span>
-                      {faction && <span className="text-sm text-zinc-400">{faction.name}</span>}
+
+          <div className="flex-1 overflow-hidden flex flex-col p-6 pt-2">
+            <Tabs defaultValue={playersWithScores[0]?.pid} className="flex-1 flex flex-col">
+              <TabsList className="bg-zinc-900/50 p-1 rounded-xl border border-white/5 self-start mb-6">
+                {playersWithScores.map(({ pid, player, faction }) => (
+                  <TabsTrigger
+                    key={pid}
+                    value={pid}
+                    className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white font-bold py-2 px-6 rounded-lg transition-all"
+                    style={{
+                      borderBottom: '3px solid transparent',
+                      ...(pid === (playersWithScores[0]?.pid) ? {} : {})
+                    }}
+                  >
+                    <div className="flex flex-col items-start gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: faction?.color || '#888' }} />
+                        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-black">{faction?.name || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 ml-4">
+                        <span className="text-sm">{player!.name}</span>
+                        <span className="text-xs opacity-50 tabular-nums">{player!.score} VP</span>
+                      </div>
                     </div>
-                    <div className="text-2xl font-black tabular-nums text-white">{player!.score ?? 0} VP</div>
-                  </div>
-                  <div className="p-4 text-sm space-y-3">
-                    <div>
-                      <div className="text-zinc-500 font-semibold mb-1">시작</div>
-                      <div>10 VP</div>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {playersWithScores.map(({ pid, player, faction }) => {
+                const b = player!.scoreBreakdown!;
+                const color = faction?.color ?? '#888';
+
+                return (
+                  <TabsContent key={pid} value={pid} className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                      {/* LH Column: Summary & Main Stats */}
+                      <div className="md:col-span-4 space-y-6">
+                        <Card className="bg-zinc-900/40 border-white/5 overflow-hidden">
+                          <div className="p-6 space-y-4">
+                            <div className="flex flex-col items-center gap-2 text-center">
+                              <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-2xl relative group mb-2" style={{ backgroundColor: `${color}20`, border: `2px solid ${color}40` }}>
+                                <span className="drop-shadow-lg group-hover:scale-110 transition-transform">🚀</span>
+                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+                              </div>
+                              <h3 className="text-2xl font-black text-white uppercase tracking-wider">{player!.name}</h3>
+                              <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs" style={{ color: `${color}cc` }}>{faction?.name || 'Unknown Faction'}</p>
+                            </div>
+
+                            <div className="pt-4 border-t border-white/5">
+                              <div className="flex justify-between items-end mb-1">
+                                <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Total Score</span>
+                                <span className="text-4xl font-black tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{player!.score} <span className="text-sm font-bold text-zinc-500 tracking-normal uppercase">VP</span></span>
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+
+                        {/* Research & Other list */}
+                        <div className="space-y-4">
+                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">Research & Bonuses</h4>
+                          <div className="bg-zinc-900/20 rounded-xl border border-white/5 divide-y divide-white/5">
+                            <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <span className="text-xs font-bold text-zinc-400">Starting Bonus</span>
+                              <span className="text-sm font-black text-amber-500/80">+10 VP</span>
+                            </div>
+                            {b.researchTracks > 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">Research Board End</span>
+                                <span className="text-sm font-black text-cyan-400">+{(b.researchTracks)} VP</span>
+                              </div>
+                            )}
+                            {b.powerReceived > 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-red-400/80">Power Reception Tax</span>
+                                <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
+                              </div>
+                            )}
+                            {b.other.map((item, i) => (
+                              <div key={i} className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">{item.source}</span>
+                                <span className="text-sm font-black text-zinc-100">{item.vp >= 0 ? '+' : ''}{item.vp} VP</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* RH Column: Visual Assets Grid */}
+                      <div className="md:col-span-8 space-y-8">
+                        {/* Round Missions */}
+                        <section>
+                          <div className="flex items-center gap-2 mb-4">
+                            <Trophy className="w-4 h-4 text-amber-500" />
+                            <h4 className="text-xs font-black text-white uppercase tracking-widest">Round Achievements</h4>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                            {game.roundScoringTiles.map((tile, idx) => {
+                              const bItem = b.roundMissions.find(m => m.round === idx + 1);
+                              const vp = bItem?.vp || 0;
+                              const img = getRoundMissionImage(tile.id);
+                              return (
+                                <div key={idx} className="flex flex-col items-center gap-2 group">
+                                  <div className="relative aspect-[2/3] w-full bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden shadow-lg group-hover:border-white/20 transition-all">
+                                    {img ? (
+                                      <img src={img} alt={tile.label} className="w-full h-full object-contain p-1" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-600 font-bold">R{idx + 1}</div>
+                                    )}
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 pt-4 text-center">
+                                      <span className="text-[10px] font-black text-white">ROUND {idx + 1}</span>
+                                    </div>
+                                  </div>
+                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30 font-black tabular-nums">+{vp}</Badge>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                          {/* Bonus Tiles History */}
+                          <section>
+                            <div className="flex items-center gap-2 mb-4">
+                              <Star className="w-4 h-4 text-yellow-500" />
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Bonus Tiles</h4>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                              {b.bonusTilePass.length === 0 ? (
+                                <div className="col-span-5 py-4 text-center text-[10px] text-zinc-600 italic border border-dashed border-white/5 rounded-lg">
+                                  No bonus tile history recorded for this game.
+                                </div>
+                              ) : b.bonusTilePass.map((item, i) => {
+                                const img = item.tileId ? getBonusTileImage(item.tileId) : null;
+                                return (
+                                  <div key={i} className="flex flex-col items-center gap-1.5 group">
+                                    <div className="relative w-full aspect-[2/3] bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden shadow-lg group-hover:border-yellow-500/30 transition-all flex flex-col items-center justify-center">
+                                      {img ? (
+                                        <img src={img} alt={item.tileId} className="w-full h-full object-contain p-1" />
+                                      ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <Star className="w-4 h-4 text-zinc-700" />
+                                          <div className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">Round {item.round}</div>
+                                        </div>
+                                      )}
+                                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1 text-center">
+                                        <span className="text-[8px] font-black text-white">R{item.round}</span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-black text-yellow-500/80">+{item.vp} <span className="text-[8px] opacity-60">VP</span></span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </section>
+
+                          {/* Final Missions */}
+                          <section>
+                            <div className="flex items-center gap-2 mb-4">
+                              <Flag className="w-4 h-4 text-blue-500" />
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Endgame Missions</h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              {(game.finalMissionIds ?? []).map((mid, i) => {
+                                const img = getFinalMissionImage(mid);
+                                const missionValue = getFinalMissionValue(game, pid, mid);
+                                // Final mission score is aggregate in addScore(..., 'finalMissions'), 
+                                // so we don't have individual VP per mission in ScoreBreakdown easily unless they are stored separately.
+                                // But we can display the mission image and its board progress value.
+                                return (
+                                  <div key={mid} className="flex flex-col gap-2">
+                                    <div className="relative aspect-[4/3] bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden group shadow-lg">
+                                      {img ? (
+                                        <img src={img} alt={mid} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-600">{mid}</div>
+                                      )}
+                                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black to-transparent p-2">
+                                        <div className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter truncate">{FINAL_MISSION_LABELS[mid]}</div>
+                                        <div className="text-sm font-black text-white tabular-nums">{missionValue} units</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-2 text-right">
+                              <span className="text-[10px] font-bold text-zinc-500 mr-2 uppercase">Subtotal:</span>
+                              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 font-black">+{b.finalMissions} VP</Badge>
+                            </div>
+                          </section>
+                        </div>
+
+                        {/* Technology and Federations */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          {/* Tech Tiles Grid */}
+                          <section>
+                            <div className="flex items-center gap-2 mb-4">
+                              <FlaskConical className="w-4 h-4 text-purple-500" />
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Technology Portfolio</h4>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {b.techTiles.map(({ tileId, vp }, i) => {
+                                const img = getTechTileImage(tileId);
+                                return (
+                                  <div key={i} className="flex flex-col items-center gap-1 group">
+                                    <div className="w-full aspect-[4/3] bg-zinc-900 border border-white/5 rounded-lg overflow-hidden flex items-center justify-center p-1 group-hover:border-purple-500/50 transition-colors">
+                                      {img ? (
+                                        <img src={img} alt={tileId} className="w-full h-full object-contain" />
+                                      ) : (
+                                        <span className="text-[8px] text-zinc-600 text-center">{tileId}</span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] font-black text-purple-400/80">+{vp}</span>
+                                  </div>
+                                );
+                              })}
+                              {b.techTiles.length === 0 && (
+                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No technology tokens acquired.</div>
+                              )}
+                            </div>
+                          </section>
+
+                          {/* Federations Grid */}
+                          <section>
+                            <div className="flex items-center gap-2 mb-4">
+                              <Shield className="w-4 h-4 text-emerald-500" />
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Established Federations</h4>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {(player!.federations ?? []).map((fed, i) => {
+                                const img = getFederationImage(typeof fed === 'string' ? fed : fed.rewardId);
+                                const rid = typeof fed === 'string' ? fed : fed.rewardId;
+                                // For federations, we don't have individual VP in breakdown, but rewards have standard VP.
+                                const allRewards = [...FEDERATION_REWARDS, ...SPACESHIP_FEDERATION_REWARDS] as any[];
+                                const vp = allRewards.find(r => r.id === rid)?.vp || 0;
+                                return (
+                                  <div key={i} className="flex flex-col items-center gap-1 group">
+                                    <div className="w-full aspect-square bg-zinc-900 border border-white/5 rounded-xl overflow-hidden flex items-center justify-center p-1 group-hover:border-emerald-500/50 transition-colors">
+                                      {img ? (
+                                        <img src={img} alt={rid} className="w-full h-full object-contain" />
+                                      ) : (
+                                        <span className="text-[8px] text-zinc-600 text-center">{rid}</span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] font-black text-emerald-400/80">+{vp}</span>
+                                  </div>
+                                );
+                              })}
+                              {(!player!.federations || player!.federations.length === 0) && (
+                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No federations established.</div>
+                              )}
+                            </div>
+                          </section>
+                        </div>
+
+                        {/* Special Extras: Spaceships & Proto */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                          {b.spaceships.length > 0 && (
+                            <section>
+                              <div className="flex items-center gap-2 mb-4">
+                                <Ship className="w-4 h-4 text-cyan-500" />
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Spaceship Missions</h4>
+                              </div>
+                              <div className="grid grid-cols-1 gap-2">
+                                {b.spaceships.map(({ shipTileId, vp }, i) => (
+                                  <div key={i} className="bg-zinc-900/30 border border-white/5 rounded-lg p-2.5 flex justify-between items-center group hover:bg-zinc-900/50 transition-colors">
+                                    <div className="flex items-center gap-2 text-[10px] font-black text-zinc-400">{shipTileId || 'Spaceship Achievement'}</div>
+                                    <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 h-5 px-1.5 font-black">+{vp}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </section>
+                          )}
+
+                          {/* Proto Planet highlight if achieved */}
+                          {b.other.some(o => o.source === 'Proto Planet') && (
+                            <section>
+                              <div className="flex items-center gap-2 mb-4">
+                                <Mountain className="w-4 h-4 text-cyan-300" />
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Scientific Milestone</h4>
+                              </div>
+                              <Card className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border-cyan-800/30 overflow-hidden shadow-lg shadow-cyan-950/20">
+                                <div className="p-4 flex items-center gap-4">
+                                  <div className="w-12 h-12 bg-black/40 rounded-lg flex items-center justify-center p-1 border border-cyan-400/20">
+                                    <img src="/map/ts_111.png" alt="Proto Planet" className="w-full h-full object-contain" />
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] font-black text-cyan-300 tracking-widest uppercase">Proto Planet Colonized</div>
+                                    <div className="text-sm font-black text-white">+6 VP <span className="text-[10px] font-bold text-zinc-500">(3 Terraforming)</span></div>
+                                  </div>
+                                </div>
+                              </Card>
+                            </section>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {!b ? (
-                      <p className="text-zinc-500">점수 내역 없음</p>
-                    ) : (
-                      <>
-                        {b.roundMissions.length > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">라운드 미션</div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                              {b.roundMissions.map(({ round, vp }) => (
-                                <span key={round}>R{round}: +{vp}</span>
-                              ))}
-                              <span className="text-zinc-400">= +{b.roundMissions.reduce((s, x) => s + x.vp, 0)}</span>
-                            </div>
-                          </div>
-                        )}
-                        {b.bonusTilePass.length > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">보너스 타일 패스</div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                              {b.bonusTilePass.map(({ round, vp }) => (
-                                <span key={round}>R{round}: +{vp}</span>
-                              ))}
-                              <span className="text-zinc-400">= +{b.bonusTilePass.reduce((s, x) => s + x.vp, 0)}</span>
-                            </div>
-                          </div>
-                        )}
-                        {b.techTiles.length > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">기술 타일</div>
-                            <ul className="list-disc list-inside space-y-0.5">
-                              {b.techTiles.map(({ tileId, vp }, i) => (
-                                <li key={i}>{getTechTileLabel(tileId)}: +{vp}</li>
-                              ))}
-                              <li className="text-zinc-400">= +{b.techTiles.reduce((s, x) => s + x.vp, 0)}</li>
-                            </ul>
-                          </div>
-                        )}
-                        {b.finalMissions > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">최종 미션</div>
-                            <div>+{b.finalMissions}</div>
-                          </div>
-                        )}
-                        {b.powerReceived > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">파워 수신 (지불)</div>
-                            <div className="text-red-400">−{b.powerReceived}</div>
-                          </div>
-                        )}
-                        {b.spaceships.length > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">우주선 보상</div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                              {b.spaceships.map(({ shipTileId, vp }, i) => (
-                                <span key={i}>{shipTileId || '우주선'}: +{vp}</span>
-                              ))}
-                              <span className="text-zinc-400">= +{b.spaceships.reduce((s, x) => s + x.vp, 0)}</span>
-                            </div>
-                          </div>
-                        )}
-                        {b.researchTracks > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">연구 트랙 종료 보너스 (3→4, 4→8, 5→12점)</div>
-                            <div>+{b.researchTracks}</div>
-                          </div>
-                        )}
-                        {b.other.length > 0 && (
-                          <div>
-                            <div className="text-zinc-500 font-semibold mb-1">기타</div>
-                            <ul className="list-disc list-inside space-y-0.5">
-                              {b.other.map(({ source, vp }, i) => (
-                                <li key={i}>{source}: {vp >= 0 ? '+' : ''}{vp}</li>
-                              ))}
-                              <li className="text-zinc-400">= {b.other.reduce((s, x) => s + x.vp, 0) >= 0 ? '+' : ''}{b.other.reduce((s, x) => s + x.vp, 0)}</li>
-                            </ul>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           </div>
         </AlertDialogContent>
       </AlertDialog>
@@ -3341,7 +3574,7 @@ export default function Game() {
             </motion.div>
           )}
         </AnimatePresence>
-
+        <GameEndScoreModal />
       </div>
     </div >
   );

@@ -146,7 +146,7 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
   if (category === 'roundMissions' && detail?.round != null) {
     b.roundMissions.push({ round: detail.round, vp: vp });
   } else if (category === 'bonusTilePass' && detail?.round != null) {
-    b.bonusTilePass.push({ round: detail.round, vp: vp });
+    b.bonusTilePass.push({ round: detail.round, vp: vp, tileId: detail.tileId });
   } else if (category === 'techTiles' && detail?.tileId) {
     b.techTiles.push({ tileId: detail.tileId, vp: vp });
   } else if (category === 'finalMissions') {
@@ -957,7 +957,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
           const playerId = Object.keys(game.players).find(id => game.players[id] === player);
           if (playerId) {
             addGameLog(game, playerId, 'Terraforming 5', `연방 보상 획득: ${reward.label}`);
-            player.score += reward.vp;
+            addScore(game, playerId, reward.vp, 'other', { source: 'Terraforming 5 Reward' });
             if ('ore' in reward && reward.ore) player.ore += reward.ore;
             if ('credits' in reward && reward.credits) player.credits += reward.credits;
             if ('knowledge' in reward && reward.knowledge) player.knowledge += reward.knowledge;
@@ -1000,7 +1000,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
         const playerStructures = game.map.filter(t => t.ownerId === playerId);
         const gaiaPlanets = playerStructures.filter(t => t.type === 'gaia').length;
         const vpGain = 4 + gaiaPlanets;
-        player.score += vpGain;
+        addScore(game, playerId, vpGain, 'other', { source: 'Gaia Project track reward' });
         log(`Player ${player.name} gained ${vpGain} VP from Gaia Project level 5 (4 base + ${gaiaPlanets} Gaia planets)`, 'game');
       }
     }
@@ -1160,7 +1160,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
           incomeItems.push({ type: 'power', amount: ei.power, id: `economy-${econLevel}-${pId}` });
         }
         if (ei.vp) {
-          player.score += ei.vp;
+          addScore(game, pId, ei.vp, 'other', { source: 'Economy track reward' });
           log(`Player ${player.name} gained ${ei.vp} VP from Economy level ${econLevel}`, 'game');
         }
       }
@@ -2217,7 +2217,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           if (player.qic < 2) return;
           player.qic -= 2;
           const count = player.techTiles?.length ?? 0;
-          player.score += count + 2;
+          addScore(game, playerId, count + 2, 'other', { source: 'TF Mars Action' });
           shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
           shipState.actionsUsed = shipState.usedActionIndices.length;
           addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `(${count}+2) VP`, shipTileId);
@@ -2262,7 +2262,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           player.qic -= 2;
           const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
           const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
-          player.score += types.size + 2;
+          addScore(game, playerId, types.size + 2, 'other', { source: 'Eclipse Action' });
           shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
           shipState.actionsUsed = shipState.usedActionIndices.length;
           addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `(${types.size}+2) VP`, shipTileId);
@@ -2329,17 +2329,17 @@ export function setupGameServer(httpServer: HTTPServer) {
       } else if (art.id === 'art-vp-gaia') {
         const lvl = player.research.gaiaProject ?? 0;
         const vp = lvl * 3;
-        player.score += vp;
+        addScore(game, playerId, vp, 'other', { source: 'Artifact: Gaia x 3' });
         addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
       } else if (art.id === 'art-vp-science') {
         const lvl = player.research.science ?? 0;
         const vp = lvl * 3;
-        player.score += vp;
+        addScore(game, playerId, vp, 'other', { source: 'Artifact: Science x 3' });
         addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
       } else if (art.id === 'art-vp-tracks3') {
         const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[]).filter(t => (player.research[t] ?? 0) >= 3).length;
         const vp = tracks * 3;
-        player.score += vp;
+        addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
         addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, twilightTile.id);
       } else if (art.id === 'art-vp-planet-types') {
         const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
@@ -2347,17 +2347,17 @@ export function setupGameServer(httpServer: HTTPServer) {
         if (player.virtualMineAsteroid) types.add('asteroid');
         if (player.virtualMineProto) types.add('proto');
         const vp = 3 + types.size;
-        player.score += vp;
+        addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
         addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, twilightTile.id);
       } else if (art.id === 'art-7vp-virtual-asteroid') {
         const geodensTypesBeforeArt = getPlayerPlanetTypesForGeodens(game, playerId);
-        player.score += 7;
+        addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
         player.virtualMineAsteroid = true;
         addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', twilightTile.id);
         applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArt);
       } else if (art.id === 'art-7vp-virtual-proto') {
         const geodensTypesBeforeArtProto = getPlayerPlanetTypesForGeodens(game, playerId);
-        player.score += 7;
+        addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
         player.virtualMineProto = true;
         addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', twilightTile.id);
         applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArtProto);
@@ -2377,7 +2377,7 @@ export function setupGameServer(httpServer: HTTPServer) {
         const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
         const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure));
         const vp = withBuilding.length * 3;
-        player.score += vp;
+        addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
         addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
       } else {
         addGameLog(game, playerId, 'Artifact', art.label, twilightTile.id);
@@ -2483,7 +2483,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       if (normalReward) {
         addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, pending.shipTileId);
-        player.score += normalReward.vp;
+        addScore(game, playerId, normalReward.vp, 'other', { source: 'Twilight Federation Benefit' });
         if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
         if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
         if ('knowledge' in normalReward && normalReward.knowledge) player.knowledge += normalReward.knowledge;
@@ -3045,31 +3045,31 @@ export function setupGameServer(httpServer: HTTPServer) {
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
       } else if (tileId === 'adv-imm-4vp-ts') {
         const tsCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
-        player.score += tsCount * 4;
+        addScore(game, playerId, tsCount * 4, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${tsCount * 4} VP (4 per TS)`);
       } else if (tileId === 'adv-imm-2vp-mine') {
         const mineCount = getMineCountForPassAndBonuses(game, playerId);
-        player.score += mineCount * 2;
+        addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
       } else if (tileId === 'adv-imm-2vp-sector') {
         const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
-        player.score += sectors.size * 2;
+        addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
       } else if (tileId === 'adv-imm-4vp-outer') {
         const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
-        player.score += outerCount * 4;
+        addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
       } else if (tileId === 'adv-imm-6vp-big') {
         const bigCount = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
-        player.score += bigCount * 6;
+        addScore(game, playerId, bigCount * 6, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${bigCount * 6} VP (6 per big building)`);
       } else if (tileId === 'adv-imm-2vp-gaia') {
         const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
-        player.score += gaiaCount * 2;
+        addScore(game, playerId, gaiaCount * 2, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${gaiaCount * 2} VP (2 per Gaia)`);
       } else if (tileId === 'adv-imm-5vp-fed') {
         const fedCount = getFederationEntries(player).length;
-        player.score += fedCount * 5;
+        addScore(game, playerId, fedCount * 5, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${fedCount * 5} VP (5 per federation)`);
       }
     }
@@ -3091,7 +3091,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       // Immediate effects
       if (tileId === 'tech-imm-7vp') {
-        player.score += 7;
+        addScore(game, playerId, 7, 'techTiles', { tileId });
       } else if (tileId === 'tech-imm-1k-planet') {
         const planetTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.type !== 'space').map(t => t.type));
         player.knowledge += planetTypes.size;
@@ -3108,37 +3108,37 @@ export function setupGameServer(httpServer: HTTPServer) {
       // 고급 타일: 일시불 점수
       else if (tileId === 'adv-imm-4vp-ts') {
         const tsCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
-        player.score += tsCount * 4;
+        addScore(game, playerId, tsCount * 4, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${tsCount * 4} VP (4 per TS)`);
       }
       else if (tileId === 'adv-imm-2vp-mine') {
         const mineCount = getMineCountForPassAndBonuses(game, playerId);
-        player.score += mineCount * 2;
+        addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
       }
       else if (tileId === 'adv-imm-2vp-sector') {
         const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
-        player.score += sectors.size * 2;
+        addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
       }
       else if (tileId === 'adv-imm-4vp-outer') {
         const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
-        player.score += outerCount * 4;
+        addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
       }
       else if (tileId === 'adv-imm-6vp-big') {
         const bigCount = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
-        player.score += bigCount * 6;
+        addScore(game, playerId, bigCount * 6, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${bigCount * 6} VP (6 per big building)`);
       }
       else if (tileId === 'adv-imm-2vp-gaia') {
         const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
-        player.score += gaiaCount * 2;
+        addScore(game, playerId, gaiaCount * 2, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${gaiaCount * 2} VP (2 per Gaia)`);
       }
       else if (tileId === 'adv-imm-5vp-fed') {
         const fedCount = getFederationEntries(player).length;
-        player.score += fedCount * 5;
+        addScore(game, playerId, fedCount * 5, 'techTiles', { tileId });
         addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${fedCount * 5} VP (5 per federation)`);
       }
 
@@ -4397,7 +4397,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 
   // 즉시 효과 처리
   if (techTileId === 'tech-imm-7vp') {
-    player.score += 7;
+    addScore(game, playerId, 7, 'techTiles', { tileId: techTileId });
     addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-7vp: +7 VP');
     log(`Player ${player.name} gained 7 VP from tech tile`, 'game');
   } else if (techTileId === 'tech-imm-1o-1q') {
@@ -4726,16 +4726,16 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   }
 
   if (tile.type === 'proto') {
-    player.score += 6;
+    addScore(game, playerId, 6, 'other', { source: 'Proto Planet' });
     addGameLog(game, playerId, 'Built Mine on Proto', `+6 VP (3 terraforming required)`, tileId);
   }
 
   if (tile.type === 'gaia' && player.techTiles.includes('tech-gaia-3vp')) {
-    player.score += 3;
+    addScore(game, playerId, 3, 'techTiles', { tileId: 'tech-gaia-3vp' });
     addGameLog(game, playerId, 'Tech Tile Bonus', `Gaia Planet: +3 VP`, tileId);
   }
   if (tile.type === 'gaia' && player.faction === 'gleens') {
-    player.score += 2;
+    addScore(game, playerId, 2, 'other', { source: 'Gleens Gaia Bonus' });
     addGameLog(game, playerId, 'Gleens: Gaia building', '+2 VP', tileId);
   }
 
@@ -5428,6 +5428,7 @@ export function executePassRound(
     // Calculate pass bonus
     if (player.bonusTile) {
       const currentBonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
+      let vpGained = 0;
       if (currentBonusTile?.passBonus) {
         const playerStructures = game.map.filter(t => t.ownerId === playerId);
         let count = 0;
@@ -5474,11 +5475,14 @@ export function executePassRound(
             count = bridgeSectors.size;
             break;
         }
-        const vpGained = count * currentBonusTile.passBonus.vp;
-        addScore(game, playerId, vpGained, 'bonusTilePass', { round: game.roundNumber });
+        vpGained = count * currentBonusTile.passBonus.vp;
         const logMsg = `Gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`;
         addGameLog(game, playerId, 'Pass Round', logMsg);
         log(`Player ${player.name} ${logMsg}`, 'game');
+      }
+
+      if (currentBonusTile) {
+        addScore(game, playerId, vpGained, 'bonusTilePass', { round: game.roundNumber, tileId: currentBonusTile.id });
       }
 
       applyAdvancedTechTilePassEffect(game, playerId);

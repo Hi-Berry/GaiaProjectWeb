@@ -87,7 +87,7 @@ export interface ScoreBreakdown {
   /** 라운드 미션: 라운드별 획득 VP */
   roundMissions: { round: number; vp: number }[];
   /** 보너스 타일 패스 보너스: 라운드별 */
-  bonusTilePass: { round: number; vp: number }[];
+  bonusTilePass: { round: number; vp: number; tileId?: string }[];
   /** 기술 타일로 얻은 VP (타일 ID별) */
   techTiles: { tileId: string; vp: number }[];
   /** 최종 미션 합계 */
