@@ -2583,43 +2583,46 @@ export function setupGameServer(httpServer: HTTPServer) {
       const gaiaLevel = player.research.gaiaProject || 0;
       let powerToMove = 0;
 
-      // 가이아 포머 기술 레벨에 따라 파워 토큰 개수 결정
-      if (gaiaLevel >= 1 && gaiaLevel < 3) {
-        powerToMove = 6; // 1단계: 6개
-      } else if (gaiaLevel >= 3 && gaiaLevel < 4) {
-        powerToMove = 4; // 3단계: 4개
-      } else if (gaiaLevel >= 4) {
-        powerToMove = 3; // 4단계: 3개
-      } else {
-        return; // 가이아 포머 기술이 없으면 설치 불가
+      const pendingGaia = game.pendingTFMarsGaiaProject;
+      const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
+      const immediateBuildable = fromTFMars || isBonusGaia; // TF2 또는 보너스 즉포는 당장 건설 가능
+
+      if (!immediateBuildable) {
+        // 가이아 포머 기술 레벨에 따라 파워 토큰 개수 결정
+        if (gaiaLevel >= 1 && gaiaLevel < 3) {
+          powerToMove = 6; // 1단계: 6개
+        } else if (gaiaLevel >= 3 && gaiaLevel < 4) {
+          powerToMove = 4; // 3단계: 4개
+        } else if (gaiaLevel >= 4) {
+          powerToMove = 3; // 4단계: 3개
+        } else {
+          return; // 가이아 포머 기술이 없으면 설치 불가
+        }
+
+        // 파워 토큰 이동: 1그릇->2그릇->3그릇 순
+        let remaining = powerToMove;
+        let movedFrom1 = Math.min(remaining, player.power1 || 0);
+        player.power1 = (player.power1 || 0) - movedFrom1;
+        remaining -= movedFrom1;
+
+        let movedFrom2 = Math.min(remaining, player.power2 || 0);
+        player.power2 = (player.power2 || 0) - movedFrom2;
+        remaining -= movedFrom2;
+
+        let movedFrom3 = Math.min(remaining, player.power3 || 0);
+        player.power3 = (player.power3 || 0) - movedFrom3;
+        remaining -= movedFrom3;
+
+        if (remaining > 0) return; // 파워 토큰이 부족하면 설치 불가
+
+        // 가이아 포머 구역으로 파워 토큰 이동
+        player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
       }
 
-      // 파워 토큰 이동: 1그릇->2그릇->3그릇 순
-      let remaining = powerToMove;
-      let movedFrom1 = Math.min(remaining, player.power1 || 0);
-      player.power1 = (player.power1 || 0) - movedFrom1;
-      remaining -= movedFrom1;
-
-      let movedFrom2 = Math.min(remaining, player.power2 || 0);
-      player.power2 = (player.power2 || 0) - movedFrom2;
-      remaining -= movedFrom2;
-
-      let movedFrom3 = Math.min(remaining, player.power3 || 0);
-      player.power3 = (player.power3 || 0) - movedFrom3;
-      remaining -= movedFrom3;
-
-      if (remaining > 0) return; // 파워 토큰이 부족하면 설치 불가
-
-      // 가이아 포머 구역으로 파워 토큰 이동
-      player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
       player.gaiaformers = (player.gaiaformers || 0) - 1;
 
       // 타일에 가이아 포머 설치
       tile.hasGaiaformer = true;
-
-      const pendingGaia = game.pendingTFMarsGaiaProject;
-      const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
-      const immediateBuildable = fromTFMars || isBonusGaia; // TF2 또는 보너스 즉포는 당장 건설 가능
 
       if (immediateBuildable) {
         // TF2/보너스: 즉시 성숙 → 가이아 행성으로 표시, 당장 광산 건설 가능. 가이아포머는 타일에 유지
@@ -4632,7 +4635,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
   }
 
   const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-  const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+  let neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+
+  // 가이아포머가 이미 설치된 행성에 광산을 지을 때는 거리 비용(QIC) 차감 안함 (배치 시 지불 완료)
+  if ((tile.type === 'transdim' || tile.type === 'gaia') && player.pendingGaiaformerTiles?.includes(tileId)) {
+    neededQIC = 0;
+  }
 
   let terraformCost = 0;
   let terraformSteps = 0;

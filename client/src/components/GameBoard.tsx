@@ -486,7 +486,12 @@ export function GameBoard({
       (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
     );
     const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : 0;
-    const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+    let neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+
+    // 가이아포머가 이미 설치된 행성에 광산을 지을 때는 거리 비용(QIC) 차감 안함 (UI 표시용)
+    if ((selectedTile.type === 'transdim' || selectedTile.type === 'gaia') && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) {
+      neededQIC = 0;
+    }
 
     // 소행성: faction 없이도 비용 계산 (가이아포머 1개 사용, 비용 0)
     if (selectedTile.type === 'asteroid') {

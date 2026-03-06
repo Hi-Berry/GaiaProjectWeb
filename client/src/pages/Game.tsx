@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -135,10 +135,10 @@ export default function Game() {
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
   );
   const [isResearchPinned, setIsResearchPinned] = useState(
-    gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) !== 'false' : true
+    gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) === 'true' : false
   );
   const [isBonusPinned, setIsBonusPinned] = useState(
-    gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) !== 'false' : true
+    gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
   );
   const [researchPos, setResearchPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
@@ -774,6 +774,23 @@ export default function Game() {
                 </SelectContent>
               </Select>
               <Button
+                variant={(isResearchPinned && isBonusPinned) ? 'default' : 'outline'}
+                size="icon"
+                className={`h-9 w-9 shrink-0 ${(isResearchPinned && isBonusPinned) ? 'bg-purple-600 hover:bg-purple-500' : ''}`}
+                onClick={() => {
+                  const newVal = !(isResearchPinned && isBonusPinned);
+                  setIsResearchPinned(newVal);
+                  setIsBonusPinned(newVal);
+                  if (gameId) {
+                    localStorage.setItem(`is-research-pinned-${gameId}`, String(newVal));
+                    localStorage.setItem(`is-bonus-pinned-${gameId}`, String(newVal));
+                  }
+                }}
+                title="모든 미니보드 켜기/끄기 (Toggle All Mini Boards)"
+              >
+                <Layers className="w-4 h-4" />
+              </Button>
+              <Button
                 variant={isResearchPinned ? 'default' : 'outline'}
                 size="icon"
                 className={`h-9 w-9 shrink-0 ${isResearchPinned ? 'bg-blue-600 hover:bg-blue-500' : ''}`}
@@ -810,7 +827,7 @@ export default function Game() {
           onAdvanceTech={(trackId) => {
             if (game.hasDoneMainAction) return;
             setIsResearchOpen(false);
-            setPendingAction({ type: 'advanceTech', trackId });
+            GameClient.advanceTech(gameId!, trackId);
           }}
           onConvertResource={(type, useBrain) => GameClient.convertResource(gameId!, type, useBrain)}
           onBurnPower={(moveBrainToBowl3) => GameClient.burnPower(gameId!, moveBrainToBowl3)}
@@ -827,15 +844,15 @@ export default function Game() {
             if (bonusTile?.specialAction === 'terraform_step') {
               setIsResearchOpen(false);
             }
-            setPendingAction({ type: 'bonusAction' });
+            GameClient.useBonusAction(gameId!);
           }}
           onUseAcademyQic={() => {
             if (game.hasDoneMainAction) return;
-            setPendingAction({ type: 'useSpecialAction', actionId: 'academy-qic' });
+            GameClient.useSpecialAction(gameId!, 'academy-qic');
           }}
           onUseGleens2Nav={() => {
             if (game.hasDoneMainAction) return;
-            setPendingAction({ type: 'useSpecialAction', actionId: 'gleens-2nav' });
+            GameClient.useSpecialAction(gameId!, 'gleens-2nav');
           }}
           onUseBalTakGaiaformerToQic={() => {
             if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
@@ -907,7 +924,7 @@ export default function Game() {
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20"
               onClick={() => {
                 if (game.hasDoneMainAction) return;
-                setPendingAction({ type: 'useSpecialAction', actionId: 'academy-qic' });
+                GameClient.useSpecialAction(gameId!, 'academy-qic');
               }}
             >
               <div className="flex items-center gap-2">
@@ -994,7 +1011,7 @@ export default function Game() {
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
               onClick={() => {
                 if (game.hasDoneMainAction) return;
-                setPendingAction({ type: 'useSpecialAction', actionId: 'space_giants-2tf' });
+                GameClient.useSpecialAction(gameId!, 'space_giants-2tf');
               }}
             >
               <div className="flex items-center gap-2">
@@ -1012,7 +1029,7 @@ export default function Game() {
               onClick={() => {
                 if (game.hasDoneMainAction) return;
                 if (currentPlayer?.tinkeroidRoundSpecialId) {
-                  setPendingAction({ type: 'useSpecialAction', actionId: currentPlayer.tinkeroidRoundSpecialId });
+                  GameClient.useSpecialAction(gameId!, currentPlayer.tinkeroidRoundSpecialId);
                 }
               }}
             >
@@ -1149,6 +1166,11 @@ export default function Game() {
                 }
               }
 
+              if (game.hasDoneMainAction || (player.pendingTerraformSteps && player.pendingTerraformSteps > 0)) {
+                GameClient.buildMine(gameId!, tileId, useGaiaformer);
+                return;
+              }
+
               setPendingAction({ type: 'buildMine', tileId, useGaiaformer });
             }}
             onUpgrade={(tileId, target) => {
@@ -1201,7 +1223,7 @@ export default function Game() {
             }}
             onUsePowerAction={(actionId) => {
               if (game.hasDoneMainAction) return;
-              setPendingAction({ type: 'usePowerAction', actionId });
+              GameClient.usePowerAction(gameId!, actionId);
             }}
             onEndTurn={() => GameClient.endTurn(gameId!)}
             highlightedTileId={highlightedTileId}
@@ -1332,7 +1354,7 @@ export default function Game() {
                     if (bonusTile?.specialAction === 'terraform_step') {
                       setIsResearchOpen(false);
                     }
-                    setPendingAction({ type: 'bonusAction' });
+                    GameClient.useBonusAction(gameId!);
                   }}
                 />
               </div>
@@ -1389,7 +1411,7 @@ export default function Game() {
                   onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
                   onUseTechAction={(tileId) => {
                     if (game.hasDoneMainAction) return;
-                    setPendingAction({ type: 'useTechAction', tileId });
+                    GameClient.useTechAction(gameId!, tileId);
                   }}
                   onAdvanceTech={(trackId) => {
                     // Eclipse 2번(2K+3P)으로 트랙 올리기 대기 중이면 확인 없이 해당 트랙 진행
@@ -2095,6 +2117,29 @@ export default function Game() {
             <Button variant="ghost" size="sm" className="text-amber-400 hover:text-white shrink-0" onClick={() => { setFiraksDowngradeMode(false); setFiraksDowngradeLabTileId(null); }}>취소</Button>
           </div>
         )}
+        {/* 활성 스페셜 액션(2단계) 안내 배너 */}
+        {game && game.turnOrder[game.currentPlayerIndex] === playerId && currentPlayer && (
+          <>
+            {(currentPlayer.pendingTerraformSteps ?? 0) > 0 && (
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] px-4 py-3 rounded-lg bg-orange-950/90 border border-orange-500/50 text-orange-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+                <span>테라포밍 액션 사용 중 ({currentPlayer.pendingTerraformSteps}단계 남음)</span>
+                <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
+              </div>
+            )}
+            {(currentPlayer.rangeBonusActive || currentPlayer.tempRangeBonus) && (
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] px-4 py-3 rounded-lg bg-purple-950/90 border border-purple-500/50 text-purple-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+                <span>+3 거리 보너스 적용 중</span>
+                <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
+              </div>
+            )}
+            {currentPlayer.gleensNavBonusActive && (
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] px-4 py-3 rounded-lg bg-green-950/90 border border-green-500/50 text-green-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+                <span>글린 특수 액션: +2 거리 적용 중</span>
+                <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
+              </div>
+            )}
+          </>
+        )}
         {/* 모웨이드 링 놓기: 링 없는 본인 건물 클릭 */}
         {moweyipPlaceRingMode && (
           <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2">
@@ -2491,9 +2536,9 @@ export default function Game() {
                       e.stopPropagation();
                       if (gameId) {
                         if (actionId === 'bonusAction') {
-                          setPendingAction({ type: 'bonusAction' });
+                          GameClient.useBonusAction(gameId);
                         } else {
-                          setPendingAction({ type: 'useSpecialAction', actionId });
+                          GameClient.useSpecialAction(gameId, actionId);
                         }
                       }
                     }}
@@ -3137,7 +3182,7 @@ export default function Game() {
                   onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
                   onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
                   onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
-                  onUseTechAction={(tileId) => setPendingAction({ type: 'useTechAction', tileId })}
+                  onUseTechAction={(tileId) => GameClient.useTechAction(gameId!, tileId)}
                   onAdvanceTech={(trackId) => {
                     if (game.hasDoneMainAction) return;
                     setAdvanceTechDialog({ open: true, trackId });
