@@ -3240,12 +3240,14 @@ export function setupGameServer(httpServer: HTTPServer) {
       }
       // 글린 기본 특수 액션: 라운드당 1회 +2 Nav (다음 행동에 적용, 메인 액션 소모 안 함)
       if (actionId === 'gleens-2nav' && player.faction === 'gleens') {
+        saveActionStartState(game, playerId);
         player.gleensNavBonusActive = true;
         player.usedSpecialActions.push(actionId);
         addGameLog(game, playerId, 'Gleens: Special', '+2 Nav (next action)', undefined);
       }
       // 스페이스 자이언트: 매 라운드 1회 2테라포밍 단계 획득 (보너스 1TF 타일과 동일하게 메인 액션 소모 안 함)
       if (actionId === 'space_giants-2tf' && player.faction === 'space_giants') {
+        saveActionStartState(game, playerId);
         if (!player.usedSpecialActions) player.usedSpecialActions = [];
         player.usedSpecialActions.push(actionId);
         player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
@@ -3256,6 +3258,7 @@ export function setupGameServer(httpServer: HTTPServer) {
       // 팅커로이드: 라운드 시작 시 고른 Special 1회 사용
       const tinkeroidIds = ['tinkeroid-1tf-mine', 'tinkeroid-1qic', 'tinkeroid-4power', 'tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
       if (player.faction === 'tinkeroids' && tinkeroidIds.includes(actionId) && player.tinkeroidRoundSpecialId === actionId && !player.usedSpecialActions.includes('tinkeroid-special')) {
+        saveActionStartState(game, playerId);
         if (!player.usedSpecialActions) player.usedSpecialActions = [];
         player.usedSpecialActions.push('tinkeroid-special');
         if (actionId === 'tinkeroid-1tf-mine') {
@@ -3973,7 +3976,7 @@ export function setupGameServer(httpServer: HTTPServer) {
       console.log(`[DEBUG_INCOME] Received select_all_income_items: gameId=${gameId}`);
       const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
-      
+
       const isHostViewing = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '') && game.hostId === playerId;
 
       if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId && !isHostViewing)) {
