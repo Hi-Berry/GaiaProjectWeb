@@ -444,7 +444,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const tile = game.map.find((t) => t.type === shipType);
                                         if (!tile || !game.spaceships?.[tile.id]) return null;
                                         const ship = game.spaceships![tile.id];
-                                        const isLocked = !ship.unlocked;
+                                        const isInShip = playerId && ship.occupants.includes(playerId);
                                         const usedIndices = ship.usedActionIndices ?? [];
                                         const shipFedId = game.spaceshipFederationByShip?.[tile.type];
                                         const rewardIndex = shipFedId != null ? SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId) : -1;
@@ -454,10 +454,10 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const actionLabels = SHIP_ACTION_LABELS[tile.type] || ['—', '—', '—'];
 
                                         return (
-                                            <div key={tile.id} className={`p-1.5 rounded bg-zinc-900/60 border border-white/5 relative flex flex-col gap-1 ${isLocked ? 'grayscale opacity-60' : ''}`}>
+                                            <div key={tile.id} className={`p-1.5 rounded bg-zinc-900/60 border relative flex flex-col gap-1 ${isInShip ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]' : 'border-white/5'}`}>
                                                 <div className="flex justify-between items-start border-b border-white/5 pb-0.5">
                                                     <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate w-full">{SHIP_NAMES[tile.type]}</span>
-                                                    {isLocked && <Lock className="w-1.5 h-1.5 text-amber-500 shrink-0 ml-1" />}
+                                                    {!isInShip && <Lock className="w-1.5 h-1.5 text-amber-500/60 shrink-0 ml-1" />}
                                                 </div>
 
                                                 <div className="flex items-center gap-0.5">
@@ -499,7 +499,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         )}
                                                     </div>
 
-                                                    <div className="flex flex-col gap-0.5 ml-auto">
+                                                    <div className="flex flex-col gap-0.5 ml-auto" title={`라운드당 총 3회 액션 가능 (남음: ${3 - usedIndices.length}/3)`}>
                                                         {[0, 1, 2].map(idx => (
                                                             <div key={idx} className={`w-1 h-1 rounded-full ${usedIndices.includes(idx + 1) ? 'bg-zinc-600' : 'bg-green-500'}`} />
                                                         ))}
@@ -533,9 +533,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 </div>
 
                                                 <div className="flex justify-between items-end mt-auto pt-1">
-                                                    {/* Occupants */}
-                                                    <div className="flex gap-0.5">
-                                                        {ship.occupants.map(pid => {
+                                                    {/* Occupants: Fixed 4 slots for 4 players */}
+                                                    <div className="flex gap-0.5" title="탑승한 플레이어 (최대 4명)">
+                                                        {[0, 1, 2, 3].map(idx => {
+                                                            const pid = ship.occupants[idx];
+                                                            if (!pid) return <div key={idx} className="w-1.5 h-1.5 rounded-full border border-white/5 bg-black/40" />;
                                                             const p = game.players[pid];
                                                             const faction = FACTIONS.find(f => f.id === p?.faction);
                                                             return (
@@ -1030,10 +1032,10 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             const shipFedLabel = shipFedId ? SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === shipFedId)?.label : null;
 
                                             return (
-                                                <div key={tile.id} className="bg-zinc-900/60 rounded-lg border border-white/10 p-2 space-y-2">
+                                                <div key={tile.id} className={`bg-zinc-900/60 rounded-lg border p-2 space-y-2 ${isInShip ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-white/10'}`}>
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-[12px] font-bold text-zinc-100">{name}</span>
-                                                        {isLocked && <span className="text-[10px] text-amber-400 font-black tracking-widest">LOCKED</span>}
+                                                        {!isInShip && <span className="text-[10px] text-amber-400 font-black tracking-widest">LOCKED</span>}
                                                     </div>
                                                     <div className="flex gap-3 items-start min-h-[100px]">
                                                         {/* Left: Reward & Occupants */}

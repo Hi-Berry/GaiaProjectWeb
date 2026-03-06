@@ -175,8 +175,13 @@ export function BonusTiles({
           {!isMini && (
             <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
               <Gift className="w-4 h-4" />
-              {isSelectionMode ? 'Select Bonus' : 'Bonus Tiles'}
+              {game.roundNumber === 6 ? 'End Game (Pass)' : (isSelectionMode ? 'Select Bonus' : 'Bonus Tiles')}
             </h3>
+          )}
+          {game.roundNumber === 6 && !isMini && (
+            <p className="text-[10px] text-zinc-500 font-medium mb-2 italic">
+              마지막 라운드입니다. 아무 타일이나 클릭하면 다음 라운드 타일 선택 없이 라운드를 종료(패스)합니다.
+            </p>
           )}
           <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-[1px] pb-1' : 'flex flex-wrap gap-3'}`}>
             {/* Available Bonus Tiles */}

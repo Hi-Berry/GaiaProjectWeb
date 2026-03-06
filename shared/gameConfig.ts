@@ -92,6 +92,8 @@ export interface ScoreBreakdown {
   techTiles: { tileId: string; vp: number }[];
   /** 최종 미션 합계 */
   finalMissions: number;
+  /** 최종 미션 개별 상세 내역 (미션 ID별 점수) */
+  finalMissionDetails: { missionId: string; vp: number }[];
   /** 파워 수신으로 지불한 VP (표시 시 마이너스) */
   powerReceived: number;
   /** 우주선별 획득 VP */
@@ -515,14 +517,14 @@ export const FEDERATION_REWARDS = [
 
 /** 우주선 전용 연방 보상 (8종 중 매 게임 1개 랜덤 배치, 수량 1개) */
 export const SPACESHIP_FEDERATION_REWARDS = [
-  { id: 'ship-fed-4vp4k', label: '4VP 4K' },
-  { id: 'ship-fed-8vp8c', label: '8 VP 8C' },
-  { id: 'ship-fed-3tf-mine', label: 'Free Mine (3 Terraform)' },
-  { id: 'ship-fed-4vp1q2o', label: '4 VP 1Q 2O' },
-  { id: 'ship-fed-tech', label: 'Tech Tile' },
-  { id: 'ship-fed-7vp3p2t', label: '7 VP +2Tokens' },
-  { id: 'ship-fed-12vp', label: '12 VP' },
-  { id: 'ship-fed-mine-free', label: 'Free Mine (Nav ignore)' },
+  { id: 'ship-fed-4vp4k', label: '4VP 4K', vp: 4, knowledge: 4 },
+  { id: 'ship-fed-8vp8c', label: '8 VP 8C', vp: 8, credits: 8 },
+  { id: 'ship-fed-3tf-mine', label: 'Free Mine (3 Terraform)', vp: 0 },
+  { id: 'ship-fed-4vp1q2o', label: '4 VP 1Q 2O', vp: 4, qic: 1, ore: 2 },
+  { id: 'ship-fed-tech', label: 'Tech Tile', vp: 0 },
+  { id: 'ship-fed-7vp3p2t', label: '7 VP +2Tokens', vp: 7, powerTokens: 2 },
+  { id: 'ship-fed-12vp', label: '12 VP', vp: 12 },
+  { id: 'ship-fed-mine-free', label: 'Free Mine (Nav ignore)', vp: 0 },
 ] as const;
 
 /** 플레이어 연방 배열 정규화 (레거시 string[] → FederationEntry[]) */
@@ -894,7 +896,7 @@ export function getEffectiveBaseRange(player: { research?: { navigation?: number
 
 export function getTerraformCost(tfLevel: number): number {
   if (tfLevel >= 3) return 1;
-  if (tfLevel >= 1) return 2;
+  if (tfLevel >= 2) return 2;
   return 3;
 }
 
@@ -959,7 +961,7 @@ export function getNextRoundIncomePreview(
   }
   const tsCount = structures.filter(t => t.structure === 'trading_station').length;
   for (let i = 0; i < tsCount && i < STRUCTURE_INCOME.trading_station.length; i++) {
-    if (player.faction === 'moweyip') result.knowledge += 1;
+    if (player.faction === 'bescods') result.knowledge += 1;
     else result.credits += STRUCTURE_INCOME.trading_station[i];
   }
   const labCount = structures.filter(t => t.structure === 'research_lab').length;
@@ -967,7 +969,7 @@ export function getNextRoundIncomePreview(
     const labBase = player.faction === 'firaks' ? 2 : 1;
     result.knowledge += labBase;
     if (player.faction === 'nevlas') result.powerCharge += 2;
-    if (player.faction === 'moweyip') {
+    if (player.faction === 'bescods') {
       const labCredits = [3, 4, 5];
       for (let i = 0; i < labCount && i < labCredits.length; i++) result.credits += labCredits[i];
     } else {
@@ -1944,6 +1946,32 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
     default:
       return 0;
   }
+}
+
+/** 특정 미션에 대해 특정 플레이어가 획득할 VP 계산 (순위 기반) */
+export function getFinalMissionVp(game: { turnOrder: string[]; players: Record<string, any>; map: any[]; satellites?: any; playerFederationHexes?: any }, playerId: string, missionId: string): number {
+  const POINTS = [18, 12, 6];
+  const values = game.turnOrder.map(pid => ({ playerId: pid, value: getFinalMissionValue(game as any, pid, missionId) }));
+  const withValue = values.filter(v => v.value > 0).sort((a, b) => b.value - a.value);
+  if (withValue.length === 0) return 0;
+
+  let placeIndex = 0;
+  while (placeIndex < withValue.length) {
+    const group: { playerId: string; value: number }[] = [];
+    const firstVal = withValue[placeIndex].value;
+    const startPlace = placeIndex;
+    while (placeIndex < withValue.length && withValue[placeIndex].value === firstVal) {
+      group.push(withValue[placeIndex]);
+      placeIndex++;
+    }
+    const pool = group.reduce((sum, _, i) => sum + (POINTS[startPlace + i] ?? 0), 0);
+    const pointsEach = group.length > 0 ? Math.floor((pool * 10) / group.length) / 10 : 0;
+
+    if (group.some(g => g.playerId === playerId)) {
+      return pointsEach;
+    }
+  }
+  return 0;
 }
 
 /** 인접 헥스 6방향 (거리 1) */

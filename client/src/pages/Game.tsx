@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { playMyTurnSound, playOtherTurnSound } from '@/lib/audio';
+import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -162,6 +162,7 @@ export default function Game() {
   const lastWasMyBonusRef = useRef(false);
   const lastPendingTechSelectionRef = useRef<string | null>(null);
   const lastWasMyTechRef = useRef(false);
+  const lastPowerStateRef = useRef({ p1: 0, p2: 0, p3: 0, bs: 0 });
 
   useEffect(() => {
     if (game?.currentPhase === 'gameEnd') {
@@ -415,6 +416,31 @@ export default function Game() {
     }
   }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, playerId]);
 
+  // Power Receive sound notification
+  useEffect(() => {
+    if (!game || !playerId) return;
+    const player = game.players[playerId];
+    if (!player) return;
+
+    const { power1: p1, power2: p2, power3: p3, brainStoneBowl: bs } = player.power;
+    const last = lastPowerStateRef.current;
+
+    // 파워가 상위 볼로 이동했는지 또는 브레인스톤이 전진했는지 확인
+    // p2나 p3가 증가하거나, 브레인스톤이 더 높은 볼로 이동하면 소리 재생
+    const p2Increased = p2 > last.p2;
+    const p3Increased = p3 > last.p3;
+    const bsMovedUp = (bs !== undefined && last.bs !== undefined && bs > last.bs);
+    
+    // p1이 줄어들면서 p2나 p3가 늘어난 경우 (충전)
+    if ((p2Increased || p3Increased || bsMovedUp) && (p1 < last.p1 || p2 < last.p2 || (bs !== undefined && last.bs !== undefined && bs > last.bs))) {
+        // 단, 본인이 메인 액션 중일 때는 너무 시끄러울 수 있으므로 
+        // 상대방의 액션으로 인해 파워를 받는 경우(Passive)나 수익 단계 등에서 유용
+        playPowerReceiveSound();
+    }
+
+    lastPowerStateRef.current = { p1, p2, p3, bs: bs ?? 0 };
+  }, [game?.players[playerId ?? '']?.power, playerId]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -615,12 +641,21 @@ export default function Game() {
                                 <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
                               </div>
                             )}
-                            {b.other.map((item, i) => (
-                              <div key={i} className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">{item.source}</span>
-                                <span className="text-sm font-black text-zinc-100">{item.vp >= 0 ? '+' : ''}{item.vp} VP</span>
-                              </div>
-                            ))}
+                            {(() => {
+                              const grouped = b.other.reduce((acc, curr) => {
+                                const existing = acc.find(item => item.source === curr.source);
+                                if (existing) existing.vp += curr.vp;
+                                else acc.push({ ...curr });
+                                return acc;
+                              }, [] as { source: string; vp: number }[]);
+
+                              return grouped.map((item, i) => (
+                                <div key={i} className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                  <span className="text-xs font-bold text-zinc-400">{item.source}</span>
+                                  <span className="text-sm font-black text-zinc-100">{item.vp >= 0 ? '+' : ''}{item.vp} VP</span>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -703,9 +738,7 @@ export default function Game() {
                               {(game.finalMissionIds ?? []).map((mid, i) => {
                                 const img = getFinalMissionImage(mid);
                                 const missionValue = getFinalMissionValue(game, pid, mid);
-                                // Final mission score is aggregate in addScore(..., 'finalMissions'), 
-                                // so we don't have individual VP per mission in ScoreBreakdown easily unless they are stored separately.
-                                // But we can display the mission image and its board progress value.
+                                const missionVp = b.finalMissionDetails?.find(d => d.missionId === mid)?.vp ?? getFinalMissionVp(game, pid, mid);
                                 return (
                                   <div key={mid} className="flex flex-col gap-2">
                                     <div className="relative aspect-[4/3] bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden group shadow-lg">
@@ -716,7 +749,10 @@ export default function Game() {
                                       )}
                                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black to-transparent p-2">
                                         <div className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter truncate">{FINAL_MISSION_LABELS[mid]}</div>
-                                        <div className="text-sm font-black text-white tabular-nums">{missionValue} units</div>
+                                        <div className="flex justify-between items-end">
+                                          <div className="text-sm font-black text-white tabular-nums">{missionValue} units</div>
+                                          <div className="text-sm font-black text-blue-400">+{missionVp} VP</div>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -739,21 +775,30 @@ export default function Game() {
                               <h4 className="text-xs font-black text-white uppercase tracking-widest">Technology Portfolio</h4>
                             </div>
                             <div className="grid grid-cols-4 gap-2">
-                              {b.techTiles.map(({ tileId, vp }, i) => {
-                                const img = getTechTileImage(tileId);
-                                return (
-                                  <div key={i} className="flex flex-col items-center gap-1 group">
-                                    <div className="w-full aspect-[4/3] bg-zinc-900 border border-white/5 rounded-lg overflow-hidden flex items-center justify-center p-1 group-hover:border-purple-500/50 transition-colors">
-                                      {img ? (
-                                        <img src={img} alt={tileId} className="w-full h-full object-contain" />
-                                      ) : (
-                                        <span className="text-[8px] text-zinc-600 text-center">{tileId}</span>
-                                      )}
+                              {(() => {
+                                const grouped = b.techTiles.reduce((acc, curr) => {
+                                  const existing = acc.find(t => t.tileId === curr.tileId);
+                                  if (existing) existing.vp += curr.vp;
+                                  else acc.push({ ...curr });
+                                  return acc;
+                                }, [] as { tileId: string; vp: number }[]);
+
+                                return grouped.map(({ tileId, vp }, i) => {
+                                  const img = getTechTileImage(tileId);
+                                  return (
+                                    <div key={i} className="flex flex-col items-center gap-1 group">
+                                      <div className="w-full aspect-[4/3] bg-zinc-900 border border-white/5 rounded-lg overflow-hidden flex items-center justify-center p-1 group-hover:border-purple-500/50 transition-colors">
+                                        {img ? (
+                                          <img src={img} alt={tileId} className="w-full h-full object-contain" />
+                                        ) : (
+                                          <span className="text-[8px] text-zinc-600 text-center">{tileId}</span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] font-black text-purple-400/80">+{vp}</span>
                                     </div>
-                                    <span className="text-[10px] font-black text-purple-400/80">+{vp}</span>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                });
+                              })()}
                               {b.techTiles.length === 0 && (
                                 <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No technology tokens acquired.</div>
                               )}
@@ -802,12 +847,21 @@ export default function Game() {
                                 <h4 className="text-xs font-black text-white uppercase tracking-widest">Spaceship Missions</h4>
                               </div>
                               <div className="grid grid-cols-1 gap-2">
-                                {b.spaceships.map(({ shipTileId, vp }, i) => (
-                                  <div key={i} className="bg-zinc-900/30 border border-white/5 rounded-lg p-2.5 flex justify-between items-center group hover:bg-zinc-900/50 transition-colors">
-                                    <div className="flex items-center gap-2 text-[10px] font-black text-zinc-400">{shipTileId || 'Spaceship Achievement'}</div>
-                                    <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 h-5 px-1.5 font-black">+{vp}</Badge>
-                                  </div>
-                                ))}
+                                {(() => {
+                                  const grouped = b.spaceships.reduce((acc, curr) => {
+                                    const existing = acc.find(t => t.shipTileId === curr.shipTileId);
+                                    if (existing) existing.vp += curr.vp;
+                                    else acc.push({ ...curr });
+                                    return acc;
+                                  }, [] as { shipTileId: string; vp: number }[]);
+
+                                  return grouped.map(({ shipTileId, vp }, i) => (
+                                    <div key={i} className="bg-zinc-900/30 border border-white/5 rounded-lg p-2.5 flex justify-between items-center group hover:bg-zinc-900/50 transition-colors">
+                                      <div className="flex items-center gap-2 text-[10px] font-black text-zinc-400">{shipTileId || 'Spaceship Achievement'}</div>
+                                      <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 h-5 px-1.5 font-black">+{vp}</Badge>
+                                    </div>
+                                  ));
+                                })()}
                               </div>
                             </section>
                           )}
@@ -901,6 +955,18 @@ export default function Game() {
         let oreCost = freeMine ? 0 : 1;
         let credits = freeMine ? 0 : 2;
         let qicCost = neededQIC;
+
+        // 란티다 기생 광산 체크: 테라포밍 비용 없음
+        const isLantidaParasitic = player.faction === 'lantids' && 
+          tile.structure !== null && 
+          tile.ownerId !== playerId && 
+          tile.ownerId != null && 
+          !tile.parasiticMine;
+
+        if (isLantidaParasitic) {
+          return { ore: 1, credits: 2, qic: qicCost, terraformSteps: 0 };
+        }
+
         const terraformingLevel = player.research.terraforming || 0;
         let terraformSteps = 0;
         let needsExtraTerraforming = false;
@@ -1571,7 +1637,7 @@ export default function Game() {
                   <RoundBoard
                     game={game}
                     playerId={playerId}
-                    onEndGame={() => GameClient.passRound(gameId!, undefined)}
+                    onEndGame={() => setConfirmPassWithTileId('dummy')}
                   />
                 </div>
                 <div className="h-[1px] bg-white/5 w-full" />
@@ -1580,10 +1646,7 @@ export default function Game() {
                   playerId={playerId}
                   onSelectBonusTile={(tileId) => {
                     if (game.roundNumber === 6) {
-                      if (gameId) {
-                        GameClient.passRound(gameId, undefined);
-                        setIsBonusTilesOpen(false);
-                      }
+                      setConfirmPassWithTileId('dummy');
                     } else {
                       setConfirmPassWithTileId(tileId);
                     }
@@ -1800,7 +1863,9 @@ export default function Game() {
                     Choose New Bonus Tile
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-zinc-300">
-                    라운드를 종료하고 보너스 타일을 교체하시겠습니까?
+                    {confirmPassWithTileId === 'dummy'
+                      ? '라운드를 종료하고 게임을 끝내시겠습니까? (마지막 라운드이므로 새 보너스 타일을 선택하지 않습니다.)'
+                      : '라운드를 종료하고 보너스 타일을 교체하시겠습니까?'}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
 
@@ -1821,10 +1886,10 @@ export default function Game() {
                       )}
                     </div>
                   )}
-                  {currentBonusTile && selectedBonusTile && (
+                  {currentBonusTile && selectedBonusTile && confirmPassWithTileId !== 'dummy' && (
                     <div className="text-zinc-600 font-black text-3xl">→</div>
                   )}
-                  {selectedBonusTile && (
+                  {selectedBonusTile && confirmPassWithTileId !== 'dummy' && (
                     <div className="flex flex-col items-center gap-3">
                       <span className="text-[10px] text-primary font-bold uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">Selecting</span>
                       <div className="relative w-24 h-36 rounded-lg overflow-hidden border border-primary/50 shadow-[0_0_20px_rgba(var(--primary),0.2)]">
@@ -2028,121 +2093,99 @@ export default function Game() {
           </div>
         )}
 
-        {/* Power Offer Dialog */}
-        {game.pendingPowerOffers && game.pendingPowerOffers.length > 0 && (
-          <>
-            {game.pendingPowerOffers
+        {/* Power Offer Floating Bar */}
+        <AnimatePresence>
+          {game.pendingPowerOffers && game.pendingPowerOffers.length > 0 && (
+            game.pendingPowerOffers
               .filter(offer => {
                 if (offer.responded) return false;
-                const isTargetMe = offer.targetPlayerId === playerId;
-                const viewingBot = playerId && game.botPlayerIds?.includes(playerId);
-                const targetHuman = !game.botPlayerIds?.includes(offer.targetPlayerId);
-                return isTargetMe || (viewingBot && targetHuman);
+                // 오직 본인에게 온 제안만 표시 (봇이 대신 결정하는 경우 화면에 띄우지 않음)
+                return offer.targetPlayerId === playerId;
               })
               .map(offer => {
                 const sourcePlayer = game.players[offer.sourcePlayerId];
+                const vpTooLow = offer.vpCost > (currentPlayer?.score || 0);
+
                 return (
-                  <AlertDialog key={offer.id} open={true} onOpenChange={() => { }}>
-                    <AlertDialogContent className="bg-zinc-900 border-zinc-700 w-[360px] min-w-[360px] min-h-[320px] flex flex-col">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
-                          파워 수신
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-zinc-300">
-                          {sourcePlayer?.name}의 건물로부터 파워를 받을 수 있습니다.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="space-y-4 py-4 overflow-y-auto">
-                        <div className="bg-blue-500/10 border-2 border-blue-500/30 rounded-lg p-4">
-                          <div className="text-4xl font-black text-blue-400 text-center mb-2">
-                            +{offer.amount} Power
-                          </div>
-                          <div className="text-center text-zinc-400 text-sm">
-                            비용: {offer.vpCost} VP
-                          </div>
-                          {currentPlayer && (
-                            <div className="text-center text-zinc-500 text-xs mt-2">
-                              현재 파워: {currentPlayer.power1}/{currentPlayer.power2}/{currentPlayer.power3}
-                              {currentPlayer.faction === 'taklons' && (currentPlayer as PlayerState).brainStoneInGaia && (
-                                <span className="ml-1 text-amber-400">· B(가이아)</span>
-                              )}
-                            </div>
-                          )}
+                  <motion.div
+                    key={offer.id}
+                    initial={{ y: -50, x: '-50%', opacity: 0 }}
+                    animate={{ y: 0, x: '-50%', opacity: 1 }}
+                    exit={{ y: -50, x: '-50%', opacity: 0 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="fixed top-24 left-1/2 z-[65] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                  >
+                    <div className="flex items-center gap-3 border-r border-white/10 pr-4">
+                      <div className="flex flex-col shrink-0 mr-2">
+                        <h3 className="text-blue-400 font-black uppercase tracking-tighter text-[9px] leading-none">
+                          Power Offer
+                        </h3>
+                        <span className="text-[10px] text-zinc-400 font-bold">from {sourcePlayer?.name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="flex flex-col items-center">
+                          <span className="text-lg font-black text-blue-400 leading-none">+{offer.amount}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Power</span>
                         </div>
-                        {currentPlayer?.faction === 'taklons' && (
-                          <div className="space-y-3 border border-amber-500/30 rounded-lg p-3 bg-amber-500/5">
-                            <div className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">타클론 선택</div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={powerOfferBrainFirst ? 'default' : 'outline'}
-                                className={`flex-1 text-xs ${powerOfferBrainFirst ? 'bg-amber-600 hover:bg-amber-500' : 'border-amber-500/50 text-amber-200/50'}`}
-                                onClick={() => setPowerOfferBrainFirst(true)}
-                              >
-                                브레인 스톤 우선
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={!powerOfferBrainFirst ? 'default' : 'outline'}
-                                className={`flex-1 text-xs ${!powerOfferBrainFirst ? 'bg-amber-600 hover:bg-amber-500' : 'border-amber-500/50 text-amber-200/50'}`}
-                                onClick={() => setPowerOfferBrainFirst(false)}
-                              >
-                                다른 파워 우선
-                              </Button>
-                            </div>
-                            {game?.map && (currentPlayer as PlayerState) && game.map.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
-                              <div className="flex gap-2 pt-1 border-t border-amber-500/20">
-                                <Button
-                                  size="sm"
-                                  variant={powerOfferPiAddFirst ? 'default' : 'outline'}
-                                  className={`flex-1 text-xs ${powerOfferPiAddFirst ? 'bg-amber-600/80 hover:bg-amber-500/80' : 'border-amber-500/50 text-amber-200/50'}`}
-                                  onClick={() => setPowerOfferPiAddFirst(true)}
-                                >
-                                  1그릇 추가 후 수령
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={!powerOfferPiAddFirst ? 'default' : 'outline'}
-                                  className={`flex-1 text-xs ${!powerOfferPiAddFirst ? 'bg-amber-600/80 hover:bg-amber-500/80' : 'border-amber-500/50 text-amber-200/50'}`}
-                                  onClick={() => setPowerOfferPiAddFirst(false)}
-                                >
-                                  수령 후 1그릇 추가
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {offer.vpCost > (currentPlayer?.score || 0) && (
-                          <div className="text-red-400 text-xs text-center min-h-[2rem]">
-                            ⚠ VP가 부족합니다. 최대 {(currentPlayer?.score || 0) + 1}파워만 받을 수 있습니다.
-                          </div>
+                        <div className="flex flex-col items-center">
+                          <span className={`text-lg font-black leading-none ${vpTooLow ? 'text-red-500' : 'text-zinc-300'}`}>{offer.vpCost}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">VP Cost</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {currentPlayer?.faction === 'taklons' && (
+                      <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferBrainFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
+                          onClick={() => setPowerOfferBrainFirst(!powerOfferBrainFirst)}
+                          title="브레인 스톤 우선 수령 여부 토글"
+                        >
+                          Brain First
+                        </Button>
+                        {game?.map && (currentPlayer as PlayerState) && game.map.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferPiAddFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
+                            onClick={() => setPowerOfferPiAddFirst(!powerOfferPiAddFirst)}
+                            title="의회 효과(1그릇 추가) 우선 적용 여부 토글"
+                          >
+                            PI 1st
+                          </Button>
                         )}
                       </div>
-                      <AlertDialogFooter className="flex gap-2 flex-shrink-0 mt-4">
-                        <Button
-                          variant="outline"
-                          className="flex-1 bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-                          onClick={() => {
-                            if (gameId) GameClient.respondPowerOffer(gameId, offer.id, false);
-                          }}
-                        >
-                          거부
-                        </Button>
-                        <Button
-                          className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold"
-                          onClick={() => {
-                            if (gameId) GameClient.respondPowerOffer(gameId, offer.id, true, currentPlayer?.faction === 'taklons' ? powerOfferBrainFirst : undefined, (currentPlayer as PlayerState)?.faction === 'taklons' && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') ? powerOfferPiAddFirst : undefined);
-                          }}
-                        >
-                          수락
-                        </Button>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-3 border-red-500/30 hover:bg-red-500/10 text-red-500 text-[10px] font-black uppercase"
+                        onClick={() => {
+                          if (gameId) GameClient.respondPowerOffer(gameId, offer.id, false);
+                        }}
+                      >
+                        Decline
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-7 px-4 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase shadow-lg shadow-blue-900/20"
+                        onClick={() => {
+                          if (gameId) GameClient.respondPowerOffer(gameId, offer.id, true, currentPlayer?.faction === 'taklons' ? powerOfferBrainFirst : undefined, (currentPlayer as PlayerState)?.faction === 'taklons' && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') ? powerOfferPiAddFirst : undefined);
+                        }}
+                      >
+                        Accept
+                      </Button>
+                    </div>
+                  </motion.div>
                 );
-              })}
-          </>
-        )}
+              })
+          )}
+        </AnimatePresence>
 
         {/* Twilight 액션1: 보유 연방 중 하나 선택해서 해택 재수령 */}
         {game.pendingTwilightFederation && game.pendingTwilightFederation.playerId === playerId && gameId && (() => {
@@ -2478,10 +2521,8 @@ export default function Game() {
         {(() => {
           const pending = game.pendingIncomeOrder;
           if (!pending) return null;
-          const isTargetMe = pending.playerId === playerId;
-          const viewingBot = playerId && game.botPlayerIds?.includes(playerId);
-          const targetHuman = !game.botPlayerIds?.includes(pending.playerId);
-          if (!(isTargetMe || (viewingBot && targetHuman))) return null;
+          // 오직 본인의 수익 선택 차례일 때만 표시
+          if (pending.playerId !== playerId) return null;
 
           const actualPlayer = game.players[pending.playerId];
           if (!actualPlayer) return null;
@@ -3562,7 +3603,7 @@ export default function Game() {
                     isMini={true}
                     onSelectBonusTile={(id) => {
                       if (game.roundNumber === 6) {
-                        GameClient.passRound(gameId!, undefined);
+                        setConfirmPassWithTileId('dummy');
                       } else {
                         setConfirmPassWithTileId(id);
                       }

@@ -59,3 +59,14 @@ export function playMyTurnSound() {
 export function playOtherTurnSound() {
     playBeep(440, 0.1, 0.1); // A4
 }
+
+/**
+ * Sound for when receiving power (passive income or charging).
+ * Pleasant: a high pitch triple beep.
+ */
+export function playPowerReceiveSound() {
+    const startFreq = 1318.51; // E6
+    playBeep(startFreq, 0.05, 0.1);
+    setTimeout(() => playBeep(startFreq * 1.25, 0.05, 0.1), 60);
+    setTimeout(() => playBeep(startFreq * 1.5, 0.08, 0.1), 120);
+}

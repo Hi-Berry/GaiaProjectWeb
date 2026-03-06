@@ -107,6 +107,7 @@ function ensureScoreBreakdown(player: PlayerState): ScoreBreakdown {
       bonusTilePass: [],
       techTiles: [],
       finalMissions: 0,
+      finalMissionDetails: [],
       powerReceived: 0,
       spaceships: [],
       researchTracks: 0,
@@ -137,7 +138,7 @@ export function saveFinalGameState(game: ServerGameState) {
   }
 }
 
-function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; source?: string }) {
+function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; source?: string; missionId?: string }) {
   const player = game.players[playerId];
   if (!player) return;
   ensureScoreBreakdown(player);
@@ -151,6 +152,9 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
     b.techTiles.push({ tileId: detail.tileId, vp: vp });
   } else if (category === 'finalMissions') {
     b.finalMissions += vp;
+    if (detail?.missionId) {
+      b.finalMissionDetails.push({ missionId: detail.missionId, vp });
+    }
   } else if (category === 'powerReceived' && vp < 0) {
     b.powerReceived += -vp;
   } else if (category === 'spaceships' && detail?.shipTileId) {
@@ -792,7 +796,7 @@ export function applyFinalMissionScoring(game: GaiaGameState) {
       for (const { playerId } of group) {
         const p = game.players[playerId];
         if (p) {
-          addScore(game, playerId, pointsEach, 'finalMissions');
+          addScore(game, playerId, pointsEach, 'finalMissions', { missionId });
           addGameLog(game, playerId, 'Final Mission', `+${pointsEach} VP (${missionId})`);
         }
       }
@@ -1108,7 +1112,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
       // Trading Stations
       const tsCount = playerStructures.filter(t => t.structure === 'trading_station').length;
       for (let i = 0; i < tsCount && i < STRUCTURE_INCOME.trading_station.length; i++) {
-        if (factionId === 'moweyip') {
+        if (factionId === 'bescods') {
           player.knowledge += 1;
         } else {
           player.credits += STRUCTURE_INCOME.trading_station[i];
@@ -1124,7 +1128,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
         } else {
           let labBaseKnowledge = factionId === 'firaks' ? 2 : 1;
           player.knowledge += labBaseKnowledge;
-          if (factionId === 'moweyip') {
+          if (factionId === 'bescods') {
             const labCredits = [3, 4, 5];
             for (let i = 0; i < labCount && i < labCredits.length; i++) {
               player.credits += labCredits[i];
@@ -4476,6 +4480,14 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     return false;
   }
 
+  // 0. 전역 광산 개수 제한 체크 (자원 소모 전)
+  if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+    const errorMsg = `광산 건설 제한(${BUILDING_LIMITS.mine}개)에 도달했습니다.`;
+    debugLog(game, `executeBuildMine failed: ${errorMsg}`, 'error');
+    io.to(game.id).emit('game_error', errorMsg);
+    return false;
+  }
+
   // Spaceship Fed Mine
   if (game.pendingSpaceshipFedMine?.playerId === playerId) {
     const unbuildable = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
@@ -4487,10 +4499,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
       debugLog(game, `executeBuildMine failed (Spaceship Fed): Cannot build on asteroid directly`, 'error');
       return false;
     }
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
-      debugLog(game, `executeBuildMine failed (Spaceship Fed): Mine limit reached`, 'error');
-      return false;
-    }
+    // (이미 위에서 체크함)
     game.pendingSpaceshipFedMine = null;
     const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
     const rm7Qualify = qualifiesForNewSectorRoundMission(game, playerId, tileId);
@@ -4542,10 +4551,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   // Lantids Parasitic
   if (player.faction === 'lantids' && tile.structure != null && tile.ownerId !== playerId && tile.ownerId != null && !tile.parasiticMine) {
-    if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
-      debugLog(game, `executeBuildMine failed (Lantida): Mine limit reached`, 'error');
-      return false;
-    }
+    // (이미 위에서 체크함)
     const mineOre = freeMine ? 0 : 1, mineCredits = freeMine ? 0 : 2;
     if ((player.ore ?? 0) < mineOre || (player.credits ?? 0) < mineCredits) {
       debugLog(game, `executeBuildMine failed (Lantida): Insufficient resources (Ore: ${player.ore}/${mineOre}, Credits: ${player.credits}/${mineCredits})`, 'error');
@@ -4698,10 +4704,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
     player.pendingTerraformSteps = Math.max(0, pendingTerraformSteps - discountSteps);
   }
 
-  if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
-    debugLog(game, `executeBuildMine failed (Standard): Mine limit reached`, 'error');
-    return false;
-  }
+  // (이미 위에서 체크함)
   const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
   const hadStructureInThisSector = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector === tile.sector);
   const hadStructureInOuter = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector >= 20 && t.sector < 30);
@@ -4989,17 +4992,19 @@ export function executeSelectFaction(
       });
     }
 
-    // Moweyip start with TF Mars ship occupied
+    // Moweyip start with TF Mars ship occupied & unlocked
     if (factionId === 'moweyip') {
       const tfMarsTile = game.map.find(t => t.type === 'ship_tf_mars');
       if (tfMarsTile && game.spaceships?.[tfMarsTile.id]) {
-        if (!game.spaceships[tfMarsTile.id].occupants.includes(playerId)) {
-          game.spaceships[tfMarsTile.id].occupants.push(playerId);
+        const ship = game.spaceships[tfMarsTile.id];
+        if (!ship.occupants.includes(playerId)) {
+          ship.occupants.push(playerId);
+          ship.unlocked = true; // Moweyip starts with ship activated
           if (!player.spaceshipsEntered) player.spaceshipsEntered = [];
           if (!player.spaceshipsEntered.includes(tfMarsTile.id)) {
             player.spaceshipsEntered.push(tfMarsTile.id);
           }
-          log(`Moweyip player ${player.name} startingly occupied ${tfMarsTile.id} (TF Mars)`, 'game');
+          log(`Moweyip player ${player.name} startingly occupied & unlocked ${tfMarsTile.id} (TF Mars)`, 'game');
         }
       }
     }

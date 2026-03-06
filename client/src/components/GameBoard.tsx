@@ -494,8 +494,14 @@ export function GameBoard({
     }
 
     // 소행성: faction 없이도 비용 계산 (가이아포머 1개 사용, 비용 0)
-    if (selectedTile.type === 'asteroid') {
-      return { oreCost: 0, credits: 0, qicCost: neededQIC, terraformSteps: 0, terraformingLevel: 0, needsExtraTerraforming: false, terraformDiscount: 0 };
+    const isLantidaParasitic = currentPlayer.faction === 'lantids' && 
+      selectedTile.structure !== null && 
+      selectedTile.ownerId !== playerId && 
+      selectedTile.ownerId != null && 
+      !selectedTile.parasiticMine;
+
+    if (isLantidaParasitic) {
+      return { oreCost: 1, credits: 2, qicCost: neededQIC, terraformSteps: 0, terraformingLevel: 0, needsExtraTerraforming: false, terraformDiscount: 0 };
     }
 
     if (!faction) return null;
@@ -547,7 +553,14 @@ export function GameBoard({
     const isTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
     if (!selectedTile || !currentPlayer || game.currentPhase !== 'main' || !isTurn) return false;
 
-    if (selectedTile.structure !== null) return false;
+    // 란티다 기생 광산 체크
+    const isLantidaParasitic = currentPlayer.faction === 'lantids' && 
+      selectedTile.structure !== null && 
+      selectedTile.ownerId !== playerId && 
+      selectedTile.ownerId != null && 
+      !selectedTile.parasiticMine;
+
+    if (selectedTile.structure !== null && !isLantidaParasitic) return false;
 
     // Transdim+가이아포머: pendingGaiaformerTiles에 있을 때만 건설 가능 (TF2/보너스 즉포만 당장 들어감, 일반은 다음 라운드)
     if (selectedTile.type === 'transdim') {
@@ -861,7 +874,7 @@ export function GameBoard({
                       const parasiticOwner = game.players[tile.parasiticMine!.ownerId];
                       const parasiticFac = parasiticOwner?.faction ? FACTIONS.find(f => f.id === parasiticOwner.faction) : null;
                       return (
-                        <g transform="translate(1.35, 1.35) scale(0.42)">
+                        <g transform="translate(1.8, 1.8)">
                           {renderStructure('mine', parasiticFac?.color ?? '#888')}
                         </g>
                       );
@@ -1310,7 +1323,7 @@ export function GameBoard({
                   </div>
                 )}
 
-                {/* 란티다 기생 광산: 다른 플레이어 건물이 있는 행성에 테라포밍 없이 1O 2C (의회 있으면 +2K, 연방 포함·업그레이드 불가) */}
+                {/* 란티다 기생 광산: 버튼만 심플하게 표시 */}
                 {currentPlayer?.faction === 'lantids' && selectedTile.structure != null && selectedTile.ownerId !== playerId && selectedTile.ownerId != null && !selectedTile.parasiticMine && onBuildMine && (() => {
                   const playerTiles = game.map.filter((t: HexTile) => (t.ownerId === playerId || t.parasiticMine?.ownerId === playerId) && (t.structure != null || t.parasiticMine));
                   const playerForRange = playerId ? game.players[playerId] : null;
@@ -1321,33 +1334,26 @@ export function GameBoard({
                   const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
                   const canReach = minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);
                   const canAfford = (currentPlayer?.ore ?? 0) >= 1 && (currentPlayer?.credits ?? 0) >= 2 && (currentPlayer?.qic ?? 0) >= neededQIC;
+                  
+                  if (!canReach) return <p className="text-xs text-red-400 p-2">기생 광산: 거리가 너무 멉니다</p>;
+                  
                   return (
-                    <div className="space-y-2 p-2 bg-amber-950/30 rounded-lg border border-amber-500/30">
-                      <p className="text-xs text-amber-300 font-semibold">란티다 기생 광산</p>
-                      <p className="text-xs text-muted-foreground">다른 플레이어 건물이 있는 행성에 1O 2C로 건설 (업그레이드 불가, 연방·광산 이벤트 포함)</p>
-                      {minDist !== Infinity && (
-                        <p className="text-xs text-muted-foreground">
-                          거리: {minDist} | 기본 범위: {effectiveBaseRange}
-                          {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>}
-                        </p>
-                      )}
-                      {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
-                      <Button
-                        className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"
-                        variant="secondary"
-                        disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !canReach || !canAfford}
-                        onClick={() => {
-                          onBuildMine(selectedTile.id);
-                          setSelectedTile(null);
-                        }}
-                      >
-                        Build Parasitic Mine (1 Ore, 2 Credits){neededQIC > 0 ? ` + ${neededQIC} QIC` : ''}
-                      </Button>
-                    </div>
+                    <Button
+                      className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"
+                      variant="secondary"
+                      disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId) || !canAfford}
+                      onClick={() => {
+                        onBuildMine(selectedTile.id);
+                        setSelectedTile(null);
+                      }}
+                    >
+                      Build Parasitic Mine (1O, 2C){neededQIC > 0 ? ` + ${neededQIC} QIC` : ''}
+                    </Button>
                   );
                 })()}
 
-                {canBuildMine && mineBuildCost && (
+                {/* 일반 광산 건설 버튼: 타일에 건물이 없을 때만 표시 */}
+                {canBuildMine && !selectedTile.structure && mineBuildCost && (
                   <div className="space-y-2">
                     <Button
                       className="w-full"
