@@ -3973,7 +3973,10 @@ export function setupGameServer(httpServer: HTTPServer) {
       console.log(`[DEBUG_INCOME] Received select_all_income_items: gameId=${gameId}`);
       const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
       const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
-      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) {
+      
+      const isHostViewing = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '') && game.hostId === playerId;
+
+      if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId && !isHostViewing)) {
         console.log(`[DEBUG_INCOME] Auto-select Auth failed. pendingOrder:`, game.pendingIncomeOrder);
         return;
       }

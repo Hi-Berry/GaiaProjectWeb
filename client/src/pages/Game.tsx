@@ -315,6 +315,16 @@ export default function Game() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
+      if (e.code === 'Space') {
+        e.preventDefault(); // 스크롤 방지
+        const newVal = !(isResearchPinned && isBonusPinned);
+        setIsResearchPinned(newVal);
+        setIsBonusPinned(newVal);
+        if (gameId) {
+          localStorage.setItem(`is-research-pinned-${gameId}`, String(newVal));
+          localStorage.setItem(`is-bonus-pinned-${gameId}`, String(newVal));
+        }
+      }
       if (e.key.toLowerCase() === 'r') {
         setIsResearchOpen(prev => !prev);
         setIsBonusTilesOpen(false);
@@ -331,7 +341,7 @@ export default function Game() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isResearchOpen, isBonusTilesOpen]);
+  }, [isResearchOpen, isBonusTilesOpen, isResearchPinned, isBonusPinned, gameId]);
 
   // 개발 중: 테스트 모드일 때 종족 선택 단계에서 하이브(ivits) 자동 선택
   useEffect(() => {
@@ -774,9 +784,9 @@ export default function Game() {
                 </SelectContent>
               </Select>
               <Button
-                variant={(isResearchPinned && isBonusPinned) ? 'default' : 'outline'}
+                variant="outline"
                 size="icon"
-                className={`h-9 w-9 shrink-0 ${(isResearchPinned && isBonusPinned) ? 'bg-purple-600 hover:bg-purple-500' : ''}`}
+                className="h-9 w-9 shrink-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:text-purple-400 dark:hover:bg-purple-900/50"
                 onClick={() => {
                   const newVal = !(isResearchPinned && isBonusPinned);
                   setIsResearchPinned(newVal);
@@ -1490,7 +1500,7 @@ export default function Game() {
 
         {/* Pass 시 보너스 타일 선택 모달 (0라운드 초기 선택은 하단 패널만 사용, X/Cancel 없음) */}
         <BonusSelectionModal
-          open={(!!confirmPassWithTileId || isPendingBonusSelection) && game.currentPhase !== 'bonusSelection'}
+          open={isPendingBonusSelection && game.currentPhase !== 'bonusSelection'}
           onClose={() => {
             if (!isPendingBonusSelection) {
               setConfirmPassWithTileId(null);
@@ -1507,36 +1517,115 @@ export default function Game() {
         />
 
         {/* Pass Confirmation Dialog (When selecting bonus tile from overlay) */}
-        <AlertDialog open={!!confirmPassWithTileId && confirmPassWithTileId !== 'dummy'} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
-          <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-lg">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
-                보너스 타일 선택
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-zinc-300">
-                라운드를 종료하고 보너스 타일을 선택하시겠습니까?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
-                취소
-              </AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold"
-                onClick={() => {
-                  if (confirmPassWithTileId && confirmPassWithTileId !== 'dummy') {
-                    GameClient.passRound(gameId!, confirmPassWithTileId);
-                  } else {
-                    GameClient.passRound(gameId!, undefined);
-                  }
-                  setConfirmPassWithTileId(null);
-                }}
-              >
-                확인
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {(() => {
+          const currentPlayer = playerId ? game.players[playerId] : null;
+          const currentBonusTile = currentPlayer?.bonusTile ? ALL_BONUS_TILES.find(t => t.id === currentPlayer.bonusTile) : null;
+          const selectedBonusTile = confirmPassWithTileId && confirmPassWithTileId !== 'dummy' ? ALL_BONUS_TILES.find(t => t.id === confirmPassWithTileId) : null;
+
+          let passBonusVp = 0;
+          if (currentBonusTile?.passBonus && playerId && currentPlayer) {
+            const counts = getStructureCountsForPlayer(game, playerId);
+            const { type, vp } = currentBonusTile.passBonus;
+            const myMapTiles = game.map.filter(t => t.ownerId === playerId);
+            switch (type) {
+              case 'mine':
+                passBonusVp = counts.mineCount * vp; break;
+              case 'trading_station':
+                passBonusVp = counts.tsCount * vp; break;
+              case 'research_lab':
+                passBonusVp = counts.labCount * vp; break;
+              case 'big_building':
+                passBonusVp = (counts.piCount + counts.academyLeft + counts.academyRight) * vp; break;
+              case 'gaiaformer':
+                // 맵에 있는 가이아포머 (이미 지어진 거 말고 트랜스딤 등에 얹혀진 거) + 내 가이아포머 구역 트랙 값
+                // 실제 계산: 내가 가진 최대 가이아포머 수 (테라포밍+광산 지어져서 파괴된 거 빼고)
+                // 간단히: 현재 열린 가이아포머 컴포넌트 전체 개수 활용, 또는 맵 위 + 개인판
+                passBonusVp = (currentPlayer.gaiaformers ?? 0) * vp; // 편의상 개인판 대기중인 것만 (서버 로직과 동일해야 함)
+                // 서버의 정확한 로직: 맵 위(hasGaiaformer=true & owner=나) + 개인판(player.gaiaformers) => 파괴 안 된 전체 개수
+                const activeGaiaformersOnMap = game.map.filter(t => t.hasGaiaformer && currentPlayer.pendingGaiaformerTiles?.includes(t.id)).length;
+                const nextRoundGaiaformers = currentPlayer.gaiaformerPlacedThisRound?.length ?? 0;
+                passBonusVp = ((currentPlayer.gaiaformers ?? 0) + activeGaiaformersOnMap + nextRoundGaiaformers) * vp;
+                break;
+              case 'gaia':
+                passBonusVp = myMapTiles.filter(t => t.type === 'gaia' && t.structure != null && t.structure !== 'ship').length * vp;
+                break;
+              case 'planet_type':
+                passBonusVp = new Set(myMapTiles.filter(t => t.structure != null && t.structure !== 'ship').map(t => t.type)).size * vp;
+                break;
+              case 'bridge_sector':
+                passBonusVp = new Set(myMapTiles.filter(t => t.structure != null && t.structure !== 'ship' && typeof t.sector === 'number').map(t => t.sector)).size * vp;
+                break;
+            }
+          }
+
+          return (
+            <AlertDialog open={!!confirmPassWithTileId && confirmPassWithTileId !== 'dummy'} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
+              <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-lg">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-primary" />
+                    Choose New Bonus Tile
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    라운드를 종료하고 보너스 타일을 교체하시겠습니까?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <div className="flex items-center justify-center gap-8 py-6">
+                  {currentBonusTile && (
+                    <div className="flex flex-col items-center gap-3">
+                      <span className="text-[10px] text-orange-400 font-bold uppercase tracking-widest bg-orange-500/10 px-2 py-0.5 rounded">Returning</span>
+                      <div className="relative w-20 h-32 rounded-lg overflow-hidden border border-white/10 shadow-lg grayscale opacity-50">
+                        {(() => {
+                          const idx = ALL_BONUS_TILES.findIndex(t => t.id === currentBonusTile.id);
+                          return idx !== -1 ? <img src={`/image/BoostTile_${idx + 1}.jpg`} className="w-full h-full object-contain" alt="returning" /> : null;
+                        })()}
+                      </div>
+                      {passBonusVp > 0 && (
+                        <div className="text-emerald-400 font-black text-sm bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                          +{passBonusVp} VP
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {currentBonusTile && selectedBonusTile && (
+                    <div className="text-zinc-600 font-black text-3xl">→</div>
+                  )}
+                  {selectedBonusTile && (
+                    <div className="flex flex-col items-center gap-3">
+                      <span className="text-[10px] text-primary font-bold uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">Selecting</span>
+                      <div className="relative w-24 h-36 rounded-lg overflow-hidden border border-primary/50 shadow-[0_0_20px_rgba(var(--primary),0.2)]">
+                        {(() => {
+                          const idx = ALL_BONUS_TILES.findIndex(t => t.id === selectedBonusTile.id);
+                          return idx !== -1 ? <img src={`/image/BoostTile_${idx + 1}.jpg`} className="w-full h-full object-contain" alt="selecting" /> : null;
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-primary hover:bg-primary/90 text-black font-bold"
+                    onClick={() => {
+                      if (confirmPassWithTileId && confirmPassWithTileId !== 'dummy') {
+                        GameClient.passRound(gameId!, confirmPassWithTileId);
+                      } else {
+                        GameClient.passRound(gameId!, undefined);
+                      }
+                      setConfirmPassWithTileId(null);
+                    }}
+                  >
+                    Ok
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
 
         {/* 기술 타일 선택은 R창 내 ResearchBoard에서 처리 (팝업 없음) */}
 
@@ -1730,7 +1819,7 @@ export default function Game() {
                           {sourcePlayer?.name}의 건물로부터 파워를 받을 수 있습니다.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
-                      <div className="space-y-4 py-4 flex-1 min-h-0">
+                      <div className="space-y-4 py-4 overflow-y-auto">
                         <div className="bg-blue-500/10 border-2 border-blue-500/30 rounded-lg p-4">
                           <div className="text-4xl font-black text-blue-400 text-center mb-2">
                             +{offer.amount} Power
@@ -1790,15 +1879,13 @@ export default function Game() {
                             )}
                           </div>
                         )}
-                        {offer.vpCost > (currentPlayer?.score || 0) ? (
+                        {offer.vpCost > (currentPlayer?.score || 0) && (
                           <div className="text-red-400 text-xs text-center min-h-[2rem]">
                             ⚠ VP가 부족합니다. 최대 {(currentPlayer?.score || 0) + 1}파워만 받을 수 있습니다.
                           </div>
-                        ) : (
-                          <div className="min-h-[2rem]" aria-hidden />
                         )}
                       </div>
-                      <AlertDialogFooter className="flex gap-2 flex-shrink-0">
+                      <AlertDialogFooter className="flex gap-2 flex-shrink-0 mt-4">
                         <Button
                           variant="outline"
                           className="flex-1 bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"

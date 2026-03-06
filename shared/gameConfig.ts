@@ -852,7 +852,7 @@ export const FACTIONS: Faction[] = [
   {
     id: 'tinkeroids', name: 'Tinkeroids', homePlanet: 'asteroid', color: PLANET_COLORS.asteroid,
     startingTech: { science: 1 },
-    startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
+    startingResources: { ore: 4, knowledge: 2, credits: 15, qic: 1 },
     startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
     startingMines: 1,
     startingStructure: 'planetary_institute',
@@ -1056,35 +1056,56 @@ export function chargePowerTaklons(player: PlayerState, amount: number, brainFir
     return;
   }
   let remaining = amount;
-  let p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
-  let brain: 1 | 2 | 3 = (player.brainStoneBowl ?? 1) as 1 | 2 | 3;
 
-  for (let i = 0; i < amount; i++) {
-    // Priority check
+  while (remaining > 0) {
+    let p1 = player.power1 ?? 0;
+    let p2 = player.power2 ?? 0;
+    let p3 = player.power3 ?? 0;
+    let brain = player.brainStoneBowl ?? 1;
+
+    // 만약 더 이상 받을 파워가 없다면 (1, 2번 상자가 비어있고 브레인스톤도 없음)
+    if (p1 === 0 && p2 === 0 && brain === 3) break;
+
+    let moved = false;
+
     if (brainFirst) {
-      if (brain === 1 && p1 > 0) {
-        brain = 2;
-        p1--; p2++;
-      } else if (brain === 2 && p2 > 0) {
-        brain = 3;
-        p2--; p3++;
+      if (brain === 1) {
+        player.brainStoneBowl = 2;
+        moved = true;
       } else if (p1 > 0) {
-        p1--; p2++;
+        player.power1 = p1 - 1;
+        player.power2 = p2 + 1;
+        moved = true;
+      } else if (brain === 2) {
+        player.brainStoneBowl = 3;
+        moved = true;
       } else if (p2 > 0) {
-        p2--; p3++;
-      }
-    } else {
-      if (p1 > 0) {
-        if (brain === 1 && p1 === 1) { brain = 2; }
-        p1--; p2++;
-      } else if (p2 > 0) {
-        if (brain === 2 && p2 === 1) { brain = 3; }
-        p2--; p3++;
+        player.power2 = p2 - 1;
+        player.power3 = p3 + 1;
+        moved = true;
       }
     }
-  }
+    else {
+      if (p1 > 0) {
+        player.power1 = p1 - 1;
+        player.power2 = p2 + 1;
+        moved = true;
+      } else if (brain === 1) {
+        player.brainStoneBowl = 2;
+        moved = true;
+      } else if (p2 > 0) {
+        player.power2 = p2 - 1;
+        player.power3 = p3 + 1;
+        moved = true;
+      } else if (brain === 2) {
+        player.brainStoneBowl = 3;
+        moved = true;
+      }
+    }
 
-  player.power1 = p1; player.power2 = p2; player.power3 = p3; player.brainStoneBowl = brain;
+    if (!moved) break;
+    remaining--;
+  }
 }
 
 /** 타클론: 해당 그릇에서 낼 수 있는 파워 값 (브레인 스톤 = 3, 일반 = 1) */
@@ -1095,18 +1116,17 @@ export function getTaklonsBowlPowerValue(player: PlayerState, bowl: 1 | 2 | 3): 
   }
   const count = bowl === 1 ? (player.power1 ?? 0) : bowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);
   const hasBrain = player.brainStoneBowl === bowl;
-  return hasBrain ? 3 + (count - 1) : count;
+  return hasBrain ? 3 + count : count;
 }
 
 /** 타클론: 그릇에서 powerValue만큼 파워 낼 수 있는지 (브레인 사용 시 1B+일반 = 3+1 등) */
 export function canSpendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, powerValue: number): boolean {
   const count = fromBowl === 1 ? (player.power1 ?? 0) : fromBowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);
-  if (count === 0) return false;
   const hasBrain = !player.brainStoneInGaia && player.brainStoneBowl === fromBowl;
-  if (hasBrain && count >= 1) {
-    if (powerValue <= 3) return true; // 1B
-    if (powerValue <= 3 + (count - 1)) return true; // 1B + (powerValue-3) regular
+  if (hasBrain) {
+    if (powerValue <= 3 + count) return true; // 1B + regular tokens
   }
+  if (count === 0) return false;
   return count >= powerValue; // no brain or use only regular
 }
 
@@ -1115,14 +1135,20 @@ export function spendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, powe
   const count = fromBowl === 1 ? (player.power1 ?? 0) : fromBowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);
   const hasBrain = !player.brainStoneInGaia && player.brainStoneBowl === fromBowl;
   const toRemove = (useBrain && hasBrain && powerValue >= 3)
-    ? 1 + Math.max(0, powerValue - 3) // 1 brain + (powerValue-3) regular
-    : powerValue;
+    ? Math.max(0, powerValue - 3) // ONLY regular tokens to remove; brainstone is handled via boolean flag
+    : powerValue;                     // otherwise all spent power comes from regular tokens
   if (count < toRemove) return false;
+
+  // Subtract regular tokens from current bowl
   if (fromBowl === 1) player.power1 = count - toRemove;
   else if (fromBowl === 2) player.power2 = count - toRemove;
   else player.power3 = count - toRemove;
-  player.power1 = (player.power1 ?? 0) + toRemove; // spent tokens go to bowl 1
-  if (useBrain && hasBrain && toRemove >= 1) player.brainStoneBowl = 1;
+
+  // Move spent regular tokens to Bowl 1
+  player.power1 = (player.power1 ?? 0) + toRemove;
+
+  // Move spent brainstone to Bowl 1
+  if (useBrain && hasBrain && powerValue >= 1) player.brainStoneBowl = 1;
   return true;
 }
 
@@ -1774,7 +1800,7 @@ export const GaiaProjectGame: Game<GaiaGameState> = {
 };
 
 /** 기본 7색상 행성 (테라포밍 휠, 확장 규칙에서 1/2/3단계 지정에 사용) */
-export const HOME_PLANETS: PlanetType[] = ['terra', 'oxide', 'volcanic', 'desert', 'swamp', 'titanium', 'ice'];
+export const HOME_PLANETS: PlanetType[] = ['terra', 'volcanic', 'oxide', 'desert', 'swamp', 'titanium', 'ice'];
 
 export function getTerraformSteps(from: PlanetType, to: PlanetType): number {
   if (from === to) return 0;
