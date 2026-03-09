@@ -1679,12 +1679,14 @@ export function setupGameServer(httpServer: HTTPServer) {
       clampPlayerResources(game);
       io.to(gameId).emit('game_updated', game);
       callback({ game });
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => {});
     });
 
     socket.on('get_game', ({ gameId }, callback) => {
       const game = games.get(gameId);
       if (!game) { callback({ error: 'Game not found' }); return; }
       callback({ game });
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => {});
     });
 
     socket.on('start_game', ({ gameId }) => {
@@ -2634,6 +2636,7 @@ export function setupGameServer(httpServer: HTTPServer) {
         if (!player.pendingGaiaformerTiles) player.pendingGaiaformerTiles = [];
         player.pendingGaiaformerTiles.push(tileId);
         tile.type = 'gaia';
+        tile.isGaiaformed = true;
         // hasGaiaformer 유지 → 설치한 플레이어만 짓는지 확인 가능, 광산 짓을 때 회수
       } else {
         // 일반 배치: 이번 라운드에는 건설 불가, 다음 라운드에 성숙
@@ -5545,6 +5548,7 @@ export function executePassRound(
           const t = game.map.find(m => m.id === tileId);
           if (t && t.type === 'transdim' && t.hasGaiaformer && !t.structure) {
             t.type = 'gaia';
+            t.isGaiaformed = true;
             if (!player.pendingGaiaformerTiles!.includes(tileId)) {
               player.pendingGaiaformerTiles!.push(tileId);
               log(`Player ${player.name}: gaiaformer matured on ${tileId} (now buildable)`, 'game');

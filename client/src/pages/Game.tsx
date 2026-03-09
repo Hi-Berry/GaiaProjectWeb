@@ -11,6 +11,7 @@ import { BonusSelectionModal } from '@/components/BonusSelectionModal';
 import { FreeActionsDialog } from '@/components/FreeActionsDialog';
 
 import { PlayerPanel } from '@/components/PlayerPanel';
+import { GameLog } from '@/components/GameLog';
 import { FactionSelect } from '@/components/FactionSelect';
 import { GameLobby } from '@/components/GameLobby';
 import { Button } from '@/components/ui/button';
@@ -291,13 +292,24 @@ export default function Game() {
   }, [game?.hostId, playerId, gameId]);
 
   // 한 컴퓨터 4인플: 방장일 경우 현재 턴 플레이어로 자동 전환 (로컬 멀티플레이용)
+  // 로비/종족선택/시작광산 단계에서는 자동 전환 안 함 → 방장이 봇을 골라 종족·턴 지정할 수 있게
   useEffect(() => {
     if (!gameId || !game || !isHostSessionRef.current) return;
+    const phase = game.currentPhase;
+    if (phase === 'lobby' || phase === 'factionSelect' || phase === 'startingMines') return;
 
-    // 현재 턴 플레이어 ID 확인
+    // 수익 선택 대기 중인 플레이어가 인간이면 그 플레이어로 포커스 → 호스트가 수익 선택할 수 있게
+    const pendingIncome = game.pendingIncomeOrder;
+    if (pendingIncome && !game.botPlayerIds?.includes(pendingIncome.playerId)) {
+      if (pendingIncome.playerId !== playerId) {
+        setPlayerId(pendingIncome.playerId);
+        storePlayerId(gameId, pendingIncome.playerId);
+      }
+      return;
+    }
+
     const currentActivePlayerId = game.turnOrder[game.currentPlayerIndex];
     if (currentActivePlayerId && currentActivePlayerId !== playerId) {
-      // 보너스 타일 선택 중일 때는 해당 선택 대기 유저로 전환
       if (game.currentPhase === 'bonusSelection' && game.pendingBonusSelection) {
         if (game.pendingBonusSelection !== playerId) {
           setPlayerId(game.pendingBonusSelection);
@@ -306,13 +318,12 @@ export default function Game() {
         return;
       }
 
-      // 일반적인 턴 전환 (봇이 아닐 때만 자동 전환)
       if (!game.botPlayerIds?.includes(currentActivePlayerId)) {
         setPlayerId(currentActivePlayerId);
         storePlayerId(gameId, currentActivePlayerId);
       }
     }
-  }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.pendingBonusSelection, playerId]);
+  }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.pendingBonusSelection, game?.pendingIncomeOrder?.playerId, game?.botPlayerIds, playerId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2484,8 +2495,10 @@ export default function Game() {
         {(() => {
           const pending = game.pendingIncomeOrder;
           if (!pending) return null;
-          // 오직 본인의 수익 선택 차례일 때만 표시
-          if (pending.playerId !== playerId) return null;
+          // 본인 차례이거나, 호스트가 봇이 아닌 다른 플레이어(gg 등) 대신 수익 선택할 때 표시
+          const isMyIncomeTurn = pending.playerId === playerId;
+          const isHostCompletingForHuman = playerId === game.hostId && !game.botPlayerIds?.includes(pending.playerId);
+          if (!isMyIncomeTurn && !isHostCompletingForHuman) return null;
 
           const actualPlayer = game.players[pending.playerId];
           if (!actualPlayer) return null;
@@ -3373,74 +3386,20 @@ export default function Game() {
             <Clock className="w-4 h-4" />
             Game Log
           </h3>
-          <div className="flex-1 overflow-y-auto w-full custom-scrollbar pr-2">
+          <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
             {(!game.gameLog || game.gameLog.length === 0) ? (
               <div className="text-center text-muted-foreground text-xs py-8">
                 No actions yet
               </div>
             ) : (
-              [...game.gameLog].reverse().map((log, index) => {
-                const formatTime = (timestamp: number) => {
-                  const date = new Date(timestamp);
-                  // 24시간제 적용 및 공간 절약형 포맷
-                  return date.toLocaleTimeString('ko-KR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                  });
-                };
-                return (
-                  <div
-                    key={index}
-                    className={`group flex flex-col gap-1 p-2 rounded-lg border text-xs transition-all ${log.tileId
-                      ? 'bg-muted/50 border-border hover:bg-muted hover:border-primary/50 cursor-pointer shadow-sm'
-                      : 'bg-zinc-900/30 border-white/5'
-                      }`}
-                    onMouseEnter={() => log.tileId && setHighlightedTileId(log.tileId)}
-                    onMouseLeave={() => setHighlightedTileId(null)}
-                  >
-                    {/* Header Line: Player (Left) | Time (Right) */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <User className="w-2.5 h-2.5 text-primary flex-shrink-0 opacity-70" />
-                        <span className="text-[10px] font-black text-zinc-100 uppercase tracking-tighter truncate">
-                          {(() => {
-                            const p = game.players[log.playerId];
-                            const f = p?.faction ? FACTIONS.find(f => f.id === p.faction) : null;
-                            return f ? `${f.name} (${log.playerName})` : log.playerName;
-                          })()}
-                        </span>
-                      </div>
-                      <span className="text-[9px] text-muted-foreground/40 font-mono shrink-0">
-                        {formatTime(log.timestamp)}
-                      </span>
-                    </div>
-
-                    {/* Action Content: Full Width Below */}
-                    <div className="text-[11px] leading-tight">
-                      <span className="font-bold text-primary mr-1.5">{log.action}</span>
-                      {log.details && (
-                        <span className="text-zinc-400 font-medium">{log.details}</span>
-                      )}
-                    </div>
-
-                    {/* Sub Logs (Nested actions like power reception) */}
-                    {log.subLogs && log.subLogs.length > 0 && (
-                      <div className="mt-1 pl-2 border-l border-white/10 space-y-0.5">
-                        {log.subLogs.map((sub, sidx) => {
-                          if (!sub) return null;
-                          return (
-                            <div key={sidx} className="text-[10px] text-zinc-500 font-medium leading-tight opacity-80 hover:opacity-100 transition-opacity">
-                              {sub.text || ''}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+              <GameLog
+                game={game}
+                hideHeader
+                className="w-full"
+                maxHeight="100%"
+                onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
+                onEntryMouseLeave={() => setHighlightedTileId(null)}
+              />
             )}
           </div>
         </div>

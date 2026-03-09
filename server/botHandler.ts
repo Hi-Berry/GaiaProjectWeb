@@ -273,7 +273,12 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
 
     const action = await BotLogic.getNextMove(game, currentPlayerId);
     if (!action) {
-        log(`Bot ${player.name} has no valid action, skipping turn`, 'game');
+        if (game.currentPhase === 'main' && !player.hasPassed) {
+            const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
+            log(`Bot ${player.name} has no valid action, forcing pass to advance turn`, 'game');
+            const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
+            if (passOk) setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+        }
         return;
     }
 
@@ -285,5 +290,10 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
     } else {
         log(`Bot ${player.name} failed to execute ${action.type}. Action details: ${JSON.stringify(action)}`, 'error', game.id);
+        if (game.currentPhase === 'main' && !player.hasPassed) {
+            const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
+            const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
+            if (passOk) setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+        }
     }
 }

@@ -91,7 +91,8 @@ export class MemStorage implements IStorage {
       sector: tile.sector ?? null,
       rotation: tile.rotation ?? 0,
       structure: tile.structure ?? null,
-      ownerId: tile.ownerId ?? null
+      ownerId: tile.ownerId ?? null,
+      isGaiaformed: tile.isGaiaformed ?? false,
     };
     this.tiles.set(id, newTile);
     return newTile;

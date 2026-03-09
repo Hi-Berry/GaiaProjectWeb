@@ -14,6 +14,7 @@ export const tiles = pgTable("tiles", {
   rotation: integer("rotation").default(0), // Sector rotation (0-5)
   structure: text("structure"), // 'mine', 'trading_station', 'research_lab', 'academy', 'planetary_institute', 'gaia_former', 'ship'
   ownerId: integer("owner_id"), // Player ID who owns the structure
+  isGaiaformed: boolean("is_gaiaformed").default(false).notNull(), // Whether this Gaia planet was formed from Transdim
 });
 
 // Player state

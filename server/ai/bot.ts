@@ -374,13 +374,11 @@ export class BotLogic {
             log(`Bot ${player.name} found ${candidates.length} non-pass candidates in Round ${game.roundNumber}`, 'game', game.id);
         }
 
-        // 9. 패스 (항상 후보에 포함하여 MCTS가 조기 패스의 이점을 계산하게 함)
+        // 9. 패스 (항상 후보에 포함하여 MCTS가 조기 패스의 이점을 계산하게 함). 6라운드/보너스 없어도 패스 가능.
         if (!player.hasPassed) {
             const availableTiles = game.availableBonusTiles;
-            if (availableTiles && availableTiles.length > 0) {
-                // 패스는 무작위가 아닌 현재 가장 좋은 타일 1개를 고르게 하거나, 첫 번째 타일
-                candidates.push({ type: 'pass_round', params: { bonusTileId: availableTiles[0].id } });
-            }
+            const bonusTileId = availableTiles && availableTiles.length > 0 ? availableTiles[0].id : undefined;
+            candidates.push({ type: 'pass_round', params: { bonusTileId } });
         }
 
         // 중복 제거 (예: 동일한 타일에 대한 건설 명령이 두 번 들어간 경우)

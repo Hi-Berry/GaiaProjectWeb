@@ -154,6 +154,7 @@ export interface HexTile {
   spaceStation?: { ownerId: string };
   /** 모웨이드 의회 Special: 링이 놓인 건물 → 파워 수신/연방 시 +2 */
   moweyipRing?: boolean;
+  isGaiaformed?: boolean; // 가이아 프로젝트를 통해 변환된 행성인지 여부
 }
 
 export interface PowerAction {
@@ -1326,7 +1327,7 @@ export function generateMap(): HexTile[] {
       const key = `${q},${r}`;
       if (!occupied.has(key)) {
         // Sector ID should match layout index (0-9) so Map_B(ID+1) aligns with layout
-        tiles.push({ id: `tile-${tileId++}`, q, r, type: hex.type, sector: baseLayouts[i], rotation: rotation, structure: null, ownerId: null });
+        tiles.push({ id: `tile-${tileId++}`, q, r, type: hex.type, sector: baseLayouts[i], rotation: rotation, structure: null, ownerId: null, isGaiaformed: false });
         occupied.add(key);
       }
     }

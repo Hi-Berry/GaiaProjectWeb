@@ -38,6 +38,7 @@ async function seedData() {
         type: tile.type,
         sector: tile.sector,
         rotation: tile.rotation ?? 0,
+        isGaiaformed: false,
       });
     }
   }

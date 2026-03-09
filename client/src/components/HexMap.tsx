@@ -277,7 +277,7 @@ export function HexMap() {
                   {/* Planet Overlays removed as they are in the background image */}
                   {/* Space Texture (ts_100) - Only for sector 90 (gap hexes) to avoid blurring sector background images */}
                   {(tile.type === 'space' || tile.type === 'deep_space') && tile.sector === 90 && (
-                    <circle r="4.8" fill="url(#ts-space)" fillOpacity={0.15} pointerEvents="none" />
+                    <circle r="4.15" fill="url(#ts-space)" fillOpacity={0.15} pointerEvents="none" />
                   )}
                   {/* Single-hex Strategic Tiles & Ships (Only for sector 90 to prevent drawing on outer bridges) */}
                   {tile.sector === 90 && (
@@ -293,7 +293,7 @@ export function HexMap() {
                   {/* Outer Sector Highlight Overlay removed as it makes the image blurry */}
 
                   {/* 가이아 행성 오버레이 (ts_forming.png) */}
-                  {tile.type === 'gaia' && (
+                  {tile.type === 'gaia' && (tile as any).isGaiaformed === true && (
                     <circle r="4.15" fill="url(#ts-forming)" pointerEvents="none" />
                   )}
 
