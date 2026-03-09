@@ -728,6 +728,7 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 
 export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: string, subLog: { playerId: string; playerName: string; text: string }): boolean {
   if (!game.gameLog || game.gameLog.length === 0) return false;
+  if (!subLog.text) return false;
 
   // 뒤에서부터 탐색하여 sourcePlayerId가 일으킨 최근 메인 액션을 찾음
   for (let i = game.gameLog.length - 1; i >= 0; i--) {

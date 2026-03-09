@@ -422,7 +422,7 @@ export default function Game() {
     const player = game.players[playerId];
     if (!player) return;
 
-    const { power1: p1, power2: p2, power3: p3, brainStoneBowl: bs } = player.power;
+    const { power1: p1, power2: p2, power3: p3, brainStoneBowl: bs } = player;
     const last = lastPowerStateRef.current;
 
     // 파워가 상위 볼로 이동했는지 또는 브레인스톤이 전진했는지 확인
@@ -430,16 +430,16 @@ export default function Game() {
     const p2Increased = p2 > last.p2;
     const p3Increased = p3 > last.p3;
     const bsMovedUp = (bs !== undefined && last.bs !== undefined && bs > last.bs);
-    
+
     // p1이 줄어들면서 p2나 p3가 늘어난 경우 (충전)
     if ((p2Increased || p3Increased || bsMovedUp) && (p1 < last.p1 || p2 < last.p2 || (bs !== undefined && last.bs !== undefined && bs > last.bs))) {
-        // 단, 본인이 메인 액션 중일 때는 너무 시끄러울 수 있으므로 
-        // 상대방의 액션으로 인해 파워를 받는 경우(Passive)나 수익 단계 등에서 유용
-        playPowerReceiveSound();
+      // 단, 본인이 메인 액션 중일 때는 너무 시끄러울 수 있으므로 
+      // 상대방의 액션으로 인해 파워를 받는 경우(Passive)나 수익 단계 등에서 유용
+      playPowerReceiveSound();
     }
 
     lastPowerStateRef.current = { p1, p2, p3, bs: bs ?? 0 };
-  }, [game?.players[playerId ?? '']?.power, playerId]);
+  }, [game?.players[playerId ?? '']?.power1, game?.players[playerId ?? '']?.power2, game?.players[playerId ?? '']?.power3, game?.players[playerId ?? '']?.brainStoneBowl, playerId]);
 
   if (loading) {
     return (
@@ -957,10 +957,10 @@ export default function Game() {
         let qicCost = neededQIC;
 
         // 란티다 기생 광산 체크: 테라포밍 비용 없음
-        const isLantidaParasitic = player.faction === 'lantids' && 
-          tile.structure !== null && 
-          tile.ownerId !== playerId && 
-          tile.ownerId != null && 
+        const isLantidaParasitic = player.faction === 'lantids' &&
+          tile.structure !== null &&
+          tile.ownerId !== playerId &&
+          tile.ownerId != null &&
           !tile.parasiticMine;
 
         if (isLantidaParasitic) {
@@ -1128,45 +1128,7 @@ export default function Game() {
             </div>
           </div>
         )}
-        <PlayerPanel
-          game={game}
-          playerId={playerId}
-          isCurrentTurn={isCurrentTurn}
-          onEndTurn={() => GameClient.endTurn(gameId!)}
-          onAdvanceTech={(trackId) => {
-            if (game.hasDoneMainAction) return;
-            setIsResearchOpen(false);
-            GameClient.advanceTech(gameId!, trackId);
-          }}
-          onConvertResource={(type, useBrain) => GameClient.convertResource(gameId!, type, useBrain)}
-          onBurnPower={(moveBrainToBowl3) => GameClient.burnPower(gameId!, moveBrainToBowl3)}
-          onExit={() => {
-            GameClient.leaveGame(gameId!);
-            setLocation('/');
-          }}
-          onUseBonusAction={() => {
-            const player = game.players[playerId!];
-            if (player.usedBonusAction) return;
-            // 테라포밍 액션인 경우 Research Board 닫기
-            const bonusTile = game.availableBonusTiles.find(t => t.id === player.bonusTile) ||
-              (player.bonusTile ? ALL_BONUS_TILES.find(t => t.id === player.bonusTile) : null);
-            if (bonusTile?.specialAction === 'terraform_step') {
-              setIsResearchOpen(false);
-            }
-            GameClient.useBonusAction(gameId!);
-          }}
-          onUseAcademyQic={() => {
-            if (game.hasDoneMainAction) return;
-            GameClient.useSpecialAction(gameId!, 'academy-qic');
-          }}
-          onUseGleens2Nav={() => {
-            if (game.hasDoneMainAction) return;
-            GameClient.useSpecialAction(gameId!, 'gleens-2nav');
-          }}
-          onUseBalTakGaiaformerToQic={() => {
-            if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
-          }}
-        />
+
         {/* Game End: Show Score Button */}
         {game.currentPhase === 'gameEnd' && (
           <div className="p-4 border-t border-border mt-auto">
@@ -2098,11 +2060,12 @@ export default function Game() {
           {game.pendingPowerOffers && game.pendingPowerOffers.length > 0 && (
             game.pendingPowerOffers
               .filter(offer => {
-                if (offer.responded) return false;
+                if (!offer || offer.responded) return false;
                 // 오직 본인에게 온 제안만 표시 (봇이 대신 결정하는 경우 화면에 띄우지 않음)
                 return offer.targetPlayerId === playerId;
               })
               .map(offer => {
+                if (!offer) return null;
                 const sourcePlayer = game.players[offer.sourcePlayerId];
                 const vpTooLow = offer.vpCost > (currentPlayer?.score || 0);
 
@@ -3465,11 +3428,14 @@ export default function Game() {
                     {/* Sub Logs (Nested actions like power reception) */}
                     {log.subLogs && log.subLogs.length > 0 && (
                       <div className="mt-1 pl-2 border-l border-white/10 space-y-0.5">
-                        {log.subLogs.map((sub, sidx) => (
-                          <div key={sidx} className="text-[10px] text-zinc-500 font-medium leading-tight opacity-80 hover:opacity-100 transition-opacity">
-                            {sub.text}
-                          </div>
-                        ))}
+                        {log.subLogs.map((sub, sidx) => {
+                          if (!sub) return null;
+                          return (
+                            <div key={sidx} className="text-[10px] text-zinc-500 font-medium leading-tight opacity-80 hover:opacity-100 transition-opacity">
+                              {sub.text || ''}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

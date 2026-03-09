@@ -205,14 +205,10 @@ export function PlayerPanel({
   const canUseAcademyQic = academyRightCount >= 1 && !currentPlayer?.usedSpecialActions?.includes('academy-qic');
   const canUseGleens2Nav = currentPlayer?.faction === 'gleens' && !currentPlayer?.usedSpecialActions?.includes('gleens-2nav') && !game.hasDoneMainAction;
 
-  if (!currentPlayer) {
-    return (
-      <Card className="h-full bg-black/40 border-0 flex items-center justify-center">
-        <p className="text-muted-foreground animate-pulse text-sm">Initializing player profile...</p>
-      </Card>
-    );
-  }
-
+  /**
+   * @deprecated This component is legacy and its functionality has been moved to the right sidebar.
+   * Do not restore without consulting UI redesign plans.
+   */
   return null;
 }
 
