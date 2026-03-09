@@ -2532,21 +2532,74 @@ export default function Game() {
                         </span>
                       </div>
                       {pending.incomeItems.length > 0 && (() => {
-                        let p1 = actualPlayer.power1 ?? 0, p2 = actualPlayer.power2 ?? 0, p3 = actualPlayer.power3 ?? 0;
-                        pending.incomeItems.forEach((item) => {
-                          if (item.type === 'power') {
-                            let rem = item.amount;
-                            const from1 = Math.min(rem, p1);
-                            p1 -= from1; p2 += from1; rem -= from1;
-                            const from2 = Math.min(rem, p2);
-                            p2 -= from2; p3 += from2;
-                          } else {
-                            p1 += item.amount;
+                        // 서버의 select_all_income_items와 동일한 최적화 시뮬레이션으로 미리보기
+                        const items = [...pending.incomeItems];
+                        let bestP1 = actualPlayer.power1 ?? 0;
+                        let bestP2 = actualPlayer.power2 ?? 0;
+                        let bestP3 = actualPlayer.power3 ?? 0;
+
+                        if (items.length <= 8) {
+                          const perms = (arr: typeof items): (typeof items)[] => {
+                            if (arr.length <= 1) return [arr];
+                            const result: (typeof items)[] = [];
+                            for (let i = 0; i < arr.length; i++) {
+                              const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+                              for (const sub of perms(rest)) result.push([arr[i], ...sub]);
+                            }
+                            return result;
+                          };
+                          const allPerms = perms(items);
+                          let best = { p1: bestP1, p2: bestP2, p3: bestP3 };
+                          for (const order of allPerms) {
+                            let p1 = actualPlayer.power1 ?? 0;
+                            let p2 = actualPlayer.power2 ?? 0;
+                            let p3 = actualPlayer.power3 ?? 0;
+                            for (const item of order) {
+                              if (item.type === 'tokens') {
+                                p1 += item.amount;
+                              } else {
+                                let rem = item.amount;
+                                const from1 = Math.min(rem, p1);
+                                p1 -= from1; p2 += from1; rem -= from1;
+                                const from2 = Math.min(rem, p2);
+                                p2 -= from2; p3 += from2;
+                              }
+                            }
+                            if (
+                              p3 > best.p3 ||
+                              (p3 === best.p3 && p2 > best.p2) ||
+                              (p3 === best.p3 && p2 === best.p2 && p1 > best.p1)
+                            ) {
+                              best = { p1, p2, p3 };
+                            }
                           }
-                        });
+                          bestP1 = best.p1;
+                          bestP2 = best.p2;
+                          bestP3 = best.p3;
+                        } else {
+                          // 아이템이 많을 때는 서버와 동일하게 토큰→파워 순으로 처리
+                          let p1 = actualPlayer.power1 ?? 0;
+                          let p2 = actualPlayer.power2 ?? 0;
+                          let p3 = actualPlayer.power3 ?? 0;
+                          const sorted = items.slice().sort((a, b) => (a.type === 'tokens' ? -1 : 1));
+                          for (const item of sorted) {
+                            if (item.type === 'tokens') {
+                              p1 += item.amount;
+                            } else {
+                              let rem = item.amount;
+                              const from1 = Math.min(rem, p1);
+                              p1 -= from1; p2 += from1; rem -= from1;
+                              const from2 = Math.min(rem, p2);
+                              p2 -= from2; p3 += from2;
+                            }
+                          }
+                          bestP1 = p1;
+                          bestP2 = p2;
+                          bestP3 = p3;
+                        }
                         return (
                           <p className="text-[10px] text-zinc-500">
-                            자동 받기 시 결과: 1/2/3그릇 → <span className="font-mono text-zinc-300 font-bold">{p1} / {p2} / {p3}</span>
+                            자동 받기 시 결과: 1/2/3그릇 → <span className="font-mono text-zinc-300 font-bold">{bestP1} / {bestP2} / {bestP3}</span>
                           </p>
                         );
                       })()}
