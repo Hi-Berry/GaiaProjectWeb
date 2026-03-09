@@ -800,7 +800,7 @@ export function GameBoard({
                     {/* Planet Circle (Round Shape) removed as they are in the background image */}
                     {/* Space Texture (ts_100) - Only for sector 90 to avoid blurring background images */}
                     {(tile.type === 'space' || tile.type === 'deep_space') && tile.sector === 90 && (
-                      <circle r="4.8" fill="url(#ts-space)" fillOpacity={0.1} pointerEvents="none" />
+                      <circle r="4.15" fill="url(#ts-space)" fillOpacity={0.1} pointerEvents="none" />
                     )}
                     {/* Single-hex Strategic Tiles & Ships (Only for sector 90 to prevent drawing on outer bridges) */}
                     {tile.sector === 90 && (
@@ -814,8 +814,8 @@ export function GameBoard({
                       </>
                     )}
 
-                    {/* 가이아 행성으로 변환된(또는 원래) 땅 오버레이 (ts_forming.png) */}
-                    {tile.type === 'gaia' && (
+                    {/* 가이아 프로젝트로 변환된(transdim→gaia) 땅에만 오버레이 (원래 가이아 땅 제외) */}
+                    {tile.type === 'gaia' && (tile as { isGaiaformed?: boolean }).isGaiaformed === true && (
                       <circle r="4.15" fill="url(#ts-forming)" pointerEvents="none" />
                     )}
 
