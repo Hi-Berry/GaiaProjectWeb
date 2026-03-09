@@ -2927,6 +2927,16 @@ export default function Game() {
                       if (gameId) {
                         if (actionId === 'bonusAction') {
                           GameClient.useBonusAction(gameId);
+                        } else if (actionId === 'ivits-space-station') {
+                          setIvitsSpaceStationMode(true);
+                        } else if (actionId === 'bescods-advance-lowest') {
+                          setBescodsAdvanceLowestOpen(true);
+                        } else if (actionId === 'ambas-swap-pi-mine') {
+                          setAmbasSwapPiMineMode(true);
+                        } else if (actionId === 'moweyip-place-ring') {
+                          setMoweyipPlaceRingMode(true);
+                        } else if (actionId === 'firaks-downgrade') {
+                          setFiraksDowngradeMode(true);
                         } else {
                           GameClient.useSpecialAction(gameId, actionId);
                         }
