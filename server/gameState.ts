@@ -1,4 +1,4 @@
-import { Server as SocketIOServer } from 'socket.io';
+﻿import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -1493,7 +1493,7 @@ export function setupGameServer(httpServer: HTTPServer) {
         createdAt: Date.now(),
         isTestMode: false,
         hasDoneMainAction: false,
-        powerActions: [...INITIAL_POWER_ACTIONS],
+        powerActions: JSON.parse(JSON.stringify(INITIAL_POWER_ACTIONS)),
         availableBonusTiles: shuffledBonusTiles.slice(0, 7), // Players + 3 extra (will adjust when game starts)
         roundScoringTiles: Array(6).fill(null).map(() => ({ id: '', label: '', condition: '', vp: 0 })), // 임시 초기화
         usedRoundMissions: [], // 사용된 라운드 미션 추적
@@ -1679,14 +1679,14 @@ export function setupGameServer(httpServer: HTTPServer) {
       clampPlayerResources(game);
       io.to(gameId).emit('game_updated', game);
       callback({ game });
-      executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => {});
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
     });
 
     socket.on('get_game', ({ gameId }, callback) => {
       const game = games.get(gameId);
       if (!game) { callback({ error: 'Game not found' }); return; }
       callback({ game });
-      executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => {});
+      executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
     });
 
     socket.on('start_game', ({ gameId }) => {
@@ -3818,127 +3818,6 @@ export function setupGameServer(httpServer: HTTPServer) {
       });
     });
 
-    socket.on('reset_turn', ({ gameId }) => {
-      const game = games.get(gameId); if (!game) return;
-      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-
-      if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-      if (!game.turnStartState || !game.turnStartState[playerId]) {
-        log(`No turn start state found for player ${playerId}`, 'game');
-        return;
-      }
-
-      const savedState = game.turnStartState[playerId];
-
-      // 플레이어 상태 완전 복원 (깊은 복사)
-      const player = game.players[playerId];
-      const savedPlayer = savedState.playerState;
-
-      // 모든 리소스 복원
-      player.ore = savedPlayer.ore;
-      player.knowledge = savedPlayer.knowledge;
-      player.credits = savedPlayer.credits;
-      player.qic = savedPlayer.qic;
-      player.power1 = savedPlayer.power1;
-      player.power2 = savedPlayer.power2;
-      player.power3 = savedPlayer.power3;
-      player.score = savedPlayer.score;
-      player.ships = savedPlayer.ships;
-      player.gaiaformers = savedPlayer.gaiaformers;
-      player.gaiaformerPower = savedPlayer.gaiaformerPower;
-
-      // 연구 레벨 복원
-      if (savedPlayer.research) {
-        player.research = JSON.parse(JSON.stringify(savedPlayer.research));
-      }
-
-      // 기술 타일 복원
-      player.techTiles = savedPlayer.techTiles ? [...savedPlayer.techTiles] : [];
-      player.usedTechActions = savedPlayer.usedTechActions ? [...savedPlayer.usedTechActions] : [];
-      player.usedSpecialActions = savedPlayer.usedSpecialActions ? [...savedPlayer.usedSpecialActions] : [];
-
-      // 보너스 타일 및 specialAction 상태 복원
-      player.bonusTile = savedPlayer.bonusTile;
-      player.usedBonusAction = savedPlayer.usedBonusAction;
-      player.rangeBonusActive = savedPlayer.rangeBonusActive ?? false;
-      player.tempRangeBonus = savedPlayer.tempRangeBonus ?? false;
-      player.gleensNavBonusActive = savedPlayer.gleensNavBonusActive ?? false;
-      player.brainStoneBowl = savedPlayer.brainStoneBowl;
-      player.brainStoneInGaia = savedPlayer.brainStoneInGaia ?? false;
-      player.pendingTerraformSteps = savedPlayer.pendingTerraformSteps ?? 0;
-      player.tinkeroidRoundSpecialId = savedPlayer.tinkeroidRoundSpecialId;
-      player.tinkeroidsChosenSpecialIds = savedPlayer.tinkeroidsChosenSpecialIds ? [...savedPlayer.tinkeroidsChosenSpecialIds] : undefined;
-
-      // 가이아 포머 관련 복원
-      player.pendingGaiaformerTiles = savedPlayer.pendingGaiaformerTiles ? [...(savedPlayer.pendingGaiaformerTiles || [])] : [];
-      player.gaiaformerPlacedThisRound = savedPlayer.gaiaformerPlacedThisRound ? [...savedPlayer.gaiaformerPlacedThisRound] : [];
-      player.balTakGaiaformersUsedForQic = savedPlayer.balTakGaiaformersUsedForQic ?? 0;
-
-      // 우주선 입장 목록 복원 (Reset 후 다시 입장 가능하도록)
-      player.spaceshipsEntered = savedPlayer.spaceshipsEntered ? [...savedPlayer.spaceshipsEntered] : [];
-
-      // 맵 상태 복원 (깊은 복사)
-      game.map = JSON.parse(JSON.stringify(savedState.mapState));
-
-      // 우주선 상태 복원 (Reset 시 우주선 액션을 다시 사용 가능하도록)
-      if (savedState.spaceshipsState) {
-        game.spaceships = JSON.parse(JSON.stringify(savedState.spaceshipsState));
-        // 복원된 객체에 usedActionIndices가 없을 수 있으므로 보정
-        if (game.spaceships) {
-          for (const sid of Object.keys(game.spaceships)) {
-            const ship = game.spaceships[sid];
-            if (ship && !Array.isArray(ship.usedActionIndices)) {
-              ship.usedActionIndices = [];
-            }
-          }
-        }
-      } else {
-        // 저장된 상태에 없으면 현재 플레이어가 탑승한 우주선만 액션 초기화 (Reset 후 액션 다시 사용 가능)
-        game.spaceships = game.spaceships || {};
-        for (const sid of Object.keys(game.spaceships)) {
-          const ship = game.spaceships[sid];
-          if (ship?.occupants?.includes(playerId)) {
-            ship.usedActionIndices = [];
-            ship.actionsUsed = 0;
-          }
-        }
-        for (const t of game.map) {
-          if (t.type === 'ship_twilight' || t.type === 'ship_rebellion' || t.type === 'ship_tf_mars' || t.type === 'ship_eclipse') {
-            if (!game.spaceships[t.id]) {
-              game.spaceships[t.id] = { unlocked: false, occupants: [], usedActionIndices: [] };
-            }
-          }
-        }
-      }
-
-      // 게임 로그 복원 (현재 턴의 로그 제거)
-      if (game.gameLog && savedState.gameLogLength < game.gameLog.length) {
-        game.gameLog = game.gameLog.slice(0, savedState.gameLogLength);
-      }
-
-      // 메인 액션 상태 리셋
-      game.hasDoneMainAction = false;
-
-      // 이번 턴에 설정된 게임 글로벌 pending 초기화 (보너스 가이아, 이클립스 소행성, 기술 타일 선택 등)
-      if (game.pendingTFMarsGaiaProject?.playerId === playerId) game.pendingTFMarsGaiaProject = null;
-      if (game.pendingEclipseAsteroidMine?.playerId === playerId) game.pendingEclipseAsteroidMine = null;
-      if (game.pendingEclipseResearch?.playerId === playerId) game.pendingEclipseResearch = null;
-      if (game.pendingTwilightFederation?.playerId === playerId) game.pendingTwilightFederation = null;
-      if (game.pendingTechTileSelection?.playerId === playerId) {
-        game.pendingTechTileSelection = null;
-        game.availableShipTechTileIds = undefined;
-      }
-
-      // 파워 액션 리셋 (현재 라운드의 파워 액션만)
-      game.powerActions.forEach(a => {
-        // 현재 플레이어가 사용한 액션만 리셋
-        // 실제로는 게임 로그를 확인해야 하지만, 간단하게 모든 액션을 리셋
-        a.isUsed = false;
-      });
-
-      log(`Player ${player.name} reset their turn`, 'game');
-      clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
-    });
 
     socket.on('select_income_item', ({ gameId, itemId }) => {
       console.log(`[DEBUG_INCOME] Received select_income_item: gameId=${gameId}, itemId=${itemId}`);
