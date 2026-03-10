@@ -160,6 +160,7 @@ interface GameBoardProps {
   panValue?: { x: number; y: number };
   onZoomChange?: (zoom: number) => void;
   onPanChange?: (pan: { x: number; y: number }) => void;
+  hoveredPlayerId?: string | null;
 }
 
 
@@ -203,6 +204,7 @@ export function GameBoard({
   panValue,
   onZoomChange,
   onPanChange,
+  hoveredPlayerId = null,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
@@ -494,10 +496,10 @@ export function GameBoard({
     }
 
     // 소행성: faction 없이도 비용 계산 (가이아포머 1개 사용, 비용 0)
-    const isLantidaParasitic = currentPlayer.faction === 'lantids' && 
-      selectedTile.structure !== null && 
-      selectedTile.ownerId !== playerId && 
-      selectedTile.ownerId != null && 
+    const isLantidaParasitic = currentPlayer.faction === 'lantids' &&
+      selectedTile.structure !== null &&
+      selectedTile.ownerId !== playerId &&
+      selectedTile.ownerId != null &&
       !selectedTile.parasiticMine;
 
     if (isLantidaParasitic) {
@@ -554,10 +556,10 @@ export function GameBoard({
     if (!selectedTile || !currentPlayer || game.currentPhase !== 'main' || !isTurn) return false;
 
     // 란티다 기생 광산 체크
-    const isLantidaParasitic = currentPlayer.faction === 'lantids' && 
-      selectedTile.structure !== null && 
-      selectedTile.ownerId !== playerId && 
-      selectedTile.ownerId != null && 
+    const isLantidaParasitic = currentPlayer.faction === 'lantids' &&
+      selectedTile.structure !== null &&
+      selectedTile.ownerId !== playerId &&
+      selectedTile.ownerId != null &&
       !selectedTile.parasiticMine;
 
     if (selectedTile.structure !== null && !isLantidaParasitic) return false;
@@ -859,6 +861,37 @@ export function GameBoard({
                         <circle r="0.9" fill="#ef4444" opacity="0.3" />
                       </g>
                     )}
+
+                    {/* Player Building Highlight (Hover from sidebar) */}
+                    {hoveredPlayerId && tile.ownerId === hoveredPlayerId && tile.structure && tile.structure !== 'ship' && (() => {
+                      const isFederated = game.playerFederationHexes?.[hoveredPlayerId]?.includes(tile.id);
+                      const highlightColor = isFederated ? '#FFD700' : '#00F2FF'; // Gold for Federated, Cyan for Non-Federated
+
+                      return (
+                        <g className="pointer-events-none">
+                          <circle
+                            r="4.2"
+                            fill="none"
+                            stroke={highlightColor}
+                            strokeWidth="0.5"
+                            className="animate-pulse"
+                            style={{
+                              filter: `drop-shadow(0 0 4px ${highlightColor})`,
+                              opacity: 0.8
+                            }}
+                          />
+                          {/* Inner glow for better visibility */}
+                          <circle
+                            r="4.5"
+                            fill="none"
+                            stroke={highlightColor}
+                            strokeWidth="0.1"
+                            opacity="0.4"
+                          />
+                        </g>
+                      );
+                    })()}
+
                     {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
 
                     {/* 모웨이드 링 */}
@@ -1334,9 +1367,9 @@ export function GameBoard({
                   const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
                   const canReach = minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);
                   const canAfford = (currentPlayer?.ore ?? 0) >= 1 && (currentPlayer?.credits ?? 0) >= 2 && (currentPlayer?.qic ?? 0) >= neededQIC;
-                  
+
                   if (!canReach) return <p className="text-xs text-red-400 p-2">기생 광산: 거리가 너무 멉니다</p>;
-                  
+
                   return (
                     <Button
                       className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"

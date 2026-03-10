@@ -111,34 +111,37 @@ export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddP
               {Array.from({ length: maxPlayers - playerCount }).map((_, i) => (
                 <div
                   key={`empty-${i}`}
-                  className={`flex items-center gap-2 p-3 rounded-lg border border-dashed ${i === 0 && isHost && onAddPlayer ? 'border-primary/50 bg-primary/5' : 'border-muted-foreground/30'
+                  className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg border border-dashed ${i === 0 && isHost && onAddPlayer ? 'border-primary/50 bg-primary/5' : 'border-muted-foreground/30'
                     }`}
                 >
                   {i === 0 && isHost && onAddPlayer ? (
                     <>
-                      <Input
-                        placeholder="이름 (선택)"
-                        value={addName}
-                        onChange={(e) => setAddName(e.target.value)}
-                        className="max-w-[120px] h-9 flex-1"
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleAddPlayer}
-                        disabled={adding || addingBot}
-                        data-testid="button-add-player"
-                      >
-                        <UserPlus className="w-4 h-4 mr-1" />
-                        {adding ? '추가 중…' : '플레이어 추가'}
-                      </Button>
+                      <div className="flex gap-2 flex-1 w-full">
+                        <Input
+                          placeholder="이름 (선택)"
+                          value={addName}
+                          onChange={(e) => setAddName(e.target.value)}
+                          className="h-9 flex-1"
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleAddPlayer}
+                          disabled={adding || addingBot}
+                          data-testid="button-add-player"
+                          className="whitespace-nowrap"
+                        >
+                          <UserPlus className="w-4 h-4 mr-1" />
+                          {adding ? '추가 중…' : '추가'}
+                        </Button>
+                      </div>
                       <Button
                         size="sm"
                         variant="secondary"
                         onClick={handleAddBot}
                         disabled={adding || addingBot}
                         data-testid="button-add-ai"
-                        className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 border-orange-500/20"
+                        className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 border-orange-500/20 w-full sm:w-auto"
                       >
                         <Play className="w-4 h-4 mr-1" />
                         {addingBot ? '봇 추가 중…' : 'AI 봇 추가'}
@@ -153,38 +156,40 @@ export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddP
               ))}
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between gap-4">
+          <CardFooter className="flex flex-col sm:flex-row justify-between gap-4">
             <Button
               variant="outline"
               onClick={onLeave}
               data-testid="button-leave-lobby"
+              className="w-full sm:w-auto"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Leave
             </Button>
 
             {isHost && (
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button
                   variant="secondary"
                   onClick={onAutoSetupTest}
-                  className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20"
+                  className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20 text-xs sm:text-sm"
                 >
-                  Auto Setup Test (4P + Random Factions)
+                  Auto Setup (Random)
                 </Button>
                 <Button
                   onClick={onStartGame}
                   disabled={!canStart}
                   data-testid="button-start-game"
+                  className="w-full sm:w-auto"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Start Game {!canStart && '(Need 1+ players)'}
+                  Start Game {!canStart && '(Need 1+)'}
                 </Button>
               </div>
             )}
 
             {!isHost && (
-              <div className="text-muted-foreground text-sm">
+              <div className="text-muted-foreground text-sm text-center sm:text-right">
                 Waiting for host to start the game...
               </div>
             )}

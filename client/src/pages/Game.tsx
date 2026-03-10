@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -98,6 +98,7 @@ export default function Game() {
   /** 맵 줌/팬: 페이즈 전환 시에도 유지 (localStorage 연동) */
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isZoomInitialized, setIsZoomInitialized] = useState(false);
 
   // 로컬 스토리지 로드 (gameId가 준비되면 한 번만)
@@ -108,6 +109,11 @@ export default function Game() {
       if (savedZoom) setMapZoom(parseFloat(savedZoom));
       if (savedPan) setMapPan(JSON.parse(savedPan));
       setIsZoomInitialized(true);
+
+      // 모바일에서는 사이드바를 기본으로 닫음
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false);
+      }
     }
   }, [gameId, isZoomInitialized]);
 
@@ -143,6 +149,7 @@ export default function Game() {
   const [isBonusPinned, setIsBonusPinned] = useState(
     gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
   );
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
   const [researchPos, setResearchPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
     return saved ? JSON.parse(saved) : { x: 20, y: 90 };
@@ -1330,6 +1337,7 @@ export default function Game() {
           <GameBoard
             game={game}
             playerId={playerId}
+            hoveredPlayerId={hoveredPlayerId}
             onPlaceStartingMine={(tileId, factionId) => {
               const player = game.players[playerId!];
               // 종족이 없으면 종족 선택 필요
@@ -2733,878 +2741,905 @@ export default function Game() {
 
       </main>
 
-      <div className="w-[340px] border-l border-border bg-card p-4 flex flex-col overflow-y-auto">
-        {/* Confirmation Overlay - Ultra-slim horizontal layout at top-20 with smooth drop-down */}
-        <AnimatePresence>
-          {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
-            <motion.div
-              initial={{ y: -50, x: '-50%', opacity: 0 }}
-              animate={{ y: 0, x: '-50%', opacity: 1 }}
-              exit={{ y: -50, x: '-50%', opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-20 left-1/2 z-[60] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
-            >
-              {/* Title & Costs (Left Side) */}
-              <div className="flex items-center gap-3 border-r border-white/10 pr-4">
-                <div className="flex flex-col shrink-0 mr-2">
-                  <h3 className="text-yellow-500 font-black uppercase tracking-tighter text-[9px] leading-none">
-                    {pendingAction ? 'Confirm Action' : 'Turn Management'}
-                  </h3>
-                </div>
+      {/* Sidebar Toggle Button (Mobile) */}
+      <Button
+        variant="secondary"
+        size="icon"
+        className="fixed top-20 right-4 z-[70] lg:hidden rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+      >
+        {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </Button>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  {pendingAction ? (
-                    <div className="flex items-center gap-3">
-                      {(cost as any)?.ore && (
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-base font-black leading-none ${(cost as any).needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>{(cost as any).ore}</span>
-                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Ore</span>
-                          {(cost as any).terraformSteps && (cost as any).terraformSteps > 0 && (
-                            <span className="text-[8px] text-zinc-400">({(cost as any).terraformSteps}st)</span>
-                          )}
-                        </div>
-                      )}
-                      {(cost as any)?.credits && (cost as any).credits > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-base font-black text-yellow-500 leading-none">{(cost as any).credits}</span>
-                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Cr</span>
-                        </div>
-                      )}
-                      {(cost as any)?.gaiaformers && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-base font-black text-cyan-500 leading-none">{(cost as any).gaiaformers}</span>
-                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Gf</span>
-                        </div>
-                      )}
-                      {(cost as any)?.knowledge && (cost as any).knowledge > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-base font-black text-blue-500 leading-none">{(cost as any).knowledge}</span>
-                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Kn</span>
-                        </div>
-                      )}
-                      {(cost as any)?.qic && (cost as any).qic > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-base font-black text-green-500 leading-none">{(cost as any).qic}</span>
-                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">QIC</span>
-                        </div>
+      <div className={`
+        ${isSidebarOpen ? 'w-[340px] translate-x-0 opacity-100' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none'}
+        fixed lg:relative right-0 top-0 bottom-0 z-50 lg:z-auto
+        transition-all duration-300 ease-in-out
+        border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card p-4 flex flex-col shadow-2xl lg:shadow-none
+        max-w-[85vw]
+      `}>
+        {isSidebarOpen && (
+          <div className="flex flex-col h-full min-w-[308px] overflow-y-auto custom-scrollbar">
+
+            {/* 연방 구현: 모드 진입/취소 및 완료 */}
+            {game && game.currentPhase === 'main' && game.turnOrder[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !game.pendingFederationReward && (
+              <div className="mb-4 p-3 bg-black/80 border border-sky-500/40 rounded-xl">
+                {game.federationMode?.playerId === playerId ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[10px] text-sky-300 font-bold">
+                      빈 공간(위성)·내 건물 행성·우주정거장 클릭 토글. 내 건물/우주정거장 클릭 시 이어진 행성·우주정거장까지 연방에 포함. 위성 0개도 가능.
+                    </p>
+                    <div className="rounded-lg border border-sky-500/30 bg-sky-950/40 p-2 text-left">
+                      <p className="text-[9px] font-bold text-sky-200 mb-1">연방에 포함될 건물·우주정거장 (클릭할 때마다 갱신)</p>
+                      {game.federationPreview ? (
+                        <>
+                          <ul className="text-[9px] text-zinc-300 space-y-0.5 mb-1">
+                            {game.federationPreview.items.length === 0 ? (
+                              <li className="text-zinc-500">빈 칸·내 건물 행성·우주정거장을 클릭해 선택하세요</li>
+                            ) : (
+                              game.federationPreview.items.map((item, i) => (
+                                <li key={`${item.tileId}-${i}`}>{item.label} ({item.power})</li>
+                              ))
+                            )}
+                          </ul>
+                          <p className={`text-[10px] font-bold ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
+                            파워 {game.federationPreview.power} / {game.federationPreview.requiredPower} 필요
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-[9px] text-zinc-500">파워 계산 중…</p>
                       )}
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-                      {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId ? 'Pending Mine Construction' : 'Main Action Done'}
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
+                      <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" className="w-full bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
+                )}
+              </div>
+            )}      <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Players
+            </h3>
+            <div className="space-y-2">
+              {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
+                const pa = game.players[a];
+                const pb = game.players[b];
+                if (pa?.hasPassed && !pb?.hasPassed) return 1;
+                if (!pa?.hasPassed && pb?.hasPassed) return -1;
+                return 0;
+              })).map((id) => {
+                const p = game.players[id] as PlayerState | undefined;
+                if (!p) return null;
+                const fedEntries = getFederationEntries(p);
+                const faction = p.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
+                const isYou = id === playerId;
+                const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
+                const expanded = expandedPlayerId === id;
+                const counts = getStructureCountsForPlayer(game, id);
+                const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
+                const hasPassed = p.hasPassed;
+
+                const renderActionBtn = (
+                  isUsed: boolean,
+                  canUse: boolean,
+                  actionId: string,
+                  label: string,
+                  colorStr: string,
+                  activeClass: string,
+                  title?: string
+                ) => {
+                  if (canUse && !isUsed) {
+                    return (
+                      <button
+                        key={actionId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (gameId) {
+                            if (actionId === 'bonusAction') {
+                              GameClient.useBonusAction(gameId);
+                            } else if (actionId === 'ivits-space-station') {
+                              setIvitsSpaceStationMode(true);
+                            } else if (actionId === 'bescods-advance-lowest') {
+                              setBescodsAdvanceLowestOpen(true);
+                            } else if (actionId === 'ambas-swap-pi-mine') {
+                              setAmbasSwapPiMineMode(true);
+                            } else if (actionId === 'moweyip-place-ring') {
+                              setMoweyipPlaceRingMode(true);
+                            } else if (actionId === 'firaks-downgrade') {
+                              setFiraksDowngradeMode(true);
+                            } else {
+                              GameClient.useSpecialAction(gameId, actionId);
+                            }
+                          }
+                        }}
+                        className={`px-1 py-0.5 rounded-[3px] text-[9px] border cursor-pointer active:scale-95 transition-all shadow-sm ${activeClass}`}
+                        title={title}
+                      >
+                        {label} 사용
+                      </button>
+                    );
+                  }
+                  return (
+                    <span
+                      key={actionId}
+                      className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : colorStr}`}
+                      title={title}
+                    >
+                      {label}
                     </span>
-                  )}
-                </div>
-              </div>
+                  );
+                };
 
-              {/* Action Buttons (Right Side) */}
-              <div className="flex items-center gap-1.5">
-                {pendingAction && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-3 border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-tight"
-                      onClick={() => setPendingAction(null)}
-                    >
-                      Undo
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-7 px-4 bg-yellow-500 text-black hover:bg-yellow-400 text-[10px] font-black uppercase tracking-tight shadow-lg"
-                      onClick={handleConfirm}
-                    >
-                      Confirm
-                    </Button>
-                    <div className="h-5 w-[1px] bg-white/10 mx-1" />
-                  </>
-                )}
-
-                {/* Reset/End Turn (Integrated inside bar) */}
-                {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-3 border-red-500/30 hover:bg-red-500/10 text-red-500 text-[10px] font-black uppercase"
-                      onClick={() => {
-                        GameClient.resetTurn(gameId!);
-                        setPendingAction(null);
-                      }}
-                    >
-                      Reset
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-7 px-4 bg-green-600/80 hover:bg-green-500 text-white text-[10px] font-black uppercase shadow-lg shadow-green-900/20"
-                      onClick={() => gameId && GameClient.endTurn(gameId)}
-                    >
-                      End Turn
-                    </Button>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* 연방 구현: 모드 진입/취소 및 완료 */}
-        {game && game.currentPhase === 'main' && game.turnOrder[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !game.pendingFederationReward && (
-          <div className="mb-4 p-3 bg-black/80 border border-sky-500/40 rounded-xl">
-            {game.federationMode?.playerId === playerId ? (
-              <div className="flex flex-col gap-2">
-                <p className="text-[10px] text-sky-300 font-bold">
-                  빈 공간(위성)·내 건물 행성·우주정거장 클릭 토글. 내 건물/우주정거장 클릭 시 이어진 행성·우주정거장까지 연방에 포함. 위성 0개도 가능.
-                </p>
-                <div className="rounded-lg border border-sky-500/30 bg-sky-950/40 p-2 text-left">
-                  <p className="text-[9px] font-bold text-sky-200 mb-1">연방에 포함될 건물·우주정거장 (클릭할 때마다 갱신)</p>
-                  {game.federationPreview ? (
-                    <>
-                      <ul className="text-[9px] text-zinc-300 space-y-0.5 mb-1">
-                        {game.federationPreview.items.length === 0 ? (
-                          <li className="text-zinc-500">빈 칸·내 건물 행성·우주정거장을 클릭해 선택하세요</li>
-                        ) : (
-                          game.federationPreview.items.map((item, i) => (
-                            <li key={`${item.tileId}-${i}`}>{item.label} ({item.power})</li>
-                          ))
-                        )}
-                      </ul>
-                      <p className={`text-[10px] font-bold ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
-                        파워 {game.federationPreview.power} / {game.federationPreview.requiredPower} 필요
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[9px] text-zinc-500">파워 계산 중…</p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
-                  <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
-                </div>
-              </div>
-            ) : (
-              <Button size="sm" className="w-full bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
-            )}
-          </div>
-        )}      <h3 className="font-semibold mb-4 flex items-center gap-2">
-          <Users className="w-4 h-4" />
-          Players
-        </h3>
-        <div className="space-y-2">
-          {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
-            const pa = game.players[a];
-            const pb = game.players[b];
-            if (pa?.hasPassed && !pb?.hasPassed) return 1;
-            if (!pa?.hasPassed && pb?.hasPassed) return -1;
-            return 0;
-          })).map((id) => {
-            const p = game.players[id] as PlayerState | undefined;
-            if (!p) return null;
-            const fedEntries = getFederationEntries(p);
-            const faction = p.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
-            const isYou = id === playerId;
-            const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
-            const expanded = expandedPlayerId === id;
-            const counts = getStructureCountsForPlayer(game, id);
-            const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
-            const hasPassed = p.hasPassed;
-
-            const renderActionBtn = (
-              isUsed: boolean,
-              canUse: boolean,
-              actionId: string,
-              label: string,
-              colorStr: string,
-              activeClass: string,
-              title?: string
-            ) => {
-              if (canUse && !isUsed) {
                 return (
-                  <button
-                    key={actionId}
-                    onClick={(e) => {
-                      e.stopPropagation();
+                  <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
+                    <div
+                      onMouseEnter={() => setHoveredPlayerId(id)}
+                      onMouseLeave={() => setHoveredPlayerId(null)}
+                      className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
+                    ${isCurrentTurn && !hasPassed
+                          ? 'border-amber-400/80 bg-amber-500/10 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
+                          : isYou
+                            ? 'bg-primary/15 border-primary/50'
+                            : 'bg-muted/50 border-border'
+                        } ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}
+                    >
+                      <PopoverTrigger asChild>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
+                        >
+                          {/* Left: Main info, Buildings, Resources */}
+                          <div className="flex-1 flex flex-col p-2.5 pr-2 min-w-0">
+                            {/* Score and Name Row */}
+                            <div className="flex items-center justify-between gap-2 min-w-0 mb-1.5">
+                              <span className="w-8 text-right text-base font-bold text-white flex-shrink-0">{p.score}</span>
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1 ml-1">
+                                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
+                                <span className="truncate font-medium text-sm text-zinc-200">
+                                  {faction ? `${faction.name} (${p.name})` : p.name}
+                                </span>
+                                {/* Toggles */}
+                                {isYou && <span className="text-[10px] text-primary flex-shrink-0">(나)</span>}
+                                {isCurrentTurn && !hasPassed && (
+                                  <span className="flex items-center gap-1 flex-shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
+                                  </span>
+                                )}
+                                {hasPassed && (
+                                  <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1 ml-auto">PASSED</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Buildings */}
+                            <div className="pb-2 text-[10px] text-zinc-400 font-mono">
+                              M<span className="text-amber-300/90">{counts.mineCount}</span>/{BUILDING_LIMITS.mine}
+                              <span className="mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
+                              <span className="mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
+                              <span className="mx-1">PI</span><span className="text-purple-400/90">{counts.piCount}</span>/{BUILDING_LIMITS.planetary_institute}
+                              <span className="mx-1">A</span><span className="text-indigo-400/90">{counts.academyLeft}+{counts.academyRight}</span>/{BUILDING_LIMITS.academy}
+                            </div>
+
+                            {/* Resources */}
+                            <div className="grid grid-cols-4 gap-x-1 gap-y-0.5 text-[10px] text-muted-foreground">
+                              <span className="flex items-baseline">
+                                <span className="text-zinc-300 mr-1 font-bold">ORE</span>
+                                <span style={{ color: '#f5f5f0' }} className="font-black ml-0.5 text-xs">{p.ore ?? 0}</span>
+                                {inc.ore > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.ore}`})</span>}
+                              </span>
+                              <span className="flex items-baseline">
+                                <span className="text-blue-400 mr-1 font-bold">KNOW</span>
+                                <span style={{ color: '#2E5EAA' }} className="font-black ml-0.5 text-xs">{p.knowledge ?? 0}</span>
+                                {inc.knowledge > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.knowledge}`})</span>}
+                              </span>
+                              <span className="flex items-baseline">
+                                <span className="text-yellow-400 mr-1 font-bold">CRED</span>
+                                <span style={{ color: '#FFE74C' }} className="font-black ml-0.5 text-xs">{p.credits ?? 0}</span>
+                                {inc.credits > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.credits}`})</span>}
+                              </span>
+                              <span className="flex items-baseline">
+                                <span className="text-green-400 mr-1 font-bold">QIC</span>
+                                <span style={{ color: '#38B000' }} className="font-black ml-0.5 text-xs">{p.qic ?? 0}</span>
+                                {inc.qic > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.qic}`})</span>}
+                              </span>
+
+                              <div className="col-span-4 flex items-center justify-between border-t border-white/5 pt-0.5 mt-0 gap-1">
+                                {/* Gaiaformers Status - Dots (Highlighted = Available, X = Destroyed, Dim = Map) */}
+                                <div className="flex gap-1 items-center" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
+                                  {(() => {
+                                    const gpLevel = p.research?.gaiaProject ?? 0;
+                                    const totalGF = gpLevel >= 4 ? 3 : gpLevel >= 3 ? 2 : gpLevel >= 1 ? 1 : 0;
+                                    const availableGF = p.gaiaformers ?? 0;
+                                    const destroyedGF = p.destroyedGaiaformers ?? 0;
+                                    const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
+
+                                    if (totalGF === 0) return <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-tighter leading-none opacity-40">No GF</span>;
+
+                                    const dots = [];
+                                    // 1. Destroyed (Red)
+                                    for (let i = 0; i < destroyedGF; i++) {
+                                      dots.push(<div key={`d-${i}`} className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.4)]" />);
+                                    }
+                                    // 2. Available (Glow)
+                                    for (let i = 0; i < availableGF; i++) {
+                                      dots.push(<div key={`a-${i}`} className="w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
+                                    }
+                                    // 3. On Map (Purple)
+                                    for (let i = 0; i < onMapGF; i++) {
+                                      dots.push(<div key={`m-${i}`} className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_3px_rgba(168,85,247,0.4)] transition-colors" />);
+                                    }
+
+                                    return dots.slice(0, totalGF); // Ensure we don't exceed total capacity displayed
+                                  })()}
+                                </div>
+
+                                {/* Unified Power Row: [GP | I II III] */}
+                                <div className="flex bg-black/40 rounded p-1 px-1.5 border border-white/10 gap-1.5 items-center w-full justify-between" title="가이아 구역 | 1, 2, 3그릇 파워">
+                                  <div className="flex gap-2 items-center">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-emerald-400 font-bold text-[10px] leading-none">{p.gaiaformerPower ?? 0}</span>
+                                    </div>
+                                    <div className="w-[1px] h-3 bg-white/10 shrink-0" />
+                                    <div className="flex gap-1.5 items-center">
+                                      <span className="flex items-center gap-0.5">
+                                        <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
+                                        {p.faction === 'taklons' && (p as any).brainStoneBowl === 1 && !(p as any).brainStoneInGaia && (
+                                          <span className="text-[8px] leading-none">🧠</span>
+                                        )}
+                                      </span>
+                                      <span className="flex items-center gap-0.5">
+                                        <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
+                                        {p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia && (
+                                          <span className="text-[8px] leading-none">🧠</span>
+                                        )}
+                                      </span>
+                                      <span className="flex items-center gap-0.5">
+                                        <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
+                                        {p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia && (
+                                          <span className="text-[8px] leading-none">🧠</span>
+                                        )}
+                                      </span>
+                                      {p.faction === 'taklons' && (p as any).brainStoneInGaia && (
+                                        <span className="text-emerald-400 text-[8px] font-bold" title="브레인스톤: 가이아 구역">🧠G</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-1.5 items-center justify-end">
+                                    {inc.powerTokens > 0 && (
+                                      <span className="text-[9px] text-zinc-400 font-bold">+{inc.powerTokens}Token</span>
+                                    )}
+                                    {inc.powerCharge > 0 && (
+                                      <span className="flex items-center text-zinc-400 font-bold">
+                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="mr-0.5">
+                                          <path d="M3 12a9 9 0 0 1 18 0" />
+                                          <path d="M21 12l-4-4M21 12l-4 4" />
+                                        </svg>
+                                        {inc.powerCharge}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Edge: Pass Tile Image + Chevron (spanning full height) */}
+                          <div className="flex flex-col items-center justify-center p-2 border-l border-white/5 bg-black/10 shrink-0 w-[52px]">
+                            {p.bonusTile && (() => {
+                              const bonusIndex = ALL_BONUS_TILES.findIndex(t => t.id === p.bonusTile);
+                              if (bonusIndex === -1) return null;
+                              return (
+                                <img
+                                  src={`/image/BoostTile_${bonusIndex + 1}.jpg`}
+                                  alt={ALL_BONUS_TILES[bonusIndex].label}
+                                  className="w-10 h-auto object-contain drop-shadow-[0_0_3px_rgba(251,191,36,0.5)] rounded"
+                                  title={`현재 패스 타일: ${ALL_BONUS_TILES[bonusIndex].label}`}
+                                />
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </PopoverTrigger>
+                      {expandedPlayerId === id && (
+                        <PopoverContent side="left" align="start" className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px]">
+                          {fedEntries.length > 0 && (
+                            <div>
+                              <span className="text-muted-foreground font-medium">연방 </span>
+                              <span className="flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
+                                {fedEntries.map((f, i) => {
+                                  const reward = FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId);
+                                  const label = reward?.label ?? f.rewardId;
+
+                                  // Determine image index
+                                  let imgIdx = -1;
+                                  const regIdx = FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
+                                  if (regIdx !== -1) {
+                                    imgIdx = regIdx + 1;
+                                  } else {
+                                    const shipIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
+                                    if (shipIdx !== -1) imgIdx = shipIdx + 7;
+                                  }
+                                  const imgUrl = imgIdx !== -1 ? `/image/Federation_${imgIdx}.gif` : null;
+
+                                  return (
+                                    <div
+                                      key={`${f.rewardId}-${i}`}
+                                      className="relative group cursor-help"
+                                      title={`${label} (${f.isGreen ? '미사용' : '사용됨'})`}
+                                    >
+                                      {imgUrl ? (
+                                        <img
+                                          src={imgUrl}
+                                          className={`h-[22px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
+                                          alt={label}
+                                        />
+                                      ) : (
+                                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${f.isGreen ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+                                          {label}
+                                        </Badge>
+                                      )}
+                                      {f.isGreen && (
+                                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full border border-black shadow-sm" />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </span>
+                            </div>
+                          )}
+                          {(p.techTiles?.length ?? 0) > 0 && (
+                            <div>
+                              <span className="text-muted-foreground font-medium">기술 타일 </span>
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {(p.techTiles ?? []).map((tileId) => {
+                                  const tile = ALL_TECH_TILES.find((t) => t.id === tileId) ??
+                                    SHIP_TECH_TILES.find((t) => t.id === tileId) ??
+                                    ALL_ADVANCED_TECH_TILES.find((t) => t.id === tileId);
+                                  const covered = isTechTileCovered(p, tileId);
+
+                                  if (!tile?.image) {
+                                    const isAdv = tileId.startsWith('adv-');
+                                    return (
+                                      <span
+                                        key={tileId}
+                                        className={`px-1.5 py-0.5 rounded text-[9px] ${covered ? 'bg-zinc-700/60 text-zinc-500 line-through' : isAdv ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/30' : 'bg-yellow-900/30 text-yellow-200/90 border border-yellow-500/20'}`}
+                                        title={tile?.description}
+                                      >
+                                        {tile?.label ?? tileId}
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={tileId} className="relative group cursor-help" title={`${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}`}>
+                                      <img
+                                        src={tile.image}
+                                        alt={tile.label}
+                                        className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-40 brightness-50' : 'hover:scale-110 shadow-sm shadow-black'}`}
+                                      />
+                                      {covered && (
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                          <div className="w-full h-0.5 bg-red-500/50 rotate-45" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {(p.artifacts?.length ?? 0) > 0 && (
+                            <div>
+                              <span className="text-muted-foreground font-medium">인공물 </span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {(p.artifacts ?? []).map((aid) => {
+                                  const art = ARTIFACTS.find((a) => a.id === aid);
+                                  const artIndex = ARTIFACTS.findIndex((a) => a.id === aid);
+                                  const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
+                                  return art ? (
+                                    <div key={aid} className="relative group cursor-help" title={`${art.label}: ${art.description}`}>
+                                      {artImgUrl ? (
+                                        <img
+                                          src={artImgUrl}
+                                          alt={art.label}
+                                          className="w-10 h-auto object-contain rounded border border-purple-500/30 bg-purple-900/20 hover:scale-110 shadow-sm shadow-black transition-all"
+                                        />
+                                      ) : (
+                                        <span className="px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-200 text-[9px]">{art.label}</span>
+                                      )}
+                                      {/* Tooltip */}
+                                      <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-48 p-2 bg-zinc-950 border border-purple-500/20 rounded-lg shadow-2xl">
+                                        <div className="text-[10px] font-black text-purple-400 mb-1 uppercase pb-1 border-b border-white/5">
+                                          {art.label}
+                                        </div>
+                                        <p className="text-[10px] text-zinc-300 leading-relaxed font-medium">
+                                          {art.description}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {p.bonusTile && (() => {
+                            const bonus = ALL_BONUS_TILES.find(t => t.id === p.bonusTile);
+                            if (!bonus?.specialAction) return null;
+                            const actionNames: Record<string, string> = {
+                              'terraform_step': '1테라',
+                              'gaia_project': '가이아',
+                              'range_3': '+3거리'
+                            };
+                            const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
+                            const isUsed = p.usedBonusAction;
+                            const canUse = isYou && isCurrentTurn && !game.hasDoneMainAction;
+                            return (
+                              <div className="mb-1">
+                                {renderActionBtn(
+                                  isUsed,
+                                  canUse,
+                                  'bonusAction',
+                                  `보너스 Special: ${actionLabel}`,
+                                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold',
+                                  'bg-emerald-600 hover:bg-emerald-500 text-white font-bold',
+                                  `보너스 타일 액션: ${actionLabel}`
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Unified Special Actions Status */}
+                          <div className="mt-1 pb-1 space-y-1">
+                            <span className="text-muted-foreground font-medium block h-4">스페셜 액션</span>
+                            <div className="flex flex-wrap gap-1">
+                              {(() => {
+                                const actionNodes: React.ReactNode[] = [];
+                                const canDoMain = isYou && isCurrentTurn && !game.hasDoneMainAction;
+
+                                // Tech Tile Special Actions
+                                (p.techTiles ?? []).forEach((tid) => {
+                                  const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
+                                  if (!tile?.specialAction) return;
+                                  const isUsed = p.usedTechActions?.includes(tid) ?? false;
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      isUsed, canDoMain, tid, `기술:${tile.label}`,
+                                      'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold',
+                                      'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold hover:bg-amber-500/40',
+                                      `기술 타일: ${tile.label}`
+                                    )
+                                  );
+                                });
+
+                                // Academy (Right)
+                                const hasAcademyRight = game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right');
+                                if (hasAcademyRight) {
+                                  const isUsed = p.usedSpecialActions?.includes('academy-qic') ?? false;
+                                  const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      isUsed, canDoMain, 'academy-qic', label,
+                                      'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold',
+                                      'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold hover:bg-cyan-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Bescods
+                                if (p.faction === 'bescods') {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      p.usedSpecialActions?.includes('bescods-advance-lowest') ?? false, canDoMain, 'bescods-advance-lowest', '매안:최저트랙+1',
+                                      'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold',
+                                      'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold hover:bg-blue-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Ivits
+                                if (p.faction === 'ivits') {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      p.usedIvitsSpaceStationThisRound ?? false, canDoMain, 'ivits-space-station', '하이브:우주정거장',
+                                      'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold',
+                                      'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold hover:bg-orange-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Moweyip
+                                const hasPI = game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
+                                if (p.faction === 'moweyip' && hasPI) {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      (p as any).usedSpecialActions?.includes('moweyip-place-ring') ?? false, canDoMain, 'moweyip-place-ring', '모웨이드:링',
+                                      'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold',
+                                      'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold hover:bg-emerald-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Ambas
+                                if (p.faction === 'ambas' && hasPI) {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      (p as any).usedSpecialActions?.includes('ambas-swap-pi-mine') ?? false, canDoMain, 'ambas-swap-pi-mine', '엠바스:PI-Mine교체',
+                                      'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
+                                      'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold hover:bg-amber-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Firaks
+                                if (p.faction === 'firaks' && hasPI) {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      (p as any).usedSpecialActions?.includes('firaks-downgrade') ?? false, canDoMain, 'firaks-downgrade', '파이락:다운그레이드',
+                                      'bg-red-500/20 text-red-400 border-red-500/40 font-bold',
+                                      'bg-red-500/20 text-red-400 border-red-500/40 font-bold hover:bg-red-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Gleens
+                                if (p.faction === 'gleens') {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      (p as any).usedSpecialActions?.includes('gleens-2nav') ?? false, canDoMain, 'gleens-2nav', '글린:+2항해',
+                                      'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold',
+                                      'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold hover:bg-teal-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Space Giants
+                                if (p.faction === 'space_giants') {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '거인:2테라',
+                                      'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold',
+                                      'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold hover:bg-orange-500/40'
+                                    )
+                                  );
+                                }
+
+                                // Tinkeroids
+                                if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
+                                  actionNodes.push(
+                                    renderActionBtn(
+                                      (p as any).usedSpecialActions?.includes('tinkeroid-special') ?? false, canDoMain, 'tinkeroid-special', `팅커:${p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`,
+                                      'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold',
+                                      'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold hover:bg-pink-500/40'
+                                    )
+                                  );
+                                }
+
+                                // BalTak Manual QIC Conversion (Info + Action)
+                                if (p.faction === 'bal_tak') {
+                                  if ((p.balTakGaiaformersUsedForQic ?? 0) > 0) {
+                                    actionNodes.push(
+                                      <span key="bal_tak-qic-info" className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold cursor-help" title="포머를 QIC 대신 사용한 누적 횟수">
+                                        포머→QIC:{p.balTakGaiaformersUsedForQic}회
+                                      </span>
+                                    );
+                                  }
+                                  if (canDoMain && (p.gaiaformers ?? 0) > 0) {
+                                    actionNodes.push(
+                                      <button
+                                        key="bal_tak-to-qic-btn"
+                                        onClick={(e) => { e.stopPropagation(); if (gameId) GameClient.useBalTakGaiaformerToQic(gameId); }}
+                                        className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border-emerald-500/30 font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
+                                      >
+                                        포머→QIC 수동변환
+                                      </button>
+                                    );
+                                  }
+                                }
+
+                                return actionNodes;
+                              })()}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      )}
+                    </div>
+                  </Popover>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 pt-4 border-t">
+              <Badge variant="outline" className="w-full justify-center">
+                Round {game.roundNumber}
+              </Badge>
+            </div>
+
+            {/* Game Log - Expanded height */}
+            <div className="mt-4 pt-4 border-t flex-[3] flex flex-col min-h-[300px]">
+              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm shrink-0">
+                <Clock className="w-4 h-4" />
+                Game Log
+              </h3>
+              <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+                {(!game.gameLog || game.gameLog.length === 0) ? (
+                  <div className="text-center text-muted-foreground text-xs py-8">
+                    No actions yet
+                  </div>
+                ) : (
+                  <GameLog
+                    game={game}
+                    hideHeader
+                    className="w-full"
+                    maxHeight="100%"
+                    onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
+                    onEntryMouseLeave={() => setHighlightedTileId(null)}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Debug Panel - reduced flex to give more space to log */}
+            <div className="mt-8 pt-6 border-t-2 border-white/5 flex-none overflow-y-auto max-h-[30vh]">
+              <DebugPanel game={game} playerId={playerId} />
+            </div>
+
+            {/* Free Actions Modal */}
+            <FreeActionsDialog
+              open={isFreeActionsOpen}
+              onOpenChange={setIsFreeActionsOpen}
+              game={game}
+              playerId={playerId}
+              isCurrentTurn={isCurrentTurn}
+              onConvertResource={(type, useBrain) => GameClient.convertResource(gameId!, type, useBrain)}
+              onBurnPower={(useBrain) => {
+                if (gameId) GameClient.burnPower(gameId, useBrain);
+              }}
+              onUseBalTakGaiaformerToQic={() => {
+                if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
+              }}
+              onUndoFreeAction={() => {
+                if (gameId) GameClient.undoFreeAction(gameId);
+              }}
+            />
+
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
+          <motion.div
+            initial={{ y: -50, x: '-50%', opacity: 0 }}
+            animate={{ y: 0, x: '-50%', opacity: 1 }}
+            exit={{ y: -50, x: '-50%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-20 left-1/2 z-[100] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+          >
+            {/* Title & Costs (Left Side) */}
+            <div className="flex items-center gap-3 border-r border-white/10 pr-4">
+              <div className="flex flex-col shrink-0 mr-2">
+                <h3 className="text-yellow-500 font-black uppercase tracking-tighter text-[9px] leading-none">
+                  {pendingAction ? 'Confirm Action' : 'Turn Management'}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                {pendingAction ? (
+                  <div className="flex items-center gap-3">
+                    {(cost as any)?.ore && (
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-base font-black leading-none ${(cost as any).needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>{(cost as any).ore}</span>
+                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Ore</span>
+                        {(cost as any).terraformSteps && (cost as any).terraformSteps > 0 && (
+                          <span className="text-[8px] text-zinc-400">({(cost as any).terraformSteps}st)</span>
+                        )}
+                      </div>
+                    )}
+                    {(cost as any)?.credits && (cost as any).credits > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-black text-yellow-500 leading-none">{(cost as any).credits}</span>
+                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Cr</span>
+                      </div>
+                    )}
+                    {(cost as any)?.gaiaformers && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-black text-cyan-500 leading-none">{(cost as any).gaiaformers}</span>
+                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Gf</span>
+                      </div>
+                    )}
+                    {(cost as any)?.knowledge && (cost as any).knowledge > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-black text-blue-500 leading-none">{(cost as any).knowledge}</span>
+                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Kn</span>
+                      </div>
+                    )}
+                    {(cost as any)?.qic && (cost as any).qic > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-black text-green-500 leading-none">{(cost as any).qic}</span>
+                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">QIC</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
+                    {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId ? 'Pending Mine Construction' : 'Main Action Done'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons (Right Side) */}
+            <div className="flex items-center gap-1.5">
+              {pendingAction && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-tight"
+                    onClick={() => setPendingAction(null)}
+                  >
+                    Undo
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-4 bg-yellow-500 text-black hover:bg-yellow-400 text-[10px] font-black uppercase tracking-tight shadow-lg"
+                    onClick={handleConfirm}
+                  >
+                    Confirm
+                  </Button>
+                  <div className="h-5 w-[1px] bg-white/10 mx-1" />
+                </>
+              )}
+
+              {/* Reset/End Turn (Integrated inside bar) */}
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 border-red-500/30 text-red-500 hover:bg-red-500/10 text-[10px] font-black uppercase tracking-tight"
+                    onClick={() => GameClient.resetTurn(gameId!)}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-4 bg-red-600 text-white hover:bg-red-500 text-[10px] font-black uppercase tracking-tight shadow-lg border-b-2 border-red-800"
+                    onClick={async () => {
                       if (gameId) {
-                        if (actionId === 'bonusAction') {
-                          GameClient.useBonusAction(gameId);
-                        } else if (actionId === 'ivits-space-station') {
-                          setIvitsSpaceStationMode(true);
-                        } else if (actionId === 'bescods-advance-lowest') {
-                          setBescodsAdvanceLowestOpen(true);
-                        } else if (actionId === 'ambas-swap-pi-mine') {
-                          setAmbasSwapPiMineMode(true);
-                        } else if (actionId === 'moweyip-place-ring') {
-                          setMoweyipPlaceRingMode(true);
-                        } else if (actionId === 'firaks-downgrade') {
-                          setFiraksDowngradeMode(true);
-                        } else {
-                          GameClient.useSpecialAction(gameId, actionId);
+                        try {
+                          await GameClient.endTurn(gameId);
+                        } catch (e: any) {
+                          toast({ title: '턴 종료 실패', description: e.message, variant: 'destructive' });
                         }
                       }
                     }}
-                    className={`px-1 py-0.5 rounded-[3px] text-[9px] border cursor-pointer active:scale-95 transition-all shadow-sm ${activeClass}`}
-                    title={title}
                   >
-                    {label} 사용
-                  </button>
-                );
-              }
-              return (
-                <span
-                  key={actionId}
-                  className={`px-1 py-0.5 rounded-[3px] text-[9px] border transition-colors ${isUsed ? 'bg-zinc-800/60 text-zinc-500 line-through border-transparent' : colorStr}`}
-                  title={title}
-                >
-                  {label}
-                </span>
-              );
-            };
-
-            return (
-              <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
-                <div
-                  className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
-                    ${isCurrentTurn && !hasPassed
-                      ? 'border-amber-400/80 bg-amber-500/10 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
-                      : isYou
-                        ? 'bg-primary/15 border-primary/50'
-                        : 'bg-muted/50 border-border'
-                    } ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}
-                >
-                  <PopoverTrigger asChild>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
-                    >
-                      {/* Left: Main info, Buildings, Resources */}
-                      <div className="flex-1 flex flex-col p-2.5 pr-2 min-w-0">
-                        {/* Score and Name Row */}
-                        <div className="flex items-center justify-between gap-2 min-w-0 mb-1.5">
-                          <span className="w-8 text-right text-base font-bold text-white flex-shrink-0">{p.score}</span>
-                          <div className="flex items-center gap-1.5 min-w-0 flex-1 ml-1">
-                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
-                            <span className="truncate font-medium text-sm text-zinc-200">
-                              {faction ? `${faction.name} (${p.name})` : p.name}
-                            </span>
-                            {/* Toggles */}
-                            {isYou && <span className="text-[10px] text-primary flex-shrink-0">(나)</span>}
-                            {isCurrentTurn && !hasPassed && (
-                              <span className="flex items-center gap-1 flex-shrink-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
-                              </span>
-                            )}
-                            {hasPassed && (
-                              <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1 ml-auto">PASSED</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Buildings */}
-                        <div className="pb-2 text-[10px] text-zinc-400 font-mono">
-                          M<span className="text-amber-300/90">{counts.mineCount}</span>/{BUILDING_LIMITS.mine}
-                          <span className="mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
-                          <span className="mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
-                          <span className="mx-1">PI</span><span className="text-purple-400/90">{counts.piCount}</span>/{BUILDING_LIMITS.planetary_institute}
-                          <span className="mx-1">A</span><span className="text-indigo-400/90">{counts.academyLeft}+{counts.academyRight}</span>/{BUILDING_LIMITS.academy}
-                        </div>
-
-                        {/* Resources */}
-                        <div className="grid grid-cols-4 gap-x-1 gap-y-0.5 text-[10px] text-muted-foreground">
-                          <span className="flex items-baseline">
-                            <span className="text-zinc-300 mr-1 font-bold">ORE</span>
-                            <span style={{ color: '#f5f5f0' }} className="font-black ml-0.5 text-xs">{p.ore ?? 0}</span>
-                            {inc.ore > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.ore}`})</span>}
-                          </span>
-                          <span className="flex items-baseline">
-                            <span className="text-blue-400 mr-1 font-bold">KNOW</span>
-                            <span style={{ color: '#2E5EAA' }} className="font-black ml-0.5 text-xs">{p.knowledge ?? 0}</span>
-                            {inc.knowledge > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.knowledge}`})</span>}
-                          </span>
-                          <span className="flex items-baseline">
-                            <span className="text-yellow-400 mr-1 font-bold">CRED</span>
-                            <span style={{ color: '#FFE74C' }} className="font-black ml-0.5 text-xs">{p.credits ?? 0}</span>
-                            {inc.credits > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.credits}`})</span>}
-                          </span>
-                          <span className="flex items-baseline">
-                            <span className="text-green-400 mr-1 font-bold">QIC</span>
-                            <span style={{ color: '#38B000' }} className="font-black ml-0.5 text-xs">{p.qic ?? 0}</span>
-                            {inc.qic > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.qic}`})</span>}
-                          </span>
-
-                          <div className="col-span-4 flex items-center justify-between border-t border-white/5 pt-0.5 mt-0 gap-1">
-                            {/* Gaiaformers Status - Dots (Highlighted = Available, X = Destroyed, Dim = Map) */}
-                            <div className="flex gap-1 items-center" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
-                              {(() => {
-                                const gpLevel = p.research?.gaiaProject ?? 0;
-                                const totalGF = gpLevel >= 4 ? 3 : gpLevel >= 3 ? 2 : gpLevel >= 1 ? 1 : 0;
-                                const availableGF = p.gaiaformers ?? 0;
-                                const destroyedGF = p.destroyedGaiaformers ?? 0;
-                                const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
-
-                                if (totalGF === 0) return <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-tighter leading-none opacity-40">No GF</span>;
-
-                                const dots = [];
-                                // 1. Destroyed (Red)
-                                for (let i = 0; i < destroyedGF; i++) {
-                                  dots.push(<div key={`d-${i}`} className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.4)]" />);
-                                }
-                                // 2. Available (Glow)
-                                for (let i = 0; i < availableGF; i++) {
-                                  dots.push(<div key={`a-${i}`} className="w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
-                                }
-                                // 3. On Map (Purple)
-                                for (let i = 0; i < onMapGF; i++) {
-                                  dots.push(<div key={`m-${i}`} className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_3px_rgba(168,85,247,0.4)] transition-colors" />);
-                                }
-
-                                return dots.slice(0, totalGF); // Ensure we don't exceed total capacity displayed
-                              })()}
-                            </div>
-
-                            {/* Unified Power Row: [GP | I II III] */}
-                            <div className="flex bg-black/40 rounded p-1 px-1.5 border border-white/10 gap-1.5 items-center w-full justify-between" title="가이아 구역 | 1, 2, 3그릇 파워">
-                              <div className="flex gap-2 items-center">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-emerald-400 font-bold text-[10px] leading-none">{p.gaiaformerPower ?? 0}</span>
-                                </div>
-                                <div className="w-[1px] h-3 bg-white/10 shrink-0" />
-                                <div className="flex gap-1.5 items-center">
-                                  <span className="flex items-center gap-0.5">
-                                    <span className="text-blue-400 font-bold text-[10px] leading-none">{p.power1 ?? 0}</span>
-                                    {p.faction === 'taklons' && (p as any).brainStoneBowl === 1 && !(p as any).brainStoneInGaia && (
-                                      <span className="text-[8px] leading-none">🧠</span>
-                                    )}
-                                  </span>
-                                  <span className="flex items-center gap-0.5">
-                                    <span className="text-cyan-400 font-bold text-[10px] leading-none">{p.power2 ?? 0}</span>
-                                    {p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia && (
-                                      <span className="text-[8px] leading-none">🧠</span>
-                                    )}
-                                  </span>
-                                  <span className="flex items-center gap-0.5">
-                                    <span className="text-amber-400 font-bold text-[10px] leading-none">{p.power3 ?? 0}</span>
-                                    {p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia && (
-                                      <span className="text-[8px] leading-none">🧠</span>
-                                    )}
-                                  </span>
-                                  {p.faction === 'taklons' && (p as any).brainStoneInGaia && (
-                                    <span className="text-emerald-400 text-[8px] font-bold" title="브레인스톤: 가이아 구역">🧠G</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex gap-1.5 items-center justify-end">
-                                {inc.powerTokens > 0 && (
-                                  <span className="text-[9px] text-zinc-400 font-bold">+{inc.powerTokens}Token</span>
-                                )}
-                                {inc.powerCharge > 0 && (
-                                  <span className="flex items-center text-zinc-400 font-bold">
-                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="mr-0.5">
-                                      <path d="M3 12a9 9 0 0 1 18 0" />
-                                      <path d="M21 12l-4-4M21 12l-4 4" />
-                                    </svg>
-                                    {inc.powerCharge}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Edge: Pass Tile Image + Chevron (spanning full height) */}
-                      <div className="flex flex-col items-center justify-center p-2 border-l border-white/5 bg-black/10 shrink-0 w-[52px]">
-                        {p.bonusTile && (() => {
-                          const bonusIndex = ALL_BONUS_TILES.findIndex(t => t.id === p.bonusTile);
-                          if (bonusIndex === -1) return null;
-                          return (
-                            <img
-                              src={`/image/BoostTile_${bonusIndex + 1}.jpg`}
-                              alt={ALL_BONUS_TILES[bonusIndex].label}
-                              className="w-10 h-auto object-contain drop-shadow-[0_0_3px_rgba(251,191,36,0.5)] rounded"
-                              title={`현재 패스 타일: ${ALL_BONUS_TILES[bonusIndex].label}`}
-                            />
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </PopoverTrigger>
-                  {expandedPlayerId === id && (
-                    <PopoverContent side="left" align="start" className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px]">
-                      {fedEntries.length > 0 && (
-                        <div>
-                          <span className="text-muted-foreground font-medium">연방 </span>
-                          <span className="flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
-                            {fedEntries.map((f, i) => {
-                              const reward = FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId);
-                              const label = reward?.label ?? f.rewardId;
-
-                              // Determine image index
-                              let imgIdx = -1;
-                              const regIdx = FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
-                              if (regIdx !== -1) {
-                                imgIdx = regIdx + 1;
-                              } else {
-                                const shipIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
-                                if (shipIdx !== -1) imgIdx = shipIdx + 7;
-                              }
-                              const imgUrl = imgIdx !== -1 ? `/image/Federation_${imgIdx}.gif` : null;
-
-                              return (
-                                <div
-                                  key={`${f.rewardId}-${i}`}
-                                  className="relative group cursor-help"
-                                  title={`${label} (${f.isGreen ? '미사용' : '사용됨'})`}
-                                >
-                                  {imgUrl ? (
-                                    <img
-                                      src={imgUrl}
-                                      className={`h-[22px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
-                                      alt={label}
-                                    />
-                                  ) : (
-                                    <Badge variant="outline" className={`text-[8px] px-1 py-0 ${f.isGreen ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
-                                      {label}
-                                    </Badge>
-                                  )}
-                                  {f.isGreen && (
-                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full border border-black shadow-sm" />
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </span>
-                        </div>
-                      )}
-                      {(p.techTiles?.length ?? 0) > 0 && (
-                        <div>
-                          <span className="text-muted-foreground font-medium">기술 타일 </span>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {(p.techTiles ?? []).map((tileId) => {
-                              const tile = ALL_TECH_TILES.find((t) => t.id === tileId) ??
-                                SHIP_TECH_TILES.find((t) => t.id === tileId) ??
-                                ALL_ADVANCED_TECH_TILES.find((t) => t.id === tileId);
-                              const covered = isTechTileCovered(p, tileId);
-
-                              if (!tile?.image) {
-                                const isAdv = tileId.startsWith('adv-');
-                                return (
-                                  <span
-                                    key={tileId}
-                                    className={`px-1.5 py-0.5 rounded text-[9px] ${covered ? 'bg-zinc-700/60 text-zinc-500 line-through' : isAdv ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/30' : 'bg-yellow-900/30 text-yellow-200/90 border border-yellow-500/20'}`}
-                                    title={tile?.description}
-                                  >
-                                    {tile?.label ?? tileId}
-                                  </span>
-                                );
-                              }
-
-                              return (
-                                <div key={tileId} className="relative group cursor-help" title={`${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}`}>
-                                  <img
-                                    src={tile.image}
-                                    alt={tile.label}
-                                    className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-40 brightness-50' : 'hover:scale-110 shadow-sm shadow-black'}`}
-                                  />
-                                  {covered && (
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                      <div className="w-full h-0.5 bg-red-500/50 rotate-45" />
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {(p.artifacts?.length ?? 0) > 0 && (
-                        <div>
-                          <span className="text-muted-foreground font-medium">인공물 </span>
-                          <div className="flex flex-wrap gap-1 mt-0.5">
-                            {(p.artifacts ?? []).map((aid) => {
-                              const art = ARTIFACTS.find((a) => a.id === aid);
-                              const artIndex = ARTIFACTS.findIndex((a) => a.id === aid);
-                              const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
-                              return art ? (
-                                <div key={aid} className="relative group cursor-help" title={`${art.label}: ${art.description}`}>
-                                  {artImgUrl ? (
-                                    <img
-                                      src={artImgUrl}
-                                      alt={art.label}
-                                      className="w-10 h-auto object-contain rounded border border-purple-500/30 bg-purple-900/20 hover:scale-110 shadow-sm shadow-black transition-all"
-                                    />
-                                  ) : (
-                                    <span className="px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-200 text-[9px]">{art.label}</span>
-                                  )}
-                                  {/* Tooltip */}
-                                  <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-48 p-2 bg-zinc-950 border border-purple-500/20 rounded-lg shadow-2xl">
-                                    <div className="text-[10px] font-black text-purple-400 mb-1 uppercase pb-1 border-b border-white/5">
-                                      {art.label}
-                                    </div>
-                                    <p className="text-[10px] text-zinc-300 leading-relaxed font-medium">
-                                      {art.description}
-                                    </p>
-                                  </div>
-                                </div>
-                              ) : null;
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {p.bonusTile && (() => {
-                        const bonus = ALL_BONUS_TILES.find(t => t.id === p.bonusTile);
-                        if (!bonus?.specialAction) return null;
-                        const actionNames: Record<string, string> = {
-                          'terraform_step': '1테라',
-                          'gaia_project': '가이아',
-                          'range_3': '+3거리'
-                        };
-                        const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
-                        const isUsed = p.usedBonusAction;
-                        const canUse = isYou && isCurrentTurn && !game.hasDoneMainAction;
-                        return (
-                          <div className="mb-1">
-                            {renderActionBtn(
-                              isUsed,
-                              canUse,
-                              'bonusAction',
-                              `보너스 Special: ${actionLabel}`,
-                              'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold',
-                              'bg-emerald-600 hover:bg-emerald-500 text-white font-bold',
-                              `보너스 타일 액션: ${actionLabel}`
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Unified Special Actions Status */}
-                      <div className="mt-1 pb-1 space-y-1">
-                        <span className="text-muted-foreground font-medium block h-4">스페셜 액션</span>
-                        <div className="flex flex-wrap gap-1">
-                          {(() => {
-                            const actionNodes: React.ReactNode[] = [];
-                            const canDoMain = isYou && isCurrentTurn && !game.hasDoneMainAction;
-
-                            // Tech Tile Special Actions
-                            (p.techTiles ?? []).forEach((tid) => {
-                              const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
-                              if (!tile?.specialAction) return;
-                              const isUsed = p.usedTechActions?.includes(tid) ?? false;
-                              actionNodes.push(
-                                renderActionBtn(
-                                  isUsed, canDoMain, tid, `기술:${tile.label}`,
-                                  'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold',
-                                  'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold hover:bg-amber-500/40',
-                                  `기술 타일: ${tile.label}`
-                                )
-                              );
-                            });
-
-                            // Academy (Right)
-                            const hasAcademyRight = game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right');
-                            if (hasAcademyRight) {
-                              const isUsed = p.usedSpecialActions?.includes('academy-qic') ?? false;
-                              const label = p.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(QIC)';
-                              actionNodes.push(
-                                renderActionBtn(
-                                  isUsed, canDoMain, 'academy-qic', label,
-                                  'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold',
-                                  'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold hover:bg-cyan-500/40'
-                                )
-                              );
-                            }
-
-                            // Bescods
-                            if (p.faction === 'bescods') {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  p.usedSpecialActions?.includes('bescods-advance-lowest') ?? false, canDoMain, 'bescods-advance-lowest', '매안:최저트랙+1',
-                                  'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold',
-                                  'bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold hover:bg-blue-500/40'
-                                )
-                              );
-                            }
-
-                            // Ivits
-                            if (p.faction === 'ivits') {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  p.usedIvitsSpaceStationThisRound ?? false, canDoMain, 'ivits-space-station', '하이브:우주정거장',
-                                  'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold',
-                                  'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold hover:bg-orange-500/40'
-                                )
-                              );
-                            }
-
-                            // Moweyip
-                            const hasPI = game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
-                            if (p.faction === 'moweyip' && hasPI) {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  (p as any).usedSpecialActions?.includes('moweyip-place-ring') ?? false, canDoMain, 'moweyip-place-ring', '모웨이드:링',
-                                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold',
-                                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold hover:bg-emerald-500/40'
-                                )
-                              );
-                            }
-
-                            // Ambas
-                            if (p.faction === 'ambas' && hasPI) {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  (p as any).usedSpecialActions?.includes('ambas-swap-pi-mine') ?? false, canDoMain, 'ambas-swap-pi-mine', '엠바스:PI-Mine교체',
-                                  'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
-                                  'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold hover:bg-amber-500/40'
-                                )
-                              );
-                            }
-
-                            // Firaks
-                            if (p.faction === 'firaks' && hasPI) {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  (p as any).usedSpecialActions?.includes('firaks-downgrade') ?? false, canDoMain, 'firaks-downgrade', '파이락:다운그레이드',
-                                  'bg-red-500/20 text-red-400 border-red-500/40 font-bold',
-                                  'bg-red-500/20 text-red-400 border-red-500/40 font-bold hover:bg-red-500/40'
-                                )
-                              );
-                            }
-
-                            // Gleens
-                            if (p.faction === 'gleens') {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  (p as any).usedSpecialActions?.includes('gleens-2nav') ?? false, canDoMain, 'gleens-2nav', '글린:+2항해',
-                                  'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold',
-                                  'bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold hover:bg-teal-500/40'
-                                )
-                              );
-                            }
-
-                            // Space Giants
-                            if (p.faction === 'space_giants') {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '거인:2테라',
-                                  'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold',
-                                  'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold hover:bg-orange-500/40'
-                                )
-                              );
-                            }
-
-                            // Tinkeroids
-                            if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
-                              actionNodes.push(
-                                renderActionBtn(
-                                  (p as any).usedSpecialActions?.includes('tinkeroid-special') ?? false, canDoMain, 'tinkeroid-special', `팅커:${p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`,
-                                  'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold',
-                                  'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold hover:bg-pink-500/40'
-                                )
-                              );
-                            }
-
-                            // BalTak Manual QIC Conversion (Info + Action)
-                            if (p.faction === 'bal_tak') {
-                              if ((p.balTakGaiaformersUsedForQic ?? 0) > 0) {
-                                actionNodes.push(
-                                  <span key="bal_tak-qic-info" className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold cursor-help" title="포머를 QIC 대신 사용한 누적 횟수">
-                                    포머→QIC:{p.balTakGaiaformersUsedForQic}회
-                                  </span>
-                                );
-                              }
-                              if (canDoMain && (p.gaiaformers ?? 0) > 0) {
-                                actionNodes.push(
-                                  <button
-                                    key="bal_tak-to-qic-btn"
-                                    onClick={(e) => { e.stopPropagation(); if (gameId) GameClient.useBalTakGaiaformerToQic(gameId); }}
-                                    className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border-emerald-500/30 font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
-                                  >
-                                    포머→QIC 수동변환
-                                  </button>
-                                );
-                              }
-                            }
-
-                            return actionNodes;
-                          })()}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  )}
+                    End Turn
+                  </Button>
                 </div>
-              </Popover>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        <div className="mt-4 pt-4 border-t">
-          <Badge variant="outline" className="w-full justify-center">
-            Round {game.roundNumber}
-          </Badge>
-        </div>
-
-        {/* Game Log - Expanded height */}
-        <div className="mt-4 pt-4 border-t flex-[3] flex flex-col min-h-[300px]">
-          <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm shrink-0">
-            <Clock className="w-4 h-4" />
-            Game Log
-          </h3>
-          <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-            {(!game.gameLog || game.gameLog.length === 0) ? (
-              <div className="text-center text-muted-foreground text-xs py-8">
-                No actions yet
-              </div>
-            ) : (
-              <GameLog
-                game={game}
-                hideHeader
-                className="w-full"
-                maxHeight="100%"
-                onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                onEntryMouseLeave={() => setHighlightedTileId(null)}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Debug Panel - reduced flex to give more space to log */}
-        <div className="mt-8 pt-6 border-t-2 border-white/5 flex-none overflow-y-auto max-h-[30vh]">
-          <DebugPanel game={game} playerId={playerId} />
-        </div>
-
-        {/* Free Actions Modal */}
-        <FreeActionsDialog
-          open={isFreeActionsOpen}
-          onOpenChange={setIsFreeActionsOpen}
-          game={game}
-          playerId={playerId}
-          isCurrentTurn={isCurrentTurn}
-          onConvertResource={(type, useBrain) => GameClient.convertResource(gameId!, type, useBrain)}
-          onBurnPower={(useBrain) => {
-            if (gameId) GameClient.burnPower(gameId, useBrain);
-          }}
-          onUseBalTakGaiaformerToQic={() => {
-            if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
-          }}
-          onUndoFreeAction={() => {
-            if (gameId) GameClient.undoFreeAction(gameId);
-          }}
-        />
-
-        {/* Pinned Mini Boards — Floating Panels (At the end for better z-index and stability) */}
-        <AnimatePresence>
-          {isResearchPinned && (
-            <motion.div
-              key="research-mini"
-              drag
-              dragControls={researchDragControls}
-              dragListener={false}
-              dragMomentum={false}
-              initial={researchPos}
-              animate={researchPos}
-              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
-              onDragEnd={(_, info) => {
-                const newPos = { x: researchPos.x + info.offset.x, y: researchPos.y + info.offset.y };
-                setResearchPos(newPos);
-                if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
-              }}
-              className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-              style={{ maxHeight: '90vh' }}
+      <AnimatePresence>
+        {isResearchPinned && (
+          <motion.div
+            key="research-mini"
+            drag
+            dragControls={researchDragControls}
+            dragListener={false}
+            dragMomentum={false}
+            initial={researchPos}
+            animate={researchPos}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
+            onDragEnd={(_, info) => {
+              const newPos = { x: researchPos.x + info.offset.x, y: researchPos.y + info.offset.y };
+              setResearchPos(newPos);
+              if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
+            }}
+            className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+            style={{ maxHeight: '90vh' }}
+          >
+            <div
+              className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
+              onPointerDown={(e) => researchDragControls.start(e)}
             >
-              <div
-                className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
-                onPointerDown={(e) => researchDragControls.start(e)}
-              >
-                <span className="text-[11px] font-black uppercase text-blue-200 flex items-center gap-2 select-none">
-                  <FlaskConical className="w-3.5 h-3.5" /> Research Board
-                </span>
-                <Button variant="ghost" size="icon" className="h-5 w-5 text-blue-300 hover:text-white" onClick={() => { setIsResearchPinned(false); localStorage.setItem(`is-research-pinned-${gameId}`, 'false'); }}>
-                  ✕
-                </Button>
-              </div>
-              <ScrollArea className="flex-1 px-2 py-2">
-                <ResearchBoard
+              <span className="text-[11px] font-black uppercase text-blue-200 flex items-center gap-2 select-none">
+                <FlaskConical className="w-3.5 h-3.5" /> Research Board
+              </span>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-blue-300 hover:text-white" onClick={() => { setIsResearchPinned(false); localStorage.setItem(`is-research-pinned-${gameId}`, 'false'); }}>
+                ✕
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 px-2 py-2">
+              <ResearchBoard
+                game={game}
+                playerId={playerId}
+                isMini={true}
+                onUsePowerAction={(actionId) => GameClient.usePowerAction(gameId!, actionId)}
+                onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
+                onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
+                onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
+                onUseTechAction={(tileId) => GameClient.useTechAction(gameId!, tileId)}
+                onAdvanceTech={(trackId) => {
+                  if (game.hasDoneMainAction) return;
+                  setAdvanceTechDialog({ open: true, trackId });
+                }}
+                onSelectTechTile={(techTileId, trackId) => GameClient.selectTechTile(gameId!, techTileId, trackId)}
+                onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
+                onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
+                onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
+                onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
+                onEndTurn={() => GameClient.endTurn(gameId!)}
+                onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
+              />
+            </ScrollArea>
+          </motion.div>
+        )}
+
+        {isBonusPinned && (
+          <motion.div
+            key="bonus-mini"
+            drag
+            dragControls={bonusDragControls}
+            dragListener={false}
+            dragMomentum={false}
+            initial={bonusPos}
+            animate={bonusPos}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
+            onDragEnd={(_, info) => {
+              const newPos = { x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y };
+              setBonusPos(newPos);
+              if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
+            }}
+            className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+            style={{ maxHeight: '90vh' }}
+          >
+            <div
+              className="bg-amber-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
+              onPointerDown={(e) => bonusDragControls.start(e)}
+            >
+              <span className="text-[11px] font-black uppercase text-amber-200 flex items-center gap-2 select-none">
+                <Gift className="w-3.5 h-3.5" /> Tactical Overview
+              </span>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-300 hover:text-white" onClick={() => { setIsBonusPinned(false); localStorage.setItem(`is-bonus-pinned-${gameId}`, 'false'); }}>
+                ✕
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 px-2 py-1">
+              <div className="flex flex-col gap-4">
+                <RoundBoard
                   game={game}
                   playerId={playerId}
                   isMini={true}
-                  onUsePowerAction={(actionId) => GameClient.usePowerAction(gameId!, actionId)}
-                  onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
-                  onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
-                  onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
-                  onUseTechAction={(tileId) => GameClient.useTechAction(gameId!, tileId)}
-                  onAdvanceTech={(trackId) => {
-                    if (game.hasDoneMainAction) return;
-                    setAdvanceTechDialog({ open: true, trackId });
-                  }}
-                  onSelectTechTile={(techTileId, trackId) => GameClient.selectTechTile(gameId!, techTileId, trackId)}
-                  onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
-                  onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
-                  onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
-                  onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
-                  onEndTurn={() => GameClient.endTurn(gameId!)}
-                  onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
                 />
-              </ScrollArea>
-            </motion.div>
-          )}
-
-          {isBonusPinned && (
-            <motion.div
-              key="bonus-mini"
-              drag
-              dragControls={bonusDragControls}
-              dragListener={false}
-              dragMomentum={false}
-              initial={bonusPos}
-              animate={bonusPos}
-              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
-              onDragEnd={(_, info) => {
-                const newPos = { x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y };
-                setBonusPos(newPos);
-                if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
-              }}
-              className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-              style={{ maxHeight: '90vh' }}
-            >
-              <div
-                className="bg-amber-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
-                onPointerDown={(e) => bonusDragControls.start(e)}
-              >
-                <span className="text-[11px] font-black uppercase text-amber-200 flex items-center gap-2 select-none">
-                  <Gift className="w-3.5 h-3.5" /> Tactical Overview
-                </span>
-                <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-300 hover:text-white" onClick={() => { setIsBonusPinned(false); localStorage.setItem(`is-bonus-pinned-${gameId}`, 'false'); }}>
-                  ✕
-                </Button>
+                <div className="h-[1px] bg-white/10 w-full" />
+                <BonusTiles
+                  game={game}
+                  playerId={playerId}
+                  isMini={true}
+                  onSelectBonusTile={(id) => {
+                    if (game.roundNumber === 6) {
+                      setConfirmPassWithTileId('dummy');
+                    } else {
+                      setConfirmPassWithTileId(id);
+                    }
+                  }}
+                  onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
+                />
               </div>
-              <ScrollArea className="flex-1 px-2 py-1">
-                <div className="flex flex-col gap-4">
-                  <RoundBoard
-                    game={game}
-                    playerId={playerId}
-                    isMini={true}
-                  />
-                  <div className="h-[1px] bg-white/10 w-full" />
-                  <BonusTiles
-                    game={game}
-                    playerId={playerId}
-                    isMini={true}
-                    onSelectBonusTile={(id) => {
-                      if (game.roundNumber === 6) {
-                        setConfirmPassWithTileId('dummy');
-                      } else {
-                        setConfirmPassWithTileId(id);
-                      }
-                    }}
-                    onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
-                  />
-                </div>
-              </ScrollArea>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <GameEndScoreModal />
-      </div>
-    </div >
+            </ScrollArea>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <GameEndScoreModal />
+    </div>
   );
 }
