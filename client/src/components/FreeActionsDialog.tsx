@@ -313,11 +313,11 @@ export function FreeActionsDialog({
                                     className="h-10 text-[11px] bg-cyan-900/40 hover:bg-cyan-800/50 border-cyan-500/40"
                                     disabled={
                                         !isCurrentTurn ||
-                                        (currentPlayer.power3 ?? 0) < (hasNevlasPI ? 2 : 1)
+                                        (currentPlayer.power3 ?? 0) < 1
                                     }
                                     onClick={() => onConvertResource('1power-to-1k-gaiaformer')}
                                 >
-                                    {hasNevlasPI ? '2P ➔ 가이어+1K' : '1P ➔ 가이어+1K'}
+                                    1P ➔ 가이어+1K
                                 </Button>
                             )}
                             <Button

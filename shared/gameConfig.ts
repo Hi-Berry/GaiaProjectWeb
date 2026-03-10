@@ -832,7 +832,7 @@ export const FACTIONS: Faction[] = [
   {
     id: 'nevlas', name: 'Nevlas', homePlanet: 'ice', color: PLANET_COLORS.ice,
     startingTech: { science: 1 },
-    startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
+    startingResources: { ore: 4, knowledge: 2, credits: 15, qic: 1 },
     startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
     piIncome: { power: 4, tokens: 1 }
   },

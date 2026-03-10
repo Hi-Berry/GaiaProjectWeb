@@ -6058,19 +6058,11 @@ export function executeConvertResource(
   // 네뷸라 전용: 3그릇 토큰 → 가이아포머 공간 + 1K (의회 시 2P→1K)
   if (type === '1power-to-1k-gaiaformer') {
     if (player.faction !== 'nevlas') return false;
-    if (hasNevlasPI) {
-      if ((player.power3 ?? 0) < 2) return false;
-      player.power3! -= 2;
-      player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 2;
-      player.knowledge = (player.knowledge ?? 0) + 1;
-      logDesc = '2P → Gaiaformer + 1K';
-    } else {
-      if ((player.power3 ?? 0) < 1) return false;
-      player.power3! -= 1;
-      player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
-      player.knowledge = (player.knowledge ?? 0) + 1;
-      logDesc = '1P → Gaiaformer + 1K';
-    }
+    if ((player.power3 ?? 0) < 1) return false;
+    player.power3! -= 1;
+    player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
+    player.knowledge = (player.knowledge ?? 0) + 1;
+    logDesc = '1P → Gaiaformer + 1K';
     success = true;
   }
   else if (type === '3power-to-1ore') {
@@ -6203,7 +6195,7 @@ export function executeBurnPower(game: ServerGameState, playerId: string, moveBr
 export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, useRangeBonus?: boolean, qicToUse?: number): string | null {
   if (game.hasDoneMainAction) return '이미 메인 액션을 수행했습니다.';
   if (game.currentPhase !== 'main') return '메인 페이즈가 아닙니다.';
-  
+
   const player = game.players[playerId];
   if (game.turnOrder[game.currentPlayerIndex] !== playerId) return '현재 턴이 아닙니다.';
 
