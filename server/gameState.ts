@@ -2010,99 +2010,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 
     // 우주선 입장 (5VP로 잠금 해제 후 입장, 또는 이미 열린 우주선에 거리 체크 후 입장)
     socket.on('enter_spaceship', ({ gameId, tileId, useRangeBonus, qicToUse }) => {
-      const game = games.get(gameId); if (!game || game.hasDoneMainAction) return;
-      if (game.currentPhase !== 'main') return;
-      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-      if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+      const game = games.get(gameId);
+      if (!game) return;
+      const playerId = socketToPlayerMap.get(socket.id);
+      if (!playerId) return;
 
-      saveActionStartState(game, playerId);
-      const player = game.players[playerId];
-      const tile = game.map.find(t => t.id === tileId);
-      const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
-      if (!tile || !shipTypes.includes(tile.type)) return;
-
-      if (!game.spaceships) {
-        game.spaceships = {};
-        for (const t of game.map) {
-          if (t.type === 'ship_twilight' || t.type === 'ship_rebellion' || t.type === 'ship_tf_mars' || t.type === 'ship_eclipse') {
-            game.spaceships[t.id] = { unlocked: false, occupants: [], usedActionIndices: [] };
-          }
-        }
+      const error = executeEnterSpaceship(io, game, playerId, tileId, useRangeBonus, qicToUse);
+      if (error) {
+        socket.emit('game_error', { message: error });
       }
-      const shipState = game.spaceships[tileId];
-      if (!shipState) return;
-
-      const entered = player.spaceshipsEntered || [];
-      if (entered.length >= 3) return;
-      if (entered.includes(tileId)) return; // 이미 이 우주선에 입장함
-
-      // 거리 체크: 플레이어 건물에서 우주선 타일까지 (첫 입장도 동일)
-      let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-      if (player.tempRangeBonus) baseRange += 3;
-      if (useRangeBonus && player.rangeBonusActive) {
-        baseRange += 3;
-        player.rangeBonusActive = false;
-      }
-      if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
-      const rangeTiles = getPlayerRangeTiles(game, playerId, true);
-      if (rangeTiles.length === 0) return;
-      const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-      const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-      const useQic = qicToUse ?? 0;
-      if (neededQIC > 0 && useQic < neededQIC) return;
-      if (player.qic < useQic) return;
-      player.qic -= useQic;
-
-      // 아이타·네뷸라: 우주선 입장 시 토큰 1개 비용 (1그릇 → 2그릇 → 3그릇 순으로 차감, 없으면 입장 불가)
-      if (player.faction === 'itars' || player.faction === 'nevlas') {
-        const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
-        if (p1 + p2 + p3 < 1) {
-          io.to(gameId).emit('game_error', { message: '우주선 입장에 파워 토큰 1개가 필요합니다. (1/2/3그릇 순으로 차감)' });
-          return;
-        }
-        if (p1 >= 1) player.power1 = p1 - 1;
-        else if (p2 >= 1) player.power2 = p2 - 1;
-        else player.power3 = p3 - 1;
-      }
-
-      // 잠금 해제 비용: 첫 입장 시 5 VP (발타크는 7 VP) (거리 통과 후 적용)
-      if (!shipState.unlocked) {
-        const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
-        if ((player.score || 0) < unlockCost) {
-          io.to(gameId).emit('game_error', { message: `우주선 잠금해제에 ${unlockCost} VP가 필요합니다.` });
-          return;
-        }
-        addScore(game, playerId, -unlockCost, 'other', { source: '우주선 잠금해제' });
-        shipState.unlocked = true;
-        addGameLog(game, playerId, 'Unlocked & Entered Ship', `-${unlockCost} VP (${tile.type})`, tileId);
-      }
-
-      shipState.occupants = shipState.occupants || [];
-      shipState.occupants.push(playerId);
-      if (!player.spaceshipsEntered) player.spaceshipsEntered = [];
-      player.spaceshipsEntered.push(tileId);
-
-      // 타클론: 우주선 입장 시 브레인 스톤을 가이아 영역으로 (다음 라운드까지 사용 불가)
-      if (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) {
-        const b = player.brainStoneBowl as 1 | 2 | 3;
-        if (b === 1) player.power1 = Math.max(0, (player.power1 ?? 0) - 1);
-        else if (b === 2) player.power2 = Math.max(0, (player.power2 ?? 0) - 1);
-        else player.power3 = Math.max(0, (player.power3 ?? 0) - 1);
-        player.brainStoneInGaia = true;
-        addGameLog(game, playerId, 'Taklons: Brain Stone', 'Moved to Gaia (until next round)', tileId);
-      }
-
-      // 입장 순서 보상: 2·3번째 2PW, 4번째 3PW
-      const idx = shipState.occupants.length;
-      if (idx === 2 || idx === 3) chargePower(player, 2);
-      else if (idx === 4) chargePower(player, 3);
-
-      if (shipState.unlocked && shipState.occupants.length > 1) {
-        addGameLog(game, playerId, 'Entered Ship', `${tile.type} (#${idx})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
-      }
-
-      game.hasDoneMainAction = true;
-      clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
     });
 
     // 우주선 내부 액션 사용 (트왈라잇, Rebellion, TF Mars, Eclipse)
@@ -6282,4 +6198,96 @@ export function executeBurnPower(game: ServerGameState, playerId: string, moveBr
     }
   }
   return true;
+}
+
+export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, useRangeBonus?: boolean, qicToUse?: number): string | null {
+  if (game.hasDoneMainAction) return '이미 메인 액션을 수행했습니다.';
+  if (game.currentPhase !== 'main') return '메인 페이즈가 아닙니다.';
+  
+  const player = game.players[playerId];
+  if (game.turnOrder[game.currentPlayerIndex] !== playerId) return '현재 턴이 아닙니다.';
+
+  saveActionStartState(game, playerId);
+  const tile = game.map.find(t => t.id === tileId);
+  const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
+  if (!tile || !shipTypes.includes(tile.type || '')) return '유효하지 않은 우주선입니다.';
+
+  if (!game.spaceships) {
+    game.spaceships = {};
+    for (const t of game.map) {
+      if (['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].includes(t.type || '')) {
+        game.spaceships[t.id] = { unlocked: false, occupants: [], usedActionIndices: [] };
+      }
+    }
+  }
+  const shipState = game.spaceships[tileId];
+  if (!shipState) return '우주선 상태를 찾을 수 없습니다.';
+
+  const entered = player.spaceshipsEntered || [];
+  if (entered.length >= 3) return '이미 3개의 우주선에 입장했습니다.';
+  if (entered.includes(tileId)) return '이미 이 우주선에 입장했습니다.';
+
+  // 거리 체크: 플레이어 건물에서 우주선 타일까지 (첫 입장도 동일)
+  let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+  if (player.tempRangeBonus) baseRange += 3;
+  if (useRangeBonus && player.rangeBonusActive) {
+    baseRange += 3;
+    player.rangeBonusActive = false;
+  }
+  if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+  const rangeTiles = getPlayerRangeTiles(game, playerId, true);
+  if (rangeTiles.length === 0) return '거리 계산을 위한 시작 지점이 없습니다.';
+  const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+  const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+  const useQic = qicToUse ?? 0;
+  if (neededQIC > 0 && useQic < neededQIC) return '사거리가 부족합니다.';
+  if ((player.qic || 0) < useQic) return 'QIC가 부족합니다.';
+  player.qic = (player.qic || 0) - useQic;
+
+  // 아이타·네뷸라: 우주선 입장 시 토큰 1개 비용 (1그릇 → 2그릇 → 3그릇 순으로 차감, 없으면 입장 불가)
+  if (player.faction === 'itars' || player.faction === 'nevlas') {
+    const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+    if (p1 + p2 + p3 < 1) return '우주선 입장에 파워 토큰 1개가 필요합니다.';
+    if (p1 >= 1) player.power1 = p1 - 1;
+    else if (p2 >= 1) player.power2 = p2 - 1;
+    else player.power3 = p3 - 1;
+  }
+
+  // 잠금 해제 비용: 첫 입장 시 5 VP (발타크는 7 VP) (거리 통과 후 적용)
+  if (!shipState.unlocked) {
+    const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
+    if ((player.score || 0) < unlockCost) return `우주선 잠금해제에 ${unlockCost} VP가 필요합니다.`;
+    addScore(game, playerId, -unlockCost, 'other', { source: '우주선 잠금해제' });
+    shipState.unlocked = true;
+    addGameLog(game, playerId, 'Unlocked & Entered Ship', `-${unlockCost} VP (${tile.type})`, tileId);
+  }
+
+  shipState.occupants = shipState.occupants || [];
+  shipState.occupants.push(playerId);
+  if (!player.spaceshipsEntered) player.spaceshipsEntered = [];
+  player.spaceshipsEntered.push(tileId);
+
+  // 타클론: 우주선 입장 시 브레인 스톤을 가이아 영역으로 (다음 라운드까지 사용 불가)
+  if (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) {
+    const b = player.brainStoneBowl as 1 | 2 | 3;
+    if (b === 1) player.power1 = Math.max(0, (player.power1 ?? 0) - 1);
+    else if (b === 2) player.power2 = Math.max(0, (player.power2 ?? 0) - 1);
+    else player.power3 = Math.max(0, (player.power3 ?? 0) - 1);
+    player.brainStoneInGaia = true;
+    addGameLog(game, playerId, 'Taklons: Brain Stone', 'Moved to Gaia (until next round)', tileId);
+  }
+
+  // 입장 순서 보상: 2·3번째 2PW, 4번째 3PW
+  const idx = shipState.occupants.length;
+  if (idx === 2 || idx === 3) chargePower(player, 2);
+  else if (idx === 4) chargePower(player, 3);
+
+  if (shipState.unlocked && shipState.occupants.length > 1) {
+    addGameLog(game, playerId, 'Entered Ship', `${tile.type} (#${idx})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
+  }
+
+  game.hasDoneMainAction = true;
+  clampPlayerResources(game);
+  io.to(game.id).emit('game_updated', game);
+  return null;
 }

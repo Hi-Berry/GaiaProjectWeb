@@ -16,8 +16,8 @@ export interface MCTSNode {
 
 export class MCTS {
     private static readonly C = Math.sqrt(2); // Exploration constant
-    private static readonly MAX_TIME_MS = 2000; // 2 seconds max
-    private static readonly MAX_DEPTH = 3; // Depth limit to keep it fast
+    private static readonly MAX_TIME_MS = 3000; // 3 seconds max
+    private static readonly MAX_DEPTH = 5; // Depth limit to keep it fast
 
     static async search(initialState: ServerGameState, playerId: string, possibleActions: any[]): Promise<any | null> {
         // Find possible top-level actions

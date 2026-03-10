@@ -476,10 +476,10 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         )}
                                                     </div>
 
-                                                    {/* Tech Tile or Artifacts (Twilight 2x2 - Maximum Enlarged) */}
-                                                    <div className={`${tile.type === 'ship_twilight' ? 'w-[114px] h-[76px]' : 'w-[44px] h-[44px]'} shrink-0 flex items-center justify-start relative`}>
+                                                    {/* Tech Tile or Artifacts (Twilight 2x2 - Restored) */}
+                                                    <div className={`${tile.type === 'ship_twilight' ? 'w-[110px] h-[72px]' : 'w-[44px] h-[44px]'} shrink-0 flex items-center justify-start relative`}>
                                                         {tile.type === 'ship_twilight' ? (
-                                                            <div className="grid grid-cols-2 gap-[2px]">
+                                                            <div className="grid grid-cols-2 gap-0.5">
                                                                 {[0, 1, 2, 3].map((idx) => {
                                                                     const aid = game.twilightArtifactSlots?.[idx];
                                                                     if (!aid) return <div key={idx} className="w-[54px] h-[35px] rounded-[1px] border border-dashed border-white/10" />;
@@ -1085,17 +1085,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             </div>
                                                         </div>
 
-                                                        {/* Right: Tech Tile or Artifacts */}
-                                                        <div className="w-[180px] shrink-0">
+                                                        {/* Right: Tech Tile or Artifacts (Twilight 4x1 Enlarged 1.2x) */}
+                                                        <div className={`${tile.type === 'ship_twilight' ? 'w-[360px]' : 'w-[180px]'} shrink-0`}>
                                                             {techTile && (
-                                                                    <div 
-                                                                        className={`p-2 bg-zinc-800/80 rounded-lg border border-yellow-500/30 flex items-center gap-2 transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-lg ring-1 ring-yellow-500/20' : ''}`}
-                                                                        onClick={() => {
-                                                                            if (pendingTech && onSelectTechTile) {
-                                                                                onSelectTechTile(techTile.id);
-                                                                            }
-                                                                        }}
-                                                                    >
+                                                                <div
+                                                                    className={`p-2 bg-zinc-800/80 rounded-lg border border-yellow-500/30 flex items-center gap-2 transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-lg ring-1 ring-yellow-500/20' : ''}`}
+                                                                    onClick={() => {
+                                                                        if (pendingTech && onSelectTechTile) {
+                                                                            onSelectTechTile(techTile.id);
+                                                                        }
+                                                                    }}
+                                                                >
                                                                     {techTile.image ? (
                                                                         <img src={techTile.image} alt={techTile.label} className="h-[60px] w-auto object-contain" />
                                                                     ) : (
@@ -1110,9 +1110,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             )}
                                                             {tile.type === 'ship_twilight' && (game.twilightArtifactSlots?.length ?? 0) > 0 && (
                                                                 <div className="p-1">
-                                                                    <div className="grid grid-cols-2 gap-1.5">
+                                                                    <div className="grid grid-cols-4 gap-2">
                                                                         {(game.twilightArtifactSlots ?? []).map((aid, idx) => {
-                                                                            if (!aid) return <div key={idx} className="h-16 rounded border border-dashed border-white/5 bg-black/20" />;
+                                                                            if (!aid) return <div key={idx} className="h-20 w-20 rounded border border-dashed border-white/5 bg-black/20" />;
                                                                             const art = ARTIFACTS.find(a => a.id === aid);
                                                                             if (!art) return null;
                                                                             const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
@@ -1121,9 +1121,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                             const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0);
                                                                             const canTake = isInShip && onTakeTwilightArtifact && game.turnOrder?.[game.currentPlayerIndex ?? 0] === playerId && !game.hasDoneMainAction && totalPower >= 6;
                                                                             return (
-                                                                                <Button key={idx} size="sm" variant="outline" className="h-16 p-1 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40" disabled={!canTake} onClick={() => onTakeTwilightArtifact?.(aid)} title={`${art.label}: ${art.description}`}>
+                                                                                <Button
+                                                                                    key={idx}
+                                                                                    size="sm"
+                                                                                    variant="outline"
+                                                                                    className="h-20 w-20 p-1 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40"
+                                                                                    disabled={!canTake}
+                                                                                    onClick={() => onTakeTwilightArtifact?.(aid)}
+                                                                                    title={`${art.label}: ${art.description}`}
+                                                                                >
                                                                                     {artImgUrl ? (
-                                                                                        <img src={artImgUrl} alt={art.label} className="h-full w-auto object-contain" />
+                                                                                        <img src={artImgUrl} alt={art.label} className="h-full w-full object-contain" />
                                                                                     ) : (
                                                                                         <span className="text-[8px] font-bold text-center leading-none">{art.label}</span>
                                                                                     )}

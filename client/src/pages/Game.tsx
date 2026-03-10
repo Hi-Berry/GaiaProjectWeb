@@ -351,7 +351,9 @@ export default function Game() {
     const currentActivePlayerId = game.turnOrder[game.currentPlayerIndex];
     if (currentActivePlayerId && currentActivePlayerId !== playerId) {
       if (game.currentPhase === 'bonusSelection' && game.pendingBonusSelection) {
-        if (game.pendingBonusSelection !== playerId) {
+        // 보너스 선택 대기 중인 플레이어가 봇이면 자동 전환 안 함
+        const isBot = game.botPlayerIds?.includes(game.pendingBonusSelection);
+        if (game.pendingBonusSelection !== playerId && !isBot) {
           setPlayerId(game.pendingBonusSelection);
           storePlayerId(gameId, game.pendingBonusSelection);
         }
@@ -2852,7 +2854,8 @@ export default function Game() {
                 if (!p) return null;
                 const fedEntries = getFederationEntries(p);
                 const faction = p.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
-                const isYou = id === playerId;
+                const isBot = game.botPlayerIds?.includes(id);
+                const isYou = id === playerId && !isBot;
                 const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
                 const expanded = expandedPlayerId === id;
                 const counts = getStructureCountsForPlayer(game, id);

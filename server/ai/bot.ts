@@ -18,7 +18,8 @@ import {
     executeBurnPower,
     executeConvertResource,
     getAcademyLeftCount,
-    getAcademyRightCount
+    getAcademyRightCount,
+    executeEnterSpaceship
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -37,7 +38,10 @@ import {
     PlanetType,
     Faction,
     BonusTile,
-    getFederationEntries
+    getFederationEntries,
+    TechTile,
+    SHIP_TECH_TILES,
+    isPlanetHex
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -52,7 +56,8 @@ type BotAction = {
     | 'advance_tech'
     | 'form_federation'
     | 'burn_power'
-    | 'convert_resource';
+    | 'convert_resource'
+    | 'enter_spaceship';
     params: any;
 };
 
@@ -79,6 +84,8 @@ export class BotLogic {
                 return executePlaceIvitsSpaceStation(io, game, playerId, action.params.tileId);
             case 'use_ship_action':
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
+            case 'enter_spaceship':
+                return executeEnterSpaceship(io, game, playerId, action.params.tileId, action.params.useRangeBonus, action.params.qicToUse) === null;
             case 'eclipse_build_asteroid_mine': {
                 // Eclipse 6C 소행성 광산: 서버의 eclipse_build_asteroid_mine 소켓 로직 직접 실행
                 const player = game.players[playerId];
@@ -364,6 +371,14 @@ export class BotLogic {
         const powerAction = this.findPowerAction(game, playerId);
         if (powerAction) candidates.push(powerAction);
 
+        // 8-1. 우주선 입장 (Lost Fleet Ship)
+        const shipEntry = this.findSpaceshipEntryAction(game, playerId);
+        if (shipEntry) candidates.push(shipEntry);
+
+        // 8-2. 우주선 액션 (Lost Fleet Actions)
+        const shipAction = this.findSpaceshipAction(game, playerId);
+        if (shipAction) candidates.push(shipAction);
+
         // 9. 일반 연구
         if ((player.knowledge ?? 0) >= 4) {
             const track = this.pickResearchTrack(game, player, playerId);
@@ -460,9 +475,18 @@ export class BotLogic {
             const tsList = myStructures.filter(t => t.structure === 'trading_station');
             for (const ts of tsList) {
                 let score = 60;
-                // 종족별 PI 파워 체크
+                // 종족별 PI 파워 체크 및 우선순위
                 if (player.faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 50;
-                if (player.faction === 'ivits') score += 50; // 이비츠는 PI가 핵심
+                
+                // 피락스: 연구소가 있어야 의회 능력이 의미 있음 (유저 피드백)
+                if (player.faction === 'firaks') {
+                    const hasLab = myStructures.some(t => t.structure === 'research_lab');
+                    if (hasLab) score += 45;
+                }
+                
+                if (player.faction === 'nevlas') score += 40; // 네블라스 의회 강력 추천
+                
+                // 이비츠는 기본적으로 PI를 갖고 시작하므로 !hasPI 조건에서 이미 걸러지지만, 명시적 점수 상향은 제거
 
                 if (round >= 3) score += 20;
 
@@ -482,12 +506,17 @@ export class BotLogic {
         if (ore >= 6 && credits >= 6 && academyCount < 2) {
             const labList = myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
-                let score = 100; // 베이스 상향
-                if (round <= 3) score += 40; // 초반 아카데미 강력 권장
-                if (round >= 4) score += 10;
+                let score = 110; // 베이스 상향
+                if (round >= 2 && round <= 4 && academyCount === 0) score += 60; // 첫 아카데미는 중반까지 매우 강력 권장
+                if (round >= 5) score += 20;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, lab, 'academy');
+
+                // 지식 수입이 풍족한데 돈이 부족하면 연구소보다 교역소를 선호하도록 유도하는 점수 보정 (TS 점수가 상대적으로 올라감)
+                if ((player.knowledge || 0) > 10 && (player.credits || 0) < 10) {
+                    score -= 15;
+                }
 
                 candidates.push({
                     id: `academy-${lab.id}`,
@@ -1156,8 +1185,9 @@ export class BotLogic {
                 }
                 break;
             case 'science':
-                score += (6 - level) * 15; // 대폭 축소 (기존 20)
-                if (round <= 2) score += 5; // 초반 편향 제거 (기존 15)
+                score += (6 - level) * 12; // 대폭 축소 (기존 20/15)
+                if (round <= 2) score += 5;
+                if (level >= 3) score += 10; // 지식 생산량 확보를 위한 중반 가중치
                 break;
         }
 
@@ -1191,48 +1221,88 @@ export class BotLogic {
         const pending = game.pendingTechTileSelection;
         if (!pending) return null;
 
-        // 선택 가능한 타일 중 가장 가치 있는 것 선택
-        // 1. 일반 기술 타일 우선순위
-        const priorities = [
-            'tech-act-4p', 'tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-1o-1q',
-            'tech-7vp', 'tech-1k-planet', 'tech-1o-1c-1q',
-            'tech-income-1o-1k', 'tech-income-4c', 'tech-income-1k-1c',
-            'tech-gaia-3vp', 'tech-step-vp'
-        ];
-        // 4P 액션 타일, 수익 타일, 1O1Q 타일을 최우선 순위로 조정
+        // 현재 풀에서 가능한 타일 찾기 (일반 풀 + 트랙 위 타일 + 우주선 전용 타일)
+        const availableTiles: TechTile[] = [];
 
-        // 현재 풀에서 가능한 타일 찾기
-        const available = game.techTilesPool.filter(t => t && !player.techTiles.includes(t.id));
+        // 1. 일반 풀
+        game.techTilesPool.forEach(t => { if (t && !player.techTiles.includes(t.id)) availableTiles.push(t); });
 
-        // 트랙 위에 놓인 타일들
+        // 2. 트랙 위 타일들
         for (const trackTiles of Object.values(game.techTilesByTrack)) {
             const arr = Array.isArray(trackTiles) ? trackTiles : [trackTiles];
             for (const t of arr) {
-                if (t && !player.techTiles.includes(t.id)) {
-                    available.push(t);
+                if (t && !player.techTiles.includes(t.id)) availableTiles.push(t);
+            }
+        }
+
+        // 3. 우주선 전용 기술 타일 (우주선에 입장한 상태인 경우)
+        if (game.availableShipTechTileIds) {
+            for (const shipTechId of game.availableShipTechTileIds) {
+                const shipTech = SHIP_TECH_TILES.find((st: TechTile) => st.id === shipTechId);
+                if (shipTech && !player.techTiles.includes(shipTechId)) {
+                    availableTiles.push(shipTech);
                 }
             }
         }
 
-        if (available.length === 0) return null;
+        if (availableTiles.length === 0) return null;
 
-        // 가치 판단 (간단하게 priorities 순서대로)
-        let bestTileId = available[0]!.id;
-        let bestIndex = 999;
+        // 동적 점수 계산을 통해 최적의 타일 선택
+        let bestTile: TechTile = availableTiles[0];
+        let maxScore = -Infinity;
 
-        for (const t of available) {
-            if (!t) continue;
-            const idx = priorities.indexOf(t.id);
-            if (idx !== -1 && idx < bestIndex) {
-                bestIndex = idx;
-                bestTileId = t.id;
+        for (const tile of availableTiles) {
+            const score = this.calculateTechTileScore(game, playerId, tile.id);
+            if (score > maxScore) {
+                maxScore = score;
+                bestTile = tile;
             }
         }
 
         // 트랙 선택 (해당 타일이 요구하는 트랙 또는 가장 높은 점수의 트랙)
         const trackId = this.pickResearchTrack(game, player, playerId) || 'economy';
 
-        return { type: 'select_tech_tile', params: { techTileId: bestTileId, trackId } };
+        log(`Bot ${player.name} selected Tech Tile: ${bestTile.id} (Score: ${maxScore.toFixed(1)})`, 'game', game.id);
+        return { type: 'select_tech_tile', params: { techTileId: bestTile.id, trackId } };
+    }
+
+    private static calculateTechTileScore(game: ServerGameState, playerId: string, tileId: string): number {
+        const player = game.players[playerId];
+        const round = game.roundNumber;
+        let score = 0;
+
+        // 1. 우주선 전용 타일 보너스 (보통 일반 타일보다 강력함)
+        const isShipTech = tileId.startsWith('ship-tech-');
+        if (isShipTech) score += 45;
+
+        // 2. 라운드별 가중치 (초반 수익, 후반 점수)
+        if (round <= 3) {
+            // 초반: 수익 타일 대폭 우대
+            if (tileId.startsWith('tech-inc-')) score += 50;
+            if (tileId === 'tech-act-4p') score += 40;
+            if (tileId === 'tech-imm-1o-1q') score += 30;
+        } else if (round >= 5) {
+            // 후반: 즉시 점수 및 행성 유형당 지식 타일 우대
+            if (tileId === 'tech-imm-7vp') score += 70;
+            if (tileId === 'tech-imm-1k-planet') {
+                const myPlanets = game.map.filter(t => t.ownerId === playerId && t.structure);
+                const types = new Set(myPlanets.map(t => t.type).filter(t => t)).size;
+                score += 30 + (types * 10); // 개척한 행성 종류가 많을수록 큰 가치
+            }
+            if (tileId.startsWith('tech-inc-')) score -= 20; // 수입 타일은 후반에 가치 급감
+        }
+
+        // 3. 라운드 미션 시너지 (기술 타일 획득 시 2VP 등)
+        score += this.calculateRoundScoringBonus(game, playerId, 'gain_tech_tile');
+
+        // 4. 종족별 특정 타일 시너지
+        if (player.faction === 'itars' && tileId === 'tech-act-4p') score += 20; // 아이타는 의회 능력 활용을 위해 4P 매우 선호
+        if (player.faction === 'nevlas' && tileId === 'tech-inc-1o-1p') score += 15; // 네블라스는 파워 충격 시너지
+
+        // 5. 무작위 변동성 (동일 점수 시 다양성 부여)
+        score += Math.random() * 2;
+
+        return score;
     }
 
     private static findStartingMineAction(game: ServerGameState, playerId: string): BotAction | null {
@@ -1299,13 +1369,13 @@ export class BotLogic {
             }
 
             switch (action.id) {
-                case 'gain-3-knowledge': score = 60; break;
-                case 'gain-2-steps': score = 70; break;
-                case 'gain-2-ore': score = 50; break;
-                case 'gain-7-credits': score = 45; break;
-                case 'gain-1-step': score = 65; break; // 하이브 등 건설을 위해 1단계 전진 중요도 상향
-                case 'qic-action-tech': score = 90; break;
-                case 'qic-action-vp-sector': score = round >= 5 ? 100 : 40; break;
+                case 'gain-3-knowledge': score = 90; break; // 지식 3은 고벨류
+                case 'gain-2-steps': score = 85; break; // 2삽 고벨류
+                case 'gain-2-ore': score = 60; break;
+                case 'gain-7-credits': score = 55; break;
+                case 'gain-1-step': score = 75; break; // 하이브 등 건설을 위해 1단계 전진 중요도 상향
+                case 'qic-action-tech': score = 110; break; // 기술 타일 획득은 무조건 고점
+                case 'qic-action-vp-sector': score = round >= 5 ? 120 : 40; break;
                 default: score = 10;
             }
 
@@ -1321,6 +1391,156 @@ export class BotLogic {
             return { type: 'use_power_action', params: { actionId: bestActionId } };
         }
         return null;
+    }
+
+    private static findSpaceshipEntryAction(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        const round = game.roundNumber;
+        if (game.hasDoneMainAction) return null;
+
+        const entered = player.spaceshipsEntered || [];
+        if (entered.length >= 3) return null;
+
+        const shipTiles = game.map.filter(t => ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].includes(t.type || ''));
+        const candidates: { action: BotAction; score: number }[] = [];
+
+        const baseRange = this.getEffectiveBaseRange(player);
+        const qic = player.qic || 0;
+
+        // In ServerGameState context, we might not have getPlayerRangeTiles easily available as a static method of Bot
+        // But we can simulate it by finding buildings/stations.
+        const myPlanets = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+
+        for (const tile of shipTiles) {
+            if (entered.includes(tile.id)) continue;
+
+            const shipState = game.spaceships?.[tile.id];
+            const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
+            if (!shipState?.unlocked && (player.score || 0) < unlockCost) continue;
+
+            // Faction specific cost (Itars/Nevlas)
+            if (['itars', 'nevlas'].includes(player.faction || '')) {
+                if ((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) < 1) continue;
+            }
+
+            const minDist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+            const neededQic = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+            if (neededQic > qic) continue;
+
+            let score = 50; // 기본 입장 점수 (5VP 가치)
+            
+            // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
+            const occupants = shipState?.occupants?.length || 0;
+            if (occupants === 1 || occupants === 2) score += 20;
+            else if (occupants === 3) score += 30;
+
+            // 라운드별 가점 (초반에는 강력한 기술 타일이나 자원 확보를 위해)
+            if (round <= 3) score += 20;
+
+            // Rebellion은 기술 타일을 주기 때문에 더 높게 평가
+            if (tile.type === 'ship_rebellion') score += 30;
+            if (tile.type === 'ship_eclipse') score += 10; // 후반 소행성 건설/연구용
+
+            candidates.push({
+                action: { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } },
+                score
+            });
+        }
+
+        if (candidates.length === 0) return null;
+        candidates.sort((a, b) => b.score - a.score);
+        return candidates[0].action;
+    }
+
+    private static findSpaceshipAction(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        const entered = player.spaceshipsEntered || [];
+        if (entered.length === 0 || game.hasDoneMainAction) return null;
+
+        const candidates: { action: BotAction; score: number }[] = [];
+
+        for (const shipId of entered) {
+            const shipTile = game.map.find(t => t.id === shipId);
+            const shipState = game.spaceships?.[shipId];
+            if (!shipTile || !shipState) continue;
+
+            const usedIndices = shipState.usedActionIndices || [];
+            if (usedIndices.length >= 3) continue;
+
+            // Action Indices: 1, 2, 3
+            for (let i = 1; i <= 3; i++) {
+                if (usedIndices.includes(i)) continue;
+
+                let score = 0;
+                let action: BotAction | null = null;
+
+                if (shipTile.type === 'ship_twilight') {
+                    if (i === 1 && player.qic >= 3) {
+                        score = 110; // 연방 보상
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    } else if (i === 2 && player.ore >= 2 && player.power3 >= 3) {
+                        const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
+                        if (ts) {
+                            score = 80; // TS -> Lab (강력)
+                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
+                        }
+                    } else if (i === 3 && player.knowledge >= 1) {
+                        score = 40; // +3 거리
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    }
+                } else if (shipTile.type === 'ship_rebellion') {
+                    if (i === 1 && player.qic >= 3) {
+                        score = 120; // 기술 타일!!
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    } else if (i === 2 && player.ore >= 1 && player.power3 >= 3) {
+                        const mine = game.map.find(t => t.ownerId === playerId && t.structure === 'mine');
+                        if (mine) {
+                            score = 70; // Mine -> TS
+                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
+                        }
+                    } else if (i === 3 && player.knowledge >= 2) {
+                        score = 50; // 2K -> 1Q 2C
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    }
+                } else if (shipTile.type === 'ship_tf_mars') {
+                    if (i === 1 && player.qic >= 2) {
+                        const count = player.techTiles?.length ?? 0;
+                        score = 40 + (count + 2) * 2; // 기술 타일 비례 점수
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    } else if (i === 2 && player.power3 >= 2 && (player.gaiaformers || 0) > 0) {
+                        score = 75; // 가이아 프로젝트
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    } else if (i === 3 && player.credits >= 3) {
+                        score = 60; // 3C -> 1TF
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    }
+                } else if (shipTile.type === 'ship_eclipse') {
+                    if (i === 1 && player.qic >= 2) {
+                        const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
+                        const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space')).size;
+                        score = 40 + (types + 2) * 2;
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    } else if (i === 2 && player.knowledge >= 2 && player.power3 >= 3) {
+                        score = 90; // 연구 전진
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    } else if (i === 3 && player.credits >= 6) {
+                        score = 85; // 소행성 광산
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                    }
+                }
+
+                if (action && score > 0) {
+                    candidates.push({ action, score });
+                }
+            }
+        }
+
+        if (candidates.length === 0) return null;
+        candidates.sort((a, b) => b.score - a.score);
+        return candidates[0].action;
     }
 
     private static getEffectiveBaseRange(player: PlayerState): number {
@@ -1448,6 +1668,10 @@ export class BotLogic {
     private static calculateFinalMissionBonus(game: ServerGameState, playerId: string, tile: HexTile, structure?: string): number {
         let totalBonus = 0;
         const missions = game.finalScoringTiles || [];
+        const player = game.players[playerId];
+
+        const myTiles = game.map.filter(t => t.ownerId === playerId || t.parasiticMine?.ownerId === playerId);
+        const myTypes = new Set(myTiles.map(t => t.type).filter(t => t));
 
         for (const missionTile of missions) {
             switch (missionTile.id) {
@@ -1455,23 +1679,28 @@ export class BotLogic {
                     totalBonus += 5; // 어떤 건물이든 지으면 도움됨
                     break;
                 case 'fm_planet_types':
-                    const player = game.players[playerId];
-                    const myTiles = game.map.filter(t => t.ownerId === playerId || t.parasiticMine?.ownerId === playerId);
-                    const myTypes = new Set(myTiles.map(t => t.type).filter(t => t));
                     if (tile.type && !myTypes.has(tile.type)) {
-                        totalBonus += 15; // 새로운 행성 종류면 큰 보너스
+                        totalBonus += 35; // 기본 보너스 상향
                     }
                     break;
                 case 'fm_gaia_planets':
-                    if (tile.type === 'gaia') totalBonus += 15;
+                    if (tile.type === 'gaia') totalBonus += 20;
                     break;
                 case 'fm_sectors':
                     const mySectors = new Set(game.map.filter(t => t.ownerId === playerId).map(t => t.sector));
-                    if (!mySectors.has(tile.sector)) totalBonus += 12;
+                    if (!mySectors.has(tile.sector)) totalBonus += 25; // 상향
                     break;
                 case 'fm_asteroid_buildings':
-                    if (tile.type === 'asteroid') totalBonus += 15;
+                    if (tile.type === 'asteroid') totalBonus += 20;
                     break;
+            }
+        }
+
+        // 기술 타일 시너지: 유형당 1지식 (유저 피드백: 획득 전일 때 가치 높음, 이미 먹었으면 추가 가치 낮음)
+        const isPlanetTechAvailable = (game.techTilesPool || []).some(t => t?.id === 'tech-imm-1k-planet');
+        if (!player.techTiles?.includes('tech-imm-1k-planet') && isPlanetTechAvailable) {
+            if (tile.type && !myTypes.has(tile.type)) {
+                totalBonus += 25; // 아직 안 먹었을 때 더 적극적으로 확장 (기대를 위함)
             }
         }
 
@@ -1485,9 +1714,20 @@ export class BotLogic {
         for (const neighbor of neighbors) {
             if (neighbor.ownerId && neighbor.ownerId !== playerId) {
                 // 상대방 건물 근처면 교역소 할인 및 파워 수급 기회
-                bonus += 10;
+                if (neighbor.structure === 'mine' || neighbor.structure === 'trading_station') {
+                    // 업그레이드 여지가 있는 건물 옆일 때 장기적 파워 수급 기회가 더 큼
+                    bonus += 20;
+                } else if (neighbor.structure) {
+                    // PI/Academy 등 업그레이드가 끝난 건물 옆은 즉각적인 교역소 할인용
+                    bonus += 10;
+                }
             }
         }
+
+        // 상대방의 가이아포머가 놓인 곳 옆도 잠재적 건설 예약지이므로 가점
+        const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
+        const nearGaiaformer = opponentGaiaformers.some(gf => getDistance(gf, tile) === 1);
+        if (nearGaiaformer) bonus += 15;
 
         return bonus;
     }
@@ -1553,34 +1793,29 @@ export class BotLogic {
         const player = game.players[playerId];
         const myFactionDef = FACTIONS.find(f => f.id === player.faction);
 
-        // 내가 지을 목적지가 모행성이거나 가이아행성 같은 노른자위 땅일 때 주로 발동
+        // 모행성이나 가이아 행성 선점 위협 평가
         if (tile.type !== myFactionDef?.homePlanet && tile.type !== 'gaia') {
-            return 0; // 내 모행성도 아니면 뺏겨도 덜 아픔
+            // 다른 종류의 행성일 경우, 테라포밍 비용 대비 가치 평가 (사용자 피드백 반영)
+            const steps = getTerraformStepsForFaction(game, player.faction!, tile.type!);
+            if (steps >= 2) return 0; // 2단계 이상 삽질이 필요하면 견제보다는 내 내실에 집중
+            
+            // 0~1단계 삽질로 먹을 수 있는 땅이라면 약간의 견제 점수 부여
+            threatScore += (2 - steps) * 10;
         }
 
         for (const [otherId, otherPlayer] of Object.entries(game.players)) {
             if (otherId === playerId || !otherPlayer.faction) continue;
 
-            // 1. 적이 이 타일을 모행성으로 쓰는지 (= 먹기 가장 쉬운 땅)
             const otherFactionDef = FACTIONS.find(f => f.id === otherPlayer.faction);
             const otherHomeTp = otherFactionDef?.homePlanet;
             let targetAttractiveness = 0;
 
             if (tile.type === otherHomeTp) {
-                targetAttractiveness += 30; // 적에게도 꿀땅임!
+                targetAttractiveness += 40; // 적의 모행성 선점은 강력한 위협이자 견제 수단
             } else if (tile.type === 'gaia') {
-                targetAttractiveness += 15; // 가이아는 누구에게나 좋음
+                targetAttractiveness += 20;
             }
 
-            // 2. 적의 테라포밍 단계 및 삽 타일 획득 여부
-            const otherTechTf = otherPlayer.research.terraforming || 0;
-            if (otherTechTf >= 2) targetAttractiveness += 10;
-            // (만약 상대방이 이번 라운드에 테라포밍 보너스 타일 등을 들고 있으면 위협 폭증. 
-            // 단, 현재 서버 상태에서 상대의 보너스 타일/자원까지 상세히 추적하긴 어려우므로 보수적 접근)
-            if ((otherPlayer.ore || 0) >= 3) targetAttractiveness += 5; // 광석 많으면 테라포밍 가능성 높음
-
-            // 3. 적의 도달 가능성 (거리 점수)
-            // 적의 건물 중 가장 가까운 건물과의 거리
             const otherBuildings = game.map.filter(t => t.ownerId === otherId && t.structure);
             if (otherBuildings.length === 0) continue;
 
@@ -1588,20 +1823,12 @@ export class BotLogic {
             const otherRange = getRange(otherPlayer.research.navigation || 0) + (otherPlayer.navigationBonus || 0);
 
             if (minDist <= otherRange) {
-                // 적이 QIC 없이 도달 가능함 -> 즉각적인 위협
                 threatScore += targetAttractiveness * 1.5;
             } else if (minDist <= otherRange + 2) {
-                // 적이 QIC 1~2개 쓰면 도달 가능함 -> 잠재적 위협
                 threatScore += targetAttractiveness * 0.8;
-            }
-
-            // 특정 종족 스노우볼 견제 (다카니안, 가이아 프로젝트 종족 등)
-            if (otherPlayer.faction === 'taklons' || otherPlayer.faction === 'terran') {
-                threatScore += 10;
             }
         }
 
-        // 최대 방어 위협 보너스 캡 씌우기 (너무 이것만 집착하지 않도록)
-        return Math.min(threatScore, 60);
+        return Math.min(threatScore, 65);
     }
 }
