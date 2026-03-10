@@ -396,7 +396,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             <div
                                                 key={tile.id}
                                                 className="relative h-[44px] w-[44px] rounded-md overflow-hidden bg-zinc-900/60 border border-yellow-500/10 hover:border-yellow-500/30 cursor-pointer group transition-all"
-                                                onClick={() => onGainTechTile(tile.id)}
+                                                onClick={() => {
+                                                    if (pendingTech && onSelectTechTile) {
+                                                        setSelectedTileIdNeedingTrack(tile.id);
+                                                    } else {
+                                                        onGainTechTile(tile.id);
+                                                    }
+                                                }}
                                             >
                                                 {tile.image ? (
                                                     <img src={tile.image} alt={tile.label} className="w-full h-full object-contain" />
@@ -488,7 +494,15 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             </div>
                                                         ) : (
                                                             techTile && (
-                                                                <div className="w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden">
+                                                                <div 
+                                                    className={`w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-[0_0_10px_rgba(234,179,8,0.2)]' : ''}`}
+                                                    onClick={(e) => {
+                                                        if (pendingTech && onSelectTechTile) {
+                                                            e.stopPropagation();
+                                                            onSelectTechTile(techTile.id);
+                                                        }
+                                                    }}
+                                                >
                                                                     {techTile.image ? (
                                                                         <img src={techTile.image} alt="Tech" className="w-full h-full object-contain" />
                                                                     ) : (
@@ -837,6 +851,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 if (isUsed) return;
                                                 if (isAction && hasTile) {
                                                     onUseTechAction(tile.id);
+                                                } else if (pendingTech && onSelectTechTile) {
+                                                    setSelectedTileIdNeedingTrack(tile.id);
                                                 } else {
                                                     onGainTechTile(tile.id);
                                                 }
@@ -1072,7 +1088,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         {/* Right: Tech Tile or Artifacts */}
                                                         <div className="w-[180px] shrink-0">
                                                             {techTile && (
-                                                                <div className="p-2 bg-zinc-800/80 rounded-lg border border-yellow-500/30 flex items-center gap-2">
+                                                                    <div 
+                                                                        className={`p-2 bg-zinc-800/80 rounded-lg border border-yellow-500/30 flex items-center gap-2 transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-lg ring-1 ring-yellow-500/20' : ''}`}
+                                                                        onClick={() => {
+                                                                            if (pendingTech && onSelectTechTile) {
+                                                                                onSelectTechTile(techTile.id);
+                                                                            }
+                                                                        }}
+                                                                    >
                                                                     {techTile.image ? (
                                                                         <img src={techTile.image} alt={techTile.label} className="h-[60px] w-auto object-contain" />
                                                                     ) : (

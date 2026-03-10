@@ -1,4 +1,4 @@
-﻿import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -4430,6 +4430,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
         game.pendingShipTechTrackAdvance = { playerId };
       }
     }
+    // 테라포밍 액션(2TF 등)은 광산 1개를 지으면 잔여 단계가 있어도 종료됨
+    player.pendingTerraformSteps = 0;
   };
 
   // Lantids Parasitic

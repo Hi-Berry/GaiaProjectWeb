@@ -79,6 +79,8 @@ export default function Game() {
   const [isResearchOpen, setIsResearchOpen] = useState(false);
   const [isBonusTilesOpen, setIsBonusTilesOpen] = useState(false);
   const [isFreeActionsOpen, setIsFreeActionsOpen] = useState(false);
+  /** 우주선 기술 타일 2TF+Mine 플로우가 "미니 R패널"에서 시작됐는지 (자동 R창 열고닫기 억제용) */
+  const [shipTech2TfMineFromMini, setShipTech2TfMineFromMini] = useState(false);
   const [confirmPassWithTileId, setConfirmPassWithTileId] = useState<string | null>(null);
   /** 하이브 우주정거장 배치 모드: 켜면 안내 모달 표시, 다른 액션 차단, 빈 우주 클릭 후 배치하면 종료 */
   const [ivitsSpaceStationMode, setIvitsSpaceStationMode] = useState(false);
@@ -297,6 +299,37 @@ export default function Game() {
       if (gameId) localStorage.setItem(`is-host-${gameId}`, 'true');
     }
   }, [game?.hostId, playerId, gameId]);
+
+  // 우주선 기술 타일(2TF+Mine) UX:
+  // 1) 타일 선택 직후 pendingShipTechMine이면 (오버레이 R창에서 골랐을 때만) R창 자동 닫기
+  // 2) 광산 건설 완료 후 pendingShipTechTrackAdvance이면 (오버레이 R창에서 골랐을 때만) R창 자동 열기
+  // 3) 트랙까지 올리고 pending이 모두 사라지면 플래그 리셋
+  useEffect(() => {
+    if (!game || !playerId) return;
+    const minePending = game.pendingShipTechMine?.playerId === playerId;
+    const trackPending = game.pendingShipTechTrackAdvance?.playerId === playerId;
+
+    if (minePending && !shipTech2TfMineFromMini) {
+      // 1단계: R 오버레이 닫고 맵에서 광산 짓게 유도
+      if (isResearchOpen) setIsResearchOpen(false);
+    }
+
+    if (trackPending && !shipTech2TfMineFromMini) {
+      // 2단계: 트랙 올리도록 R 오버레이 자동 오픈
+      if (!isResearchOpen) setIsResearchOpen(true);
+    }
+
+    if (!minePending && !trackPending && shipTech2TfMineFromMini) {
+      // 3단계 완료 후 플래그 리셋
+      setShipTech2TfMineFromMini(false);
+    }
+  }, [
+    game?.pendingShipTechMine?.playerId,
+    game?.pendingShipTechTrackAdvance?.playerId,
+    playerId,
+    isResearchOpen,
+    shipTech2TfMineFromMini,
+  ]);
 
   // 한 컴퓨터 4인플: 방장일 경우 현재 턴 플레이어로 자동 전환 (로컬 멀티플레이용)
   // 로비/종족선택/시작광산 단계에서는 자동 전환 안 함 → 방장이 봇을 골라 종족·턴 지정할 수 있게
@@ -1726,7 +1759,11 @@ export default function Game() {
                     setIsResearchOpen(false);
                     setAdvanceTechDialog({ open: true, trackId });
                   }}
-                  onSelectTechTile={(techTileId, trackId) => { if (gameId) GameClient.selectTechTile(gameId, techTileId, trackId); }}
+                  onSelectTechTile={(techTileId, trackId) => {
+                    // 오버레이 R창에서 선택한 경우: 자동 닫기/열기 동작하도록 플래그 OFF
+                    if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(false);
+                    if (gameId) GameClient.selectTechTile(gameId, techTileId, trackId);
+                  }}
                   onSelectAdvancedTechTile={(advancedTileId, trackId) => { if (gameId) GameClient.selectAdvancedTechTile(gameId, advancedTileId, trackId); }}
                   onConfirmAdvancedTechCover={(coverTileId) => { if (gameId) GameClient.confirmAdvancedTechCover(gameId, coverTileId); }}
                   onTakeTwilightArtifact={(artifactId) => { if (gameId) GameClient.takeTwilightArtifact(gameId, artifactId); }}
@@ -3508,7 +3545,7 @@ export default function Game() {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-7 px-4 bg-red-600 text-white hover:bg-red-500 text-[10px] font-black uppercase tracking-tight shadow-lg border-b-2 border-red-800"
+                    className="h-7 px-4 bg-green-600 text-white hover:bg-green-500 text-[10px] font-black uppercase tracking-tight shadow-lg border-b-2 border-green-800"
                     onClick={async () => {
                       if (gameId) {
                         try {
@@ -3572,7 +3609,11 @@ export default function Game() {
                   if (game.hasDoneMainAction) return;
                   setAdvanceTechDialog({ open: true, trackId });
                 }}
-                onSelectTechTile={(techTileId, trackId) => GameClient.selectTechTile(gameId!, techTileId, trackId)}
+                onSelectTechTile={(techTileId, trackId) => {
+                  // 미니 R패널에서 선택한 경우: 자동 R창 열고닫기 하지 않도록 플래그 ON
+                  if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(true);
+                  GameClient.selectTechTile(gameId!, techTileId, trackId);
+                }}
                 onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
                 onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
                 onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
