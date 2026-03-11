@@ -599,10 +599,15 @@ export default function Game() {
       return t?.image ?? null;
     };
 
+    const getArtifactImage = (artifactId: string) => {
+      const idx = ARTIFACTS.findIndex(a => a.id === artifactId);
+      return idx !== -1 ? `/image/Art${idx + 1}.png` : null;
+    };
+
     return (
       <AlertDialog open={showGameEndScore} onOpenChange={setShowGameEndScore}>
-        <AlertDialogContent className="bg-zinc-950/95 border-zinc-700 max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 shadow-2xl shadow-black">
-          <AlertDialogHeader className="p-6 pb-2">
+        <AlertDialogContent className="bg-zinc-950/95 border-zinc-700 w-[92vw] max-w-7xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0 shadow-2xl shadow-black">
+          <AlertDialogHeader className="p-6 pb-2 shrink-0">
             <div className="flex items-center justify-between">
               <AlertDialogTitle className="text-3xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500 drop-shadow-sm font-orbitron">
                 🏆 FINAL VICTORY BOARD
@@ -618,8 +623,8 @@ export default function Game() {
             </div>
           </AlertDialogHeader>
 
-          <div className="flex-1 overflow-hidden flex flex-col p-6 pt-2">
-            <Tabs defaultValue={playersWithScores[0]?.pid} className="flex-1 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-6 pt-2 custom-scrollbar">
+            <Tabs defaultValue={playersWithScores[0]?.pid} className="flex-1 flex flex-col min-h-0">
               <TabsList className="bg-zinc-900/50 p-1 rounded-xl border border-white/5 self-start mb-6">
                 {playersWithScores.map(({ pid, player, faction }) => (
                   <TabsTrigger
@@ -648,11 +653,18 @@ export default function Game() {
               {playersWithScores.map(({ pid, player, faction }) => {
                 const b = player!.scoreBreakdown!;
                 const color = faction?.color ?? '#888';
+                const roundMissionsSum = b.roundMissions.reduce((s, m) => s + m.vp, 0);
+                const bonusTilePassSum = b.bonusTilePass.reduce((s, m) => s + m.vp, 0);
+                const techTilesSum = b.techTiles.reduce((s, t) => s + t.vp, 0);
+                const spaceshipsSum = b.spaceships.reduce((s, x) => s + x.vp, 0);
+                const otherSum = b.other.reduce((s, o) => s + o.vp, 0);
+                const breakdownTotal = 10 + roundMissionsSum + bonusTilePassSum + techTilesSum + b.finalMissions + b.researchTracks - b.powerReceived + spaceshipsSum + otherSum;
+                const totalMatches = breakdownTotal === (player!.score ?? 0);
 
                 return (
                   <TabsContent key={pid} value={pid} className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                      {/* LH Column: Summary & Main Stats */}
+                      {/* LH Column: Summary & Full Score Breakdown */}
                       <div className="md:col-span-4 space-y-6">
                         <Card className="bg-zinc-900/40 border-white/5 overflow-hidden">
                           <div className="p-6 space-y-4">
@@ -670,28 +682,61 @@ export default function Game() {
                                 <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Total Score</span>
                                 <span className="text-4xl font-black tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{player!.score} <span className="text-sm font-bold text-zinc-500 tracking-normal uppercase">VP</span></span>
                               </div>
+                              {!totalMatches && (
+                                <p className="text-[10px] text-amber-400 mt-1">(Breakdown 합계: {breakdownTotal} VP — 서버 총점과 불일치)</p>
+                              )}
                             </div>
                           </div>
                         </Card>
 
-                        {/* Research & Other list */}
+                        {/* 전체 점수 내역 (Breakdown 합계 = Total Score와 일치해야 함) */}
                         <div className="space-y-4">
-                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">Research & Bonuses</h4>
+                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">Score Breakdown</h4>
                           <div className="bg-zinc-900/20 rounded-xl border border-white/5 divide-y divide-white/5">
                             <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
                               <span className="text-xs font-bold text-zinc-400">Starting Bonus</span>
                               <span className="text-sm font-black text-amber-500/80">+10 VP</span>
                             </div>
+                            {roundMissionsSum !== 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">Round Missions (합계)</span>
+                                <span className="text-sm font-black text-amber-400/90">+{roundMissionsSum} VP</span>
+                              </div>
+                            )}
+                            {bonusTilePassSum !== 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">Bonus Tile Pass (합계)</span>
+                                <span className="text-sm font-black text-yellow-400/90">+{bonusTilePassSum} VP</span>
+                              </div>
+                            )}
+                            {techTilesSum !== 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">Tech Tiles (합계)</span>
+                                <span className="text-sm font-black text-purple-400/90">+{techTilesSum} VP</span>
+                              </div>
+                            )}
+                            {b.finalMissions > 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">Final Missions</span>
+                                <span className="text-sm font-black text-blue-400/90">+{b.finalMissions} VP</span>
+                              </div>
+                            )}
                             {b.researchTracks > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">Research Board End</span>
-                                <span className="text-sm font-black text-cyan-400">+{(b.researchTracks)} VP</span>
+                                <span className="text-sm font-black text-cyan-400">+{b.researchTracks} VP</span>
                               </div>
                             )}
                             {b.powerReceived > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
                                 <span className="text-xs font-bold text-red-400/80">Power Reception Tax</span>
                                 <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
+                              </div>
+                            )}
+                            {spaceshipsSum !== 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">Spaceships (합계)</span>
+                                <span className="text-sm font-black text-cyan-400/90">+{spaceshipsSum} VP</span>
                               </div>
                             )}
                             {(() => {
@@ -709,6 +754,10 @@ export default function Game() {
                                 </div>
                               ));
                             })()}
+                            <div className="p-3 flex justify-between items-center border-t border-white/10 bg-white/[0.02]">
+                              <span className="text-xs font-black text-zinc-300 uppercase tracking-wider">Breakdown 합계</span>
+                              <span className="text-sm font-black tabular-nums text-white">= {breakdownTotal} VP</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -745,68 +794,60 @@ export default function Game() {
                           </div>
                         </section>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                          {/* Bonus Tiles History */}
-                          <section>
+                        <div className="flex flex-col gap-8">
+                          {/* Bonus Tiles — 한 줄로 쭉 붙여서 (80×128), 위에 단독 배치 */}
+                          <section className="min-w-0">
                             <div className="flex items-center gap-2 mb-4">
                               <Star className="w-4 h-4 text-yellow-500" />
                               <h4 className="text-xs font-black text-white uppercase tracking-widest">Bonus Tiles</h4>
                             </div>
-                            <div className="grid grid-cols-5 gap-2">
-                              {b.bonusTilePass.length === 0 ? (
-                                <div className="col-span-5 py-4 text-center text-[10px] text-zinc-600 italic border border-dashed border-white/5 rounded-lg">
-                                  No bonus tile history recorded for this game.
-                                </div>
-                              ) : b.bonusTilePass.map((item, i) => {
-                                const img = item.tileId ? getBonusTileImage(item.tileId) : null;
+                            <div className="flex flex-nowrap gap-1 justify-start">
+                              {[1, 2, 3, 4, 5, 6].map((r) => {
+                                const passItem = b.bonusTilePass.find(m => m.round === r);
+                                const tileId = passItem?.tileId ?? (r === 6 ? player!.bonusTile : undefined);
+                                const vp = passItem?.vp ?? 0;
+                                const img = tileId ? getBonusTileImage(tileId) : null;
                                 return (
-                                  <div key={i} className="flex flex-col items-center gap-1.5 group">
-                                    <div className="relative w-full aspect-[2/3] bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden shadow-lg group-hover:border-yellow-500/30 transition-all flex flex-col items-center justify-center">
+                                  <div key={r} className="flex flex-col items-center gap-1 shrink-0 group">
+                                    <div className="relative w-20 flex flex-col items-center justify-center rounded-lg border border-white/5 overflow-hidden shadow-lg group-hover:border-yellow-500/30 transition-all bg-zinc-900/60" style={{ height: '128px' }}>
                                       {img ? (
-                                        <img src={img} alt={item.tileId} className="w-full h-full object-contain p-1" />
+                                        <img src={img} alt={tileId ?? `R${r}`} className="w-full h-full object-contain p-1" />
                                       ) : (
                                         <div className="flex flex-col items-center gap-1">
                                           <Star className="w-4 h-4 text-zinc-700" />
-                                          <div className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">Round {item.round}</div>
+                                          <div className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">{'R' + r}</div>
                                         </div>
                                       )}
                                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1 text-center">
-                                        <span className="text-[8px] font-black text-white">R{item.round}</span>
+                                        <span className="text-[8px] font-black text-white">{'R' + r}</span>
                                       </div>
                                     </div>
-                                    <span className="text-[10px] font-black text-yellow-500/80">+{item.vp} <span className="text-[8px] opacity-60">VP</span></span>
+                                    <span className="text-[10px] font-black text-yellow-500/80">+{vp} <span className="text-[8px] opacity-60">VP</span></span>
                                   </div>
                                 );
                               })}
                             </div>
                           </section>
 
-                          {/* Final Missions */}
-                          <section>
+                          {/* Final Missions — 이미지 2장 작은 크기(144×108), 우측 하단에 점수만 */}
+                          <section className="min-w-0">
                             <div className="flex items-center gap-2 mb-4">
                               <Flag className="w-4 h-4 text-blue-500" />
                               <h4 className="text-xs font-black text-white uppercase tracking-widest">Endgame Missions</h4>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              {(game.finalMissionIds ?? []).map((mid, i) => {
+                            <div className="flex flex-wrap gap-3">
+                              {(game.finalMissionIds ?? []).map((mid) => {
                                 const img = getFinalMissionImage(mid);
-                                const missionValue = getFinalMissionValue(game, pid, mid);
                                 const missionVp = b.finalMissionDetails?.find(d => d.missionId === mid)?.vp ?? getFinalMissionVp(game, pid, mid);
                                 return (
-                                  <div key={mid} className="flex flex-col gap-2">
-                                    <div className="relative aspect-[4/3] bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden group shadow-lg">
-                                      {img ? (
-                                        <img src={img} alt={mid} className="w-full h-full object-cover" />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-600">{mid}</div>
-                                      )}
-                                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black to-transparent p-2">
-                                        <div className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter truncate">{FINAL_MISSION_LABELS[mid]}</div>
-                                        <div className="flex justify-between items-end">
-                                          <div className="text-sm font-black text-white tabular-nums">{missionValue} units</div>
-                                          <div className="text-sm font-black text-blue-400">+{missionVp} VP</div>
-                                        </div>
-                                      </div>
+                                  <div key={mid} className="relative w-36 h-[108px] shrink-0 bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden group shadow-lg">
+                                    {img ? (
+                                      <img src={img} alt={mid} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-600">{mid}</div>
+                                    )}
+                                    <div className="absolute right-1.5 bottom-1.5">
+                                      <span className="text-xs font-black text-blue-400 drop-shadow-md">+{missionVp} VP</span>
                                     </div>
                                   </div>
                                 );
@@ -858,22 +899,21 @@ export default function Game() {
                             </div>
                           </section>
 
-                          {/* Federations Grid */}
+                          {/* Federations — Tactical Overview 비슷한 컴팩트 크기(64×64) */}
                           <section>
                             <div className="flex items-center gap-2 mb-4">
                               <Shield className="w-4 h-4 text-emerald-500" />
                               <h4 className="text-xs font-black text-white uppercase tracking-widest">Established Federations</h4>
                             </div>
-                            <div className="grid grid-cols-4 gap-2">
+                            <div className="flex flex-wrap gap-2">
                               {(player!.federations ?? []).map((fed, i) => {
                                 const img = getFederationImage(typeof fed === 'string' ? fed : fed.rewardId);
                                 const rid = typeof fed === 'string' ? fed : fed.rewardId;
-                                // For federations, we don't have individual VP in breakdown, but rewards have standard VP.
                                 const allRewards = [...FEDERATION_REWARDS, ...SPACESHIP_FEDERATION_REWARDS] as any[];
                                 const vp = allRewards.find(r => r.id === rid)?.vp || 0;
                                 return (
                                   <div key={i} className="flex flex-col items-center gap-1 group">
-                                    <div className="w-full aspect-square bg-zinc-900 border border-white/5 rounded-xl overflow-hidden flex items-center justify-center p-1 group-hover:border-emerald-500/50 transition-colors">
+                                    <div className="w-16 h-16 bg-zinc-900 border border-white/5 rounded-xl overflow-hidden flex items-center justify-center p-1 group-hover:border-emerald-500/50 transition-colors shrink-0">
                                       {img ? (
                                         <img src={img} alt={rid} className="w-full h-full object-contain" />
                                       ) : (
@@ -885,10 +925,44 @@ export default function Game() {
                                 );
                               })}
                               {(!player!.federations || player!.federations.length === 0) && (
-                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No federations established.</div>
+                                <div className="h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No federations established.</div>
                               )}
                             </div>
                           </section>
+
+                          {/* 인공물 (트왈라잇): 이미지 + 점수 표시 */}
+                          {(player!.artifacts?.length ?? 0) > 0 && (
+                            <section>
+                              <div className="flex items-center gap-2 mb-4">
+                                <span className="text-amber-400 font-black text-xs uppercase tracking-widest">Artifacts</span>
+                              </div>
+                              <div className="grid grid-cols-4 gap-2">
+                                {(player!.artifacts ?? []).map((aid, i) => {
+                                  const img = getArtifactImage(aid);
+                                  const label = ARTIFACTS.find(a => a.id === aid)?.label ?? aid;
+                                  return (
+                                    <div key={i} className="flex flex-col items-center gap-1 group">
+                                      <div className="w-full aspect-square bg-zinc-900 border border-amber-500/20 rounded-xl overflow-hidden flex items-center justify-center p-1 group-hover:border-amber-500/50 transition-colors">
+                                        {img ? (
+                                          <img src={img} alt={label} className="w-full h-full object-contain" title={label} />
+                                        ) : (
+                                          <span className="text-[8px] text-zinc-600 text-center truncate px-1">{label}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {b.other.some(o => o.source.startsWith('Artifact:')) && (
+                                <div className="mt-1 text-right">
+                                  <span className="text-[10px] font-bold text-zinc-500 mr-2 uppercase">Artifact VP:</span>
+                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 font-black">
+                                    +{b.other.filter(o => o.source.startsWith('Artifact:')).reduce((s, o) => s + o.vp, 0)} VP
+                                  </Badge>
+                                </div>
+                              )}
+                            </section>
+                          )}
                         </div>
 
                         {/* Special Extras: Spaceships & Proto */}
@@ -1878,7 +1952,7 @@ export default function Game() {
           }
 
           return (
-            <AlertDialog open={!!confirmPassWithTileId && confirmPassWithTileId !== 'dummy'} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
+            <AlertDialog open={!!confirmPassWithTileId} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
               <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-lg">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-white font-black uppercase tracking-wider flex items-center gap-2">
@@ -3485,7 +3559,7 @@ export default function Game() {
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: -50, x: '-50%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-20 left-1/2 z-[100] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+            className="fixed top-20 left-1/2 z-[130] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
           >
             {/* Title & Costs (Left Side) */}
             <div className="flex items-center gap-3 border-r border-white/10 pr-4">

@@ -868,10 +868,15 @@ export function GameBoard({
                       </g>
                     )}
 
-                    {/* Player Building Highlight (Hover from sidebar) */}
-                    {hoveredPlayerId && tile.ownerId === hoveredPlayerId && tile.structure && tile.structure !== 'ship' && (() => {
+                    {/* Player Building / Federation / Satellite Highlight (Hover from sidebar) - 연방·위성 칸 동일 점선 UI */}
+                    {hoveredPlayerId && (() => {
+                      const isOwnBuilding = tile.ownerId === hoveredPlayerId && tile.structure && tile.structure !== 'ship';
+                      const isSatelliteOrStation = satelliteOwnerIds.includes(hoveredPlayerId) || tile.spaceStation?.ownerId === hoveredPlayerId;
+                      if (!isOwnBuilding && !isSatelliteOrStation) return null;
+
                       const isFederated = game.playerFederationHexes?.[hoveredPlayerId]?.includes(tile.id);
-                      const highlightColor = isFederated ? '#FFD700' : '#00F2FF'; // Gold for Federated, Cyan for Non-Federated
+                      // 연방 건물 칸도 위성 칸과 동일한 점선 스타일. 색만 구분 (연방=금, 그외=시안)
+                      const highlightColor = isFederated ? '#FFD700' : '#00F2FF';
 
                       return (
                         <g className="pointer-events-none">
@@ -880,20 +885,14 @@ export function GameBoard({
                             fill="none"
                             stroke={highlightColor}
                             strokeWidth="0.5"
+                            strokeDasharray="1.2 0.8"
                             className="animate-pulse"
                             style={{
                               filter: `drop-shadow(0 0 4px ${highlightColor})`,
                               opacity: 0.8
                             }}
                           />
-                          {/* Inner glow for better visibility */}
-                          <circle
-                            r="4.5"
-                            fill="none"
-                            stroke={highlightColor}
-                            strokeWidth="0.1"
-                            opacity="0.4"
-                          />
+                          <circle r="4.5" fill="none" stroke={highlightColor} strokeWidth="0.1" opacity="0.4" />
                         </g>
                       );
                     })()}
