@@ -87,6 +87,15 @@ const games = new Map<string, ServerGameState>();
 const playerGameMap = new Map<string, string>();
 const socketToPlayerMap = new Map<string, string>();
 
+/**
+ * 턴 시작/리셋용 전체 게임 스냅샷. turnStartState를 제외해 복사하면
+ * 중첩으로 인한 기하급수적 용량 증가와 RangeError: Invalid string length 방지.
+ */
+function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
+  const { turnStartState: _ts, ...rest } = game;
+  return JSON.parse(JSON.stringify({ ...rest, turnStartState: undefined })) as ServerGameState;
+}
+
 /** 자원 상한: O/K 최대 15, C 최대 30 */
 const MAX_ORE = 15;
 const MAX_KNOWLEDGE = 15;
@@ -1383,6 +1392,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
       mapState: JSON.parse(JSON.stringify(game.map)),
       spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
       gameLogLength: game.gameLog?.length || 0,
+      fullGameState: cloneGameForTurnStartSnapshot(game),
     };
   }
   clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
@@ -1422,7 +1432,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
       mapState: JSON.parse(JSON.stringify(game.map)),
       spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
       gameLogLength: game.gameLog?.length || 0,
-      fullGameState: JSON.parse(JSON.stringify(game)),
+      fullGameState: cloneGameForTurnStartSnapshot(game),
     };
   }
   clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
@@ -1964,6 +1974,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           // 테라포밍 1단계 추가
           player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
           player.usedBonusAction = true;
+          addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
           log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game');
           // 테라포밍 액션은 자동 패스하지 않음 (광산 건설 후 사용)
           // 자동 패스 로직 제거
@@ -1979,6 +1990,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           player.usedBonusAction = true;
           game.pendingTFMarsGaiaProject = { playerId, shipTileId: 'bonus-gaia' };
           game.hasDoneMainAction = true;
+          addGameLog(game, playerId, 'Bonus Action', 'Gaia Project');
           log(`Player ${player.name} activated bonus action: Gaia Project (place Gaiaformer or skip)`, 'game');
           clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
           return;
@@ -1987,6 +1999,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           // +3 거리: 트왈라잇 1K와 동일하게 이번 턴에 광산/포밍 등 행동 후 End Turn (자동 패스 안 함)
           player.usedBonusAction = true;
           player.rangeBonusActive = true;
+          addGameLog(game, playerId, 'Bonus Action', '+3 Range');
           log(`Player ${player.name} activated bonus action: +3 range (this turn)`, 'game');
           clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
           return;
@@ -2717,6 +2730,7 @@ export function setupGameServer(httpServer: HTTPServer) {
         game.players[playerId] = JSON.parse(JSON.stringify(startState.playerState));
         game.map = JSON.parse(JSON.stringify(startState.mapState));
         if (startState.spaceshipsState) game.spaceships = JSON.parse(JSON.stringify(startState.spaceshipsState));
+        if (startState.twilightArtifactSlots) game.twilightArtifactSlots = JSON.parse(JSON.stringify(startState.twilightArtifactSlots));
         if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
         game.hasDoneMainAction = false;
         clampPlayerResources(game);
@@ -3132,12 +3146,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
-      // 팅커로이드 보너스 선택 완료 후 
-      // 턴을 강제로 리셋하는 helperStartNewRoundTurn 대신 봇 후속 조치만 호출.
-      // 팅커 특수 보너스 선택은 메인 액션을 소모하지 않음.
-      executeBotTurnIfNeeded(io, game).catch(err => {
-        log(`Bot turn execution error (TinkeroidSpecial): ${err}`, 'error');
-      });
+      // 팅커로이드 선택이 수익 단계 마지막 단계이므로, 액션 단계로 전환 (내부에서 executeBotTurnIfNeeded 호출)
+      helperStartNewRoundTurn(io, game);
     });
 
     socket.on('use_special_action', ({ gameId, actionId }) => {
@@ -3241,6 +3251,8 @@ export function setupGameServer(httpServer: HTTPServer) {
       addGameLog(game, playerId, 'Tinkeroid: Round Special', `Round ${game.roundNumber}: ${actionId}`, undefined);
       log(`Tinkeroid: ${player.name} chose special for round ${game.roundNumber}: ${actionId}`, 'game');
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+      // 팅커로이드 선택이 수익 단계 마지막 단계이므로, 여기서 액션 단계로 전환
+      helperStartNewRoundTurn(io, game);
     });
 
     // 엠바스(Ambas): 의회 건설 후 Special — 의회와 광산 위치 교체 (라운드당 1회). 배치지 변경이므로 RM7·다카니안 의회 보너스 미적용.
@@ -3723,7 +3735,7 @@ export function setupGameServer(httpServer: HTTPServer) {
           mapState: JSON.parse(JSON.stringify(game.map)),
           spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
           gameLogLength: game.gameLog?.length || 0,
-          fullGameState: JSON.parse(JSON.stringify(game)),
+          fullGameState: cloneGameForTurnStartSnapshot(game),
         };
       }
 
@@ -3879,6 +3891,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       game.pendingIncomeOrder.appliedItems.push(...applied);
       game.pendingIncomeOrder.incomeItems = [];
+      addGameLog(game, targetPlayerId, 'Received Income', `All items collected: ${applied.length} items`);
       log(`Player ${player.name} auto-received all income (Optimal Order): ${items.length} items`, 'game');
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
     });
@@ -4031,6 +4044,38 @@ export function setupGameServer(httpServer: HTTPServer) {
       executePassRound(io, game, playerId, newBonusTileId);
     });
 
+    socket.on('cancel_twilight_federation', ({ gameId }) => {
+      const game = games.get(gameId); if (!game) return;
+      const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+      if (!game.pendingTwilightFederation || game.pendingTwilightFederation.playerId !== playerId) return;
+
+      const startState = game.turnStartState?.[playerId];
+      if (startState) {
+        log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game');
+        if (startState.fullGameState) {
+          const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+          // Keep the ID and other metadata but restore the game content
+          games.set(gameId, restored);
+          clampPlayerResources(restored);
+          io.to(gameId).emit('game_updated', restored);
+        } else {
+          game.players[playerId] = JSON.parse(JSON.stringify(startState.playerState));
+          game.map = JSON.parse(JSON.stringify(startState.mapState));
+          if (startState.spaceshipsState) game.spaceships = JSON.parse(JSON.stringify(startState.spaceshipsState));
+          if (startState.twilightArtifactSlots) game.twilightArtifactSlots = JSON.parse(JSON.stringify(startState.twilightArtifactSlots));
+          if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
+          game.hasDoneMainAction = false;
+          game.pendingTwilightFederation = null;
+          clampPlayerResources(game);
+          io.to(gameId).emit('game_updated', game);
+        }
+      } else {
+        game.pendingTwilightFederation = null;
+        clampPlayerResources(game);
+        io.to(gameId).emit('game_updated', game);
+      }
+    });
+
 
 
 
@@ -4064,8 +4109,9 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
     playerState: JSON.parse(JSON.stringify(game.players[playerId])),
     mapState: JSON.parse(JSON.stringify(game.map)),
     spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+    twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
     gameLogLength: game.gameLog?.length || 0,
-    fullGameState: JSON.parse(JSON.stringify(game)),
+    fullGameState: cloneGameForTurnStartSnapshot(game),
   };
 }
 
@@ -4738,10 +4784,9 @@ export function executeSelectFaction(
   }
 
   player.faction = factionId;
-
-  // Apply starting specs
   const faction = FACTIONS.find(f => f.id === factionId);
   if (faction) {
+    addGameLog(game, playerId, 'Selected Faction', faction.name);
     log(`Applying starting specs for ${faction.name}`, 'game');
 
     // Resources (글린: 시작 QIC는 광물로)
@@ -4920,7 +4965,8 @@ export function executePlaceStartingMine(
   tile.ownerId = playerId;
   player.startingMinesPlaced++;
 
-  const structureName = startingStructure === 'planetary_institute' ? 'PI' : 'mine';
+  const structureName = startingStructure === 'planetary_institute' ? 'Planetary Institute' : 'Mine';
+  addGameLog(game, playerId, `Placed Starting ${structureName}`, `Position: ${tileId}`, tileId);
   log(`Player ${player.name} (${faction.name}) placed ${structureName} #${player.startingMinesPlaced}. Total: ${totalMinesPlaced + 1}`, 'game');
 
   const newTotal = totalMinesPlaced + 1;
@@ -4967,6 +5013,8 @@ export function executeSelectBonus(
   player.bonusTile = bonusTileId;
   game.availableBonusTiles.splice(tileIndex, 1);
 
+  const tile = ALL_BONUS_TILES.find(t => t.id === bonusTileId);
+  addGameLog(game, playerId, 'Selected Bonus Tile', tile?.label || bonusTileId);
   log(`Player ${player.name} selected bonus tile: ${bonusTileId}`, 'game');
 
   // Move to next player (reverse order)
@@ -4988,6 +5036,7 @@ export function executeSelectBonus(
         mapState: JSON.parse(JSON.stringify(game.map)),
         spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
         gameLogLength: game.gameLog?.length || 0,
+        fullGameState: cloneGameForTurnStartSnapshot(game),
       };
     }
 
@@ -5211,8 +5260,9 @@ export function executePassRound(
         playerState: JSON.parse(JSON.stringify(game.players[nextId])),
         mapState: JSON.parse(JSON.stringify(game.map)),
         spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+        twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
         gameLogLength: game.gameLog?.length || 0,
-        fullGameState: JSON.parse(JSON.stringify(game)),
+        fullGameState: cloneGameForTurnStartSnapshot(game),
       };
     }
 
@@ -5647,11 +5697,13 @@ export function executeEndTurn(
       mapState: JSON.parse(JSON.stringify(game.map)),
       spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
       gameLogLength: game.gameLog?.length || 0,
+      fullGameState: cloneGameForTurnStartSnapshot(game),
     };
   }
 
   clampPlayerResources(game);
   io.to(game.id).emit('game_updated', game);
+  addGameLog(game, playerId, 'End Turn', `Next player: ${newCurrentPlayerId}`);
   log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game');
 
   // Trigger next bot turn if applicable
@@ -5947,13 +5999,17 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 
     const sourcePlayer = game.players[offer.sourcePlayerId];
     const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
+    // 중첩 로그 시도하되, 실패하거나 더 명확한 표시를 위해 개별 로그도 병행 고려 (보통 중첩이 가독성 좋음)
     const added = addSubLogToLastAction(game, offer.sourcePlayerId, {
       playerId: actualTargetId,
       playerName: targetPlayer.name,
       text: `↳ Received Power ${text} ${targetPlayer.name}`
     });
     if (!added) {
-      addGameLog(game, actualTargetId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
+      addGameLog(game, actualTargetId, 'Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
+    } else {
+      // 중첩되었더라도 최소한 개별 플레이어 입장에서 무엇인가 일어났음을 알 수 있도록 개별 로그도 남김 (상수 필터링 고려)
+      addGameLog(game, actualTargetId, 'Power Gained', `${text} (via ${sourcePlayer?.name})`, offer.tileId);
     }
     log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game');
   } else {

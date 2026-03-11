@@ -23,6 +23,8 @@ interface ResearchBoardProps {
     onUseAcademyQic?: () => void;
     /** 메인 액션 완료 후 턴 종료 (아카데미 QIC 등 사용 후 R 패널에서 바로 턴 종료 가능) */
     onEndTurn?: () => void;
+    /** 메인 액션 취소 (턴 시작 상태로 복구) */
+    onResetTurn?: () => void;
     /** 화면 왼쪽에 상시 고정되는 축소 버전 여부 */
     isMini?: boolean;
 }
@@ -66,7 +68,7 @@ const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: 
     ],
 };
 
-export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, isMini }: ResearchBoardProps) {
+export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini }: ResearchBoardProps) {
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
 
@@ -104,12 +106,30 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
             )}
             <CardContent className={`${isMini ? 'p-1.5 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
-                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && onEndTurn && (
-                    <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10">
-                        <p className="text-[10px] text-zinc-400 mb-2">메인 액션을 완료했습니다. 턴을 종료하려면 아래 버튼을 누르세요.</p>
-                        <Button size="sm" className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold" onClick={onEndTurn}>
-                            턴 종료 (End Turn)
-                        </Button>
+                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && (onEndTurn || onResetTurn) && (
+                    <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10 mb-4">
+                        <p className="text-[10px] text-zinc-400 mb-2 font-medium">메인 액션을 완료했습니다. 행동을 확정(Turn End)하거나 취소(Reset)할 수 있습니다.</p>
+                        <div className="flex gap-2">
+                            {onResetTurn && (
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="flex-1 border-red-500/50 hover:bg-red-500/10 text-red-400 text-xs font-bold" 
+                                    onClick={onResetTurn}
+                                >
+                                    리셋 (Reset)
+                                </Button>
+                            )}
+                            {onEndTurn && (
+                                <Button 
+                                    size="sm" 
+                                    className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold shadow-[0_0_15px_rgba(34,197,94,0.3)]" 
+                                    onClick={onEndTurn}
+                                >
+                                    턴 종료 (End Turn)
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 )}
                 {/* 기술 타일 선택 (R창 내, 팝업 없음) */}
@@ -523,10 +543,20 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 {[0, 1, 2, 3].map((idx) => {
                                                                     const aid = game.twilightArtifactSlots?.[idx];
                                                                     if (!aid) return <div key={idx} className="w-[54px] h-[35px] rounded-[1px] border border-dashed border-white/10" />;
+                                                                    const art = ARTIFACTS.find(a => a.id === aid);
                                                                     const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
                                                                     const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
+                                                                    
+                                                                    const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0);
+                                                                    const canTake = isInShip && onTakeTwilightArtifact && game.turnOrder?.[game.currentPlayerIndex ?? 0] === playerId && !game.hasDoneMainAction && totalPower >= 6;
+                                                                    
                                                                     return (
-                                                                        <div key={idx} className="w-[54px] h-[35px] rounded-[2px] bg-purple-900/40 overflow-hidden border border-purple-500/20 shadow-sm">
+                                                                        <div 
+                                                                            key={idx} 
+                                                                            onClick={() => canTake && onTakeTwilightArtifact?.(aid)}
+                                                                            className={`w-[54px] h-[35px] rounded-[2px] bg-purple-900/40 overflow-hidden border shadow-sm transition-all ${canTake ? 'border-purple-500 cursor-pointer hover:bg-purple-800/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]' : 'border-purple-500/20 opacity-50 cursor-default'}`}
+                                                                            title={art ? `${art.label}: ${art.description}` : ''}
+                                                                        >
                                                                             {artImgUrl && <img src={artImgUrl} alt="Art" className="w-full h-full object-contain" />}
                                                                         </div>
                                                                     );

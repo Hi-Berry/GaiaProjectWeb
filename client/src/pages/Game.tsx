@@ -79,6 +79,7 @@ export default function Game() {
   const [isResearchOpen, setIsResearchOpen] = useState(false);
   const [isBonusTilesOpen, setIsBonusTilesOpen] = useState(false);
   const [isFreeActionsOpen, setIsFreeActionsOpen] = useState(false);
+  const isMyTurn = game?.turnOrder && game?.currentPlayerIndex !== undefined ? game.turnOrder[game.currentPlayerIndex] === playerId : false;
   /** 우주선 기술 타일 2TF+Mine 플로우가 "미니 R패널"에서 시작됐는지 (자동 R창 열고닫기 억제용) */
   const [shipTech2TfMineFromMini, setShipTech2TfMineFromMini] = useState(false);
   const [confirmPassWithTileId, setConfirmPassWithTileId] = useState<string | null>(null);
@@ -100,7 +101,10 @@ export default function Game() {
   /** 맵 줌/팬: 페이즈 전환 시에도 유지 (localStorage 연동) */
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('is-sidebar-open');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [isZoomInitialized, setIsZoomInitialized] = useState(false);
 
   // 로컬 스토리지 로드 (gameId가 준비되면 한 번만)
@@ -111,11 +115,6 @@ export default function Game() {
       if (savedZoom) setMapZoom(parseFloat(savedZoom));
       if (savedPan) setMapPan(JSON.parse(savedPan));
       setIsZoomInitialized(true);
-
-      // 모바일에서는 사이드바를 기본으로 닫음
-      if (window.innerWidth < 1024) {
-        setIsSidebarOpen(false);
-      }
     }
   }, [gameId, isZoomInitialized]);
 
@@ -124,8 +123,9 @@ export default function Game() {
     if (gameId && isZoomInitialized) {
       localStorage.setItem(`game-zoom-${gameId}`, mapZoom.toString());
       localStorage.setItem(`game-pan-${gameId}`, JSON.stringify(mapPan));
+      localStorage.setItem('is-sidebar-open', String(isSidebarOpen));
     }
-  }, [gameId, mapZoom, mapPan, isZoomInitialized]);
+  }, [gameId, mapZoom, mapPan, isSidebarOpen, isZoomInitialized]);
 
   // 패스 시 보너스 타일 선택 대기 상태 확인
   const isPendingBonusSelection = game?.pendingBonusSelection === playerId;
@@ -1776,6 +1776,7 @@ export default function Game() {
                     if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
                   }}
                   onEndTurn={() => { if (gameId) GameClient.endTurn(gameId); setIsResearchOpen(false); }}
+                  onResetTurn={() => { if (gameId) GameClient.resetTurn(gameId); }}
                   onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
                     const shipTile = game.map.find(t => t.id === shipTileId);
                     const shipNames: Record<string, string> = { ship_twilight: 'Twilight', ship_rebellion: 'Rebellion', ship_tf_mars: 'TF Mars', ship_eclipse: 'Eclipse' };
@@ -2223,14 +2224,14 @@ export default function Game() {
                 </AlertDialogHeader>
                 <div className="grid grid-cols-2 gap-2 py-4">
                   {myRewards.length === 0 ? (
-                    <p className="col-span-2 text-zinc-500 text-sm">보유한 연방이 없습니다.</p>
+                    <p className="col-span-2 text-zinc-500 text-sm italic">보유한 연방이 없습니다.</p>
                   ) : (
                     myRewards.map((reward) => (
                       reward && (
                         <Button
                           key={reward.id}
                           variant="outline"
-                          className="bg-zinc-800 border-zinc-600"
+                          className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 text-white transition-all"
                           onClick={() => GameClient.confirmTwilightFederation(gameId, reward.id)}
                         >
                           {reward.label}
@@ -2239,6 +2240,15 @@ export default function Game() {
                     ))
                   )}
                 </div>
+                <AlertDialogFooter>
+                  <Button
+                    variant="ghost"
+                    className="text-zinc-400 hover:text-white hover:bg-zinc-800"
+                    onClick={() => GameClient.cancelTwilightFederation(gameId)}
+                  >
+                    취소 (Action Cancel)
+                  </Button>
+                </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           );
@@ -2786,65 +2796,80 @@ export default function Game() {
         ${isSidebarOpen ? 'w-[340px] translate-x-0 opacity-100' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none'}
         fixed lg:relative right-0 top-0 bottom-0 z-50 lg:z-auto
         transition-all duration-300 ease-in-out
-        border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card p-4 flex flex-col shadow-2xl lg:shadow-none
+        border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         max-w-[85vw]
       `}>
         {isSidebarOpen && (
-          <div className="flex flex-col h-full min-w-[308px] overflow-y-auto custom-scrollbar">
-
-            {/* 연방 구현: 모드 진입/취소 및 완료 */}
-            {game && game.currentPhase === 'main' && game.turnOrder[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !game.pendingFederationReward && (
-              <div className="mb-4 p-3 bg-black/80 border border-sky-500/40 rounded-xl">
-                {game.federationMode?.playerId === playerId ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[10px] text-sky-300 font-bold">
-                      빈 공간(위성)·내 건물 행성·우주정거장 클릭 토글. 내 건물/우주정거장 클릭 시 이어진 행성·우주정거장까지 연방에 포함. 위성 0개도 가능.
-                    </p>
-                    <div className="rounded-lg border border-sky-500/30 bg-sky-950/40 p-2 text-left">
-                      <p className="text-[9px] font-bold text-sky-200 mb-1">연방에 포함될 건물·우주정거장 (클릭할 때마다 갱신)</p>
-                      {game.federationPreview ? (
-                        <>
-                          <ul className="text-[9px] text-zinc-300 space-y-0.5 mb-1">
-                            {game.federationPreview.items.length === 0 ? (
-                              <li className="text-zinc-500">빈 칸·내 건물 행성·우주정거장을 클릭해 선택하세요</li>
-                            ) : (
-                              game.federationPreview.items.map((item, i) => (
-                                <li key={`${item.tileId}-${i}`}>{item.label} ({item.power})</li>
-                              ))
-                            )}
-                          </ul>
-                          <p className={`text-[10px] font-bold ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
-                            파워 {game.federationPreview.power} / {game.federationPreview.requiredPower} 필요
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-[9px] text-zinc-500">파워 계산 중…</p>
-                      )}
+          <div className="flex flex-col h-full min-w-[308px] overflow-hidden">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
+              {/* 연방 구현: 모드 진입/취소 및 완료 (X버튼 포함) */}
+              {isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward && (
+                <div className="p-3 bg-black/80 border border-sky-500/40 rounded-xl">
+                  {game.federationMode?.playerId === playerId ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[10px] text-sky-300 font-bold">
+                        빈 공간(위성)·내 건물 행성·우주정거장 클릭 토글. 내 건물/우주정거장 클릭 시 이어진 행성·우주정거장까지 연방에 포함. 위성 0개도 가능.
+                      </p>
+                      <div className="rounded-lg border border-sky-500/30 bg-sky-950/40 p-2 text-left">
+                        <p className="text-[9px] font-bold text-sky-200 mb-1">연방에 포함될 건물·우주정거장 (클릭할 때마다 갱신)</p>
+                        {game.federationPreview ? (
+                          <>
+                            <ul className="text-[9px] text-zinc-300 space-y-0.5 mb-1">
+                              {game.federationPreview.items.length === 0 ? (
+                                <li className="text-zinc-500">빈 칸·내 건물 행성·우주정거장을 클릭해 선택하세요</li>
+                              ) : (
+                                game.federationPreview.items.map((item, i) => (
+                                  <li key={`${item.tileId}-${i}`}>{item.label} ({item.power})</li>
+                                ))
+                              )}
+                            </ul>
+                            <p className={`text-[10px] font-bold ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
+                              파워 {game.federationPreview.power} / {game.federationPreview.requiredPower} 필요
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-[9px] text-zinc-500">파워 계산 중…</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
+                        <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)} title="상태창 닫기">
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
+                  ) : (
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
-                      <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+                      <Button size="sm" className="flex-1 bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
+                      <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)} title="상태창 닫기">
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button size="sm" className="flex-1 bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+                  )}
+                </div>
+              )}
+
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold flex items-center gap-2 text-zinc-400 text-xs uppercase tracking-widest">
+                    <Users className="w-4 h-4" />
+                    Players
+                  </h3>
+                  {!(isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 px-0 text-zinc-500 hover:text-white hover:bg-white/5"
+                      onClick={() => setIsSidebarOpen(false)}
+                      title="상태창 닫기"
+                    >
                       <X className="w-4 h-4" />
                     </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Players
-            </h3>
-            <div className="space-y-2">
+                  )}
+                </div>
+                <div className="space-y-2">
               {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
                 const pa = game.players[a];
                 const pb = game.players[b];
@@ -3392,21 +3417,22 @@ export default function Game() {
                   </Popover>
                 );
               })}
+              </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t">
+            <div className="mt-4 pt-4 border-t shrink-0">
               <Badge variant="outline" className="w-full justify-center">
                 Round {game.roundNumber}
               </Badge>
             </div>
 
             {/* Game Log - Expanded height */}
-            <div className="mt-4 pt-4 border-t flex-[3] flex flex-col min-h-[300px]">
+            <div className="mt-4 pt-4 border-t flex-none flex flex-col min-h-[300px]">
               <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm shrink-0">
                 <Clock className="w-4 h-4" />
                 Game Log
               </h3>
-              <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+              <div className="flex-1 overflow-y-auto w-full custom-scrollbar max-h-[400px]">
                 {(!game.gameLog || game.gameLog.length === 0) ? (
                   <div className="text-center text-muted-foreground text-xs py-8">
                     No actions yet
@@ -3435,7 +3461,7 @@ export default function Game() {
               onOpenChange={setIsFreeActionsOpen}
               game={game}
               playerId={playerId}
-              isCurrentTurn={isCurrentTurn}
+              isCurrentTurn={isMyTurn}
               onConvertResource={(type, useBrain) => GameClient.convertResource(gameId!, type, useBrain)}
               onBurnPower={(useBrain) => {
                 if (gameId) GameClient.burnPower(gameId, useBrain);
@@ -3447,10 +3473,10 @@ export default function Game() {
                 if (gameId) GameClient.undoFreeAction(gameId);
               }}
             />
-
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
 
       <AnimatePresence>
         {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
@@ -3624,6 +3650,7 @@ export default function Game() {
                 onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
                 onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
                 onEndTurn={() => GameClient.endTurn(gameId!)}
+                onResetTurn={() => GameClient.resetTurn(gameId!)}
                 onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
               />
             </ScrollArea>

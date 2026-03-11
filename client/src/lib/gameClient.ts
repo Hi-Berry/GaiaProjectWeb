@@ -354,6 +354,11 @@ export const GameClient = {
     s.emit('confirm_twilight_federation', { gameId, rewardId });
   },
 
+  cancelTwilightFederation(gameId: string) {
+    const s = getSocket();
+    s.emit('cancel_twilight_federation', { gameId });
+  },
+
   takeTwilightArtifact(gameId: string, artifactId: string) {
     const s = getSocket();
     s.emit('take_twilight_artifact', { gameId, artifactId });
