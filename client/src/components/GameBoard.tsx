@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Menu, X } from 'lucide-react';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
 import {
   PLANET_COLORS,
@@ -161,6 +161,10 @@ interface GameBoardProps {
   onZoomChange?: (zoom: number) => void;
   onPanChange?: (pan: { x: number; y: number }) => void;
   hoveredPlayerId?: string | null;
+  /** 상태창(Sidebar) 열림 여부 */
+  isSidebarOpen?: boolean;
+  /** 상태창 토글 함수 */
+  onToggleSidebar?: () => void;
 }
 
 
@@ -205,6 +209,8 @@ export function GameBoard({
   onZoomChange,
   onPanChange,
   hoveredPlayerId = null,
+  isSidebarOpen = false,
+  onToggleSidebar,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
@@ -965,6 +971,17 @@ export function GameBoard({
         </motion.div>
 
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+          {onToggleSidebar && (
+            <Button
+              size="icon"
+              variant="secondary"
+              className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
+              onClick={onToggleSidebar}
+              data-testid="button-toggle-sidebar"
+            >
+              {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </Button>
+          )}
           <Button
             size="icon"
             variant="secondary"
@@ -1000,7 +1017,10 @@ export function GameBoard({
       {/* 행성/타일 선택 패널: 절대 위치 오버레이로 맵 영역 크기에 영향 없음 */}
       {
         selectedTile && (
-          <div className="absolute top-0 right-0 bottom-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-10 overflow-y-auto">
+          <div
+            className={`absolute top-0 bottom-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarOpen ? 'right-[340px]' : 'right-0'
+              }`}
+          >
             <h3 className="font-semibold capitalize">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
             </h3>

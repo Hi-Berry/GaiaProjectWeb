@@ -42,6 +42,30 @@ const SHIP_ACTION_LABELS: Record<string, [string, string, string]> = {
     ship_eclipse: ['2Q → (2 + Planet Types)VP', '2K+3P → Research', '6C → Ast'],
 };
 
+/** 우주선별 액션 테마 색상 (QIC, Power, Knowledge, Terraform, Credit, Asteroid 등 자원/액션 성격에 맞춤) */
+const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: string; text: string }[]> = {
+    ship_twilight: [
+        { color: 'bg-emerald-500/20', border: 'border-emerald-500/40', hover: 'hover:bg-emerald-500/30', text: 'text-emerald-400' }, // QIC
+        { color: 'bg-purple-500/20', border: 'border-purple-500/40', hover: 'hover:bg-purple-500/30', text: 'text-purple-400' }, // Power
+        { color: 'bg-blue-500/20', border: 'border-blue-500/40', hover: 'hover:bg-blue-500/30', text: 'text-blue-400' }, // Knowledge
+    ],
+    ship_rebellion: [
+        { color: 'bg-emerald-500/20', border: 'border-emerald-500/40', hover: 'hover:bg-emerald-500/30', text: 'text-emerald-400' }, // QIC
+        { color: 'bg-purple-500/20', border: 'border-purple-500/40', hover: 'hover:bg-purple-500/30', text: 'text-purple-400' }, // Power
+        { color: 'bg-blue-500/20', border: 'border-blue-500/40', hover: 'hover:bg-blue-500/30', text: 'text-blue-400' }, // Knowledge
+    ],
+    ship_tf_mars: [
+        { color: 'bg-emerald-500/20', border: 'border-emerald-500/40', hover: 'hover:bg-emerald-500/30', text: 'text-emerald-400' }, // QIC
+        { color: 'bg-purple-500/20', border: 'border-purple-500/40', hover: 'hover:bg-purple-500/30', text: 'text-purple-400' }, // Terraform
+        { color: 'bg-yellow-500/20', border: 'border-yellow-500/40', hover: 'hover:bg-yellow-500/30', text: 'text-yellow-400' }, // Money
+    ],
+    ship_eclipse: [
+        { color: 'bg-emerald-500/20', border: 'border-emerald-500/40', hover: 'hover:bg-emerald-500/30', text: 'text-emerald-400' }, // QIC
+        { color: 'bg-purple-500/20', border: 'border-purple-500/40', hover: 'hover:bg-purple-500/30', text: 'text-purple-400' }, // Power
+        { color: 'bg-pink-500/20', border: 'border-pink-500/40', hover: 'hover:bg-pink-500/30', text: 'text-pink-400' }, // Asteroid
+    ],
+};
+
 export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, isMini }: ResearchBoardProps) {
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
@@ -421,17 +445,16 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             );
                         })()}
 
-                        {/* Power Actions — compact pills */}
+                        {/* Power Actions — Compact square grid */}
                         <div className="pt-1 border-t border-white/10 mt-1">
-                            <div className="text-[7px] uppercase font-black text-zinc-500 mb-1">Power Actions</div>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="grid grid-cols-7 gap-0.5">
                                 {game.powerActions.map((action) => (
                                     <button
                                         key={action.id}
                                         disabled={action.isUsed}
                                         onClick={() => !action.isUsed && onUsePowerAction(action.id)}
-                                        className={`px-1.5 py-0.5 rounded text-[8px] font-black border transition-all ${action.isUsed
-                                            ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed'
+                                        className={`aspect-square flex items-center justify-center rounded-[2px] text-[7px] font-black border transition-all ${action.isUsed
+                                            ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
                                             : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer'}`}
                                         title={`${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
                                     >
@@ -461,12 +484,29 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                                         return (
                                             <div key={tile.id} className={`p-1.5 rounded bg-zinc-900/60 border relative flex flex-col gap-1 ${isInShip ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]' : 'border-white/5'}`}>
-                                                <div className="flex justify-between items-start border-b border-white/5 pb-0.5">
-                                                    <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate w-full">{SHIP_NAMES[tile.type]}</span>
+                                                <div className="flex justify-between items-center border-b border-white/5 pb-0.5 min-w-0">
+                                                    <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+                                                        <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate">{SHIP_NAMES[tile.type]}</span>
+                                                        {/* Entered Players (Color Circles) */}
+                                                        <div className="flex gap-0.5 shrink-0">
+                                                            {ship.occupants.map((pid) => {
+                                                                const p = game.players[pid];
+                                                                const faction = p?.faction ? FACTIONS.find(f => f.id === p.faction) : null;
+                                                                return (
+                                                                    <div 
+                                                                        key={pid} 
+                                                                        className="w-1.5 h-1.5 rounded-full border border-black/40 shadow-sm"
+                                                                        style={{ backgroundColor: faction?.color || '#888' }}
+                                                                        title={p?.name || pid}
+                                                                    />
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
                                                     {!isInShip && <Lock className="w-1.5 h-1.5 text-amber-500/60 shrink-0 ml-1" />}
                                                 </div>
 
-                                                <div className="flex items-center gap-0.5">
+                                                <div className="flex items-center justify-center gap-1 py-1 flex-grow">
                                                     {/* Federation Reward (Reduced to 80%) */}
                                                     <div className="w-[35px] h-[35px] shrink-0 flex items-center justify-center">
                                                         {imgUrl ? (
@@ -477,7 +517,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     </div>
 
                                                     {/* Tech Tile or Artifacts (Twilight 2x2 - Restored) */}
-                                                    <div className={`${tile.type === 'ship_twilight' ? 'w-[110px] h-[72px]' : 'w-[44px] h-[44px]'} shrink-0 flex items-center justify-start relative`}>
+                                                    <div className={`${tile.type === 'ship_twilight' ? 'w-[110px] h-[72px]' : 'w-[44px] h-[44px]'} shrink-0 flex items-center justify-center relative`}>
                                                         {tile.type === 'ship_twilight' ? (
                                                             <div className="grid grid-cols-2 gap-0.5">
                                                                 {[0, 1, 2, 3].map((idx) => {
@@ -512,17 +552,12 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             )
                                                         )}
                                                     </div>
-
-                                                    <div className="flex flex-col gap-0.5 ml-auto" title={`라운드당 총 3회 액션 가능 (남음: ${3 - usedIndices.length}/3)`}>
-                                                        {[0, 1, 2].map(idx => (
-                                                            <div key={idx} className={`w-1 h-1 rounded-full ${usedIndices.includes(idx + 1) ? 'bg-zinc-600' : 'bg-green-500'}`} />
-                                                        ))}
-                                                    </div>
                                                 </div>
 
                                                 {/* Action Labels - Horizontal Buttons (Like Power Actions) */}
-                                                <div className="flex gap-0.5 mt-0.5">
+                                                <div className="flex gap-0.5 mt-auto pt-0.5">
                                                     {actionLabels.map((label, idx) => {
+                                                        const theme = SHIP_ACTION_THEME[tile.type]?.[idx];
                                                         const isUsed = usedIndices.includes(idx + 1);
                                                         const actionNum = idx + 1;
                                                         const isInShip = playerId && ship.occupants.includes(playerId);
@@ -534,10 +569,12 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 disabled={!canUse}
                                                                 onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
                                                                 className={`flex-1 text-[5px] leading-tight px-0.5 py-1 rounded-[2px] border transition-all font-black text-center ${isUsed
-                                                                    ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed'
-                                                                    : canUse
-                                                                        ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer'
-                                                                        : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
+                                                                    ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
+                                                                    : canUse && theme
+                                                                        ? `${theme.border} ${theme.color} ${theme.text} ${theme.hover} cursor-pointer`
+                                                                        : theme
+                                                                            ? `border-white/5 ${theme.color} text-zinc-500 cursor-default opacity-40`
+                                                                            : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
                                                                 title={label + (isUsed ? ' (이미 사용됨)' : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                             >
                                                                 {label}
@@ -546,20 +583,6 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     })}
                                                 </div>
 
-                                                <div className="flex justify-between items-end mt-auto pt-1">
-                                                    {/* Occupants: Fixed 4 slots for 4 players */}
-                                                    <div className="flex gap-0.5" title="탑승한 플레이어 (최대 4명)">
-                                                        {[0, 1, 2, 3].map(idx => {
-                                                            const pid = ship.occupants[idx];
-                                                            if (!pid) return <div key={idx} className="w-1.5 h-1.5 rounded-full border border-white/5 bg-black/40" />;
-                                                            const p = game.players[pid];
-                                                            const faction = FACTIONS.find(f => f.id === p?.faction);
-                                                            return (
-                                                                <div key={pid} className="w-1.5 h-1.5 rounded-full border border-black/40 shadow-sm" style={{ backgroundColor: faction?.color || '#fff' }} />
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
                                             </div>
                                         );
                                     })}
@@ -1149,20 +1172,26 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             {[0, 1, 2].map((idx) => {
                                                                 const actionNum = idx + 1;
                                                                 const label = actionLabels[idx];
-                                                                const alreadyUsed = usedIndices.includes(actionNum);
-                                                                const canUse = isInShip && onUseShipAction && !alreadyUsed && actionsUsedCount < 3;
-                                                                const disabled = alreadyUsed;
-                                                                if (canUse) {
-                                                                    return (
-                                                                        <Button key={idx} size="sm" className="w-full text-[9px] h-10 px-1 bg-zinc-800 border-white/10 hover:bg-zinc-700 flex flex-col items-center justify-center font-bold text-center leading-tight transition-all" onClick={() => onUseShipAction(tile.id, actionNum)} disabled={disabled}>
-                                                                            {label}
-                                                                        </Button>
-                                                                    );
-                                                                }
+                                                                const isUsed = usedIndices.includes(actionNum);
+                                                                const canUse = isInShip && onUseShipAction && !isUsed && actionsUsedCount < 3;
+                                                                const theme = SHIP_ACTION_THEME[tile.type]?.[idx];
+
                                                                 return (
-                                                                    <div key={idx} title={label + (alreadyUsed ? ' (이미 사용됨)' : '')} className={`text-[8px] h-10 px-1 rounded bg-black/20 border border-white/5 flex items-center justify-center text-center font-bold leading-tight ${alreadyUsed ? 'text-zinc-600 line-through' : 'text-zinc-500'}`}>
+                                                                    <button
+                                                                        key={idx}
+                                                                        disabled={!canUse}
+                                                                        onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
+                                                                        className={`w-full text-[9px] h-10 px-1 rounded border transition-all font-bold text-center leading-tight flex flex-col items-center justify-center ${isUsed
+                                                                            ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
+                                                                            : canUse && theme
+                                                                                ? `${theme.border} ${theme.color} ${theme.text} ${theme.hover} cursor-pointer`
+                                                                                : theme
+                                                                                    ? `border-white/5 ${theme.color} text-zinc-500 cursor-default opacity-40`
+                                                                                    : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
+                                                                        title={label + (isUsed ? ' (이미 사용됨)' : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                                    >
                                                                         {label}
-                                                                    </div>
+                                                                    </button>
                                                                 );
                                                             })}
                                                         </div>

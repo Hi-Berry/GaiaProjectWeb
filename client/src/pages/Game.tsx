@@ -1567,6 +1567,8 @@ export default function Game() {
               setPendingRebellionMineToTS(null);
               toast({ title: 'Rebellion 액션', description: '2: 1O+3P → M→TS', variant: 'default' });
             }}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
         </div>
 
@@ -2763,7 +2765,7 @@ export default function Game() {
 
         {/* 종족 선택 패널 (토글) */}
         {isFactionSelectOpen && ((game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect') && currentPlayer && !currentPlayer.faction) && (
-          <div className="absolute top-20 right-4 z-50 w-96 max-h-[80vh] overflow-y-auto bg-zinc-900/95 border border-zinc-700 rounded-xl p-4 shadow-2xl">
+          <div className={`absolute top-20 z-50 w-96 max-h-[80vh] overflow-y-auto bg-zinc-900/95 border border-zinc-700 rounded-xl p-4 shadow-2xl transition-all duration-300 ease-in-out ${isSidebarOpen ? 'right-[356px]' : 'right-4'}`}>
             <FactionSelect
               game={game}
               playerId={playerId}
@@ -2779,16 +2781,6 @@ export default function Game() {
         )}
 
       </main>
-
-      {/* Sidebar Toggle Button (Mobile) */}
-      <Button
-        variant="secondary"
-        size="icon"
-        className="fixed top-20 right-4 z-[70] lg:hidden rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-      >
-        {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </Button>
 
       <div className={`
         ${isSidebarOpen ? 'w-[340px] translate-x-0 opacity-100' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none'}
@@ -2832,13 +2824,23 @@ export default function Game() {
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
                       <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
+                      <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+                        <X className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 ) : (
-                  <Button size="sm" className="w-full bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
-            )}      <h3 className="font-semibold mb-4 flex items-center gap-2">
+            )}
+
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Users className="w-4 h-4" />
               Players
             </h3>
