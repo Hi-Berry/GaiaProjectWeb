@@ -206,13 +206,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     } else if (game.currentPhase === 'factionSelect') {
         currentPlayerId = game.turnOrder[game.currentPlayerIndex];
     } else if (game.currentPhase === 'startingMines') {
-        const totalMines = game.map.filter(t => t.structure === 'mine' || t.structure === 'planetary_institute').length;
+        const totalMinesPlaced = Object.values(game.players).reduce((sum, p) => sum + (p.startingMinesPlaced || 0), 0);
         const snakingSequence = (game as any).startingMineSequence ?? [];
-        if (snakingSequence.length > 0 && totalMines < snakingSequence.length) {
-            currentPlayerId = snakingSequence[totalMines];
-            log(`BotHandler DEBUG: startingMines - totalMines=${totalMines}, expected=${currentPlayerId}, seqLength=${snakingSequence.length}`, 'game');
+        if (snakingSequence.length > 0 && totalMinesPlaced < snakingSequence.length) {
+            currentPlayerId = snakingSequence[totalMinesPlaced];
         } else {
-            log(`BotHandler DEBUG: startingMines skip - totalMines=${totalMines}, seqLength=${snakingSequence.length}`, 'game');
             return;
         }
     } else if (game.currentPhase === 'bonusSelection') {

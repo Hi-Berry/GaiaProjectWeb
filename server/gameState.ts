@@ -1,4 +1,6 @@
 import { Server as SocketIOServer } from 'socket.io';
+import { setActiveEvaluatorWeights, getActiveEvaluatorWeights, type EvaluatorWeights } from './ai/evaluator';
+import { MCTS } from './ai/mcts';
 import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -1472,6 +1474,55 @@ export function setupGameServer(httpServer: HTTPServer) {
   io.on('connection', (socket) => {
     log(`Player connected: ${socket.id}`, 'socket.io');
 
+    /**
+     * (Dev/Tuning) AI Evaluator 가중치 런타임 변경.
+     * - 기본은 개발용: 토큰 없으면 NODE_ENV=production 에서 거부
+     * - 토큰을 쓰고 싶으면 서버 env에 AI_TUNING_TOKEN 을 설정하고, 요청에 token을 포함
+     */
+    socket.on('admin_set_ai_weights', ({ weights, token }, callback) => {
+      try {
+        const requiredToken = process.env.AI_TUNING_TOKEN;
+        const isProd = process.env.NODE_ENV === 'production';
+        if (isProd && !requiredToken) {
+          callback?.({ error: 'Not allowed in production without AI_TUNING_TOKEN' });
+          return;
+        }
+        if (requiredToken && token !== requiredToken) {
+          callback?.({ error: 'Invalid token' });
+          return;
+        }
+
+        const next = setActiveEvaluatorWeights(weights as Partial<EvaluatorWeights>);
+        callback?.({ ok: true, weights: next });
+      } catch (e) {
+        callback?.({ error: (e as Error).message });
+      }
+    });
+
+    socket.on('admin_get_ai_weights', (_payload, callback) => {
+      callback?.({ ok: true, weights: getActiveEvaluatorWeights() });
+    });
+
+    /** tune-ai에서 MCTS 생각 시간(ms) 런타임 변경. timeMs가 null이면 환경변수/기본값으로 복원 */
+    socket.on('admin_set_mcts_time_ms', ({ timeMs, token }, callback) => {
+      try {
+        const requiredToken = process.env.AI_TUNING_TOKEN;
+        const isProd = process.env.NODE_ENV === 'production';
+        if (isProd && !requiredToken) {
+          callback?.({ error: 'Not allowed in production without AI_TUNING_TOKEN' });
+          return;
+        }
+        if (requiredToken && token !== requiredToken) {
+          callback?.({ error: 'Invalid token' });
+          return;
+        }
+        MCTS.setTimeMsOverride(typeof timeMs === 'number' && timeMs > 0 ? timeMs : null);
+        callback?.({ ok: true });
+      } catch (e) {
+        callback?.({ error: (e as Error).message });
+      }
+    });
+
     socket.on('list_games', (callback) => {
       const gameList = Array.from(games.values()).map(g => ({
         id: g.id,
@@ -1764,8 +1815,8 @@ export function setupGameServer(httpServer: HTTPServer) {
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
     });
 
-    /** 테스트용 원클릭 자동 세팅 (봇 3개 + 랜덤 팩션 + 게임 시작) */
-    socket.on('auto_setup_test', ({ gameId }) => {
+    /** 테스트용 원클릭 자동 세팅 (봇 3개 + 랜덤 팩션 + 게임 시작). selfPlay: true 시 호스트도 봇으로 간주해 4인 전부 봇으로 진행 */
+    socket.on('auto_setup_test', ({ gameId, selfPlay }: { gameId: string; selfPlay?: boolean }) => {
       const game = games.get(gameId);
       if (!game) return;
       const callerId = socketToPlayerMap.get(socket.id);
@@ -1773,12 +1824,15 @@ export function setupGameServer(httpServer: HTTPServer) {
       if (game.currentPhase !== 'lobby') return;
 
       // 1. 봇 3개 추가 (최대 4인)
+      if (!game.botPlayerIds) game.botPlayerIds = [];
+      if (selfPlay && !game.botPlayerIds.includes(game.hostId)) {
+        game.botPlayerIds.push(game.hostId); // 자기대국: 호스트 슬롯도 봇이 수행
+      }
       while (Object.keys(game.players).length < 4) {
         const botId = `bot-${generatePlayerId()}`;
         const name = `AI Bot ${Object.keys(game.players).length + 1}`;
         game.players[botId] = createInitialPlayerState(name);
         game.turnOrder.push(botId);
-        if (!game.botPlayerIds) game.botPlayerIds = [];
         game.botPlayerIds.push(botId);
       }
 
@@ -1812,7 +1866,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
           // 이미 팩션이 있는 경우 (유저가 선택함), 턴 순서만 새로 배정하여 executeSelectFaction 호출
           if (player.faction) {
-            executeSelectFaction(io, game, pid, player.faction, idx + 1);
+            executeSelectFaction(io, game, pid, player.faction, idx + 1, { skipBotTrigger: true });
             return;
           }
 
@@ -1822,7 +1876,7 @@ export function setupGameServer(httpServer: HTTPServer) {
             if (!usedColors.has(f.color) && !usedFactionIds.has(f.id)) {
               usedColors.add(f.color);
               usedFactionIds.add(f.id);
-              executeSelectFaction(io, game, pid, f.id, idx + 1);
+              executeSelectFaction(io, game, pid, f.id, idx + 1, { skipBotTrigger: true });
               break;
             }
           }
@@ -4746,7 +4800,8 @@ export function executeSelectFaction(
   game: ServerGameState,
   playerId: string,
   factionId: string,
-  turnOrder?: number
+  turnOrder?: number,
+  options?: { skipBotTrigger?: boolean }
 ): boolean {
   const player = game.players[playerId];
   if (!player) return false;
@@ -4903,9 +4958,11 @@ export function executeSelectFaction(
   log(`Player ${player.name} selected faction ${factionId}. State: ${JSON.stringify(player)}`, 'game');
   clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
-  executeBotTurnIfNeeded(io, game).catch(err => {
-    log(`Bot turn execution error (SelectFaction): ${err}`, 'error');
-  });
+  if (!options?.skipBotTrigger) {
+    executeBotTurnIfNeeded(io, game).catch(err => {
+      log(`Bot turn execution error (SelectFaction): ${err}`, 'error');
+    });
+  }
 
   return true;
 }
@@ -5704,12 +5761,16 @@ export function executeEndTurn(
   clampPlayerResources(game);
   io.to(game.id).emit('game_updated', game);
   addGameLog(game, playerId, 'End Turn', `Next player: ${newCurrentPlayerId}`);
-  log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game');
+  if (!(game as any).simulation) {
+    log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game');
+  }
 
-  // Trigger next bot turn if applicable
-  executeBotTurnIfNeeded(io, game).catch(err => {
-    log(`Bot turn execution error (after executeEndTurn): ${err}`, 'error');
-  });
+  // Trigger next bot turn if applicable (시뮬레이션 중에는 호출하지 않음)
+  if (!(game as any).simulation) {
+    executeBotTurnIfNeeded(io, game).catch(err => {
+      log(`Bot turn execution error (after executeEndTurn): ${err}`, 'error');
+    });
+  }
 
   return true;
 }

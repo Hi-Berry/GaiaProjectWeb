@@ -16,8 +16,22 @@ export interface MCTSNode {
 
 export class MCTS {
     private static readonly C = Math.sqrt(2); // Exploration constant
-    private static readonly MAX_TIME_MS = 3000; // 3 seconds max
-    private static readonly MAX_DEPTH = 5; // Depth limit to keep it fast
+    /** tune-ai 등에서 런타임으로 짧게 쓰려면 setTimeMsOverride(1000) 호출 */
+    private static _timeMsOverride: number | null = null;
+    static setTimeMsOverride(ms: number | null): void {
+        MCTS._timeMsOverride = ms;
+    }
+    /** 환경 변수 MCTS_TIME_MS(숫자)로 오버라이드 가능. 기본 3초. _timeMsOverride 있으면 우선 */
+    private static get MAX_TIME_MS(): number {
+        if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
+        const v = typeof process !== 'undefined' && process.env?.MCTS_TIME_MS ? parseInt(process.env.MCTS_TIME_MS, 10) : NaN;
+        return Number.isFinite(v) ? v : 3000;
+    }
+    /** 환경 변수 MCTS_MAX_DEPTH(숫자)로 오버라이드 가능. 깊이 늘리면 강해지지만 느려짐 */
+    private static get MAX_DEPTH(): number {
+        const v = typeof process !== 'undefined' && process.env?.MCTS_MAX_DEPTH ? parseInt(process.env.MCTS_MAX_DEPTH, 10) : NaN;
+        return Number.isFinite(v) ? v : 5;
+    }
 
     static async search(initialState: ServerGameState, playerId: string, possibleActions: any[]): Promise<any | null> {
         // Find possible top-level actions

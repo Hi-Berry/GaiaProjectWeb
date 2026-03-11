@@ -165,7 +165,7 @@ export class BotLogic {
 
             // 기술 타일 선택 대기 중
             if (game.pendingTechTileSelection?.playerId === playerId) {
-                return this.findTechTileAction(game, playerId);
+                return this.findTechTileAction(game, playerId, isSimulate);
             }
 
             // 우주선 기술(2TF+Mine) 광산 건설 대기 중
@@ -477,15 +477,15 @@ export class BotLogic {
                 let score = 60;
                 // 종족별 PI 파워 체크 및 우선순위
                 if (player.faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 50;
-                
+
                 // 피락스: 연구소가 있어야 의회 능력이 의미 있음 (유저 피드백)
                 if (player.faction === 'firaks') {
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
                     if (hasLab) score += 45;
                 }
-                
+
                 if (player.faction === 'nevlas') score += 40; // 네블라스 의회 강력 추천
-                
+
                 // 이비츠는 기본적으로 PI를 갖고 시작하므로 !hasPI 조건에서 이미 걸러지지만, 명시적 점수 상향은 제거
 
                 if (round >= 3) score += 20;
@@ -1216,7 +1216,7 @@ export class BotLogic {
         return score;
     }
 
-    private static findTechTileAction(game: ServerGameState, playerId: string): BotAction | null {
+    private static findTechTileAction(game: ServerGameState, playerId: string, isSimulate = false): BotAction | null {
         const player = game.players[playerId];
         const pending = game.pendingTechTileSelection;
         if (!pending) return null;
@@ -1262,7 +1262,10 @@ export class BotLogic {
         // 트랙 선택 (해당 타일이 요구하는 트랙 또는 가장 높은 점수의 트랙)
         const trackId = this.pickResearchTrack(game, player, playerId) || 'economy';
 
-        log(`Bot ${player.name} selected Tech Tile: ${bestTile.id} (Score: ${maxScore.toFixed(1)})`, 'game', game.id);
+        // MCTS 롤아웃 시에는 매 시뮬 상태마다 로그가 쌓이므로, 실제 수 결정 시에만 로그
+        if (!isSimulate) {
+            log(`Bot ${player.name} selected Tech Tile: ${bestTile.id} (Score: ${maxScore.toFixed(1)})`, 'game', game.id);
+        }
         return { type: 'select_tech_tile', params: { techTileId: bestTile.id, trackId } };
     }
 
@@ -1431,7 +1434,7 @@ export class BotLogic {
             if (neededQic > qic) continue;
 
             let score = 50; // 기본 입장 점수 (5VP 가치)
-            
+
             // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
             const occupants = shipState?.occupants?.length || 0;
             if (occupants === 1 || occupants === 2) score += 20;
@@ -1798,7 +1801,7 @@ export class BotLogic {
             // 다른 종류의 행성일 경우, 테라포밍 비용 대비 가치 평가 (사용자 피드백 반영)
             const steps = getTerraformStepsForFaction(game, player.faction!, tile.type!);
             if (steps >= 2) return 0; // 2단계 이상 삽질이 필요하면 견제보다는 내 내실에 집중
-            
+
             // 0~1단계 삽질로 먹을 수 있는 땅이라면 약간의 견제 점수 부여
             threatScore += (2 - steps) * 10;
         }
