@@ -1017,8 +1017,8 @@ export function GameBoard({
       {
         selectedTile && (
           <div
-            className={`absolute top-0 bottom-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarOpen ? 'right-[340px]' : 'right-0'
-              }`}
+            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out"
+
           >
             <h3 className="font-semibold capitalize">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
