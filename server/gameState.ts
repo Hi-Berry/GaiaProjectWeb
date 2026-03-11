@@ -2565,6 +2565,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       // 타일에 가이아 포머 설치
       tile.hasGaiaformer = true;
+      tile.gaiaformerOwnerId = playerId;
 
       if (immediateBuildable) {
         // TF2/보너스: 즉시 성숙 → 가이아 행성으로 표시, 당장 광산 건설 가능. 가이아포머는 타일에 유지
@@ -3897,7 +3898,6 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       game.pendingIncomeOrder.appliedItems.push(...applied);
       game.pendingIncomeOrder.incomeItems = [];
-      addGameLog(game, targetPlayerId, 'Received Income', `All items collected: ${applied.length} items`);
       log(`Player ${player.name} auto-received all income (Optimal Order): ${items.length} items`, 'game');
       clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
     });
@@ -4359,6 +4359,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
     if (tile.hasGaiaformer && player.pendingGaiaformerTiles?.includes(tileId)) {
       tile.hasGaiaformer = false;
+      tile.gaiaformerOwnerId = undefined;
       player.gaiaformers = (player.gaiaformers ?? 0) + 1;
       player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
       addGameLog(game, playerId, 'Gaiaformer Returned', 'Moved back to faction board', tileId);
@@ -4570,6 +4571,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
   if (tile.hasGaiaformer && player.pendingGaiaformerTiles?.includes(tileId)) {
     tile.hasGaiaformer = false;
+    tile.gaiaformerOwnerId = undefined;
     player.gaiaformers = (player.gaiaformers ?? 0) + 1;
     player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
     addGameLog(game, playerId, 'Gaiaformer Returned', 'Moved back to faction board', tileId);
@@ -5709,7 +5711,6 @@ export function executeEndTurn(
 
   clampPlayerResources(game);
   io.to(game.id).emit('game_updated', game);
-  addGameLog(game, playerId, 'End Turn', `Next player: ${newCurrentPlayerId}`);
   log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game');
 
   // Trigger next bot turn if applicable
