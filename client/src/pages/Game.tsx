@@ -1199,7 +1199,7 @@ export default function Game() {
                   <SelectValue placeholder="플레이어 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {game.turnOrder.map((id) => {
+                  {game.turnOrder.filter(id => id === game.hostId || game.hostAddedPlayerIds?.includes(id)).map((id) => {
                     const p = game.players[id];
                     return (
                       <SelectItem key={id} value={id} className="text-xs">

@@ -1499,6 +1499,7 @@ export function setupGameServer(httpServer: HTTPServer) {
         roundNumber: 0,
         currentPlayerIndex: 0,
         turnOrder: [playerId],
+        hostAddedPlayerIds: [],
         maxPlayers: 4,
         createdAt: Date.now(),
         isTestMode: false,
@@ -1645,6 +1646,8 @@ export function setupGameServer(httpServer: HTTPServer) {
       const name = playerName || `Player ${Object.keys(game.players).length + 1}`;
       game.players[newPlayerId] = createInitialPlayerState(name);
       game.turnOrder.push(newPlayerId);
+      if (!game.hostAddedPlayerIds) game.hostAddedPlayerIds = [];
+      game.hostAddedPlayerIds.push(newPlayerId);
       clampPlayerResources(game);
       io.to(gameId).emit('game_updated', game);
       callback({ playerId: newPlayerId, name, game });
@@ -1667,6 +1670,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 
       if (!game.botPlayerIds) game.botPlayerIds = [];
       game.botPlayerIds.push(botId);
+
+      if (!game.hostAddedPlayerIds) game.hostAddedPlayerIds = [];
+      game.hostAddedPlayerIds.push(botId);
 
       log(`AI Bot added: ${name} (${botId}) to game ${gameId}`, 'game');
       clampPlayerResources(game);

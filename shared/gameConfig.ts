@@ -379,6 +379,8 @@ export interface GaiaGameState {
   turnOrder: string[];
   /** AI 봇 플레이어 ID 목록 */
   botPlayerIds?: string[];
+  /** 방장이 수동으로 추가한 로컬 플레이어 ID (봇 제외) */
+  hostAddedPlayerIds?: string[];
 
   isTestMode: boolean;
   hasDoneMainAction: boolean;
