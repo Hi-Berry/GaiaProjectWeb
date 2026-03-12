@@ -12,7 +12,8 @@
     "self-play": "tsx server/ai/selfPlayRunner.ts",
     "tune-ai": "tsx server/ai/tuneAi.ts",
     "tune-ai:1000": "cross-env TUNE_GAMES=1000 tsx server/ai/tuneAi.ts",
-    "tune-ai:20": "cross-env TUNE_GAMES=20 TUNE_GPC=20 tsx server/ai/tuneAi.ts"
+    "tune-ai:20": "cross-env TUNE_GAMES=20 TUNE_GPC=20 tsx server/ai/tuneAi.ts",
+    "tune-ai:grid": "tsx server/ai/tuneAiGridSearch.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
