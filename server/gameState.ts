@@ -1398,7 +1398,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 			mapState: JSON.parse(JSON.stringify(game.map)),
 			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game),
+			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 		};
 	}
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
@@ -1438,7 +1438,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 			mapState: JSON.parse(JSON.stringify(game.map)),
 			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game),
+			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 		};
 	}
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
@@ -1837,7 +1837,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 
 			// Trigger bot turn if first player is a bot
-			executeBotTurnIfNeeded(io, game).catch(err => {
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (start_game): ${err}`, 'error');
 			});
 		});
@@ -1957,7 +1957,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			// 모든 세팅이 안정된 후 단 한 번 봇 턴 실행 트리거
-			executeBotTurnIfNeeded(io, game).catch(err => {
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (auto_setup_test): ${err}`, 'error');
 			});
 		});
@@ -2569,116 +2569,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// Transdim에 가이아 포머 설치
 		socket.on('place_gaiaformer', ({ gameId, tileId, qicUsed }) => {
 			const game = games.get(gameId); if (!game) return;
-			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			// TF Mars 액션2로 부여된 가이아 프로젝트 1회는 메인 액션 소모 없이 실행 가능
-			const fromTFMars = game.pendingTFMarsGaiaProject?.playerId === playerId;
-			if (!fromTFMars && game.hasDoneMainAction) return;
-
-			// 액션 시작 시점 상태 저장
-			saveActionStartState(game, playerId);
-
-			const player = game.players[playerId];
-			const tile = game.map.find(t => t.id === tileId);
-			if (!tile || tile.type !== 'transdim' || tile.hasGaiaformer || tile.structure !== null) return;
-
-			// 가이아 포머가 있어야 함 (발타크: QIC 전환으로 잠긴 포머 제외)
-			if (getEffectiveGaiaformers(player) <= 0) return;
-
-			// 거리 체크 (Nav+1, 보너스/트왈라잇 +3, 글린 +2 적용)
-			let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-			if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-			if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
-			const rangeTiles = getPlayerRangeTiles(game, playerId, true);
-			if (rangeTiles.length === 0) return;
-
-			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-			const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-
-			// QIC 사용량 확인
-			const qicToUse = qicUsed || 0;
-			if (qicToUse < neededQIC) return; // 필요한 QIC보다 적으면 설치 불가
-			if (player.qic < qicToUse) return; // 보유 QIC 부족
-
-			// QIC 소모
-			player.qic -= qicToUse;
-
-			const gaiaLevel = player.research.gaiaProject || 0;
-			let powerToMove = 0;
-
-			const pendingGaia = game.pendingTFMarsGaiaProject;
-			const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
-			const immediateBuildable = fromTFMars || isBonusGaia; // TF2 또는 보너스 즉포는 당장 건설 가능
-
-			if (!immediateBuildable) {
-				// 가이아 포머 기술 레벨에 따라 파워 토큰 개수 결정
-				if (gaiaLevel >= 1 && gaiaLevel < 3) {
-					powerToMove = 6; // 1단계: 6개
-				} else if (gaiaLevel >= 3 && gaiaLevel < 4) {
-					powerToMove = 4; // 3단계: 4개
-				} else if (gaiaLevel >= 4) {
-					powerToMove = 3; // 4단계: 3개
-				} else {
-					return; // 가이아 포머 기술이 없으면 설치 불가
-				}
-
-				// 파워 토큰 이동: 1그릇->2그릇->3그릇 순
-				let remaining = powerToMove;
-				let movedFrom1 = Math.min(remaining, player.power1 || 0);
-				player.power1 = (player.power1 || 0) - movedFrom1;
-				remaining -= movedFrom1;
-
-				let movedFrom2 = Math.min(remaining, player.power2 || 0);
-				player.power2 = (player.power2 || 0) - movedFrom2;
-				remaining -= movedFrom2;
-
-				let movedFrom3 = Math.min(remaining, player.power3 || 0);
-				player.power3 = (player.power3 || 0) - movedFrom3;
-				remaining -= movedFrom3;
-
-				if (remaining > 0) return; // 파워 토큰이 부족하면 설치 불가
-
-				// 가이아 포머 구역으로 파워 토큰 이동
-				player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
-			}
-
-			player.gaiaformers = (player.gaiaformers || 0) - 1;
-
-			// 타일에 가이아 포머 설치
-			tile.hasGaiaformer = true;
-			tile.gaiaformerOwnerId = playerId;
-
-			if (immediateBuildable) {
-				// TF2/보너스: 즉시 성숙 → 가이아 행성으로 표시, 당장 광산 건설 가능. 가이아포머는 타일에 유지
-				if (!player.pendingGaiaformerTiles) player.pendingGaiaformerTiles = [];
-				player.pendingGaiaformerTiles.push(tileId);
-				tile.type = 'gaia';
-				tile.isGaiaformed = true;
-				// hasGaiaformer 유지 → 설치한 플레이어만 짓는지 확인 가능, 광산 짓을 때 회수
-			} else {
-				// 일반 배치: 이번 라운드에는 건설 불가, 다음 라운드에 성숙
-				if (!player.gaiaformerPlacedThisRound) player.gaiaformerPlacedThisRound = [];
-				player.gaiaformerPlacedThisRound.push(tileId);
-			}
-
-			game.pendingTFMarsGaiaProject = null;
-
-			const qicText = qicToUse > 0 ? ` (${qicToUse} QIC for range)` : '';
-			addGameLog(game, playerId, 'Placed Gaiaformer', `on Transdim (${powerToMove} power tokens moved to Gaiaformer area${qicText})`, tileId);
-			log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game');
-
-			if (fromTFMars && isBonusGaia) {
-				// 보너스 타일 즉포 가이아: 타일 반납하지 않고 턴만 소모 처리
-				addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');
-				game.hasDoneMainAction = true;
-			} else if (fromTFMars) {
-				// TF Mars 액션2로 수행한 가이아 프로젝트는 메인 액션 소모 없음 → 턴 유지
-			} else {
-				game.hasDoneMainAction = true;
-			}
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed);
 		});
 
 		// 하이브(이비츠) 우주정거장 배치: 빈 공간(space/deep_space), 내 건물·우주정거장에서 거리 계산, Nav 범위 밖이면 2거리당 1 QIC. 다른 플레이어 위성 허용, 내 위성 있으면 불가. 라운드당 1회.
@@ -3825,13 +3717,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 					mapState: JSON.parse(JSON.stringify(game.map)),
 					spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 					gameLogLength: game.gameLog?.length || 0,
-					fullGameState: cloneGameForTurnStartSnapshot(game),
+					fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 				};
 			}
 
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 
-			executeBotTurnIfNeeded(io, game).catch(err => {
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (end_turn): ${err}`, 'error');
 			});
 		});
@@ -4119,7 +4011,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 
-			executeBotTurnIfNeeded(io, game).catch(err => {
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (accept_all_power_offers): ${err}`, 'error');
 			});
 		});
@@ -4205,7 +4097,7 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
 		spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 		twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
 		gameLogLength: game.gameLog?.length || 0,
-		fullGameState: cloneGameForTurnStartSnapshot(game),
+		fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 	};
 }
 
@@ -5001,7 +4893,7 @@ export function executeSelectFaction(
 	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
 	if (!options?.skipBotTrigger) {
-		executeBotTurnIfNeeded(io, game).catch(err => {
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (SelectFaction): ${err}`, 'error');
 		});
 	}
@@ -5089,7 +4981,7 @@ export function executePlaceStartingMine(
 
 	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
-	executeBotTurnIfNeeded(io, game).catch(err => {
+	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (PlaceStartingMine): ${err}`, 'error');
 	});
 
@@ -5135,7 +5027,7 @@ export function executeSelectBonus(
 				mapState: JSON.parse(JSON.stringify(game.map)),
 				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 				gameLogLength: game.gameLog?.length || 0,
-				fullGameState: cloneGameForTurnStartSnapshot(game),
+				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 			};
 		}
 
@@ -5149,7 +5041,7 @@ export function executeSelectBonus(
 	// 보너스 선택이 완료되고 수익 단계로 진입하는 경우: helperStartNewRoundTurn에서 executeBotTurnIfNeeded를 호출하므로 여기서는 호출하지 않음
 	// 다음 보너스 선택 플레이어로 넘어가는 경우에만 호출
 	if (game.pendingBonusSelection) {
-		executeBotTurnIfNeeded(io, game).catch(err => {
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (SelectBonus): ${err}`, 'error');
 		});
 	}
@@ -5361,14 +5253,14 @@ export function executePassRound(
 				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 				twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
 				gameLogLength: game.gameLog?.length || 0,
-				fullGameState: cloneGameForTurnStartSnapshot(game),
+				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 			};
 		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
 		// 6라운드에서도 사람이 패스한 후 다음 플레이어가 봇이면 자동 실행될 수 있도록 트리거 추가
-		executeBotTurnIfNeeded(io, game).catch(err => {
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (Round 6 pass): ${err}`, 'error');
 		});
 
@@ -5526,7 +5418,7 @@ export function executePassRound(
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
 		// Trigger bot turn if next player is a bot
-		executeBotTurnIfNeeded(io, game).catch(err => {
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error: ${err}`, 'error');
 		});
 
@@ -5796,7 +5688,7 @@ export function executeEndTurn(
 			mapState: JSON.parse(JSON.stringify(game.map)),
 			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game),
+			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 		};
 	}
 
@@ -5808,7 +5700,7 @@ export function executeEndTurn(
 
 	// Trigger next bot turn if applicable (시뮬레이션 중에는 호출하지 않음)
 	if (!(game as any).simulation) {
-		executeBotTurnIfNeeded(io, game).catch(err => {
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (after executeEndTurn): ${err}`, 'error');
 		});
 	}
@@ -6126,7 +6018,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 
-	executeBotTurnIfNeeded(io, game).catch(err => {
+	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (respond_power_offer): ${err}`, 'error');
 	});
 }
@@ -6440,4 +6332,199 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 	return null;
+}
+
+export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, qicUsed?: number): boolean {
+	if (!game || game.currentPhase !== 'main') return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	const fromTFMars = game.pendingTFMarsGaiaProject?.playerId === playerId;
+	if (!fromTFMars && game.hasDoneMainAction) return false;
+
+	saveActionStartState(game, playerId);
+
+	const player = game.players[playerId];
+	const tile = game.map.find(t => t.id === tileId);
+	if (!tile || tile.type !== 'transdim' || tile.hasGaiaformer || tile.structure !== null) return false;
+
+	if (getEffectiveGaiaformers(player) <= 0) return false;
+
+	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
+	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
+	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
+	if (rangeTiles.length === 0) return false;
+
+	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+	const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+
+	const qicToUse = qicUsed || 0;
+	if (qicToUse < neededQIC) return false;
+	if (player.qic < qicToUse) return false;
+
+	player.qic -= qicToUse;
+
+	const gaiaLevel = player.research.gaiaProject || 0;
+	let powerToMove = 0;
+
+	const pendingGaia = game.pendingTFMarsGaiaProject;
+	const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
+	const immediateBuildable = fromTFMars || isBonusGaia;
+
+	if (!immediateBuildable) {
+		if (gaiaLevel >= 1 && gaiaLevel < 3) powerToMove = 6;
+		else if (gaiaLevel >= 3 && gaiaLevel < 4) powerToMove = 4;
+		else if (gaiaLevel >= 4) powerToMove = 3;
+		else return false;
+
+		let remaining = powerToMove;
+		let movedFrom1 = Math.min(remaining, player.power1 || 0);
+		player.power1 = (player.power1 || 0) - movedFrom1;
+		remaining -= movedFrom1;
+
+		let movedFrom2 = Math.min(remaining, player.power2 || 0);
+		player.power2 = (player.power2 || 0) - movedFrom2;
+		remaining -= movedFrom2;
+
+		let movedFrom3 = Math.min(remaining, player.power3 || 0);
+		player.power3 = (player.power3 || 0) - movedFrom3;
+		remaining -= movedFrom3;
+
+		if (remaining > 0) return false;
+
+		player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
+	}
+
+	player.gaiaformers = (player.gaiaformers || 0) - 1;
+	tile.hasGaiaformer = true;
+	tile.gaiaformerOwnerId = playerId;
+
+	if (immediateBuildable) {
+		if (!player.pendingGaiaformerTiles) player.pendingGaiaformerTiles = [];
+		player.pendingGaiaformerTiles.push(tileId);
+		tile.type = 'gaia';
+		tile.isGaiaformed = true;
+	} else {
+		if (!player.gaiaformerPlacedThisRound) player.gaiaformerPlacedThisRound = [];
+		player.gaiaformerPlacedThisRound.push(tileId);
+	}
+
+	game.pendingTFMarsGaiaProject = null;
+
+	const qicText = qicToUse > 0 ? ` (${qicToUse} QIC for range)` : '';
+	addGameLog(game, playerId, 'Placed Gaiaformer', `on Transdim (${powerToMove} power tokens moved to Gaiaformer area${qicText})`, tileId);
+	log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game');
+
+	if (fromTFMars && isBonusGaia) {
+		addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');
+		game.hasDoneMainAction = true;
+	} else if (!fromTFMars) {
+		game.hasDoneMainAction = true;
+	}
+
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
+export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGameState, playerId: string, artifactId: string): boolean {
+	if (!game || game.currentPhase !== 'main') return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	if (game.hasDoneMainAction) return false;
+
+	const player = game.players[playerId];
+	const entered = player.spaceshipsEntered ?? [];
+	const twilightTile = game.map.find(t => t.type === 'ship_twilight');
+	if (!twilightTile || !entered.includes(twilightTile.id)) return false;
+
+	const slots = game.twilightArtifactSlots ?? [];
+	const slotIdx = slots.findIndex(s => s === artifactId);
+	if (slotIdx === -1 || !ARTIFACTS.some(a => a.id === artifactId)) return false;
+
+	// simulate spendPowerTokens logic
+	let amount = 6;
+	const total = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+	if (total < amount) return false;
+
+	saveActionStartState(game, playerId);
+
+	let remaining = amount;
+	const from1 = Math.min(remaining, player.power1 || 0);
+	player.power1 = (player.power1 || 0) - from1;
+	remaining -= from1;
+	const from2 = Math.min(remaining, player.power2 || 0);
+	player.power2 = (player.power2 || 0) - from2;
+	remaining -= from2;
+	const from3 = Math.min(remaining, player.power3 || 0);
+	player.power3 = (player.power3 || 0) - from3;
+
+	(game.twilightArtifactSlots as (string | null)[])[slotIdx] = null;
+	if (!player.artifacts) player.artifacts = [];
+	player.artifacts.push(artifactId);
+
+	const art = ARTIFACTS.find(a => a.id === artifactId)!;
+	if (art.id === 'art-fed-once') {
+		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id };
+		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', twilightTile.id);
+	} else if (art.id === 'art-vp-gaia') {
+		const lvl = player.research.gaiaProject ?? 0;
+		const vp = lvl * 3;
+		addScore(game, playerId, vp, 'other', { source: 'Artifact: Gaia x 3' });
+		addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
+	} else if (art.id === 'art-vp-science') {
+		const lvl = player.research.science ?? 0;
+		const vp = lvl * 3;
+		addScore(game, playerId, vp, 'other', { source: 'Artifact: Science x 3' });
+		addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
+	} else if (art.id === 'art-vp-tracks3') {
+		const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[]).filter(t => (player.research[t] ?? 0) >= 3).length;
+		const vp = tracks * 3;
+		addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
+		addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, twilightTile.id);
+	} else if (art.id === 'art-vp-planet-types') {
+		const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+		const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
+		if (player.virtualMineAsteroid) types.add('asteroid');
+		if (player.virtualMineProto) types.add('proto');
+		const vp = 3 + types.size;
+		addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
+		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, twilightTile.id);
+	} else if (art.id === 'art-7vp-virtual-asteroid') {
+		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
+		player.virtualMineAsteroid = true;
+		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', twilightTile.id);
+	} else if (art.id === 'art-7vp-virtual-proto') {
+		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
+		player.virtualMineProto = true;
+		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', twilightTile.id);
+	} else if (art.id === 'art-imm-3o3c') {
+		player.ore = (player.ore || 0) + 3;
+		player.credits = (player.credits || 0) + 3;
+		addGameLog(game, playerId, 'Artifact: 3O 3C', '', twilightTile.id);
+	} else if (art.id === 'art-imm-2o5c') {
+		player.ore = (player.ore || 0) + 2;
+		player.credits = (player.credits || 0) + 5;
+		addGameLog(game, playerId, 'Artifact: 2O 5C', '', twilightTile.id);
+	} else if (art.id === 'art-imm-3k1q') {
+		player.knowledge = (player.knowledge || 0) + 3;
+		player.qic = (player.qic || 0) + 1; // grantQic shortcut
+		addGameLog(game, playerId, 'Artifact: 3K 1Q', '', twilightTile.id);
+	} else if (art.id === 'art-vp-bridge') {
+		const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
+		const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure));
+		const vp = withBuilding.length * 3;
+		addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
+		addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
+	} else {
+		addGameLog(game, playerId, 'Artifact', art.label, twilightTile.id);
+	}
+
+	game.hasDoneMainAction = true;
+	for (const p of Object.values(game.players)) {
+		if (p.ore != null && p.ore > 15) p.ore = 15;
+		if (p.knowledge != null && p.knowledge > 15) p.knowledge = 15;
+		if (p.credits != null && p.credits > 30) p.credits = 30;
+	}
+	io.to(game.id).emit('game_updated', game);
+	return true;
 }

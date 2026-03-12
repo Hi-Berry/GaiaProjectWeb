@@ -131,10 +131,23 @@ export class FederationPlanner {
             });
 
             if (connectedToNewComponent) {
-                // Merge this path!
-                path.forEach(hid => currentHexIds.add(hid));
+                // 이 경로의 일부가 이미 currentHexIds에 들어있을 수 있으므로 순수하게 추가된 위성 개수만 계산
+                let actualNewSatellites = 0;
+                path.forEach(hid => {
+                    if (!currentHexIds.has(hid)) {
+                        currentHexIds.add(hid);
+
+                        // Check if the player already owns a satellite here
+                        const onTile = game.satellites?.[hid];
+                        const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
+                        if (!playersOnTile.includes(playerId)) {
+                            actualNewSatellites++;
+                        }
+                    }
+                });
+
                 newPlanetIdsToMerge.forEach(pid => currentPlanetIds.add(pid));
-                tokensSpent += cost;
+                tokensSpent += actualNewSatellites;
                 currentPower = getFederationBuildingPower(game, playerId, currentPlanetIds, Array.from(currentHexIds));
 
                 if (currentPower >= requiredPower) {
@@ -142,9 +155,22 @@ export class FederationPlanner {
                 }
 
                 // Since we added new planets, add their empty neighbors to the queue
-                newPlanetIdsToMerge.forEach(pid => {
-                    const pTile = game.map.find(t => t.id === pid)!;
-                    getNeighbors(game.map, pTile).forEach(n => {
+                // 새로운 컴포넌트를 병합했으므로, 큐를 초기화하여 최단 경로 탐색을 새 건물 기준(현재 연방)으로 재설정 (위성 낭비 방지)
+                queue.length = 0;
+                visited.clear();
+
+                // 모든 현재 연방에 속한 행성들 및 위성들에서 다시 1거리 빈 공간 탐색
+                const currentFedTiles = [
+                    ...Array.from(currentPlanetIds).map(id => game.map.find(t => t.id === id)!),
+                    ...Array.from(currentHexIds).map(id => game.map.find(t => t.id === id)!)
+                ];
+
+                for (const t of currentFedTiles) {
+                    visited.add(t.id);
+                }
+
+                for (const t of currentFedTiles) {
+                    getNeighbors(game.map, t).forEach(n => {
                         if (isEmptyHex(n) && !visited.has(n.id)) {
                             const onTile = game.satellites?.[n.id];
                             const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
@@ -154,7 +180,7 @@ export class FederationPlanner {
                             }
                         }
                     });
-                });
+                }
             } else {
                 // Expand from this empty hex to other empty hexes
                 getNeighbors(game.map, currentTile).forEach(n => {
