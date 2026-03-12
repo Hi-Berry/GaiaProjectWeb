@@ -541,6 +541,20 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 	return { power, requiredPower, items };
 }
 
+/** 연방에 속한 본인 건물/우주정거장 바로 옆에 건설한 타일이면 해당 타일도 연방에 포함시킴 */
+function addBuildingToFederationIfAdjacent(game: ServerGameState, playerId: string, tileId: string): void {
+	if (!tileId) return;
+	const fed = game.playerFederationHexes?.[playerId];
+	if (!fed || fed.includes(tileId)) return;
+	const tile = game.map.find(t => t.id === tileId);
+	if (!tile) return;
+	const isOwn = (tile.ownerId === playerId && tile.structure && tile.structure !== 'ship') || tile.parasiticMine?.ownerId === playerId || (tile.spaceStation as { ownerId?: string } | null)?.ownerId === playerId;
+	if (!isOwn) return;
+	const neighbors = getNeighbors(game.map, tile);
+	const hasFederatedNeighbor = neighbors.some(n => fed.includes(n.id));
+	if (hasFederatedNeighbor) fed.push(tileId);
+}
+
 /** 특정 연방 보상 ID가 이미 누군가에게 획득되었는지 */
 function isSpaceshipFederationRewardTaken(game: GaiaGameState, rewardId: string): boolean {
 	for (const p of Object.values(game.players)) {
@@ -2402,7 +2416,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!tracks.includes(track) || player.research[track] >= 5) return;
 			if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return;
 			const newLevel = (player.research[track] ?? 0) + 1;
-			if (newLevel === 5 && countGreenFederations(player) < 1) return;
+			if (newLevel === 5 && (countGreenFederations(player) < 1 || isTrackLevel5Taken(game, track, playerId))) return;
 
 			saveActionStartState(game, playerId);
 			if (newLevel === 5) spendGreenFederation(player);
@@ -2443,6 +2457,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
 			applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 			createPowerOffers(game, tile, playerId);
+			addBuildingToFederationIfAdjacent(game, playerId, tileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
@@ -2560,7 +2575,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			tile.spaceStation = { ownerId: playerId };
 			player.usedIvitsSpaceStationThisRound = true;
 			game.hasDoneMainAction = true;
-			// 우주정거장은 건물이 아니므로 인접 파워 제안 생성 안 함
+			addBuildingToFederationIfAdjacent(game, playerId, tileId);
 			addGameLog(game, playerId, 'Ivits: Space Station', neededQIC ? `${neededQIC} QIC (range)` : 'Placed (in Nav range)', tileId);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
@@ -2620,6 +2635,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 			createPowerOffers(game, tile, playerId);
+			addBuildingToFederationIfAdjacent(game, playerId, tileId);
 			applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeLostPlanet);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
@@ -3116,6 +3132,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const minLevel = Math.min(...levels);
 			const currentLevel = player.research?.[trackId] ?? 0;
 			if (currentLevel !== minLevel || currentLevel >= 5) return;
+			if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return;
 			if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return;
 
 			saveActionStartState(game, playerId);
@@ -3172,6 +3189,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!tracks.includes(trackId)) return;
 			const currentLevel = player.research?.[trackId] ?? 0;
 			if (currentLevel >= 5) return;
+			if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return;
 			if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return;
 
 			saveActionStartState(game, playerId);
@@ -4007,6 +4025,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			const track = selectedTrack as ResearchTrack;
 			const canAdvance = player.research[track] < 5 && (track !== 'navigation' || canBalTakAdvanceNavigation(game, playerId));
 			const newLevel = canAdvance ? (player.research[track] ?? 0) + 1 : 0;
+			if (newLevel === 5 && isTrackLevel5Taken(game, track, playerId)) return;
 			const isAdvancedTile = techTileId.startsWith('adv-') || Object.values(game.advancedTechTilesByTrack || {}).some((t: { id?: string } | null) => t?.id === techTileId);
 			const greenNeeded = (isAdvancedTile ? 1 : 0) + (newLevel === 5 ? 1 : 0);
 			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) return;
@@ -4041,6 +4060,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const trackOk = selectedTrack && validTracks.includes(selectedTrack);
 		const canAdvancePool = trackOk && player.research[selectedTrack] < 5 && (selectedTrack !== 'navigation' || canBalTakAdvanceNavigation(game, playerId));
 		const newLevelPool = canAdvancePool ? (player.research[selectedTrack] ?? 0) + 1 : 0;
+		if (newLevelPool === 5 && selectedTrack && isTrackLevel5Taken(game, selectedTrack, playerId)) return;
 		const isAdvancedPool = techTileId.startsWith('adv-');
 		const greenNeededPool = (isAdvancedPool ? 1 : 0) + (newLevelPool === 5 ? 1 : 0);
 		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) return;
@@ -4201,6 +4221,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 		applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBefore);
 		game.hasDoneMainAction = true;
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -4260,6 +4281,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		// 란티다 기생 광산은 새로운 행성 유형 및 가이아 점수를 받지 않음
 		applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 		if (hasPI) {
 			player.knowledge = (player.knowledge || 0) + 2;
@@ -4305,6 +4327,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 		applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeAsteroid);
 		clearFreeMineFlags();
 		game.hasDoneMainAction = true;
@@ -4446,6 +4469,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	}
 
 	createPowerOffers(game, tile, playerId);
+	addBuildingToFederationIfAdjacent(game, playerId, tileId);
 	applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBefore);
 
 	clearFreeMineFlags();
@@ -4482,6 +4506,7 @@ export function executeUpgradeStructure(
 		applyRoundMissionScore(game, playerId, 'build_trading_station');
 		applyAdvancedTechTileEffect(game, playerId, 'build_ts');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
 	} else if (tile.structure === 'trading_station' && target === 'research_lab') {
@@ -4491,6 +4516,7 @@ export function executeUpgradeStructure(
 		addGameLog(game, playerId, 'Upgraded to Research Lab', '3O, 5C', tileId);
 		applyRoundMissionScore(game, playerId, 'build_research_lab');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'research_lab' };
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -4517,6 +4543,7 @@ export function executeUpgradeStructure(
 		addGameLog(game, playerId, 'Upgraded to Planetary Institute', '4O, 6C', tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
 	} else if (tile.structure === 'research_lab' && target === 'planetary_institute' && player.faction === 'bescods') {
@@ -4526,6 +4553,7 @@ export function executeUpgradeStructure(
 		addGameLog(game, playerId, 'Upgraded to Planetary Institute (Bescods/매안)', '4O, 6C', tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
 	} else if (tile.structure === 'trading_station' && (target === 'academy_left' || target === 'academy_right') && player.faction === 'bescods') {
@@ -4543,6 +4571,7 @@ export function executeUpgradeStructure(
 		addGameLog(game, playerId, 'Upgraded to Academy (Bescods/매안)', target === 'academy_left' ? '6O, 6C (2K 수익)' : '6O, 6C (1QIC 액션)', tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'academy' };
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -4563,6 +4592,7 @@ export function executeUpgradeStructure(
 		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left' ? '6O, 6C (2K 수익)' : '6O, 6C (1QIC 액션)', tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
+		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'academy' };
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -4892,6 +4922,11 @@ export function executeSelectBonus(
 	return true;
 }
 
+/** 트랙 5단계는 게임당 1명만 가능. 이미 다른 플레이어가 해당 트랙 5단계면 true */
+function isTrackLevel5Taken(game: ServerGameState, track: ResearchTrack, excludePlayerId: string): boolean {
+	return Object.entries(game.players).some(([pid, p]) => pid !== excludePlayerId && (p.research?.[track] ?? 0) >= 5);
+}
+
 export function executeAdvanceTech(
 	io: SocketIOServer,
 	game: ServerGameState,
@@ -4911,7 +4946,7 @@ export function executeAdvanceTech(
 		if (!tracks.includes(track) || player.research[track] >= 5) return false;
 		if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
 		const newLevel = (player.research[track] ?? 0) + 1;
-		if (newLevel === 5 && countGreenFederations(player) < 1) return false;
+		if (newLevel === 5 && (countGreenFederations(player) < 1 || isTrackLevel5Taken(game, track, playerId))) return false;
 		saveActionStartState(game, playerId);
 		game.pendingShipTechTrackAdvance = null;
 		if (newLevel === 5) spendGreenFederation(player);
@@ -4932,7 +4967,7 @@ export function executeAdvanceTech(
 		if (!tracks.includes(track) || player.research[track] >= 5) return false;
 		if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
 		const newLevel = (player.research[track] ?? 0) + 1;
-		if (newLevel === 5 && countGreenFederations(player) < 1) return false;
+		if (newLevel === 5 && (countGreenFederations(player) < 1 || isTrackLevel5Taken(game, track, playerId))) return false;
 		saveActionStartState(game, playerId);
 		game.pendingAdvancedTechTrackAdvance = null;
 		if (newLevel === 5) spendGreenFederation(player);
@@ -4952,7 +4987,7 @@ export function executeAdvanceTech(
 	if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
 	if ((player.knowledge ?? 0) < 4 || player.research[track] >= 5) return false;
 	const newLevel = (player.research[track] ?? 0) + 1;
-	if (newLevel === 5 && countGreenFederations(player) < 1) return false;
+	if (newLevel === 5 && (countGreenFederations(player) < 1 || isTrackLevel5Taken(game, track, playerId))) return false;
 
 	const knowledgeBefore = player.knowledge;
 	player.knowledge = (player.knowledge ?? 0) - 4;
@@ -5562,6 +5597,7 @@ export function executePlaceIvitsSpaceStation(
 	tile.spaceStation = { ownerId: playerId };
 	player.usedIvitsSpaceStationThisRound = true;
 	game.hasDoneMainAction = true;
+	addBuildingToFederationIfAdjacent(game, playerId, tileId);
 	addGameLog(game, playerId, 'Ivits: Space Station (Bot)', neededQIC ? `${neededQIC} QIC (range)` : 'Placed', tileId);
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
@@ -5766,6 +5802,7 @@ export function executeBotSelectTechTile(
 			// 이 타일+트랙 조합 유효 → select_tech_tile 소켓과 동일 로직
 			const isAdvanced = techTileId.startsWith('adv-');
 			const newLevel = (player.research[track] ?? 0) + 1;
+			if (newLevel === 5 && isTrackLevel5Taken(game, track, playerId)) continue;
 			const greenNeeded = (isAdvanced ? 1 : 0) + (newLevel === 5 ? 1 : 0);
 			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) continue;
 
@@ -5799,6 +5836,7 @@ export function executeBotSelectTechTile(
 			for (const track of tracks) {
 				if (player.research[track] >= 5) continue;
 				const newLevel = (player.research[track] ?? 0) + 1;
+				if (newLevel === 5 && isTrackLevel5Taken(game, track, playerId)) continue;
 				const greenNeeded = newLevel === 5 ? 1 : 0;
 				if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) continue;
 				for (let i = 0; i < greenNeeded; i++) spendGreenFederation(player);
@@ -5912,7 +5950,12 @@ export function executeBotBescodsAdvanceLowestTrack(
 	const levels = tracks.map(t => player.research?.[t] ?? 0);
 	const minLevel = Math.min(...levels);
 	// Navigation blocked for Bal'Tak without PI (not relevant here since we're already Bescods, but keep check)
-	const candidates = tracks.filter(t => (player.research?.[t] ?? 0) === minLevel && (player.research?.[t] ?? 0) < 5);
+	const candidates = tracks.filter(t => {
+		const lvl = player.research?.[t] ?? 0;
+		if (lvl !== minLevel || lvl >= 5) return false;
+		if (lvl === 4 && isTrackLevel5Taken(game, t, playerId)) return false;
+		return true;
+	});
 	if (candidates.length === 0) return false;
 
 	// Pick the first candidate (deterministic, e.g. prefer science > economy > gaia > AI > nav > terra)

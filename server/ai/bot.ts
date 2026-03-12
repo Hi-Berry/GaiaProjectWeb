@@ -57,6 +57,7 @@ type BotAction = {
     | 'end_turn'
     | 'use_power_action'
     | 'place_ivits_space_station'
+    | 'place_lost_planet'
     | 'use_ship_action'
     | 'eclipse_build_asteroid_mine'
     | 'select_tech_tile'
@@ -96,6 +97,39 @@ export class BotLogic {
                 return executeUsePowerAction(io, game, playerId, action.params.actionId, action.params.useBrain);
             case 'place_ivits_space_station':
                 return executePlaceIvitsSpaceStation(io, game, playerId, action.params.tileId);
+            case 'place_lost_planet': {
+                if (game.currentPhase !== 'main') return false;
+                if (game.pendingLostPlanet?.playerId !== playerId) return false;
+                const player = game.players[playerId];
+                const tile = game.map.find(t => t.id === action.params.tileId);
+                if (!player || !tile) return false;
+                if (tile.type !== 'space' && tile.type !== 'deep_space') return false;
+                if (tile.structure != null || tile.spaceStation) return false;
+                const satellites = game.satellites || {};
+                const raw = (satellites as any)[tile.id] as (string | string[] | undefined);
+                const onTile = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+                if (onTile.length > 0) return false;
+
+                const rangeTiles = game.map.filter(t =>
+                    (t.ownerId === playerId && t.structure !== null) ||
+                    (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+                );
+                if (rangeTiles.length === 0) return false;
+
+                const baseRange = getRange(5) + (player.navigationBonus || 0);
+                const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+                const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+                const qicSpent = typeof action.params.qicToSpend === 'number' ? action.params.qicToSpend : 0;
+                if (qicSpent !== neededQIC || (player.qic || 0) < neededQIC) return false;
+
+                player.qic -= neededQIC;
+                tile.structure = 'lost_planet_mine';
+                tile.ownerId = playerId;
+                game.pendingLostPlanet = null;
+                game.hasDoneMainAction = true;
+                io.to(game.id).emit('game_updated', game);
+                return true;
+            }
             case 'use_ship_action':
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
             case 'enter_spaceship':
@@ -185,6 +219,11 @@ export class BotLogic {
             // Eclipse 소행성 광산 배치 대기 중
             if (game.pendingEclipseAsteroidMine?.playerId === playerId) {
                 return this.findEclipseAsteroidTarget(game, playerId);
+            }
+
+            // Nav 5 잊혀진 행성 배치 대기 중
+            if (game.pendingLostPlanet?.playerId === playerId) {
+                return this.findLostPlanetTarget(game, playerId);
             }
 
             // 기술 타일 선택 대기 중
@@ -1210,6 +1249,47 @@ export class BotLogic {
             return { type: 'eclipse_build_asteroid_mine', params: { tileId: asteroid.id } };
         }
         return null;
+    }
+
+    /**
+     * Nav 5 보상 잊혀진 행성 타겟 선택 (pendingLostPlanet 상태에서)
+     * - 위성 없는 빈 우주(space/deep_space)에만 배치
+     * - QIC 소모는 (거리 - Nav5범위)를 2로 나눈 올림
+     * - 봇은 QIC 소모 최소(동률이면 거리 최소)로 선택
+     */
+    private static findLostPlanetTarget(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        if (!player) return null;
+        if (game.pendingLostPlanet?.playerId !== playerId) return null;
+
+        const myTiles = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+        if (myTiles.length === 0) return null;
+
+        const satellites = game.satellites || {};
+        const baseRange = getRange(5) + (player.navigationBonus || 0);
+        const myQic = player.qic || 0;
+
+        const candidates = game.map
+            .filter(t => (t.type === 'space' || t.type === 'deep_space') && t.structure === null && !t.spaceStation)
+            .filter(t => {
+                const raw = (satellites as any)[t.id] as (string | string[] | undefined);
+                const onTile = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+                return onTile.length === 0;
+            })
+            .map(t => {
+                const minDist = Math.min(...myTiles.map(p => getDistance(p, t)));
+                const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+                return { tileId: t.id, neededQIC, minDist };
+            })
+            .filter(x => x.neededQIC <= myQic)
+            .sort((a, b) => (a.neededQIC - b.neededQIC) || (a.minDist - b.minDist));
+
+        if (candidates.length === 0) return null;
+        const best = candidates[0];
+        return { type: 'place_lost_planet', params: { tileId: best.tileId, qicToSpend: best.neededQIC } };
     }
 
     /**
