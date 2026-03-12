@@ -1,0 +1,1061 @@
+diff --git a/server/ai/bot.ts b/server/ai/bot.ts
+index 8272774..73e81c7 100644
+--- a/server/ai/bot.ts
++++ b/server/ai/bot.ts
+@@ -19,7 +19,9 @@ import {
+     executeConvertResource,
+     getAcademyLeftCount,
+     getAcademyRightCount,
+-    executeEnterSpaceship
++    executeEnterSpaceship,
++    executePlaceGaiaformer,
++    executeTakeTwilightArtifact
+ } from '../gameState';
+ import { FederationPlanner } from './federationPlanner';
+ import { log } from '../index';
+@@ -61,7 +63,9 @@ type BotAction = {
+     | 'enter_spaceship'
+     | 'use_tech_action'
+     | 'use_special_action'
+-    | 'use_bonus_action';
++    | 'use_bonus_action'
++    | 'place_gaiaformer'
++    | 'take_twilight_artifact';
+     params: any;
+ };
+
+@@ -126,6 +130,10 @@ export class BotLogic {
+             case 'burn_power':
+                 executeBurnPower(game, playerId, action.params.moveBrainToBowl3);
+                 return true;
++            case 'place_gaiaformer':
++                return executePlaceGaiaformer(io, game, playerId, action.params.tileId, action.params.qicUsed);
++            case 'take_twilight_artifact':
++                return executeTakeTwilightArtifact(io, game, playerId, action.params.artifactId);
+             default:
+                 console.warn(`Unknown bot action type: ${action.type}`);
+                 return false;
+@@ -387,12 +395,20 @@ export class BotLogic {
+
+         // 8-2. 우주선 입장 (Lost Fleet Ship)
+         const shipEntry = this.findSpaceshipEntryAction(game, playerId);
+-        if (shipEntry) candidates.push(shipEntry);
++        if (shipEntry) candidates.push(shipEntry); // 우주선 탑승을 적극 고려
+
+         // 8-3. 우주선 액션 (Lost Fleet Actions) - 상위 3개로 확장
+         const shipActions = this.findSpaceshipActions(game, playerId);
+         if (shipActions.length > 0) candidates.push(...shipActions);
+
++        // 8-3b. 트왈라잇 인공물 획득
++        const artifactAction = this.findTwilightArtifactAction(game, playerId);
++        if (artifactAction) candidates.push(artifactAction);
++
++        // 가이아 포머 배치 액션 (가이아 프로젝트)
++        const gaiaformerActions = this.findGaiaformerActions(game, playerId);
++        if (gaiaformerActions.length > 0) candidates.push(...gaiaformerActions);
++
+         // 8-4. 보너스 타일 스페셜 액션 (use_bonus_action)
+         if (player.bonusTile && !player.usedBonusAction) {
+             const bonusTileObj = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
+@@ -722,6 +738,11 @@ export class BotLogic {
+
+         // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
+         const rangeBonusValue = range >= 2 ? 30 : 0;
++
++        // 확장(건물 수) 우대 전략 (하지만 10개 이상이면 무조건 짓기보단 점수/연방 연계를 중시)
++        const expansionDesire = myPlanets.length < 10 ? (10 - myPlanets.length) * 30 : 0;
++        const earlyRushBonus = game.roundNumber <= 3 ? 150 : 0;
++        const overExpansionPenalty = myPlanets.length >= 10 ? -80 : 0; // 충분히 컸을 땐 단순 확장은 감점
+
+         // 모든 잠재적 광산 후보 평가
+         const candidates = game.map.filter(t =>
+@@ -747,8 +768,8 @@ export class BotLogic {
+             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
+
+-            // QIC 소모 최대 1 제한
+-            if (neededQicForRange > 1) continue;
++            // QIC 소모 최대 1 제한 (초반 확장 패널티 약간 완화)
++            if (neededQicForRange > 2) continue; // 확장을 위해서라면 QIC 2개 소모까지 허용
+             if (neededQicForRange > qic) continue;
+
+             if (tile.type === 'gaia') {
+@@ -760,21 +781,21 @@ export class BotLogic {
+                     if (totalQicNeeded > qic) continue;
+                 } else {
+                     if (totalQicNeeded > qic) continue;
+-                    if (totalQicNeeded > 1) continue; // 가이아 1QIC + 거리 QIC = 2 이상이면 비효율
++                    if (totalQicNeeded > 2) continue; // 확장을 위해서 2까지 완화
+                 }
+
+-                let score = (neededQicForRange === 0 ? 150 : 120) - neededQicForRange * 30; // 가이아 건설 베이스 점수 상향 (기존 130/100)
++                let score = (neededQicForRange === 0 ? 300 : 250) - neededQicForRange * 30; // 가이아 건설 베이스 점수 대폭 상향
+                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
+                 score += this.calculateFinalMissionBonus(game, playerId, tile);
+
+-                // [전략 개선] 초반(1-2라) 확장 가점 강화
+-                if (game.roundNumber <= 2) score += 60;
++                score += earlyRushBonus;
++                score += expansionDesire;
++                score += overExpansionPenalty;
+
+                 score += this.calculateAdjacencyBonus(game, playerId, tile);
+                 score += this.calculateThreatScore(game, playerId, tile);
+                 score += rangeBonusValue;
+-                score += (6 - myPlanets.length) * 10; // 건물이 적을수록 새 건물 가치 상향
+
+                 scored.push({
+                     tile,
+@@ -786,18 +807,18 @@ export class BotLogic {
+
+             // 모행성 (테라포밍 불필요)
+             if (tile.type === homeType) {
+-                let score = (neededQicForRange === 0 ? 160 : 130) - neededQicForRange * 30; // 모행성 베이스 상향
++                let score = (neededQicForRange === 0 ? 350 : 300) - neededQicForRange * 30; // 모행성 확장은 최상위 가치
+                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                 score += this.calculateFinalMissionBonus(game, playerId, tile);
+
+-                // [전략 개선] 초반 확장 가점
+-                if (game.roundNumber <= 2) score += 70;
++                score += earlyRushBonus;
++                score += expansionDesire;
++                score += overExpansionPenalty;
+
+                 score += this.calculateAdjacencyBonus(game, playerId, tile);
+                 score += this.calculateFederationScore(game, playerId, tile);
+                 score += this.calculateThreatScore(game, playerId, tile);
+                 score += rangeBonusValue;
+-                score += (8 - myPlanets.length) * 8; // 건물 부족 시 광산 우선
+
+                 scored.push({
+                     tile,
+@@ -817,10 +838,13 @@ export class BotLogic {
+
+             if (remainingSteps === 0) {
+                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
+-                let score = 85 - neededQicForRange * 25;
++                let score = 250 - neededQicForRange * 25; // 상향
+                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                 score += this.calculateFinalMissionBonus(game, playerId, tile);
+                 score += this.calculateAdjacencyBonus(game, playerId, tile);
++                score += earlyRushBonus;
++                score += expansionDesire;
++                score += overExpansionPenalty;
+                 score += rangeBonusValue; // 2거리 확보 가점
+
+                 scored.push({
+@@ -909,25 +933,22 @@ export class BotLogic {
+             const totalOre = 1 + terraformCost;
+
+             if (ore >= totalOre && credits >= 2) {
+-                // [AI 개선] 3O(광석 3개)를 소모하는 테라포밍은 매우 비효율적이므로 점수를 대폭 하향
+-                const tfScore = tfLevel >= 3 ? 50 : (tfLevel >= 2 ? 30 : (tfLevel >= 1 ? 5 : -20));
+-
+-                // 3O 소모 구간(costPerStep >= 3)에서는 패널티 대폭 증가
+-                const stepPenalty = costPerStep >= 3 ? (remainingSteps * 30) : (remainingSteps * 10);
+-                let score = tfScore - stepPenalty - (neededQicForRange * 25);
++                // 확장 가치를 매우 높게 쳐주므로, 광석을 소모해서라도 짓도록 유도
++                const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
+
+-                // 광석이 충분하지 않은 초/중반 3O 테라포밍 극단적 패널티
+-                if (costPerStep >= 3 && (game.roundNumber <= 3 || ore < 8)) {
+-                    score -= 60;
+-                }
++                const stepPenalty = costPerStep >= 3 ? (remainingSteps * 20) : (remainingSteps * 10);
++                let score = tfScore - stepPenalty - (neededQicForRange * 20);
+
+                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                 score += this.calculateFinalMissionBonus(game, playerId, tile);
+                 score += this.calculateAdjacencyBonus(game, playerId, tile);
+                 score += this.calculateFederationScore(game, playerId, tile);
+
+-                // 효율이 극도로 낮다면 아예 후보에서 배제 (차라리 기술을 올리거나 패스하도록 유도)
+-                if (score >= -10) {
++                score += earlyRushBonus;
++                score += expansionDesire;
++                score += overExpansionPenalty;
++
++                if (score >= -50) { // 약간 효율이 떨어져도 무조건 짓게 유도
+                     scored.push({
+                         tile,
+                         score,
+@@ -950,17 +971,17 @@ export class BotLogic {
+
+         scored.sort((a, b) => b.score - a.score);
+
+-        // 상위 3개 후보 반환 (필요한 경우 preAction 포함 점수 상위권 채택)
++        // 상위 후보 반환
+         const results: BotAction[] = [];
+         const seenActions = new Set<string>();
+
+-        for (const s of scored.slice(0, 5)) { // 넉넉히 5개 후보 중 유니크한 3개 추출
++        for (const s of scored.slice(0, 8)) { // 더 다양한 광산 후보를 고려하도록 상향 (5->8)
+             const act = s.preAction || s.action;
+             const key = JSON.stringify(act);
+             if (!seenActions.has(key)) {
+                 seenActions.add(key);
+                 results.push(act);
+-                if (results.length >= 3) break;
++                if (results.length >= 4) break; // 3->4개로 상향
+             }
+         }
+
+@@ -970,6 +991,59 @@ export class BotLogic {
+     /**
+      * 대체 건설 전략: Eclipse 6C 소행성 등
+      */
++    /**
++     * 가이아포머를 사용하여 보라색 행성(Transdim)을 가이아 행성으로 변환하는 액션 탐색
++     */
++    private static findGaiaformerActions(game: ServerGameState, playerId: string): BotAction[] {
++        const player = game.players[playerId];
++        const availableGaiaformers = Math.max(0, (player.gaiaformers || 0) - (player.faction === 'bal_tak' ? (player.balTakGaiaformersUsedForQic || 0) : 0));
++
++        if (availableGaiaformers <= 0) return [];
++
++        const gaiaLevel = player.research.gaiaProject || 0;
++        let powerRequired = 999;
++        if (gaiaLevel >= 1 && gaiaLevel < 3) powerRequired = 6;
++        else if (gaiaLevel >= 3 && gaiaLevel < 4) powerRequired = 4;
++        else if (gaiaLevel >= 4) powerRequired = 3;
++
++        const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
++
++        // TF Mars 액션/보너스 타일로 인한 즉포 상황인 경우는 파워 소모가 없음
++        const isFreeProject = game.pendingTFMarsGaiaProject?.playerId === playerId;
++        if (!isFreeProject && totalPower < powerRequired) return [];
++
++        const myPlanets = game.map.filter(t =>
++            (t.ownerId === playerId && t.structure) ||
++            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
++        );
++        if (myPlanets.length === 0) return [];
++
++        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0) + (player.tempRangeBonus ? 3 : 0) + (player.rangeBonusActive ? 3 : 0) + (player.gleensNavBonusActive ? 2 : 0);
++        const qic = player.qic || 0;
++
++        const candidates = game.map.filter(t => t.type === 'transdim' && !t.structure && !t.hasGaiaformer);
++
++        const actions: { score: number, action: BotAction }[] = [];
++
++        for (const tile of candidates) {
++            const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
++            const neededQic = dist > range ? Math.ceil((dist - range) / 2) : 0;
++
++            if (neededQic <= qic && neededQic <= 2) {
++                let score = 200 - neededQic * 40; // 가이아 프로젝트 시도 가치를 매우 높게 부여
++                if (isFreeProject) score += 100;
++
++                actions.push({
++                    score,
++                    action: { type: 'place_gaiaformer', params: { tileId: tile.id, qicUsed: neededQic } }
++                });
++            }
++        }
++
++        actions.sort((a, b) => b.score - a.score);
++        return actions.slice(0, 2).map(a => a.action); // 상위 2개
++    }
++
+     private static findAlternativeBuildAction(game: ServerGameState, playerId: string): BotAction | null {
+         const player = game.players[playerId];
+         const credits = player.credits ?? 0;
+@@ -1554,7 +1628,7 @@ export class BotLogic {
+             const neededQic = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+             if (neededQic > qic) continue;
+
+-            let score = 50; // 기본 입장 점수 (5VP 가치)
++            let score = 200; // 우주선 탑승 우선순위를 폭발적으로 상향
+
+             // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
+             const occupants = shipState?.occupants?.length || 0;
+@@ -1562,11 +1636,12 @@ export class BotLogic {
+             else if (occupants === 3) score += 30;
+
+             // 라운드별 가점 (초반에는 강력한 기술 타일이나 자원 확보를 위해)
+-            if (round <= 3) score += 20;
++            if (round <= 3) score += 50;
+
+             // Rebellion은 기술 타일을 주기 때문에 더 높게 평가
+-            if (tile.type === 'ship_rebellion') score += 30;
+-            if (tile.type === 'ship_eclipse') score += 10; // 후반 소행성 건설/연구용
++            if (tile.type === 'ship_rebellion') score += 40;
++            if (tile.type === 'ship_eclipse') score += 60; // 후반 소행성 건설/연구용
++            if (tile.type === 'ship_tf_mars') score += 50;
+
+             candidates.push({
+                 action: { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } },
+@@ -1604,37 +1679,36 @@ export class BotLogic {
+
+                 if (shipTile.type === 'ship_twilight') {
+                     if (i === 1 && (player.qic || 0) >= 3) {
+-                        score = 180; // 연방 보상 → 매우 강력
++                        score = 250; // 연방 보상 → 매우 강력
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 1 && (player.qic || 0) >= 0) {
+-                        // QIC가 부족해도 시도 (서버에서 처리)
+                         score = 130;
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 2 && (player.ore || 0) >= 2 && (player.power3 || 0) >= 3) {
+                         const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
+                         if (ts) {
+-                            score = 160; // TS -> Lab 업그레이드: 매우 강력
++                            score = 220; // TS -> Lab 업그레이드
+                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
+                         }
+                     } else if (i === 3) {
+-                        score = 100; // +3 거리: 범위 확장은 언제나 유용
++                        score = 150; // +3 거리: 범위 확장은 언제나 유용
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     }
+                 } else if (shipTile.type === 'ship_rebellion') {
+                     if (i === 1 && (player.qic || 0) >= 3) {
+-                        score = 200; // 기술 타일 획득: 최강 액션
++                        score = 280; // 기술 타일 획득: 최강 액션
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 1) {
+-                        score = 150; // QIC 부족해도 후보로
++                        score = 150;
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 2 && (player.ore || 0) >= 1 && (player.power3 || 0) >= 3) {
+                         const mine = game.map.find(t => t.ownerId === playerId && t.structure === 'mine');
+                         if (mine) {
+-                            score = 140; // Mine -> TS 업그레이드: 강력
++                            score = 200; // Mine -> TS 업그레이드
+                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
+                         }
+                     } else if (i === 3 && (player.knowledge || 0) >= 2) {
+-                        score = 110; // 2K -> 1Q 2C
++                        score = 150; // 2K -> 1Q 2C
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 3) {
+                         score = 80;
+@@ -1642,33 +1716,33 @@ export class BotLogic {
+                     }
+                 } else if (shipTile.type === 'ship_tf_mars') {
+                     if (i === 1 && (player.qic || 0) >= 2) {
+-                        score = 160; // QIC 기술 타일: 매우 강력
++                        score = 220; // QIC 기술 타일: 매우 강력
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 1) {
+                         score = 100;
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 2 && (player.power3 || 0) >= 2 && (player.gaiaformers || 0) > 0) {
+-                        score = 140; // 가이아 프로젝트: 강력
++                        score = 240; // 가이아 프로젝트
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 3 && (player.credits || 0) >= 3) {
+-                        score = 130; // 3C -> 1TF: 테라포밍 효율적
++                        score = 280; // 3C -> 1TF: 테라포밍 효율적, 확장에 최고
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     }
+                 } else if (shipTile.type === 'ship_eclipse') {
+                     if (i === 1 && (player.qic || 0) >= 2) {
+-                        score = 150; // QIC 기술/연방
++                        score = 200; // QIC 기술/연방
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 1) {
+                         score = 100;
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 2 && (player.knowledge || 0) >= 2 && (player.power3 || 0) >= 3) {
+-                        score = 170; // 연구 전진: 매우 강력
++                        score = 230; // 연구 전진: 매우 강력
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 2 && (player.knowledge || 0) >= 2) {
+                         score = 130;
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 3 && (player.credits || 0) >= 6) {
+-                        score = 160; // 소행성 광산: 추가 건물 = 파워/점수
++                        score = 300; // 소행성 광산: 추가 건물 = 파워/점수 (절대적 우선순위)
+                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                     } else if (i === 3 && (player.credits || 0) >= 3) {
+                         score = 100;
+@@ -1697,6 +1771,54 @@ export class BotLogic {
+         return actions.length > 0 ? actions[0] : null;
+     }
+
++    private static findTwilightArtifactAction(game: ServerGameState, playerId: string): BotAction | null {
++        const player = game.players[playerId];
++        const entered = player.spaceshipsEntered || [];
++        const twilightTile = game.map.find(t => t.type === 'ship_twilight');
++
++        if (!twilightTile || !entered.includes(twilightTile.id)) return null;
++
++        const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
++        if (totalPower < 6) return null; // 6 power tokens required
++
++        const slots = game.twilightArtifactSlots ?? [];
++        const availableArtifacts = slots.filter(s => s !== null) as string[];
++        if (availableArtifacts.length === 0) return null;
++
++        let bestArtifact = availableArtifacts[0];
++        let bestScore = -Infinity;
++
++        for (const artifactId of availableArtifacts) {
++            let score = 50;
++
++            if (artifactId === 'art-imm-2o5c' || artifactId === 'art-imm-3o3c') {
++                if (game.roundNumber <= 3) score += 200; // Early economy boost
++                else score += 40;
++            } else if (artifactId === 'art-imm-3k1q') {
++                if (game.roundNumber <= 4) score += 180;
++                else score += 50;
++            } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
++                score += 150; // Good VP and expansion type
++            } else if (artifactId === 'art-vp-planet-types' || artifactId === 'art-vp-bridge') {
++                if (game.roundNumber >= 5) score += 150; // Late game VP
++            } else if (artifactId === 'art-fed-once') {
++                score += 100;
++            }
++
++            if (score > bestScore) {
++                bestScore = score;
++                bestArtifact = artifactId;
++            }
++        }
++
++        // Only take it if the score implies it's strategically good right now
++        if (bestScore > 80) {
++            return { type: 'take_twilight_artifact', params: { artifactId: bestArtifact } };
++        }
++
++        return null;
++    }
++
+     private static getEffectiveBaseRange(player: PlayerState): number {
+         let r = getRange(player.research?.navigation ?? 0) + (player.navigationBonus ?? 0);
+         if (player.tempRangeBonus) r += 3;
+diff --git a/server/ai/evaluator.ts b/server/ai/evaluator.ts
+index e6d1d57..d6b9d83 100644
+--- a/server/ai/evaluator.ts
++++ b/server/ai/evaluator.ts
+@@ -48,13 +48,13 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
+     vpWeightEarly: 5,
+     vpWeightLate: 22,
+
+-    resourceMultiplierEarly: 1.2,
++    resourceMultiplierEarly: 2.5, // 1.2 -> 2.5 (초반 자원 가치 뻥튀기로 엔진 빌딩 유도)
+     resourceMultiplierLate: 0.5,
+-    oreValue: 0.5,
+-    creditsValue: 0.12,
+-    knowledgeValue: 0.45,
++    oreValue: 0.8, // 0.5 -> 0.8
++    creditsValue: 0.25, // 0.12 -> 0.25
++    knowledgeValue: 0.8, // 0.45 -> 0.8
+
+-    qicWeightEarly: 2.5,
++    qicWeightEarly: 3.5, // 2.5 -> 3.5
+     qicWeightLate: 6.0,
+
+     power1Value: 0.05,
+@@ -64,12 +64,12 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
+     brainStoneBowl2: 1.2,
+     brainStoneBowl3: 2.5,
+
+-    structureMine: 24,
+-    structureTradingStation: 32,
+-    structureResearchLab: 45,
+-    structurePlanetaryInstitute: 75,
+-    structureAcademy: 90,
+-    structureRemainingRoundsFactor: 0.5,
++    structureMine: 50, // 24 -> 50 대폭 상향 (확장 최우선)
++    structureTradingStation: 60, // 32 -> 60 (경제/확장)
++    structureResearchLab: 80, // 45 -> 80
++    structurePlanetaryInstitute: 120, // 75 -> 120
++    structureAcademy: 140, // 90 -> 140
++    structureRemainingRoundsFactor: 1.0, // 초반 건물 가치 극대화 (0.5 -> 1.0)
+
+     researchTerraforming: 14,
+     researchNavigation: 14,
+@@ -78,9 +78,9 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
+     researchEconomy: 22,
+     researchScience: 28,
+     researchRemainingRoundsFactor: 0.2,
+-    researchLevel5Bonus: 180,
++    researchLevel5Bonus: 200,
+
+-    federationValueEach: 85,
++    federationValueEach: 120, // 85 -> 120 (연방 형성을 위해 광산을 더 지을 동기 부여)
+     gaiaformerValueEach: 5,
+ };
+
+@@ -197,6 +197,12 @@ export class Evaluator {
+
+         // 4) Structures
+         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
++
++        // 확장(광산 10개 이상)에 대한 추가 보너스
++        if (myStructures.length >= 10) {
++            score += (myStructures.length - 9) * 20; // 10개째부터 개당 20점씩 추가 가점
++        }
++
+         for (const tile of myStructures) {
+             let baseVal = 0;
+             if (tile.structure === 'mine' || tile.structure === 'lost_planet_mine') baseVal = w.structureMine;
+diff --git a/server/ai/federationPlanner.ts b/server/ai/federationPlanner.ts
+index ba31003..c797658 100644
+--- a/server/ai/federationPlanner.ts
++++ b/server/ai/federationPlanner.ts
+@@ -131,10 +131,23 @@ export class FederationPlanner {
+             });
+
+             if (connectedToNewComponent) {
+-                // Merge this path!
+-                path.forEach(hid => currentHexIds.add(hid));
++                // 이 경로의 일부가 이미 currentHexIds에 들어있을 수 있으므로 순수하게 추가된 위성 개수만 계산
++                let actualNewSatellites = 0;
++                path.forEach(hid => {
++                    if (!currentHexIds.has(hid)) {
++                        currentHexIds.add(hid);
++
++                        // Check if the player already owns a satellite here
++                        const onTile = game.satellites?.[hid];
++                        const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
++                        if (!playersOnTile.includes(playerId)) {
++                            actualNewSatellites++;
++                        }
++                    }
++                });
++
+                 newPlanetIdsToMerge.forEach(pid => currentPlanetIds.add(pid));
+-                tokensSpent += cost;
++                tokensSpent += actualNewSatellites;
+                 currentPower = getFederationBuildingPower(game, playerId, currentPlanetIds, Array.from(currentHexIds));
+
+                 if (currentPower >= requiredPower) {
+@@ -142,9 +155,22 @@ export class FederationPlanner {
+                 }
+
+                 // Since we added new planets, add their empty neighbors to the queue
+-                newPlanetIdsToMerge.forEach(pid => {
+-                    const pTile = game.map.find(t => t.id === pid)!;
+-                    getNeighbors(game.map, pTile).forEach(n => {
++                // 새로운 컴포넌트를 병합했으므로, 큐를 초기화하여 최단 경로 탐색을 새 건물 기준(현재 연방)으로 재설정 (위성 낭비 방지)
++                queue.length = 0;
++                visited.clear();
++
++                // 모든 현재 연방에 속한 행성들 및 위성들에서 다시 1거리 빈 공간 탐색
++                const currentFedTiles = [
++                    ...Array.from(currentPlanetIds).map(id => game.map.find(t => t.id === id)!),
++                    ...Array.from(currentHexIds).map(id => game.map.find(t => t.id === id)!)
++                ];
++
++                for (const t of currentFedTiles) {
++                    visited.add(t.id);
++                }
++
++                for (const t of currentFedTiles) {
++                    getNeighbors(game.map, t).forEach(n => {
+                         if (isEmptyHex(n) && !visited.has(n.id)) {
+                             const onTile = game.satellites?.[n.id];
+                             const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
+@@ -154,7 +180,7 @@ export class FederationPlanner {
+                             }
+                         }
+                     });
+-                });
++                }
+             } else {
+                 // Expand from this empty hex to other empty hexes
+                 getNeighbors(game.map, currentTile).forEach(n => {
+diff --git a/server/ai/mcts.ts b/server/ai/mcts.ts
+index 9de17b0..93737c7 100644
+--- a/server/ai/mcts.ts
++++ b/server/ai/mcts.ts
+@@ -25,12 +25,12 @@ export class MCTS {
+     private static get MAX_TIME_MS(): number {
+         if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
+         const v = typeof process !== 'undefined' && process.env?.MCTS_TIME_MS ? parseInt(process.env.MCTS_TIME_MS, 10) : NaN;
+-        return Number.isFinite(v) ? v : 4000; // 3초에서 4초로 상향
++        return Number.isFinite(v) ? v : 8000; // 4초에서 8초로 상향 (성능 및 실력 강화)
+     }
+     /** 환경 변수 MCTS_MAX_DEPTH(숫자)로 오버라이드 가능. 깊이 늘리면 강해지지만 느려짐 */
+     private static get MAX_DEPTH(): number {
+         const v = typeof process !== 'undefined' && process.env?.MCTS_MAX_DEPTH ? parseInt(process.env.MCTS_MAX_DEPTH, 10) : NaN;
+-        return Number.isFinite(v) ? v : 5;
++        return Number.isFinite(v) ? v : 8; // 5에서 8로 상향
+     }
+
+     static async search(initialState: ServerGameState, playerId: string, possibleActions: any[]): Promise<any | null> {
+diff --git a/server/gameState.ts b/server/gameState.ts
+index d3b4bff..60612e2 100644
+--- a/server/gameState.ts
++++ b/server/gameState.ts
+@@ -1398,7 +1398,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
+			mapState: JSON.parse(JSON.stringify(game.map)),
+			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+			gameLogLength: game.gameLog?.length || 0,
+-			fullGameState: cloneGameForTurnStartSnapshot(game),
++			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+		};
+	}
+	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+@@ -1438,7 +1438,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
+			mapState: JSON.parse(JSON.stringify(game.map)),
+			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+			gameLogLength: game.gameLog?.length || 0,
+-			fullGameState: cloneGameForTurnStartSnapshot(game),
++			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+		};
+	}
+	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+@@ -1837,7 +1837,7 @@ export function setupGameServer(httpServer: HTTPServer) {
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+
+			// Trigger bot turn if first player is a bot
+-			executeBotTurnIfNeeded(io, game).catch(err => {
++			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+				log(`Bot turn execution error (start_game): ${err}`, 'error');
+			});
+		});
+@@ -1957,7 +1957,7 @@ export function setupGameServer(httpServer: HTTPServer) {
+			}
+
+			// 모든 세팅이 안정된 후 단 한 번 봇 턴 실행 트리거
+-			executeBotTurnIfNeeded(io, game).catch(err => {
++			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+				log(`Bot turn execution error (auto_setup_test): ${err}`, 'error');
+			});
+		});
+@@ -2569,116 +2569,8 @@ export function setupGameServer(httpServer: HTTPServer) {
+		// Transdim에 가이아 포머 설치
+		socket.on('place_gaiaformer', ({ gameId, tileId, qicUsed }) => {
+			const game = games.get(gameId); if (!game) return;
+-			if (game.currentPhase !== 'main') return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+-			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+-			// TF Mars 액션2로 부여된 가이아 프로젝트 1회는 메인 액션 소모 없이 실행 가능
+-			const fromTFMars = game.pendingTFMarsGaiaProject?.playerId === playerId;
+-			if (!fromTFMars && game.hasDoneMainAction) return;
+-
+-			// 액션 시작 시점 상태 저장
+-			saveActionStartState(game, playerId);
+-
+-			const player = game.players[playerId];
+-			const tile = game.map.find(t => t.id === tileId);
+-			if (!tile || tile.type !== 'transdim' || tile.hasGaiaformer || tile.structure !== null) return;
+-
+-			// 가이아 포머가 있어야 함 (발타크: QIC 전환으로 잠긴 포머 제외)
+-			if (getEffectiveGaiaformers(player) <= 0) return;
+-
+-			// 거리 체크 (Nav+1, 보너스/트왈라잇 +3, 글린 +2 적용)
+-			let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+-			if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
+-			if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
+-			if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+-			const rangeTiles = getPlayerRangeTiles(game, playerId, true);
+-			if (rangeTiles.length === 0) return;
+-
+-			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+-			const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+-
+-			// QIC 사용량 확인
+-			const qicToUse = qicUsed || 0;
+-			if (qicToUse < neededQIC) return; // 필요한 QIC보다 적으면 설치 불가
+-			if (player.qic < qicToUse) return; // 보유 QIC 부족
+-
+-			// QIC 소모
+-			player.qic -= qicToUse;
+-
+-			const gaiaLevel = player.research.gaiaProject || 0;
+-			let powerToMove = 0;
+-
+-			const pendingGaia = game.pendingTFMarsGaiaProject;
+-			const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
+-			const immediateBuildable = fromTFMars || isBonusGaia; // TF2 또는 보너스 즉포는 당장 건설 가능
+-
+-			if (!immediateBuildable) {
+-				// 가이아 포머 기술 레벨에 따라 파워 토큰 개수 결정
+-				if (gaiaLevel >= 1 && gaiaLevel < 3) {
+-					powerToMove = 6; // 1단계: 6개
+-				} else if (gaiaLevel >= 3 && gaiaLevel < 4) {
+-					powerToMove = 4; // 3단계: 4개
+-				} else if (gaiaLevel >= 4) {
+-					powerToMove = 3; // 4단계: 3개
+-				} else {
+-					return; // 가이아 포머 기술이 없으면 설치 불가
+-				}
+-
+-				// 파워 토큰 이동: 1그릇->2그릇->3그릇 순
+-				let remaining = powerToMove;
+-				let movedFrom1 = Math.min(remaining, player.power1 || 0);
+-				player.power1 = (player.power1 || 0) - movedFrom1;
+-				remaining -= movedFrom1;
+-
+-				let movedFrom2 = Math.min(remaining, player.power2 || 0);
+-				player.power2 = (player.power2 || 0) - movedFrom2;
+-				remaining -= movedFrom2;
+-
+-				let movedFrom3 = Math.min(remaining, player.power3 || 0);
+-				player.power3 = (player.power3 || 0) - movedFrom3;
+-				remaining -= movedFrom3;
+-
+-				if (remaining > 0) return; // 파워 토큰이 부족하면 설치 불가
+-
+-				// 가이아 포머 구역으로 파워 토큰 이동
+-				player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
+-			}
+-
+-			player.gaiaformers = (player.gaiaformers || 0) - 1;
+-
+-			// 타일에 가이아 포머 설치
+-			tile.hasGaiaformer = true;
+-			tile.gaiaformerOwnerId = playerId;
+-
+-			if (immediateBuildable) {
+-				// TF2/보너스: 즉시 성숙 → 가이아 행성으로 표시, 당장 광산 건설 가능. 가이아포머는 타일에 유지
+-				if (!player.pendingGaiaformerTiles) player.pendingGaiaformerTiles = [];
+-				player.pendingGaiaformerTiles.push(tileId);
+-				tile.type = 'gaia';
+-				tile.isGaiaformed = true;
+-				// hasGaiaformer 유지 → 설치한 플레이어만 짓는지 확인 가능, 광산 짓을 때 회수
+-			} else {
+-				// 일반 배치: 이번 라운드에는 건설 불가, 다음 라운드에 성숙
+-				if (!player.gaiaformerPlacedThisRound) player.gaiaformerPlacedThisRound = [];
+-				player.gaiaformerPlacedThisRound.push(tileId);
+-			}
+-
+-			game.pendingTFMarsGaiaProject = null;
+-
+-			const qicText = qicToUse > 0 ? ` (${qicToUse} QIC for range)` : '';
+-			addGameLog(game, playerId, 'Placed Gaiaformer', `on Transdim (${powerToMove} power tokens moved to Gaiaformer area${qicText})`, tileId);
+-			log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game');
+-
+-			if (fromTFMars && isBonusGaia) {
+-				// 보너스 타일 즉포 가이아: 타일 반납하지 않고 턴만 소모 처리
+-				addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');
+-				game.hasDoneMainAction = true;
+-			} else if (fromTFMars) {
+-				// TF Mars 액션2로 수행한 가이아 프로젝트는 메인 액션 소모 없음 → 턴 유지
+-			} else {
+-				game.hasDoneMainAction = true;
+-			}
+-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
++			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed);
+		});
+
+		// 하이브(이비츠) 우주정거장 배치: 빈 공간(space/deep_space), 내 건물·우주정거장에서 거리 계산, Nav 범위 밖이면 2거리당 1 QIC. 다른 플레이어 위성 허용, 내 위성 있으면 불가. 라운드당 1회.
+@@ -3825,13 +3717,13 @@ export function setupGameServer(httpServer: HTTPServer) {
+					mapState: JSON.parse(JSON.stringify(game.map)),
+					spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+					gameLogLength: game.gameLog?.length || 0,
+-					fullGameState: cloneGameForTurnStartSnapshot(game),
++					fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+				};
+			}
+
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+
+-			executeBotTurnIfNeeded(io, game).catch(err => {
++			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+				log(`Bot turn execution error (end_turn): ${err}`, 'error');
+			});
+		});
+@@ -4119,7 +4011,7 @@ export function setupGameServer(httpServer: HTTPServer) {
+			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+
+-			executeBotTurnIfNeeded(io, game).catch(err => {
++			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+				log(`Bot turn execution error (accept_all_power_offers): ${err}`, 'error');
+			});
+		});
+@@ -4205,7 +4097,7 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
+		spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+		twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
+		gameLogLength: game.gameLog?.length || 0,
+-		fullGameState: cloneGameForTurnStartSnapshot(game),
++		fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+	};
+ }
+
+@@ -5001,7 +4893,7 @@ export function executeSelectFaction(
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+
+	if (!options?.skipBotTrigger) {
+-		executeBotTurnIfNeeded(io, game).catch(err => {
++		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (SelectFaction): ${err}`, 'error');
+		});
+	}
+@@ -5089,7 +4981,7 @@ export function executePlaceStartingMine(
+
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+
+-	executeBotTurnIfNeeded(io, game).catch(err => {
++	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+		log(`Bot turn execution error (PlaceStartingMine): ${err}`, 'error');
+	});
+
+@@ -5135,7 +5027,7 @@ export function executeSelectBonus(
+				mapState: JSON.parse(JSON.stringify(game.map)),
+				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+				gameLogLength: game.gameLog?.length || 0,
+-				fullGameState: cloneGameForTurnStartSnapshot(game),
++				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+			};
+		}
+
+@@ -5149,7 +5041,7 @@ export function executeSelectBonus(
+	// 보너스 선택이 완료되고 수익 단계로 진입하는 경우: helperStartNewRoundTurn에서 executeBotTurnIfNeeded를 호출하므로 여기서는 호출하지 않음
+	// 다음 보너스 선택 플레이어로 넘어가는 경우에만 호출
+	if (game.pendingBonusSelection) {
+-		executeBotTurnIfNeeded(io, game).catch(err => {
++		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (SelectBonus): ${err}`, 'error');
+		});
+	}
+@@ -5361,14 +5253,14 @@ export function executePassRound(
+				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+				twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
+				gameLogLength: game.gameLog?.length || 0,
+-				fullGameState: cloneGameForTurnStartSnapshot(game),
++				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+			};
+		}
+
+		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+
+		// 6라운드에서도 사람이 패스한 후 다음 플레이어가 봇이면 자동 실행될 수 있도록 트리거 추가
+-		executeBotTurnIfNeeded(io, game).catch(err => {
++		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (Round 6 pass): ${err}`, 'error');
+		});
+
+@@ -5526,7 +5418,7 @@ export function executePassRound(
+		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+
+		// Trigger bot turn if next player is a bot
+-		executeBotTurnIfNeeded(io, game).catch(err => {
++		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error: ${err}`, 'error');
+		});
+
+@@ -5796,7 +5688,7 @@ export function executeEndTurn(
+			mapState: JSON.parse(JSON.stringify(game.map)),
+			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+			gameLogLength: game.gameLog?.length || 0,
+-			fullGameState: cloneGameForTurnStartSnapshot(game),
++			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
+		};
+	}
+
+@@ -5808,7 +5700,7 @@ export function executeEndTurn(
+
+	// Trigger next bot turn if applicable (시뮬레이션 중에는 호출하지 않음)
+	if (!(game as any).simulation) {
+-		executeBotTurnIfNeeded(io, game).catch(err => {
++		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (after executeEndTurn): ${err}`, 'error');
+		});
+	}
+@@ -6126,7 +6018,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+
+-	executeBotTurnIfNeeded(io, game).catch(err => {
++	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+		log(`Bot turn execution error (respond_power_offer): ${err}`, 'error');
+	});
+ }
+@@ -6441,3 +6333,199 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
+	io.to(game.id).emit('game_updated', game);
+	return null;
+ }
++
++
++export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, qicUsed?: number): boolean {
++	if (!game || game.currentPhase !== 'main') return false;
++	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
++	const fromTFMars = game.pendingTFMarsGaiaProject?.playerId === playerId;
++	if (!fromTFMars && game.hasDoneMainAction) return false;
++
++	saveActionStartState(game, playerId);
++
++	const player = game.players[playerId];
++	const tile = game.map.find(t => t.id === tileId);
++	if (!tile || tile.type !== 'transdim' || tile.hasGaiaformer || tile.structure !== null) return false;
++
++	if (getEffectiveGaiaformers(player) <= 0) return false;
++
++	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
++	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
++	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
++	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
++	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
++	if (rangeTiles.length === 0) return false;
++
++	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
++	const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
++
++	const qicToUse = qicUsed || 0;
++	if (qicToUse < neededQIC) return false;
++	if (player.qic < qicToUse) return false;
++
++	player.qic -= qicToUse;
++
++	const gaiaLevel = player.research.gaiaProject || 0;
++	let powerToMove = 0;
++
++	const pendingGaia = game.pendingTFMarsGaiaProject;
++	const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
++	const immediateBuildable = fromTFMars || isBonusGaia;
++
++	if (!immediateBuildable) {
++		if (gaiaLevel >= 1 && gaiaLevel < 3) powerToMove = 6;
++		else if (gaiaLevel >= 3 && gaiaLevel < 4) powerToMove = 4;
++		else if (gaiaLevel >= 4) powerToMove = 3;
++		else return false;
++
++		let remaining = powerToMove;
++		let movedFrom1 = Math.min(remaining, player.power1 || 0);
++		player.power1 = (player.power1 || 0) - movedFrom1;
++		remaining -= movedFrom1;
++
++		let movedFrom2 = Math.min(remaining, player.power2 || 0);
++		player.power2 = (player.power2 || 0) - movedFrom2;
++		remaining -= movedFrom2;
++
++		let movedFrom3 = Math.min(remaining, player.power3 || 0);
++		player.power3 = (player.power3 || 0) - movedFrom3;
++		remaining -= movedFrom3;
++
++		if (remaining > 0) return false;
++
++		player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
++	}
++
++	player.gaiaformers = (player.gaiaformers || 0) - 1;
++	tile.hasGaiaformer = true;
++	tile.gaiaformerOwnerId = playerId;
++
++	if (immediateBuildable) {
++		if (!player.pendingGaiaformerTiles) player.pendingGaiaformerTiles = [];
++		player.pendingGaiaformerTiles.push(tileId);
++		tile.type = 'gaia';
++		tile.isGaiaformed = true;
++	} else {
++		if (!player.gaiaformerPlacedThisRound) player.gaiaformerPlacedThisRound = [];
++		player.gaiaformerPlacedThisRound.push(tileId);
++	}
++
++	game.pendingTFMarsGaiaProject = null;
++
++	const qicText = qicToUse > 0 ? ` (${qicToUse} QIC for range)` : '';
++	addGameLog(game, playerId, 'Placed Gaiaformer', `on Transdim (${powerToMove} power tokens moved to Gaiaformer area${qicText})`, tileId);
++	log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game');
++
++	if (fromTFMars && isBonusGaia) {
++		addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');
++		game.hasDoneMainAction = true;
++	} else if (!fromTFMars) {
++		game.hasDoneMainAction = true;
++	}
++
++	clampPlayerResources(game);
++	io.to(game.id).emit('game_updated', game);
++	return true;
++}
++
++export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGameState, playerId: string, artifactId: string): boolean {
++	if (!game || game.currentPhase !== 'main') return false;
++	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
++	if (game.hasDoneMainAction) return false;
++
++	const player = game.players[playerId];
++	const entered = player.spaceshipsEntered ?? [];
++	const twilightTile = game.map.find(t => t.type === 'ship_twilight');
++	if (!twilightTile || !entered.includes(twilightTile.id)) return false;
++
++	const slots = game.twilightArtifactSlots ?? [];
++	const slotIdx = slots.findIndex(s => s === artifactId);
++	if (slotIdx === -1 || !ARTIFACTS.some(a => a.id === artifactId)) return false;
++
++	// simulate spendPowerTokens logic
++	let amount = 6;
++	const total = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
++	if (total < amount) return false;
++
++	saveActionStartState(game, playerId);
++
++	let remaining = amount;
++	const from1 = Math.min(remaining, player.power1 || 0);
++	player.power1 = (player.power1 || 0) - from1;
++	remaining -= from1;
++	const from2 = Math.min(remaining, player.power2 || 0);
++	player.power2 = (player.power2 || 0) - from2;
++	remaining -= from2;
++	const from3 = Math.min(remaining, player.power3 || 0);
++	player.power3 = (player.power3 || 0) - from3;
++
++	(game.twilightArtifactSlots as (string | null)[])[slotIdx] = null;
++	if (!player.artifacts) player.artifacts = [];
++	player.artifacts.push(artifactId);
++
++	const art = ARTIFACTS.find(a => a.id === artifactId)!;
++	if (art.id === 'art-fed-once') {
++		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id };
++		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', twilightTile.id);
++	} else if (art.id === 'art-vp-gaia') {
++		const lvl = player.research.gaiaProject ?? 0;
++		const vp = lvl * 3;
++		addScore(game, playerId, vp, 'other', { source: 'Artifact: Gaia x 3' });
++		addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
++	} else if (art.id === 'art-vp-science') {
++		const lvl = player.research.science ?? 0;
++		const vp = lvl * 3;
++		addScore(game, playerId, vp, 'other', { source: 'Artifact: Science x 3' });
++		addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
++	} else if (art.id === 'art-vp-tracks3') {
++		const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[]).filter(t => (player.research[t] ?? 0) >= 3).length;
++		const vp = tracks * 3;
++		addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
++		addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, twilightTile.id);
++	} else if (art.id === 'art-vp-planet-types') {
++		const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
++		const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
++		if (player.virtualMineAsteroid) types.add('asteroid');
++		if (player.virtualMineProto) types.add('proto');
++		const vp = 3 + types.size;
++		addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
++		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, twilightTile.id);
++	} else if (art.id === 'art-7vp-virtual-asteroid') {
++		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
++		player.virtualMineAsteroid = true;
++		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', twilightTile.id);
++	} else if (art.id === 'art-7vp-virtual-proto') {
++		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
++		player.virtualMineProto = true;
++		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', twilightTile.id);
++	} else if (art.id === 'art-imm-3o3c') {
++		player.ore = (player.ore || 0) + 3;
++		player.credits = (player.credits || 0) + 3;
++		addGameLog(game, playerId, 'Artifact: 3O 3C', '', twilightTile.id);
++	} else if (art.id === 'art-imm-2o5c') {
++		player.ore = (player.ore || 0) + 2;
++		player.credits = (player.credits || 0) + 5;
++		addGameLog(game, playerId, 'Artifact: 2O 5C', '', twilightTile.id);
++	} else if (art.id === 'art-imm-3k1q') {
++		player.knowledge = (player.knowledge || 0) + 3;
++		player.qic = (player.qic || 0) + 1; // grantQic shortcut
++		addGameLog(game, playerId, 'Artifact: 3K 1Q', '', twilightTile.id);
++	} else if (art.id === 'art-vp-bridge') {
++		const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
++		const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure));
++		const vp = withBuilding.length * 3;
++		addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
++		addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
++	} else {
++		addGameLog(game, playerId, 'Artifact', art.label, twilightTile.id);
++	}
++
++	game.hasDoneMainAction = true;
++	for (const p of Object.values(game.players)) {
++		if (p.ore != null && p.ore > 15) p.ore = 15;
++		if (p.knowledge != null && p.knowledge > 15) p.knowledge = 15;
++		if (p.credits != null && p.credits > 30) p.credits = 30;
++	}
++	io.to(game.id).emit('game_updated', game);
++	return true;
++}
