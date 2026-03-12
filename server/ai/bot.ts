@@ -723,6 +723,11 @@ export class BotLogic {
         // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
         const rangeBonusValue = range >= 2 ? 30 : 0;
 
+        // 확장(건물 수) 우대 전략 (하지만 10개 이상이면 무조건 짓기보단 점수/연방 연계를 중시)
+        const expansionDesire = myPlanets.length < 10 ? (10 - myPlanets.length) * 30 : 0;
+        const earlyRushBonus = game.roundNumber <= 3 ? 150 : 0;
+        const overExpansionPenalty = myPlanets.length >= 10 ? -80 : 0; // 충분히 컸을 땐 단순 확장은 감점
+
         // 모든 잠재적 광산 후보 평가
         const candidates = game.map.filter(t =>
             !t.ownerId &&
@@ -747,8 +752,8 @@ export class BotLogic {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
 
-            // QIC 소모 최대 1 제한
-            if (neededQicForRange > 1) continue;
+            // QIC 소모 최대 1 제한 (초반 확장 패널티 약간 완화)
+            if (neededQicForRange > 2) continue; // 확장을 위해서라면 QIC 2개 소모까지 허용
             if (neededQicForRange > qic) continue;
 
             if (tile.type === 'gaia') {
@@ -760,21 +765,21 @@ export class BotLogic {
                     if (totalQicNeeded > qic) continue;
                 } else {
                     if (totalQicNeeded > qic) continue;
-                    if (totalQicNeeded > 1) continue; // 가이아 1QIC + 거리 QIC = 2 이상이면 비효율
+                    if (totalQicNeeded > 2) continue; // 확장을 위해서 2까지 완화
                 }
 
-                let score = (neededQicForRange === 0 ? 150 : 120) - neededQicForRange * 30; // 가이아 건설 베이스 점수 상향 (기존 130/100)
+                let score = (neededQicForRange === 0 ? 300 : 250) - neededQicForRange * 30; // 가이아 건설 베이스 점수 대폭 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
 
-                // [전략 개선] 초반(1-2라) 확장 가점 강화
-                if (game.roundNumber <= 2) score += 60;
+                score += earlyRushBonus;
+                score += expansionDesire;
+                score += overExpansionPenalty;
 
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateThreatScore(game, playerId, tile);
                 score += rangeBonusValue;
-                score += (6 - myPlanets.length) * 10; // 건물이 적을수록 새 건물 가치 상향
 
                 scored.push({
                     tile,
@@ -786,18 +791,18 @@ export class BotLogic {
 
             // 모행성 (테라포밍 불필요)
             if (tile.type === homeType) {
-                let score = (neededQicForRange === 0 ? 160 : 130) - neededQicForRange * 30; // 모행성 베이스 상향
+                let score = (neededQicForRange === 0 ? 350 : 300) - neededQicForRange * 30; // 모행성 확장은 최상위 가치
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
 
-                // [전략 개선] 초반 확장 가점
-                if (game.roundNumber <= 2) score += 70;
+                score += earlyRushBonus;
+                score += expansionDesire;
+                score += overExpansionPenalty;
 
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
                 score += this.calculateThreatScore(game, playerId, tile);
                 score += rangeBonusValue;
-                score += (8 - myPlanets.length) * 8; // 건물 부족 시 광산 우선
 
                 scored.push({
                     tile,
@@ -817,10 +822,13 @@ export class BotLogic {
 
             if (remainingSteps === 0) {
                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
-                let score = 85 - neededQicForRange * 25;
+                let score = 250 - neededQicForRange * 25; // 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
+                score += earlyRushBonus;
+                score += expansionDesire;
+                score += overExpansionPenalty;
                 score += rangeBonusValue; // 2거리 확보 가점
 
                 scored.push({
@@ -909,25 +917,22 @@ export class BotLogic {
             const totalOre = 1 + terraformCost;
 
             if (ore >= totalOre && credits >= 2) {
-                // [AI 개선] 3O(광석 3개)를 소모하는 테라포밍은 매우 비효율적이므로 점수를 대폭 하향
-                const tfScore = tfLevel >= 3 ? 50 : (tfLevel >= 2 ? 30 : (tfLevel >= 1 ? 5 : -20));
+                // 확장 가치를 매우 높게 쳐주므로, 광석을 소모해서라도 짓도록 유도
+                const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
-                // 3O 소모 구간(costPerStep >= 3)에서는 패널티 대폭 증가
-                const stepPenalty = costPerStep >= 3 ? (remainingSteps * 30) : (remainingSteps * 10);
-                let score = tfScore - stepPenalty - (neededQicForRange * 25);
-
-                // 광석이 충분하지 않은 초/중반 3O 테라포밍 극단적 패널티
-                if (costPerStep >= 3 && (game.roundNumber <= 3 || ore < 8)) {
-                    score -= 60;
-                }
+                const stepPenalty = costPerStep >= 3 ? (remainingSteps * 20) : (remainingSteps * 10);
+                let score = tfScore - stepPenalty - (neededQicForRange * 20);
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
 
-                // 효율이 극도로 낮다면 아예 후보에서 배제 (차라리 기술을 올리거나 패스하도록 유도)
-                if (score >= -10) {
+                score += earlyRushBonus;
+                score += expansionDesire;
+                score += overExpansionPenalty;
+
+                if (score >= -50) { // 약간 효율이 떨어져도 무조건 짓게 유도
                     scored.push({
                         tile,
                         score,
@@ -950,17 +955,17 @@ export class BotLogic {
 
         scored.sort((a, b) => b.score - a.score);
 
-        // 상위 3개 후보 반환 (필요한 경우 preAction 포함 점수 상위권 채택)
+        // 상위 후보 반환
         const results: BotAction[] = [];
         const seenActions = new Set<string>();
 
-        for (const s of scored.slice(0, 5)) { // 넉넉히 5개 후보 중 유니크한 3개 추출
+        for (const s of scored.slice(0, 8)) { // 더 다양한 광산 후보를 고려하도록 상향 (5->8)
             const act = s.preAction || s.action;
             const key = JSON.stringify(act);
             if (!seenActions.has(key)) {
                 seenActions.add(key);
                 results.push(act);
-                if (results.length >= 3) break;
+                if (results.length >= 4) break; // 3->4개로 상향
             }
         }
 

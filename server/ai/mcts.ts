@@ -25,12 +25,12 @@ export class MCTS {
     private static get MAX_TIME_MS(): number {
         if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
         const v = typeof process !== 'undefined' && process.env?.MCTS_TIME_MS ? parseInt(process.env.MCTS_TIME_MS, 10) : NaN;
-        return Number.isFinite(v) ? v : 4000; // 3초에서 4초로 상향
+        return Number.isFinite(v) ? v : 8000; // 4초에서 8초로 상향 (성능 및 실력 강화)
     }
     /** 환경 변수 MCTS_MAX_DEPTH(숫자)로 오버라이드 가능. 깊이 늘리면 강해지지만 느려짐 */
     private static get MAX_DEPTH(): number {
         const v = typeof process !== 'undefined' && process.env?.MCTS_MAX_DEPTH ? parseInt(process.env.MCTS_MAX_DEPTH, 10) : NaN;
-        return Number.isFinite(v) ? v : 5;
+        return Number.isFinite(v) ? v : 8; // 5에서 8로 상향
     }
 
     static async search(initialState: ServerGameState, playerId: string, possibleActions: any[]): Promise<any | null> {
