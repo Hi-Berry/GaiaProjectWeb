@@ -801,6 +801,27 @@ export class BotLogic {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
 
+            let qicPenalty = neededQicForRange * 30;
+            if (neededQicForRange > 0) {
+                // Determine if this is a "good" QIC jump based on condition B:
+                // Are there additional easy expansion targets (Gaia or home type) within 1 hex of the target tile?
+                let easyTargetsNearby = 0;
+                for (const t of game.map) {
+                    if (t.id !== tile.id && !t.structure && (t.type === 'gaia' || t.type === homeType)) {
+                        if (getDistance(tile, t) <= 1) easyTargetsNearby++;
+                    }
+                }
+
+                // If base range is 1 (player hasn't upgraded range) or there are nearby targets,
+                // it's an acceptable jump, so keep the normal penalty.
+                // Otherwise, it's a "bad" jump, so we apply a massive penalty to discourage it.
+                if (range > 1 && easyTargetsNearby === 0) {
+                    qicPenalty += 200; // Heavily discourage pointless QIC jumps when range is already upgraded and no clusters nearby
+                } else if (range === 1 && easyTargetsNearby === 0) {
+                    qicPenalty += 50; // Mildly discourage even if range is 1, but still allow if desperate
+                }
+            }
+
             // QIC 소모 최대 1 제한 (초반 확장 패널티 약간 완화)
             if (neededQicForRange > 2) continue; // 확장을 위해서라면 QIC 2개 소모까지 허용
             if (neededQicForRange > qic) continue;
@@ -817,7 +838,7 @@ export class BotLogic {
                     if (totalQicNeeded > 2) continue; // 확장을 위해서 2까지 완화
                 }
 
-                let score = (neededQicForRange === 0 ? 300 : 250) - neededQicForRange * 30; // 가이아 건설 베이스 점수 대폭 상향
+                let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty; // 가이아 건설 베이스 점수 대폭 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
@@ -840,7 +861,7 @@ export class BotLogic {
 
             // 모행성 (테라포밍 불필요)
             if (tile.type === homeType) {
-                let score = (neededQicForRange === 0 ? 350 : 300) - neededQicForRange * 30; // 모행성 확장은 최상위 가치
+                let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty; // 모행성 확장은 최상위 가치
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
 
@@ -871,7 +892,7 @@ export class BotLogic {
 
             if (remainingSteps === 0) {
                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
-                let score = 250 - neededQicForRange * 25; // 상향
+                let score = 250 - (qicPenalty * 0.8); // 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
@@ -895,7 +916,7 @@ export class BotLogic {
                     if (power3 >= 3) {
                         scored.push({
                             tile,
-                            score: 70 - neededQicForRange * 25,
+                            score: 70 - (qicPenalty * 0.8),
                             preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -903,7 +924,7 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 3) {
                         scored.push({
                             tile,
-                            score: 69 - neededQicForRange * 25,
+                            score: 69 - (qicPenalty * 0.8),
                             preAction: {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -922,7 +943,7 @@ export class BotLogic {
                     if (power3 >= 5) {
                         scored.push({
                             tile,
-                            score: 60 - neededQicForRange * 25,
+                            score: 60 - (qicPenalty * 0.8),
                             preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -930,7 +951,7 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         scored.push({
                             tile,
-                            score: 59 - neededQicForRange * 25,
+                            score: 59 - (qicPenalty * 0.8),
                             preAction: {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -951,7 +972,7 @@ export class BotLogic {
                     if (!usedActions.includes(3)) {
                         scored.push({
                             tile,
-                            score: 65 - neededQicForRange * 25,
+                            score: 65 - (qicPenalty * 0.8),
                             preAction: { type: 'use_ship_action', params: { shipTileId: tfMarsShip.id, actionIndex: 3 } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -970,7 +991,7 @@ export class BotLogic {
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
                 const stepPenalty = costPerStep >= 3 ? (remainingSteps * 20) : (remainingSteps * 10);
-                let score = tfScore - stepPenalty - (neededQicForRange * 20);
+                let score = tfScore - stepPenalty - (qicPenalty * 0.6);
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
