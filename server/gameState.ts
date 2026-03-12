@@ -5271,10 +5271,10 @@ export function executePassRound(
 
 // ========== Bot-accessible exported functions ==========
 
-/** Bot용: 파워 액션 실행 (테라포밍 스텝 등). hasDoneMainAction 설정하지 않음 (free action). */
+/** Bot용: 파워 액션 실행 (테라포밍 스텝 등). 타클론 시 useBrain=true면 브레인 스톤 우선 사용. */
 export function executeUsePowerAction(
 	io: SocketIOServer, game: ServerGameState,
-	playerId: string, actionId: string
+	playerId: string, actionId: string, useBrain?: boolean
 ): boolean {
 	if (!game) {
 		log(`executeUsePowerAction failed: Game state is null`, 'error');
@@ -5301,9 +5301,17 @@ export function executeUsePowerAction(
 	const player = game.players[playerId];
 	const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 	const powerCost = action.costType === 'power' ? (hasNevlasPI ? Math.ceil(action.cost as number / 2) : action.cost as number) : 0;
-	if (action.costType === 'power' && (player.power3 ?? 0) < powerCost) {
-		debugLog(game, `executeUsePowerAction failed: Insufficient Power 3 (Required: ${powerCost}, Current: ${player.power3})`, 'error');
-		return false;
+	if (action.costType === 'power') {
+		const isTaklons = player.faction === 'taklons';
+		if (isTaklons) {
+			if (!canSpendTaklonsPower(player, 3, powerCost)) {
+				debugLog(game, `executeUsePowerAction failed: Taklons insufficient power (Required: ${powerCost})`, 'error');
+				return false;
+			}
+		} else if ((player.power3 ?? 0) < powerCost) {
+			debugLog(game, `executeUsePowerAction failed: Insufficient Power 3 (Required: ${powerCost}, Current: ${player.power3})`, 'error');
+			return false;
+		}
 	}
 	if (action.costType === 'qic' && (player.qic ?? 0) < action.cost) {
 		debugLog(game, `executeUsePowerAction failed: Insufficient QIC (Required: ${action.cost}, Current: ${player.qic})`, 'error');
@@ -5311,8 +5319,12 @@ export function executeUsePowerAction(
 	}
 
 	if (action.costType === 'power') {
-		player.power3 = (player.power3 ?? 0) - powerCost;
-		player.power1 = (player.power1 ?? 0) + powerCost;
+		if (player.faction === 'taklons') {
+			spendTaklonsPower(player, 3, powerCost, useBrain ?? true);
+		} else {
+			player.power3 = (player.power3 ?? 0) - powerCost;
+			player.power1 = (player.power1 ?? 0) + powerCost;
+		}
 	} else {
 		player.qic = (player.qic ?? 0) - action.cost;
 	}

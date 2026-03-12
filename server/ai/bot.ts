@@ -90,7 +90,7 @@ export class BotLogic {
             case 'select_bonus':
                 return executeSelectBonus(io, game, playerId, action.params.bonusTileId);
             case 'use_power_action':
-                return executeUsePowerAction(io, game, playerId, action.params.actionId);
+                return executeUsePowerAction(io, game, playerId, action.params.actionId, action.params.useBrain);
             case 'place_ivits_space_station':
                 return executePlaceIvitsSpaceStation(io, game, playerId, action.params.tileId);
             case 'use_ship_action':
@@ -259,17 +259,18 @@ export class BotLogic {
         // *현재* 보유한 p3를 자원으로 미리 변환 (에러 방지: 시뮬레이션된 p3가 아닌 현재 p3 기준)
         const currentP3 = player.power3 ?? 0;
         if (p3 > (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0) || p3 >= 1) {
-            // 변환 우선순위: QIC(4) > Ore(3) > Credit(1)
+            // 변환 우선순위: QIC(4) > Ore(3) > Credit(1). 타클론은 브레인 스톤 우선 사용.
+            const useBrain = player.faction === 'taklons';
             if (currentP3 >= 4 && (player.qic || 0) < 15) {
                 if (player.faction !== 'gleens' || getAcademyRightCount(game, playerId) > 0) {
-                    return { type: 'convert_resource', params: { type: '4power-to-1qic' } };
+                    return { type: 'convert_resource', params: { type: '4power-to-1qic', useBrain } };
                 }
             }
             if (currentP3 >= 3 && (player.ore ?? 0) < 15) {
-                return { type: 'convert_resource', params: { type: '3power-to-1ore' } };
+                return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } };
             }
             if (currentP3 >= 1 && (player.credits ?? 0) < 30) {
-                return { type: 'convert_resource', params: { type: '1power-to-1credit' } };
+                return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain } };
             }
         }
 
@@ -883,7 +884,7 @@ export class BotLogic {
                         scored.push({
                             tile,
                             score: 70 - neededQicForRange * 25,
-                            preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step' } },
+                            preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
                         continue;
@@ -895,7 +896,7 @@ export class BotLogic {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
                             },
-                            action: { type: 'use_power_action', params: { actionId: 'gain-1-step' } }
+                            action: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } }
                         });
                         continue;
                     }
@@ -910,7 +911,7 @@ export class BotLogic {
                         scored.push({
                             tile,
                             score: 60 - neededQicForRange * 25,
-                            preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps' } },
+                            preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
                         continue;
@@ -922,7 +923,7 @@ export class BotLogic {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
                             },
-                            action: { type: 'use_power_action', params: { actionId: 'gain-2-steps' } }
+                            action: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } }
                         });
                         continue;
                     }
@@ -1593,19 +1594,21 @@ export class BotLogic {
 
         if (scored.length === 0) return [];
         scored.sort((a, b) => b.score - a.score);
-        // 상위 3개 후보 반환 - MCTS가 다양한 파워 액션을 탐색할 수 있도록
-        return scored.slice(0, 3).map(s => ({ type: 'use_power_action', params: { actionId: s.id } }));
+        // 상위 3개 후보 반환 - MCTS가 다양한 파워 액션을 탐색할 수 있도록. 타클론은 브레인 스톤 우선 사용.
+        const useBrain = player.faction === 'taklons';
+        return scored.slice(0, 3).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
     }
 
     private static findEssentialConversions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const p3 = player.power3 ?? 0;
         const res: BotAction[] = [];
+        const useBrain = player.faction === 'taklons';
 
-        // 자원 상황이 정말 좋지 않을 때만 후보에 추가 (MCTS 탐색 공간 낭비 방지)
-        if (p3 >= 3 && (player.ore ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '3power-to-1ore' } });
-        if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit' } });
-        if (p3 >= 4 && (player.qic ?? 0) < 1) res.push({ type: 'convert_resource', params: { type: '4power-to-1qic' } });
+        // 자원 상황이 정말 좋지 않을 때만 후보에 추가 (MCTS 탐색 공간 낭비 방지). 타클론은 브레인 스톤 우선 사용.
+        if (p3 >= 3 && (player.ore ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } });
+        if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain } });
+        if (p3 >= 4 && (player.qic ?? 0) < 1) res.push({ type: 'convert_resource', params: { type: '4power-to-1qic', useBrain } });
 
         return res;
     }
