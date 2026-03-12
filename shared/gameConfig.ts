@@ -145,6 +145,7 @@ export interface HexTile {
   structure: StructureType;
   ownerId: string | null;
   hasGaiaformer?: boolean; // 가이아 포머가 설치되어 있는지
+  gaiaformerOwnerId?: string; // 가이아 포머를 설치한 플레이어 ID (즉시 성숙 등 건물이 없을 때 확인용)
   destroyedGaiaformer?: boolean; // 소행성 등에 설치되어 파괴되었는지 여부 (빨간 원 표시용)
   /** 아카데미: 'left' = 수익 2K, 'right' = Special 액션 1QIC (없으면 기존 호환용 left) */
   academyType?: 'left' | 'right';
@@ -379,6 +380,8 @@ export interface GaiaGameState {
   turnOrder: string[];
   /** AI 봇 플레이어 ID 목록 */
   botPlayerIds?: string[];
+  /** 방장이 수동으로 추가한 로컬 플레이어 ID (봇 제외) */
+  hostAddedPlayerIds?: string[];
 
   isTestMode: boolean;
   hasDoneMainAction: boolean;

@@ -829,8 +829,8 @@ export function GameBoard({
 
                     {/* 가이아 포머 표시 (transdim 또는 성숙 가이아에 설치된 경우) */}
                     {tile.hasGaiaformer && (() => {
-                      // ownerId가 있으면 그 플레이어의 색상을, 없으면 로컬 playerId의 색상을 사용 (이전 로직 유지)
-                      const gaiaOwnerId = tile.ownerId || playerId;
+                      // ownerId가 있으면 그 플레이어의 색상을, 없으면 포머 설치자, 마지막으로 로컬 playerId 사용
+                      const gaiaOwnerId = tile.ownerId || tile.gaiaformerOwnerId || playerId;
                       const ownerFaction = gaiaOwnerId ? (game.players[gaiaOwnerId]?.faction ? FACTIONS.find(f => f.id === game.players[gaiaOwnerId].faction) : null) : null;
 
                       const targetColorHex = (ownerFaction?.color || '#4CAF50').toUpperCase();
@@ -1017,8 +1017,8 @@ export function GameBoard({
       {
         selectedTile && (
           <div
-            className={`absolute top-0 bottom-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out ${isSidebarOpen ? 'right-[340px]' : 'right-0'
-              }`}
+            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out"
+
           >
             <h3 className="font-semibold capitalize">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
