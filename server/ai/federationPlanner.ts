@@ -16,7 +16,8 @@ import {
 } from '../gameState';
 
 export class FederationPlanner {
-    static getBestFederationAction(game: ServerGameState, playerId: string): {
+    /** extraTokens: 프리 액션으로 얻을 예정인 파워(위성) 수를 가정해 더 좋은 연방(예: 12VP) 탐색 */
+    static getBestFederationAction(game: ServerGameState, playerId: string, extraTokens = 0): {
         selectedHexIds: string[],
         selectedPlanetIds: string[],
         rewardId: string,
@@ -27,7 +28,8 @@ export class FederationPlanner {
 
         const requiredPower = getFederationRequiredPower(game, playerId);
         const isIvits = player.faction === 'ivits';
-        const availableTokens = isIvits ? (player.qic || 0) : ((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0));
+        let availableTokens = isIvits ? (player.qic || 0) : ((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0));
+        availableTokens += extraTokens;
 
         const fedHexes = game.playerFederationHexes?.[playerId] || [];
         const myStructures = game.map.filter(t =>

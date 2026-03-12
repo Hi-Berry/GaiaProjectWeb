@@ -134,7 +134,13 @@ export class MCTS {
         // For MCTS to truly work, execute functions need a 'mock' mode or we use a separate simulation engine.
         // For our simplified MCTS, we will execute it with a dummy IO object.
         const dummyIo = { to: () => ({ emit: () => { } }) } as any;
-        await BotLogic.performAction(dummyIo, newState, action, playerId);
+        const act = action as { type: string; params: any; preActions?: any[] };
+        if (act.preActions?.length) {
+            for (const pre of act.preActions) {
+                await BotLogic.performAction(dummyIo, newState, pre, playerId);
+            }
+        }
+        await BotLogic.performAction(dummyIo, newState, { type: action.type, params: action.params }, playerId);
 
         const childNode: MCTSNode = {
             state: newState,

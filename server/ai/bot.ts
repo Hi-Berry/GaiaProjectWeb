@@ -47,7 +47,8 @@ import {
     countGreenFederations,
     TechTile,
     SHIP_TECH_TILES,
-    isPlanetHex
+    isPlanetHex,
+    FEDERATION_12VP_ID
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -70,6 +71,8 @@ type BotAction = {
     | 'place_gaiaformer'
     | 'take_twilight_artifact';
     params: any;
+    /** 프리 액션을 먼저 실행한 뒤 메인 액션 (예: 2O→2토큰 후 연방) */
+    preActions?: BotAction[];
 };
 
 export class BotLogic {
@@ -357,6 +360,15 @@ export class BotLogic {
         const fedAction = FederationPlanner.getBestFederationAction(game, playerId);
         if (fedAction) candidates.push({ type: 'form_federation', params: fedAction });
 
+        // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
+        const oreForFed = player.ore ?? 0;
+        for (let k = 2; k <= Math.min(oreForFed, 6); k++) {
+            const fedWithK = FederationPlanner.getBestFederationAction(game, playerId, k);
+            if (!fedWithK) continue;
+            const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
+            candidates.push({ type: 'form_federation', params: fedWithK, preActions });
+        }
+
         // 2. pendingTerraformSteps가 있으면 바로 광산 건설
         if ((player.pendingTerraformSteps || 0) > 0) {
             const buildWithPending = this.findBuildWithPendingSteps(game, playerId);
@@ -411,9 +423,9 @@ export class BotLogic {
         const shipActions = this.findSpaceshipActions(game, playerId);
         if (shipActions.length > 0) candidates.push(...shipActions);
 
-        // 8-3b. 트왈라잇 인공물 획득
-        const artifactAction = this.findTwilightArtifactAction(game, playerId);
-        if (artifactAction) candidates.push(artifactAction);
+        // 8-3b. 트왈라잇 인공물 획득 (프리 n회 1O→1토큰 후 획득도 n=1..6 후보로 넣어 MCTS가 효율 판단)
+        const artifactActions = this.findTwilightArtifactActions(game, playerId);
+        if (artifactActions.length > 0) candidates.push(...artifactActions);
 
         // 가이아 포머 배치 액션 (가이아 프로젝트)
         const gaiaformerActions = this.findGaiaformerActions(game, playerId);
@@ -1793,15 +1805,16 @@ export class BotLogic {
         return actions.length > 0 ? actions[0] : null;
     }
 
-    private static findTwilightArtifactAction(game: ServerGameState, playerId: string): BotAction | null {
+    /** 인공물 비용 6 파워 기준으로 쓸 만한 인공물 ID 반환. assumedMinPower를 주면 그만큼 있다고 가정. */
+    private static getBestArtifactId(game: ServerGameState, playerId: string, assumedMinPower?: number): string | null {
         const player = game.players[playerId];
         const entered = player.spaceshipsEntered || [];
         const twilightTile = game.map.find(t => t.type === 'ship_twilight');
-
         if (!twilightTile || !entered.includes(twilightTile.id)) return null;
 
         const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
-        if (totalPower < 6) return null; // 6 power tokens required
+        const effectivePower = assumedMinPower ?? totalPower;
+        if (effectivePower < 6) return null;
 
         const slots = game.twilightArtifactSlots ?? [];
         const availableArtifacts = slots.filter(s => s !== null) as string[];
@@ -1812,33 +1825,56 @@ export class BotLogic {
 
         for (const artifactId of availableArtifacts) {
             let score = 50;
-
             if (artifactId === 'art-imm-2o5c' || artifactId === 'art-imm-3o3c') {
-                if (game.roundNumber <= 3) score += 200; // Early economy boost
+                if (game.roundNumber <= 3) score += 200;
                 else score += 40;
             } else if (artifactId === 'art-imm-3k1q') {
                 if (game.roundNumber <= 4) score += 180;
                 else score += 50;
             } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
-                score += 150; // Good VP and expansion type
+                score += 150;
             } else if (artifactId === 'art-vp-planet-types' || artifactId === 'art-vp-bridge') {
-                if (game.roundNumber >= 5) score += 150; // Late game VP
+                if (game.roundNumber >= 5) score += 150;
             } else if (artifactId === 'art-fed-once') {
                 score += 100;
             }
-
             if (score > bestScore) {
                 bestScore = score;
                 bestArtifact = artifactId;
             }
         }
+        return bestScore > 80 ? bestArtifact : null;
+    }
 
-        // Only take it if the score implies it's strategically good right now
-        if (bestScore > 80) {
-            return { type: 'take_twilight_artifact', params: { artifactId: bestArtifact } };
+    /** 인공물 획득 후보. 파워 6 미만이면 need=6-totalPower만큼 1O→1토큰 후보를 need~min(6,ore)까지 넣어 MCTS가 효율 판단. */
+    private static findTwilightArtifactActions(game: ServerGameState, playerId: string): BotAction[] {
+        const player = game.players[playerId];
+        const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+        const ore = player.ore ?? 0;
+
+        const results: BotAction[] = [];
+
+        if (totalPower >= 6) {
+            const bestId = this.getBestArtifactId(game, playerId);
+            if (bestId) results.push({ type: 'take_twilight_artifact', params: { artifactId: bestId } });
+            return results;
         }
 
-        return null;
+        const need = 6 - totalPower;
+        if (need < 1 || ore < need) return results;
+
+        const artifactId = this.getBestArtifactId(game, playerId, 6);
+        if (!artifactId) return results;
+
+        const oneConvert = { type: 'convert_resource' as const, params: { type: '1ore-to-1token' } };
+        for (let n = need; n <= Math.min(6, ore); n++) {
+            results.push({
+                type: 'take_twilight_artifact',
+                params: { artifactId },
+                preActions: Array.from({ length: n }, () => oneConvert)
+            });
+        }
+        return results;
     }
 
     private static getEffectiveBaseRange(player: PlayerState): number {

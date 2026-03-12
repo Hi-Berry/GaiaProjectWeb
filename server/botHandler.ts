@@ -281,7 +281,20 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     }
 
     log(`Bot ${player.name} executing: ${action.type}`, 'game');
-    const success = await BotLogic.performAction(io, game, action, currentPlayerId);
+    const preActions = (action as any).preActions as { type: string; params: any }[] | undefined;
+    let preOk = true;
+    if (preActions?.length) {
+        for (const pre of preActions) {
+            const ok = await BotLogic.performAction(io, game, pre, currentPlayerId);
+            if (!ok) {
+                log(`Bot ${player.name} failed preAction ${pre.type}`, 'error', game.id);
+                preOk = false;
+                break;
+            }
+        }
+    }
+    const mainAction = preActions?.length ? { type: action.type, params: action.params } : action;
+    const success = preOk && await BotLogic.performAction(io, game, mainAction, currentPlayerId);
 
     if (success) {
         log(`Bot ${player.name} successfully executed ${action.type}`, 'game', game.id);
