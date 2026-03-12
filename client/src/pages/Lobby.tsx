@@ -245,8 +245,10 @@ export default function Lobby() {
                 {games.map((game) => {
                   const isFull = game.playerCount >= game.maxPlayers;
                   const isStarted = game.phase !== 'lobby';
+                  const isFinished = game.phase === 'gameEnd';
                   const storedPlayerId = localStorage.getItem(`gaia-${game.id}-playerId`);
                   const canRejoin = !!storedPlayerId;
+                  const phaseLabel = isFinished ? 'Finished' : game.phase.replace(/([A-Z])/g, ' $1').trim();
 
                   return (
                     <div
@@ -259,7 +261,10 @@ export default function Lobby() {
                           <span className="font-mono text-sm">
                             Game #{game.id}
                           </span>
-                          {isStarted && (
+                          {isFinished && (
+                            <Badge variant="secondary">Finished</Badge>
+                          )}
+                          {isStarted && !isFinished && (
                             <Badge>In Progress</Badge>
                           )}
                           {isFull && !isStarted && (
@@ -267,7 +272,7 @@ export default function Lobby() {
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground capitalize">
-                          Phase: {game.phase}
+                          Phase: {phaseLabel}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
