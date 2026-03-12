@@ -25,7 +25,7 @@ export class MCTS {
     private static get MAX_TIME_MS(): number {
         if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
         const v = typeof process !== 'undefined' && process.env?.MCTS_TIME_MS ? parseInt(process.env.MCTS_TIME_MS, 10) : NaN;
-        return Number.isFinite(v) ? v : 3000;
+        return Number.isFinite(v) ? v : 4000; // 3초에서 4초로 상향
     }
     /** 환경 변수 MCTS_MAX_DEPTH(숫자)로 오버라이드 가능. 깊이 늘리면 강해지지만 느려짐 */
     private static get MAX_DEPTH(): number {
@@ -156,8 +156,8 @@ export class MCTS {
         currentState.simulation = true;
         const dummyIo = { to: () => ({ emit: () => { } }) } as any;
 
-        // Simulate 2 steps ahead greedily instead of fully random to avoid terrible play
-        for (let i = 0; i < 2; i++) {
+        // Simulate 4 steps ahead greedily instead of fully random to avoid terrible play
+        for (let i = 0; i < 4; i++) {
             if (currentState.turnOrder[currentState.currentPlayerIndex] !== playerId || currentState.currentPhase !== 'main') {
                 break;
             }

@@ -183,6 +183,10 @@ export class BotLogic {
             if (candidates.length === 1) return candidates[0];
             if (candidates.length > 1) {
                 if (isSimulate) {
+                    // 80% 확률로 최선의 수, 20% 확률로 두 번째 수 선택 (시뮬레이션 다양성 확보)
+                    if (candidates.length > 1 && Math.random() < 0.2) {
+                        return candidates[1];
+                    }
                     return candidates[0];
                 }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
@@ -348,28 +352,34 @@ export class BotLogic {
         if (discountedTS) candidates.push(discountedTS);
 
         // 5. 일반 건설 시도
-        const buildAction = this.findBuildAction(game, playerId);
-        if (buildAction) candidates.push(buildAction);
+        const buildActions = this.findBuildActions(game, playerId);
+        if (buildActions.length > 0) candidates.push(...buildActions);
 
         // 6. 일반 업그레이드 시도
-        const upgradeAction = this.findUpgradeAction(game, playerId);
-        if (upgradeAction) candidates.push(upgradeAction);
+        const upgradeActions = this.findUpgradeActions(game, playerId);
+        if (upgradeActions.length > 0) candidates.push(...upgradeActions);
 
         // 7. 내비게이션 연구 보너스 (QIC 절약)
-        if (buildAction?.type === 'build_mine' && (player.knowledge ?? 0) >= 4) {
+        // 7. 내비게이션 연구 보너스 (QIC 절약)
+        const primaryBuild = buildActions.length > 0 ? buildActions[0] : null;
+        if (primaryBuild?.type === 'build_mine' && (player.knowledge ?? 0) >= 4) {
             const navId: ResearchTrack = 'navigation';
             const currentNav = player.research[navId] || 0;
             if (currentNav < 5) {
-                const needsQIC = this.checkIfActionNeedsQIC(game, playerId, buildAction);
-                if (needsQIC && this.willNavResearchSaveQIC(game, playerId, buildAction)) {
+                const needsQIC = this.checkIfActionNeedsQIC(game, playerId, primaryBuild);
+                if (needsQIC && this.willNavResearchSaveQIC(game, playerId, primaryBuild)) {
                     candidates.push({ type: 'advance_research', params: { trackId: navId } });
                 }
             }
         }
 
         // 8. 파워/QIC 액션
-        const powerAction = this.findPowerAction(game, playerId);
-        if (powerAction) candidates.push(powerAction);
+        const powerActions = this.findPowerActions(game, playerId);
+        if (powerActions.length > 0) candidates.push(...powerActions);
+
+        // 8-0. 필수 자원 변환 (메인 액션 전 보조 액션으로 추가)
+        const conversions = this.findEssentialConversions(game, playerId);
+        if (conversions.length > 0) candidates.push(...conversions);
 
         // 8-1. 우주선 입장 (Lost Fleet Ship)
         const shipEntry = this.findSpaceshipEntryAction(game, playerId);
@@ -381,18 +391,20 @@ export class BotLogic {
 
         // 9. 일반 연구
         if ((player.knowledge ?? 0) >= 4) {
-            const track = this.pickResearchTrack(game, player, playerId);
-            if (track) candidates.push({ type: 'advance_research', params: { trackId: track } });
+            const tracks = this.pickResearchTracks(game, player, playerId);
+            for (const track of tracks) {
+                candidates.push({ type: 'advance_research', params: { trackId: track } });
+            }
         }
 
         if (!game.simulation) {
             log(`Bot ${player.name} found ${candidates.length} non-pass candidates in Round ${game.roundNumber}`, 'game', game.id);
         }
 
-        // 9. 패스 (항상 후보에 포함하여 MCTS가 조기 패스의 이점을 계산하게 함). 6라운드/보너스 없어도 패스 가능.
+        // 9. 패스 (항상 후보에 포함하여 MCTS가 조기 패스의 이점을 계산하게 함).
         if (!player.hasPassed) {
-            const availableTiles = game.availableBonusTiles;
-            const bonusTileId = availableTiles && availableTiles.length > 0 ? availableTiles[0].id : undefined;
+            const bestBonus = this.findBonusTileAction(game, playerId);
+            const bonusTileId = bestBonus?.params?.bonusTileId;
             candidates.push({ type: 'pass_round', params: { bonusTileId } });
         }
 
@@ -411,7 +423,7 @@ export class BotLogic {
     }
 
 
-    private static findUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
+    private static findUpgradeActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
@@ -526,10 +538,11 @@ export class BotLogic {
             }
         }
 
-        if (candidates.length === 0) return null;
+        if (candidates.length === 0) return [];
 
         candidates.sort((a, b) => b.score - a.score);
-        return candidates[0].action;
+        // 상위 3개 후보 반환
+        return candidates.slice(0, 3).map(c => c.action);
     }
 
     private static findDiscountedUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
@@ -653,7 +666,7 @@ export class BotLogic {
      * 우선순위: 모행성 > 가이아 > 파워/TF Mars 콤보 > 테라포밍
      * QIC 소모는 최대 1로 제한
      */
-    private static findBuildAction(game: ServerGameState, playerId: string): BotAction | null {
+    private static findBuildActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
@@ -662,19 +675,20 @@ export class BotLogic {
 
         if (ore < 1 || credits < 2) {
             // Ore/Credit 부족 시에도 Eclipse 6C 소행성이나 파워 콤보 가능한지 확인
-            return this.findAlternativeBuildAction(game, playerId);
+            const alt = this.findAlternativeBuildAction(game, playerId);
+            return alt ? [alt] : [];
         }
 
-        if (!player.faction) return null;
+        if (!player.faction) return [];
         const faction = FACTIONS.find(f => f.id === player.faction);
-        if (!faction?.homePlanet) return null;
+        if (!faction?.homePlanet) return [];
         const homeType = faction.homePlanet;
 
         const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
-        if (myPlanets.length === 0) return null;
+        if (myPlanets.length === 0) return [];
 
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
         const tfLevel = player.research.terraforming ?? 0;
@@ -894,18 +908,27 @@ export class BotLogic {
 
         // 최고 점수 후보 선택
         if (scored.length === 0) {
-            return this.findAlternativeBuildAction(game, playerId);
+            const alt = this.findAlternativeBuildAction(game, playerId);
+            return alt ? [alt] : [];
         }
 
         scored.sort((a, b) => b.score - a.score);
-        const best = scored[0];
+        
+        // 상위 3개 후보 반환 (필요한 경우 preAction 포함 점수 상위권 채택)
+        const results: BotAction[] = [];
+        const seenActions = new Set<string>();
 
-        // 선행 액션이 필요하면 먼저 반환 (봇이 다시 호출하면 build_mine을 수행)
-        if (best.preAction) {
-            return best.preAction;
+        for (const s of scored.slice(0, 5)) { // 넉넉히 5개 후보 중 유니크한 3개 추출
+            const act = s.preAction || s.action;
+            const key = JSON.stringify(act);
+            if (!seenActions.has(key)) {
+                seenActions.add(key);
+                results.push(act);
+                if (results.length >= 3) break;
+            }
         }
 
-        return best.action;
+        return results;
     }
 
     /**
@@ -1099,11 +1122,10 @@ export class BotLogic {
      * - 라운드 3~4부터 테라포밍 3단계 이상 올리기 전략
      * - 기오덴은 TF 시작 1이므로 더 빨리
      */
-    private static pickResearchTrack(game: ServerGameState, player: PlayerState, playerId: string): ResearchTrack | null {
+    private static pickResearchTracks(game: ServerGameState, player: PlayerState, playerId: string): ResearchTrack[] {
         const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
 
-        let bestTrack: ResearchTrack | null = null;
-        let bestScore = -1;
+        const scored: { track: ResearchTrack, score: number }[] = [];
 
         for (const track of tracks) {
             const level = player.research[track] ?? 0;
@@ -1116,13 +1138,11 @@ export class BotLogic {
             }
 
             const score = this.calculateResearchScore(game, player, playerId, track);
-            if (score > bestScore) {
-                bestScore = score;
-                bestTrack = track;
-            }
+            scored.push({ track, score });
         }
 
-        return bestTrack;
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, 2).map(s => s.track); // Top 2 tracks
     }
 
     private static calculateResearchScore(game: ServerGameState, player: PlayerState, playerId: string, track: ResearchTrack): number {
@@ -1175,9 +1195,9 @@ export class BotLogic {
                 if (faction === 'terran' || faction === 'itars') score += 40;
                 break;
             case 'economy':
-                score += (6 - level) * 15;
-                if (round <= 2) score += 20;
-                if (round >= 5) score -= 40;
+                score += (6 - level) * 20; // 상향 (15 -> 20)
+                if (round <= 2) score += 35; // 초반 경제 대폭 우대
+                if (round >= 5) score -= 30;
                 // [사용자 전략] 아카데미 건설 시 경제 2단계까지 우선순위 강화
                 const academyCount = myStructures.filter(t => t.structure === 'academy').length;
                 if (academyCount >= 1 && level < 2) {
@@ -1185,9 +1205,9 @@ export class BotLogic {
                 }
                 break;
             case 'science':
-                score += (6 - level) * 12; // 대폭 축소 (기존 20/15)
-                if (round <= 2) score += 5;
-                if (level >= 3) score += 10; // 지식 생산량 확보를 위한 중반 가중치
+                score += (6 - level) * 22; // 복구 및 상향 (12 -> 22)
+                if (round <= 3) score += 30; // 초반 과학은 엔진의 핵심
+                if (level >= 3) score += 15;
                 break;
         }
 
@@ -1260,7 +1280,8 @@ export class BotLogic {
         }
 
         // 트랙 선택 (해당 타일이 요구하는 트랙 또는 가장 높은 점수의 트랙)
-        const trackId = this.pickResearchTrack(game, player, playerId) || 'economy';
+        const tracks = this.pickResearchTracks(game, player, playerId);
+        const trackId = tracks.length > 0 ? tracks[0] : 'economy';
 
         // MCTS 롤아웃 시에는 매 시뮬 상태마다 로그가 쌓이므로, 실제 수 결정 시에만 로그
         if (!isSimulate) {
@@ -1350,15 +1371,14 @@ export class BotLogic {
         return { type: 'place_starting_mine', params: { tileId: bestTile.id } };
     }
 
-    private static findPowerAction(game: ServerGameState, playerId: string): BotAction | null {
+    private static findPowerActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const round = game.roundNumber;
 
         const availableActions = game.powerActions.filter(a => !a.isUsed);
-        if (availableActions.length === 0) return null;
+        if (availableActions.length === 0) return [];
 
-        let bestScore = -1;
-        let bestActionId = '';
+        const scored: { id: string, score: number }[] = [];
 
         for (const action of availableActions) {
             let score = 0;
@@ -1372,28 +1392,37 @@ export class BotLogic {
             }
 
             switch (action.id) {
-                case 'gain-3-knowledge': score = 90; break; // 지식 3은 고벨류
-                case 'gain-2-steps': score = 85; break; // 2삽 고벨류
-                case 'gain-2-ore': score = 60; break;
-                case 'gain-7-credits': score = 55; break;
-                case 'gain-1-step': score = 75; break; // 하이브 등 건설을 위해 1단계 전진 중요도 상향
-                case 'qic-action-tech': score = 110; break; // 기술 타일 획득은 무조건 고점
+                case 'gain-3-knowledge': score = 95; break; 
+                case 'gain-2-steps': score = 90; break; 
+                case 'gain-2-ore': score = 65; break;
+                case 'gain-7-credits': score = 60; break;
+                case 'gain-1-step': score = 75; break;
+                case 'qic-action-tech': score = 110; break; 
                 case 'qic-action-vp-sector': score = round >= 5 ? 120 : 40; break;
                 default: score = 10;
             }
 
             if (isQic && round >= 4) score *= 1.5;
 
-            if (score > bestScore) {
-                bestScore = score;
-                bestActionId = action.id;
-            }
+            scored.push({ id: action.id, score });
         }
 
-        if (bestActionId) {
-            return { type: 'use_power_action', params: { actionId: bestActionId } };
-        }
-        return null;
+        if (scored.length === 0) return [];
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, 2).map(s => ({ type: 'use_power_action', params: { actionId: s.id } }));
+    }
+
+    private static findEssentialConversions(game: ServerGameState, playerId: string): BotAction[] {
+        const player = game.players[playerId];
+        const p3 = player.power3 ?? 0;
+        const res: BotAction[] = [];
+        
+        // 자원 상황이 정말 좋지 않을 때만 후보에 추가 (MCTS 탐색 공간 낭비 방지)
+        if (p3 >= 3 && (player.ore ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '3power-to-1ore' } });
+        if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit' } });
+        if (p3 >= 4 && (player.qic ?? 0) < 1) res.push({ type: 'convert_resource', params: { type: '4power-to-1qic' } });
+        
+        return res;
     }
 
     private static findSpaceshipEntryAction(game: ServerGameState, playerId: string): BotAction | null {

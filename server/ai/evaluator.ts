@@ -43,44 +43,45 @@ export type EvaluatorWeights = {
     gaiaformerValueEach: number;
 };
 
+/** 사람 150점대에 가깝게: VP·연방·연구5 비중을 크게 둔 기본값 */
 export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
-    vpWeightEarly: 5,
-    vpWeightLate: 10,
+    vpWeightEarly: 10,
+    vpWeightLate: 18,
 
     resourceMultiplierEarly: 1.0,
-    resourceMultiplierLate: 0.8,
-    oreValue: 0.4,
-    creditsValue: 0.08,
-    knowledgeValue: 0.2,
+    resourceMultiplierLate: 0.7,
+    oreValue: 0.5,
+    creditsValue: 0.1,
+    knowledgeValue: 0.4,
 
-    qicWeightEarly: 1.5,
-    qicWeightLate: 3.5,
+    qicWeightEarly: 2.0,
+    qicWeightLate: 5.0,
 
     power1Value: 0.05,
-    power2Value: 0.2,
-    power3Value: 0.5,
+    power2Value: 0.25,
+    power3Value: 0.6,
     brainStoneBowl1: 0.2,
-    brainStoneBowl2: 0.8,
-    brainStoneBowl3: 1.5,
+    brainStoneBowl2: 1.0,
+    brainStoneBowl3: 2.0,
 
-    structureMine: 12,
-    structureTradingStation: 25,
-    structureResearchLab: 40,
-    structurePlanetaryInstitute: 60,
-    structureAcademy: 70,
+    structureMine: 14,
+    structureTradingStation: 28,
+    structureResearchLab: 45,
+    structurePlanetaryInstitute: 70,
+    structureAcademy: 80,
     structureRemainingRoundsFactor: 0.6,
 
-    researchTerraforming: 12,
-    researchNavigation: 12,
-    researchArtificialIntelligence: 15,
-    researchGaiaProject: 10,
-    researchEconomy: 20,
-    researchScience: 25,
+    researchTerraforming: 14,
+    researchNavigation: 14,
+    researchArtificialIntelligence: 16,
+    researchGaiaProject: 12,
+    researchEconomy: 22,
+    researchScience: 28,
     researchRemainingRoundsFactor: 0.2,
-    researchLevel5Bonus: 80,
+    researchLevel5Bonus: 120,
 
-    federationValueEach: 25,
-    gaiaformerValueEach: 2,
+    federationValueEach: 55,
+    gaiaformerValueEach: 4,
 };
 
 let ACTIVE_WEIGHTS: EvaluatorWeights = { ...DEFAULT_EVALUATOR_WEIGHTS };
@@ -229,6 +230,55 @@ export class Evaluator {
         // 7) Gaiaformers
         if (player.gaiaformers && player.gaiaformers > 0) {
             score += player.gaiaformers * w.gaiaformerValueEach;
+        }
+
+        // 8) 현재 라운드 미션 정렬 보너스 (해당 라운드 VP를 더 벌 수 있으면 가치 상승)
+        const roundMissions = game.roundScoringTiles;
+        if (roundMissions?.length && round >= 1 && round <= 6) {
+            const mission = roundMissions[round - 1];
+            if (mission?.vp) {
+                const trigger = (mission as any).triggerType as string | undefined;
+                const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+                const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length;
+                const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
+                const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
+                const bigCount = myStructures.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
+                const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
+                const researchLevels = Object.values(player.research || {}).reduce((s, l) => s + (l as number), 0);
+                if (trigger === 'build_mine') score += mineCount * mission.vp * 2;
+                else if (trigger === 'build_trading_station') score += tsCount * mission.vp * 2;
+                else if (trigger === 'build_research_lab') score += labCount * mission.vp * 2;
+                else if (trigger === 'build_big_building') score += bigCount * mission.vp * 2;
+                else if (trigger === 'build_gaia') score += gaiaCount * mission.vp * 2;
+                else if (trigger === 'research_track') score += researchLevels * mission.vp;
+                else if (trigger === 'federation') score += feds.length * mission.vp * 3;
+            }
+        }
+
+        // 9) 최종 미션 정렬 보너스 (게임 끝 1/2/3등 18/12/6점 쪽으로 유도)
+        const finalIds = game.finalMissionIds;
+        if (finalIds?.length) {
+            const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+            const structCount = myStructures.length;
+            const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
+            const sectorSet = new Set(myStructures.map(t => (t as any).sector).filter((s): s is number => typeof s === 'number'));
+            for (const fid of finalIds) {
+                if (fid === 'fm_total_structures') score += structCount * 4;
+                else if (fid === 'fm_federation_buildings' || fid === 'fm_gaia_planets') score += (feds.length * 5 + gaiaCount * 4);
+                else if (fid === 'fm_sectors') score += sectorSet.size * 5;
+                else if (fid === 'fm_satellites') {
+                    let sat = 0;
+                    for (const v of Object.values(game.satellites || {})) {
+                        if (Array.isArray(v)) sat += v.filter((id: string) => id === playerId).length;
+                        else if (v === playerId) sat += 1;
+                    }
+                    score += sat * 6;
+                }
+                else if (fid === 'fm_planet_types') {
+                    const types = new Set(myStructures.map(t => t.type).filter(Boolean));
+                    score += types.size * 5;
+                } else score += structCount * 2;
+            }
         }
 
         return score;

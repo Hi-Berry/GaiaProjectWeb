@@ -2624,14 +2624,11 @@ export default function Game() {
           </div>
         )}
 
-        {/* Income Selection Dialog - 수익 단계에서 맨 앞에 표시 (z-[100]) */}
+        {/* Income Selection Dialog - 수익 단계에서 맨 앞에 표시 (z-[100]). 수익 차례인 플레이어에게만 표시 */}
         {(() => {
           const pending = game.pendingIncomeOrder;
           if (!pending) return null;
-          // 본인 차례이거나, 호스트가 봇이 아닌 다른 플레이어(gg 등) 대신 수익 선택할 때 표시
-          const isMyIncomeTurn = pending.playerId === playerId;
-          const isHostCompletingForHuman = playerId === game.hostId && !game.botPlayerIds?.includes(pending.playerId);
-          if (!isMyIncomeTurn && !isHostCompletingForHuman) return null;
+          if (pending.playerId !== playerId) return null;
 
           const actualPlayer = game.players[pending.playerId];
           if (!actualPlayer) return null;
