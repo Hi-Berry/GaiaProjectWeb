@@ -10,6 +10,7 @@ interface GameLobbyProps {
   game: GameState;
   gameId: string;
   playerId: string | null;
+  isSpectator?: boolean;
   onStartGame: () => void;
   onLeave: () => void;
   onAddPlayer?: (playerName?: string) => Promise<void>;
@@ -18,11 +19,11 @@ interface GameLobbyProps {
   onAutoSetupTest?: () => void;
 }
 
-export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer, onAutoSetupTest }: GameLobbyProps) {
+export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer, onAutoSetupTest }: GameLobbyProps) {
   const playerEntries = Object.entries(game.players);
   const playerCount = playerEntries.length;
   const maxPlayers = game.maxPlayers || 4;
-  const isHost = playerId === game.hostId;
+  const isHost = !isSpectator && playerId === game.hostId;
   const canStart = playerCount >= 1;
   const [addName, setAddName] = useState('');
   const [adding, setAdding] = useState(false);
@@ -60,6 +61,11 @@ export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddP
           <p className="text-muted-foreground font-mono">
             Game ID: {game.id}
           </p>
+          {isSpectator && (
+            <Badge variant="secondary" className="bg-amber-500/20 text-amber-600 border-amber-500/40">
+              관전 중 — 턴 없음
+            </Badge>
+          )}
         </div>
 
         <Card>
@@ -188,9 +194,14 @@ export function GameLobby({ game, gameId, playerId, onStartGame, onLeave, onAddP
               </div>
             )}
 
-            {!isHost && (
+            {!isHost && !isSpectator && (
               <div className="text-muted-foreground text-sm text-center sm:text-right">
                 Waiting for host to start the game...
+              </div>
+            )}
+            {isSpectator && (
+              <div className="text-muted-foreground text-sm text-center sm:text-right">
+                관전 중입니다. 시작되면 경기가 보입니다.
               </div>
             )}
           </CardFooter>

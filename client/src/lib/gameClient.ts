@@ -30,6 +30,14 @@ export function storePlayerId(gameId: string, playerId: string) {
   localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
 }
 
+export function getStoredSpectatorId(gameId: string): string | null {
+  return localStorage.getItem(`gaia-${gameId}-spectatorId`);
+}
+
+export function storeSpectatorId(gameId: string, spectatorId: string) {
+  localStorage.setItem(`gaia-${gameId}-spectatorId`, spectatorId);
+}
+
 export const GameClient = {
   listGames(): Promise<{ games: Array<{ id: string; playerCount: number; maxPlayers: number; phase: string; createdAt: number }> }> {
     return new Promise((resolve, reject) => {
@@ -55,6 +63,16 @@ export const GameClient = {
     return new Promise((resolve, reject) => {
       const s = getSocket();
       s.emit('join_game', { gameId, playerName }, (response: any) => {
+        if (response.error) reject(new Error(response.error));
+        else resolve(response);
+      });
+    });
+  },
+
+  watchGame(gameId: string): Promise<{ gameId: string; spectatorId: string; game: GameState }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('watch_game', { gameId }, (response: any) => {
         if (response.error) reject(new Error(response.error));
         else resolve(response);
       });

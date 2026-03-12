@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
-import { GameClient, getSocket, getStoredPlayerId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
+import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
 
 import { ResearchBoard } from '@/components/ResearchBoard';
 import { RoundBoard } from '@/components/RoundBoard';
@@ -19,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -73,6 +74,7 @@ export default function Game() {
   const gameId = params.matchID;
   const [game, setGame] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(gameId ? getStoredPlayerId(gameId) : null);
+  const [isSpectator, setIsSpectator] = useState(false);
   const [pendingAction, setPendingAction] = useState<PotentialAction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -225,6 +227,7 @@ export default function Game() {
     const fetchGame = async () => {
       try {
         const storedPlayerId = getStoredPlayerId(gameId);
+        const storedSpectatorId = getStoredSpectatorId(gameId);
 
         if (storedPlayerId) {
           try {
@@ -236,8 +239,25 @@ export default function Game() {
           }
         }
 
+        if (storedSpectatorId) {
+          try {
+            const { game: gameData } = await GameClient.rejoinGame(gameId, storedSpectatorId);
+            setGame(gameData);
+            setPlayerId(null);
+            setIsSpectator(true);
+            setLoading(false);
+            return;
+          } catch {
+            // 서버 재시작 등으로 관전자 재접속 실패 시 get_game으로 불러와도 관전자 UI 유지
+          }
+        }
+
         const { game: gameData } = await GameClient.getGame(gameId);
         setGame(gameData);
+        if (storedSpectatorId) {
+          setPlayerId(null);
+          setIsSpectator(true);
+        }
       } catch (err: any) {
         console.error('Failed to fetch game:', err);
         setError(err.message || 'Failed to load game');
@@ -532,10 +552,16 @@ export default function Game() {
         game={game}
         gameId={gameId!}
         playerId={playerId}
+        isSpectator={isSpectator}
         onStartGame={() => GameClient.startGame(gameId!)}
         onLeave={() => {
-          GameClient.leaveGame(gameId!);
-          setLocation('/');
+          if (isSpectator) {
+            localStorage.removeItem(`gaia-${gameId}-spectatorId`);
+            setLocation('/');
+          } else {
+            GameClient.leaveGame(gameId!);
+            setLocation('/');
+          }
         }}
         onAddPlayer={playerId === game.hostId ? async (playerName) => {
           if (!gameId) return;
@@ -1171,10 +1197,30 @@ export default function Game() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background font-sans text-foreground relative">
+      {/* 관전자 배너: 포탈로 body에 렌더해 항상 최상단(z-[9999]), 다른 모달/다이얼로그 위에 표시 */}
+      {isSpectator && typeof document !== 'undefined' && createPortal(
+        <div className="fixed top-0 left-0 right-0 z-[9999] py-2 px-4 bg-amber-500/95 text-zinc-900 font-bold text-center text-sm flex items-center justify-center gap-3 shadow-lg">
+          <Eye className="w-4 h-4 shrink-0" />
+          관전 중 — 턴이 돌아오지 않으며, 조작할 수 없습니다.
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-zinc-700 bg-white/20 hover:bg-white/30 text-zinc-900 h-8"
+            onClick={() => {
+              if (gameId) localStorage.removeItem(`gaia-${gameId}-spectatorId`);
+              setLocation('/');
+            }}
+          >
+            나가기
+          </Button>
+        </div>,
+        document.body
+      )}
+
       {/* Sidebar Overlay */}
       <div className="absolute left-0 top-0 bottom-0 w-80 flex flex-col z-20 pointer-events-none *:pointer-events-auto">
         {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
-        {isHost && game && game.turnOrder.length > 1 && (
+        {!isSpectator && isHost && game && game.turnOrder.length > 1 && (
           <div className="p-2 border-b border-border space-y-2">
             <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
               <Gamepad2 className="w-3.5 h-3.5" />
@@ -1646,9 +1692,9 @@ export default function Game() {
           />
         </div>
 
-        {/* Dashboards Area: 제거 (라운드 보드를 오버레이로 이동함) */}
+        {/* Dashboards Area: 제거 (라운드 보드를 오버레이로 이동함). 관전자에게는 보너스 선택 패널 비표시 */}
         <AnimatePresence>
-          {isBonusSelectionPhase && (
+          {isBonusSelectionPhase && !isSpectator && (
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
@@ -1891,9 +1937,9 @@ export default function Game() {
           </div>
         )}
 
-        {/* Pass 시 보너스 타일 선택 모달 (0라운드 초기 선택은 하단 패널만 사용, X/Cancel 없음) */}
+        {/* Pass 시 보너스 타일 선택 모달 (0라운드 초기 선택은 하단 패널만 사용, X/Cancel 없음). 관전자에게는 미표시 */}
         <BonusSelectionModal
-          open={isPendingBonusSelection && game.currentPhase !== 'bonusSelection'}
+          open={!isSpectator && isPendingBonusSelection && game.currentPhase !== 'bonusSelection'}
           onClose={() => {
             if (!isPendingBonusSelection) {
               setConfirmPassWithTileId(null);

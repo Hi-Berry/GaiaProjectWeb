@@ -45,31 +45,31 @@ export type EvaluatorWeights = {
 
 /** 사람 150점대에 가깝게: VP·연방·연구5 비중을 크게 둔 기본값 */
 export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
-    vpWeightEarly: 10,
-    vpWeightLate: 18,
+    vpWeightEarly: 5,
+    vpWeightLate: 22,
 
-    resourceMultiplierEarly: 1.0,
-    resourceMultiplierLate: 0.7,
+    resourceMultiplierEarly: 1.2,
+    resourceMultiplierLate: 0.5,
     oreValue: 0.5,
-    creditsValue: 0.1,
-    knowledgeValue: 0.4,
+    creditsValue: 0.12,
+    knowledgeValue: 0.45,
 
-    qicWeightEarly: 2.0,
-    qicWeightLate: 5.0,
+    qicWeightEarly: 2.5,
+    qicWeightLate: 6.0,
 
     power1Value: 0.05,
-    power2Value: 0.25,
-    power3Value: 0.6,
+    power2Value: 0.3,
+    power3Value: 0.7,
     brainStoneBowl1: 0.2,
-    brainStoneBowl2: 1.0,
-    brainStoneBowl3: 2.0,
+    brainStoneBowl2: 1.2,
+    brainStoneBowl3: 2.5,
 
-    structureMine: 14,
-    structureTradingStation: 28,
+    structureMine: 24,
+    structureTradingStation: 32,
     structureResearchLab: 45,
-    structurePlanetaryInstitute: 70,
-    structureAcademy: 80,
-    structureRemainingRoundsFactor: 0.6,
+    structurePlanetaryInstitute: 75,
+    structureAcademy: 90,
+    structureRemainingRoundsFactor: 0.5,
 
     researchTerraforming: 14,
     researchNavigation: 14,
@@ -78,10 +78,10 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     researchEconomy: 22,
     researchScience: 28,
     researchRemainingRoundsFactor: 0.2,
-    researchLevel5Bonus: 120,
+    researchLevel5Bonus: 180,
 
-    federationValueEach: 55,
-    gaiaformerValueEach: 4,
+    federationValueEach: 85,
+    gaiaformerValueEach: 5,
 };
 
 let ACTIVE_WEIGHTS: EvaluatorWeights = { ...DEFAULT_EVALUATOR_WEIGHTS };

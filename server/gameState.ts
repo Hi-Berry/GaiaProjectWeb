@@ -78,6 +78,8 @@ export interface ServerGameState extends GaiaGameState {
 	createdAt: number;
 	/** AI 봇 플레이어 ID 목록 */
 	botPlayerIds?: string[];
+	/** 관전자 ID 목록 (플레이어 슬롯 없음, 턴 없음) */
+	spectatorIds?: string[];
 	turnStartState?: Record<string, any>; // [playerId]: PlayerTurnState
 	isBotExecuting?: boolean; // 봇 로직이 실행 중인지 확인하는 락
 	simulation?: boolean; // MCTS 시뮬레이션 중인지 여부 (로그 억제용)
@@ -88,6 +90,8 @@ export interface ServerGameState extends GaiaGameState {
 const games = new Map<string, ServerGameState>();
 const playerGameMap = new Map<string, string>();
 const socketToPlayerMap = new Map<string, string>();
+const socketToSpectatorMap = new Map<string, string>();
+const spectatorToGameMap = new Map<string, string>();
 
 /**
  * 턴 시작/리셋용 전체 게임 스냅샷. turnStartState를 제외해 복사하면
@@ -1733,7 +1737,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 		socket.on('rejoin_game', ({ gameId, playerId }, callback) => {
 			const game = games.get(gameId);
-			if (!game || !game.players[playerId]) { callback({ error: 'Game or player not found' }); return; }
+			if (!game) { callback({ error: 'Game not found' }); return; }
+
+			// 관전자 재접속: 플레이어 슬롯 없이 방만 구독
+			if (game.spectatorIds?.includes(playerId)) {
+				socketToSpectatorMap.set(socket.id, playerId);
+				spectatorToGameMap.set(playerId, gameId);
+				socket.join(gameId);
+				callback({ game });
+				return;
+			}
+
+			if (!game.players[playerId]) { callback({ error: 'Player not found' }); return; }
 
 			// If the reconnecting player is the host, update the host socket context
 			if (game.hostId === playerId) {
@@ -1747,6 +1762,20 @@ export function setupGameServer(httpServer: HTTPServer) {
 			io.to(gameId).emit('game_updated', game);
 			callback({ game });
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
+		});
+
+		socket.on('watch_game', ({ gameId }, callback) => {
+			const game = games.get(gameId);
+			if (!game) { callback({ error: 'Game not found' }); return; }
+
+			const spectatorId = 'spec-' + generatePlayerId();
+			if (!game.spectatorIds) game.spectatorIds = [];
+			game.spectatorIds.push(spectatorId);
+			socketToSpectatorMap.set(socket.id, spectatorId);
+			spectatorToGameMap.set(spectatorId, gameId);
+			socket.join(gameId);
+			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game');
+			callback({ gameId, spectatorId, game });
 		});
 
 		socket.on('get_game', ({ gameId }, callback) => {
@@ -4150,6 +4179,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					}
 				}
 				socketToPlayerMap.delete(socket.id);
+			}
+			const spectatorId = socketToSpectatorMap.get(socket.id);
+			if (spectatorId) {
+				spectatorToGameMap.delete(spectatorId);
+				socketToSpectatorMap.delete(socket.id);
 			}
 		});
 	});

@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { GameClient, getSocket } from '@/lib/gameClient';
-import { Users, Plus, RefreshCw, Play, LogIn } from 'lucide-react';
+import { GameClient, getSocket, storeSpectatorId } from '@/lib/gameClient';
+import { Users, Plus, RefreshCw, Play, LogIn, Eye } from 'lucide-react';
 
 interface GameInfo {
   id: string;
@@ -23,6 +23,7 @@ export default function Lobby() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState<string | null>(null);
+  const [watching, setWatching] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('gaia-playerName') || '');
   const [connected, setConnected] = useState(false);
   const { toast } = useToast();
@@ -143,6 +144,28 @@ export default function Lobby() {
       });
     } finally {
       setJoining(null);
+    }
+  };
+
+  const handleWatchGame = async (gameId: string) => {
+    try {
+      setWatching(gameId);
+      const { spectatorId } = await GameClient.watchGame(gameId);
+      storeSpectatorId(gameId, spectatorId);
+      toast({
+        title: '관전 시작',
+        description: '경기를 관람합니다. 턴은 돌아오지 않습니다.',
+      });
+      setLocation(`/game/${gameId}`);
+    } catch (error: any) {
+      console.error('Failed to watch game:', error);
+      toast({
+        title: 'Error',
+        description: error.message || '관전 접속에 실패했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setWatching(null);
     }
   };
 
@@ -272,6 +295,15 @@ export default function Lobby() {
                             {joining === game.id ? 'Joining...' : 'Join'}
                           </Button>
                         )}
+                        <Button
+                          variant="outline"
+                          disabled={watching === game.id || !connected}
+                          onClick={() => handleWatchGame(game.id)}
+                          data-testid={`button-watch-${game.id}`}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          {watching === game.id ? '접속 중...' : 'Watch'}
+                        </Button>
                       </div>
                     </div>
                   );
