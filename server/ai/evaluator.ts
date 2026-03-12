@@ -234,6 +234,38 @@ export class Evaluator {
             if (level === 5) score += w.researchLevel5Bonus;
         }
 
+        // 5.5) Early Game Expansion & Economy Strategy (Round 1-2)
+        if (round <= 2) {
+            const hasAcademy = myStructures.some(t => t.structure === 'academy');
+            const hasResearchLab = myStructures.some(t => t.structure === 'research_lab');
+            const navLevel = player.research?.navigation || 0;
+            const ecoLevel = player.research?.economy || 0;
+            const hasNavTech = player.techTiles?.includes('ship-tech-nav+1');
+
+            // Strategy 1: Academy -> Economy focus
+            if (hasAcademy) {
+                if (ecoLevel >= 1) score += 150;
+                if (ecoLevel >= 2) score += 300;
+            }
+
+            // Strategy 2: Research Lab -> Navigation focus (for range)
+            if (hasResearchLab && !hasAcademy) {
+                if (navLevel === 1) score += 100;
+                if (navLevel >= 2) score += 250;
+            }
+
+            // Strategy 3: Nav+1 Tech Tile early is great for expansion
+            if (hasNavTech) {
+                score += 200;
+            }
+
+            // Prevent over-investment: if they have both Nav+1 Tech AND Nav track >= 2,
+            // penalize slightly to encourage using the resources elsewhere, since 2 range is usually enough early.
+            if (hasNavTech && navLevel >= 2) {
+                score -= 150;
+            }
+        }
+
         // 6) Federations
         const feds = getFederationEntries(player);
         score += feds.length * w.federationValueEach;
