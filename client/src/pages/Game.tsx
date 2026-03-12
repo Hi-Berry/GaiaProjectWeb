@@ -163,9 +163,42 @@ export default function Game() {
     return saved ? JSON.parse(saved) : { x: 380, y: 90 };
   });
 
+  const MIN_MINI_WIDTH = 280;
+  const MAX_MINI_WIDTH = 600;
+  const [researchMiniWidth, setResearchMiniWidth] = useState(() => {
+    const saved = gameId ? localStorage.getItem(`research-mini-width-${gameId}`) : null;
+    const n = saved ? parseInt(saved, 10) : 340;
+    return Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, isNaN(n) ? 340 : n));
+  });
+  const [bonusMiniWidth, setBonusMiniWidth] = useState(() => {
+    const saved = gameId ? localStorage.getItem(`bonus-mini-width-${gameId}`) : null;
+    const n = saved ? parseInt(saved, 10) : 340;
+    return Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, isNaN(n) ? 340 : n));
+  });
+
   const researchDragControls = useDragControls();
   const bonusDragControls = useDragControls();
   const [showGameEndScore, setShowGameEndScore] = useState(false);
+
+  const lastResizeWidthRef = useRef<number>(340);
+  const startResize = (panel: 'research' | 'bonus', startX: number, startWidth: number) => {
+    lastResizeWidthRef.current = startWidth;
+    const setWidth = panel === 'research' ? setResearchMiniWidth : setBonusMiniWidth;
+    const key = panel === 'research' ? `research-mini-width-${gameId}` : `bonus-mini-width-${gameId}`;
+    const onMove = (e: MouseEvent) => {
+      const w = Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, startWidth + (e.clientX - startX)));
+      lastResizeWidthRef.current = w;
+      setWidth(w);
+      if (gameId) localStorage.setItem(key, String(w));
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (gameId) localStorage.setItem(key, String(lastResizeWidthRef.current));
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   // Sound notification tracking
   const lastActivePlayerRef = useRef<string | null>(null);
@@ -3729,8 +3762,8 @@ export default function Game() {
               setResearchPos(newPos);
               if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
             }}
-            className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-            style={{ maxHeight: '90vh' }}
+            className="fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+            style={{ width: researchMiniWidth, maxHeight: '90vh' }}
           >
             <div
               className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
@@ -3744,10 +3777,14 @@ export default function Game() {
               </Button>
             </div>
             <ScrollArea className="flex-1 px-2 py-2">
-              <ResearchBoard
-                game={game}
-                playerId={playerId}
-                isMini={true}
+              <div
+                className="origin-top-left"
+                style={{ width: 340, zoom: researchMiniWidth / 340 }}
+              >
+                <ResearchBoard
+                  game={game}
+                  playerId={playerId}
+                  isMini={true}
                 onUsePowerAction={(actionId) => GameClient.usePowerAction(gameId!, actionId)}
                 onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
                 onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
@@ -3769,8 +3806,14 @@ export default function Game() {
                 onEndTurn={() => GameClient.endTurn(gameId!)}
                 onResetTurn={() => GameClient.resetTurn(gameId!)}
                 onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
-              />
+                />
+              </div>
             </ScrollArea>
+            <div
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 border-r border-white/10 rounded-r-xl transition-colors"
+              title="드래그하여 너비 조절"
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); startResize('research', e.clientX, researchMiniWidth); }}
+            />
           </motion.div>
         )}
 
@@ -3789,8 +3832,8 @@ export default function Game() {
               setBonusPos(newPos);
               if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
             }}
-            className="fixed z-[110] w-[340px] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-            style={{ maxHeight: '90vh' }}
+            className="fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+            style={{ width: bonusMiniWidth, maxHeight: '90vh' }}
           >
             <div
               className="bg-amber-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
@@ -3804,7 +3847,10 @@ export default function Game() {
               </Button>
             </div>
             <ScrollArea className="flex-1 px-2 py-1">
-              <div className="flex flex-col gap-4">
+              <div
+                className="origin-top-left flex flex-col gap-4"
+                style={{ width: 340, zoom: bonusMiniWidth / 340 }}
+              >
                 <RoundBoard
                   game={game}
                   playerId={playerId}
@@ -3826,6 +3872,11 @@ export default function Game() {
                 />
               </div>
             </ScrollArea>
+            <div
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 hover:bg-amber-500/30 active:bg-amber-500/50 border-r border-white/10 rounded-r-xl transition-colors"
+              title="드래그하여 너비 조절"
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); startResize('bonus', e.clientX, bonusMiniWidth); }}
+            />
           </motion.div>
         )}
       </AnimatePresence>

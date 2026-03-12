@@ -349,7 +349,7 @@ function applyGeodensNewPlanetTypeBonus(game: GaiaGameState, playerId: string, t
 	if (typesAfter.size <= typesBefore.size) return;
 	player.knowledge = (player.knowledge || 0) + 3;
 	addGameLog(game, playerId, 'Geodens Council', '+3 Knowledge (new planet type)', '');
-	log(`Player ${player.name} (Geodens) gained 3 Knowledge from new planet type (Council)`, 'game');
+	log(`Player ${player.name} (Geodens) gained 3 Knowledge from new planet type (Council)`, 'game', undefined, { simulation: (game as any).simulation });
 }
 
 /** 발타크: 의회(PI)가 있을 때만 Nav 트랙 진행 가능 (없으면 Nav+1 타일·3거리 보너스·QIC 임시 거리 등은 가능) */
@@ -702,6 +702,7 @@ function buildStartingMineSequence(game: GaiaGameState): string[] {
 
 // Helper functions moved to top level
 export function addGameLog(game: GaiaGameState, playerId: string, action: string, details?: string, tileId?: string) {
+	if ((game as any).simulation) return;
 	if (!game.gameLog) {
 		game.gameLog = [];
 	}
@@ -770,7 +771,7 @@ export function applyRoundMissionScore(game: GaiaGameState, playerId: string, tr
 
 	const vpGain = currentRoundMission.vp;
 	addScore(game, playerId, vpGain, 'roundMissions', { round: game.roundNumber });
-	log(`Player ${player.name} gained ${vpGain} VP from Round ${game.roundNumber} mission: ${currentRoundMission.condition}`, 'game');
+	log(`Player ${player.name} gained ${vpGain} VP from Round ${game.roundNumber} mission: ${currentRoundMission.condition}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	// 메인 액션 로그 병합: 가장 마지막 로그가 내 로그라면 details에 추가, 아니면 subLogs에 추가
 	if (!game.gameLog) game.gameLog = [];
@@ -922,7 +923,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 	if (newLevel === 3) {
 		if (player.faction === 'taklons') chargePowerTaklons(player, 3, true);
 		else chargePower(player, 3);
-		log(`Player ${player.name} gained 3 power from reaching level 3 in ${track}`, 'game');
+		log(`Player ${player.name} gained 3 power from reaching level 3 in ${track}`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	// Navigation 트랙 보너스
@@ -930,11 +931,11 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 		if (newLevel === 1 || newLevel === 3) {
 			grantQic(game, playerId, 1);
 			const isGleensOre = player.faction === 'gleens' && getAcademyRightCount(game, playerId) < 1;
-			log(`Player ${player.name} gained 1 ${isGleensOre ? 'Ore (Gleens)' : 'QIC'} from Navigation level ${newLevel}`, 'game');
+			log(`Player ${player.name} gained 1 ${isGleensOre ? 'Ore (Gleens)' : 'QIC'} from Navigation level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 		if (newLevel === 5) {
 			game.pendingLostPlanet = { playerId };
-			log(`Player ${player.name} reached Navigation 5: Lost Planet placement pending`, 'game');
+			log(`Player ${player.name} reached Navigation 5: Lost Planet placement pending`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 	}
 
@@ -942,19 +943,19 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 	if (track === 'artificialIntelligence') {
 		if (newLevel === 1) {
 			grantQic(game, playerId, 1);
-			log(`Player ${player.name} gained 1 QIC from AI level 1`, 'game');
+			log(`Player ${player.name} gained 1 QIC from AI level 1`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 2) {
 			grantQic(game, playerId, 1);
-			log(`Player ${player.name} gained 1 QIC from AI level 2`, 'game');
+			log(`Player ${player.name} gained 1 QIC from AI level 2`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 3) {
 			grantQic(game, playerId, 2);
-			log(`Player ${player.name} gained 2 QIC from AI level 3`, 'game');
+			log(`Player ${player.name} gained 2 QIC from AI level 3`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 4) {
 			grantQic(game, playerId, 2);
-			log(`Player ${player.name} gained 2 QIC from AI level 4`, 'game');
+			log(`Player ${player.name} gained 2 QIC from AI level 4`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 5) {
 			grantQic(game, playerId, 4);
-			log(`Player ${player.name} gained 4 QIC from AI level 5`, 'game');
+			log(`Player ${player.name} gained 4 QIC from AI level 5`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 	}
 
@@ -962,7 +963,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 	if (track === 'terraforming') {
 		if (newLevel === 1 || newLevel === 4) {
 			player.ore += 2;
-			log(`Player ${player.name} gained 2 Ore from Terraforming level ${newLevel}`, 'game');
+			log(`Player ${player.name} gained 2 Ore from Terraforming level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 		if (newLevel === 5) {
 			const rewardId = game.federationOnTerraforming5;
@@ -988,7 +989,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 						}
 						player.federations.push({ rewardId, isGreen: rewardId !== FEDERATION_12VP_ID });
 						pool[rewardId] -= 1;
-						log(`Player ${player.name} gained federation reward from Terraforming 5: ${reward.label}`, 'game');
+						log(`Player ${player.name} gained federation reward from Terraforming 5: ${reward.label}`, 'game', undefined, { simulation: (game as any).simulation });
 					}
 				}
 			}
@@ -1000,19 +1001,19 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 		if (newLevel === 1) {
 			// 1단계: 가이아포머 1개
 			player.gaiaformers = (player.gaiaformers || 0) + 1;
-			log(`Player ${player.name} gained 1 Gaiaformer from Gaia Project level 1 (Total: ${player.gaiaformers})`, 'game');
+			log(`Player ${player.name} gained 1 Gaiaformer from Gaia Project level 1 (Total: ${player.gaiaformers})`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 2) {
 			// 2단계: 1단계 토큰 3개 (power1에 3개 추가)
 			player.power1 = (player.power1 || 0) + 3;
-			log(`Player ${player.name} gained 3 power tokens from Gaia Project level 2`, 'game');
+			log(`Player ${player.name} gained 3 power tokens from Gaia Project level 2`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 3) {
 			// 3단계: 포머 2개
 			player.gaiaformers = (player.gaiaformers || 0) + 1;
-			log(`Player ${player.name} gained 1 Gaiaformers from Gaia Project level 3 (Total: ${player.gaiaformers})`, 'game');
+			log(`Player ${player.name} gained 1 Gaiaformers from Gaia Project level 3 (Total: ${player.gaiaformers})`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 4) {
 			// 4단계: 포머 3개
 			player.gaiaformers = (player.gaiaformers || 0) + 1;
-			log(`Player ${player.name} gained 1 Gaiaformers from Gaia Project level 4 (Total: ${player.gaiaformers})`, 'game');
+			log(`Player ${player.name} gained 1 Gaiaformers from Gaia Project level 4 (Total: ${player.gaiaformers})`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (newLevel === 5) {
 			// 5단계: 4점 + 가이아 행성만큼 점수
 			const playerId = Object.keys(game.players).find(id => game.players[id] === player);
@@ -1021,7 +1022,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 				const gaiaPlanets = playerStructures.filter(t => t.type === 'gaia').length;
 				const vpGain = 4 + gaiaPlanets;
 				addScore(game, playerId, vpGain, 'other', { source: 'Gaia Project track reward' });
-				log(`Player ${player.name} gained ${vpGain} VP from Gaia Project level 5 (4 base + ${gaiaPlanets} Gaia planets)`, 'game');
+				log(`Player ${player.name} gained ${vpGain} VP from Gaia Project level 5 (4 base + ${gaiaPlanets} Gaia planets)`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 		}
 	}
@@ -1032,13 +1033,13 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 		player.credits += 6;
 		if (player.faction === 'taklons') chargePowerTaklons(player, 6, true);
 		else chargePower(player, 6);
-		log(`Player ${player.name} gained 3 Ore, 6 Credits, and 6 Power from Economy level 5`, 'game');
+		log(`Player ${player.name} gained 3 Ore, 6 Credits, and 6 Power from Economy level 5`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	// Science 트랙 보너스 (레벨 5)
 	if (track === 'science' && newLevel === 5) {
 		player.knowledge += 9;
-		log(`Player ${player.name} gained 9 Knowledge from Science level 5`, 'game');
+		log(`Player ${player.name} gained 9 Knowledge from Science level 5`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 }
 
@@ -1046,15 +1047,15 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState) {
 	// 이미 수익 선택이 진행 중이면 중복 호출 방지
 	if (game.pendingIncomeOrder) {
-		log(`Income phase already in progress for player ${game.pendingIncomeOrder.playerId}`, 'game');
+		log(`Income phase already in progress for player ${game.pendingIncomeOrder.playerId}`, 'game', undefined, { simulation: (game as any).simulation });
 		return;
 	}
 	// 파워 수신은 건물 지을 때만 표시. 라운드 시작(수익 단계)에서는 이전 라운드 잔여 제안 제거
 	if (game.pendingPowerOffers && game.pendingPowerOffers.length > 0) {
 		game.pendingPowerOffers = [];
-		log(`Income phase: cleared pending power offers (파워 수신은 건물 배치 시에만)`, 'game');
+		log(`Income phase: cleared pending power offers (파워 수신은 건물 배치 시에만)`, 'game', undefined, { simulation: (game as any).simulation });
 	}
-	log(`Triggering income phase for round ${game.roundNumber}`, 'game');
+	log(`Triggering income phase for round ${game.roundNumber}`, 'game', undefined, { simulation: (game as any).simulation });
 	const turnOrder = game.turnOrder ?? Object.keys(game.players);
 
 	// 재진입(한 명이 수익 선택 완료 후): 수익 재적용 없이, 파워/토큰 선택이 남은 다음 플레이어만 턴 순서로 찾기
@@ -1069,7 +1070,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				appliedItems: [],
 				powerBeforeSnapshots: [],
 			};
-			log(`[Income] Next: ${player.name} needs to select income items: ${items.length} items`, 'game');
+			log(`[Income] Next: ${player.name} needs to select income items: ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (IncomeReentry): ${err}`, 'error');
@@ -1088,7 +1089,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const factionId = player.faction;
 
 			const beforeResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
-			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game');
+			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game', undefined, { simulation: (game as any).simulation });
 
 			// 수익 단계에서 파워와 토큰 수익을 개별 아이템으로 수집
 			const incomeItems: Array<{ type: 'power' | 'tokens'; amount: number; id: string }> = [];
@@ -1181,7 +1182,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				}
 				if (ei.vp) {
 					addScore(game, pId, ei.vp, 'other', { source: 'Economy track reward' });
-					log(`Player ${player.name} gained ${ei.vp} VP from Economy level ${econLevel}`, 'game');
+					log(`Player ${player.name} gained ${ei.vp} VP from Economy level ${econLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 			}
 			// 레벨 5는 advanceTech에서 즉시 보상으로 처리됨
@@ -1216,10 +1217,10 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					if (bonusTile.income.qic) grantQic(game, pId, bonusTile.income.qic);
 					if (bonusTile.income.power) incomeItems.push({ type: 'power', amount: bonusTile.income.power, id: `bonus-power-${player.bonusTile}-${pId}` });
 					if (bonusTile.income.powerTokens) incomeItems.push({ type: 'tokens', amount: bonusTile.income.powerTokens, id: `bonus-tokens-${player.bonusTile}-${pId}` });
-					log(`[Income] ${player.name} bonus tile (${player.bonusTile}): ${JSON.stringify(bonusTile.income)}`, 'game');
+					log(`[Income] ${player.name} bonus tile (${player.bonusTile}): ${JSON.stringify(bonusTile.income)}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 			} else {
-				log(`[Income] ${player.name} has NO bonus tile`, 'game');
+				log(`[Income] ${player.name} has NO bonus tile`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			// 7. Planetary Institute(의회) 수익 - 종족별 power/tokens/ore/qic
@@ -1248,7 +1249,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					} else {
 						player.power1 = (player.power1 || 0) + item.amount;
 					}
-					log(`[Income] ${player.name} auto-received income: ${item.amount} ${item.type}`, 'game');
+					log(`[Income] ${player.name} auto-received income: ${item.amount} ${item.type}`, 'game', undefined, { simulation: (game as any).simulation });
 				} else {
 					// 여러 개이거나 파워/토큰이 섞여있으면 선택 요청
 					playersNeedingOrder.push(pId);
@@ -1256,7 +1257,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				}
 			} else {
 				// 수익 아이템이 없으면 로그만 남기고 계속 진행
-				log(`[Income] ${player.name} has no power/token income items`, 'game');
+				log(`[Income] ${player.name} has no power/token income items`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			// Reset used actions
@@ -1269,13 +1270,13 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				player.brainStoneInGaia = false;
 				player.brainStoneBowl = 1;
 				player.power1 = (player.power1 ?? 0) + 1;
-				log(`[Income] ${player.name} (Taklons): Brain Stone returned to Bowl 1`, 'game');
+				log(`[Income] ${player.name} (Taklons): Brain Stone returned to Bowl 1`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 			// 아이타: 2그릇 태울 때 보관해 둔 토큰을 1그릇으로 복귀 (이제 gaiaformerPower로 통합 관리되므로 이 부분은 삭제 가능하거나 gaiaformerPower 로직으로 대체됨)
 			// 기존 itarsPendingBowl1Tokens 로직 삭제 (아래 가이아 포머 복귀 로직에서 통합 처리됨)
 
 			const afterResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
-			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game');
+			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 		(game as any).incomePhaseAppliedThisRound = true;
 		// 수익 선택이 필요한 플레이어는 턴 순서대로 한 명씩만 대기 (모든 수익 적용 후 선택만 순서대로)
@@ -1290,7 +1291,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					appliedItems: [],
 					powerBeforeSnapshots: [],
 				};
-				log(`[Income] ${firstPlayer.name} needs to select income items: ${incomeItems.length} items`, 'game');
+				log(`[Income] ${firstPlayer.name} needs to select income items: ${incomeItems.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 				executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 					log(`Bot turn execution error (IncomeInitial): ${err}`, 'error');
@@ -1317,21 +1318,21 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		const hasPI = game.map.some(t => t.ownerId === pId && t.structure === 'planetary_institute');
 		if (isTerran) {
 			player.power2 = (player.power2 || 0) + powerToReturn;
-			log(`Player ${player.name} (Terran): ${powerToReturn} tokens from Gaiaformer → Bowl 2`, 'game');
+			log(`Player ${player.name} (Terran): ${powerToReturn} tokens from Gaiaformer → Bowl 2`, 'game', undefined, { simulation: (game as any).simulation });
 			if (hasPI) {
 				terranCouncilQueue.push({ playerId: pId, tokenCount: powerToReturn });
 			}
 		} else if (player.faction === 'itars' && hasPI && powerToReturn >= 4) {
 			game.pendingItarsGaiaformerExchange = { playerId: pId, tokensRemaining: powerToReturn };
 			player.gaiaformerPower = 0;
-			log(`Player ${player.name} (Itars PI): ${powerToReturn} tokens in Gaiaformer → exchange or Bowl 1 choice`, 'game');
+			log(`Player ${player.name} (Itars PI): ${powerToReturn} tokens in Gaiaformer → exchange or Bowl 1 choice`, 'game', undefined, { simulation: (game as any).simulation });
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (ItarsInitial): ${err}`, 'error');
 			});
 			return;
 		} else {
 			player.power1 = (player.power1 || 0) + powerToReturn;
-			log(`Player ${player.name} returned ${powerToReturn} power tokens from Gaiaformer area to Bowl 1`, 'game');
+			log(`Player ${player.name} returned ${powerToReturn} power tokens from Gaiaformer area to Bowl 1`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 		player.gaiaformerPower = 0;
 	});
@@ -1365,7 +1366,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		if (options.length === 1) {
 			tinkeroidPlayer.tinkeroidRoundSpecialId = options[0];
 			tinkeroidPlayer.tinkeroidsChosenSpecialIds = [...chosen, options[0]];
-			log(`Tinkeroid: round ${game.roundNumber} special auto-selected: ${options[0]}`, 'game');
+			log(`Tinkeroid: round ${game.roundNumber} special auto-selected: ${options[0]}`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (options.length > 1) {
 			game.pendingTinkeroidSpecialChoice = { playerId: tinkeroidPlayerId, round: game.roundNumber, options };
 			tinkeroidsPending = true;
@@ -1403,7 +1404,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 	}
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
 
-	log(`[RoundStart] New round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game');
+	log(`[RoundStart] New round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	// 첫 플레이어가 봇이면 바로 봇 턴 시작
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -1670,7 +1671,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			socketToPlayerMap.set(socket.id, playerId);
 			socket.join(gameId);
 
-			log(`Game created: ${gameId} by ${playerName}`, 'game');
+			log(`Game created: ${gameId} by ${playerName}`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, playerId, game });
 		});
 
@@ -1729,7 +1730,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.hostAddedPlayerIds) game.hostAddedPlayerIds = [];
 			game.hostAddedPlayerIds.push(botId);
 
-			log(`AI Bot added: ${name} (${botId}) to game ${gameId}`, 'game');
+			log(`AI Bot added: ${name} (${botId}) to game ${gameId}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game);
 			io.to(gameId).emit('game_updated', game);
 			callback({ botId, name, game });
@@ -1774,7 +1775,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			socket.join(gameId);
-			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game');
+			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
 		});
 
@@ -1798,10 +1799,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const allHaveFaction = Object.values(game.players).every(p => p.faction != null);
 			if (allHaveFaction) {
 				game.currentPhase = 'startingMines';
-				log(`Start game: All factions selected. Resuming startingMines phase.`, 'game');
+				log(`Start game: All factions selected. Resuming startingMines phase.`, 'game', undefined, { simulation: (game as any).simulation });
 			} else {
 				game.currentPhase = 'factionSelect';
-				log(`Start game: Entering factionSelect phase.`, 'game');
+				log(`Start game: Entering factionSelect phase.`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			// 확장: 모웨이드/팅커로이드 3테라포밍 땅 3개 설정 (나머지 7색상 4개는 1테라포밍)
@@ -1811,12 +1812,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (moweyipPlayer) {
 				const otherHomes = playerList.filter(p => p.faction && p.faction !== 'moweyip').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 				game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
-				log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game');
+				log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 			if (tinkeroidsPlayer) {
 				const otherHomes = playerList.filter(p => p.faction && p.faction !== 'tinkeroids').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 				game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
-				log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game');
+				log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			// 턴 시퀀스 계산 (이미 startingMines라면)
@@ -1827,7 +1828,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (firstId && game.turnOrder?.length) {
 					game.currentPlayerIndex = game.turnOrder.indexOf(firstId);
 					if (game.currentPlayerIndex < 0) game.currentPlayerIndex = 0;
-					log(`Start game: first to place is ${firstId} (index ${game.currentPlayerIndex})`, 'game');
+					log(`Start game: first to place is ${firstId} (index ${game.currentPlayerIndex})`, 'game', undefined, { simulation: (game as any).simulation });
 				} else {
 					game.currentPlayerIndex = 0;
 				}
@@ -1846,7 +1847,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) return;
 			game.isTestMode = !game.isTestMode;
-			log(`Test mode ${game.isTestMode ? 'ENABLED' : 'DISABLED'} for game ${gameId}`, 'game');
+			log(`Test mode ${game.isTestMode ? 'ENABLED' : 'DISABLED'} for game ${gameId}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -1919,10 +1920,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 				// 배정 결과 요약 로그
 				const summary = Object.entries(game.players).map(([id, p]: [string, any]) => `${p.name}(${p.faction}) order:${p.selectedTurnOrder}`).join(', ');
-				log(`Auto setup assignments: ${summary}`, 'game');
+				log(`Auto setup assignments: ${summary}`, 'game', undefined, { simulation: (game as any).simulation });
 
 				// 4. 상태 점검 및 봇 턴 실행 (executeSelectFaction 내에서 이미 startingMines 단계로 진입했을 것임)
-				log(`Current Phase after setup: ${game.currentPhase}`, 'game');
+				log(`Current Phase after setup: ${game.currentPhase}`, 'game', undefined, { simulation: (game as any).simulation });
 
 				// 만약 executeSelectFaction 내에서 단계 전환이 안 일어났을 경우를 대비한 보장 로직
 				if (game.currentPhase === 'factionSelect') {
@@ -1949,7 +1950,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
 				}
 
-				log(`Auto setup test completed for game ${gameId}. Current Phase: ${game.currentPhase}`, 'game');
+				log(`Auto setup test completed for game ${gameId}. Current Phase: ${game.currentPhase}`, 'game', undefined, { simulation: (game as any).simulation });
 				clampPlayerResources(game);
 				io.to(gameId).emit('game_updated', game);
 			} finally {
@@ -1976,7 +1977,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (resources.power1 !== undefined) player.power1 = resources.power1;
 			if (resources.power2 !== undefined) player.power2 = resources.power2;
 			if (resources.power3 !== undefined) player.power3 = resources.power3;
-			log(`Debug: Set resources for ${player.name}: ${JSON.stringify(resources)}`, 'game');
+			log(`Debug: Set resources for ${player.name}: ${JSON.stringify(resources)}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -2038,66 +2039,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// Use Bonus Tile Special Action
-		// terraform_step: 테라포밍 1단계 (무료)
-		// gaia_project: 가이아 프로젝트 시작 (보라색 행성에 가이아포머 배치)
-		// range_3: +3 거리 추가 (건설, 가이아포밍, 우주선, 소행성 건설에 사용)
-		socket.on('use_bonus_action', ({ gameId, actionData }) => {
+		socket.on('use_bonus_action', ({ gameId }) => {
 			const game = games.get(gameId); if (!game || game.currentPhase !== 'main') return;
-
-			const playerId = socketToPlayerMap.get(socket.id);
-			if (!playerId) return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 
-			// 액션 시작 시점 상태 저장
-			saveActionStartState(game, playerId);
-
 			const player = game.players[playerId];
-			if (!player.bonusTile || player.usedBonusAction) return;
-
+			if (!player?.bonusTile || player.usedBonusAction) return;
 			const bonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
-			if (!bonusTile?.specialAction) return;
-
-			// Handle special actions
-			switch (bonusTile.specialAction) {
-				case 'terraform_step':
-					// 테라포밍 1단계 추가
-					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-					player.usedBonusAction = true;
-					addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
-					log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game');
-					// 테라포밍 액션은 자동 패스하지 않음 (광산 건설 후 사용)
-					// 자동 패스 로직 제거
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-					return;
-
-				case 'gaia_project':
-					// 가이아 프로젝트 = TF Mars 2번과 동일 (Transdim에 가이아포머 배치 또는 건너뛰기)
-					if (getEffectiveGaiaformers(player) < 1) {
-						socket.emit('game_error', { message: '사용 가능한 가이아포머가 없습니다.' });
-						return;
-					}
-					player.usedBonusAction = true;
-					game.pendingTFMarsGaiaProject = { playerId, shipTileId: 'bonus-gaia' };
-					game.hasDoneMainAction = true;
-					addGameLog(game, playerId, 'Bonus Action', 'Gaia Project');
-					log(`Player ${player.name} activated bonus action: Gaia Project (place Gaiaformer or skip)`, 'game');
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-					return;
-
-				case 'range_3':
-					// +3 거리: 트왈라잇 1K와 동일하게 이번 턴에 광산/포밍 등 행동 후 End Turn (자동 패스 안 함)
-					player.usedBonusAction = true;
-					player.rangeBonusActive = true;
-					addGameLog(game, playerId, 'Bonus Action', '+3 Range');
-					log(`Player ${player.name} activated bonus action: +3 range (this turn)`, 'game');
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-					return;
-				default:
-					// gaia_project 등 이미 return한 케이스 외 알 수 없는 액션은 자동 패스하지 않음
-					log(`Player ${player.name} used bonus action (unhandled specialAction: ${bonusTile.specialAction})`, 'game');
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
-					return;
+			if (bonusTile?.specialAction === 'gaia_project' && getEffectiveGaiaformers(player) < 1) {
+				socket.emit('game_error', { message: '사용 가능한 가이아포머가 없습니다.' });
+				return;
 			}
+			executeUseBonusAction(io, game, playerId);
 		});
 
 
@@ -2553,7 +2507,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 						if (shipReward.id === 'ship-fed-3tf-mine') {
 							player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 							player.spaceshipFed3TfMineFree = true;
-							log(`Player ${player.name} received 3 terraform steps from ship-fed-3tf-mine`, 'game');
+							log(`Player ${player.name} received 3 terraform steps from ship-fed-3tf-mine`, 'game', undefined, { simulation: (game as any).simulation });
 						}
 						break;
 					default:
@@ -2695,7 +2649,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const startState = game.turnStartState?.[playerId];
 			if (!startState) return;
 
-			log(`Player ${game.players[playerId].name} reset turn`, 'game');
+			log(`Player ${game.players[playerId].name} reset turn`, 'game', undefined, { simulation: (game as any).simulation });
 
 			if (startState.fullGameState) {
 				// 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
@@ -2787,11 +2741,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 테라포밍 단계 추가
 			if (actionId === 'gain-1-step') {
 				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-				log(`Player ${player.name} gained 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game');
+				log(`Player ${player.name} gained 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 			if (actionId === 'gain-2-steps') {
 				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
-				log(`Player ${player.name} gained 2 terraform steps (Total: ${player.pendingTerraformSteps})`, 'game');
+				log(`Player ${player.name} gained 2 terraform steps (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			action.isUsed = true;
@@ -2823,7 +2777,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			else if (actionId === 'hh-3c-1o') player.ore = (player.ore ?? 0) + 1;
 			else return;
 			addGameLog(game, playerId, 'Hadsch Hallas PI', action.label, undefined);
-			log(`Player ${player.name} used Hadsch Hallas PI action: ${action.label}`, 'game');
+			log(`Player ${player.name} used Hadsch Hallas PI action: ${action.label}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
@@ -2842,7 +2796,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
 			grantQic(game, playerId, 1);
 			addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", '1 포머 사용 (다음 라운드까지 복귀)', undefined);
-			log(`Player ${player.name} (Bal T'aks) used 1 Gaiaformer for 1 QIC (locked until next round)`, 'game');
+			log(`Player ${player.name} (Bal T'aks) used 1 Gaiaformer for 1 QIC (locked until next round)`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
@@ -2885,7 +2839,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 통째로 덮어쓰고, Map에 반영.
 				games.set(gameId, restoredGame);
 				const player = restoredGame.players[playerId];
-				log(`Player ${player?.name} undone all free actions`, 'game');
+				log(`Player ${player?.name} undone all free actions`, 'game', undefined, { simulation: (game as any).simulation });
 				addGameLog(restoredGame, playerId, 'Undo Free Action', 'Reverted free actions');
 				io.to(gameId).emit('game_updated', restoredGame);
 			} catch (err) {
@@ -3085,7 +3039,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			game.pendingTinkeroidSpecialChoice = null;
 			addGameLog(game, playerId, 'Tinkeroid Special', `Selected ${specialId} for Round ${game.roundNumber}`);
-			log(`Player ${player.name} (Tinkeroids) selected special ${specialId} for round ${game.roundNumber}`, 'game');
+			log(`Player ${player.name} (Tinkeroids) selected special ${specialId} for round ${game.roundNumber}`, 'game', undefined, { simulation: (game as any).simulation });
 
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
@@ -3114,7 +3068,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.tinkeroidsChosenSpecialIds = [...chosen, actionId];
 			game.pendingTinkeroidSpecialChoice = null;
 			addGameLog(game, playerId, 'Tinkeroid: Round Special', `Round ${game.roundNumber}: ${actionId}`, undefined);
-			log(`Tinkeroid: ${player.name} chose special for round ${game.roundNumber}: ${actionId}`, 'game');
+			log(`Tinkeroid: ${player.name} chose special for round ${game.roundNumber}: ${actionId}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 			// 팅커로이드 선택이 수익 단계 마지막 단계이므로, 여기서 액션 단계로 전환
 			helperStartNewRoundTurn(io, game);
@@ -3142,7 +3096,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.usedSpecialActions.push('ambas-swap-pi-mine');
 			game.hasDoneMainAction = true;
 			addGameLog(game, playerId, 'Ambas: Special', 'PI ↔ Mine 위치 교체', mineTileId);
-			log(`Player ${player.name} (Ambas) swapped PI with Mine`, 'game');
+			log(`Player ${player.name} (Ambas) swapped PI with Mine`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -3172,7 +3126,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Bescods/매안: Special', `가장 낮은 트랙 +1 → ${trackId} Lv.${newLevel}`, undefined);
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
-			log(`Player ${player.name} (Bescods) advanced lowest track ${trackId} to Lv.${newLevel}`, 'game');
+			log(`Player ${player.name} (Bescods) advanced lowest track ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
@@ -3196,7 +3150,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.usedSpecialActions.push('moweyip-place-ring');
 			game.hasDoneMainAction = true;
 			addGameLog(game, playerId, 'Moweyip: Special', `링 놓기 → ${tile.structure} (+2 파워)`, tileId);
-			log(`Player ${player.name} (Moweyip) placed ring on ${tile.structure}`, 'game');
+			log(`Player ${player.name} (Moweyip) placed ring on ${tile.structure}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -3229,7 +3183,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
-			log(`Player ${player.name} (Firaks) downgraded Lab to TS and advanced ${trackId} to Lv.${newLevel}`, 'game');
+			log(`Player ${player.name} (Firaks) downgraded Lab to TS and advanced ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
@@ -3344,14 +3298,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const power = getFederationBuildingPower(game, playerId, planetIdsForPower, allHexIds);
 			const requiredPower = getFederationRequiredPower(game, playerId);
 			if (power < requiredPower) {
-				log(`Federation complete rejected: building power ${power} < ${requiredPower}`, 'game');
+				log(`Federation complete rejected: building power ${power} < ${requiredPower}`, 'game', undefined, { simulation: (game as any).simulation });
 				io.to(gameId).emit('game_error', { message: `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)` });
 				return;
 			}
 			const isIvits = player.faction === 'ivits';
 			if (isIvits) {
 				if (player.qic < numEmpty) {
-					log(`Federation complete rejected (Ivits): need ${numEmpty} QIC, have ${player.qic}`, 'game');
+					log(`Federation complete rejected (Ivits): need ${numEmpty} QIC, have ${player.qic}`, 'game', undefined, { simulation: (game as any).simulation });
 					io.to(gameId).emit('game_error', { message: `QIC가 부족합니다. (필요: ${numEmpty}, 보유: ${player.qic})` });
 					return;
 				}
@@ -3359,7 +3313,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			} else {
 				const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
 				if (totalPower < numEmpty) {
-					log(`Federation complete rejected: need ${numEmpty} power tokens, have ${totalPower}`, 'game');
+					log(`Federation complete rejected: need ${numEmpty} power tokens, have ${totalPower}`, 'game', undefined, { simulation: (game as any).simulation });
 					io.to(gameId).emit('game_error', { message: `파워 토큰이 부족합니다. (필요: ${numEmpty}, 보유: ${totalPower})` });
 					return;
 				}
@@ -3370,7 +3324,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			game.federationMode = null;
 			game.federationPreview = null;
-			game.pendingFederationReward = { playerId, selectedHexIds, spentTokens: numEmpty };
+			game.pendingFederationReward = {
+				playerId,
+				selectedHexIds,
+				selectedPlanetIds,
+				selectedSpaceStationHexIds,
+				spentTokens: numEmpty
+			};
 			const unitLabel = isIvits ? '우주정거장' : '위성';
 			addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel}, ${power} power${isIvits ? ', QIC cost' : ''})`);
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -3434,7 +3394,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			player.federations.push({ rewardId, isGreen: true });
 
-			const { selectedHexIds } = game.pendingFederationReward;
+			const { selectedHexIds, selectedPlanetIds = [], selectedSpaceStationHexIds = [] } = game.pendingFederationReward;
 			if (!game.satellites) game.satellites = {};
 			for (const hexId of selectedHexIds) {
 				const existing = game.satellites[hexId];
@@ -3448,7 +3408,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			if (!game.playerFederationHexes) game.playerFederationHexes = {};
 			if (!game.playerFederationHexes[playerId]) game.playerFederationHexes[playerId] = [];
-			game.playerFederationHexes[playerId].push(...selectedHexIds);
+			game.playerFederationHexes[playerId].push(...selectedHexIds, ...selectedPlanetIds, ...selectedSpaceStationHexIds);
 			game.pendingFederationReward = null;
 
 			if (isSpaceshipReward) {
@@ -3526,7 +3486,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 
 				selectedMissions.push(selected);
-				log(`Round ${i + 1} mission: ${selected.condition} (${selected.vp} VP)`, 'game');
+				log(`Round ${i + 1} mission: ${selected.condition} (${selected.vp} VP)`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			game.roundScoringTiles = selectedMissions;
@@ -3556,24 +3516,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			// 가이아 프로젝트(보너스/TF Mars) 대기 중에는 턴 종료 불가 → 배치 또는 건너뛰기 먼저
 			if (game.pendingTFMarsGaiaProject?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn while Gaia Project (place or skip) is pending.`, 'game');
+				log(`Player ${playerId} cannot end turn while Gaia Project (place or skip) is pending.`, 'game', undefined, { simulation: (game as any).simulation });
 				return;
 			}
 			// 기술 타일 선택(트랙 올리기) 또는 우주선 기술 타일 보상 트랙 진행을 같은 턴에 끝내야 함
 			if (game.pendingTechTileSelection?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn: choose a tech tile and advance track first.`, 'game');
+				log(`Player ${playerId} cannot end turn: choose a tech tile and advance track first.`, 'game', undefined, { simulation: (game as any).simulation });
 				return;
 			}
 			if (game.pendingShipTechTrackAdvance?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn: choose a track to advance (ship tech reward) first.`, 'game');
+				log(`Player ${playerId} cannot end turn: choose a track to advance (ship tech reward) first.`, 'game', undefined, { simulation: (game as any).simulation });
 				return;
 			}
 			if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn: choose a track to advance (advanced tech reward) first.`, 'game');
+				log(`Player ${playerId} cannot end turn: choose a track to advance (advanced tech reward) first.`, 'game', undefined, { simulation: (game as any).simulation });
 				return;
 			}
 			if (!game.hasDoneMainAction) {
-				log(`Player ${playerId} tried to end turn without a main action.`, 'game');
+				log(`Player ${playerId} tried to end turn without a main action.`, 'game', undefined, { simulation: (game as any).simulation });
 				return;
 			}
 
@@ -3646,7 +3606,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingIncomeOrder.appliedItems.push(item);
 			game.pendingIncomeOrder.incomeItems = game.pendingIncomeOrder.incomeItems.filter(i => i.id !== itemId);
 
-			log(`Player ${player.name} selected income: ${item.amount} ${item.type}`, 'game');
+			log(`Player ${player.name} selected income: ${item.amount} ${item.type}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -3756,7 +3716,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			game.pendingIncomeOrder.appliedItems.push(...applied);
 			game.pendingIncomeOrder.incomeItems = [];
-			log(`Player ${player.name} auto-received all income (Optimal Order): ${items.length} items`, 'game');
+			log(`Player ${player.name} auto-received all income (Optimal Order): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -3780,7 +3740,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			game.pendingIncomeOrder.incomeItems.push(lastItem);
 
-			log(`Player ${player.name} undone income: ${lastItem.amount} ${lastItem.type}`, 'game');
+			log(`Player ${player.name} undone income: ${lastItem.amount} ${lastItem.type}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -3831,7 +3791,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			if (game.pendingIncomeOrder.incomeItems.length > 0) {
 				console.log(`[DEBUG_INCOME] Finish failed: remaining items:`, game.pendingIncomeOrder.incomeItems.length);
-				log(`Player ${playerId} tried to finish but has remaining income items`, 'game');
+				log(`Player ${playerId} tried to finish but has remaining income items`, 'game', undefined, { simulation: (game as any).simulation });
 				return; // 아직 남은 아이템이 있으면 완료 불가
 			}
 
@@ -3841,7 +3801,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 저장된 수익 정보 제거
 			delete (player as any).pendingIncomeItems;
 
-			log(`Player ${player.name} finished income selection`, 'game');
+			log(`Player ${player.name} finished income selection`, 'game', undefined, { simulation: (game as any).simulation });
 			const finishedPlayerId = game.pendingIncomeOrder.playerId;
 			game.pendingIncomeOrder = null;
 
@@ -3915,7 +3875,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			const startState = game.turnStartState?.[playerId];
 			if (startState) {
-				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game');
+				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game', undefined, { simulation: (game as any).simulation });
 				if (startState.fullGameState) {
 					const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
 					// Keep the ID and other metadata but restore the game content
@@ -3950,7 +3910,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (gameId) {
 					const game = games.get(gameId);
 					if (game && game.players[playerId]) {
-						log(`Player ${game.players[playerId].name} disconnected`, 'game');
+						log(`Player ${game.players[playerId].name} disconnected`, 'game', undefined, { simulation: (game as any).simulation });
 					}
 				}
 				socketToPlayerMap.delete(socket.id);
@@ -3995,7 +3955,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 
 	// 이미 해당 종류의 기술 타일을 가지고 있다면 획득 불가
 	if (player.techTiles.includes(techTileId)) {
-		log(`Player ${player.name} already owns tech tile ${techTileId}. Cannot gain again.`, 'game');
+		log(`Player ${player.name} already owns tech tile ${techTileId}. Cannot gain again.`, 'game', undefined, { simulation: (game as any).simulation });
 		return;
 	}
 
@@ -4003,7 +3963,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	if (isShipTech && SHIP_TECH_TILES.some(t => t.id === techTileId)) {
 		// 수량 확인 및 차감
 		if (!game.shipTechPool || (game.shipTechPool[techTileId] ?? 0) <= 0) {
-			log(`Ship Tech Tile ${techTileId} is out of stock.`, 'game');
+			log(`Ship Tech Tile ${techTileId} is out of stock.`, 'game', undefined, { simulation: (game as any).simulation });
 			return;
 		}
 		game.shipTechPool[techTileId]--;
@@ -4056,10 +4016,10 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				const levelNow = player.research[track];
 				if (isRebellionGainTrack) {
 					addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${techTileId}, ${track} → Lv.${levelNow}`);
-					log(`Player ${player.name} (Rebellion) gained tech tile ${techTileId} and advanced ${track} to level ${levelNow}`, 'game');
+					log(`Player ${player.name} (Rebellion) gained tech tile ${techTileId} and advanced ${track} to level ${levelNow}`, 'game', undefined, { simulation: (game as any).simulation });
 				} else {
 					addGameLog(game, playerId, 'Gained Tech Tile', `${techTileId} and advanced ${track} to L${levelNow}`);
-					log(`Player ${player.name} gained tech tile ${techTileId} and advanced ${track} track to level ${newLevel}`, 'game');
+					log(`Player ${player.name} gained tech tile ${techTileId} and advanced ${track} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 				applyTrackLevelBonus(game, playerId, player, track, levelNow);
 				applyRoundMissionScore(game, playerId, 'research_track');
@@ -4073,7 +4033,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const isRebellionGain = game.pendingTechTileSelection.structureType === 'rebellion_gain';
 		const hasTrackId = trackId != null && String(trackId).trim() !== '';
 		if (!hasTrackId && !isRebellionGain) {
-			log(`Player ${player.name} selected pool tile but no trackId provided (trackId=${JSON.stringify(trackId)})`, 'game');
+			log(`Player ${player.name} selected pool tile but no trackId provided (trackId=${JSON.stringify(trackId)})`, 'game', undefined, { simulation: (game as any).simulation });
 			return;
 		}
 		const selectedTrack = (hasTrackId ? trackId : null) as ResearchTrack | null;
@@ -4090,10 +4050,10 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			const newLevel = player.research[selectedTrack];
 			if (isRebellionGain) {
 				addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${techTileId} from pool, ${selectedTrack} → Lv.${newLevel}`);
-				log(`Player ${player.name} (Rebellion) gained tech tile ${techTileId} from pool and advanced ${selectedTrack} to level ${newLevel}`, 'game');
+				log(`Player ${player.name} (Rebellion) gained tech tile ${techTileId} from pool and advanced ${selectedTrack} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			} else {
 				addGameLog(game, playerId, 'Gained Tech Tile', `${techTileId} from pool and advanced ${selectedTrack} to L${newLevel}`);
-				log(`Player ${player.name} gained tech tile ${techTileId} from pool and advanced ${selectedTrack} track to level ${newLevel}`, 'game');
+				log(`Player ${player.name} gained tech tile ${techTileId} from pool and advanced ${selectedTrack} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 			applyTrackLevelBonus(game, playerId, player, selectedTrack, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
@@ -4104,7 +4064,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		// 풀에서 해당 칸이 존재하는지 확인
 		const poolIndex = game.techTilesPool.findIndex(t => t && t.id === techTileId);
 		if (poolIndex === -1 && !isRebellionGain) {
-			log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game');
+			log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game', undefined, { simulation: (game as any).simulation });
 			return;
 		}
 
@@ -4117,12 +4077,12 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	if (techTileId === 'tech-imm-7vp') {
 		addScore(game, playerId, 7, 'techTiles', { tileId: techTileId });
 		addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-7vp: +7 VP');
-		log(`Player ${player.name} gained 7 VP from tech tile`, 'game');
+		log(`Player ${player.name} gained 7 VP from tech tile`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1o-1q') {
 		player.ore = (player.ore || 0) + 1;
 		grantQic(game, playerId, 1);
 		addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-1o-1q: +1 Ore, +1 QIC');
-		log(`Player ${player.name} gained 1 Ore and 1 QIC from tech tile (Ore: ${player.ore}, QIC: ${player.qic})`, 'game');
+		log(`Player ${player.name} gained 1 Ore and 1 QIC from tech tile (Ore: ${player.ore}, QIC: ${player.qic})`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1k-planet') {
 		const playerStructures = game.map.filter(t => t.ownerId === playerId);
 		const planetTypes = new Set(
@@ -4132,7 +4092,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		);
 		player.knowledge += planetTypes.size;
 		addGameLog(game, playerId, 'Gained Tech Tile', `tech-imm-1k-planet: +${planetTypes.size} Knowledge`);
-		log(`Player ${player.name} gained ${planetTypes.size} Knowledge from tech tile (${planetTypes.size} planet types)`, 'game');
+		log(`Player ${player.name} gained ${planetTypes.size} Knowledge from tech tile (${planetTypes.size} planet types)`, 'game', undefined, { simulation: (game as any).simulation });
 	} else {
 		addGameLog(game, playerId, 'Gained Tech Tile', techTileId);
 	}
@@ -4307,7 +4267,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		}
 		clearFreeMineFlags();
 		game.hasDoneMainAction = true;
-		log(`Player ${player.name} built parasitic mine on ${tileId}`, 'game');
+		log(`Player ${player.name} built parasitic mine on ${tileId}`, 'game', undefined, { simulation: (game as any).simulation });
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
 	}
@@ -4546,7 +4506,7 @@ export function executeUpgradeStructure(
 				{ id: 'hh-4c-1k', costCredits: 4, label: '4C→1K', isUsed: false },
 				{ id: 'hh-3c-1o', costCredits: 3, label: '3C→1O', isUsed: false },
 			];
-			log(`Player ${player.name} (Hadsch Hallas) gained PI free actions: 4C→1QIC, 4C→1K, 3C→1O`, 'game');
+			log(`Player ${player.name} (Hadsch Hallas) gained PI free actions: 4C→1QIC, 4C→1K, 3C→1O`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 		if (player.faction === 'space_giants') {
 			game.pendingTechTileSelection = { playerId: playerId, tileId, structureType: 'space_giants_pi' };
@@ -4636,7 +4596,7 @@ export function executeSelectFaction(
 	});
 
 	if (alreadyTaken) {
-		log(`Collision: Faction ${factionId} or its color is already taken.`, 'game');
+		log(`Collision: Faction ${factionId} or its color is already taken.`, 'game', undefined, { simulation: (game as any).simulation });
 		return false;
 	}
 
@@ -4648,7 +4608,7 @@ export function executeSelectFaction(
 		});
 
 		if (turnOrderTaken) {
-			log(`Collision: Turn order ${turnOrder} is already taken.`, 'game');
+			log(`Collision: Turn order ${turnOrder} is already taken.`, 'game', undefined, { simulation: (game as any).simulation });
 			return false;
 		}
 
@@ -4659,7 +4619,7 @@ export function executeSelectFaction(
 	const faction = FACTIONS.find(f => f.id === factionId);
 	if (faction) {
 		addGameLog(game, playerId, 'Selected Faction', faction.name);
-		log(`Applying starting specs for ${faction.name}`, 'game');
+		log(`Applying starting specs for ${faction.name}`, 'game', undefined, { simulation: (game as any).simulation });
 
 		// Resources (글린: 시작 QIC는 광물로)
 		player.ore = faction.startingResources.ore;
@@ -4703,7 +4663,7 @@ export function executeSelectFaction(
 						// 가이아 프로젝트 1단계: 가이아 포머 1개 (테란 등)
 						if (track === 'gaiaProject' && lvl === 1) {
 							player.gaiaformers = (player.gaiaformers || 0) + 1;
-							log(`Player ${player.name} gained 1 Gaiaformer from starting tech (Gaia Project level 1)`, 'game');
+							log(`Player ${player.name} gained 1 Gaiaformer from starting tech (Gaia Project level 1)`, 'game', undefined, { simulation: (game as any).simulation });
 						}
 					}
 				}
@@ -4722,7 +4682,7 @@ export function executeSelectFaction(
 					if (!player.spaceshipsEntered.includes(tfMarsTile.id)) {
 						player.spaceshipsEntered.push(tfMarsTile.id);
 					}
-					log(`Moweyip player ${player.name} startingly occupied & unlocked ${tfMarsTile.id} (TF Mars)`, 'game');
+					log(`Moweyip player ${player.name} startingly occupied & unlocked ${tfMarsTile.id} (TF Mars)`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 			}
 		}
@@ -4732,7 +4692,7 @@ export function executeSelectFaction(
 	// 모든 플레이어가 종족 선택을 마쳤다면 턴 순서 확정 및 단계 전환
 	const allHaveFaction = Object.values(game.players).every(p => p.faction != null);
 	if (allHaveFaction && game.currentPhase === 'factionSelect') {
-		log(`All players selected faction. Finalizing turn order and moving to startingMines.`, 'game');
+		log(`All players selected faction. Finalizing turn order and moving to startingMines.`, 'game', undefined, { simulation: (game as any).simulation });
 
 		// 1. 선택한 사람들 & 안 한 사람들 분류
 		const playersWithOrder = Object.values(game.players)
@@ -4759,7 +4719,7 @@ export function executeSelectFaction(
 
 		game.currentPhase = 'startingMines';
 		(game as any).startingMineSequence = buildStartingMineSequence(game);
-		log(`Turn order finalized: ${game.turnOrder.join(', ')}`, 'game');
+		log(`Turn order finalized: ${game.turnOrder.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	// 시작 광산 단계에서 종족을 고르면 "지금 배치할 사람"으로 턴 동기화 (1번=하이브, 2번=테란 → 2번 턴으로)
@@ -4772,7 +4732,7 @@ export function executeSelectFaction(
 		}
 	}
 
-	log(`Player ${player.name} selected faction ${factionId}. State: ${JSON.stringify(player)}`, 'game');
+	log(`Player ${player.name} selected faction ${factionId}. State: ${JSON.stringify(player)}`, 'game', undefined, { simulation: (game as any).simulation });
 	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 
 	if (!options?.skipBotTrigger) {
@@ -4823,7 +4783,7 @@ export function executePlaceStartingMine(
 	if (expectedIndex >= 0) game.currentPlayerIndex = expectedIndex;
 
 	if (playerId !== expectedPlayerId) {
-		log(`Wait for turn! Expected ${expectedPlayerId}, but got ${playerId}`, 'game');
+		log(`Wait for turn! Expected ${expectedPlayerId}, but got ${playerId}`, 'game', undefined, { simulation: (game as any).simulation });
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return `지금은 다른 플레이어의 차례입니다.`;
 	}
@@ -4841,21 +4801,21 @@ export function executePlaceStartingMine(
 
 	const structureName = startingStructure === 'planetary_institute' ? 'Planetary Institute' : 'Mine';
 	addGameLog(game, playerId, `Placed Starting ${structureName}`, `Position: ${tileId}`, tileId);
-	log(`Player ${player.name} (${faction.name}) placed ${structureName} #${player.startingMinesPlaced}. Total: ${totalMinesPlaced + 1}`, 'game');
+	log(`Player ${player.name} (${faction.name}) placed ${structureName} #${player.startingMinesPlaced}. Total: ${totalMinesPlaced + 1}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	const newTotal = totalMinesPlaced + 1;
 	if (newTotal >= snakingSequence.length) {
-		log(`All starting structures placed. Checking if all factions are selected.`, 'game');
+		log(`All starting structures placed. Checking if all factions are selected.`, 'game', undefined, { simulation: (game as any).simulation });
 		delete (game as any).startingMineSequence;
 		const allHaveFaction = Object.values(game.players).every(p => p.faction !== null);
 		if (allHaveFaction) {
 			game.currentPlayerIndex = game.turnOrder.length - 1;
 			game.pendingBonusSelection = game.turnOrder[game.currentPlayerIndex];
 			game.currentPhase = 'bonusSelection';
-			log(`All factions selected. Moving to bonus selection phase.`, 'game');
+			log(`All factions selected. Moving to bonus selection phase.`, 'game', undefined, { simulation: (game as any).simulation });
 		} else {
 			game.currentPhase = 'factionSelect';
-			log(`Moving to faction selection phase.`, 'game');
+			log(`Moving to faction selection phase.`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 	} else {
 		const nextPlayerId = snakingSequence[newTotal];
@@ -4889,12 +4849,12 @@ export function executeSelectBonus(
 
 	const tile = ALL_BONUS_TILES.find(t => t.id === bonusTileId);
 	addGameLog(game, playerId, 'Selected Bonus Tile', tile?.label || bonusTileId);
-	log(`Player ${player.name} selected bonus tile: ${bonusTileId}`, 'game');
+	log(`Player ${player.name} selected bonus tile: ${bonusTileId}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	// Move to next player (reverse order)
 	game.currentPlayerIndex--;
 	if (game.currentPlayerIndex < 0) {
-		log(`All bonus tiles selected. Moving to main phase.`, 'game');
+		log(`All bonus tiles selected. Moving to main phase.`, 'game', undefined, { simulation: (game as any).simulation });
 		game.currentPhase = 'main';
 		game.roundNumber = 1;
 		(game as any).incomePhaseAppliedThisRound = false;
@@ -4999,7 +4959,7 @@ export function executeAdvanceTech(
 	if (newLevel === 5) spendGreenFederation(player);
 	player.research[track]++;
 	applyTrackLevelBonus(game, playerId, player, track, newLevel);
-	log(`Player ${player.name} advanced ${track} to Lv.${newLevel}: knowledge ${knowledgeBefore} → ${player.knowledge} (-4)`, 'game');
+	log(`Player ${player.name} advanced ${track} to Lv.${newLevel}: knowledge ${knowledgeBefore} → ${player.knowledge} (-4)`, 'game', undefined, { simulation: (game as any).simulation });
 	addGameLog(game, playerId, 'Advanced Research', `${track} to level ${newLevel} (4K)`);
 	applyRoundMissionScore(game, playerId, 'research_track');
 	applyAdvancedTechTileEffect(game, playerId, 'research');
@@ -5083,7 +5043,7 @@ export function executePassRound(
 				addScore(game, playerId, vpGained, 'bonusTilePass', { round: 6 });
 				const logMsg = `Gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`;
 				addGameLog(game, playerId, 'Pass (Round 6)', logMsg);
-				log(`Player ${player.name} ${logMsg}`, 'game');
+				log(`Player ${player.name} ${logMsg}`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 		}
 
@@ -5208,7 +5168,7 @@ export function executePassRound(
 				vpGained = count * currentBonusTile.passBonus.vp;
 				const logMsg = `Gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`;
 				addGameLog(game, playerId, 'Pass Round', logMsg);
-				log(`Player ${player.name} ${logMsg}`, 'game');
+				log(`Player ${player.name} ${logMsg}`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			if (currentBonusTile) {
@@ -5229,7 +5189,7 @@ export function executePassRound(
 		player.usedBonusAction = false;
 
 		addGameLog(game, playerId, 'Selected Bonus', `Returned ${oldBonusId}, took ${newBonusTileId}`);
-		log(`Player ${player.name} returned ${oldBonusId} and took ${newBonusTileId}`, 'game');
+		log(`Player ${player.name} returned ${oldBonusId} and took ${newBonusTileId}`, 'game', undefined, { simulation: (game as any).simulation });
 
 		player.hasPassed = true;
 		if (!game.passingOrder.includes(playerId)) {
@@ -5272,7 +5232,7 @@ export function executePassRound(
 						t.isGaiaformed = true;
 						if (!player.pendingGaiaformerTiles!.includes(tileId)) {
 							player.pendingGaiaformerTiles!.push(tileId);
-							log(`Player ${player.name}: gaiaformer matured on ${tileId} (now buildable)`, 'game');
+							log(`Player ${player.name}: gaiaformer matured on ${tileId} (now buildable)`, 'game', undefined, { simulation: (game as any).simulation });
 						}
 					}
 				});
@@ -5512,6 +5472,51 @@ export function executeUseSpecialAction(
 	return true;
 }
 
+/** Bot/소켓 공용: 보너스 타일 스페셜 액션 (terraform_step, gaia_project, range_3). */
+export function executeUseBonusAction(
+	io: SocketIOServer, game: ServerGameState, playerId: string
+): boolean {
+	if (!game || game.currentPhase !== 'main' || game.hasDoneMainAction) return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+
+	const player = game.players[playerId];
+	if (!player?.bonusTile || player.usedBonusAction) return false;
+
+	const bonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
+	if (!bonusTile?.specialAction) return false;
+
+	saveActionStartState(game, playerId);
+
+	switch (bonusTile.specialAction) {
+		case 'terraform_step':
+			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
+			player.usedBonusAction = true;
+			addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
+			log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
+			break;
+		case 'gaia_project':
+			if (getEffectiveGaiaformers(player) < 1) return false;
+			player.usedBonusAction = true;
+			game.pendingTFMarsGaiaProject = { playerId, shipTileId: 'bonus-gaia' };
+			game.hasDoneMainAction = true;
+			addGameLog(game, playerId, 'Bonus Action', 'Gaia Project');
+			log(`Player ${player.name} activated bonus action: Gaia Project (place Gaiaformer or skip)`, 'game', undefined, { simulation: (game as any).simulation });
+			break;
+		case 'range_3':
+			player.usedBonusAction = true;
+			player.rangeBonusActive = true;
+			addGameLog(game, playerId, 'Bonus Action', '+3 Range');
+			log(`Player ${player.name} activated bonus action: +3 range (this turn)`, 'game', undefined, { simulation: (game as any).simulation });
+			break;
+		default:
+			log(`Player ${player.name} used bonus action (unhandled specialAction: ${bonusTile.specialAction})`, 'game', undefined, { simulation: (game as any).simulation });
+			break;
+	}
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 /** Bot용: 하이브(Ivits) 우주정거장 배치. 메인 액션 소모. */
 export function executePlaceIvitsSpaceStation(
 	io: SocketIOServer, game: ServerGameState,
@@ -5656,7 +5661,7 @@ export function executeBotIncomeSelection(
 	game.pendingIncomeOrder.appliedItems.push(...bestOrder);
 	game.pendingIncomeOrder.incomeItems = [];
 	delete (player as any).pendingIncomeItems;
-	log(`Bot ${player.name} auto-received all income: ${items.length} items`, 'game');
+	log(`Bot ${player.name} auto-received all income: ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 	game.pendingIncomeOrder = null;
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
@@ -5714,7 +5719,7 @@ export function executeEndTurn(
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 	if (!(game as any).simulation) {
-		log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game');
+		log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	// Trigger next bot turn if applicable (시뮬레이션 중에는 호출하지 않음)
@@ -5762,7 +5767,7 @@ export function executeBotSelectTechTile(
 			const tilesCast = tiles as (typeof tile | null)[];
 			const idx = tilesCast.indexOf(tile);
 			if (idx !== -1) tilesCast[idx] = null;
-			log(`Bot ${player.name} gained tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game');
+			log(`Bot ${player.name} gained tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.pendingTechTileSelection = null;
 			game.availableShipTechTileIds = undefined;
 			clampPlayerResources(game);
@@ -5791,7 +5796,7 @@ export function executeBotSelectTechTile(
 				applyRoundMissionScore(game, playerId, 'research_track');
 				if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 				(game.techTilesPool as (typeof poolTile | null)[])[pi] = null;
-				log(`Bot ${player.name} gained pool tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game');
+				log(`Bot ${player.name} gained pool tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 				game.pendingTechTileSelection = null;
 				game.availableShipTechTileIds = undefined;
 				clampPlayerResources(game);
@@ -5802,7 +5807,7 @@ export function executeBotSelectTechTile(
 	}
 
 	// 진행 가능한 조합이 없으면 강제 해제 (무한 대기 방지)
-	log(`Bot ${player.name} could not find valid tech tile selection, clearing pending state`, 'game');
+	log(`Bot ${player.name} could not find valid tech tile selection, clearing pending state`, 'game', undefined, { simulation: (game as any).simulation });
 	game.pendingTechTileSelection = null;
 	game.availableShipTechTileIds = undefined;
 	clampPlayerResources(game);
@@ -5826,7 +5831,7 @@ export function executeBotTinkeroidSpecial(
 
 	game.pendingTinkeroidSpecialChoice = null;
 	addGameLog(game, playerId, 'Bot: Tinkeroid Special', `Auto-selected ${specialId}`);
-	log(`Bot ${player.name} (Tinkeroids) auto-selected special ${specialId}`, 'game');
+	log(`Bot ${player.name} (Tinkeroids) auto-selected special ${specialId}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	game.hasDoneMainAction = false; // 보너스 선택만 일어난 경우 메인 액션 소모 방지
 	clampPlayerResources(game);
@@ -5865,7 +5870,7 @@ export function executeBotTerranCouncilBenefit(
 	player.credits = (player.credits || 0) + credits;
 
 	addGameLog(game, playerId, 'Bot: Terran Council', `Auto: ${maxSpend} tokens → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
-	log(`Bot ${player.name} (Terran) auto-selected council benefits: ${maxSpend} tokens used`, 'game');
+	log(`Bot ${player.name} (Terran) auto-selected council benefits: ${maxSpend} tokens used`, 'game', undefined, { simulation: (game as any).simulation });
 
 	game.pendingTerranCouncilBenefit = null;
 	const queue = game.terranCouncilQueue ?? [];
@@ -5910,7 +5915,7 @@ export function executeBotBescodsAdvanceLowestTrack(
 	addGameLog(game, playerId, 'Bot: Bescods Special', `가장 낮은 트랙 +1 → ${chosen} Lv.${newLevel}`);
 	applyTrackLevelBonus(game, playerId, player, chosen as ResearchTrack, newLevel);
 	applyRoundMissionScore(game, playerId, 'research_track');
-	log(`Bot ${player.name} (Bescods) advanced lowest track ${chosen} to Lv.${newLevel}`, 'game');
+	log(`Bot ${player.name} (Bescods) advanced lowest track ${chosen} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 	game.hasDoneMainAction = true;
 
 	clampPlayerResources(game);
@@ -5939,7 +5944,7 @@ export function executeBotMoweyipPlaceRing(
 	player.usedSpecialActions.push('moweyip-place-ring');
 	game.hasDoneMainAction = true;
 	addGameLog(game, playerId, 'Bot: Moweyip Special', `링 놓기 → ${targetTile.structure} @ ${targetTile.id} (+2 파워)`, targetTile.id);
-	log(`Bot ${player.name} (Moweyip) placed ring on ${targetTile.structure} @ ${targetTile.id}`, 'game');
+	log(`Bot ${player.name} (Moweyip) placed ring on ${targetTile.structure} @ ${targetTile.id}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
@@ -6024,9 +6029,9 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 			// 중첩되었더라도 최소한 개별 플레이어 입장에서 무엇인가 일어났음을 알 수 있도록 개별 로그도 남김 (상수 필터링 고려)
 			addGameLog(game, actualTargetId, 'Power Gained', `${text} (via ${sourcePlayer?.name})`, offer.tileId);
 		}
-		log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game');
+		log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game', undefined, { simulation: (game as any).simulation });
 	} else {
-		log(`Player ${targetPlayer.name} declined power offer`, 'game');
+		log(`Player ${targetPlayer.name} declined power offer`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	game.pendingPowerOffers.splice(offerIndex, 1);
@@ -6099,7 +6104,7 @@ export function executeBotFederation(
 
 	if (!game.playerFederationHexes) game.playerFederationHexes = {};
 	if (!game.playerFederationHexes[playerId]) game.playerFederationHexes[playerId] = [];
-	game.playerFederationHexes[playerId].push(...selectedHexIds);
+	game.playerFederationHexes[playerId].push(...selectedHexIds, ...selectedPlanetIds);
 
 	const unitLabel = isIvits ? '우주정거장' : '위성';
 	addGameLog(game, playerId, 'Federation', `Formed federation (${spentTokens} ${unitLabel}, reward: ${reward?.label})`);
@@ -6238,11 +6243,11 @@ export function executeBurnPower(game: ServerGameState, playerId: string, moveBr
 			player.brainStoneBowl = 3;
 			player.power2 -= 2;
 			player.power3 += 1;
-			log(`Player ${player.name} burned 2 power (Bowl II -> III, moved Brain to III)`, 'game');
+			log(`Player ${player.name} burned 2 power (Bowl II -> III, moved Brain to III)`, 'game', undefined, { simulation: (game as any).simulation });
 		} else if (moveBrainToBowl3 === false && (player.power2 ?? 0) >= 3) {
 			player.power2 -= 2;
 			player.power3 += 1;
-			log(`Player ${player.name} burned 2 power (Bowl II -> III, 2 regular tokens)`, 'game');
+			log(`Player ${player.name} burned 2 power (Bowl II -> III, 2 regular tokens)`, 'game', undefined, { simulation: (game as any).simulation });
 		} else {
 			return false; // Can't burn without specifying for Taklons when brain is in bowl 2
 		}
@@ -6252,10 +6257,10 @@ export function executeBurnPower(game: ServerGameState, playerId: string, moveBr
 		if (player.faction === 'itars') {
 			player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
 			addGameLog(game, playerId, 'Power Burn', `1 token to Bowl III, 1 to Gaia area`);
-			log(`Player ${player.name} (Itars) burned 2 power: 1 token to Bowl III, 1 to Gaia area (→Bowl I next round)`, 'game');
+			log(`Player ${player.name} (Itars) burned 2 power: 1 token to Bowl III, 1 to Gaia area (→Bowl I next round)`, 'game', undefined, { simulation: (game as any).simulation });
 		} else {
 			addGameLog(game, playerId, 'Power Burn', `Bowl II -> III`);
-			log(`Player ${player.name} burned 2 power (Bowl II -> III)`, 'game');
+			log(`Player ${player.name} burned 2 power (Bowl II -> III)`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 	}
 	return true;
@@ -6432,7 +6437,7 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 
 	const qicText = qicToUse > 0 ? ` (${qicToUse} QIC for range)` : '';
 	addGameLog(game, playerId, 'Placed Gaiaformer', `on Transdim (${powerToMove} power tokens moved to Gaiaformer area${qicText})`, tileId);
-	log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game');
+	log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	if (fromTFMars && isBonusGaia) {
 		addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');

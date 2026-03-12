@@ -472,7 +472,7 @@ export interface GaiaGameState {
   /** 연방 모드에서 클릭할 때마다 서버가 채우는 미리보기: 포함될 건물·파워·필요 파워 */
   federationPreview?: { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }> } | null;
   /** 연방 완료 후 보상 선택 대기 (선택된 빈공간 수 = 소모한 파워토큰 수) */
-  pendingFederationReward?: { playerId: string; selectedHexIds: string[]; spentTokens: number } | null;
+  pendingFederationReward?: { playerId: string; selectedHexIds: string[]; selectedPlanetIds?: string[]; selectedSpaceStationHexIds?: string[]; spentTokens: number } | null;
   /** 우주선 연방 "광산 1개 무료 (Nav 무시)" 보상: 빈 행성 클릭 시 무료 광산 배치 대기 */
   pendingSpaceshipFedMine?: { playerId: string } | null;
   /** 우주선 연방 "3 TF + 테라포밍·광산 무료": 남은 TF 단계 후 무료 광산 1개 배치 대기 */

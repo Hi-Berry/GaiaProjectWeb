@@ -868,15 +868,15 @@ export function GameBoard({
                       </g>
                     )}
 
-                    {/* Player Building / Federation / Satellite Highlight (Hover from sidebar) - 연방·위성 칸 동일 점선 UI */}
+                    {/* Player Building / Federation / Satellite Highlight (Hover from sidebar) - 연방 건물+위성=금색, 안 속한 건물=시안(기본) */}
                     {hoveredPlayerId && (() => {
                       const isOwnBuilding = tile.ownerId === hoveredPlayerId && tile.structure && tile.structure !== 'ship';
                       const isSatelliteOrStation = satelliteOwnerIds.includes(hoveredPlayerId) || tile.spaceStation?.ownerId === hoveredPlayerId;
                       if (!isOwnBuilding && !isSatelliteOrStation) return null;
 
                       const isFederated = game.playerFederationHexes?.[hoveredPlayerId]?.includes(tile.id);
-                      // 연방 건물 칸도 위성 칸과 동일한 점선 스타일. 색만 구분 (연방=금, 그외=시안)
-                      const highlightColor = isFederated ? '#FFD700' : '#00F2FF';
+                      // 연방에 속한 건물 + 위성/우주정거장 칸 → 금색, 연방에 안 속한 건물 → 시안(기본)
+                      const highlightColor = (isFederated && isOwnBuilding) || isSatelliteOrStation ? '#FFD700' : '#00F2FF';
 
                       return (
                         <g className="pointer-events-none">

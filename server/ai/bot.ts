@@ -12,6 +12,7 @@ import {
     executeUsePowerAction,
     executeUseTechAction,
     executeUseSpecialAction,
+    executeUseBonusAction,
     executePlaceIvitsSpaceStation,
     executeUseShipAction,
     executeEndTurn,
@@ -140,6 +141,8 @@ export class BotLogic {
                 return executeUseTechAction(io, game, playerId, action.params.tileId);
             case 'use_special_action':
                 return executeUseSpecialAction(io, game, playerId, action.params.actionId);
+            case 'use_bonus_action':
+                return executeUseBonusAction(io, game, playerId);
             default:
                 console.warn(`Unknown bot action type: ${action.type}`);
                 return false;

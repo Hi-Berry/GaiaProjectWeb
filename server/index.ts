@@ -40,7 +40,8 @@ app.use(express.urlencoded({ extended: false }));
 import fs from "fs";
 import path from "path";
 
-export function log(message: string, source = "express", gameId?: string) {
+export function log(message: string, source = "express", gameId?: string, options?: { simulation?: boolean }) {
+  if (options?.simulation) return;
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
