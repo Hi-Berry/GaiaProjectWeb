@@ -6506,6 +6506,25 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	return true;
 }
 
+/** Bot용: TF Mars/보너스 가이아 프로젝트(가이아포머 배치) 건너뛰기. 서버 skip_tfmars_gaia_project와 동일 로직 */
+export function executeSkipTfmarsGaiaProject(io: SocketIOServer, game: ServerGameState, playerId: string): boolean {
+	if (!game || game.currentPhase !== 'main') return false;
+	const pending = game.pendingTFMarsGaiaProject;
+	if (!pending || pending.playerId !== playerId) return false;
+	const isBonusGaia = pending.shipTileId === 'bonus-gaia';
+	game.pendingTFMarsGaiaProject = null;
+	if (isBonusGaia) {
+		addGameLog(game, playerId, 'Bonus: Gaia Project', 'skipped (no placement)', 'bonus-gaia');
+		game.hasDoneMainAction = true;
+	} else {
+		addGameLog(game, playerId, 'TF Mars: Gaia Project', 'skipped', pending.shipTileId);
+		game.hasDoneMainAction = true;
+	}
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGameState, playerId: string, artifactId: string): boolean {
 	if (!game || game.currentPhase !== 'main') return false;
 	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;

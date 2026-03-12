@@ -24,7 +24,8 @@ import {
     getAcademyRightCount,
     executeEnterSpaceship,
     executePlaceGaiaformer,
-    executeTakeTwilightArtifact
+    executeTakeTwilightArtifact,
+    executeSkipTfmarsGaiaProject
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -70,7 +71,8 @@ type BotAction = {
     | 'use_special_action'
     | 'use_bonus_action'
     | 'place_gaiaformer'
-    | 'take_twilight_artifact';
+    | 'take_twilight_artifact'
+    | 'skip_tfmars_gaia_project';
     params: any;
     /** 프리 액션을 먼저 실행한 뒤 메인 액션 (예: 2O→2토큰 후 연방) */
     preActions?: BotAction[];
@@ -172,6 +174,8 @@ export class BotLogic {
                 return true;
             case 'place_gaiaformer':
                 return executePlaceGaiaformer(io, game, playerId, action.params.tileId, action.params.qicUsed);
+            case 'skip_tfmars_gaia_project':
+                return executeSkipTfmarsGaiaProject(io, game, playerId);
             case 'take_twilight_artifact':
                 return executeTakeTwilightArtifact(io, game, playerId, action.params.artifactId);
             case 'use_tech_action':
@@ -234,6 +238,13 @@ export class BotLogic {
             // 우주선 기술(2TF+Mine) 광산 건설 대기 중
             if (game.pendingShipTechMine?.playerId === playerId) {
                 return this.findBuildWithPendingSteps(game, playerId);
+            }
+
+            // TF Mars/보너스 가이아 프로젝트(가이아포머 배치 또는 스킵) 대기 중
+            if (game.pendingTFMarsGaiaProject?.playerId === playerId) {
+                const gaiaActions = this.findGaiaformerActions(game, playerId);
+                if (gaiaActions.length > 0) return gaiaActions[0];
+                return { type: 'skip_tfmars_gaia_project', params: {} };
             }
 
             // 이미 메인 액션을 수행했다면 턴 종료
