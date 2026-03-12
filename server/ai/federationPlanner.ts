@@ -47,15 +47,38 @@ export class FederationPlanner {
             return null; // Can't form even if we connect ALL buildings
         }
 
-        // Simple greedy search: Try to form a federation around each of my buildings
+        // Greedy search from each building, then pick the best considering satellite cost.
+        const round = (game as any).roundNumber ?? 1;
+        const satellitePenalty = round <= 2 ? 10 : (round <= 4 ? 7 : 5); // 초반 위성(토큰) 절약 유도
+
+        let best: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number } | null = null;
+        let bestScore = -Infinity;
+
         for (const startTile of myStructures) {
             const result = this.tryFormFederationFrom(game, playerId, startTile, requiredPower, availableTokens);
-            if (result) {
-                return result;
+            if (!result) continue;
+            const rewardScore = this.getRewardScore(result.rewardId);
+            const score = rewardScore - result.spentTokens * satellitePenalty;
+            if (score > bestScore) {
+                bestScore = score;
+                best = result;
             }
         }
 
-        return null;
+        return best;
+    }
+
+    private static getRewardScore(rewardId: string): number {
+        const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
+        if (!reward) return -Infinity;
+        let score = reward.vp;
+        const anyR = reward as any;
+        if (anyR.qic) score += anyR.qic * 5;
+        if (anyR.knowledge) score += anyR.knowledge * 3;
+        if (anyR.ore) score += anyR.ore * 2;
+        if (anyR.credits) score += anyR.credits * 1;
+        if (anyR.powerTokens) score += anyR.powerTokens * 1;
+        return score;
     }
 
     private static tryFormFederationFrom(

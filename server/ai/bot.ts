@@ -397,13 +397,24 @@ export class BotLogic {
 
         // 1. 연방 구성 (가장 중요)
         const fedAction = FederationPlanner.getBestFederationAction(game, playerId);
-        if (fedAction) candidates.push({ type: 'form_federation', params: fedAction });
+        if (fedAction) {
+            const round = (game as any).roundNumber ?? 1;
+            const spent = fedAction.spentTokens ?? 0;
+            const totalTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+            const tokenSurplus = totalTokens - spent;
+            const allowEarlyExpensiveFed = round >= 3 || spent <= 2 || tokenSurplus >= 8;
+            if (allowEarlyExpensiveFed) candidates.push({ type: 'form_federation', params: fedAction });
+        }
 
         // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
         const oreForFed = player.ore ?? 0;
         for (let k = 2; k <= Math.min(oreForFed, 6); k++) {
             const fedWithK = FederationPlanner.getBestFederationAction(game, playerId, k);
             if (!fedWithK) continue;
+            const round = (game as any).roundNumber ?? 1;
+            const spent = fedWithK.spentTokens ?? 0;
+            // 초반엔 "오레 태워서 위성 많이" 연방을 억제 (정말 싸면 허용)
+            if (round <= 2 && spent > 2) continue;
             const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
             candidates.push({ type: 'form_federation', params: fedWithK, preActions });
         }
