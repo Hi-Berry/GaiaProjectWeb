@@ -64,12 +64,12 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     brainStoneBowl2: 1.2,
     brainStoneBowl3: 2.5,
 
-    structureMine: 24,
-    structureTradingStation: 32,
-    structureResearchLab: 45,
-    structurePlanetaryInstitute: 75,
-    structureAcademy: 90,
-    structureRemainingRoundsFactor: 0.5,
+    structureMine: 50, // 24 -> 50 대폭 상향 (확장 최우선)
+    structureTradingStation: 60, // 32 -> 60 (경제/확장)
+    structureResearchLab: 80, // 45 -> 80
+    structurePlanetaryInstitute: 120, // 75 -> 120
+    structureAcademy: 140, // 90 -> 140
+    structureRemainingRoundsFactor: 1.0, // 초반 건물 가치 극대화 (0.5 -> 1.0)
 
     researchTerraforming: 14,
     researchNavigation: 14,
@@ -78,9 +78,9 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     researchEconomy: 22,
     researchScience: 28,
     researchRemainingRoundsFactor: 0.2,
-    researchLevel5Bonus: 180,
+    researchLevel5Bonus: 200,
 
-    federationValueEach: 85,
+    federationValueEach: 120, // 85 -> 120 (연방 형성을 위해 광산을 더 지을 동기 부여)
     gaiaformerValueEach: 5,
 };
 
@@ -197,6 +197,12 @@ export class Evaluator {
 
         // 4) Structures
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+
+        // 확장(광산 10개 이상)에 대한 추가 보너스
+        if (myStructures.length >= 10) {
+            score += (myStructures.length - 9) * 20; // 10개째부터 개당 20점씩 추가 가점
+        }
+
         for (const tile of myStructures) {
             let baseVal = 0;
             if (tile.structure === 'mine' || tile.structure === 'lost_planet_mine') baseVal = w.structureMine;
