@@ -10,6 +10,8 @@ import {
     executeSelectBonus,
     hasNearbyPlayersForDiscount,
     executeUsePowerAction,
+    executeUseTechAction,
+    executeUseSpecialAction,
     executePlaceIvitsSpaceStation,
     executeUseShipAction,
     executeEndTurn,
@@ -134,6 +136,10 @@ export class BotLogic {
                 return executePlaceGaiaformer(io, game, playerId, action.params.tileId, action.params.qicUsed);
             case 'take_twilight_artifact':
                 return executeTakeTwilightArtifact(io, game, playerId, action.params.artifactId);
+            case 'use_tech_action':
+                return executeUseTechAction(io, game, playerId, action.params.tileId);
+            case 'use_special_action':
+                return executeUseSpecialAction(io, game, playerId, action.params.actionId);
             default:
                 console.warn(`Unknown bot action type: ${action.type}`);
                 return false;
@@ -460,6 +466,7 @@ export class BotLogic {
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
         const round = game.roundNumber;
+        const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
 
         interface ScoredUpgrade {
             id: string;
@@ -469,6 +476,9 @@ export class BotLogic {
         const candidates: ScoredUpgrade[] = [];
 
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+
+        /** 연방에 이미 속한 타일 업그레이드는 다음 연방에 불리하므로 감점 */
+        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 70 : 0;
 
         // 1. Mines -> Trading Stations
         if (ore >= 2 && credits >= 3) {
@@ -488,6 +498,7 @@ export class BotLogic {
                         }
                     }
 
+                    score -= fedPenalty(mine.id);
                     score += this.calculateRoundScoringBonus(game, playerId, 'build_trading_station');
                     score += this.calculateFinalMissionBonus(game, playerId, mine, 'trading_station');
                     score += this.calculateAdjacencyBonus(game, playerId, mine);
@@ -512,6 +523,7 @@ export class BotLogic {
                 if (round <= 2 && labCount < 2) score += 60;
                 if (labCount === 0) score += 80;
 
+                score -= fedPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_research_lab');
                 score += this.calculateFinalMissionBonus(game, playerId, ts, 'research_lab');
 
@@ -544,6 +556,7 @@ export class BotLogic {
 
                 if (round >= 3) score += 20;
 
+                score -= fedPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, ts, 'planetary_institute');
 
@@ -572,6 +585,7 @@ export class BotLogic {
                     score -= 15;
                 }
 
+                score -= fedPenalty(lab.id);
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
@@ -593,10 +607,13 @@ export class BotLogic {
         const credits = player.credits ?? 0;
 
         if (ore >= 2 && credits >= 3) {
+            const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
             const mines = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine');
-            const discountedMine = mines.find(t => hasNearbyPlayersForDiscount(game, t, playerId));
-            if (discountedMine) {
-                return { type: 'upgrade_structure', params: { tileId: discountedMine.id, target: 'trading_station' } };
+            const discounted = mines.filter(t => hasNearbyPlayersForDiscount(game, t, playerId));
+            // 연방에 아직 안 속한 타일 우선 (다음 연방에 유리)
+            const preferred = discounted.find(t => !fedHexes.includes(t.id)) ?? discounted[0];
+            if (preferred) {
+                return { type: 'upgrade_structure', params: { tileId: preferred.id, target: 'trading_station' } };
             }
         }
         return null;

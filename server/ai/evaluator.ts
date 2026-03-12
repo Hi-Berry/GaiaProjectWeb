@@ -76,7 +76,7 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     researchArtificialIntelligence: 16,
     researchGaiaProject: 12,
     researchEconomy: 22,
-    researchScience: 28,
+    researchScience: 10, // 초반 지식 트랙 효율 낮음 — 다른 트랙(경제/테라포밍 등) 우선
     researchRemainingRoundsFactor: 0.2,
     researchLevel5Bonus: 200,
 
@@ -225,7 +225,12 @@ export class Evaluator {
         };
         for (const [track, level] of Object.entries(player.research || {})) {
             const weight = rw[track] ?? 10;
-            score += (level as number) * weight * (1 + remainingRounds * w.researchRemainingRoundsFactor);
+            let factor = 1 + remainingRounds * w.researchRemainingRoundsFactor;
+            // 초반 지식(science) 트랙 효율이 낮음 — 남은 라운드가 많을수록 페널티
+            if (track === 'science' && remainingRounds > 2) {
+                factor *= Math.max(0.35, 1 - (remainingRounds - 2) * 0.2);
+            }
+            score += (level as number) * weight * factor;
             if (level === 5) score += w.researchLevel5Bonus;
         }
 

@@ -3066,48 +3066,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
-			const game = games.get(gameId); if (!game || game.hasDoneMainAction) return;
-			// 보너스 선택 단계에서는 기술 타일 액션 사용 불가
-			if (game.currentPhase !== 'main') return;
+			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-
-			// 액션 시작 시점 상태 저장
-			saveActionStartState(game, playerId);
-			const player = game.players[playerId];
-
-			if (!player.techTiles.includes(tileId) || player.usedTechActions.includes(tileId)) return;
-			if (isTechTileCovered(player, tileId)) return;
-
-			// 기존 타일
-			if (tileId === 'tech-act-4p') {
-				if (player.faction === 'taklons') chargePowerTaklons(player, 4, true);
-				else chargePower(player, 4);
-				player.usedTechActions.push(tileId);
-				game.hasDoneMainAction = true;
-			}
-			// 고급 타일: 액션으로 자원 얻기
-			else if (tileId === 'adv-act-3k') {
-				player.knowledge += 3;
-				player.usedTechActions.push(tileId);
-				game.hasDoneMainAction = true;
-				addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Knowledge');
-			}
-			else if (tileId === 'adv-act-3o') {
-				player.ore += 3;
-				player.usedTechActions.push(tileId);
-				game.hasDoneMainAction = true;
-				addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Ore');
-			}
-			else if (tileId === 'adv-act-1q-5c') {
-				grantQic(game, playerId, 1);
-				player.credits += 5;
-				player.usedTechActions.push(tileId);
-				game.hasDoneMainAction = true;
-				addGameLog(game, playerId, 'Used Tech Action', 'Gained 1 QIC and 5 Credits');
-			}
-
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeUseTechAction(io, game, playerId, tileId);
 		});
 
 		socket.on('tinkeroid_choose_special', ({ gameId, specialId }) => {
@@ -3133,87 +3094,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		socket.on('use_special_action', ({ gameId, actionId }) => {
-			const game = games.get(gameId); if (!game || game.hasDoneMainAction) return;
-			// 보너스 선택 단계에서는 특수 액션 사용 불가
-			if (game.currentPhase !== 'main') return;
+			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const player = game.players[playerId];
-			if (player.usedSpecialActions.includes(actionId)) return;
-
-			if (actionId === 'academy-qic') {
-				const rightAcademyCount = getAcademyRightCount(game, playerId);
-				if (rightAcademyCount >= 1) {
-					if (player.faction === 'bal_tak') {
-						player.credits = (player.credits ?? 0) + 4;
-						addGameLog(game, playerId, 'Academy (Right)', '4 C (Special Action)', undefined);
-					} else {
-						grantQic(game, playerId, 1);
-						addGameLog(game, playerId, 'Academy (Right)', '1 QIC (Special Action)', undefined);
-					}
-					player.usedSpecialActions.push(actionId);
-					game.hasDoneMainAction = true;
-				}
-			}
-			// 글린 기본 특수 액션: 라운드당 1회 +2 Nav (다음 행동에 적용, 메인 액션 소모 안 함)
-			if (actionId === 'gleens-2nav' && player.faction === 'gleens') {
-				saveActionStartState(game, playerId);
-				player.gleensNavBonusActive = true;
-				player.usedSpecialActions.push(actionId);
-				addGameLog(game, playerId, 'Gleens: Special', '+2 Nav (next action)', undefined);
-			}
-			// 스페이스 자이언트: 매 라운드 1회 2테라포밍 단계 획득 (보너스 1TF 타일과 동일하게 메인 액션 소모 안 함)
-			if (actionId === 'space_giants-2tf' && player.faction === 'space_giants') {
-				saveActionStartState(game, playerId);
-				if (!player.usedSpecialActions) player.usedSpecialActions = [];
-				player.usedSpecialActions.push(actionId);
-				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
-				addGameLog(game, playerId, 'Space Giants: Special', '+2 Terraform steps', undefined);
-				log(`Player ${player.name} (Space Giants) used special: +2 TF (Total: ${player.pendingTerraformSteps})`, 'game');
-			}
-
-			// 팅커로이드: 라운드 시작 시 고른 Special 1회 사용
-			const tinkeroidIds = ['tinkeroid-1tf-mine', 'tinkeroid-1qic', 'tinkeroid-4power', 'tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
-			if (player.faction === 'tinkeroids' && tinkeroidIds.includes(actionId) && player.tinkeroidRoundSpecialId === actionId && !player.usedSpecialActions.includes('tinkeroid-special')) {
-				saveActionStartState(game, playerId);
-				if (!player.usedSpecialActions) player.usedSpecialActions = [];
-				player.usedSpecialActions.push('tinkeroid-special');
-				if (actionId === 'tinkeroid-1tf-mine') {
-					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-					addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', undefined);
-					log(`Player ${player.name} (Tinkeroid) used special: +1 TF`, 'game');
-				} else if (actionId === 'tinkeroid-1qic') {
-					grantQic(game, playerId, 1);
-					addGameLog(game, playerId, 'Tinkeroid: Special', '1 QIC', undefined);
-				} else if (actionId === 'tinkeroid-4power') {
-					player.power1 = (player.power1 || 0) + 4;
-					addGameLog(game, playerId, 'Tinkeroid: Special', '4 Power', undefined);
-				} else if (actionId === 'tinkeroid-3k') {
-					player.knowledge = (player.knowledge ?? 0) + 3;
-					addGameLog(game, playerId, 'Tinkeroid: Special', '3 Knowledge', undefined);
-				} else if (actionId === 'tinkeroid-2qic') {
-					grantQic(game, playerId, 2);
-					addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', undefined);
-				} else if (actionId === 'tinkeroid-3tf-mine') {
-					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-					addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', undefined);
-					log(`Player ${player.name} (Tinkeroid) used special: +3 TF`, 'game');
-				}
-			}
-
-			// 4파워 기술 타일 (Tech Tile Special Action)
-			if (actionId === 'tech-act-4p') {
-				if (!player.techTiles.includes(actionId) || player.usedTechActions.includes(actionId)) return;
-				if (isTechTileCovered(player, actionId)) return;
-
-				saveActionStartState(game, playerId);
-				if (player.faction === 'taklons') chargePowerTaklons(player, 4, true);
-				else chargePower(player, 4);
-				player.usedTechActions.push(actionId);
-				game.hasDoneMainAction = true;
-				addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power (via Special Action)');
-			}
-
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			executeUseSpecialAction(io, game, playerId, actionId);
 		});
 
 		// 팅커로이드: 라운드 시작 시 고른 Special 액션 확정 (한 옵션만 남으면 자동 지정됨)
@@ -5488,6 +5371,142 @@ export function executeUsePowerAction(
 
 	action.isUsed = true;
 	game.hasDoneMainAction = true; // Bot version also marks main action done
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
+/** Bot/소켓 공용: 기술 타일 액션 사용 (4P, 3K, 3O, 1Q+5C 등). 메인 액션 소모. */
+export function executeUseTechAction(
+	io: SocketIOServer, game: ServerGameState,
+	playerId: string, tileId: string
+): boolean {
+	if (!game || game.currentPhase !== 'main' || game.hasDoneMainAction) return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+
+	const player = game.players[playerId];
+	if (!player) return false;
+	if (!player.techTiles.includes(tileId) || player.usedTechActions.includes(tileId)) return false;
+	if (isTechTileCovered(player, tileId)) return false;
+
+	saveActionStartState(game, playerId);
+
+	if (tileId === 'tech-act-4p') {
+		if (player.faction === 'taklons') chargePowerTaklons(player, 4, true);
+		else chargePower(player, 4);
+		player.usedTechActions.push(tileId);
+		game.hasDoneMainAction = true;
+	} else if (tileId === 'adv-act-3k') {
+		player.knowledge += 3;
+		player.usedTechActions.push(tileId);
+		game.hasDoneMainAction = true;
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Knowledge');
+	} else if (tileId === 'adv-act-3o') {
+		player.ore += 3;
+		player.usedTechActions.push(tileId);
+		game.hasDoneMainAction = true;
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Ore');
+	} else if (tileId === 'adv-act-1q-5c') {
+		grantQic(game, playerId, 1);
+		player.credits += 5;
+		player.usedTechActions.push(tileId);
+		game.hasDoneMainAction = true;
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 1 QIC and 5 Credits');
+	} else {
+		return false;
+	}
+
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
+/** Bot/소켓 공용: 종족/기술 타일 특수 액션 사용 (academy-qic, gleens-2nav, space_giants-2tf, tinkeroid, tech-act-4p 등). */
+export function executeUseSpecialAction(
+	io: SocketIOServer, game: ServerGameState,
+	playerId: string, actionId: string
+): boolean {
+	if (!game || game.currentPhase !== 'main' || game.hasDoneMainAction) return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+
+	const player = game.players[playerId];
+	if (!player || (player.usedSpecialActions && player.usedSpecialActions.includes(actionId))) return false;
+
+	let applied = false;
+
+	if (actionId === 'academy-qic') {
+		const rightAcademyCount = getAcademyRightCount(game, playerId);
+		if (rightAcademyCount >= 1) {
+			if (player.faction === 'bal_tak') {
+				player.credits = (player.credits ?? 0) + 4;
+				addGameLog(game, playerId, 'Academy (Right)', '4 C (Special Action)', undefined);
+			} else {
+				grantQic(game, playerId, 1);
+				addGameLog(game, playerId, 'Academy (Right)', '1 QIC (Special Action)', undefined);
+			}
+			if (!player.usedSpecialActions) player.usedSpecialActions = [];
+			player.usedSpecialActions.push(actionId);
+			game.hasDoneMainAction = true;
+			applied = true;
+		}
+	}
+	if (actionId === 'gleens-2nav' && player.faction === 'gleens') {
+		saveActionStartState(game, playerId);
+		player.gleensNavBonusActive = true;
+		if (!player.usedSpecialActions) player.usedSpecialActions = [];
+		player.usedSpecialActions.push(actionId);
+		addGameLog(game, playerId, 'Gleens: Special', '+2 Nav (next action)', undefined);
+		applied = true;
+	}
+	if (actionId === 'space_giants-2tf' && player.faction === 'space_giants') {
+		saveActionStartState(game, playerId);
+		if (!player.usedSpecialActions) player.usedSpecialActions = [];
+		player.usedSpecialActions.push(actionId);
+		player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
+		addGameLog(game, playerId, 'Space Giants: Special', '+2 Terraform steps', undefined);
+		applied = true;
+	}
+
+	const tinkeroidIds = ['tinkeroid-1tf-mine', 'tinkeroid-1qic', 'tinkeroid-4power', 'tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
+	if (player.faction === 'tinkeroids' && tinkeroidIds.includes(actionId) && player.tinkeroidRoundSpecialId === actionId && !player.usedSpecialActions?.includes('tinkeroid-special')) {
+		saveActionStartState(game, playerId);
+		if (!player.usedSpecialActions) player.usedSpecialActions = [];
+		player.usedSpecialActions.push('tinkeroid-special');
+		if (actionId === 'tinkeroid-1tf-mine') {
+			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', undefined);
+		} else if (actionId === 'tinkeroid-1qic') {
+			grantQic(game, playerId, 1);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 QIC', undefined);
+		} else if (actionId === 'tinkeroid-4power') {
+			player.power1 = (player.power1 || 0) + 4;
+			addGameLog(game, playerId, 'Tinkeroid: Special', '4 Power', undefined);
+		} else if (actionId === 'tinkeroid-3k') {
+			player.knowledge = (player.knowledge ?? 0) + 3;
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Knowledge', undefined);
+		} else if (actionId === 'tinkeroid-2qic') {
+			grantQic(game, playerId, 2);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', undefined);
+		} else if (actionId === 'tinkeroid-3tf-mine') {
+			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', undefined);
+		}
+		applied = true;
+	}
+
+	if (actionId === 'tech-act-4p') {
+		if (player.techTiles.includes(actionId) && !player.usedTechActions.includes(actionId) && !isTechTileCovered(player, actionId)) {
+			saveActionStartState(game, playerId);
+			if (player.faction === 'taklons') chargePowerTaklons(player, 4, true);
+			else chargePower(player, 4);
+			player.usedTechActions.push(actionId);
+			game.hasDoneMainAction = true;
+			addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power (via Special Action)');
+			applied = true;
+		}
+	}
+
+	if (!applied) return false;
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 	return true;
