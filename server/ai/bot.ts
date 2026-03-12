@@ -20,7 +20,8 @@ import {
     getAcademyLeftCount,
     getAcademyRightCount,
     executeEnterSpaceship,
-    executePlaceGaiaformer
+    executePlaceGaiaformer,
+    executeTakeTwilightArtifact
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -63,7 +64,8 @@ type BotAction = {
     | 'use_tech_action'
     | 'use_special_action'
     | 'use_bonus_action'
-    | 'place_gaiaformer';
+    | 'place_gaiaformer'
+    | 'take_twilight_artifact';
     params: any;
 };
 
@@ -130,6 +132,8 @@ export class BotLogic {
                 return true;
             case 'place_gaiaformer':
                 return executePlaceGaiaformer(io, game, playerId, action.params.tileId, action.params.qicUsed);
+            case 'take_twilight_artifact':
+                return executeTakeTwilightArtifact(io, game, playerId, action.params.artifactId);
             default:
                 console.warn(`Unknown bot action type: ${action.type}`);
                 return false;
@@ -396,6 +400,10 @@ export class BotLogic {
         // 8-3. 우주선 액션 (Lost Fleet Actions) - 상위 3개로 확장
         const shipActions = this.findSpaceshipActions(game, playerId);
         if (shipActions.length > 0) candidates.push(...shipActions);
+
+        // 8-3b. 트왈라잇 인공물 획득
+        const artifactAction = this.findTwilightArtifactAction(game, playerId);
+        if (artifactAction) candidates.push(artifactAction);
 
         // 가이아 포머 배치 액션 (가이아 프로젝트)
         const gaiaformerActions = this.findGaiaformerActions(game, playerId);
@@ -1761,6 +1769,54 @@ export class BotLogic {
     private static findSpaceshipAction(game: ServerGameState, playerId: string): BotAction | null {
         const actions = this.findSpaceshipActions(game, playerId);
         return actions.length > 0 ? actions[0] : null;
+    }
+
+    private static findTwilightArtifactAction(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        const entered = player.spaceshipsEntered || [];
+        const twilightTile = game.map.find(t => t.type === 'ship_twilight');
+
+        if (!twilightTile || !entered.includes(twilightTile.id)) return null;
+
+        const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+        if (totalPower < 6) return null; // 6 power tokens required
+
+        const slots = game.twilightArtifactSlots ?? [];
+        const availableArtifacts = slots.filter(s => s !== null) as string[];
+        if (availableArtifacts.length === 0) return null;
+
+        let bestArtifact = availableArtifacts[0];
+        let bestScore = -Infinity;
+
+        for (const artifactId of availableArtifacts) {
+            let score = 50;
+
+            if (artifactId === 'art-imm-2o5c' || artifactId === 'art-imm-3o3c') {
+                if (game.roundNumber <= 3) score += 200; // Early economy boost
+                else score += 40;
+            } else if (artifactId === 'art-imm-3k1q') {
+                if (game.roundNumber <= 4) score += 180;
+                else score += 50;
+            } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
+                score += 150; // Good VP and expansion type
+            } else if (artifactId === 'art-vp-planet-types' || artifactId === 'art-vp-bridge') {
+                if (game.roundNumber >= 5) score += 150; // Late game VP
+            } else if (artifactId === 'art-fed-once') {
+                score += 100;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestArtifact = artifactId;
+            }
+        }
+
+        // Only take it if the score implies it's strategically good right now
+        if (bestScore > 80) {
+            return { type: 'take_twilight_artifact', params: { artifactId: bestArtifact } };
+        }
+
+        return null;
     }
 
     private static getEffectiveBaseRange(player: PlayerState): number {

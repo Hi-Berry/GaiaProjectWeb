@@ -48,13 +48,13 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     vpWeightEarly: 5,
     vpWeightLate: 22,
 
-    resourceMultiplierEarly: 1.2,
+    resourceMultiplierEarly: 2.5, // 1.2 -> 2.5 (초반 자원 가치 뻥튀기로 엔진 빌딩 유도)
     resourceMultiplierLate: 0.5,
-    oreValue: 0.5,
-    creditsValue: 0.12,
-    knowledgeValue: 0.45,
+    oreValue: 0.8, // 0.5 -> 0.8
+    creditsValue: 0.25, // 0.12 -> 0.25
+    knowledgeValue: 0.8, // 0.45 -> 0.8
 
-    qicWeightEarly: 2.5,
+    qicWeightEarly: 3.5, // 2.5 -> 3.5
     qicWeightLate: 6.0,
 
     power1Value: 0.05,
