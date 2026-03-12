@@ -38,6 +38,7 @@ export type EvaluatorWeights = {
     researchScience: number;
     researchRemainingRoundsFactor: number;
     researchLevel5Bonus: number;
+    researchLevel4Bonus: number;
 
     federationValueEach: number;
     gaiaformerValueEach: number;
@@ -78,7 +79,8 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     researchEconomy: 22,
     researchScience: 10, // 초반 지식 트랙 효율 낮음 — 다른 트랙(경제/테라포밍 등) 우선
     researchRemainingRoundsFactor: 0.2,
-    researchLevel5Bonus: 200,
+    researchLevel5Bonus: 350, // 대폭 상향: 5단계 진입 강력 유도
+    researchLevel4Bonus: 100, // 4단계 진입 가산점
 
     federationValueEach: 120, // 85 -> 120 (연방 형성을 위해 광산을 더 지을 동기 부여)
     gaiaformerValueEach: 5,
@@ -124,7 +126,8 @@ function normalizeWeights(w: EvaluatorWeights): EvaluatorWeights {
         researchEconomy: clamp(w.researchEconomy, 0, 140),
         researchScience: clamp(w.researchScience, 0, 160),
         researchRemainingRoundsFactor: clamp(w.researchRemainingRoundsFactor, 0, 2),
-        researchLevel5Bonus: clamp(w.researchLevel5Bonus, 0, 400),
+        researchLevel5Bonus: clamp(w.researchLevel5Bonus, 0, 600),
+        researchLevel4Bonus: clamp(w.researchLevel4Bonus ?? 100, 0, 300),
 
         federationValueEach: clamp(w.federationValueEach, 0, 200),
         gaiaformerValueEach: clamp(w.gaiaformerValueEach, 0, 50),
@@ -230,8 +233,18 @@ export class Evaluator {
             if (track === 'science' && remainingRounds > 2) {
                 factor *= Math.max(0.35, 1 - (remainingRounds - 2) * 0.2);
             }
-            score += (level as number) * weight * factor;
-            if (level === 5) score += w.researchLevel5Bonus;
+            const lvl = level as number;
+
+            // 연구 단계 점수 부스팅
+            // 후반 라운드일수록 높은 단계의 연구가 더 가치가 높도록 (종료 점수 등)
+            let levelMultiplier = 1;
+            if (lvl >= 3) levelMultiplier = 1.2;
+            if (lvl >= 4) levelMultiplier = 1.5;
+
+            score += lvl * weight * factor * levelMultiplier;
+
+            if (lvl >= 4) score += (w.researchLevel4Bonus || 100);
+            if (lvl === 5) score += w.researchLevel5Bonus;
         }
 
         // 5.5) Early Game Expansion & Economy Strategy (Round 1-2)

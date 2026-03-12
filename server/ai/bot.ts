@@ -493,7 +493,7 @@ export class BotLogic {
         const conversions = this.findEssentialConversions(game, playerId);
         if (conversions.length > 0) candidates.push(...conversions);
 
-        // 9. 일반 연구
+        // 9. 일반 연구 (최우선 순위 부여)
         if ((player.knowledge ?? 0) >= 4) {
             const tracks = this.pickResearchTracks(game, player, playerId);
             for (const track of tracks) {
@@ -505,11 +505,15 @@ export class BotLogic {
             log(`Bot ${player.name} found ${candidates.length} non-pass candidates in Round ${game.roundNumber}`, 'game', game.id);
         }
 
-        // 9. 패스 (항상 후보에 포함하여 MCTS가 조기 패스의 이점을 계산하게 함).
+        // 10. 패스 (지식이 충분하여 연구를 더 할 수 있다면 패스를 억제하여 무조건 지식을 소모하게 강제)
         if (!player.hasPassed) {
-            const bestBonus = this.findBonusTileAction(game, playerId);
-            const bonusTileId = bestBonus?.params?.bonusTileId;
-            candidates.push({ type: 'pass_round', params: { bonusTileId } });
+            if ((player.knowledge ?? 0) >= 4) {
+                // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
+            } else {
+                const bestBonus = this.findBonusTileAction(game, playerId);
+                const bonusTileId = bestBonus?.params?.bonusTileId;
+                candidates.push({ type: 'pass_round', params: { bonusTileId } });
+            }
         }
 
         // 중복 제거 (예: 동일한 타일에 대한 건설 명령이 두 번 들어간 경우)
@@ -606,21 +610,31 @@ export class BotLogic {
         if (ore >= 4 && credits >= 6 && !hasPI) {
             const tsList = myStructures.filter(t => t.structure === 'trading_station');
             for (const ts of tsList) {
-                let score = 60;
-                // 종족별 PI 파워 체크 및 우선순위
-                if (player.faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 50;
+                // 기본 의회 점수 (초반에는 아카데미/연구소보다 낮게 설정하여 무분별한 의회 건설 방지)
+                let score = 30;
 
-                // 피락스: 연구소가 있어야 의회 능력이 의미 있음 (유저 피드백)
-                if (player.faction === 'firaks') {
+                // 종족별 PI 타이밍 강력 권장
+                const faction = player.faction;
+                const r1Preferred = ['geodens', 'space_giants', 'nevlas', 'lantids'];
+                const r2Preferred = ['itars', 'darkanians'];
+
+                if (r1Preferred.includes(faction || '')) {
+                    if (round <= 2) score += 80;
+                    else score += 50;
+                } else if (r2Preferred.includes(faction || '')) {
+                    if (round <= 2) score += 70;
+                    else score += 40;
+                } else if (faction === 'firaks') {
+                    // 피락스: 연구소가 있어야 의회 능력이 의미 있음
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
-                    if (hasLab) score += 45;
+                    if (hasLab) score += 60;
+                } else {
+                    // 그 외 종족: 4라운드 이전에는 건설 기피, 4라운드부터 의회 고려
+                    if (round < 4) score -= 30;
+                    if (round >= 4) score += 50;
                 }
 
-                if (player.faction === 'nevlas') score += 40; // 네블라스 의회 강력 추천
-
-                // 이비츠는 기본적으로 PI를 갖고 시작하므로 !hasPI 조건에서 이미 걸러지지만, 명시적 점수 상향은 제거
-
-                if (round >= 3) score += 20;
+                if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
                 score -= fedPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
@@ -639,8 +653,8 @@ export class BotLogic {
         if (ore >= 6 && credits >= 6 && academyCount < 2) {
             const labList = myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
-                let score = 110; // 베이스 상향
-                if (round >= 2 && round <= 4 && academyCount === 0) score += 60; // 첫 아카데미는 중반까지 매우 강력 권장
+                let score = 120; // 아카데미를 의회보다 기본적으로 훨씬 높게 평가
+                if (round >= 2 && round <= 4 && academyCount === 0) score += 70; // 첫 아카데미는 중반까지 매우 강력 권장
                 if (round >= 5) score += 20;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
@@ -1558,14 +1572,22 @@ export class BotLogic {
 
         // 1. 우주선 전용 타일 보너스 (보통 일반 타일보다 강력함)
         const isShipTech = tileId.startsWith('ship-tech-');
-        if (isShipTech) score += 45;
+        if (isShipTech) {
+            if (round <= 3) score += 90; // 초반 우주선 타일 매우 선호
+            else score += 45;
+        }
 
         // 2. 라운드별 가중치 (초반 수익, 후반 점수)
         if (round <= 3) {
             // 초반: 수익 타일 대폭 우대 (엔진 빌딩)
-            if (tileId.startsWith('tech-inc-')) score += 70;
-            if (tileId === 'tech-act-4p') score += 60;
-            if (tileId === 'tech-imm-1o-1q') score += 40;
+            if (tileId.startsWith('tech-inc-')) score += 80;
+            if (tileId === 'tech-act-4p') score += 70;
+            if (tileId === 'tech-imm-1o-1q') score += 50;
+
+            // 극단적 기피 (즉발 점수 타일)
+            if (tileId === 'tech-imm-7vp' || tileId === 'tech-gaia-3vp' || tileId === 'tech-imm-1k-planet') {
+                score -= 200;
+            }
         } else if (round >= 5) {
             // 후반: 즉시 점수 및 행성 유형당 지식 타일 우대
             if (tileId === 'tech-imm-7vp') score += 80;
@@ -2133,12 +2155,28 @@ export class BotLogic {
     private static calculateAdjacencyBonus(game: ServerGameState, playerId: string, tile: HexTile): number {
         let bonus = 0;
         const neighbors = game.map.filter(t => getDistance(t, tile) === 1);
+
         for (const neighbor of neighbors) {
+            // 다른 플레이어 건물 인접 (파워 수신용)
             if (neighbor.ownerId && neighbor.ownerId !== playerId) {
                 if (neighbor.structure === 'mine' || neighbor.structure === 'trading_station') bonus += 20;
                 else if (neighbor.structure) bonus += 10;
             }
+
+            // 내 건물 인접 (군집화 및 위성 절약) - 대폭 상향
+            if (neighbor.ownerId === playerId && neighbor.structure && neighbor.structure !== 'ship') {
+                bonus += 50;
+            }
         }
+
+        // 2거리 내에 내 건물이 있으면 연방 연결에 유리
+        const range2Neighbors = game.map.filter(t => getDistance(t, tile) === 2);
+        for (const neighbor of range2Neighbors) {
+            if (neighbor.ownerId === playerId && neighbor.structure && neighbor.structure !== 'ship') {
+                bonus += 20;
+            }
+        }
+
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
         if (opponentGaiaformers.some(gf => getDistance(gf, tile) === 1)) bonus += 15;
         return bonus;

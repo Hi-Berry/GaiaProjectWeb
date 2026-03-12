@@ -49,7 +49,6 @@ export class FederationPlanner {
 
         // Greedy search from each building, then pick the best considering satellite cost.
         const round = (game as any).roundNumber ?? 1;
-        const satellitePenalty = round <= 2 ? 10 : (round <= 4 ? 7 : 5); // 초반 위성(토큰) 절약 유도
 
         let best: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number } | null = null;
         let bestScore = -Infinity;
@@ -57,7 +56,26 @@ export class FederationPlanner {
         for (const startTile of myStructures) {
             const result = this.tryFormFederationFrom(game, playerId, startTile, requiredPower, availableTokens);
             if (!result) continue;
-            const rewardScore = this.getRewardScore(result.rewardId);
+
+            const rewardScore = this.getRewardScore(game, playerId, result.rewardId);
+
+            // AI 위성 사용 제한 로직 (기본 3개 이하 권장)
+            // 우주선 연방 보상일 경우, 혹은 고급기술/5단계를 위한 초록 토큰 필요 시는 조금 더 허용
+            const isShipReward = result.rewardId.startsWith('ship-fed-') && result.rewardId !== 'ship-fed-mine-free'; // 무한 거리 광산은 쓰레기
+            const greenNeeded = this.needsGreenFederation(game, playerId);
+
+            let satellitePenalty = 15; // 기본적으로 위성을 아끼도록 강한 페널티
+            let maxAllowedTokens = 3;
+
+            if (isShipReward || greenNeeded || round >= 5) {
+                maxAllowedTokens = 5; // 예외 상황에서는 최대 5개까지 허용 (그러나 여전히 페널티는 존재)
+                satellitePenalty = 8;
+            }
+
+            if (result.spentTokens > maxAllowedTokens) {
+                continue; // 허용치를 넘는 연방은 아예 형성하지 않음
+            }
+
             const score = rewardScore - result.spentTokens * satellitePenalty;
             if (score > bestScore) {
                 bestScore = score;
@@ -68,16 +86,60 @@ export class FederationPlanner {
         return best;
     }
 
-    private static getRewardScore(rewardId: string): number {
-        const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
-        if (!reward) return -Infinity;
-        let score = reward.vp;
-        const anyR = reward as any;
-        if (anyR.qic) score += anyR.qic * 5;
-        if (anyR.knowledge) score += anyR.knowledge * 3;
-        if (anyR.ore) score += anyR.ore * 2;
-        if (anyR.credits) score += anyR.credits * 1;
-        if (anyR.powerTokens) score += anyR.powerTokens * 1;
+    private static needsGreenFederation(game: ServerGameState, playerId: string): boolean {
+        const player = game.players[playerId];
+        if (!player) return false;
+
+        // 1. 현재 기술 트랙 중 4단계인 것이 있는지 확인
+        const tracks = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+        const hasLevel4 = tracks.some(t => (player.research?.[t as keyof typeof player.research] ?? 0) === 4);
+
+        if (hasLevel4) {
+            // 현재 초록 연방 토큰이 없는지 확인
+            const fedEntries = player.federations || [];
+            const greenCount = fedEntries.filter(f => typeof f !== 'string' && f.isGreen && !f.usedForTech).length;
+            if (greenCount === 0) return true;
+        }
+
+        return false;
+    }
+
+    private static getRewardScore(game: ServerGameState, playerId: string, rewardId: string): number {
+        let score = 0;
+
+        // 우선순위 1: 우주선 연방 (무한 거리 광산 제외)
+        if (rewardId.startsWith('ship-fed-') && rewardId !== 'ship-fed-mine-free') {
+            return 300;
+        }
+
+        const greenNeeded = this.needsGreenFederation(game, playerId);
+
+        // 우선순위 2: 자원 연방 (7VP 2Ore, 7VP 6C 등)
+        if (rewardId === 'fed-7vp-2o' || rewardId === 'fed-7vp-6c') {
+            score = 250;
+        }
+        // 우선순위 3: 8VP 1QIC
+        else if (rewardId === 'fed-8vp-1q') {
+            score = 200;
+        }
+        // 우선순위 4: 6VP 2K 또는 8VP 2Tokens (5단계/고급기술 필요할 때)
+        else if (rewardId === 'fed-6vp-2k' || rewardId === 'fed-8vp-2t') {
+            if (greenNeeded) {
+                score = 180;
+            } else {
+                score = 100; // 급하지 않으면 후순위
+            }
+        }
+        // 그 외 (예: 12VP)
+        else if (rewardId === 'fed-12vp') {
+            // 12VP는 초록 토큰이 아니므로, 5단계 진입이 급할 때는 피해야 함
+            if (greenNeeded) {
+                score = 50;
+            } else {
+                score = 150; // 다른 자원 연방이 다 떨어졌을 때 선택
+            }
+        }
+
         return score;
     }
 
