@@ -2671,6 +2671,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
 				const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
 
+				// 턴 시작 상태가 지워지지 않도록 복원된 객체에 다시 넣어줌
+				restored.turnStartState = game.turnStartState;
+
 				// 중요: restored 상태가 최신 게임 상태가 되도록 Map에 다시 저장
 				games.set(gameId, restored);
 
@@ -3534,24 +3537,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			// 가이아 프로젝트(보너스/TF Mars) 대기 중에는 턴 종료 불가 → 배치 또는 건너뛰기 먼저
 			if (game.pendingTFMarsGaiaProject?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn while Gaia Project (place or skip) is pending.`, 'game', undefined, { simulation: (game as any).simulation });
+				socket.emit('game_error', { message: '가이아 프로젝트 진행 중에는 턴을 종료할 수 없습니다.' });
 				return;
 			}
 			// 기술 타일 선택(트랙 올리기) 또는 우주선 기술 타일 보상 트랙 진행을 같은 턴에 끝내야 함
 			if (game.pendingTechTileSelection?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn: choose a tech tile and advance track first.`, 'game', undefined, { simulation: (game as any).simulation });
+				socket.emit('game_error', { message: '기술 타일을 선택하고 트랙을 전진해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
 			if (game.pendingShipTechTrackAdvance?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn: choose a track to advance (ship tech reward) first.`, 'game', undefined, { simulation: (game as any).simulation });
+				socket.emit('game_error', { message: '우주선 기술 보상으로 트랙을 전진해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
 			if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
-				log(`Player ${playerId} cannot end turn: choose a track to advance (advanced tech reward) first.`, 'game', undefined, { simulation: (game as any).simulation });
+				socket.emit('game_error', { message: '고급 기술 보상으로 트랙을 전진해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
 			if (!game.hasDoneMainAction) {
-				log(`Player ${playerId} tried to end turn without a main action.`, 'game', undefined, { simulation: (game as any).simulation });
+				socket.emit('game_error', { message: '메인 액션을 수행하지 않아 턴을 종료할 수 없습니다.' });
 				return;
 			}
 
@@ -3896,6 +3899,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game', undefined, { simulation: (game as any).simulation });
 				if (startState.fullGameState) {
 					const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+					restored.turnStartState = game.turnStartState;
 					// Keep the ID and other metadata but restore the game content
 					games.set(gameId, restored);
 					clampPlayerResources(restored);

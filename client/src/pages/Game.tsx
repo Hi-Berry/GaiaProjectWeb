@@ -489,7 +489,7 @@ export default function Game() {
     if (activePlayerId !== lastActivePlayerRef.current || isMyTurn !== lastWasMyTurnRef.current) {
       if (isMyTurn && !lastWasMyTurnRef.current) {
         playMyTurnSound();
-      } else if (activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
+      } else if (!isMyTurn && activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
         playOtherTurnSound();
       }
       lastActivePlayerRef.current = activePlayerId;
@@ -502,7 +502,7 @@ export default function Game() {
     if (pendingBonus !== lastPendingBonusSelectionRef.current || isMyBonus !== lastWasMyBonusRef.current) {
       if (isMyBonus && !lastWasMyBonusRef.current) {
         playMyTurnSound();
-      } else if (pendingBonus && pendingBonus !== lastPendingBonusSelectionRef.current) {
+      } else if (!isMyBonus && pendingBonus && pendingBonus !== lastPendingBonusSelectionRef.current) {
         playOtherTurnSound();
       }
       lastPendingBonusSelectionRef.current = pendingBonus || null;
@@ -515,7 +515,7 @@ export default function Game() {
     if (pendingTechPlayer !== lastPendingTechSelectionRef.current || isMyTech !== lastWasMyTechRef.current) {
       if (isMyTech && !lastWasMyTechRef.current) {
         playMyTurnSound();
-      } else if (pendingTechPlayer && pendingTechPlayer !== lastPendingTechSelectionRef.current) {
+      } else if (!isMyTech && pendingTechPlayer && pendingTechPlayer !== lastPendingTechSelectionRef.current) {
         playOtherTurnSound();
       }
       lastPendingTechSelectionRef.current = pendingTechPlayer || null;
@@ -3748,7 +3748,7 @@ export default function Game() {
               )}
 
               {/* Reset/End Turn (Integrated inside bar) */}
-              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"
