@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -1250,14 +1250,19 @@ export default function Game() {
         document.body
       )}
 
-      {/* Sidebar Overlay */}
-      <div className="absolute left-0 top-0 bottom-0 w-80 flex flex-col z-20 pointer-events-none *:pointer-events-auto">
+      {/* Sidebar Overlay (Left) */}
+      <div className="absolute left-0 top-0 bottom-0 md:w-80 w-16 sm:w-20 transition-all duration-300 flex flex-col z-20 pointer-events-none *:pointer-events-auto group">
+        {/* Hover/Tap expand indicator for mobile */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-16 bg-white/10 rounded-r-lg flex items-center justify-center md:hidden pointer-events-auto cursor-pointer hover:bg-white/20">
+          <ChevronRight className="w-3 h-3 text-white/50" />
+        </div>
+
         {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
         {!isSpectator && isHost && game && game.turnOrder.length > 1 && (
-          <div className="p-2 border-b border-border space-y-2">
+          <div className="p-2 border-b border-border space-y-2 bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none hidden group-hover:block md:block">
             <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
               <Gamepad2 className="w-3.5 h-3.5" />
-              조작할 플레이어 & 보드 고정
+              <span className="hidden md:inline">조작할 플레이어 & 보드 고정</span>
             </label>
             <div className="flex gap-1">
               <Select
@@ -1337,22 +1342,23 @@ export default function Game() {
 
         {/* Game End: Show Score Button */}
         {game.currentPhase === 'gameEnd' && (
-          <div className="p-4 border-t border-border mt-auto">
+          <div className="p-2 md:p-4 border-t border-border mt-auto hidden group-hover:block md:block bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none w-64 md:w-auto">
             <Button
-              className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold"
+              className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs md:text-sm"
               onClick={() => setShowGameEndScore(true)}
             >
-              🏆 최종 점수 보기 (Final Score)
+              <Trophy className="w-4 h-4 md:hidden" />
+              <span className="hidden md:inline">🏆 최종 점수 보기 (Final Score)</span>
             </Button>
           </div>
         )}
-        <div className="p-4 mt-auto space-y-2 pointer-events-none *:pointer-events-auto">
+        <div className="p-2 md:p-4 mt-auto space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none hidden group-hover:block md:block w-64 md:w-auto rounded-tr-lg">
           {(() => {
             const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main';
             return (
               <Button
                 variant={isFreeActionsOpen ? 'default' : 'outline'}
-                className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-purple-500/40 text-purple-300 hover:bg-purple-500/20 disabled:opacity-30"
+                className="w-full justify-start md:justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-purple-500/40 text-purple-300 hover:bg-purple-500/20 disabled:opacity-30"
                 disabled={!canUseFreeActions}
                 onClick={() => {
                   if (canUseFreeActions) setIsFreeActionsOpen(!isFreeActionsOpen);
@@ -1360,15 +1366,15 @@ export default function Game() {
               >
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-purple-500/30 border-purple-500/50 text-[8px]">F</Badge>
-                  Free Actions
+                  <span className="md:inline">Free Actions</span>
                 </div>
-                {isFreeActionsOpen ? 'Close' : 'Open'}
+                <span className="hidden md:inline">{isFreeActionsOpen ? 'Close' : 'Open'}</span>
               </Button>
             );
           })()}
           <Button
             variant={isBonusTilesOpen ? 'default' : 'outline'}
-            className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95"
+            className="w-full justify-start md:justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95"
             onClick={() => {
               setIsBonusTilesOpen(!isBonusTilesOpen);
               setIsResearchOpen(false);
@@ -1376,13 +1382,13 @@ export default function Game() {
           >
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-black/50 border-white/20 text-[8px]">T</Badge>
-              Tactical Overview
+              <span className="md:inline">Tactical Overview</span>
             </div>
-            {isBonusTilesOpen ? 'Close' : 'Open'}
+            <span className="hidden md:inline">{isBonusTilesOpen ? 'Close' : 'Open'}</span>
           </Button>
           <Button
             variant={isResearchOpen ? 'default' : 'outline'}
-            className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95"
+            className="w-full justify-start md:justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95"
             onClick={() => {
               setIsResearchOpen(!isResearchOpen);
               setIsBonusTilesOpen(false);
@@ -1390,9 +1396,9 @@ export default function Game() {
           >
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-black/50 border-white/20 text-[8px]">R</Badge>
-              Research Board
+              <span className="md:inline">Research Board</span>
             </div>
-            {isResearchOpen ? 'Close' : 'Open'}
+            <span className="hidden md:inline">{isResearchOpen ? 'Close' : 'Open'}</span>
           </Button>
           {/* 아카데미(오른쪽) 보유 시: QIC 받기 (Special) */}
           {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !currentPlayer?.usedSpecialActions?.includes('academy-qic') && game?.map?.some((t: { ownerId: string | null; structure: string | null; academyType?: string }) => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right') && (
@@ -2942,15 +2948,16 @@ export default function Game() {
 
       </main>
 
+      {/* Right Sidebar */}
       <div className={`
-        ${isSidebarOpen ? 'w-[340px] translate-x-0 opacity-100' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none'}
-        fixed lg:relative right-0 top-0 bottom-0 z-50 lg:z-auto
+        ${isSidebarOpen ? 'w-[340px] translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'}
+        right-0 top-0 bottom-0 z-50 lg:z-auto
         transition-all duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
-        max-w-[85vw]
+        max-w-[85vw] md:max-w-none
       `}>
         {isSidebarOpen && (
-          <div className="flex flex-col h-full min-w-[308px] overflow-hidden">
+          <div className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
               {/* 연방 구현: 모드 진입/취소 및 완료 (X버튼 포함) */}
               {isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward && (
@@ -3001,17 +3008,26 @@ export default function Game() {
               )}
 
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold flex items-center gap-2 text-zinc-400 text-xs uppercase tracking-widest">
-                    <Users className="w-4 h-4" />
+              <div className="space-y-2 md:space-y-4 flex-1 overflow-y-auto">
+                <div className="flex items-center justify-between sticky top-0 bg-card/95 z-10 py-1">
+                  <h3 className="font-semibold flex items-center gap-2 text-zinc-400 text-[10px] md:text-xs uppercase tracking-widest">
+                    <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     Players
                   </h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 px-0 text-zinc-500 hover:text-white hover:bg-white/5 md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                    title="상태창 닫기"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                   {!(isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward) && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-8 w-8 px-0 text-zinc-500 hover:text-white hover:bg-white/5"
+                      className="h-8 w-8 px-0 text-zinc-500 hover:text-white hover:bg-white/5 hidden md:flex"
                       onClick={() => setIsSidebarOpen(false)}
                       title="상태창 닫기"
                     >
@@ -3019,7 +3035,7 @@ export default function Game() {
                     </Button>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5 md:space-y-2">
               {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
                 const pa = game.players[a];
                 const pb = game.players[b];
@@ -3110,17 +3126,17 @@ export default function Game() {
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
                         >
                           {/* Left: Main info, Buildings, Resources */}
-                          <div className="flex-1 flex flex-col p-2.5 pr-2 min-w-0">
+                          <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
                             {/* Score and Name Row */}
-                            <div className="flex items-center justify-between gap-2 min-w-0 mb-1.5">
-                              <span className="w-8 text-right text-base font-bold text-white flex-shrink-0">{p.score}</span>
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1 ml-1">
-                                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
-                                <span className="truncate font-medium text-sm text-zinc-200">
+                            <div className="flex items-center justify-between gap-1 md:gap-2 min-w-0 mb-1 md:mb-1.5">
+                              <span className="w-6 md:w-8 text-right text-sm md:text-base font-bold text-white flex-shrink-0">{p.score}</span>
+                              <div className="flex items-center gap-1 md:gap-1.5 min-w-0 flex-1 ml-1">
+                                <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
+                                <span className="truncate font-medium text-xs md:text-sm text-zinc-200">
                                   {faction ? `${faction.name} (${p.name})` : p.name}
                                 </span>
                                 {/* Toggles */}
-                                {isYou && <span className="text-[10px] text-primary flex-shrink-0">(나)</span>}
+                                {isYou && <span className="text-[8px] md:text-[10px] text-primary flex-shrink-0">(나)</span>}
                                 {isCurrentTurn && !hasPassed && (
                                   <span className="flex items-center gap-1 flex-shrink-0">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
@@ -3133,35 +3149,35 @@ export default function Game() {
                             </div>
 
                             {/* Buildings */}
-                            <div className="pb-2 text-[10px] text-zinc-400 font-mono">
+                            <div className="pb-1 md:pb-2 text-[8px] md:text-[10px] text-zinc-400 font-mono tracking-tighter md:tracking-normal">
                               M<span className="text-amber-300/90">{counts.mineCount}</span>/{BUILDING_LIMITS.mine}
-                              <span className="mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
-                              <span className="mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
-                              <span className="mx-1">PI</span><span className="text-purple-400/90">{counts.piCount}</span>/{BUILDING_LIMITS.planetary_institute}
-                              <span className="mx-1">A</span><span className="text-indigo-400/90">{counts.academyLeft}+{counts.academyRight}</span>/{BUILDING_LIMITS.academy}
+                              <span className="mx-0.5 md:mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
+                              <span className="mx-0.5 md:mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
+                              <span className="mx-0.5 md:mx-1">PI</span><span className="text-purple-400/90">{counts.piCount}</span>/{BUILDING_LIMITS.planetary_institute}
+                              <span className="mx-0.5 md:mx-1">A</span><span className="text-indigo-400/90">{counts.academyLeft}+{counts.academyRight}</span>/{BUILDING_LIMITS.academy}
                             </div>
 
                             {/* Resources */}
-                            <div className="grid grid-cols-4 gap-x-1 gap-y-0.5 text-[10px] text-muted-foreground">
+                            <div className="grid grid-cols-4 gap-x-0.5 md:gap-x-1 gap-y-0.5 text-[8px] md:text-[10px] text-muted-foreground">
                               <span className="flex items-baseline">
-                                <span className="text-zinc-300 mr-1 font-bold">ORE</span>
-                                <span style={{ color: '#f5f5f0' }} className="font-black ml-0.5 text-xs">{p.ore ?? 0}</span>
-                                {inc.ore > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.ore}`})</span>}
+                                <span className="text-zinc-300 mr-0.5 md:mr-1 font-bold">O</span>
+                                <span style={{ color: '#f5f5f0' }} className="font-black ml-0.5 text-[10px] md:text-xs">{p.ore ?? 0}</span>
+                                {inc.ore > 0 && <span className="text-[7px] md:text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.ore}`})</span>}
                               </span>
                               <span className="flex items-baseline">
-                                <span className="text-blue-400 mr-1 font-bold">KNOW</span>
-                                <span style={{ color: '#2E5EAA' }} className="font-black ml-0.5 text-xs">{p.knowledge ?? 0}</span>
-                                {inc.knowledge > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.knowledge}`})</span>}
+                                <span className="text-blue-400 mr-0.5 md:mr-1 font-bold">K</span>
+                                <span style={{ color: '#2E5EAA' }} className="font-black ml-0.5 text-[10px] md:text-xs">{p.knowledge ?? 0}</span>
+                                {inc.knowledge > 0 && <span className="text-[7px] md:text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.knowledge}`})</span>}
                               </span>
                               <span className="flex items-baseline">
-                                <span className="text-yellow-400 mr-1 font-bold">CRED</span>
-                                <span style={{ color: '#FFE74C' }} className="font-black ml-0.5 text-xs">{p.credits ?? 0}</span>
-                                {inc.credits > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.credits}`})</span>}
+                                <span className="text-yellow-400 mr-0.5 md:mr-1 font-bold">C</span>
+                                <span style={{ color: '#FFE74C' }} className="font-black ml-0.5 text-[10px] md:text-xs">{p.credits ?? 0}</span>
+                                {inc.credits > 0 && <span className="text-[7px] md:text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.credits}`})</span>}
                               </span>
                               <span className="flex items-baseline">
-                                <span className="text-green-400 mr-1 font-bold">QIC</span>
-                                <span style={{ color: '#38B000' }} className="font-black ml-0.5 text-xs">{p.qic ?? 0}</span>
-                                {inc.qic > 0 && <span className="text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.qic}`})</span>}
+                                <span className="text-green-400 mr-0.5 md:mr-1 font-bold">Q</span>
+                                <span style={{ color: '#38B000' }} className="font-black ml-0.5 text-[10px] md:text-xs">{p.qic ?? 0}</span>
+                                {inc.qic > 0 && <span className="text-[7px] md:text-[9px] text-zinc-400 font-medium ml-0.5">({`+${inc.qic}`})</span>}
                               </span>
 
                               <div className="col-span-4 flex items-center justify-between border-t border-white/5 pt-0.5 mt-0 gap-1">
@@ -3570,19 +3586,19 @@ export default function Game() {
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t shrink-0">
+            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t shrink-0 hidden md:block">
               <Badge variant="outline" className="w-full justify-center">
                 Round {game.roundNumber}
               </Badge>
             </div>
 
             {/* Game Log - Expanded height */}
-            <div className="mt-4 pt-4 border-t flex-none flex flex-col min-h-[300px]">
-              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm shrink-0">
-                <Clock className="w-4 h-4" />
+            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t flex-none flex flex-col min-h-[150px] md:min-h-[300px] hidden md:flex">
+              <h3 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-xs md:text-sm shrink-0">
+                <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Game Log
               </h3>
-              <div className="flex-1 overflow-y-auto w-full custom-scrollbar max-h-[400px]">
+              <div className="flex-1 overflow-y-auto w-full custom-scrollbar max-h-[200px] md:max-h-[400px]">
                 {(!game.gameLog || game.gameLog.length === 0) ? (
                   <div className="text-center text-muted-foreground text-xs py-8">
                     No actions yet
@@ -3601,7 +3617,7 @@ export default function Game() {
             </div>
 
             {/* Debug Panel - reduced flex to give more space to log */}
-            <div className="mt-8 pt-6 border-t-2 border-white/5 flex-none overflow-y-auto max-h-[30vh]">
+            <div className="mt-4 md:mt-8 pt-4 md:pt-6 border-t-2 border-white/5 flex-none overflow-y-auto max-h-[20vh] md:max-h-[30vh] hidden md:block">
               <DebugPanel game={game} playerId={playerId} />
             </div>
 
