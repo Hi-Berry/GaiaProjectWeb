@@ -253,7 +253,7 @@ export default function Lobby() {
                   return (
                     <div
                       key={game.id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4"
+                      className="flex items-center justify-between p-4 border rounded-lg"
                       data-testid={`game-${game.id}`}
                     >
                       <div className="space-y-1">
@@ -275,7 +275,7 @@ export default function Lobby() {
                           Phase: {phaseLabel}
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                      <div className="flex items-center gap-3">
                         <Badge variant="outline">
                           {game.playerCount}/{game.maxPlayers} Players
                         </Badge>

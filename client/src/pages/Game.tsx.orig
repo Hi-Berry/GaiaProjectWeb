@@ -540,7 +540,7 @@ export default function Game() {
 
     // p1이 줄어들면서 p2나 p3가 늘어난 경우 (충전)
     if ((p2Increased || p3Increased || bsMovedUp) && (p1 < last.p1 || p2 < last.p2 || (bs !== undefined && last.bs !== undefined && bs > last.bs))) {
-      // 단, 본인이 메인 액션 중일 때는 너무 시끄러울 수 있으므로 
+      // 단, 본인이 메인 액션 중일 때는 너무 시끄러울 수 있으므로
       // 상대방의 액션으로 인해 파워를 받는 경우(Passive)나 수익 단계 등에서 유용
       playPowerReceiveSound();
     }
@@ -575,7 +575,7 @@ export default function Game() {
   }
 
   const currentPlayer = playerId ? game.players[playerId] : null;
-  // boardgame.io doesn't always use currentPlayerIndex this way in custom setups, 
+  // boardgame.io doesn't always use currentPlayerIndex this way in custom setups,
   // but we'll follow our server logic.
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
 
@@ -1539,7 +1539,6 @@ export default function Game() {
               Special
             </Button>
           )}
-        </div>
         </div>
       </div>
 
