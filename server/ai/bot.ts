@@ -477,8 +477,8 @@ export class BotLogic {
         if (powerActions.length > 0) candidates.push(...powerActions);
 
         // 8-2. 우주선 입장 (Lost Fleet Ship)
-        const shipEntry = this.findSpaceshipEntryAction(game, playerId);
-        if (shipEntry) candidates.push(shipEntry); // 우주선 탑승을 적극 고려
+        const shipEntries = this.findSpaceshipEntryActions(game, playerId);
+        if (shipEntries.length > 0) candidates.push(...shipEntries); // 우주선 탑승을 적극 고려
 
         // 8-3. 우주선 액션 (Lost Fleet Actions) - 상위 3개로 확장
         const shipActions = this.findSpaceshipActions(game, playerId);
@@ -1703,55 +1703,79 @@ export class BotLogic {
                 if (p3 < cost) continue;
             }
 
+            const ore = player.ore || 0;
+            const credits = player.credits || 0;
+            const currentMission = game.roundScoringTiles[game.roundNumber - 1];
+            const isStepMission = currentMission?.triggerType === 'terraform_step';
+
             switch (action.id) {
-                // QIC 액션 - 매우 강력
+                // QIC 액션 - 매우 강력 (현상 유지)
                 case 'qic-action-tech':
-                    score = 200; // 기술 타일 획득: 최고 우선순위
+                    score = 200;
                     break;
                 case 'qic-action-vp-sector':
-                    score = round >= 4 ? 180 : 80; // 후반 섹터 VP: 강력
+                    score = round >= 4 ? 180 : 80;
                     break;
                 case 'qic-action-federation':
-                    score = 160; // QIC 연방 보상도 강력
+                    score = 160;
                     break;
 
-                // 파워 액션 - 자원/테라포밍
-                case 'gain-3-knowledge':
-                    score = 160; // 지식 3개 = 연구 1회 충분
-                    if (round <= 3) score += 30;
-                    break;
-                case 'gain-2-steps':
-                    score = 150; // 테라포밍 2단계 = 강력
-                    if (round <= 4) score += 20;
-                    break;
-                case 'gain-1-step':
-                    score = 120; // 테라포밍 1단계
-                    break;
+                // 파워 액션 - 자원/테라포밍 선호도 조정
                 case 'gain-2-ore':
-                    score = 100;
-                    if (round <= 3) score += 20;
+                    score = 140; 
+                    // ore:credits balance (1:1.2). If ore is lacking, boost score.
+                    if (ore * 1.2 < credits) score += 30;
                     break;
                 case 'gain-7-credits':
-                    score = 90;
-                    if ((player.credits || 0) < 5) score += 40; // 크레딧 부족 시 더 중요
+                    score = 130;
+                    if (credits < ore * 1.2) score += 30;
+                    break;
+                case 'gain-1-step':
+                    score = round <= 3 ? 110 : 70;
+                    if (isStepMission) score += 30;
+                    break;
+                case 'gain-2-knowledge':
+                    score = 80;
+                    // 이클립스 우주선 액션(2K)을 쓸 수 없는 상황이면 파워 액션의 가치 상승
+                    const eclipseShip = this.findPlayerShip(game, playerId, 'ship_eclipse');
+                    if (eclipseShip) {
+                        const shipState = game.spaceships?.[eclipseShip.id];
+                        if (shipState?.usedActionIndices?.includes(2)) score += 30; // 이미 우주선에서 연구 액션을 썼다면 파워 액션이라도 선점
+                    } else {
+                        score += 20; // 우주선에 아예 없다면 파워 액션 선호
+                    }
+                    break;
+                case 'gain-2-tokens':
+                    score = 60;
+                    // 토큰이 부족하여 연방 선언이 어려울 때 가치 상승
+                    const totalTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+                    if (totalTokens < 7) score += 40;
+                    break;
+                case 'gain-2-steps':
+                    score = 80; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
+                    if (player.faction === 'geodens' || player.faction === 'xenos') score += 40;
+                    if (isStepMission) score += 60; // 테라포밍 미션 시 2단계는 4vp 이상 가치
+                    break;
+                case 'gain-3-knowledge':
+                    score = 70; // 유저 피드백: 거의 안 씀
+                    if (player.knowledge === 1) score += 20; // 4지금을 맞추기 위해 3지식 사용 고민 가능
                     break;
                 default:
-                    score = 60;
+                    score = 50;
             }
 
-            // 라운드 보정: 후반일수록 파워 액션 가치 증가 (남은 라운드가 적으므로)
-            if (round >= 5) score += 40;
-            else if (round >= 4) score += 20;
+            // 라운드 보정: 후반일수록 파워 액션 선점 중요
+            if (round >= 5) score += 30;
 
-            // QIC 행동은 QIC가 충분할 때만 실행 가치 있음
-            if (isQic && qic >= cost && round >= 3) score *= 1.3;
+            // QIC 행동 보정 (QIC 충분 시 상향)
+            if (isQic && qic >= cost && round >= 3) score *= 1.2;
 
             scored.push({ id: action.id, score });
         }
 
         if (scored.length === 0) return [];
         scored.sort((a, b) => b.score - a.score);
-        // 상위 3개 후보 반환 - MCTS가 다양한 파워 액션을 탐색할 수 있도록. 타클론은 브레인 스톤 우선 사용.
+        // 상위 3개 후보 반환
         const useBrain = player.faction === 'taklons';
         return scored.slice(0, 3).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
     }
@@ -1770,13 +1794,13 @@ export class BotLogic {
         return res;
     }
 
-    private static findSpaceshipEntryAction(game: ServerGameState, playerId: string): BotAction | null {
+    private static findSpaceshipEntryActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const round = game.roundNumber;
-        if (game.hasDoneMainAction) return null;
+        if (game.hasDoneMainAction) return [];
 
         const entered = player.spaceshipsEntered || [];
-        if (entered.length >= 3) return null;
+        if (entered.length >= 3) return [];
 
         const shipTiles = game.map.filter(t => ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].includes(t.type || ''));
         const candidates: { action: BotAction; score: number }[] = [];
@@ -1784,8 +1808,6 @@ export class BotLogic {
         const baseRange = this.getEffectiveBaseRange(player);
         const qic = player.qic || 0;
 
-        // In ServerGameState context, we might not have getPlayerRangeTiles easily available as a static method of Bot
-        // But we can simulate it by finding buildings/stations.
         const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
@@ -1828,9 +1850,9 @@ export class BotLogic {
             });
         }
 
-        if (candidates.length === 0) return null;
+        if (candidates.length === 0) return [];
         candidates.sort((a, b) => b.score - a.score);
-        return candidates[0].action;
+        return candidates.slice(0, 3).map(c => c.action);
     }
 
     /** 우주선 액션 목록 (상위 3개 반환) */

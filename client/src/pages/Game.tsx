@@ -1252,9 +1252,9 @@ export default function Game() {
       )}
 
       {/* Sidebar Overlay (Left) */}
-      <div className="absolute left-0 top-0 bottom-0 md:w-80 transition-all duration-300 flex flex-col z-[50] pointer-events-none *:pointer-events-auto w-64 md:w-auto">
+      <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
-        <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-fit md:w-auto relative z-[110]">
+        <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
           <div className="flex gap-1 items-end bg-black/80 rounded-lg p-1 md:p-0 md:bg-transparent shadow-xl md:shadow-none">
             {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
             {!isSpectator && isHost && game && game.turnOrder.length > 1 && (
@@ -1344,7 +1344,7 @@ export default function Game() {
 
         {/* Game End: Show Score Button */}
         {game.currentPhase === 'gameEnd' && (
-          <div className="p-2 md:p-4 border-t border-border mt-auto block bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none w-64 md:w-auto">
+          <div className="p-2 md:p-4 border-t border-border mt-auto block bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none w-full max-w-full">
             <Button
               className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs md:text-sm"
               onClick={() => setShowGameEndScore(true)}
@@ -1368,7 +1368,7 @@ export default function Game() {
           </Button>
         </div>
 
-        <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-64 md:w-auto rounded-tr-lg relative z-[100]`}>
+        <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
           {(() => {
             const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main';
             return (
@@ -2975,7 +2975,7 @@ export default function Game() {
       `}>
         {isSidebarOpen && (
           <div className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden">
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
+            <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
               {/* 연방 구현: 모드 진입/취소 및 완료 (X버튼 포함) */}
               {isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward && (
                 <div className="p-3 bg-black/80 border border-sky-500/40 rounded-xl">
@@ -3025,8 +3025,9 @@ export default function Game() {
               )}
 
 
-              <div className="space-y-2 md:space-y-4 flex-1 overflow-y-auto">
-                <div className="flex items-center justify-between sticky top-0 bg-card/95 z-10 py-1">
+              {/* 플레이어 영역: 콘텐츠 높이만 사용(flex-none으로 줄어들지 않음), 빈 공간 없음 */}
+              <div className="space-y-2 md:space-y-4 flex-none overflow-visible">
+                <div className="flex items-center justify-between py-1">
                   <h3 className="font-semibold flex items-center gap-2 text-zinc-400 text-[10px] md:text-xs uppercase tracking-widest">
                     <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     Players
@@ -3609,13 +3610,13 @@ export default function Game() {
               </Badge>
             </div>
 
-            {/* Game Log - Expanded height */}
-            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t flex-none flex flex-col min-h-[150px] md:min-h-[300px] hidden md:flex">
+            {/* Game Log - 고정 높이로 레이아웃 밀림 방지, 내부만 스크롤 */}
+            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t flex-none flex flex-col h-[200px] md:h-[240px] hidden md:flex">
               <h3 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-xs md:text-sm shrink-0">
                 <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Game Log
               </h3>
-              <div className="flex-1 overflow-y-auto w-full custom-scrollbar max-h-[200px] md:max-h-[400px]">
+              <div className="flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar">
                 {(!game.gameLog || game.gameLog.length === 0) ? (
                   <div className="text-center text-muted-foreground text-xs py-8">
                     No actions yet
