@@ -3599,7 +3599,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
 
 			console.log(`[DEBUG_INCOME] Processing for player: ${playerId}, current pending: ${game.pendingIncomeOrder?.playerId}`);
-			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) {
+			// 호스트가 봇의 턴을 대신할 때만 허용. 다른 인간 플레이어의 턴을 뺏지 못하게 함.
+			const isBot = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '');
+			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && !(isBot && game.hostId === playerId))) {
 				console.log(`[DEBUG_INCOME] Authorization failed or no pending order. pendingOrder:`, game.pendingIncomeOrder);
 				return;
 			}
@@ -3638,9 +3640,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
 
-			const isHostViewing = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '') && game.hostId === playerId;
+			const isBot = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '');
+			const isHostViewingBot = isBot && game.hostId === playerId;
 
-			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId && !isHostViewing)) {
+			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && !isHostViewingBot)) {
 				console.log(`[DEBUG_INCOME] Auto-select Auth failed. pendingOrder:`, game.pendingIncomeOrder);
 				return;
 			}
@@ -3745,7 +3748,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
-			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) return;
+			const isBot = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '');
+			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && !(isBot && game.hostId === playerId))) return;
 			if (game.pendingIncomeOrder.appliedItems.length === 0) return;
 
 			const targetPlayerId = game.pendingIncomeOrder.playerId;
@@ -3806,7 +3810,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
 
-			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && game.hostId !== playerId)) {
+			const isBot = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '');
+			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && !(isBot && game.hostId === playerId))) {
 				console.log(`[DEBUG_INCOME] Finish Auth failed. pendingOrder:`, game.pendingIncomeOrder);
 				return;
 			}
@@ -3846,30 +3851,32 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (!game.pendingPowerOffers) return;
 
-			// 호스트 바이패스: 봇 소켓 / 호스트 소켓 모두 hostId 대상 오퍼 수락 가능
-			const isHostViewing = game.botPlayerIds?.includes(playerId) || game.hostId === playerId;
-			const effectivePlayerId = isHostViewing ? game.hostId : playerId;
-
-			const myOffers = game.pendingPowerOffers.filter(
-				o => (o.targetPlayerId === effectivePlayerId) && !o.responded
-			);
+			// 봇 소켓이거나 인간 플레이어 본인인 경우에만 수락
+			// 방장이 인간 플레이어의 제안을 수락할 수는 없지만 봇의 것은 수락 가능
+			const myOffers = game.pendingPowerOffers.filter(o => {
+				if (o.responded) return false;
+				if (o.targetPlayerId === playerId) return true;
+				if (game.hostId === playerId && game.botPlayerIds?.includes(o.targetPlayerId)) return true;
+				return false;
+			});
 			// 큰 파워 먼저 받기
 			myOffers.sort((a, b) => b.amount - a.amount);
 
-			const targetPlayer = game.players[effectivePlayerId];
-			if (!targetPlayer) return;
-			const isTaklons = targetPlayer.faction === 'taklons';
 			for (const offer of myOffers) {
+				const targetPlayer = game.players[offer.targetPlayerId];
+				if (!targetPlayer) continue;
+				const isTaklons = targetPlayer.faction === 'taklons';
+
 				if (offer.vpCost > (targetPlayer.score || 0)) continue; // VP 부족 시 스킵
 				offer.responded = true;
-				addScore(game, effectivePlayerId, -offer.vpCost, 'powerReceived');
+				addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
 				if (isTaklons) {
 					chargePowerTaklons(targetPlayer, offer.amount, true); // 일괄 수락 시 브레인 우선
 				} else {
 					chargePower(targetPlayer, offer.amount);
 				}
 				const sourcePlayer = game.players[offer.sourcePlayerId];
-				addGameLog(game, effectivePlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
+				addGameLog(game, offer.targetPlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
 			}
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
@@ -6197,12 +6204,11 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 	const offerIndex = game.pendingPowerOffers.findIndex(o =>
 		o.id === offerId && (
 			o.targetPlayerId === playerId ||
-			game.hostId === playerId ||
-			(game.botPlayerIds?.includes(playerId) && o.targetPlayerId === game.hostId)
+			(game.hostId === playerId && game.botPlayerIds?.includes(o.targetPlayerId))
 		)
 	);
 	if (offerIndex === -1) {
-		log(`Power offer response failed: offer ${offerId} not found or target mismatch (socketPlayer: ${playerId}, host: ${game.hostId})`, 'error');
+		log(`Power offer response failed: offer ${offerId} not found or target mismatch (socketPlayer: ${playerId})`, 'error');
 		return;
 	}
 
