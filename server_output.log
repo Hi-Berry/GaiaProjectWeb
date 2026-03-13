@@ -1,0 +1,34 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+DATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+1:22:52 AM [socket.io] Game server initialized on same port
+1:22:52 AM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+1:22:52 AM [express]   로컬: http://localhost:5000
+1:22:52 AM [express]   같은 네트워크: http://192.168.0.2:5000
+1:22:52 AM [express] ----------------------------------------
+1:22:52 AM [express] serving on port 5000
+1:23:46 AM [socket.io] Player connected: NC0vso_f3-kmA-xZAAAB
+1:24:39 AM [socket.io] Player connected: JUyAYV1izmdgMS_TAAAD
+1:24:39 AM [game] Round 1 mission: Trading Station (4 VP)
+1:24:39 AM [game] Round 2 mission: Federation (5 VP)
+1:24:39 AM [game] Round 3 mission: New Sector/Bridge (3 VP)
+1:24:39 AM [game] Round 4 mission: Research Track (2 VP)
+1:24:39 AM [game] Round 5 mission: Gaia Planet (3 VP)
+1:24:39 AM [game] Round 6 mission: Terraform Step (2 VP)
+1:24:39 AM [game] Game created: s58ix8cu by TestPlayer
+1:25:11 AM [game] Player TestPlayer disconnected
+1:25:34 AM [socket.io] Player connected: 2jScuvXGpydWDBqsAAAF
+1:25:34 AM [game] Round 1 mission: Big Building (5 VP)
+1:25:34 AM [game] Round 2 mission: Mine (2 VP)
+1:25:34 AM [game] Round 3 mission: Terraform Step (2 VP)
+1:25:34 AM [game] Round 4 mission: Big Building (5 VP)
+1:25:34 AM [game] Round 5 mission: Gaia Planet (3 VP)
+1:25:34 AM [game] Round 6 mission: New Sector/Bridge (3 VP)
+1:25:34 AM [game] Game created: qsqwcgie by TestPlayer
+1:25:35 AM [game] AI Bot added: AI Bot 2 (bot-p_b3tmn4g4c3) to game qsqwcgie
+1:25:36 AM [game] Start game: Entering factionSelect phase.
+1:25:39 AM [game] Player TestPlayer disconnected
