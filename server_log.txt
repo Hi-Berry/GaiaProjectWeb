@@ -393,3 +393,14 @@ Seeding player...
 2:49:38 AM [game] Game created: p1ip94km by TestPlayer
 2:49:40 AM [game] Start game: Entering factionSelect phase.
 2:49:44 AM [game] Player TestPlayer disconnected
+3:12:36 AM [vite] (client) hmr update /src/pages/Lobby.tsx, /src/index.css
+3:13:05 AM [socket.io] Player connected: J9GRqO17R6jTZgjbAAAh
+3:13:07 AM [game] Round 1 mission: New Planet Type (3 VP)
+3:13:07 AM [game] Round 2 mission: Mine (2 VP)
+3:13:07 AM [game] Round 3 mission: Big Building (5 VP)
+3:13:07 AM [game] Round 4 mission: Federation (5 VP)
+3:13:07 AM [game] Round 5 mission: Terraform Step (2 VP)
+3:13:07 AM [game] Round 6 mission: Research Track (2 VP)
+3:13:07 AM [game] Game created: jqr5esab by TestPlayer
+3:13:09 AM [game] Player TestPlayer disconnected
+3:13:09 AM [socket.io] Player connected: 8FWrVC6z7XGxxVR6AAAj
