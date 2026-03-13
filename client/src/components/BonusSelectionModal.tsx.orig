@@ -56,7 +56,7 @@ function getActionLabel(action: string): string {
   return labels[action] || action;
 }
 
-export function BonusSelectionModal({
+export function BonusSelectionModal({ open = true,
   open,
   onClose,
   game,

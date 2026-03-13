@@ -1,0 +1,11 @@
+--- client/src/components/BonusSelectionModal.tsx
++++ client/src/components/BonusSelectionModal.tsx
+@@ -53,7 +53,7 @@
+ }
+
+ export function BonusSelectionModal({
+-  open = true,
++  open,
+   onClose,
+   game,
+   playerId,

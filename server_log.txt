@@ -404,3 +404,115 @@ Seeding player...
 3:13:07 AM [game] Game created: jqr5esab by TestPlayer
 3:13:09 AM [game] Player TestPlayer disconnected
 3:13:09 AM [socket.io] Player connected: 8FWrVC6z7XGxxVR6AAAj
+3:32:04 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:33:31 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:33:48 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:34:04 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:34:42 AM [socket.io] Player connected: _NOeqnzV08MgIK3nAAAl
+3:34:43 AM [game] Round 1 mission: Trading Station (3 VP)
+3:34:43 AM [game] Round 2 mission: Research Track (2 VP)
+3:34:43 AM [game] Round 3 mission: Gaia Planet (3 VP)
+3:34:43 AM [game] Round 4 mission: Federation (5 VP)
+3:34:43 AM [game] Round 5 mission: Big Building (5 VP)
+3:34:43 AM [game] Round 6 mission: Mine (2 VP)
+3:34:43 AM [game] Game created: ykseoz7g by TestPlayer
+3:34:45 AM [game] Start game: Entering factionSelect phase.
+3:35:18 AM [game] Player TestPlayer disconnected
+3:35:34 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:35:49 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:36:03 AM [vite] (client) Pre-transform error: /app/client/src/components/BonusSelectionModal.tsx: Argument name clash. (60:2)
+
+  58 |
+  59 | export function BonusSelectionModal({ open = true,
+> 60 |   open,
+     |   ^
+  61 |   onClose,
+  62 |   game,
+  63 |   playerId,
+  Plugin: vite:react-babel
+  File: /app/client/src/components/BonusSelectionModal.tsx:60:2
+  58 |
+  59 |  export function BonusSelectionModal({ open = true,
+  60 |    open,
+     |    ^
+  61 |    onClose,
+  62 |    game,
+3:36:04 AM [vite] Internal server error: /app/client/src/components/BonusSelectionModal.tsx: Argument name clash. (60:2)
+
+  58 |
+  59 | export function BonusSelectionModal({ open = true,
+> 60 |   open,
+     |   ^
+  61 |   onClose,
+  62 |   game,
+  63 |   playerId,
+  Plugin: vite:react-babel
+  File: /app/client/src/components/BonusSelectionModal.tsx:60:2
+  58 |
+  59 |  export function BonusSelectionModal({ open = true,
+  60 |    open,
+     |    ^
+  61 |    onClose,
+  62 |    game,
+      at toParseError (/app/node_modules/@babel/parser/src/parse-error.ts:95:45)
+      at TypeScriptParserMixin.raise (/app/node_modules/@babel/parser/src/tokenizer/index.ts:1503:19)
+      at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/src/parser/lval.ts:719:16)
+      at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/src/parser/lval.ts:777:12)
+      at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/src/parser/lval.ts:766:16)
+      at TypeScriptParserMixin.checkParams (/app/node_modules/@babel/parser/src/parser/expression.ts:2692:12)
+      at TypeScriptParserMixin.hasStrictModeDirective (/app/node_modules/@babel/parser/src/parser/expression.ts:2641:16)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/src/parser/statement.ts:1463:22)
+      at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/src/parser/statement.ts:1412:10)
+      at TypeScriptParserMixin.parseBlock (/app/node_modules/@babel/parser/src/parser/statement.ts:1380:10)
+      at TypeScriptParserMixin.parseFunctionBody (/app/node_modules/@babel/parser/src/parser/expression.ts:2616:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/src/parser/expression.ts:2585:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/src/plugins/typescript/index.ts:2646:20)
+      at callback (/app/node_modules/@babel/parser/src/parser/statement.ts:1690:12)
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/app/node_modules/@babel/parser/src/parser/expression.ts:3166:14)
+      at TypeScriptParserMixin.parseFunction (/app/node_modules/@babel/parser/src/parser/statement.ts:1688:10)
+      at TypeScriptParserMixin.parseFunctionStatement (/app/node_modules/@babel/parser/src/parser/statement.ts:1075:17)
+      at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/src/parser/statement.ts:520:21)
+      at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/src/plugins/typescript/index.ts:3185:20)
+      at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/src/parser/statement.ts:477:17)
+      at TypeScriptParserMixin.parseStatementListItem (/app/node_modules/@babel/parser/src/parser/statement.ts:426:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/app/node_modules/@babel/parser/src/parser/statement.ts:2630:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/app/node_modules/@babel/parser/src/plugins/typescript/index.ts:3430:15)
+      at TypeScriptParserMixin.maybeParseExportDeclaration (/app/node_modules/@babel/parser/src/parser/statement.ts:2546:31)
+      at TypeScriptParserMixin.parseExport (/app/node_modules/@babel/parser/src/parser/statement.ts:2427:29)
+      at TypeScriptParserMixin.parseExport (/app/node_modules/@babel/parser/src/plugins/typescript/index.ts:3087:22)
+      at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/src/parser/statement.ts:644:25)
+      at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/src/plugins/typescript/index.ts:3185:20)
+      at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/src/parser/statement.ts:477:17)
+      at TypeScriptParserMixin.parseModuleItem (/app/node_modules/@babel/parser/src/parser/statement.ts:414:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/src/parser/statement.ts:1438:16)
+      at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/src/parser/statement.ts:1412:10)
+      at TypeScriptParserMixin.parseProgram (/app/node_modules/@babel/parser/src/parser/statement.ts:229:10)
+      at TypeScriptParserMixin.parseTopLevel (/app/node_modules/@babel/parser/src/parser/statement.ts:203:25)
+      at TypeScriptParserMixin.parse (/app/node_modules/@babel/parser/src/parser/index.ts:93:10)
+      at TypeScriptParserMixin.parse (/app/node_modules/@babel/parser/src/plugins/typescript/index.ts:4309:20)
+      at parse (/app/node_modules/@babel/parser/src/index.ts:92:38)
+      at parser (/app/node_modules/@babel/core/src/parser/index.ts:28:19)
+      at parser.next (<anonymous>)
+      at normalizeFile (/app/node_modules/@babel/core/src/transformation/normalize-file.ts:49:24)
+      at normalizeFile.next (<anonymous>)
+      at run (/app/node_modules/@babel/core/src/transformation/index.ts:40:36)
+      at run.next (<anonymous>)
+      at transform (/app/node_modules/@babel/core/src/transform.ts:29:20)
+      at transform.next (<anonymous>)
+      at step (/app/node_modules/gensync/index.js:261:32)
+      at /app/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/app/node_modules/gensync/index.js:223:11)
+      at /app/node_modules/gensync/index.js:189:28
+      at <anonymous> (/app/node_modules/@babel/core/src/gensync-utils/async.ts:90:7)
+3:37:24 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
+3:37:41 AM [socket.io] Player connected: ha5wV-b3cOqIzCZfAAAn
+3:37:42 AM [game] Round 1 mission: Research Track (2 VP)
+3:37:42 AM [game] Round 2 mission: Gaia Planet (3 VP)
+3:37:42 AM [game] Round 3 mission: New Planet Type (3 VP)
+3:37:42 AM [game] Round 4 mission: Trading Station (4 VP)
+3:37:42 AM [game] Round 5 mission: New Sector/Bridge (3 VP)
+3:37:42 AM [game] Round 6 mission: Trading Station (3 VP)
+3:37:42 AM [game] Game created: qma0l529 by TestPlayer
+3:37:44 AM [game] Start game: Entering factionSelect phase.
+3:37:46 AM [game] Player TestPlayer disconnected
+3:39:55 AM [vite] (client) hmr update /src/index.css, /src/components/BonusSelectionModal.tsx
