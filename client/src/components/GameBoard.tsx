@@ -266,6 +266,12 @@ export function GameBoard({
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [hasDragged, setHasDragged] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Pinch-to-zoom state
+  const [initialPinchDist, setInitialPinchDist] = useState<number | null>(null);
+  const [initialPinchZoom, setInitialPinchZoom] = useState<number>(1);
+  const [isPinching, setIsPinching] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const currentPlayer = playerId ? game.players[playerId] : null;
@@ -476,6 +482,63 @@ export function GameBoard({
   const handleMouseLeave = useCallback(() => {
     setIsMouseDown(false);
     setHasDragged(false);
+    setIsPinching(false);
+  }, []);
+
+  // Touch handlers for mobile pan and pinch-to-zoom
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      // Single touch -> Pan
+      setIsMouseDown(true);
+      setHasDragged(false);
+      setIsPinching(false);
+      setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+    } else if (e.touches.length === 2) {
+      // Two touches -> Pinch-to-zoom
+      setIsMouseDown(false); // Stop panning
+      setIsPinching(true);
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+      setInitialPinchDist(dist);
+      setInitialPinchZoom(zoom);
+    }
+  }, [pan, zoom]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (isPinching && e.touches.length === 2 && initialPinchDist !== null) {
+      // Handle Zoom
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+
+      const scale = dist / initialPinchDist;
+      let newZoom = initialPinchZoom * scale;
+      newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+      setZoom(newZoom);
+    } else if (isMouseDown && e.touches.length === 1 && !isPinching) {
+      // Handle Pan
+      const dx = Math.abs(e.touches[0].clientX - (dragStart.x + pan.x));
+      const dy = Math.abs(e.touches[0].clientY - (dragStart.y + pan.y));
+      if (dx > 5 || dy > 5) {
+        setHasDragged(true);
+      }
+      setPan({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y,
+      });
+    }
+  }, [isMouseDown, dragStart, pan, isPinching, initialPinchDist, initialPinchZoom]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      setIsPinching(false);
+      setInitialPinchDist(null);
+    }
+    if (e.touches.length === 0) {
+      setIsMouseDown(false);
+      setTimeout(() => setHasDragged(false), 50);
+    }
   }, []);
 
   const canPlaceStartingMine = useMemo(() => {
@@ -635,12 +698,16 @@ export function GameBoard({
       {/* 맵 영역: 우측 패널 표시 여부와 관계없이 항상 동일 크기 유지 (행성 클릭 시 확대/팬 깨짐 방지) */}
       <div
         ref={containerRef}
-        className="flex-1 min-w-0 bg-black rounded-lg border border-white/5 overflow-hidden relative"
+        className="flex-1 min-w-0 bg-black rounded-lg border border-white/5 overflow-hidden relative touch-none"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         style={{ cursor: isMouseDown ? 'grabbing' : 'grab' }}
       >
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-20 pointer-events-none" />
