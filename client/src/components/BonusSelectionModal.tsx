@@ -131,7 +131,7 @@ export function BonusSelectionModal({
         )}
 
         {/* Available Bonus Tiles Grid */}
-        <div className="flex-1 overflow-y-auto p-2 sm:p-4 grid grid-cols-3 min-[400px]:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-3 sm:gap-4 auto-rows-max justify-items-center w-full max-h-[70vh]">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4 grid grid-cols-4 min-[360px]:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-2 sm:gap-4 auto-rows-max justify-items-center w-full max-h-[70vh]">
           {game.availableBonusTiles.map((tile) => {
             const isSelected = selectedTileId === tile.id;
             const tileIndex = ALL_BONUS_TILES.findIndex(t => t.id === tile.id);
