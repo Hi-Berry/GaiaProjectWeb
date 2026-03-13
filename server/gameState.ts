@@ -5604,7 +5604,7 @@ export function executePlaceIvitsSpaceStation(
 	return true;
 }
 
-/** Bot용: 우주선 액션 실행. TF Mars 3번(3C→1삽), Eclipse 3번(6C→소행성 광산) 등. */
+/** Bot용: 우주선 액션 실행. 소켓 use_ship_action과 동일 로직 (Twilight/Rebellion/TF Mars/Eclipse 전액션). */
 export function executeUseShipAction(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string, shipTileId: string, actionIndex: number,
@@ -5612,40 +5612,188 @@ export function executeUseShipAction(
 ): boolean {
 	if (!game || game.currentPhase !== 'main') return false;
 	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
-
+	saveActionStartState(game, playerId);
 	const player = game.players[playerId];
 	const shipTile = game.map.find(t => t.id === shipTileId);
-	if (!shipTile) return false;
+	const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
+	if (!shipTile || !shipTypes.includes(shipTile.type)) return false;
 	const shipState = game.spaceships?.[shipTileId];
 	if (!shipState || !shipState.occupants.includes(playerId)) return false;
-	const usedIndices = shipState.usedActionIndices ?? [];
+	const usedIndices = shipState.usedActionIndices ?? (shipState.actionsUsed != null ? [] : []);
 	if (usedIndices.includes(actionIndex) || usedIndices.length >= 3) return false;
 
-	// TF Mars 액션3: 3C → 1 테라포밍 스텝 (free action)
-	if (shipTile.type === 'ship_tf_mars' && actionIndex === 3) {
-		if (player.credits < 3) return false;
-		player.credits -= 3;
-		player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-		shipState.usedActionIndices = [...usedIndices, actionIndex];
-		shipState.actionsUsed = shipState.usedActionIndices.length;
-		addGameLog(game, playerId, 'TF Mars: 3C → 1 TF (Bot)', '', shipTileId);
-		clampPlayerResources(game);
-		io.to(game.id).emit('game_updated', game);
-		return true;
+	// --- Twilight ---
+	if (shipTile.type === 'ship_twilight') {
+		if (actionIndex === 1) {
+			if (player.qic < 3) return false;
+			player.qic -= 3;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			game.pendingTwilightFederation = { playerId, shipTileId };
+			addGameLog(game, playerId, 'Twilight: Federation benefit', '3 QIC (choose reward)', shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 2) {
+			if (targetTileId == null) return false;
+			const target = game.map.find(t => t.id === targetTileId);
+			if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return false;
+			if (player.ore < 2 || player.power3 < 3) return false;
+			player.ore -= 2;
+			player.power3 -= 3;
+			player.power1 = (player.power1 || 0) + 3;
+			target.structure = 'research_lab';
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			applyRoundMissionScore(game, playerId, 'build_research_lab');
+			addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
+			game.pendingTechTileSelection = { playerId, tileId: targetTileId, structureType: 'research_lab' };
+			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 3) {
+			if (player.knowledge < 1) return false;
+			player.knowledge -= 1;
+			player.tempRangeBonus = true;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId);
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		return false;
 	}
 
-	// Eclipse 액션3: 6C → 소행성 광산 (pendingEclipseAsteroidMine 설정)
-	if (shipTile.type === 'ship_eclipse' && actionIndex === 3) {
-		if (game.hasDoneMainAction) return false;
-		if (player.credits < 6) return false;
-		player.credits -= 6;
-		shipState.usedActionIndices = [...usedIndices, actionIndex];
-		shipState.actionsUsed = shipState.usedActionIndices.length;
-		game.pendingEclipseAsteroidMine = { playerId, shipTileId };
-		addGameLog(game, playerId, 'Eclipse: 6C → Asteroid mine (Bot)', '(select tile)', shipTileId);
-		clampPlayerResources(game);
-		io.to(game.id).emit('game_updated', game);
-		return true;
+	// --- Rebellion ---
+	if (shipTile.type === 'ship_rebellion') {
+		if (actionIndex === 1) {
+			if (player.qic < 3) return false;
+			player.qic -= 3;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
+			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
+			addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 2) {
+			const tid = targetTileId != null ? String(targetTileId) : '';
+			if (!tid) return false;
+			const target = game.map.find(t => t.id === tid || String(t.id) === tid);
+			if (!target || target.ownerId !== playerId || target.structure !== 'mine') return false;
+			if (player.ore < 1 || player.power3 < 3) return false;
+			player.ore -= 1;
+			player.power3 -= 3;
+			player.power1 = (player.power1 || 0) + 3;
+			target.structure = 'trading_station';
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			applyRoundMissionScore(game, playerId, 'build_trading_station');
+			addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
+			createPowerOffers(game, target, playerId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 3) {
+			if (player.knowledge < 2) return false;
+			player.knowledge -= 2;
+			grantQic(game, playerId, 1);
+			player.credits = (player.credits || 0) + 2;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		return false;
+	}
+
+	// --- TF Mars ---
+	if (shipTile.type === 'ship_tf_mars') {
+		if (actionIndex === 1) {
+			if (player.qic < 2) return false;
+			player.qic -= 2;
+			const count = player.techTiles?.length ?? 0;
+			addScore(game, playerId, count + 2, 'other', { source: 'TF Mars Action' });
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `(${count}+2) VP`, shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 2) {
+			if (player.power3 < 2) return false;
+			if (getEffectiveGaiaformers(player) < 1) return false;
+			player.power3 -= 2;
+			player.power1 = (player.power1 || 0) + 2;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			game.pendingTFMarsGaiaProject = { playerId, shipTileId };
+			addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 3) {
+			if (player.credits < 3) return false;
+			player.credits -= 3;
+			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step)', shipTileId);
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		return false;
+	}
+
+	// --- Eclipse ---
+	if (shipTile.type === 'ship_eclipse') {
+		if (actionIndex === 1) {
+			if (player.qic < 2) return false;
+			player.qic -= 2;
+			const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
+			const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
+			addScore(game, playerId, types.size + 2, 'other', { source: 'Eclipse Action' });
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `(${types.size}+2) VP`, shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 2) {
+			if (player.knowledge < 2 || player.power3 < 3) return false;
+			player.knowledge -= 2;
+			player.power3 -= 3;
+			player.power1 = (player.power1 || 0) + 3;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			game.pendingEclipseResearch = { playerId, shipTileId };
+			addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		if (actionIndex === 3) {
+			if (player.credits < 6) return false;
+			player.credits -= 6;
+			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
+			shipState.actionsUsed = shipState.usedActionIndices.length;
+			game.pendingEclipseAsteroidMine = { playerId, shipTileId };
+			addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId);
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			return true;
+		}
+		return false;
 	}
 
 	return false;
