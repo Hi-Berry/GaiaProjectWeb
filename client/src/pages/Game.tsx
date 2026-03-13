@@ -1800,7 +1800,7 @@ export default function Game() {
                       game={game}
                       playerId={playerId}
                       isSelectionMode={isMyTurnBonusSelection}
-                      onSelectBonusTile={(tileId) => GameClient.selectBonusTile(gameId!, tileId)}
+                      onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
                     />
                   </div>
                 </div>
@@ -1840,13 +1840,13 @@ export default function Game() {
                 <BonusTiles
                   game={game}
                   playerId={playerId}
-                  onSelectBonusTile={(tileId) => {
+                  onSelectBonusTile={isMyTurn ? ((tileId) => {
                     if (game.roundNumber === 6) {
                       setConfirmPassWithTileId('dummy');
                     } else {
                       setConfirmPassWithTileId(tileId);
                     }
-                  }}
+                  }) : undefined}
                   onUseBonusAction={() => {
                     const player = game.players[playerId!];
                     if (player.usedBonusAction) return;
@@ -3897,13 +3897,13 @@ export default function Game() {
                   game={game}
                   playerId={playerId}
                   isMini={true}
-                  onSelectBonusTile={(id) => {
+                  onSelectBonusTile={isMyTurn ? ((id) => {
                     if (game.roundNumber === 6) {
                       setConfirmPassWithTileId('dummy');
                     } else {
                       setConfirmPassWithTileId(id);
                     }
-                  }}
+                  }) : undefined}
                   onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
                 />
               </div>

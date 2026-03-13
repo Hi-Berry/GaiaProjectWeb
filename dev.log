@@ -14,3 +14,5 @@ Seeding player...
 7:06:52 AM [socket.io] Player connected: eofrUJNbv8yPpwr9AAAB
 7:07:38 AM [socket.io] Player connected: yvI58kugCy6NRCTwAAAD
 10:50:38 PM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+11:38:39 PM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+11:45:48 PM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
