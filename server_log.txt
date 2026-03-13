@@ -1,0 +1,106 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+DATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+1:48:43 AM [socket.io] Game server initialized on same port
+1:48:43 AM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+1:48:43 AM [express]   로컬: http://localhost:5000
+1:48:43 AM [express]   같은 네트워크: http://192.168.0.2:5000
+1:48:43 AM [express] ----------------------------------------
+1:48:43 AM [express] serving on port 5000
+1:49:24 AM [socket.io] Player connected: TkW_02m01Pgw0LehAAAB
+1:50:05 AM [socket.io] Player connected: 9N2oqM-rtLWkxqhSAAAD
+1:50:52 AM [socket.io] Player connected: ZC6PaVrF-XfhrSW7AAAF
+1:50:54 AM [game] Round 1 mission: Trading Station (4 VP)
+1:50:54 AM [game] Round 2 mission: Research Track (2 VP)
+1:50:54 AM [game] Round 3 mission: New Planet Type (3 VP)
+1:50:54 AM [game] Round 4 mission: Federation (5 VP)
+1:50:54 AM [game] Round 5 mission: Gaia Planet (4 VP)
+1:50:54 AM [game] Round 6 mission: Gaia Planet (3 VP)
+1:50:54 AM [game] Game created: hwq7onii by TestPlayer
+1:50:56 AM [game] Start game: Entering factionSelect phase.
+1:50:58 AM [game] Player TestPlayer disconnected
+1:51:09 AM [socket.io] Player connected: _yE8lGZhZ2uKN37ZAAAH
+1:51:11 AM [game] Round 1 mission: Big Building (5 VP)
+1:51:11 AM [game] Round 2 mission: New Planet Type (3 VP)
+1:51:11 AM [game] Round 3 mission: Gaia Planet (4 VP)
+1:51:11 AM [game] Round 4 mission: Research Track (2 VP)
+1:51:11 AM [game] Round 5 mission: Terraform Step (2 VP)
+1:51:11 AM [game] Round 6 mission: Gaia Planet (3 VP)
+1:51:11 AM [game] Game created: qghe8ljg by TestPlayer
+1:51:13 AM [game] Start game: Entering factionSelect phase.
+1:51:46 AM [game] Player TestPlayer disconnected
+1:51:57 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:52:03 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:52:03 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:52:10 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:52:10 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:52:18 AM [socket.io] Player connected: m5758UIwZ6kBMLoAAAAJ
+1:52:20 AM [game] Round 1 mission: Terraform Step (2 VP)
+1:52:20 AM [game] Round 2 mission: Research Lab (4 VP)
+1:52:20 AM [game] Round 3 mission: Mine (2 VP)
+1:52:20 AM [game] Round 4 mission: Big Building (5 VP)
+1:52:20 AM [game] Round 5 mission: Trading Station (3 VP)
+1:52:20 AM [game] Round 6 mission: Trading Station (4 VP)
+1:52:20 AM [game] Game created: lsdebgmg by TestPlayer
+1:52:22 AM [game] Start game: Entering factionSelect phase.
+1:52:55 AM [game] Player TestPlayer disconnected
+1:53:10 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:53:17 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:53:26 AM [socket.io] Player connected: Wm_7u-LXxzaabdt1AAAL
+1:53:28 AM [game] Round 1 mission: Research Track (2 VP)
+1:53:28 AM [game] Round 2 mission: Big Building (5 VP)
+1:53:28 AM [game] Round 3 mission: Research Lab (4 VP)
+1:53:28 AM [game] Round 4 mission: Trading Station (4 VP)
+1:53:28 AM [game] Round 5 mission: Mine (2 VP)
+1:53:28 AM [game] Round 6 mission: Gaia Planet (4 VP)
+1:53:28 AM [game] Game created: 7k3e1q2l by TestPlayer
+1:53:30 AM [game] Start game: Entering factionSelect phase.
+1:54:03 AM [game] Player TestPlayer disconnected
+1:54:12 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:54:20 AM [socket.io] Player connected: ukj6GSJHjBsRfSoYAAAN
+1:54:23 AM [game] Round 1 mission: Big Building (5 VP)
+1:54:23 AM [game] Round 2 mission: Gaia Planet (4 VP)
+1:54:23 AM [game] Round 3 mission: Federation (5 VP)
+1:54:23 AM [game] Round 4 mission: Research Track (2 VP)
+1:54:23 AM [game] Round 5 mission: Gaia Planet (3 VP)
+1:54:23 AM [game] Round 6 mission: New Sector/Bridge (3 VP)
+1:54:23 AM [game] Game created: 40mpgkqc by TestPlayer
+1:54:25 AM [game] Start game: Entering factionSelect phase.
+1:54:58 AM [game] Player TestPlayer disconnected
+1:55:05 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:55:14 AM [socket.io] Player connected: sm74_OTWl2LRftS8AAAP
+1:55:16 AM [game] Round 1 mission: Federation (5 VP)
+1:55:16 AM [game] Round 2 mission: Trading Station (4 VP)
+1:55:16 AM [game] Round 3 mission: Trading Station (3 VP)
+1:55:16 AM [game] Round 4 mission: Research Track (2 VP)
+1:55:16 AM [game] Round 5 mission: Terraform Step (2 VP)
+1:55:16 AM [game] Round 6 mission: Gaia Planet (4 VP)
+1:55:16 AM [game] Game created: 2o8lrmqq by TestPlayer
+1:55:18 AM [game] Start game: Entering factionSelect phase.
+1:55:52 AM [game] Player TestPlayer disconnected
+1:56:00 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:56:09 AM [socket.io] Player connected: C4b307Vh79YvxZ7FAAAR
+1:56:11 AM [game] Round 1 mission: Federation (5 VP)
+1:56:11 AM [game] Round 2 mission: Gaia Planet (4 VP)
+1:56:11 AM [game] Round 3 mission: Big Building (5 VP)
+1:56:11 AM [game] Round 4 mission: Mine (2 VP)
+1:56:11 AM [game] Round 5 mission: Research Lab (4 VP)
+1:56:11 AM [game] Round 6 mission: New Sector/Bridge (3 VP)
+1:56:11 AM [game] Game created: 7d0imleu by TestPlayer
+1:56:13 AM [game] Start game: Entering factionSelect phase.
+1:56:49 AM [game] Player TestPlayer disconnected
+1:57:01 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:57:13 AM [socket.io] Player connected: hlrPkyngZtsAJKU8AAAT
+1:57:15 AM [game] Round 1 mission: Terraform Step (2 VP)
+1:57:15 AM [game] Round 2 mission: Big Building (5 VP)
+1:57:15 AM [game] Round 3 mission: Gaia Planet (3 VP)
+1:57:15 AM [game] Round 4 mission: Research Track (2 VP)
+1:57:15 AM [game] Round 5 mission: Trading Station (3 VP)
+1:57:15 AM [game] Round 6 mission: Big Building (5 VP)
+1:57:15 AM [game] Game created: bmglvraq by TestPlayer
+1:57:17 AM [game] Start game: Entering factionSelect phase.
+1:57:21 AM [game] Player TestPlayer disconnected

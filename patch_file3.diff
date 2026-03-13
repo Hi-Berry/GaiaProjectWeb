@@ -1,0 +1,41 @@
+--- client/src/pages/Game.tsx
++++ client/src/pages/Game.tsx
+@@ -3800,10 +3800,11 @@
+               </Button>
+             </div>
+-            <ScrollArea className="flex-1 px-2 py-2">
++            <div className="flex-1 px-2 py-2 overflow-y-auto touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+               <div
+                 className="origin-top-left"
+-                style={{ width: 340, zoom: researchMiniWidth / 340 }}
++                style={{ width: 340, transform: `scale(${researchMiniWidth / 340})`, transformOrigin: 'top left' }}
+               >
+                 <ResearchBoard
+                   game={game}
+                   playerId={playerId}
+@@ -3836,7 +3837,7 @@
+                 />
+               </div>
+-            </ScrollArea>
++            </div>
+             <div
+               className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 border-r border-white/10 rounded-r-xl transition-colors"
+@@ -3878,11 +3879,11 @@
+               </Button>
+             </div>
+-            <ScrollArea className="flex-1 px-2 py-1">
++            <div className="flex-1 px-2 py-1 overflow-y-auto touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+               <div
+                 className="origin-top-left flex flex-col gap-4"
+-                style={{ width: 340, zoom: bonusMiniWidth / 340 }}
++                style={{ width: 340, transform: `scale(${bonusMiniWidth / 340})`, transformOrigin: 'top left' }}
+               >
+                 <RoundBoard
+                   game={game}
+@@ -3907,7 +3908,7 @@
+                 />
+               </div>
+-            </ScrollArea>
++            </div>
+             <div
+               className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 hover:bg-amber-500/30 active:bg-amber-500/50 border-r border-white/10 rounded-r-xl transition-colors"
