@@ -893,44 +893,66 @@ export class BotLogic {
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
 
             let qicPenalty = neededQicForRange * 30;
+            let bridgeheadBonus = 0;
+
             if (neededQicForRange > 0) {
-                // Determine if this is a "good" QIC jump based on condition B:
-                // Are there additional easy expansion targets (Gaia or home type) within 1 hex of the target tile?
-                let easyTargetsNearby = 0;
+                // [사용자 피드백] 장거리(QIC) 확장의 가치를 주변 꿀행성 군집도로 평가하는 교두보(Bridgehead) 확보 전략
+                let easyTargetsDist1 = 0;
+                let easyTargetsDist2 = 0;
+
                 for (const t of game.map) {
-                    if (t.id !== tile.id && !t.structure && (t.type === 'gaia' || t.type === homeType)) {
-                        if (getDistance(tile, t) <= 1) easyTargetsNearby++;
+                    if (t.id !== tile.id && !t.structure && !t.ownerId) {
+                        const isEasy = (t.type === 'gaia' || t.type === homeType || (t.type && getTerraformStepsForFaction(game, player.faction!, t.type) <= 1));
+                        if (isEasy) {
+                            const d = getDistance(tile, t);
+                            if (d === 1) easyTargetsDist1++;
+                            else if (d === 2) easyTargetsDist2++;
+                        }
                     }
                 }
 
-                // If base range is 1 (player hasn't upgraded range) or there are nearby targets,
-                // it's an acceptable jump, so keep the normal penalty.
-                // Otherwise, it's a "bad" jump, so we apply a massive penalty to discourage it.
-                if (range > 1 && easyTargetsNearby === 0) {
-                    qicPenalty += 200; // Heavily discourage pointless QIC jumps when range is already upgraded and no clusters nearby
-                } else if (range === 1 && easyTargetsNearby === 0) {
-                    qicPenalty += 50; // Mildly discourage even if range is 1, but still allow if desperate
+                // 거점이 매우 훌륭한 경우 (주변 1거리에 1개 이상, 혹은 2거리에 다수 포진)
+                const clusterValue = easyTargetsDist1 * 2 + easyTargetsDist2;
+
+                if (clusterValue >= 3) {
+                    // 엄청난 꿀단지면 QIC 페널티를 전부 상쇄하고 오히려 보너스를 줌
+                    qicPenalty = 0;
+                    bridgeheadBonus = 150 + clusterValue * 15;
+                } else if (clusterValue >= 1) {
+                    // 적당한 교두보면 페널티 완화
+                    qicPenalty = Math.max(0, qicPenalty - 50);
+                    bridgeheadBonus = 40;
+                } else {
+                    // 주변에 확장할 곳이 전혀 없는 낭비성 QIC 점프는 극도로 기피
+                    if (range > 1) {
+                        qicPenalty += 300;
+                    } else if (range === 1) {
+                        qicPenalty += 80;
+                    }
                 }
             }
 
-            // QIC 소모 최대 1 제한 (초반 확장 패널티 약간 완화)
-            if (neededQicForRange > 2) continue; // 확장을 위해서라면 QIC 2개 소모까지 허용
+            // QIC 소모 제한 해제: QIC만 충분하다면 3거리, 4거리(QIC 3~4 소모) 점프도 교두보 가치가 높으면 시도 가능하도록 허용
+            // 단, 자신이 가진 QIC를 초과하면 당연히 불가.
             if (neededQicForRange > qic) continue;
+            // 과도한 점프(5 QIC 이상)는 게임 시스템상 거의 불가능하거나 미친 짓이므로 캡을 씌움
+            if (neededQicForRange > 4) continue;
 
             if (tile.type === 'gaia') {
                 // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
                 const isGleens = player.faction === 'gleens';
                 const gaiaBaseQic = getGaiaBaseQic(player.faction || '');
                 const totalQicNeeded = isGleens ? neededQicForRange : neededQicForRange + gaiaBaseQic;
+
                 if (isGleens) {
                     if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
                     if (totalQicNeeded > qic) continue;
                 } else {
                     if (totalQicNeeded > qic) continue;
-                    if (totalQicNeeded > 2) continue; // 확장을 위해서 2까지 완화
+                    if (totalQicNeeded > 4) continue; // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용
                 }
 
-                let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty; // 가이아 건설 베이스 점수 대폭 상향
+                let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
@@ -953,7 +975,7 @@ export class BotLogic {
 
             // 모행성 (테라포밍 불필요)
             if (tile.type === homeType) {
-                let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty; // 모행성 확장은 최상위 가치
+                let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty + bridgeheadBonus; // 모행성 확장은 최상위 가치
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
 
@@ -992,7 +1014,7 @@ export class BotLogic {
 
             if (remainingSteps === 0) {
                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
-                let score = 250 - (qicPenalty * 0.8); // 상향
+                let score = 250 - (qicPenalty * 0.8) + bridgeheadBonus; // 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
@@ -1016,7 +1038,7 @@ export class BotLogic {
                     if (power3 >= 3) {
                         scored.push({
                             tile,
-                            score: 70 - (qicPenalty * 0.8),
+                            score: 70 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -1024,7 +1046,7 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 3) {
                         scored.push({
                             tile,
-                            score: 69 - (qicPenalty * 0.8),
+                            score: 69 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -1043,7 +1065,7 @@ export class BotLogic {
                     if (power3 >= 5) {
                         scored.push({
                             tile,
-                            score: 60 - (qicPenalty * 0.8),
+                            score: 60 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -1051,7 +1073,7 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         scored.push({
                             tile,
-                            score: 59 - (qicPenalty * 0.8),
+                            score: 59 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -1072,7 +1094,7 @@ export class BotLogic {
                     if (!usedActions.includes(3)) {
                         scored.push({
                             tile,
-                            score: 65 - (qicPenalty * 0.8),
+                            score: 65 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: { type: 'use_ship_action', params: { shipTileId: tfMarsShip.id, actionIndex: 3 } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -1091,7 +1113,7 @@ export class BotLogic {
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
                 const stepPenalty = costPerStep >= 3 ? (remainingSteps * 20) : (remainingSteps * 10);
-                let score = tfScore - stepPenalty - (qicPenalty * 0.6);
+                let score = tfScore - stepPenalty - (qicPenalty * 0.6) + bridgeheadBonus;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
