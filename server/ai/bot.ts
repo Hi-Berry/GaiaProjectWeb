@@ -519,8 +519,17 @@ export class BotLogic {
 
         // 10. 패스 (지식이 충분하여 연구를 더 할 수 있다면 패스를 억제하여 무조건 지식을 소모하게 강제)
         if (!player.hasPassed) {
+            // [사용자 피드백] 가이아포머나 소행성 우주선 액션 등 매우 좋은 액션이 후보에 있다면, MCTS가 엉뚱하게 패스하는 것을 원천 차단
+            const mustDoActions = candidates.filter(c =>
+                (c.type === 'place_gaiaformer') ||
+                (c.type === 'use_ship_action' && c.params?.actionIndex === 3 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_eclipse') ||
+                (c.type === 'use_ship_action' && c.params?.actionIndex === 1 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_rebellion')
+            );
+
             if ((player.knowledge ?? 0) >= 4) {
                 // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
+            } else if (mustDoActions.length > 0) {
+                // 필수 액션(포밍/소행성/기술)이 가능하면 패스 차단
             } else {
                 const bestBonus = this.findBonusTileAction(game, playerId);
                 const bonusTileId = bestBonus?.params?.bonusTileId;
@@ -569,14 +578,19 @@ export class BotLogic {
                 const isDiscounted = hasNearbyPlayersForDiscount(game, mine, playerId);
                 const cost = isDiscounted ? 3 : 6;
                 if (credits >= cost) {
-                    let score = isDiscounted ? 80 : 40;
+                    // [사용자 피드백] 할인 받는 교역소(2/3)를 압도적으로 선호하도록 점수 대폭 상향, 비할인 교역소(2/6)는 초반에 극도로 기피
+                    let score = isDiscounted ? 150 : 20;
+
+                    if (!isDiscounted && round <= 3) {
+                        score -= 80; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티
+                    }
 
                     // [전략 개선] 1라운드 교역소 남발 방지: 연구소/아카데미가 없는 상태에서의 단순 교역소는 감점
                     if (round === 1) {
                         const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
                         const academyCount = myStructures.filter(t => t.structure === 'academy').length;
                         if (labCount === 0 && academyCount === 0) {
-                            score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 TS는 비효율적
+                            score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 TS는 비효율적 (할인받아도 패널티 적용)
                         }
                     }
 
@@ -1174,8 +1188,9 @@ export class BotLogic {
             const neededQic = dist > range ? Math.ceil((dist - range) / 2) : 0;
 
             if (neededQic <= qic && neededQic <= 2) {
-                let score = 200 - neededQic * 40; // 가이아 프로젝트 시도 가치를 매우 높게 부여
-                if (isFreeProject) score += 100;
+                // [사용자 피드백] 가이아포머가 있는데 포밍을 안 하고 패스하는 현상 방지를 위해 포밍 점수를 극한으로 상향
+                let score = 350 - neededQic * 40;
+                if (isFreeProject) score += 200;
 
                 actions.push({
                     score,
@@ -1963,7 +1978,8 @@ export class BotLogic {
                         score = 130;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 6) {
-                        score = 300; // 소행성 광산: 추가 건물 = 파워/점수 (절대적 우선순위)
+                        // [사용자 피드백] 이클립스 소행성 파괴(6C) 광산 건설을 안 하고 패스하는 현상을 막기 위해 점수 극한 상향
+                        score = 450;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 3) {
                         score = 100;
