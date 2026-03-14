@@ -49,7 +49,8 @@ import {
     TechTile,
     SHIP_TECH_TILES,
     isPlanetHex,
-    FEDERATION_12VP_ID
+    FEDERATION_12VP_ID,
+    getGaiaBaseQic
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -496,7 +497,14 @@ export class BotLogic {
         if (player.bonusTile && !player.usedBonusAction) {
             const bonusTileObj = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
             if (bonusTileObj?.specialAction) {
-                candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
+                // 사거리 +3 액션은 꿀단지 확장에 매우 유리하므로 최우선으로 쓰도록 강제
+                if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
+                    candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
+                    // MCTS가 무조건 이 액션을 1순위로 평가하게 하도록 다른 일반 액션들 사이에서 우선권 부여
+                    // 이 액션만 단독으로 리턴해서 강제 실행하게 만들 수도 있지만, 보수적으로 후보에 추가만 함
+                } else {
+                    candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
+                }
             }
         }
 
@@ -518,8 +526,18 @@ export class BotLogic {
 
         // 10. 패스 (지식이 충분하여 연구를 더 할 수 있다면 패스를 억제하여 무조건 지식을 소모하게 강제)
         if (!player.hasPassed) {
+            // [사용자 피드백] 가이아포머나 소행성 우주선 액션 등 매우 좋은 액션이 후보에 있다면, MCTS가 엉뚱하게 패스하는 것을 원천 차단
+            const mustDoActions = candidates.filter(c =>
+                (c.type === 'place_gaiaformer') ||
+                (c.type === 'use_ship_action' && c.params?.actionIndex === 3 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_eclipse') ||
+                (c.type === 'use_ship_action' && c.params?.actionIndex === 1 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_rebellion') ||
+                (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3')
+            );
+
             if ((player.knowledge ?? 0) >= 4) {
                 // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
+            } else if (mustDoActions.length > 0) {
+                // 필수 액션(포밍/소행성/기술)이 가능하면 패스 차단
             } else {
                 const bestBonus = this.findBonusTileAction(game, playerId);
                 const bonusTileId = bestBonus?.params?.bonusTileId;
@@ -559,7 +577,8 @@ export class BotLogic {
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
 
         /** 연방에 이미 속한 타일 업그레이드는 다음 연방에 불리하므로 감점 */
-        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 70 : 0;
+        // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 다음 연방 구성이 느려지므로 패널티를 70에서 300으로 대폭 상향하여 원천 차단
+        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 300 : 0;
 
         // 1. Mines -> Trading Stations
         if (ore >= 2 && credits >= 3) {
@@ -568,14 +587,19 @@ export class BotLogic {
                 const isDiscounted = hasNearbyPlayersForDiscount(game, mine, playerId);
                 const cost = isDiscounted ? 3 : 6;
                 if (credits >= cost) {
-                    let score = isDiscounted ? 80 : 40;
+                    // [사용자 피드백] 할인 받는 교역소(2/3)를 압도적으로 선호하도록 점수 대폭 상향, 비할인 교역소(2/6)는 초반에 극도로 기피
+                    let score = isDiscounted ? 150 : 20;
+
+                    if (!isDiscounted && round <= 3) {
+                        score -= 80; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티
+                    }
 
                     // [전략 개선] 1라운드 교역소 남발 방지: 연구소/아카데미가 없는 상태에서의 단순 교역소는 감점
                     if (round === 1) {
                         const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
                         const academyCount = myStructures.filter(t => t.structure === 'academy').length;
                         if (labCount === 0 && academyCount === 0) {
-                            score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 TS는 비효율적
+                            score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 TS는 비효율적 (할인받아도 패널티 적용)
                         }
                     }
 
@@ -877,43 +901,72 @@ export class BotLogic {
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
 
             let qicPenalty = neededQicForRange * 30;
+            let bridgeheadBonus = 0;
+
             if (neededQicForRange > 0) {
-                // Determine if this is a "good" QIC jump based on condition B:
-                // Are there additional easy expansion targets (Gaia or home type) within 1 hex of the target tile?
-                let easyTargetsNearby = 0;
+                // [사용자 피드백] 장거리(QIC) 확장의 가치를 주변 꿀행성 군집도로 평가하는 교두보(Bridgehead) 확보 전략
+                let easyTargetsDist1 = 0;
+                let easyTargetsDist2 = 0;
+
                 for (const t of game.map) {
-                    if (t.id !== tile.id && !t.structure && (t.type === 'gaia' || t.type === homeType)) {
-                        if (getDistance(tile, t) <= 1) easyTargetsNearby++;
+                    if (t.id !== tile.id && !t.structure && !t.ownerId) {
+                        const isEasy = (t.type === 'gaia' || t.type === homeType || (t.type && getTerraformStepsForFaction(game, player.faction!, t.type) <= 1));
+                        if (isEasy) {
+                            const d = getDistance(tile, t);
+                            if (d === 1) easyTargetsDist1++;
+                            else if (d === 2) easyTargetsDist2++;
+                        }
                     }
                 }
 
-                // If base range is 1 (player hasn't upgraded range) or there are nearby targets,
-                // it's an acceptable jump, so keep the normal penalty.
-                // Otherwise, it's a "bad" jump, so we apply a massive penalty to discourage it.
-                if (range > 1 && easyTargetsNearby === 0) {
-                    qicPenalty += 200; // Heavily discourage pointless QIC jumps when range is already upgraded and no clusters nearby
-                } else if (range === 1 && easyTargetsNearby === 0) {
-                    qicPenalty += 50; // Mildly discourage even if range is 1, but still allow if desperate
+                // 거점이 매우 훌륭한 경우 (주변 1거리에 1개 이상, 혹은 2거리에 다수 포진)
+                const clusterValue = easyTargetsDist1 * 2 + easyTargetsDist2;
+
+                if (clusterValue >= 3) {
+                    // 엄청난 꿀단지면 QIC 페널티를 전부 상쇄하고 오히려 보너스를 줌
+                    qicPenalty = 0;
+                    bridgeheadBonus = 150 + clusterValue * 15;
+                } else if (clusterValue >= 1) {
+                    // 적당한 교두보면 페널티 완화
+                    qicPenalty = Math.max(0, qicPenalty - 50);
+                    bridgeheadBonus = 40;
+                } else {
+                    // 주변에 확장할 곳이 전혀 없는 낭비성 QIC 점프는 극도로 기피
+                    if (range > 1) {
+                        qicPenalty += 300;
+                    } else if (range === 1) {
+                        qicPenalty += 80;
+                    }
+                }
+
+                // [사용자 피드백] 초반(1~3라운드)에 귀한 QIC를 낭비해서 짓는 행위를 억제.
+                // 대신 연구소 업그레이드를 통해 항해술(Nav) 기술을 먼저 올린 뒤(0 QIC로) 짓게끔 페널티를 부과. (꿀단지는 예외)
+                if (game.roundNumber <= 3 && clusterValue < 2) {
+                    qicPenalty += 70 * neededQicForRange;
                 }
             }
 
-            // QIC 소모 최대 1 제한 (초반 확장 패널티 약간 완화)
-            if (neededQicForRange > 2) continue; // 확장을 위해서라면 QIC 2개 소모까지 허용
+            // QIC 소모 제한 해제: QIC만 충분하다면 3거리, 4거리(QIC 3~4 소모) 점프도 교두보 가치가 높으면 시도 가능하도록 허용
+            // 단, 자신이 가진 QIC를 초과하면 당연히 불가.
             if (neededQicForRange > qic) continue;
+            // 과도한 점프(5 QIC 이상)는 게임 시스템상 거의 불가능하거나 미친 짓이므로 캡을 씌움
+            if (neededQicForRange > 4) continue;
 
             if (tile.type === 'gaia') {
-                // 가이아 행성: 1 QIC 추가 (Gleens: 1 Ore 추가)
+                // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
                 const isGleens = player.faction === 'gleens';
-                const totalQicNeeded = isGleens ? neededQicForRange : neededQicForRange + 1;
+                const gaiaBaseQic = getGaiaBaseQic(player.faction || '');
+                const totalQicNeeded = isGleens ? neededQicForRange : neededQicForRange + gaiaBaseQic;
+
                 if (isGleens) {
                     if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
                     if (totalQicNeeded > qic) continue;
                 } else {
                     if (totalQicNeeded > qic) continue;
-                    if (totalQicNeeded > 2) continue; // 확장을 위해서 2까지 완화
+                    if (totalQicNeeded > 4) continue; // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용
                 }
 
-                let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty; // 가이아 건설 베이스 점수 대폭 상향
+                let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
@@ -936,7 +989,7 @@ export class BotLogic {
 
             // 모행성 (테라포밍 불필요)
             if (tile.type === homeType) {
-                let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty; // 모행성 확장은 최상위 가치
+                let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty + bridgeheadBonus; // 모행성 확장은 최상위 가치
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
 
@@ -961,13 +1014,21 @@ export class BotLogic {
             const steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
             if (steps <= 0) continue;
 
+            // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 새로운 행성 유형(모행성과 가이아 제외)에 테라포밍 및 확장하는 것을 절대 금지
+            if (player.faction === 'geodens') {
+                const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                if (!hasPI) {
+                    continue; // PI가 없으면 타종 행성은 짓지 않음
+                }
+            }
+
             // pendingTerraformSteps로 커버 가능한 경우
             const coveredByPending = Math.min(pendingSteps, steps);
             const remainingSteps = steps - coveredByPending;
 
             if (remainingSteps === 0) {
                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
-                let score = 250 - (qicPenalty * 0.8); // 상향
+                let score = 250 - (qicPenalty * 0.8) + bridgeheadBonus; // 상향
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
@@ -991,7 +1052,7 @@ export class BotLogic {
                     if (power3 >= 3) {
                         scored.push({
                             tile,
-                            score: 70 - (qicPenalty * 0.8),
+                            score: 70 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -999,7 +1060,7 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 3) {
                         scored.push({
                             tile,
-                            score: 69 - (qicPenalty * 0.8),
+                            score: 69 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -1018,7 +1079,7 @@ export class BotLogic {
                     if (power3 >= 5) {
                         scored.push({
                             tile,
-                            score: 60 - (qicPenalty * 0.8),
+                            score: 60 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -1026,7 +1087,7 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         scored.push({
                             tile,
-                            score: 59 - (qicPenalty * 0.8),
+                            score: 59 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -1047,7 +1108,7 @@ export class BotLogic {
                     if (!usedActions.includes(3)) {
                         scored.push({
                             tile,
-                            score: 65 - (qicPenalty * 0.8),
+                            score: 65 - (qicPenalty * 0.8) + bridgeheadBonus,
                             preAction: { type: 'use_ship_action', params: { shipTileId: tfMarsShip.id, actionIndex: 3 } },
                             action: { type: 'build_mine', params: { tileId: tile.id } }
                         });
@@ -1066,7 +1127,7 @@ export class BotLogic {
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
                 const stepPenalty = costPerStep >= 3 ? (remainingSteps * 20) : (remainingSteps * 10);
-                let score = tfScore - stepPenalty - (qicPenalty * 0.6);
+                let score = tfScore - stepPenalty - (qicPenalty * 0.6) + bridgeheadBonus;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
@@ -1076,6 +1137,11 @@ export class BotLogic {
                 score += earlyRushBonus;
                 score += expansionDesire;
                 score += overExpansionPenalty;
+
+                // [사용자 피드백] 1~2라운드에 단순히 4O 2C(4광석 2돈) 지불하며 직통 테라포밍 광산을 짓는 행위를 막음 (매우 강력한 패널티 적용)
+                if (game.roundNumber <= 2 && remainingSteps > 0 && costPerStep >= 3) {
+                    score -= 500;
+                }
 
                 if (score >= -50) { // 약간 효율이 떨어져도 무조건 짓게 유도
                     scored.push({
@@ -1159,8 +1225,9 @@ export class BotLogic {
             const neededQic = dist > range ? Math.ceil((dist - range) / 2) : 0;
 
             if (neededQic <= qic && neededQic <= 2) {
-                let score = 200 - neededQic * 40; // 가이아 프로젝트 시도 가치를 매우 높게 부여
-                if (isFreeProject) score += 100;
+                // [사용자 피드백] 가이아포머가 있는데 포밍을 안 하고 패스하는 현상 방지를 위해 포밍 점수를 극한으로 상향
+                let score = 350 - neededQic * 40;
+                if (isFreeProject) score += 200;
 
                 actions.push({
                     score,
@@ -1208,7 +1275,10 @@ export class BotLogic {
      */
     private static findBuildWithPendingSteps(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
-        if ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2) return null;
+        const isFree = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
+
+        // 무료 광산이 아니면 1o 2c가 필수. 무료면 자원 불필요.
+        if (!isFree && ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2)) return null;
         if (!player.faction) return null;
 
         const faction = FACTIONS.find(f => f.id === player.faction);
@@ -1247,6 +1317,11 @@ export class BotLogic {
                 // 가이아는 pendingSteps와 무관
                 continue;
             } else {
+                // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 새로운 행성 유형(모행성과 가이아 제외)에 테라포밍 및 확장하는 것을 절대 금지
+                if (player.faction === 'geodens') {
+                    const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (!hasPI) continue;
+                }
                 steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
             }
 
@@ -1892,7 +1967,8 @@ export class BotLogic {
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
                         }
                     } else if (i === 3) {
-                        score = 150; // +3 거리: 범위 확장은 언제나 유용
+                        // [사용자 피드백] 생으로 QIC 여러 개를 써서 멀리 가는 대신, 트왈라잇 1지식 3거리 부스터를 먼저 켜고 가도록 점수 극대화
+                        score = (player.knowledge || 0) >= 1 && !player.tempRangeBonus ? 350 : 50;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
@@ -1943,7 +2019,8 @@ export class BotLogic {
                         score = 130;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 6) {
-                        score = 300; // 소행성 광산: 추가 건물 = 파워/점수 (절대적 우선순위)
+                        // [사용자 피드백] 이클립스 소행성 파괴(6C) 광산 건설을 안 하고 패스하는 현상을 막기 위해 점수 극한 상향
+                        score = 450;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 3) {
                         score = 100;

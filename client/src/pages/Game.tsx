@@ -1140,7 +1140,7 @@ export default function Game() {
         const rangeTiles = game.map.filter(t => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId);
         const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map(t => getDistance(t, tile))) : 0;
         const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-        const freeMine = !!player.nextMineFreeFromShipTech;
+        const freeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
         let oreCost = freeMine ? 0 : 1;
         let credits = freeMine ? 0 : 2;
         let qicCost = neededQIC;
@@ -1171,7 +1171,7 @@ export default function Game() {
           }
         } else {
           if (tile.type === 'proto' && faction.homePlanet === 'proto') {
-            oreCost = 1;
+            oreCost = freeMine ? 0 : 1;
           } else if (tile.type === 'asteroid') {
             // 소행성은 가이아 포머만 사용 (비용 0, QIC만 필요 시 사용)
             oreCost = 0;
@@ -1187,7 +1187,9 @@ export default function Game() {
             const discountSteps = Math.min(pendingTerraformSteps, terraformSteps);
             const actualSteps = terraformSteps - discountSteps;
             const terraformCostPerStep = getTerraformCost(terraformingLevel);
-            const terraformOreCost = actualSteps * terraformCostPerStep;
+            // 광산 자체는 무료일 수 있으나 테라포밍 비용은 discountSteps 차감 후 남은 단계만큼 지불해야 함
+            // spaceshipFed3TfMineFree인 경우 서버 로직에서 비용을 0으로 처리하므로 클라이언트도 동일하게 맞춤
+            const terraformOreCost = player.spaceshipFed3TfMineFree ? 0 : actualSteps * terraformCostPerStep;
             oreCost += terraformOreCost;
             if (actualSteps > 0 && terraformingLevel < 3 && actualSteps > 1) {
               needsExtraTerraforming = true;
@@ -2644,7 +2646,7 @@ export default function Game() {
                     <Button
                       key={track.id}
                       variant="outline"
-                      className="bg-zinc-800 border-zinc-600"
+                      className="bg-zinc-800 border-zinc-600 hover:bg-zinc-700 text-zinc-100"
                       disabled={disabled}
                       onClick={() => GameClient.eclipseAdvanceTrack(gameId, track.id as ResearchTrack)}
                     >
@@ -2653,6 +2655,15 @@ export default function Game() {
                   );
                 })}
               </div>
+              <AlertDialogFooter>
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent border-zinc-600 hover:bg-zinc-800 text-zinc-300"
+                  onClick={() => GameClient.cancelEclipseResearch(gameId)}
+                >
+                  취소 (Cancel)
+                </Button>
+              </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
@@ -3858,7 +3869,20 @@ export default function Game() {
                 onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
                 onEndTurn={() => GameClient.endTurn(gameId!)}
                 onResetTurn={() => GameClient.resetTurn(gameId!)}
-                onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
+                onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
+                    const shipTile = game.map.find(t => t.id === shipTileId);
+                    if (actionIndex === 2 && targetTileId == null) {
+                      if (shipTile?.type === 'ship_twilight') {
+                        setPendingTwilightTSUpgrade(shipTileId);
+                        return;
+                      }
+                      if (shipTile?.type === 'ship_rebellion') {
+                        setPendingRebellionMineToTS(shipTileId);
+                        return;
+                      }
+                    }
+                    GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
+                }}
                 />
               </div>
             </div>

@@ -2403,6 +2403,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 			io.to(game.id).emit('game_updated', game);
 		});
 
+		// Eclipse 액션2 취소: 자원과 사용 횟수 롤백
+		socket.on('cancel_eclipse_research', ({ gameId }) => {
+			const game = games.get(gameId); if (!game) return;
+			if (game.currentPhase !== 'main') return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			const pending = game.pendingEclipseResearch;
+			if (!pending || pending.playerId !== playerId) return;
+
+			// 자원 롤백
+			const player = game.players[playerId];
+			player.knowledge = (player.knowledge || 0) + 2;
+			player.power3 = (player.power3 || 0) + 3;
+			player.power1 = Math.max(0, (player.power1 || 0) - 3);
+
+			// 사용된 액션 인덱스 롤백 (액션 인덱스 2번)
+			const shipState = game.spaceships?.[pending.shipTileId];
+			if (shipState && shipState.usedActionIndices) {
+				shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 2);
+				shipState.actionsUsed = shipState.usedActionIndices.length;
+			}
+
+			// 메인 액션 사용 취소
+			game.hasDoneMainAction = false;
+			game.pendingEclipseResearch = null;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		});
+
 		// Eclipse 액션2: 선택한 연구 트랙 1칸 진행 (비용은 이미 use_ship_action에서 차감됨)
 		socket.on('eclipse_advance_track', ({ gameId, trackId }) => {
 			const game = games.get(gameId); if (!game) return;
@@ -3146,6 +3173,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Bescods/매안: Special', `가장 낮은 트랙 +1 → ${trackId} Lv.${newLevel}`, undefined);
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research');
 			log(`Player ${player.name} (Bescods) advanced lowest track ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -3204,6 +3232,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research');
 			log(`Player ${player.name} (Firaks) downgraded Lab to TS and advanced ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -4088,6 +4117,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			}
 			applyTrackLevelBonus(game, playerId, player, selectedTrack, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research'); // 기술 타일 획득 시 전진에 따른 고급 기술 보너스 누락 해결
 		} else if (isRebellionGain && !selectedTrack) {
 			addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
 		}
@@ -4383,11 +4413,14 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	} else if (tile.type === 'gaia') {
 		const isGleens = player.faction === 'gleens';
 		if (isGleens) {
-			if ((player.ore ?? 0) < (standardMineOre + 1) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
-				debugLog(game, `executeBuildMine failed (Gleens Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre + 1}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
+			// Gleens pay 1 Ore instead of QIC for Gaia planets. Free mine makes standardMineOre = 0, but they still pay the 1 Ore Gaia cost unless the free mine fully covers it?
+			// Actually, "Free mine" means the *mine* is free, not the Gaia cost. Wait, standardMineOre is 0 if free. 0 + 1 = 1 Ore for Gleens.
+			const gleensGaiaCost = 1;
+			if ((player.ore ?? 0) < (standardMineOre + gleensGaiaCost) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
+				debugLog(game, `executeBuildMine failed (Gleens Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre + gleensGaiaCost}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
 				return false;
 			}
-			player.ore = (player.ore ?? 0) - (standardMineOre + 1);
+			player.ore = (player.ore ?? 0) - (standardMineOre + gleensGaiaCost);
 			player.credits = (player.credits ?? 0) - standardMineCredits;
 			player.qic = (player.qic ?? 0) - neededQIC;
 		} else {
@@ -4405,6 +4438,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		terraformSteps = getTerraformStepsForFaction(game, player.faction!, tile.type);
 		const discountSteps = Math.min(pendingTerraformSteps, terraformSteps);
 		const actualSteps = terraformSteps - discountSteps;
+		// spaceshipFed3TfMineFree의 경우 "3단계를 넘지 않는 한 무료"와 같은 룰인데, 일단 원래 코드 유지
 		terraformCost = player.spaceshipFed3TfMineFree ? 0 : actualSteps * getTerraformCost(player.research.terraforming);
 
 		if ((player.ore ?? 0) < (terraformCost + standardMineOre) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
@@ -4454,7 +4488,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		addGameLog(game, playerId, 'Gleens: Gaia building', '+2 VP', tileId);
 	}
 
-	const costDetails = `1O, 2C${neededQIC > 0 ? `, ${neededQIC}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
+	let totalQicLog = neededQIC;
+	if (tile.type === 'gaia' && player.faction !== 'gleens' && !player.pendingGaiaformerTiles?.includes(tileId)) {
+		// 가이아 행성 기본 비용 반영 (글린스는 광석 소모). 단, 가이아포머로 포밍한 경우는 비용 면제됨.
+		totalQicLog += getGaiaBaseQic(player.faction || '');
+	}
+	const costDetails = `1O, 2C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
 
 	applyRoundMissionScore(game, playerId, 'build_mine');
@@ -5373,6 +5412,8 @@ export function executeUsePowerAction(
 		}
 	} else {
 		player.qic = (player.qic ?? 0) - action.cost;
+		// QIC 파워 액션 사용 시 고급 기술 타일(qic_action) 보상 적용
+		applyAdvancedTechTileEffect(game, playerId, 'qic_action');
 	}
 
 	if (actionId === 'gain-3-knowledge') player.knowledge += 3;
@@ -5971,6 +6012,7 @@ export function executeBotSelectTechTile(
 			applyTrackLevelBonus(game, playerId, player, track, newLevel);
 			addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId}, ${track} → Lv.${newLevel}`);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research');
 			if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 			const tilesCast = tiles as (typeof tile | null)[];
 			const idx = tilesCast.indexOf(tile);
@@ -6003,6 +6045,7 @@ export function executeBotSelectTechTile(
 				applyTrackLevelBonus(game, playerId, player, track, newLevel);
 				addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId} from pool, ${track} → Lv.${newLevel}`);
 				applyRoundMissionScore(game, playerId, 'research_track');
+				applyAdvancedTechTileEffect(game, playerId, 'research');
 				if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 				(game.techTilesPool as (typeof poolTile | null)[])[pi] = null;
 				log(`Bot ${player.name} gained pool tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
