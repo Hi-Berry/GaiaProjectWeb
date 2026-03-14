@@ -1,0 +1,14 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+DATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+1:33:38 AM [socket.io] Game server initialized on same port
+1:33:38 AM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+1:33:38 AM [express]   로컬: http://localhost:5000
+1:33:38 AM [express]   같은 네트워크: http://192.168.0.2:5000
+1:33:38 AM [express] ----------------------------------------
+1:33:38 AM [express] serving on port 5000
+1:34:39 AM [socket.io] Player connected: L1HZbqdqx0_bco4YAAAB
