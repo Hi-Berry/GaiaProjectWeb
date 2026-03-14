@@ -4454,7 +4454,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		addGameLog(game, playerId, 'Gleens: Gaia building', '+2 VP', tileId);
 	}
 
-	const costDetails = `1O, 2C${neededQIC > 0 ? `, ${neededQIC}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
+	let totalQicLog = neededQIC;
+	if (tile.type === 'gaia' && player.faction !== 'gleens' && !player.pendingGaiaformerTiles?.includes(tileId)) {
+		// 가이아 행성 기본 비용 반영 (글린스는 광석 소모). 단, 가이아포머로 포밍한 경우는 비용 면제됨.
+		totalQicLog += getGaiaBaseQic(player.faction || '');
+	}
+	const costDetails = `1O, 2C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
 
 	applyRoundMissionScore(game, playerId, 'build_mine');
