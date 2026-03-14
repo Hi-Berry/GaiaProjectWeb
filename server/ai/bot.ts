@@ -1239,7 +1239,10 @@ export class BotLogic {
      */
     private static findBuildWithPendingSteps(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
-        if ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2) return null;
+        const isFree = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
+
+        // 무료 광산이 아니면 1o 2c가 필수. 무료면 자원 불필요.
+        if (!isFree && ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2)) return null;
         if (!player.faction) return null;
 
         const faction = FACTIONS.find(f => f.id === player.faction);

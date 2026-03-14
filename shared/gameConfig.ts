@@ -980,8 +980,10 @@ export function getNextRoundIncomePreview(
       for (let i = 1; i < labCount; i++) result.knowledge += 1;
     }
   }
-  const academyCount = structures.filter(t => t.structure === 'academy').length;
-  if (academyCount > 0) result.knowledge += STRUCTURE_INCOME.academy.left;
+  const leftAcademyCount = structures.filter(t => t.structure === 'academy' && t.academyType === 'left').length;
+  if (leftAcademyCount > 0) {
+    result.knowledge += STRUCTURE_INCOME.academy.left * leftAcademyCount; // 보통 1개지만 확장성 고려
+  }
 
   const econLevel = player.research?.economy ?? 0;
   if (econLevel < 5) {

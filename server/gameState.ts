@@ -4383,11 +4383,14 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	} else if (tile.type === 'gaia') {
 		const isGleens = player.faction === 'gleens';
 		if (isGleens) {
-			if ((player.ore ?? 0) < (standardMineOre + 1) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
-				debugLog(game, `executeBuildMine failed (Gleens Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre + 1}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
+			// Gleens pay 1 Ore instead of QIC for Gaia planets. Free mine makes standardMineOre = 0, but they still pay the 1 Ore Gaia cost unless the free mine fully covers it?
+			// Actually, "Free mine" means the *mine* is free, not the Gaia cost. Wait, standardMineOre is 0 if free. 0 + 1 = 1 Ore for Gleens.
+			const gleensGaiaCost = 1;
+			if ((player.ore ?? 0) < (standardMineOre + gleensGaiaCost) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
+				debugLog(game, `executeBuildMine failed (Gleens Gaia Planet): Insufficient resources (Ore: ${player.ore}/${standardMineOre + gleensGaiaCost}, Credits: ${player.credits}/${standardMineCredits}, QIC: ${player.qic}/${neededQIC})`, 'error');
 				return false;
 			}
-			player.ore = (player.ore ?? 0) - (standardMineOre + 1);
+			player.ore = (player.ore ?? 0) - (standardMineOre + gleensGaiaCost);
 			player.credits = (player.credits ?? 0) - standardMineCredits;
 			player.qic = (player.qic ?? 0) - neededQIC;
 		} else {
@@ -4405,6 +4408,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		terraformSteps = getTerraformStepsForFaction(game, player.faction!, tile.type);
 		const discountSteps = Math.min(pendingTerraformSteps, terraformSteps);
 		const actualSteps = terraformSteps - discountSteps;
+		// spaceshipFed3TfMineFree의 경우 "3단계를 넘지 않는 한 무료"와 같은 룰인데, 일단 원래 코드 유지
 		terraformCost = player.spaceshipFed3TfMineFree ? 0 : actualSteps * getTerraformCost(player.research.terraforming);
 
 		if ((player.ore ?? 0) < (terraformCost + standardMineOre) || (player.credits ?? 0) < standardMineCredits || (player.qic ?? 0) < neededQIC) {
