@@ -49,7 +49,8 @@ import {
     TechTile,
     SHIP_TECH_TILES,
     isPlanetHex,
-    FEDERATION_12VP_ID
+    FEDERATION_12VP_ID,
+    getGaiaBaseQic
 } from '@shared/gameConfig';
 
 type BotAction = {
