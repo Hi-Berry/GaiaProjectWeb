@@ -963,6 +963,14 @@ export class BotLogic {
             const steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
             if (steps <= 0) continue;
 
+            // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 새로운 행성 유형(모행성과 가이아 제외)에 테라포밍 및 확장하는 것을 절대 금지
+            if (player.faction === 'geodens') {
+                const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                if (!hasPI) {
+                    continue; // PI가 없으면 타종 행성은 짓지 않음
+                }
+            }
+
             // pendingTerraformSteps로 커버 가능한 경우
             const coveredByPending = Math.min(pendingSteps, steps);
             const remainingSteps = steps - coveredByPending;
@@ -1078,6 +1086,11 @@ export class BotLogic {
                 score += earlyRushBonus;
                 score += expansionDesire;
                 score += overExpansionPenalty;
+
+                // [사용자 피드백] 1~2라운드에 단순히 4O 2C(4광석 2돈) 지불하며 직통 테라포밍 광산을 짓는 행위를 막음 (매우 강력한 패널티 적용)
+                if (game.roundNumber <= 2 && remainingSteps > 0 && costPerStep >= 3) {
+                    score -= 500;
+                }
 
                 if (score >= -50) { // 약간 효율이 떨어져도 무조건 짓게 유도
                     scored.push({
@@ -1249,6 +1262,11 @@ export class BotLogic {
                 // 가이아는 pendingSteps와 무관
                 continue;
             } else {
+                // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 새로운 행성 유형(모행성과 가이아 제외)에 테라포밍 및 확장하는 것을 절대 금지
+                if (player.faction === 'geodens') {
+                    const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (!hasPI) continue;
+                }
                 steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
             }
 
