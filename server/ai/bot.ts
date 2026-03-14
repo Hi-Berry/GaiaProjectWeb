@@ -497,7 +497,14 @@ export class BotLogic {
         if (player.bonusTile && !player.usedBonusAction) {
             const bonusTileObj = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
             if (bonusTileObj?.specialAction) {
-                candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
+                // 사거리 +3 액션은 꿀단지 확장에 매우 유리하므로 최우선으로 쓰도록 강제
+                if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
+                    candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
+                    // MCTS가 무조건 이 액션을 1순위로 평가하게 하도록 다른 일반 액션들 사이에서 우선권 부여
+                    // 이 액션만 단독으로 리턴해서 강제 실행하게 만들 수도 있지만, 보수적으로 후보에 추가만 함
+                } else {
+                    candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
+                }
             }
         }
 
@@ -523,7 +530,8 @@ export class BotLogic {
             const mustDoActions = candidates.filter(c =>
                 (c.type === 'place_gaiaformer') ||
                 (c.type === 'use_ship_action' && c.params?.actionIndex === 3 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_eclipse') ||
-                (c.type === 'use_ship_action' && c.params?.actionIndex === 1 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_rebellion')
+                (c.type === 'use_ship_action' && c.params?.actionIndex === 1 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_rebellion') ||
+                (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3')
             );
 
             if ((player.knowledge ?? 0) >= 4) {
@@ -929,6 +937,12 @@ export class BotLogic {
                     } else if (range === 1) {
                         qicPenalty += 80;
                     }
+                }
+
+                // [사용자 피드백] 초반(1~3라운드)에 귀한 QIC를 낭비해서 짓는 행위를 억제.
+                // 대신 연구소 업그레이드를 통해 항해술(Nav) 기술을 먼저 올린 뒤(0 QIC로) 짓게끔 페널티를 부과. (꿀단지는 예외)
+                if (game.roundNumber <= 3 && clusterValue < 2) {
+                    qicPenalty += 70 * neededQicForRange;
                 }
             }
 
@@ -1953,7 +1967,8 @@ export class BotLogic {
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
                         }
                     } else if (i === 3) {
-                        score = 150; // +3 거리: 범위 확장은 언제나 유용
+                        // [사용자 피드백] 생으로 QIC 여러 개를 써서 멀리 가는 대신, 트왈라잇 1지식 3거리 부스터를 먼저 켜고 가도록 점수 극대화
+                        score = (player.knowledge || 0) >= 1 && !player.tempRangeBonus ? 350 : 50;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
