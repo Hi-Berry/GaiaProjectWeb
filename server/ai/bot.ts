@@ -902,9 +902,10 @@ export class BotLogic {
             if (neededQicForRange > qic) continue;
 
             if (tile.type === 'gaia') {
-                // 가이아 행성: 1 QIC 추가 (Gleens: 1 Ore 추가)
+                // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
                 const isGleens = player.faction === 'gleens';
-                const totalQicNeeded = isGleens ? neededQicForRange : neededQicForRange + 1;
+                const gaiaBaseQic = getGaiaBaseQic(player.faction || '');
+                const totalQicNeeded = isGleens ? neededQicForRange : neededQicForRange + gaiaBaseQic;
                 if (isGleens) {
                     if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
                     if (totalQicNeeded > qic) continue;
