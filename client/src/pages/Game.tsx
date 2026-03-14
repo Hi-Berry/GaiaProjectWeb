@@ -3169,7 +3169,7 @@ export default function Game() {
                             </div>
 
                             {/* Buildings */}
-                            <div className="pb-1 md:pb-2 text-[8px] md:text-[10px] text-zinc-400 font-mono tracking-tighter md:tracking-normal">
+                            <div className="flex justify-between items-baseline mb-0.5 md:mb-1 text-[10px] md:text-xs text-zinc-500 font-mono tracking-tighter md:tracking-normal w-full">
                               M<span className="text-amber-300/90">{counts.mineCount}</span>/{BUILDING_LIMITS.mine}
                               <span className="mx-0.5 md:mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
                               <span className="mx-0.5 md:mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
@@ -3208,79 +3208,82 @@ export default function Game() {
                               </div>
 
                               {/* Right: Gaiaformer & Power */}
-                              <div className="flex flex-col gap-1 w-1/2 justify-center pl-1 border-l border-white/10">
-                                {/* Gaiaformers Row */}
-                                <div className="flex gap-1.5 items-center" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
-                                  {(() => {
-                                    const gpLevel = p.research?.gaiaProject ?? 0;
-                                    const totalGF = gpLevel >= 4 ? 3 : gpLevel >= 3 ? 2 : gpLevel >= 1 ? 1 : 0;
-                                    const availableGF = p.gaiaformers ?? 0;
-                                    const destroyedGF = p.destroyedGaiaformers ?? 0;
-                                    const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
+                              <div className="flex flex-col gap-1 w-1/2 justify-center pl-2 border-l border-white/10">
+                                {/* Gaiaformers Row & Power Income */}
+                                <div className="flex justify-between items-center w-full" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
+                                  <div className="flex gap-1.5 items-center">
+                                    {(() => {
+                                      const gpLevel = p.research?.gaiaProject ?? 0;
+                                      const totalGF = gpLevel >= 4 ? 3 : gpLevel >= 3 ? 2 : gpLevel >= 1 ? 1 : 0;
+                                      const availableGF = p.gaiaformers ?? 0;
+                                      const destroyedGF = p.destroyedGaiaformers ?? 0;
+                                      const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
 
-                                    if (totalGF === 0) return <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter leading-none">No GF</span>;
+                                      if (totalGF === 0) return <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter leading-none">No GF</span>;
 
-                                    const dots = [];
-                                    // 1. Destroyed (Red)
-                                    for (let i = 0; i < destroyedGF; i++) {
-                                      dots.push(<div key={`d-${i}`} className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.4)]" />);
-                                    }
-                                    // 2. Available (Glow)
-                                    for (let i = 0; i < availableGF; i++) {
-                                      dots.push(<div key={`a-${i}`} className="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
-                                    }
-                                    // 3. On Map (Purple)
-                                    for (let i = 0; i < onMapGF; i++) {
-                                      dots.push(<div key={`m-${i}`} className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_3px_rgba(168,85,247,0.4)] transition-colors" />);
-                                    }
+                                      const dots = [];
+                                      // 1. Destroyed (Red)
+                                      for (let i = 0; i < destroyedGF; i++) {
+                                        dots.push(<div key={`d-${i}`} className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.4)]" />);
+                                      }
+                                      // 2. Available (Glow)
+                                      for (let i = 0; i < availableGF; i++) {
+                                        dots.push(<div key={`a-${i}`} className="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
+                                      }
+                                      // 3. On Map (Purple)
+                                      for (let i = 0; i < onMapGF; i++) {
+                                        dots.push(<div key={`m-${i}`} className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_3px_rgba(168,85,247,0.4)] transition-colors" />);
+                                      }
 
-                                    return dots.slice(0, totalGF);
-                                  })()}
+                                      return dots.slice(0, totalGF);
+                                    })()}
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {inc.powerTokens > 0 && (
+                                      <span className="text-[10px] md:text-xs text-zinc-400 font-bold">+{inc.powerTokens}Tok</span>
+                                    )}
+                                    {inc.powerCharge > 0 && (
+                                      <span className="flex items-center text-[10px] md:text-xs text-zinc-400 font-bold">
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="mr-0.5">
+                                          <path d="M3 12a9 9 0 0 1 18 0" />
+                                          <path d="M21 12l-4-4M21 12l-4 4" />
+                                        </svg>
+                                        {inc.powerCharge}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {/* Power Row */}
-                                <div className="flex bg-black/40 rounded px-1.5 py-0.5 border border-white/10 items-center justify-between w-full" title="가이아 구역 | 1, 2, 3그릇 파워">
-                                  <div className="flex gap-2 items-center">
-                                    <span className="text-emerald-400 font-bold text-xs leading-none">{p.gaiaformerPower ?? 0}</span>
-                                    <div className="w-[1px] h-3.5 bg-white/20 shrink-0" />
-                                    <div className="flex gap-1.5 items-center">
+                                <div className="flex bg-black/40 rounded px-2 py-1 border border-white/10 items-center justify-between w-full mt-0.5" title="가이아 구역 | 1, 2, 3그릇 파워">
+                                  <div className="flex gap-2.5 items-center w-full justify-between">
+                                    <span className="text-emerald-400 font-black text-sm md:text-base leading-none">{p.gaiaformerPower ?? 0}</span>
+                                    <div className="w-[1px] h-4 bg-white/20 shrink-0" />
+                                    <div className="flex gap-2.5 items-center justify-between w-full">
                                       <span className="flex items-center gap-0.5">
-                                        <span className="text-blue-400 font-bold text-xs leading-none">{p.power1 ?? 0}</span>
+                                        <span className="text-blue-400 font-black text-sm md:text-base leading-none">{p.power1 ?? 0}</span>
                                         {p.faction === 'taklons' && (p as any).brainStoneBowl === 1 && !(p as any).brainStoneInGaia && (
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
                                       <span className="flex items-center gap-0.5">
-                                        <span className="text-cyan-400 font-bold text-xs leading-none">{p.power2 ?? 0}</span>
+                                        <span className="text-cyan-400 font-black text-sm md:text-base leading-none">{p.power2 ?? 0}</span>
                                         {p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia && (
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
                                       <span className="flex items-center gap-0.5">
-                                        <span className="text-amber-400 font-bold text-xs leading-none">{p.power3 ?? 0}</span>
+                                        <span className="text-amber-400 font-black text-sm md:text-base leading-none">{p.power3 ?? 0}</span>
                                         {p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia && (
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
                                       {p.faction === 'taklons' && (p as any).brainStoneInGaia && (
-                                        <span className="text-emerald-400 text-[10px] font-bold" title="브레인스톤: 가이아 구역">🧠G</span>
+                                        <span className="text-emerald-400 text-[10px] font-bold ml-1" title="브레인스톤: 가이아 구역">🧠G</span>
                                       )}
                                     </div>
                                   </div>
-                                </div>
-                                <div className="flex items-center justify-start gap-1">
-                                  {inc.powerTokens > 0 && (
-                                    <span className="text-[10px] text-zinc-400 font-bold">+{inc.powerTokens}Tok</span>
-                                  )}
-                                  {inc.powerCharge > 0 && (
-                                    <span className="flex items-center text-[10px] text-zinc-400 font-bold">
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="mr-0.5">
-                                        <path d="M3 12a9 9 0 0 1 18 0" />
-                                        <path d="M21 12l-4-4M21 12l-4 4" />
-                                      </svg>
-                                      {inc.powerCharge}
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </div>

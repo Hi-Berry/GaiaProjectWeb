@@ -12,3 +12,6 @@ Seeding player...
 1:33:38 AM [express] ----------------------------------------
 1:33:38 AM [express] serving on port 5000
 1:34:39 AM [socket.io] Player connected: L1HZbqdqx0_bco4YAAAB
+1:45:05 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:45:33 AM [vite] (client) hmr update /src/pages/Game.tsx, /src/index.css
+1:46:03 AM [socket.io] Player connected: CIOMP6umBWpuAX0wAAAD
