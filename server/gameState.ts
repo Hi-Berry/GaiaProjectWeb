@@ -2403,6 +2403,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 			io.to(game.id).emit('game_updated', game);
 		});
 
+		// Eclipse 액션2 취소: 자원과 사용 횟수 롤백
+		socket.on('cancel_eclipse_research', ({ gameId }) => {
+			const game = games.get(gameId); if (!game) return;
+			if (game.currentPhase !== 'main') return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			const pending = game.pendingEclipseResearch;
+			if (!pending || pending.playerId !== playerId) return;
+
+			// 자원 롤백
+			const player = game.players[playerId];
+			player.knowledge = (player.knowledge || 0) + 2;
+			player.power3 = (player.power3 || 0) + 3;
+			player.power1 = Math.max(0, (player.power1 || 0) - 3);
+
+			// 사용된 액션 인덱스 롤백 (액션 인덱스 2번)
+			const shipState = game.spaceships?.[pending.shipTileId];
+			if (shipState && shipState.usedActionIndices) {
+				shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 2);
+				shipState.actionsUsed = shipState.usedActionIndices.length;
+			}
+
+			// 메인 액션 사용 취소
+			game.hasDoneMainAction = false;
+			game.pendingEclipseResearch = null;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		});
+
 		// Eclipse 액션2: 선택한 연구 트랙 1칸 진행 (비용은 이미 use_ship_action에서 차감됨)
 		socket.on('eclipse_advance_track', ({ gameId, trackId }) => {
 			const game = games.get(gameId); if (!game) return;

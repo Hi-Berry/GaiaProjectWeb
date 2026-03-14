@@ -2646,7 +2646,7 @@ export default function Game() {
                     <Button
                       key={track.id}
                       variant="outline"
-                      className="bg-zinc-800 border-zinc-600"
+                      className="bg-zinc-800 border-zinc-600 hover:bg-zinc-700 text-zinc-100"
                       disabled={disabled}
                       onClick={() => GameClient.eclipseAdvanceTrack(gameId, track.id as ResearchTrack)}
                     >
@@ -2655,6 +2655,15 @@ export default function Game() {
                   );
                 })}
               </div>
+              <AlertDialogFooter>
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent border-zinc-600 hover:bg-zinc-800 text-zinc-300"
+                  onClick={() => GameClient.cancelEclipseResearch(gameId)}
+                >
+                  취소 (Cancel)
+                </Button>
+              </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
@@ -3860,7 +3869,20 @@ export default function Game() {
                 onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
                 onEndTurn={() => GameClient.endTurn(gameId!)}
                 onResetTurn={() => GameClient.resetTurn(gameId!)}
-                onUseShipAction={(shipId, idx, target) => GameClient.useShipAction(gameId!, shipId, idx, target)}
+                onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
+                    const shipTile = game.map.find(t => t.id === shipTileId);
+                    if (actionIndex === 2 && targetTileId == null) {
+                      if (shipTile?.type === 'ship_twilight') {
+                        setPendingTwilightTSUpgrade(shipTileId);
+                        return;
+                      }
+                      if (shipTile?.type === 'ship_rebellion') {
+                        setPendingRebellionMineToTS(shipTileId);
+                        return;
+                      }
+                    }
+                    GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
+                }}
                 />
               </div>
             </div>

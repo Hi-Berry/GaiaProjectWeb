@@ -387,6 +387,11 @@ export const GameClient = {
     s.emit('skip_tfmars_gaia_project', { gameId });
   },
 
+  cancelEclipseResearch(gameId: string) {
+    const s = getSocket();
+    s.emit('cancel_eclipse_research', { gameId });
+  },
+
   eclipseAdvanceTrack(gameId: string, trackId: ResearchTrack) {
     const s = getSocket();
     s.emit('eclipse_advance_track', { gameId, trackId });
