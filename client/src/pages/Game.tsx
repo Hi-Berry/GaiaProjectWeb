@@ -385,40 +385,42 @@ export default function Game() {
     shipTech2TfMineFromMini,
   ]);
 
-  // 한 컴퓨터 4인플: 방장일 경우 현재 턴 플레이어로 자동 전환 (로컬 멀티플레이용)
-  // 로비/종족선택/시작광산 단계에서는 자동 전환 안 함 → 방장이 봇을 골라 종족·턴 지정할 수 있게
+  // 방장일 경우 현재 턴 플레이어(봇)로 자동 전환하는 기능이 있었으나,
+  // 온라인 멀티플레이 시 다른 사람의 턴일 때 방장 화면이 강제로 바뀌는 문제가 있어 제거/주석 처리.
+  // 로컬 멀티플레이를 지원하려면 봇 턴일 때만 봇으로 전환되거나 별도의 '로컬 모드' 플래그가 필요합니다.
   useEffect(() => {
     if (!gameId || !game || !isHostSessionRef.current) return;
     const phase = game.currentPhase;
     if (phase === 'lobby' || phase === 'factionSelect' || phase === 'startingMines') return;
 
-    // 수익 선택 대기 중인 플레이어가 인간이면 그 플레이어로 포커스 → 호스트가 수익 선택할 수 있게
-    const pendingIncome = game.pendingIncomeOrder;
-    if (pendingIncome && !game.botPlayerIds?.includes(pendingIncome.playerId)) {
-      if (pendingIncome.playerId !== playerId) {
-        setPlayerId(pendingIncome.playerId);
-        storePlayerId(gameId, pendingIncome.playerId);
-      }
-      return;
-    }
+    // // 수익 선택 대기 중인 플레이어가 봇이면 포커스 이동 (사람일 때는 이동 안 함)
+    // const pendingIncome = game.pendingIncomeOrder;
+    // if (pendingIncome && game.botPlayerIds?.includes(pendingIncome.playerId)) {
+    //   if (pendingIncome.playerId !== playerId) {
+    //     setPlayerId(pendingIncome.playerId);
+    //     storePlayerId(gameId, pendingIncome.playerId);
+    //   }
+    //   return;
+    // }
 
-    const currentActivePlayerId = game.turnOrder[game.currentPlayerIndex];
-    if (currentActivePlayerId && currentActivePlayerId !== playerId) {
-      if (game.currentPhase === 'bonusSelection' && game.pendingBonusSelection) {
-        // 보너스 선택 대기 중인 플레이어가 봇이면 자동 전환 안 함
-        const isBot = game.botPlayerIds?.includes(game.pendingBonusSelection);
-        if (game.pendingBonusSelection !== playerId && !isBot) {
-          setPlayerId(game.pendingBonusSelection);
-          storePlayerId(gameId, game.pendingBonusSelection);
-        }
-        return;
-      }
+    // const currentActivePlayerId = game.turnOrder[game.currentPlayerIndex];
+    // if (currentActivePlayerId && currentActivePlayerId !== playerId) {
+    //   if (game.currentPhase === 'bonusSelection' && game.pendingBonusSelection) {
+    //     const isBot = game.botPlayerIds?.includes(game.pendingBonusSelection);
+    //     // 봇의 차례일 때 방장이 대신 턴을 할 수 있게 봇으로만 전환
+    //     if (isBot && game.pendingBonusSelection !== playerId) {
+    //       setPlayerId(game.pendingBonusSelection);
+    //       storePlayerId(gameId, game.pendingBonusSelection);
+    //     }
+    //     return;
+    //   }
 
-      if (!game.botPlayerIds?.includes(currentActivePlayerId)) {
-        setPlayerId(currentActivePlayerId);
-        storePlayerId(gameId, currentActivePlayerId);
-      }
-    }
+    //   // 봇 턴일 때만 자동 전환
+    //   if (game.botPlayerIds?.includes(currentActivePlayerId)) {
+    //     setPlayerId(currentActivePlayerId);
+    //     storePlayerId(gameId, currentActivePlayerId);
+    //   }
+    // }
   }, [gameId, game?.turnOrder, game?.currentPlayerIndex, game?.currentPhase, game?.pendingBonusSelection, game?.pendingIncomeOrder?.playerId, game?.botPlayerIds, playerId]);
 
   useEffect(() => {
@@ -489,7 +491,7 @@ export default function Game() {
     if (activePlayerId !== lastActivePlayerRef.current || isMyTurn !== lastWasMyTurnRef.current) {
       if (isMyTurn && !lastWasMyTurnRef.current) {
         playMyTurnSound();
-      } else if (activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
+      } else if (!isMyTurn && activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
         playOtherTurnSound();
       }
       lastActivePlayerRef.current = activePlayerId;
@@ -502,7 +504,7 @@ export default function Game() {
     if (pendingBonus !== lastPendingBonusSelectionRef.current || isMyBonus !== lastWasMyBonusRef.current) {
       if (isMyBonus && !lastWasMyBonusRef.current) {
         playMyTurnSound();
-      } else if (pendingBonus && pendingBonus !== lastPendingBonusSelectionRef.current) {
+      } else if (!isMyBonus && pendingBonus && pendingBonus !== lastPendingBonusSelectionRef.current) {
         playOtherTurnSound();
       }
       lastPendingBonusSelectionRef.current = pendingBonus || null;
@@ -515,7 +517,7 @@ export default function Game() {
     if (pendingTechPlayer !== lastPendingTechSelectionRef.current || isMyTech !== lastWasMyTechRef.current) {
       if (isMyTech && !lastWasMyTechRef.current) {
         playMyTurnSound();
-      } else if (pendingTechPlayer && pendingTechPlayer !== lastPendingTechSelectionRef.current) {
+      } else if (!isMyTech && pendingTechPlayer && pendingTechPlayer !== lastPendingTechSelectionRef.current) {
         playOtherTurnSound();
       }
       lastPendingTechSelectionRef.current = pendingTechPlayer || null;
@@ -1798,7 +1800,7 @@ export default function Game() {
                       game={game}
                       playerId={playerId}
                       isSelectionMode={isMyTurnBonusSelection}
-                      onSelectBonusTile={(tileId) => GameClient.selectBonusTile(gameId!, tileId)}
+                      onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
                     />
                   </div>
                 </div>
@@ -1838,13 +1840,13 @@ export default function Game() {
                 <BonusTiles
                   game={game}
                   playerId={playerId}
-                  onSelectBonusTile={(tileId) => {
+                  onSelectBonusTile={isMyTurn ? ((tileId) => {
                     if (game.roundNumber === 6) {
                       setConfirmPassWithTileId('dummy');
                     } else {
                       setConfirmPassWithTileId(tileId);
                     }
-                  }}
+                  }) : undefined}
                   onUseBonusAction={() => {
                     const player = game.players[playerId!];
                     if (player.usedBonusAction) return;
@@ -3748,7 +3750,7 @@ export default function Game() {
               )}
 
               {/* Reset/End Turn (Integrated inside bar) */}
-              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"
@@ -3895,13 +3897,13 @@ export default function Game() {
                   game={game}
                   playerId={playerId}
                   isMini={true}
-                  onSelectBonusTile={(id) => {
+                  onSelectBonusTile={isMyTurn ? ((id) => {
                     if (game.roundNumber === 6) {
                       setConfirmPassWithTileId('dummy');
                     } else {
                       setConfirmPassWithTileId(id);
                     }
-                  }}
+                  }) : undefined}
                   onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
                 />
               </div>
