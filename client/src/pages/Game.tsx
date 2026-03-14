@@ -3183,33 +3183,33 @@ export default function Game() {
                               <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-1/2 tabular-nums">
                                 {/* O: Ore */}
                                 <div className="flex items-baseline justify-start">
-                                  <span className="text-zinc-300 w-3 text-xs md:text-sm font-bold shrink-0">O</span>
-                                  <span style={{ color: '#f5f5f0' }} className="font-black text-sm md:text-base w-4 md:w-5 text-right shrink-0">{p.ore ?? 0}</span>
-                                  <span className="text-[9px] md:text-[10px] text-zinc-400 font-medium ml-1 w-6 md:w-7 text-left shrink-0">
+                                  <span className="text-zinc-300 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">O</span>
+                                  <span style={{ color: '#f5f5f0' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.ore ?? 0}</span>
+                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
                                     {inc.ore > 0 ? `(+${inc.ore})` : ''}
                                   </span>
                                 </div>
                                 {/* C: Credits */}
                                 <div className="flex items-baseline justify-start">
-                                  <span className="text-yellow-400 w-3 text-xs md:text-sm font-bold shrink-0">C</span>
-                                  <span style={{ color: '#FFE74C' }} className="font-black text-sm md:text-base w-4 md:w-5 text-right shrink-0">{p.credits ?? 0}</span>
-                                  <span className="text-[9px] md:text-[10px] text-zinc-400 font-medium ml-1 w-6 md:w-7 text-left shrink-0">
+                                  <span className="text-yellow-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">C</span>
+                                  <span style={{ color: '#FFE74C' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.credits ?? 0}</span>
+                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
                                     {inc.credits > 0 ? `(+${inc.credits})` : ''}
                                   </span>
                                 </div>
                                 {/* K: Knowledge */}
                                 <div className="flex items-baseline justify-start">
-                                  <span className="text-blue-400 w-3 text-xs md:text-sm font-bold shrink-0">K</span>
-                                  <span style={{ color: '#2E5EAA' }} className="font-black text-sm md:text-base w-4 md:w-5 text-right shrink-0">{p.knowledge ?? 0}</span>
-                                  <span className="text-[9px] md:text-[10px] text-zinc-400 font-medium ml-1 w-6 md:w-7 text-left shrink-0">
+                                  <span className="text-blue-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">K</span>
+                                  <span style={{ color: '#2E5EAA' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.knowledge ?? 0}</span>
+                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
                                     {inc.knowledge > 0 ? `(+${inc.knowledge})` : ''}
                                   </span>
                                 </div>
                                 {/* Q: QIC */}
                                 <div className="flex items-baseline justify-start">
-                                  <span className="text-green-400 w-3 text-xs md:text-sm font-bold shrink-0">Q</span>
-                                  <span style={{ color: '#38B000' }} className="font-black text-sm md:text-base w-4 md:w-5 text-right shrink-0">{p.qic ?? 0}</span>
-                                  <span className="text-[9px] md:text-[10px] text-zinc-400 font-medium ml-1 w-6 md:w-7 text-left shrink-0">
+                                  <span className="text-green-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">Q</span>
+                                  <span style={{ color: '#38B000' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.qic ?? 0}</span>
+                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
                                     {inc.qic > 0 ? `(+${inc.qic})` : ''}
                                   </span>
                                 </div>
