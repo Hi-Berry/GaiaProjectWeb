@@ -3146,6 +3146,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Bescods/매안: Special', `가장 낮은 트랙 +1 → ${trackId} Lv.${newLevel}`, undefined);
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research');
 			log(`Player ${player.name} (Bescods) advanced lowest track ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -3204,6 +3205,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research');
 			log(`Player ${player.name} (Firaks) downgraded Lab to TS and advanced ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -4088,6 +4090,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			}
 			applyTrackLevelBonus(game, playerId, player, selectedTrack, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research'); // 기술 타일 획득 시 전진에 따른 고급 기술 보너스 누락 해결
 		} else if (isRebellionGain && !selectedTrack) {
 			addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
 		}
@@ -5382,6 +5385,8 @@ export function executeUsePowerAction(
 		}
 	} else {
 		player.qic = (player.qic ?? 0) - action.cost;
+		// QIC 파워 액션 사용 시 고급 기술 타일(qic_action) 보상 적용
+		applyAdvancedTechTileEffect(game, playerId, 'qic_action');
 	}
 
 	if (actionId === 'gain-3-knowledge') player.knowledge += 3;
@@ -5980,6 +5985,7 @@ export function executeBotSelectTechTile(
 			applyTrackLevelBonus(game, playerId, player, track, newLevel);
 			addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId}, ${track} → Lv.${newLevel}`);
 			applyRoundMissionScore(game, playerId, 'research_track');
+			applyAdvancedTechTileEffect(game, playerId, 'research');
 			if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 			const tilesCast = tiles as (typeof tile | null)[];
 			const idx = tilesCast.indexOf(tile);
@@ -6012,6 +6018,7 @@ export function executeBotSelectTechTile(
 				applyTrackLevelBonus(game, playerId, player, track, newLevel);
 				addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId} from pool, ${track} → Lv.${newLevel}`);
 				applyRoundMissionScore(game, playerId, 'research_track');
+				applyAdvancedTechTileEffect(game, playerId, 'research');
 				if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 				(game.techTilesPool as (typeof poolTile | null)[])[pi] = null;
 				log(`Bot ${player.name} gained pool tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
