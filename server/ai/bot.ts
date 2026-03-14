@@ -569,7 +569,8 @@ export class BotLogic {
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
 
         /** 연방에 이미 속한 타일 업그레이드는 다음 연방에 불리하므로 감점 */
-        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 70 : 0;
+        // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 다음 연방 구성이 느려지므로 패널티를 70에서 300으로 대폭 상향하여 원천 차단
+        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 300 : 0;
 
         // 1. Mines -> Trading Stations
         if (ore >= 2 && credits >= 3) {
