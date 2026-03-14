@@ -496,6 +496,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const isInShip = playerId && ship.occupants.includes(playerId);
                                         const usedIndices = ship.usedActionIndices ?? [];
                                         const shipFedId = game.spaceshipFederationByShip?.[tile.type];
+                                        const shipFedTaken = shipFedId && Object.values(game.players).some((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId));
                                         const rewardIndex = shipFedId != null ? SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId) : -1;
                                         const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
                                         const techId = game.shipTechByShip?.[tile.type] ?? SHIP_TECH_BY_SHIP[tile.type];
@@ -529,7 +530,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 <div className="flex items-center justify-center gap-1 py-1 flex-grow">
                                                     {/* Federation Reward (Reduced to 80%) */}
                                                     <div className="w-[35px] h-[35px] shrink-0 flex items-center justify-center">
-                                                        {imgUrl ? (
+                                                        {shipFedTaken ? (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <span className="text-[7px] text-zinc-500 italic">Taken</span>
+                                                            </div>
+                                                        ) : imgUrl ? (
                                                             <img src={imgUrl} alt="Fed" className="w-full h-full object-contain" />
                                                         ) : (
                                                             <div className="w-full h-full rounded bg-black/40 border border-white/5" />
