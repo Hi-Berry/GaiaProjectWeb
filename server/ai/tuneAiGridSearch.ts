@@ -198,7 +198,7 @@ async function main() {
   const results: { name: string; avgWinner: number; failures: number; weights: EvaluatorWeights }[] = [];
 
   for (const preset of GRID_PRESETS) {
-    const merged: EvaluatorWeights = { ...base, ...preset.weights };
+    const merged: EvaluatorWeights = { ...base, ...(preset.weights as EvaluatorWeights) };
     process.stdout.write(`[tune-ai:grid] Evaluating "${preset.name}" ... `);
     const res = await evalCandidate(socket, merged, GAMES_PER_CANDIDATE);
     results.push({

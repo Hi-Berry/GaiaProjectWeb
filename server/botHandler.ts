@@ -281,7 +281,7 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     }
 
     log(`Bot ${player.name} executing: ${action.type}`, 'game');
-    const preActions = (action as any).preActions as { type: string; params: any }[] | undefined;
+    const preActions = (action as any).preActions as any[] | undefined;
     let preOk = true;
     if (preActions?.length) {
         for (const pre of preActions) {

@@ -761,19 +761,19 @@ export default function Game() {
                             </div>
                             {roundMissionsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Round Missions (합계)</span>
+                                <span className="text-xs font-bold text-zinc-400">Round Missions</span>
                                 <span className="text-sm font-black text-amber-400/90">+{roundMissionsSum} VP</span>
                               </div>
                             )}
                             {bonusTilePassSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Bonus Tile Pass (합계)</span>
+                                <span className="text-xs font-bold text-zinc-400">Bonus Tile Pass</span>
                                 <span className="text-sm font-black text-yellow-400/90">+{bonusTilePassSum} VP</span>
                               </div>
                             )}
                             {techTilesSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Tech Tiles (합계)</span>
+                                <span className="text-xs font-bold text-zinc-400">Tech Tiles</span>
                                 <span className="text-sm font-black text-purple-400/90">+{techTilesSum} VP</span>
                               </div>
                             )}
@@ -797,15 +797,19 @@ export default function Game() {
                             )}
                             {spaceshipsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Spaceships (합계)</span>
+                                <span className="text-xs font-bold text-zinc-400">Spaceships</span>
                                 <span className="text-sm font-black text-cyan-400/90">+{spaceshipsSum} VP</span>
                               </div>
                             )}
                             {(() => {
                               const grouped = b.other.reduce((acc, curr) => {
-                                const existing = acc.find(item => item.source === curr.source);
+                                // "Federation" 이 포함된 소스는 하나로 묶음
+                                const isFederation = curr.source.toLowerCase().includes('federation');
+                                const sourceName = isFederation ? 'Federations' : curr.source;
+
+                                const existing = acc.find(item => item.source === sourceName);
                                 if (existing) existing.vp += curr.vp;
-                                else acc.push({ ...curr });
+                                else acc.push({ source: sourceName, vp: curr.vp });
                                 return acc;
                               }, [] as { source: string; vp: number }[]);
 
@@ -834,8 +838,7 @@ export default function Game() {
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                             {game.roundScoringTiles.map((tile, idx) => {
-                              const bItem = b.roundMissions.find(m => m.round === idx + 1);
-                              const vp = bItem?.vp || 0;
+                              const vp = b.roundMissions.filter(m => m.round === idx + 1).reduce((s, m) => s + m.vp, 0);
                               const img = getRoundMissionImage(tile.id);
                               return (
                                 <div key={idx} className="flex flex-col items-center gap-2 group">
@@ -884,7 +887,7 @@ export default function Game() {
                                         <span className="text-[8px] font-black text-white">{'R' + r}</span>
                                       </div>
                                     </div>
-                                    <span className="text-[10px] font-black text-yellow-500/80">+{vp} <span className="text-[8px] opacity-60">VP</span></span>
+                                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30 font-black tabular-nums mt-1">+{vp}</Badge>
                                   </div>
                                 );
                               })}
@@ -909,7 +912,7 @@ export default function Game() {
                                       <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-600">{mid}</div>
                                     )}
                                     <div className="absolute right-1.5 bottom-1.5">
-                                      <span className="text-xs font-black text-blue-400 drop-shadow-md">+{missionVp} VP</span>
+                                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30 font-black tabular-nums shadow-lg">+{missionVp} VP</Badge>
                                     </div>
                                   </div>
                                 );
@@ -950,7 +953,7 @@ export default function Game() {
                                           <span className="text-[8px] text-zinc-600 text-center">{tileId}</span>
                                         )}
                                       </div>
-                                      <span className="text-[10px] font-black text-purple-400/80">+{vp}</span>
+                                      <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 hover:bg-purple-500/30 font-black tabular-nums mt-1">+{vp}</Badge>
                                     </div>
                                   );
                                 });
@@ -982,7 +985,7 @@ export default function Game() {
                                         <span className="text-[8px] text-zinc-600 text-center">{rid}</span>
                                       )}
                                     </div>
-                                    <span className="text-[10px] font-black text-emerald-400/80">+{vp}</span>
+                                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30 font-black tabular-nums mt-1">+{vp}</Badge>
                                   </div>
                                 );
                               })}
@@ -3229,7 +3232,7 @@ export default function Game() {
                               {/* Right: Gaiaformer & Power */}
                               <div className="flex flex-col gap-1 w-1/2 justify-center pl-2 border-l border-white/10">
                                 {/* Gaiaformers Row & Power Income */}
-                                <div className="flex justify-between items-center w-full" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
+                                <div className="flex justify-between items-center w-full min-h-[14px]" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
                                   <div className="flex gap-1.5 items-center">
                                     {(() => {
                                       const gpLevel = p.research?.gaiaProject ?? 0;

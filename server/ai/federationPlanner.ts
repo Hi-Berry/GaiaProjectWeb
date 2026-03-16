@@ -97,7 +97,7 @@ export class FederationPlanner {
         if (hasLevel4) {
             // 현재 초록 연방 토큰이 없는지 확인
             const fedEntries = player.federations || [];
-            const greenCount = fedEntries.filter(f => typeof f !== 'string' && f.isGreen && !f.usedForTech).length;
+            const greenCount = fedEntries.filter(f => typeof f !== 'string' && f.isGreen).length;
             if (greenCount === 0) return true;
         }
 
