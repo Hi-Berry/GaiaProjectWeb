@@ -103,6 +103,15 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
 
   return (
     <g transform={`translate(${-scaleW / 2}, ${offsetY})`}>
+      {structureType === 'lost_planet_mine' && (
+        <circle
+          cx={scaleW / 2}
+          cy={scaleH / 2}
+          r={scaleW / 1.5}
+          fill="gray"
+          opacity="0.9"
+        />
+      )}
       <image
         href={`/image/buildings/${colorName}_${buildingType}.png`}
         width={scaleW}

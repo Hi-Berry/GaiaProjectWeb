@@ -337,6 +337,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             {RESEARCH_TRACKS.map((track) => {
                                 const trackTile = getFirstTrackTile(game.techTilesByTrack, track.id as ResearchTrack);
                                 const advTile = game.advancedTechTilesByTrack?.[track.id as ResearchTrack];
+                                const isAdvTaken = advTile ? Object.values(game.players).some(p => p.techTiles?.includes(advTile.id)) : false;
                                 const navBlocked = track.id === 'navigation' && !balTakCanAdvanceNav;
                                 return (
                                     <div
@@ -358,7 +359,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                                         {/* Advanced Tech Tile (top) */}
                                         <div className="h-[44px] w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border border-cyan-500/10 group relative">
-                                            {advTile?.image ? (
+                                            {advTile && !isAdvTaken && advTile.image ? (
                                                 <>
                                                     <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
                                                     <div className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/80 z-20">
@@ -827,6 +828,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     {/* Advanced Tech Tile Slot between L4 and L5 — 기술 타일 선택 시 조건 충족하면 클릭으로 고급 타일 획득 가능 */}
                                                     {level === 5 && game.advancedTechTilesByTrack?.[track.id as ResearchTrack] && (() => {
                                                         const advTile = game.advancedTechTilesByTrack?.[track.id as ResearchTrack];
+
+                                                        // 이미 누군가 획득했는지 검사 (미니뷰나 보드에서 타일 숨김 처리)
+                                                        const isTaken = Object.values(game.players).some(p => p.techTiles?.includes(advTile!.id));
+                                                        if (isTaken) return null;
+
                                                         const playerLvl = playerId ? (game.players[playerId]?.research?.[track.id as ResearchTrack] ?? 0) : 0;
                                                         const canTakeAdvanced = pendingTech && onSelectAdvancedTechTile && playerId && playerLvl >= 4
                                                             && countGreenFederations(game.players[playerId]) >= 1
