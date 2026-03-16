@@ -1126,7 +1126,15 @@ export class BotLogic {
                 // 확장 가치를 매우 높게 쳐주므로, 광석을 소모해서라도 짓도록 유도
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
-                const stepPenalty = costPerStep >= 3 ? (remainingSteps * 20) : (remainingSteps * 10);
+                // [사용자 피드백] 생 광물을 너무 많이 써서 건설하는 것을 막음
+                // 3광물이면 약 -500점, 6광물이면 약 -1000점 수준의 강력한 페널티 적용
+                let stepPenalty = 0;
+                if (costPerStep >= 3) {
+                    stepPenalty = (terraformCost / 3) * 500;
+                } else {
+                    stepPenalty = remainingSteps * 20; // 1~2광석으로 저렴해진 경우엔 약하게 페널티
+                }
+
                 let score = tfScore - stepPenalty - (qicPenalty * 0.6) + bridgeheadBonus;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
@@ -1134,14 +1142,17 @@ export class BotLogic {
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
 
-                score += earlyRushBonus;
-                score += expansionDesire;
-                score += overExpansionPenalty;
-
-                // [사용자 피드백] 1~2라운드에 단순히 4O 2C(4광석 2돈) 지불하며 직통 테라포밍 광산을 짓는 행위를 막음 (매우 강력한 패널티 적용)
-                if (game.roundNumber <= 2 && remainingSteps > 0 && costPerStep >= 3) {
-                    score -= 500;
+                // 비용이 너무 비싼 테라포밍(광석 3개 이상 소모)의 경우 무분별한 확장 보너스를 아예 빼버림
+                if (terraformCost < 3 || costPerStep < 3) {
+                    score += earlyRushBonus;
+                    score += expansionDesire;
+                } else {
+                    // 그래도 혹시나 확장에 엄청난 가치가 있을 수 있으니 약간만 부여 (기존의 20% 수준)
+                    score += (earlyRushBonus * 0.2);
+                    score += (expansionDesire * 0.2);
                 }
+
+                score += overExpansionPenalty;
 
                 if (score >= -50) { // 약간 효율이 떨어져도 무조건 짓게 유도
                     scored.push({
