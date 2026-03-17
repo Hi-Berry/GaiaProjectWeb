@@ -3022,19 +3022,19 @@ export default function Game() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
-                        <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)} title="상태창 닫기">
                           <X className="w-4 h-4" />
                         </Button>
+                        <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
+                        <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1 bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)} title="상태창 닫기">
                         <X className="w-4 h-4" />
                       </Button>
+                      <Button size="sm" className="flex-1 bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
                     </div>
                   )}
                 </div>
@@ -3043,32 +3043,6 @@ export default function Game() {
 
               {/* 플레이어 영역: 콘텐츠 높이만 사용(flex-none으로 줄어들지 않음), 빈 공간 없음 */}
               <div className="space-y-2 md:space-y-4 flex-none overflow-visible">
-                <div className="flex items-center justify-between py-1">
-                  <h3 className="font-semibold flex items-center gap-2 text-zinc-400 text-[10px] md:text-xs uppercase tracking-widest">
-                    <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                    Players
-                  </h3>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 px-0 text-zinc-500 hover:text-white hover:bg-white/5 md:hidden"
-                    onClick={() => setIsSidebarOpen(false)}
-                    title="상태창 닫기"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                  {!(isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward) && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 px-0 text-zinc-500 hover:text-white hover:bg-white/5 hidden md:flex"
-                      onClick={() => setIsSidebarOpen(false)}
-                      title="상태창 닫기"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
                 <div className="space-y-1.5 md:space-y-2">
               {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
                 const pa = game.players[a];
@@ -3637,14 +3611,8 @@ export default function Game() {
               </div>
             </div>
 
-            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t shrink-0 hidden md:block">
-              <Badge variant="outline" className="w-full justify-center">
-                Round {game.roundNumber}
-              </Badge>
-            </div>
-
             {/* Game Log - 고정 높이로 레이아웃 밀림 방지, 내부만 스크롤 */}
-            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t flex-none flex flex-col h-[200px] md:h-[240px] hidden md:flex">
+            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t flex-none flex flex-col h-[280px] md:h-[350px] hidden md:flex">
               <h3 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-xs md:text-sm shrink-0">
                 <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Game Log
