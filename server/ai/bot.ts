@@ -587,11 +587,11 @@ export class BotLogic {
                 const isDiscounted = hasNearbyPlayersForDiscount(game, mine, playerId);
                 const cost = isDiscounted ? 3 : 6;
                 if (credits >= cost) {
-                    // [사용자 피드백] 할인 받는 교역소(2/3)를 압도적으로 선호하도록 점수 대폭 상향, 비할인 교역소(2/6)는 초반에 극도로 기피
-                    let score = isDiscounted ? 150 : 20;
+                    // [사용자 피드백] TS 점수도 전반적으로 광산보다 높게 유지하여 연구소로 가는 발판을 마련함
+                    let score = isDiscounted ? 200 : 50;
 
                     if (!isDiscounted && round <= 3) {
-                        score -= 80; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티
+                        score -= 100; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티
                     }
 
                     // [전략 개선] 1라운드 교역소 남발 방지: 연구소/아카데미가 없는 상태에서의 단순 교역소는 감점
@@ -623,10 +623,11 @@ export class BotLogic {
             const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
 
             for (const ts of tsList) {
-                let score = 75;
+                // [사용자 피드백] 단순 광산 건설보다 TS -> Lab 업그레이드(기술 타일 선점)를 최우선으로 하도록 대폭 상향
+                let score = 180;
                 // 초반 연구소 확보 가점 (매우 높게 조정)
-                if (round <= 2 && labCount < 2) score += 60;
-                if (labCount === 0) score += 80;
+                if (round <= 3 && labCount < 2) score += 80;
+                if (labCount === 0) score += 100;
 
                 score -= fedPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_research_lab');
@@ -688,9 +689,10 @@ export class BotLogic {
         if (ore >= 6 && credits >= 6 && academyCount < 2) {
             const labList = myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
-                let score = 120; // 아카데미를 의회보다 기본적으로 훨씬 높게 평가
-                if (round >= 2 && round <= 4 && academyCount === 0) score += 70; // 첫 아카데미는 중반까지 매우 강력 권장
-                if (round >= 5) score += 20;
+                // [사용자 피드백] 광산 건설보다 아카데미(고급 기술 타일 획득)를 우선하도록 대폭 상향
+                let score = 250;
+                if (round >= 2 && round <= 4 && academyCount === 0) score += 100; // 첫 아카데미는 중반까지 매우 강력 권장
+                if (round >= 5) score += 50;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, lab, 'academy');
@@ -872,8 +874,9 @@ export class BotLogic {
         const rangeBonusValue = range >= 2 ? 30 : 0;
 
         // 확장(건물 수) 우대 전략 (하지만 10개 이상이면 무조건 짓기보단 점수/연방 연계를 중시)
-        const expansionDesire = myPlanets.length < 10 ? (10 - myPlanets.length) * 30 : 0;
-        const earlyRushBonus = game.roundNumber <= 3 ? 150 : 0;
+        // [사용자 피드백] 단순 광산 확장의 가치를 과도하게 높게 잡아서 파워 액션 등 선점 요소나 업그레이드를 무시하는 문제 수정
+        const expansionDesire = myPlanets.length < 10 ? (10 - myPlanets.length) * 10 : 0; // x30 -> x10으로 하향
+        const earlyRushBonus = game.roundNumber <= 3 ? 50 : 0; // 150 -> 50으로 하향
         const overExpansionPenalty = myPlanets.length >= 10 ? -80 : 0; // 충분히 컸을 땐 단순 확장은 감점
 
         // 모든 잠재적 광산 후보 평가
@@ -1797,33 +1800,34 @@ export class BotLogic {
             const isStepMission = currentMission?.triggerType === 'terraform_step';
 
             switch (action.id) {
-                // QIC 액션 - 매우 강력 (현상 유지)
+                // [사용자 피드백] 선점 요소인 파워 액션의 기본 점수를 광산 건설보다 압도적으로 상향하여 최우선적으로 먹게 함
+                // QIC 액션 - 매우 강력 (상향)
                 case 'qic-action-tech':
-                    score = 200;
+                    score = 300;
                     break;
                 case 'qic-action-vp-sector':
-                    score = round >= 4 ? 180 : 80;
+                    score = round >= 4 ? 250 : 120;
                     break;
                 case 'qic-action-federation':
-                    score = 160;
+                    score = 220;
                     break;
 
-                // 파워 액션 - 자원/테라포밍 선호도 조정
+                // 파워 액션 - 자원/테라포밍 선호도 조정 (전체적으로 +100~150점 상향)
                 case 'gain-2-ore':
-                    score = 140; 
+                    score = 240;
                     // ore:credits balance (1:1.2). If ore is lacking, boost score.
-                    if (ore * 1.2 < credits) score += 30;
+                    if (ore * 1.2 < credits) score += 50;
                     break;
                 case 'gain-7-credits':
-                    score = 130;
-                    if (credits < ore * 1.2) score += 30;
+                    score = 230;
+                    if (credits < ore * 1.2) score += 50;
                     break;
                 case 'gain-1-step':
-                    score = round <= 3 ? 110 : 70;
-                    if (isStepMission) score += 30;
+                    score = round <= 3 ? 210 : 120;
+                    if (isStepMission) score += 50;
                     break;
                 case 'gain-2-knowledge':
-                    score = 80;
+                    score = 200;
                     // 이클립스 우주선 액션(2K)을 쓸 수 없는 상황이면 파워 액션의 가치 상승
                     const eclipseShip = this.findPlayerShip(game, playerId, 'ship_eclipse');
                     if (eclipseShip) {
@@ -1834,26 +1838,26 @@ export class BotLogic {
                     }
                     break;
                 case 'gain-2-tokens':
-                    score = 60;
+                    score = 160;
                     // 토큰이 부족하여 연방 선언이 어려울 때 가치 상승
                     const totalTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
                     if (totalTokens < 7) score += 40;
                     break;
                 case 'gain-2-steps':
-                    score = 80; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
+                    score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
                     if (player.faction === 'geodens' || player.faction === 'xenos') score += 40;
                     if (isStepMission) score += 60; // 테라포밍 미션 시 2단계는 4vp 이상 가치
                     break;
                 case 'gain-3-knowledge':
-                    score = 70; // 유저 피드백: 거의 안 씀
-                    if (player.knowledge === 1) score += 20; // 4지금을 맞추기 위해 3지식 사용 고민 가능
+                    score = 170; // 유저 피드백: 거의 안 씀
+                    if (player.knowledge === 1) score += 40; // 4지금을 맞추기 위해 3지식 사용 고민 가능
                     break;
                 default:
-                    score = 50;
+                    score = 150;
             }
 
             // 라운드 보정: 후반일수록 파워 액션 선점 중요
-            if (round >= 5) score += 30;
+            if (round >= 5) score += 50;
 
             // QIC 행동 보정 (QIC 충분 시 상향)
             if (isQic && qic >= cost && round >= 3) score *= 1.2;
@@ -1968,75 +1972,75 @@ export class BotLogic {
 
                 if (shipTile.type === 'ship_twilight') {
                     if (i === 1 && (player.qic || 0) >= 3) {
-                        score = 250; // 연방 보상 → 매우 강력
+                        score = 350; // 연방 보상 → 매우 강력
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1 && (player.qic || 0) >= 0) {
-                        score = 130;
+                        score = 230;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.ore || 0) >= 2 && (player.power3 || 0) >= 3) {
                         const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
                         if (ts) {
-                            score = 220; // TS -> Lab 업그레이드
+                            score = 320; // TS -> Lab 업그레이드
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
                         }
                     } else if (i === 3) {
                         // [사용자 피드백] 생으로 QIC 여러 개를 써서 멀리 가는 대신, 트왈라잇 1지식 3거리 부스터를 먼저 켜고 가도록 점수 극대화
-                        score = (player.knowledge || 0) >= 1 && !player.tempRangeBonus ? 350 : 50;
+                        score = (player.knowledge || 0) >= 1 && !player.tempRangeBonus ? 450 : 50;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
                     if (i === 1 && (player.qic || 0) >= 3) {
-                        score = 280; // 기술 타일 획득: 최강 액션
+                        score = 380; // 기술 타일 획득: 최강 액션
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
-                        score = 150;
+                        score = 250;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.ore || 0) >= 1 && (player.power3 || 0) >= 3) {
                         const mine = game.map.find(t => t.ownerId === playerId && t.structure === 'mine');
                         if (mine) {
-                            score = 200; // Mine -> TS 업그레이드
+                            score = 300; // Mine -> TS 업그레이드
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
                         }
                     } else if (i === 3 && (player.knowledge || 0) >= 2) {
-                        score = 150; // 2K -> 1Q 2C
+                        score = 250; // 2K -> 1Q 2C
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3) {
-                        score = 80;
+                        score = 180;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_tf_mars') {
                     if (i === 1 && (player.qic || 0) >= 2) {
-                        score = 220; // QIC 기술 타일: 매우 강력
+                        score = 320; // QIC 기술 타일: 매우 강력
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
-                        score = 100;
+                        score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.power3 || 0) >= 2 && (player.gaiaformers || 0) > 0) {
-                        score = 240; // 가이아 프로젝트
+                        score = 340; // 가이아 프로젝트
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 3) {
-                        score = 280; // 3C -> 1TF: 테라포밍 효율적, 확장에 최고
+                        score = 380; // 3C -> 1TF: 테라포밍 효율적, 확장에 최고
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_eclipse') {
                     if (i === 1 && (player.qic || 0) >= 2) {
-                        score = 200; // QIC 기술/연방
+                        score = 300; // QIC 기술/연방
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
-                        score = 100;
+                        score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.knowledge || 0) >= 2 && (player.power3 || 0) >= 3) {
-                        score = 230; // 연구 전진: 매우 강력
+                        score = 330; // 연구 전진: 매우 강력
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.knowledge || 0) >= 2) {
-                        score = 130;
+                        score = 230;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 6) {
                         // [사용자 피드백] 이클립스 소행성 파괴(6C) 광산 건설을 안 하고 패스하는 현상을 막기 위해 점수 극한 상향
                         score = 450;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 3) {
-                        score = 100;
+                        score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 }
