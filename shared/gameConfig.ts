@@ -575,19 +575,19 @@ export function spendGreenFederation(player: { federations?: string[] | Federati
 
 /** Twilight artifacts (4 random per game, take for 6 power 1→2→3) */
 export const ARTIFACTS = [
-  { id: 'art-income-2p3', label: 'Income: 2 to bowl 3', description: 'Income: 2 Power to bowl 3.', incomePower3: 2 },
-  { id: 'art-income-1k1o', label: 'Income: 1K 1O', description: 'Income: 1 Knowledge, 1 Ore.', incomeK: 1, incomeO: 1 },
-  { id: 'art-fed-once', label: 'Federation reward once', description: 'Once: Gain one federation reward again (Twilight action 1).', effect: 'federation_once' },
-  { id: 'art-vp-gaia', label: 'Gaia×3 VP', description: 'Once: VP = Gaia track level × 3.', effect: 'vp_gaia_x3' },
   { id: 'art-vp-science', label: 'Science×3 VP', description: 'Once: VP = Science track level × 3.', effect: 'vp_science_x3' },
-  { id: 'art-vp-tracks3', label: 'Tracks≥3 ×3 VP', description: 'Once: VP = (tracks at level ≥3) × 3.', effect: 'vp_tracks3_x3' },
-  { id: 'art-vp-planet-types', label: '3+Planet types VP', description: 'Once: VP = 3 + (planet types you have).', effect: 'vp_3_planet_types' },
-  { id: 'art-7vp-virtual-asteroid', label: '7VP+Virtual mine (asteroid)', description: 'Once: 7 VP. Virtual mine on asteroid (no O, counts for 2VP/mine, 1VP/mine, planet types).', effect: '7vp_virtual_mine_asteroid' },
   { id: 'art-7vp-virtual-proto', label: '7VP+Virtual mine (proto)', description: 'Once: 7 VP. Virtual mine on proto (same).', effect: '7vp_virtual_mine_proto' },
-  { id: 'art-imm-3o3c', label: '3O 3C', description: 'Once: 3 Ore, 3 Credits.', effect: 'imm_3o3c' },
+  { id: 'art-vp-gaia', label: 'Gaia×3 VP', description: 'Once: VP = Gaia track level × 3.', effect: 'vp_gaia_x3' },
+  { id: 'art-fed-once', label: 'Federation reward once', description: 'Once: Gain one federation reward again (Twilight action 1).', effect: 'federation_once' },
   { id: 'art-imm-2o5c', label: '2O 5C', description: 'Once: 2 Ore, 5 Credits.', effect: 'imm_2o5c' },
+  { id: 'art-7vp-virtual-asteroid', label: '7VP+Virtual mine (asteroid)', description: 'Once: 7 VP. Virtual mine on asteroid (no O, counts for 2VP/mine, 1VP/mine, planet types).', effect: '7vp_virtual_mine_asteroid' },
+  { id: 'art-vp-planet-types', label: '3+Planet types VP', description: 'Once: VP = 3 + (planet types you have).', effect: 'vp_3_planet_types' },
   { id: 'art-imm-3k1q', label: '3K 1Q', description: 'Once: 3 Knowledge, 1 QIC.', effect: 'imm_3k1q' },
+  { id: 'art-vp-tracks3', label: 'Tracks≥3 ×3 VP', description: 'Once: VP = (tracks at level ≥3) × 3.', effect: 'vp_tracks3_x3' },
+  { id: 'art-income-1k1o', label: 'Income: 1K 1O', description: 'Income: 1 Knowledge, 1 Ore.', incomeK: 1, incomeO: 1 },
+  { id: 'art-imm-3o3c', label: '3O 3C', description: 'Once: 3 Ore, 3 Credits.', effect: 'imm_3o3c' },
   { id: 'art-vp-bridge', label: '3VP/Bridge section', description: 'Once: 3 VP per bridge section with at least 1 of your buildings.', effect: 'vp_bridge_sector_x3' },
+  { id: 'art-income-2p3', label: 'Income: 2 to bowl 3', description: 'Income: 2 Power to bowl 3.', incomePower3: 2 },
 ] as const;
 export type ArtifactId = typeof ARTIFACTS[number]['id'];
 
