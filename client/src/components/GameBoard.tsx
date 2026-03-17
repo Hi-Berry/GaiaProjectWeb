@@ -722,7 +722,8 @@ export function GameBoard({
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-20 pointer-events-none" />
 
         {/* Turn Status Overlay */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center">
+        {/* fixed로 올려서 우측 패널 열림 시에도 중앙 유지(좌측 미니뷰와 겹침 방지) */}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center pointer-events-none">
           <div className="bg-black/80 backdrop-blur-md border border-white/10 px-6 py-2 rounded-full shadow-2xl flex items-center gap-4">
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Round {game.roundNumber}</span>
@@ -739,6 +740,8 @@ export function GameBoard({
                   variant="default"
                   className="bg-blue-600 hover:bg-blue-500 text-white font-bold"
                   onClick={onToggleFactionSelect}
+                  // fixed overlay가 포인터 이벤트를 막지 않도록 버튼만 예외
+                  style={{ pointerEvents: 'auto' }}
                 >
                   {isFactionSelectOpen ? 'Hide Faction' : 'Select Faction'}
                 </Button>

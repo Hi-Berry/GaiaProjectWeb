@@ -456,7 +456,6 @@ export class BotLogic {
         if (upgradeActions.length > 0) candidates.push(...upgradeActions);
 
         // 7. 내비게이션 연구 보너스 (QIC 절약)
-        // 7. 내비게이션 연구 보너스 (QIC 절약)
         const primaryBuild = buildActions.length > 0 ? buildActions[0] : null;
         if (primaryBuild?.type === 'build_mine' && (player.knowledge ?? 0) >= 4) {
             const navId: ResearchTrack = 'navigation';

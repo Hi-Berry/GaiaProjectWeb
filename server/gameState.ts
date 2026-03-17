@@ -4552,7 +4552,7 @@ export function executeUpgradeStructure(
 		const creditCost = hasNearby ? 3 : 6;
 		if ((player.ore ?? 0) < 2 || (player.credits ?? 0) < creditCost) return false;
 		player.ore = (player.ore ?? 0) - 2; player.credits = (player.credits ?? 0) - creditCost; tile.structure = 'trading_station'; game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Upgraded to Trading Station', `2O, ${creditCost}C${hasNearby ? ' (discounted)' : ''}`, tileId);
+		addGameLog(game, playerId, 'Upgraded to Trading Station', `2O, ${creditCost}C`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_trading_station');
 		applyAdvancedTechTileEffect(game, playerId, 'build_ts');
 		createPowerOffers(game, tile, playerId);

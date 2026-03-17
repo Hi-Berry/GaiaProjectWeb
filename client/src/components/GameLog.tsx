@@ -1,7 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { type GaiaGameState as GameState, FACTIONS } from '@shared/gameConfig';
-import { Clock, User } from 'lucide-react';
+import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS } from '@shared/gameConfig';
+import { Clock } from 'lucide-react';
 
 interface GameLogProps {
   game: GameState;
@@ -22,15 +22,125 @@ export function GameLog({
 }: GameLogProps) {
   const logs = game.gameLog || [];
 
+  const getBonusTileImgById = (bonusTileId: string | null | undefined) => {
+    if (!bonusTileId) return null;
+    const idx = ALL_BONUS_TILES.findIndex(t => t.id === bonusTileId);
+    if (idx === -1) return null;
+    return `/image/BoostTile_${idx + 1}.jpg`;
+  };
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('ko-KR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
+  const getBonusTileImgByLabel = (label: string | null | undefined) => {
+    if (!label) return null;
+    const tile = ALL_BONUS_TILES.find(t => t.label === label);
+    return getBonusTileImgById(tile?.id);
+  };
+
+  const getTechTileImgById = (techTileId: string | null | undefined) => {
+    if (!techTileId) return null;
+    return ALL_TECH_TILES.find(t => t.id === techTileId)?.image ?? null;
+  };
+
+  const getBuildingImg = (
+    planetType: string | null | undefined,
+    structure: 'mine' | 'trading_station' | 'research_lab' | 'planetary_institute' | 'academy' | 'gaiaformer'
+  ) => {
+    if (!planetType) return null;
+    return `/image/buildings/${planetType}_${structure}.png`;
+  };
+
+  const getFactionColorNameForBuildingImage = (playerFactionId: string | null | undefined) => {
+    if (!playerFactionId) return null;
+    const factionColor = FACTIONS.find(f => f.id === playerFactionId)?.color?.toUpperCase();
+    if (!factionColor) return null;
+
+    // GameBoard.tsx와 동일한 방식: PLANET_COLORS hex를 역추적해서 파일명 prefix(terra/oxide/...)로 사용
+    for (const [key, hex] of Object.entries(PLANET_COLORS)) {
+      if ((hex || '').toUpperCase() === factionColor) return key;
+    }
+    return null;
+  };
+
+  const getLogPrimaryImage = (log: { action: string; details?: string; tileId?: string }, playerFactionId?: string | null) => {
+    const actionText = log.action || '';
+    const details = log.details || '';
+
+    // Bonus tiles
+    if (/^Selected Bonus Tile$/i.test(actionText)) {
+      const img = getBonusTileImgByLabel(details);
+      if (img) return { src: img, alt: details || 'Bonus Tile' };
+    }
+    if (/^Selected Bonus$/i.test(actionText)) {
+      const m = details.match(/\btook\s+(bon-[a-z0-9-]+)\b/i);
+      const img = getBonusTileImgById(m?.[1]);
+      if (img) return { src: img, alt: m?.[1] || 'Bonus Tile' };
+    }
+
+    // Tech tiles
+    if (/Tech Tile|Gained Tech Tile|Advanced Tech Tile|Ship Tech/i.test(actionText) || /tech-(inc|imm|gaia|big|act)|adv-|ship-tech-/i.test(details)) {
+      const tid = details.match(/\b(tech-[a-z0-9-]+|adv-[a-z0-9-]+|ship-tech-[a-z0-9+-]+)\b/i)?.[1];
+      const img = getTechTileImgById(tid);
+      if (img) return { src: img, alt: tid || 'Tech Tile' };
+    }
+
+    // Buildings: "해당 종족색깔_건물"이 목표이므로 타일 타입(gaia 등)보다 플레이어 팩션 컬러 기준으로 이미지 선택
+    const planetType = getFactionColorNameForBuildingImage(playerFactionId) ?? 'titanium';
+
+    if (/Placed Gaiaformer|Gaia Project.*place Gaiaformer|place Gaiaformer/i.test(actionText + ' ' + details)) {
+      const img = getBuildingImg(planetType, 'gaiaformer');
+      if (img) return { src: img, alt: `${planetType} gaiaformer` };
+    }
+
+    if (/^Built Mine\b/i.test(actionText) || /Built Parasitic Mine|Built Mine on/i.test(actionText)) {
+      const img = getBuildingImg(planetType, 'mine');
+      if (img) return { src: img, alt: `${planetType} mine` };
+    }
+    if (/^Upgraded to Trading Station\b/i.test(actionText) || /\bMine → TS\b/i.test(actionText)) {
+      const img = getBuildingImg(planetType, 'trading_station');
+      if (img) return { src: img, alt: `${planetType} trading station` };
+    }
+    if (/^Upgraded to Research Lab\b/i.test(actionText) || /\bTS → Research Lab\b/i.test(actionText)) {
+      const img = getBuildingImg(planetType, 'research_lab');
+      if (img) return { src: img, alt: `${planetType} research lab` };
+    }
+    if (/^Upgraded to Planetary Institute\b/i.test(actionText)) {
+      const img = getBuildingImg(planetType, 'planetary_institute');
+      if (img) return { src: img, alt: `${planetType} planetary institute` };
+    }
+    if (/^Upgraded to Academy\b/i.test(actionText)) {
+      const img = getBuildingImg(planetType, 'academy');
+      if (img) return { src: img, alt: `${planetType} academy` };
+    }
+
+    return null;
+  };
+
+  const renderDetailsWithTrackColor = (details: string, fallbackClassName: string) => {
+    // 서버 로그 포맷 예시:
+    // - "terraforming → Lv.3"
+    // - "terraforming to level 3 (4K)"
+    const m =
+      details.match(/\b(terraforming|navigation|artificialIntelligence|gaiaProject|economy|science)\b/)
+      ?? null;
+    if (!m) return <span className={fallbackClassName}>{details}</span>;
+
+    const trackId = m[1];
+    const trackColor = RESEARCH_TRACKS.find(t => t.id === trackId)?.color;
+    if (!trackColor) return <span className={fallbackClassName}>{details}</span>;
+
+    const idx = m.index ?? details.indexOf(trackId);
+    if (idx < 0) return <span className={fallbackClassName}>{details}</span>;
+
+    const before = details.slice(0, idx);
+    const after = details.slice(idx + trackId.length);
+    return (
+      <span className={fallbackClassName}>
+        {before}
+        <span style={{ color: trackColor, fontWeight: 900 }}>
+          {trackId}
+        </span>
+        {after}
+      </span>
+    );
   };
 
   const content = (
@@ -47,7 +157,7 @@ export function GameLog({
 
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
-          const factionName = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.name : undefined;
+          const primaryImg = getLogPrimaryImage(log, player?.faction);
 
           return (
             <div
@@ -65,24 +175,53 @@ export function GameLog({
               }}
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5 justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <User className={`w-3 h-3 flex-shrink-0 opacity-70`} style={factionColor ? { color: factionColor } : {}} />
-                    <span className={`text-[10px] font-black uppercase tracking-tighter truncate shrink-0`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: '#f4f4f5' } : { color: '#a1a1aa' })}>
-                      {log.playerName}{factionName ? ` (${factionName})` : ''}
-                    </span>
-                  </div>
-                  <span className="text-[9px] text-muted-foreground/30 font-mono shrink-0">
-                    {formatTime(log.timestamp)}
-                  </span>
-                </div>
-                <div className="text-[11px] leading-tight mt-1">
-                  <span className={`font-black uppercase tracking-tight`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: '10px' } : { color: '#d4d4d8' })}>
+                <div className="text-[11px] leading-tight mt-1 flex items-center gap-2 min-w-0">
+                  {primaryImg && (
+                    (() => {
+                      const isBonus = primaryImg.src.startsWith('/image/BoostTile_');
+                      const isTech = primaryImg.src.startsWith('/tech/');
+                      const isBuilding = primaryImg.src.startsWith('/image/buildings/');
+
+                      // 로그 행 크기를 이미지가 늘리지 않도록 고정 크기/최대치로 제한
+                      // - 건물: 정사각형 아이콘
+                      // - 보너스/테크: 세로는 아이콘 높이에 맞추고, 가로는 자동 (전체가 보이도록 contain)
+                      const wrapperClass = isBonus
+                        ? `h-7 w-12 rounded-sm overflow-visible flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
+                        : isTech
+                          ? `h-7 w-12 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
+                        : `h-7 w-7 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`;
+
+                      const imgClass = isBonus || isTech
+                        ? (isBonus ? 'w-full h-full object-contain scale-[1.5] origin-center' : 'w-full h-full object-contain')
+                        : isBuilding
+                          ? 'w-full h-full object-cover'
+                          : 'w-full h-full object-cover';
+
+                      return (
+                        <div className={wrapperClass}>
+                          <img
+                            src={primaryImg.src}
+                            alt={primaryImg.alt}
+                            className={imgClass}
+                            loading="lazy"
+                            onError={(e) => {
+                              // 에셋이 없는 경우(예: 일부 행성 타입/구조 조합) 깨진 이미지 표시를 숨김
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      );
+                    })()
+                  )}
+                  <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: '10px' } : { color: '#d4d4d8' })}>
                     {log.action}
                   </span>
                   {log.details && (
-                    <span className={`ml-1.5 ${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium text-[10px]'}`}>
-                      {log.details}
+                    <span className="ml-1.5">
+                      {renderDetailsWithTrackColor(
+                        log.details,
+                        `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium text-[10px]'}`
+                      )}
                     </span>
                   )}
                 </div>
@@ -93,14 +232,10 @@ export function GameLog({
                       if (!subLog) return null;
                       const subPlayer = subLog.playerId ? game.players[subLog.playerId] : undefined;
                       const subColor = subPlayer?.faction ? FACTIONS.find(f => f.id === subPlayer.faction)?.color : undefined;
-                      const subFactionName = subPlayer?.faction ? FACTIONS.find(f => f.id === subPlayer.faction)?.name : undefined;
                       const cleanText = subLog.text.replace(`↳ ${subLog.playerName} `, '').replace('↳ ', '');
 
                       return (
                         <div key={i} className="text-[9px] leading-[10px] flex items-center gap-1.5 bg-black/40 border border-white/5 px-2 py-1 rounded shadow-inner" style={{ borderLeft: subColor ? `2px solid ${subColor}` : '1px solid #3f3f46' }}>
-                          <span className="font-black uppercase tracking-tighter shrink-0" style={subColor ? { color: subColor } : { color: '#c084fc' }}>
-                            {subLog.playerName}
-                          </span>
                           <span className="text-zinc-400 font-medium">{cleanText}</span>
                         </div>
                       );
