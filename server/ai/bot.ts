@@ -80,6 +80,143 @@ type BotAction = {
 };
 
 export class BotLogic {
+    /** server/gameState.ts executeEnterSpaceship와 동일한 규칙(동기 버전) */
+    private static canEnterSpaceship(game: ServerGameState, playerId: string, shipTileId: string, qicToUse: number): boolean {
+        if (game.hasDoneMainAction) return false;
+        if (game.currentPhase !== 'main') return false;
+        if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+
+        const player = game.players[playerId];
+        if (!player) return false;
+
+        const tile = game.map.find(t => t.id === shipTileId);
+        const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
+        if (!tile || !shipTypes.includes(tile.type || '')) return false;
+
+        // server는 game.spaceships가 없으면 생성하지만, "부분 초기화" 상태(객체는 있는데 키가 없음)는 실패함
+        const shipState = game.spaceships?.[shipTileId];
+        if (game.spaceships && !shipState) return false;
+
+        const entered = player.spaceshipsEntered || [];
+        if (entered.length >= 3) return false;
+        if (entered.includes(shipTileId)) return false;
+
+        const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
+        const isUnlocked = shipState?.unlocked ?? false;
+        if (!isUnlocked && (player.score || 0) < unlockCost) return false;
+
+        // Itars/Nevlas: token 1개 필요
+        if (player.faction === 'itars' || player.faction === 'nevlas') {
+            const total = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+            if (total < 1) return false;
+        }
+
+        // 거리/QIC 체크 (AI는 useRangeBonus를 쓰지 않으므로 baseRange만)
+        const rangeTiles = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+        if (rangeTiles.length === 0) return false;
+
+        const baseRange = this.getEffectiveBaseRange(player);
+        const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+        const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+        if (qicToUse < neededQIC) return false;
+        if ((player.qic || 0) < qicToUse) return false;
+
+        return true;
+    }
+
+    /** server/gameState.ts executeUseShipAction와 동일한 규칙(동기 버전) */
+    private static canUseShipAction(
+        game: ServerGameState,
+        playerId: string,
+        shipTileId: string,
+        actionIndex: number,
+        targetTileId?: string
+    ): boolean {
+        if (!game || game.currentPhase !== 'main') return false;
+        if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+
+        const player = game.players[playerId];
+        if (!player) return false;
+        const shipTile = game.map.find(t => t.id === shipTileId);
+        const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
+        if (!shipTile || !shipTypes.includes(shipTile.type || '')) return false;
+
+        const shipState = game.spaceships?.[shipTileId];
+        if (!shipState || !(shipState.occupants || []).includes(playerId)) return false;
+
+        const usedIndices = (shipState.usedActionIndices ?? (shipState.actionsUsed != null ? [] : [])) as number[];
+        if (usedIndices.includes(actionIndex) || usedIndices.length >= 3) return false;
+
+        // --- Twilight ---
+        if (shipTile.type === 'ship_twilight') {
+            if (actionIndex === 1) {
+                return (player.qic ?? 0) >= 3;
+            }
+            if (actionIndex === 2) {
+                if (!targetTileId) return false;
+                const target = game.map.find(t => t.id === targetTileId);
+                if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return false;
+                return (player.ore ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
+            }
+            if (actionIndex === 3) {
+                return (player.knowledge ?? 0) >= 1;
+            }
+            return false;
+        }
+
+        // --- Rebellion ---
+        if (shipTile.type === 'ship_rebellion') {
+            if (actionIndex === 1) {
+                return (player.qic ?? 0) >= 3;
+            }
+            if (actionIndex === 2) {
+                const tid = targetTileId != null ? String(targetTileId) : '';
+                if (!tid) return false;
+                const target = game.map.find(t => t.id === tid || String(t.id) === tid);
+                if (!target || target.ownerId !== playerId || target.structure !== 'mine') return false;
+                return (player.ore ?? 0) >= 1 && (player.power3 ?? 0) >= 3;
+            }
+            if (actionIndex === 3) {
+                return (player.knowledge ?? 0) >= 2;
+            }
+            return false;
+        }
+
+        // --- TF Mars ---
+        if (shipTile.type === 'ship_tf_mars') {
+            if (actionIndex === 1) {
+                return (player.qic ?? 0) >= 2;
+            }
+            if (actionIndex === 2) {
+                if ((player.power3 ?? 0) < 2) return false;
+                return (player.gaiaformers ?? 0) > 0;
+            }
+            if (actionIndex === 3) {
+                return (player.credits ?? 0) >= 3;
+            }
+            return false;
+        }
+
+        // --- Eclipse ---
+        if (shipTile.type === 'ship_eclipse') {
+            if (actionIndex === 1) {
+                return (player.qic ?? 0) >= 2;
+            }
+            if (actionIndex === 2) {
+                return (player.knowledge ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
+            }
+            if (actionIndex === 3) {
+                return (player.credits ?? 0) >= 6;
+            }
+            return false;
+        }
+
+        return false;
+    }
+
     static async performAction(io: SocketIOServer, game: ServerGameState, action: BotAction, playerId: string): Promise<boolean> {
         switch (action.type) {
             case 'build_mine':
@@ -258,10 +395,10 @@ export class BotLogic {
             if (candidates.length === 1) return candidates[0];
             if (candidates.length > 1) {
                 if (isSimulate) {
-                    // 80% 확률로 최선의 수, 20% 확률로 두 번째 수 선택 (시뮬레이션 다양성 확보)
-                    if (candidates.length > 1 && Math.random() < 0.2) {
-                        return candidates[1];
-                    }
+                    // 시뮬레이션 다양성 확보: 상위 후보 중 가중 랜덤 (롤아웃 품질 개선)
+                    const r = Math.random();
+                    if (candidates.length >= 3 && r < 0.10) return candidates[2];
+                    if (candidates.length >= 2 && r < 0.30) return candidates[1];
                     return candidates[0];
                 }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
@@ -574,6 +711,12 @@ export class BotLogic {
         const candidates: ScoredUpgrade[] = [];
 
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length
+            + game.map.filter(t => t.parasiticMine?.ownerId === playerId).length
+            + (player.virtualMineAsteroid ? 1 : 0)
+            + (player.virtualMineProto ? 1 : 0);
+        const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
+        const labCountNow = myStructures.filter(t => t.structure === 'research_lab').length;
 
         /** 연방에 이미 속한 타일 업그레이드는 다음 연방에 불리하므로 감점 */
         // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 다음 연방 구성이 느려지므로 패널티를 70에서 300으로 대폭 상향하여 원천 차단
@@ -593,11 +736,16 @@ export class BotLogic {
                         score -= 100; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티
                     }
 
+                    // 초반 엔진 빌딩의 기본은 "광산 확장"이다.
+                    // 1~2라운드에 광산이 부족하면 TS 업그레이드를 강하게 억제 (할인 TS만 예외적으로 허용)
+                    if (round <= 2 && mineCount < 4) {
+                        score -= isDiscounted ? 60 : 240;
+                    }
+
                     // [전략 개선] 1라운드 교역소 남발 방지: 연구소/아카데미가 없는 상태에서의 단순 교역소는 감점
                     if (round === 1) {
-                        const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
                         const academyCount = myStructures.filter(t => t.structure === 'academy').length;
-                        if (labCount === 0 && academyCount === 0) {
+                        if (labCountNow === 0 && academyCount === 0) {
                             score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 TS는 비효율적 (할인받아도 패널티 적용)
                         }
                     }
@@ -619,14 +767,28 @@ export class BotLogic {
         // 2. Trading Stations -> Research Labs
         if (ore >= 3 && credits >= 5) {
             const tsList = myStructures.filter(t => t.structure === 'trading_station');
-            const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
-
+            const labCount = labCountNow;
             for (const ts of tsList) {
+                // 연구소는 최소 1개는 필요(기술 타일 + 트랙 전진으로 확장 가능해짐).
+                // 다만 광산 기반 없이 너무 빨리 뛰면 망하므로 "첫 연구소"만 완화된 조건으로 허용.
+                const isFirstLab = labCount === 0;
+                if (round <= 2) {
+                    // 첫 연구소가 아니면 1~2라는 억제
+                    if (!isFirstLab) continue;
+                    // 1~2라 첫 연구소는 확장 트리거가 되므로 허용.
+                    // 대신 "TS도 거의 없고(=전환 준비 X) 광산도 0~1개" 같은 극단적 과투자만 억제.
+                    if (mineCount <= 1 && tsCount <= 1) continue;
+                }
+
                 // [사용자 피드백] 단순 광산 건설보다 TS -> Lab 업그레이드(기술 타일 선점)를 최우선으로 하도록 대폭 상향
                 let score = 180;
                 // 초반 연구소 확보 가점 (매우 높게 조정)
                 if (round <= 3 && labCount < 2) score += 80;
                 if (labCount === 0) score += 100;
+
+                // 광산/TS 엔진이 아직 약하면 추가 감점 (단, "첫 연구소"는 감점을 완화)
+                if (round <= 3 && mineCount < 6) score -= isFirstLab ? 40 : 120;
+                if (round <= 3 && tsCount < 2) score -= isFirstLab ? 20 : 80;
 
                 score -= fedPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_research_lab');
@@ -650,10 +812,11 @@ export class BotLogic {
 
                 // 종족별 PI 타이밍 강력 권장
                 const faction = player.faction;
-                const r1Preferred = ['geodens', 'space_giants', 'nevlas', 'lantids'];
+                // 사용자 피드백: 초반 PI는 기오덴/네뷸라/스자(스페이스 자이언츠) 정도만 예외
+                const earlyPiAllowed = ['geodens', 'nevlas', 'space_giants'];
                 const r2Preferred = ['itars', 'darkanians'];
 
-                if (r1Preferred.includes(faction || '')) {
+                if (earlyPiAllowed.includes(faction || '')) {
                     if (round <= 2) score += 80;
                     else score += 50;
                 } else if (r2Preferred.includes(faction || '')) {
@@ -668,6 +831,11 @@ export class BotLogic {
                     if (round < 4) score -= 30;
                     if (round >= 4) score += 50;
                 }
+
+                // 초반(1~2라) 의회는 거의 항상 과소비 → "광산 기반" 없으면 차단/강한 감점
+                if (round === 1) continue;
+                if (!earlyPiAllowed.includes(faction || '') && round < 4) continue; // 예외 종족 아니면 4R 전에는 아예 후보에 넣지 않음
+                if (round <= 2 && mineCount < 5) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
@@ -688,8 +856,14 @@ export class BotLogic {
         if (ore >= 6 && credits >= 6 && academyCount < 2) {
             const labList = myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
+                // 아카데미는 너무 초반(1R)에는 과소비가 잦지만, 2~3R부터는 상황에 따라 허용
+                // 사용자 피드백: 1라 아카도 가능하면 좋음. (단, 시작 광산 2개 수준은 확보되어야 함)
+                // 광산 기반이 너무 없으면 억제 (1R은 예외적으로 허용 범위 확대)
+                if (round <= 3 && mineCount < 5 && round !== 1) continue;
+
                 // [사용자 피드백] 광산 건설보다 아카데미(고급 기술 타일 획득)를 우선하도록 대폭 상향
                 let score = 250;
+                if (round === 1 && academyCount === 0) score += 120; // 1라 첫 아카데미는 강하게 보상
                 if (round >= 2 && round <= 4 && academyCount === 0) score += 100; // 첫 아카데미는 중반까지 매우 강력 권장
                 if (round >= 5) score += 50;
 
@@ -713,8 +887,8 @@ export class BotLogic {
         if (candidates.length === 0) return [];
 
         candidates.sort((a, b) => b.score - a.score);
-        // 상위 3개 후보 반환
-        return candidates.slice(0, 3).map(c => c.action);
+        // 후보 컷이 너무 강하면 좋은 수가 탐색에서 사라짐 → 상위 5개로 확장
+        return candidates.slice(0, 5).map(c => c.action);
     }
 
     private static findDiscountedUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
@@ -1252,7 +1426,7 @@ export class BotLogic {
         }
 
         actions.sort((a, b) => b.score - a.score);
-        return actions.slice(0, 2).map(a => a.action); // 상위 2개
+        return actions.slice(0, 4).map(a => a.action); // 상위 4개로 확장
     }
     private static findAlternativeBuildAction(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
@@ -1511,7 +1685,7 @@ export class BotLogic {
         }
 
         scored.sort((a, b) => b.score - a.score);
-        return scored.slice(0, 2).map(s => s.track); // Top 2 tracks
+        return scored.slice(0, 3).map(s => s.track); // Top 3 tracks
     }
 
     private static calculateResearchScore(game: ServerGameState, player: PlayerState, playerId: string, track: ResearchTrack): number {
@@ -1868,7 +2042,8 @@ export class BotLogic {
         scored.sort((a, b) => b.score - a.score);
         // 상위 3개 후보 반환
         const useBrain = player.faction === 'taklons';
-        return scored.slice(0, 3).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
+        // 상위 5개 후보 반환하여 파워 액션 탐색 다양화
+        return scored.slice(0, 5).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
     }
 
     private static findEssentialConversions(game: ServerGameState, playerId: string): BotAction[] {
@@ -1935,15 +2110,18 @@ export class BotLogic {
             if (tile.type === 'ship_eclipse') score += 60; // 후반 소행성 건설/연구용
             if (tile.type === 'ship_tf_mars') score += 50;
 
-            candidates.push({
-                action: { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } },
-                score
-            });
+            const act: BotAction = { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } };
+            // 서버 규칙 기준으로 실제 성공하는 후보만 남김 (점수/토큰/사거리 등 누락 방지)
+            // note: 후보 생성은 sync이므로, 여기서는 "가능성 높은 것"만 일단 모으고 아래에서 한번에 필터링
+            // 서버 executeEnterSpaceship 기준으로 불가능한 후보는 애초에 넣지 않음
+            if (!this.canEnterSpaceship(game, playerId, tile.id, neededQic)) continue;
+            candidates.push({ action: act, score });
         }
 
         if (candidates.length === 0) return [];
         candidates.sort((a, b) => b.score - a.score);
-        return candidates.slice(0, 3).map(c => c.action);
+
+        return candidates.slice(0, 5).map(c => c.action);
     }
 
     /** 우주선 액션 목록 (상위 3개 반환) */
@@ -2048,15 +2226,18 @@ export class BotLogic {
                 if (score > 0) score += round * 5;
 
                 if (action && score > 0) {
-                    candidates.push({ action, score });
+                    // 서버 executeUseShipAction 기준으로 불가능한 후보는 애초에 넣지 않음
+                    const p = (action as any).params || {};
+                    const ok = this.canUseShipAction(game, playerId, p.shipTileId, p.actionIndex, p.targetTileId);
+                    if (ok) candidates.push({ action, score });
                 }
             }
         }
 
         if (candidates.length === 0) return [];
         candidates.sort((a, b) => b.score - a.score);
-        // 상위 3개 반환하여 MCTS가 다양한 우주선 액션을 탐색하도록
-        return candidates.slice(0, 3).map(c => c.action);
+
+        return candidates.slice(0, 5).map(c => c.action);
     }
 
     /** @deprecated Use findSpaceshipActions instead */

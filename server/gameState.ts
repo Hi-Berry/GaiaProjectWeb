@@ -1105,6 +1105,25 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const beforeResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
 			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game', undefined, { simulation: (game as any).simulation });
 
+			// --- Round income totals accumulator (stable metric for tuning) ---
+			const incomeRound = game.roundNumber || 1;
+			let gainedOre = 0;
+			let gainedCredits = 0;
+			let gainedKnowledge = 0;
+			let gainedQic = 0;
+			let gainedPowerCharge = 0;  // amount that will be charged (bowl movement)
+			let gainedPowerTokens = 0;  // tokens added directly to bowls (ex: base/bonus/pi tokens, artifacts to bowl3)
+			const grantQicAndTrack = (amount: number) => {
+				if (!amount) return;
+				const beforeQ = player.qic ?? 0;
+				const beforeO = player.ore ?? 0;
+				grantQic(game, pId, amount);
+				const afterQ = player.qic ?? 0;
+				const afterO = player.ore ?? 0;
+				if (afterQ > beforeQ) gainedQic += (afterQ - beforeQ);
+				if (afterO > beforeO) gainedOre += (afterO - beforeO); // Gleens conversion etc.
+			};
+
 			// 수익 단계에서 파워와 토큰 수익을 개별 아이템으로 수집
 			const incomeItems: Array<{ type: 'power' | 'tokens'; amount: number; id: string }> = [];
 
@@ -1117,18 +1136,24 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const basePowerTokens = faction?.baseIncome?.powerTokens ?? 0;
 
 			player.ore += baseOre;
+			gainedOre += baseOre;
 			player.knowledge += baseKnowledge;
+			gainedKnowledge += baseKnowledge;
 			player.credits = (player.credits || 0) + baseCredits;
-			grantQic(game, pId, baseQic);
+			gainedCredits += baseCredits;
+			grantQicAndTrack(baseQic);
 			if (basePowerTokens > 0) {
 				incomeItems.push({ type: 'tokens', amount: basePowerTokens, id: `base-tokens-${pId}` });
+				gainedPowerTokens += basePowerTokens;
 			}
 			// 인공물 수익: 1=매라운드 2토큰(3그릇), 2=매라운드 1K 1O
 			const arts = player.artifacts ?? [];
-			if (arts.includes('art-income-2p3')) player.power3 = (player.power3 || 0) + 2;
+			if (arts.includes('art-income-2p3')) { player.power3 = (player.power3 || 0) + 2; gainedPowerTokens += 2; }
 			if (arts.includes('art-income-1k1o')) {
 				player.knowledge += 1;
 				player.ore += 1;
+				gainedKnowledge += 1;
+				gainedOre += 1;
 			}
 
 			// 2. Structure Income
@@ -1138,6 +1163,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const mineCount = getEffectiveMineCount(game, pId);
 			for (let i = 0; i < mineCount && i < STRUCTURE_INCOME.mine.length; i++) {
 				player.ore += STRUCTURE_INCOME.mine[i];
+				gainedOre += STRUCTURE_INCOME.mine[i];
 			}
 
 			// Trading Stations
@@ -1145,8 +1171,10 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			for (let i = 0; i < tsCount && i < STRUCTURE_INCOME.trading_station.length; i++) {
 				if (factionId === 'bescods') {
 					player.knowledge += 1;
+					gainedKnowledge += 1;
 				} else {
 					player.credits += STRUCTURE_INCOME.trading_station[i];
+					gainedCredits += STRUCTURE_INCOME.trading_station[i];
 				}
 			}
 
@@ -1156,17 +1184,21 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				if (factionId === 'nevlas') {
 					// 네뷸라: 연구소당 2파워 (1K 대신)
 					incomeItems.push({ type: 'power', amount: 2 * labCount, id: `nevlas-lab-${pId}` });
+					gainedPowerCharge += 2 * labCount;
 				} else {
 					let labBaseKnowledge = factionId === 'firaks' ? 2 : 1;
 					player.knowledge += labBaseKnowledge;
+					gainedKnowledge += labBaseKnowledge;
 					if (factionId === 'bescods') {
 						const labCredits = [3, 4, 5];
 						for (let i = 0; i < labCount && i < labCredits.length; i++) {
 							player.credits += labCredits[i];
+							gainedCredits += labCredits[i];
 						}
 					} else {
 						for (let i = 1; i < labCount; i++) {
 							player.knowledge += 1;
+							gainedKnowledge += 1;
 						}
 					}
 				}
@@ -1177,6 +1209,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			if (leftAcademyCount > 0) {
 				const kPerLeft = player.faction === 'itars' ? 3 : STRUCTURE_INCOME.academy.left;
 				player.knowledge += leftAcademyCount * kPerLeft;
+				gainedKnowledge += leftAcademyCount * kPerLeft;
 			}
 
 			// Planetary Institute 체크 (PI 자체 수익과 의회 수익 모두에 사용)
@@ -1191,8 +1224,11 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				const ei = economyIncome[econLevel] || economyIncome[0];
 				player.credits += ei.credits;
 				player.ore += ei.ore;
+				gainedCredits += ei.credits;
+				gainedOre += ei.ore;
 				if (ei.power) {
 					incomeItems.push({ type: 'power', amount: ei.power, id: `economy-${econLevel}-${pId}` });
+					gainedPowerCharge += ei.power;
 				}
 				if (ei.vp) {
 					addScore(game, pId, ei.vp, 'other', { source: 'Economy track reward' });
@@ -1205,6 +1241,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const sciLevel = player.research.science || 0;
 			if (sciLevel < 5) {
 				player.knowledge += sciLevel;
+				gainedKnowledge += sciLevel;
 			}
 			// 레벨 5는 advanceTech에서 즉시 보상으로 처리됨
 
@@ -1212,25 +1249,30 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			if (player.techTiles.includes('tech-inc-1o-1p') && !isTechTileCovered(player, 'tech-inc-1o-1p')) {
 				player.ore += 1;
 				incomeItems.push({ type: 'power', amount: 1, id: `tech-1o-1p-${pId}` });
+				gainedOre += 1;
+				gainedPowerCharge += 1;
 			}
 			if (player.techTiles.includes('tech-inc-4c') && !isTechTileCovered(player, 'tech-inc-4c')) {
 				player.credits += 4;
+				gainedCredits += 4;
 			}
 			if (player.techTiles.includes('tech-inc-1k-1c') && !isTechTileCovered(player, 'tech-inc-1k-1c')) {
 				player.knowledge += 1;
 				player.credits += 1;
+				gainedKnowledge += 1;
+				gainedCredits += 1;
 			}
 
 			// 6. Bonus Tile Income
 			if (player.bonusTile) {
 				const bonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
 				if (bonusTile?.income) {
-					if (bonusTile.income.ore) player.ore += bonusTile.income.ore;
-					if (bonusTile.income.credits) player.credits += bonusTile.income.credits;
-					if (bonusTile.income.knowledge) player.knowledge += bonusTile.income.knowledge;
-					if (bonusTile.income.qic) grantQic(game, pId, bonusTile.income.qic);
-					if (bonusTile.income.power) incomeItems.push({ type: 'power', amount: bonusTile.income.power, id: `bonus-power-${player.bonusTile}-${pId}` });
-					if (bonusTile.income.powerTokens) incomeItems.push({ type: 'tokens', amount: bonusTile.income.powerTokens, id: `bonus-tokens-${player.bonusTile}-${pId}` });
+					if (bonusTile.income.ore) { player.ore += bonusTile.income.ore; gainedOre += bonusTile.income.ore; }
+					if (bonusTile.income.credits) { player.credits += bonusTile.income.credits; gainedCredits += bonusTile.income.credits; }
+					if (bonusTile.income.knowledge) { player.knowledge += bonusTile.income.knowledge; gainedKnowledge += bonusTile.income.knowledge; }
+					if (bonusTile.income.qic) grantQicAndTrack(bonusTile.income.qic);
+					if (bonusTile.income.power) { incomeItems.push({ type: 'power', amount: bonusTile.income.power, id: `bonus-power-${player.bonusTile}-${pId}` }); gainedPowerCharge += bonusTile.income.power; }
+					if (bonusTile.income.powerTokens) { incomeItems.push({ type: 'tokens', amount: bonusTile.income.powerTokens, id: `bonus-tokens-${player.bonusTile}-${pId}` }); gainedPowerTokens += bonusTile.income.powerTokens; }
 					log(`[Income] ${player.name} bonus tile (${player.bonusTile}): ${JSON.stringify(bonusTile.income)}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 			} else {
@@ -1244,12 +1286,14 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				const piTokens = pi.tokens ?? 0;
 				if (piPower > 0) {
 					incomeItems.push({ type: 'power', amount: piPower, id: `pi-income-power-${pId}` });
+					gainedPowerCharge += piPower;
 				}
 				if (piTokens > 0) {
 					incomeItems.push({ type: 'tokens', amount: piTokens, id: `pi-income-tokens-${pId}` });
+					gainedPowerTokens += piTokens;
 				}
-				if (pi.ore) player.ore += pi.ore;
-				if (pi.qic) grantQic(game, pId, pi.qic);
+				if (pi.ore) { player.ore += pi.ore; gainedOre += pi.ore; }
+				if (pi.qic) grantQicAndTrack(pi.qic);
 			}
 
 			// 수익 아이템이 있으면 개별 선택 요청
@@ -1284,6 +1328,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				player.brainStoneInGaia = false;
 				player.brainStoneBowl = 1;
 				player.power1 = (player.power1 ?? 0) + 1;
+				gainedPowerTokens += 1;
 				log(`[Income] ${player.name} (Taklons): Brain Stone returned to Bowl 1`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 			// 아이타: 2그릇 태울 때 보관해 둔 토큰을 1그릇으로 복귀 (이제 gaiaformerPower로 통합 관리되므로 이 부분은 삭제 가능하거나 gaiaformerPower 로직으로 대체됨)
@@ -1291,6 +1336,17 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 
 			const afterResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
 			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game', undefined, { simulation: (game as any).simulation });
+
+			// Save round income totals (power/tokens counts are already totals for the round)
+			if (!player.roundIncomeTotals) player.roundIncomeTotals = {};
+			player.roundIncomeTotals[incomeRound] = {
+				ore: gainedOre,
+				credits: gainedCredits,
+				knowledge: gainedKnowledge,
+				qic: gainedQic,
+				powerCharge: gainedPowerCharge,
+				powerTokens: gainedPowerTokens,
+			};
 		}
 		(game as any).incomePhaseAppliedThisRound = true;
 		// 수익 선택이 필요한 플레이어는 턴 순서대로 한 명씩만 대기 (모든 수익 적용 후 선택만 순서대로)

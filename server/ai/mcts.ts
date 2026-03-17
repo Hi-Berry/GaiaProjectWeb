@@ -162,13 +162,44 @@ export class MCTS {
         currentState.simulation = true;
         const dummyIo = { to: () => ({ emit: () => { } }) } as any;
 
-        // Simulate 4 steps ahead greedily instead of fully random to avoid terrible play
-        for (let i = 0; i < 4; i++) {
+        // Simulate a few steps ahead with a cheap "1-ply" heuristic:
+        // - evaluate top-N candidate actions by applying them once
+        // - pick best (with a bit of noise) to avoid deterministic traps
+        const ROLLOUT_STEPS = 5;
+        const TOP_N = 6;
+        for (let i = 0; i < ROLLOUT_STEPS; i++) {
             if (currentState.turnOrder[currentState.currentPlayerIndex] !== playerId || currentState.currentPhase !== 'main') {
                 break;
             }
 
-            const nextAction = await BotLogic.getNextMove(currentState, playerId, true); // isSimulate = true
+            const candidates = this.getPossibleActions(currentState, playerId);
+            if (!candidates || candidates.length === 0) break;
+
+            // Score a subset of candidates by looking 1 move ahead
+            const scored: Array<{ action: any; score: number }> = [];
+            const subset = candidates.slice(0, Math.min(TOP_N, candidates.length));
+            for (const act of subset) {
+                try {
+                    const s2 = StateCloner.cloneGameState(currentState);
+                    s2.simulation = true;
+                    const a = act as { type: string; params: any; preActions?: any[] };
+                    if (a.preActions?.length) {
+                        for (const pre of a.preActions) {
+                            await BotLogic.performAction(dummyIo, s2, pre as any, playerId);
+                        }
+                    }
+                    await BotLogic.performAction(dummyIo, s2, { type: a.type, params: a.params } as any, playerId);
+                    scored.push({ action: act, score: Evaluator.evaluateState(s2, playerId) });
+                } catch {
+                    // ignore invalid sim transitions
+                }
+            }
+            scored.sort((a, b) => b.score - a.score);
+
+            // If for some reason we couldn't score, fallback to BotLogic simulate picker
+            const nextAction = scored.length > 0
+                ? (Math.random() < 0.15 && scored.length >= 2 ? scored[1].action : scored[0].action)
+                : await BotLogic.getNextMove(currentState, playerId, true); // isSimulate = true
             if (!nextAction || nextAction.type === 'end_turn') break;
 
             await BotLogic.performAction(dummyIo, currentState, nextAction, playerId);

@@ -96,7 +96,8 @@ function normalizeWeights(w: EvaluatorWeights): EvaluatorWeights {
         vpWeightEarly: clamp(w.vpWeightEarly, 0, 30),
         vpWeightLate: clamp(w.vpWeightLate, 0, 30),
 
-        resourceMultiplierEarly: clamp(w.resourceMultiplierEarly, 0, 2),
+        // DEFAULT가 2.5까지 쓰는 설계이므로 상한을 그에 맞춰 올림 (튜닝 무력화 방지)
+        resourceMultiplierEarly: clamp(w.resourceMultiplierEarly, 0, 4),
         resourceMultiplierLate: clamp(w.resourceMultiplierLate, 0, 2),
         oreValue: clamp(w.oreValue, 0, 5),
         creditsValue: clamp(w.creditsValue, 0, 5),

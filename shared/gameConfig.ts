@@ -80,6 +80,15 @@ export interface PlayerState {
   spaceshipFed3TfMineFree?: boolean;
   /** 게임 종료 시 점수 breakdown (라운드미션/보너스패스/기술타일/최종미션/파워수신/우주선/연구트랙) */
   scoreBreakdown?: ScoreBreakdown;
+  /**
+   * 라운드별 "수입 단계"에서 실제로 획득한 수입 합계.
+   * - ore/credits/knowledge/qic: 즉시 추가된 자원(글린 QIC→광물 전환 등 반영)
+   * - powerCharge: 파워 충전량(그릇 이동량 합)
+   * - powerTokens: 파워 토큰 추가량(예: base/bonus/pi 토큰, 인공물 등으로 bowl에 직접 추가)
+   *
+   * tune/self-play에서 6라운드 수입을 안정 지표로 쓰기 위함.
+   */
+  roundIncomeTotals?: Record<number, { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number }>;
 }
 
 /** 게임 종료 시 플레이어별 점수 내역 (왜 이 점수인지 정리) */

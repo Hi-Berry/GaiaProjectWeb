@@ -1,7 +1,7 @@
 {
   "vpWeightEarly": 5,
   "vpWeightLate": 22,
-  "resourceMultiplierEarly": 2,
+  "resourceMultiplierEarly": 2.5,
   "resourceMultiplierLate": 0.5,
   "oreValue": 0.8,
   "creditsValue": 0.25,
