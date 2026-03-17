@@ -1099,3 +1099,566 @@ Seeding player...
 1:35:57 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
 1:35:58 AM [game] Bot AI Bot 3 found 3 non-pass candidates in Round 3
 1:35:58 AM [game] Bot AI Bot 3 starting MCTS with 4 candidates...
+[MCTS] Executed 1582 iterations in 8001ms
+1:36:06 AM [game] [MCTS] Candidates evaluation:
+1:36:06 AM [game]   - Action: use_ship_action, Score: 1415.00, Visits: 1
+1:36:06 AM [game]   - Action: pass_round, Score: 1458.50, Visits: 1579
+1:36:06 AM [game]   - Action: enter_spaceship internal-2, Score: 1415.00, Visits: 1
+1:36:06 AM [game]   - Action: use_ship_action, Score: 1415.00, Visits: 1
+1:36:06 AM [game] Bot AI Bot 3 executing: pass_round
+1:36:06 AM [game] Player AI Bot 3 Gained 3 VP from pass bonus (1 x 3 for research_lab)
+1:36:06 AM [game] Player AI Bot 3 returned bon-1k-lab and took bon-2c-1q
+1:36:06 AM [game] Bot AI Bot 3 successfully executed pass_round
+1:36:07 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:36:07 AM [game] Bot AI Bot 4 found 7 non-pass candidates in Round 3
+1:36:07 AM [game] Bot AI Bot 4 starting MCTS with 7 candidates...
+[MCTS] Executed 1 iterations in 775484ms
+1:49:03 AM [game] [MCTS] Candidates evaluation:
+1:49:03 AM [game]   - Action: pass_round, Score: 1411.40, Visits: 1
+1:49:03 AM [game] Bot AI Bot 4 performs cleanup convert before passing: 4power-to-1qic
+1:49:03 AM [game] Bot AI Bot 4 executing: convert_resource
+1:49:03 AM [game] Bot AI Bot 4 successfully executed convert_resource
+1:49:04 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:49:04 AM [game] Bot AI Bot 4 found 7 non-pass candidates in Round 3
+1:49:04 AM [game] Bot AI Bot 4 starting MCTS with 7 candidates...
+[MCTS] Executed 1403 iterations in 8003ms
+1:49:12 AM [game] [MCTS] Candidates evaluation:
+1:49:12 AM [game]   - Action: enter_spaceship internal-1, Score: 1409.30, Visits: 1
+1:49:12 AM [game]   - Action: use_power_action, Score: 1410.35, Visits: 1
+1:49:12 AM [game]   - Action: use_power_action, Score: 1410.50, Visits: 1
+1:49:12 AM [game]   - Action: use_power_action, Score: 1410.58, Visits: 1
+1:49:12 AM [game]   - Action: convert_resource, Score: 1459.48, Visits: 1397
+1:49:12 AM [game]   - Action: pass_round, Score: 1412.30, Visits: 1
+1:49:13 AM [game]   - Action: use_ship_action, Score: 1425.30, Visits: 1
+1:49:13 AM [game] Bot AI Bot 4 executing: convert_resource
+1:49:13 AM [game] Bot AI Bot 4 successfully executed convert_resource
+1:49:13 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:49:14 AM [game] Bot AI Bot 4 found 4 non-pass candidates in Round 3
+1:49:14 AM [game] Bot AI Bot 4 starting MCTS with 4 candidates...
+[MCTS] Executed 1587 iterations in 8001ms
+1:49:22 AM [game] [MCTS] Candidates evaluation:
+1:49:22 AM [game]   - Action: pass_round, Score: 1410.75, Visits: 1
+1:49:22 AM [game]   - Action: upgrade_structure internal-8, Score: 1459.57, Visits: 1584
+1:49:22 AM [game]   - Action: enter_spaceship internal-1, Score: 1407.75, Visits: 1
+1:49:22 AM [game]   - Action: use_ship_action, Score: 1423.75, Visits: 1
+1:49:22 AM [game] Bot AI Bot 4 executing: upgrade_structure
+1:49:22 AM [game] Bot AI Bot 4 successfully executed upgrade_structure
+1:49:22 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:49:23 AM [game] Bot AI Bot 4 executing: end_turn
+1:49:23 AM [game] Turn ended for bot-p_xqsjyn7u8i. Next player: p_mz1xzfah51
+1:49:23 AM [game] Bot AI Bot 4 successfully executed end_turn
+1:49:23 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:49:24 AM [game] Bot SelfPlayRunner found 4 non-pass candidates in Round 3
+1:49:24 AM [game] Bot SelfPlayRunner starting MCTS with 5 candidates...
+[MCTS] Executed 1592 iterations in 8003ms
+1:49:32 AM [game] [MCTS] Candidates evaluation:
+1:49:32 AM [game]   - Action: enter_spaceship internal-2, Score: 2387.35, Visits: 1
+1:49:32 AM [game]   - Action: use_power_action, Score: 2410.50, Visits: 4
+1:49:32 AM [game]   - Action: pass_round, Score: 2412.35, Visits: 1582
+1:49:32 AM [game]   - Action: use_power_action, Score: 2410.40, Visits: 4
+1:49:32 AM [game]   - Action: convert_resource, Score: 2386.82, Visits: 1
+1:49:32 AM [game] Bot SelfPlayRunner performs cleanup convert before passing: 3power-to-1ore
+1:49:32 AM [game] Bot SelfPlayRunner executing: convert_resource
+1:49:32 AM [game] Bot SelfPlayRunner successfully executed convert_resource
+1:49:32 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:49:33 AM [game] Bot SelfPlayRunner found 1 non-pass candidates in Round 3
+1:49:33 AM [game] Bot SelfPlayRunner starting MCTS with 2 candidates...
+[MCTS] Executed 1601 iterations in 8004ms
+1:49:41 AM [game] [MCTS] Candidates evaluation:
+1:49:41 AM [game]   - Action: pass_round, Score: 2410.80, Visits: 1600
+1:49:41 AM [game]   - Action: enter_spaceship internal-2, Score: 2385.80, Visits: 1
+1:49:41 AM [game] Bot SelfPlayRunner executing: pass_round
+1:49:41 AM [game] Player SelfPlayRunner returned bon-2c-terraform and took bon-1o-mine
+1:49:41 AM [game] Bot SelfPlayRunner successfully executed pass_round
+1:49:41 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:49:42 AM [game] Bot AI Bot 4 found 3 non-pass candidates in Round 3
+1:49:42 AM [game] Bot AI Bot 4 starting MCTS with 4 candidates...
+[MCTS] Executed 144 iterations in 8000ms
+1:49:50 AM [game] [MCTS] Candidates evaluation:
+1:49:50 AM [game]   - Action: use_ship_action, Score: 1472.58, Visits: 1
+1:49:50 AM [game]   - Action: enter_spaceship internal-1, Score: 1456.58, Visits: 1
+1:49:50 AM [game]   - Action: form_federation, Score: 1588.22, Visits: 264216
+1:49:50 AM [game]   - Action: pass_round, Score: 1199.85, Visits: 1
+1:49:50 AM [game] Bot AI Bot 4 executing: form_federation
+1:49:50 AM [game] Bot AI Bot 4 successfully executed form_federation
+1:49:51 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:49:51 AM [game] Bot AI Bot 4 executing: end_turn
+1:49:51 AM [game] Turn ended for bot-p_xqsjyn7u8i. Next player: bot-p_xqsjyn7u8i
+1:49:51 AM [game] Bot AI Bot 4 successfully executed end_turn
+1:49:52 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:49:52 AM [game] Bot AI Bot 4 found 4 non-pass candidates in Round 3
+1:49:52 AM [game] Bot AI Bot 4 starting MCTS with 5 candidates...
+[MCTS] Executed 512 iterations in 8008ms
+1:50:00 AM [game] [MCTS] Candidates evaluation:
+1:50:00 AM [game]   - Action: enter_spaceship internal-2, Score: 1545.90, Visits: 6
+1:50:00 AM [game]   - Action: pass_round, Score: 1360.50, Visits: 1
+1:50:00 AM [game]   - Action: use_ship_action, Score: 1500.86, Visits: 2
+1:50:00 AM [game]   - Action: enter_spaceship internal-0, Score: 1588.22, Visits: 498
+1:50:00 AM [game]   - Action: enter_spaceship internal-1, Score: 1547.68, Visits: 5
+1:50:00 AM [game] Bot AI Bot 4 executing: enter_spaceship
+1:50:00 AM [game] Bot AI Bot 4 successfully executed enter_spaceship
+1:50:01 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:50:01 AM [game] Bot AI Bot 4 executing: end_turn
+1:50:01 AM [game] Turn ended for bot-p_xqsjyn7u8i. Next player: bot-p_xqsjyn7u8i
+1:50:01 AM [game] Bot AI Bot 4 successfully executed end_turn
+1:50:02 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:50:02 AM [game] Bot AI Bot 4 found 3 non-pass candidates in Round 3
+1:50:02 AM [game] Bot AI Bot 4 starting MCTS with 3 candidates...
+[MCTS] Executed 545 iterations in 8000ms
+1:50:10 AM [game] [MCTS] Candidates evaluation:
+1:50:10 AM [game]   - Action: use_ship_action, Score: 1588.23, Visits: 182
+1:50:10 AM [game]   - Action: use_ship_action, Score: 1588.23, Visits: 182
+1:50:10 AM [game]   - Action: use_ship_action, Score: 1588.23, Visits: 181
+1:50:10 AM [game] Bot AI Bot 4 executing: use_ship_action
+1:50:10 AM [error] Bot AI Bot 4 failed to execute use_ship_action. Action details: {"type":"use_ship_action","params":{"shipTileId":"internal-3","actionIndex":1}}
+1:50:10 AM [game] Player AI Bot 4 Gained 0 VP from pass bonus (0 x 3 for gaiaformer)
+1:50:10 AM [game] Player AI Bot 4 returned bon-1o-gaiaformer and took bon-1o-planettype
+1:50:10 AM [game] Triggering income phase for round 4
+1:50:10 AM [game] [Income] AI Bot 2 BEFORE: O:0 C:8 K:2 Q:2 P3:0 | BonusTile: bon-4pw-bigbuilding
+1:50:10 AM [game] [Income] AI Bot 2 bonus tile (bon-4pw-bigbuilding): {"power":4}
+1:50:10 AM [game] [Income] AI Bot 2 AFTER: O:3 C:10 K:4 Q:2 P3:0
+1:50:10 AM [game] [Income] AI Bot 3 BEFORE: O:1 C:28 K:0 Q:1 P3:0 | BonusTile: bon-2c-1q
+1:50:10 AM [game] [Income] AI Bot 3 bonus tile (bon-2c-1q): {"credits":2,"qic":1}
+1:50:10 AM [game] [Income] AI Bot 3 auto-received income: 2 power
+1:50:10 AM [game] [Income] AI Bot 3 AFTER: O:4 C:39 K:2 Q:2 P3:2
+1:50:10 AM [game] [Income] SelfPlayRunner BEFORE: O:5 C:0 K:3 Q:0 P3:0 | BonusTile: bon-1o-mine
+1:50:10 AM [game] [Income] SelfPlayRunner bonus tile (bon-1o-mine): {"ore":1}
+1:50:10 AM [game] [Income] SelfPlayRunner auto-received income: 1 power
+1:50:10 AM [game] [Income] SelfPlayRunner AFTER: O:12 C:1 K:4 Q:0 P3:0
+1:50:10 AM [game] [Income] AI Bot 4 BEFORE: O:0 C:19 K:1 Q:0 P3:1 | BonusTile: bon-1o-planettype
+1:50:10 AM [game] [Income] AI Bot 4 bonus tile (bon-1o-planettype): {"ore":1}
+1:50:10 AM [game] [Income] AI Bot 4 AFTER: O:3 C:24 K:4 Q:0 P3:1
+1:50:10 AM [game] [Income] AI Bot 2 needs to select income items: 5 items
+1:50:11 AM [game] Bot AI Bot 2 auto-handling income selection
+1:50:11 AM [game] Bot AI Bot 2 auto-received all income: 5 items
+1:50:11 AM [game] Triggering income phase for round 4
+1:50:11 AM [game] [Income] Next: AI Bot 4 needs to select income items: 3 items
+1:50:11 AM [game] Bot AI Bot 4 auto-handling income selection
+1:50:11 AM [game] Bot AI Bot 4 auto-received all income: 3 items
+1:50:11 AM [game] Triggering income phase for round 4
+1:50:12 AM [game] Bot auto-handling Tinkeroid special choice
+1:50:12 AM [game] Bot AI Bot 4 (Tinkeroids) auto-selected special tinkeroid-3k
+1:50:12 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:50:13 AM [game] Bot AI Bot 2 found 12 non-pass candidates in Round 4
+1:50:13 AM [game] Bot AI Bot 2 starting MCTS with 11 candidates...
+[MCTS] Executed 1694 iterations in 8004ms
+1:50:21 AM [game] [MCTS] Candidates evaluation:
+1:50:21 AM [game]   - Action: upgrade_structure tile-11, Score: 1271.68, Visits: 1684
+1:50:21 AM [game]   - Action: use_power_action, Score: 1231.05, Visits: 1
+1:50:21 AM [game]   - Action: enter_spaceship internal-3, Score: 1227.45, Visits: 1
+1:50:21 AM [game]   - Action: use_power_action, Score: 1231.13, Visits: 1
+1:50:21 AM [game]   - Action: use_power_action, Score: 1231.05, Visits: 1
+1:50:21 AM [game]   - Action: enter_spaceship internal-0, Score: 1221.45, Visits: 1
+1:50:21 AM [game]   - Action: enter_spaceship internal-2, Score: 1207.80, Visits: 1
+1:50:21 AM [game]   - Action: advance_research, Score: 1244.05, Visits: 1
+1:50:21 AM [game]   - Action: use_power_action, Score: 1229.60, Visits: 1
+1:50:21 AM [game]   - Action: advance_research, Score: 1259.65, Visits: 1
+1:50:21 AM [game]   - Action: use_power_action, Score: 1230.90, Visits: 1
+1:50:21 AM [game] Bot AI Bot 2 executing: upgrade_structure
+1:50:21 AM [game] Bot AI Bot 2 successfully executed upgrade_structure
+1:50:21 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:50:22 AM [game] Bot AI Bot 2 executing: end_turn
+1:50:22 AM [game] Turn ended for bot-p_if684n6oyq. Next player: bot-p_8yzzfeehf1
+1:50:22 AM [game] Bot AI Bot 2 successfully executed end_turn
+1:50:22 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:50:23 AM [game] Bot AI Bot 3 found 12 non-pass candidates in Round 4
+1:50:23 AM [game] Bot AI Bot 3 starting MCTS with 13 candidates...
+[MCTS] Executed 1518 iterations in 8001ms
+1:50:31 AM [game] [MCTS] Candidates evaluation:
+1:50:31 AM [game]   - Action: enter_spaceship internal-2, Score: 1162.55, Visits: 1
+1:50:31 AM [game]   - Action: take_twilight_artifact, Score: 1225.55, Visits: 1
+1:50:31 AM [game]   - Action: use_ship_action, Score: 1394.50, Visits: 1
+1:50:31 AM [game]   - Action: upgrade_structure tile-81, Score: 1466.20, Visits: 754
+1:50:31 AM [game]   - Action: enter_spaceship internal-3, Score: 1181.55, Visits: 1
+1:50:31 AM [game]   - Action: upgrade_structure tile-81, Score: 1300.53, Visits: 1
+1:50:31 AM [game]   - Action: pass_round, Score: 1193.55, Visits: 1
+1:50:31 AM [game]   - Action: build_mine tile-21, Score: 1387.70, Visits: 1
+1:50:31 AM [game]   - Action: build_mine tile-161, Score: 1387.70, Visits: 1
+1:50:31 AM [game]   - Action: build_mine tile-60, Score: 1382.90, Visits: 1
+1:50:31 AM [game]   - Action: use_ship_action, Score: 1382.90, Visits: 1
+1:50:31 AM [game]   - Action: upgrade_structure tile-88, Score: 1466.20, Visits: 753
+1:50:31 AM [game]   - Action: build_mine tile-160, Score: 1382.90, Visits: 1
+1:50:31 AM [game] Bot AI Bot 3 executing: upgrade_structure
+1:50:31 AM [game] Player AI Bot 3 gained 5 VP from Round 4 mission: Big Building
+1:50:31 AM [game] Bot AI Bot 3 successfully executed upgrade_structure
+1:50:31 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:50:32 AM [game] Bot AI Bot 3 executing: end_turn
+1:50:32 AM [game] Turn ended for bot-p_8yzzfeehf1. Next player: p_mz1xzfah51
+1:50:32 AM [game] Bot AI Bot 3 successfully executed end_turn
+1:50:32 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:50:33 AM [game] Bot SelfPlayRunner found 4 non-pass candidates in Round 4
+1:50:33 AM [game] Bot SelfPlayRunner starting MCTS with 4 candidates...
+[MCTS] Executed 1721 iterations in 8003ms
+1:50:41 AM [game] [MCTS] Candidates evaluation:
+1:50:41 AM [game]   - Action: advance_research, Score: 2005.02, Visits: 1718
+1:50:41 AM [game]   - Action: enter_spaceship internal-2, Score: 1946.43, Visits: 1
+1:50:41 AM [game]   - Action: advance_research, Score: 1992.22, Visits: 1
+1:50:41 AM [game]   - Action: use_special_action, Score: 1977.43, Visits: 1
+1:50:41 AM [game] Bot SelfPlayRunner executing: advance_research
+1:50:41 AM [game] Player SelfPlayRunner advanced economy to Lv.2: knowledge 4 → 0 (-4)
+1:50:41 AM [game] Bot SelfPlayRunner successfully executed advance_research
+1:50:41 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:50:42 AM [game] Bot SelfPlayRunner executing: end_turn
+1:50:42 AM [game] Turn ended for p_mz1xzfah51. Next player: bot-p_xqsjyn7u8i
+1:50:42 AM [game] Bot SelfPlayRunner successfully executed end_turn
+1:50:42 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:50:43 AM [game] Bot AI Bot 4 found 11 non-pass candidates in Round 4
+1:50:43 AM [game] Bot AI Bot 4 starting MCTS with 11 candidates...
+[MCTS] Executed 18 iterations in 8000ms
+1:50:51 AM [game] [MCTS] Candidates evaluation:
+1:50:51 AM [game]   - Action: advance_research, Score: 1337.20, Visits: 1
+1:50:51 AM [game]   - Action: use_ship_action, Score: 1313.65, Visits: 1
+1:50:51 AM [game]   - Action: advance_research, Score: 1346.40, Visits: 1
+1:50:51 AM [game]   - Action: use_power_action, Score: 1314.60, Visits: 1
+1:50:51 AM [game]   - Action: convert_resource, Score: 1314.30, Visits: 1
+1:50:51 AM [game]   - Action: use_power_action, Score: 1314.55, Visits: 1
+1:50:51 AM [game]   - Action: use_power_action, Score: 1314.45, Visits: 1
+1:50:51 AM [game]   - Action: use_ship_action, Score: 1315.65, Visits: 1
+1:50:51 AM [game]   - Action: upgrade_structure internal-8, Score: 1394.58, Visits: 381974
+1:50:51 AM [game]   - Action: use_ship_action, Score: 1314.45, Visits: 1
+1:50:51 AM [game]   - Action: use_power_action, Score: 1314.60, Visits: 1
+1:50:51 AM [game] Bot AI Bot 4 executing: upgrade_structure
+1:50:51 AM [game] Bot AI Bot 4 successfully executed upgrade_structure
+1:50:52 AM [game] Bot AI Bot 4 auto-handling tech tile selection
+1:50:52 AM [game] Player AI Bot 4 gained 2 Ore from Terraforming level 1
+1:50:52 AM [game] Bot AI Bot 4 gained tech tile tech-imm-7vp and advanced terraforming to level 1
+1:50:52 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:50:52 AM [game] Bot AI Bot 4 executing: end_turn
+1:50:53 AM [game] Turn ended for bot-p_xqsjyn7u8i. Next player: bot-p_if684n6oyq
+1:50:53 AM [game] Bot AI Bot 4 successfully executed end_turn
+1:50:53 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:50:54 AM [game] Bot AI Bot 2 found 11 non-pass candidates in Round 4
+1:50:54 AM [game] Bot AI Bot 2 starting MCTS with 11 candidates...
+[MCTS] Executed 1422 iterations in 8001ms
+1:51:02 AM [game] [MCTS] Candidates evaluation:
+1:51:02 AM [game]   - Action: use_power_action, Score: 1256.43, Visits: 1
+1:51:02 AM [game]   - Action: advance_research, Score: 1285.18, Visits: 1412
+1:51:02 AM [game]   - Action: use_power_action, Score: 1256.58, Visits: 1
+1:51:02 AM [game]   - Action: enter_spaceship internal-3, Score: 1252.88, Visits: 1
+1:51:02 AM [game]   - Action: use_power_action, Score: 1256.58, Visits: 1
+1:51:02 AM [game]   - Action: use_power_action, Score: 1256.65, Visits: 1
+1:51:02 AM [game]   - Action: enter_spaceship internal-2, Score: 1233.08, Visits: 1
+1:51:02 AM [game]   - Action: convert_resource, Score: 1254.88, Visits: 1
+1:51:02 AM [game]   - Action: use_power_action, Score: 1255.13, Visits: 1
+1:51:02 AM [game]   - Action: advance_research, Score: 1269.58, Visits: 1
+1:51:02 AM [game]   - Action: enter_spaceship internal-0, Score: 1246.88, Visits: 1
+1:51:02 AM [game] Bot AI Bot 2 executing: advance_research
+1:51:02 AM [game] Player AI Bot 2 gained 1 QIC from Navigation level 1
+1:51:02 AM [game] Player AI Bot 2 advanced navigation to Lv.1: knowledge 4 → 0 (-4)
+1:51:02 AM [game] Bot AI Bot 2 successfully executed advance_research
+1:51:02 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:51:03 AM [game] Bot AI Bot 2 executing: end_turn
+1:51:03 AM [game] Turn ended for bot-p_if684n6oyq. Next player: bot-p_8yzzfeehf1
+1:51:03 AM [game] Bot AI Bot 2 successfully executed end_turn
+1:51:03 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:51:04 AM [game] Bot AI Bot 3 found 4 non-pass candidates in Round 4
+1:51:04 AM [game] Bot AI Bot 3 starting MCTS with 5 candidates...
+[MCTS] Executed 1759 iterations in 8000ms
+1:51:12 AM [game] [MCTS] Candidates evaluation:
+1:51:12 AM [game]   - Action: use_ship_action, Score: 1454.20, Visits: 1
+1:51:12 AM [game]   - Action: enter_spaceship internal-3, Score: 1454.20, Visits: 1
+1:51:12 AM [game]   - Action: pass_round, Score: 1466.20, Visits: 1755
+1:51:12 AM [game]   - Action: use_ship_action, Score: 1453.80, Visits: 1
+1:51:12 AM [game]   - Action: enter_spaceship internal-2, Score: 1435.20, Visits: 1
+1:51:12 AM [game] Bot AI Bot 3 performs cleanup convert before passing: 1power-to-1credit
+1:51:12 AM [game] Bot AI Bot 3 executing: convert_resource
+1:51:12 AM [game] Bot AI Bot 3 successfully executed convert_resource
+1:51:12 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:51:13 AM [game] Bot AI Bot 3 found 4 non-pass candidates in Round 4
+1:51:13 AM [game] Bot AI Bot 3 starting MCTS with 5 candidates...
+[MCTS] Executed 1771 iterations in 8004ms
+1:51:21 AM [game] [MCTS] Candidates evaluation:
+1:51:21 AM [game]   - Action: enter_spaceship internal-3, Score: 1454.33, Visits: 1
+1:51:21 AM [game]   - Action: use_ship_action, Score: 1434.68, Visits: 1
+1:51:21 AM [game]   - Action: pass_round, Score: 1465.67, Visits: 1767
+1:51:21 AM [game]   - Action: use_ship_action, Score: 1459.93, Visits: 1
+1:51:21 AM [game]   - Action: enter_spaceship internal-2, Score: 1434.68, Visits: 1
+1:51:21 AM [game] Bot AI Bot 3 performs cleanup convert before passing: 1power-to-1credit
+1:51:21 AM [game] Bot AI Bot 3 executing: convert_resource
+1:51:21 AM [game] Bot AI Bot 3 successfully executed convert_resource
+1:51:21 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:51:22 AM [game] Bot AI Bot 3 found 4 non-pass candidates in Round 4
+1:51:22 AM [game] Bot AI Bot 3 starting MCTS with 5 candidates...
+[MCTS] Executed 1765 iterations in 8000ms
+1:51:30 AM [game] [MCTS] Candidates evaluation:
+1:51:30 AM [game]   - Action: use_ship_action, Score: 1459.25, Visits: 1
+1:51:30 AM [game]   - Action: enter_spaceship internal-3, Score: 1453.65, Visits: 1
+1:51:30 AM [game]   - Action: enter_spaceship internal-2, Score: 1434.15, Visits: 1
+1:51:30 AM [game]   - Action: pass_round, Score: 1465.15, Visits: 1761
+1:51:30 AM [game]   - Action: use_ship_action, Score: 1453.65, Visits: 1
+1:51:30 AM [game] Bot AI Bot 3 executing: pass_round
+1:51:30 AM [game] Player AI Bot 3 returned bon-2c-1q and took bon-1k-lab
+1:51:30 AM [game] Bot AI Bot 3 successfully executed pass_round
+1:51:30 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:51:31 AM [game] Bot SelfPlayRunner found 2 non-pass candidates in Round 4
+1:51:31 AM [game] Bot SelfPlayRunner starting MCTS with 3 candidates...
+[MCTS] Executed 2078 iterations in 8002ms
+1:51:39 AM [game] [MCTS] Candidates evaluation:
+1:51:39 AM [game]   - Action: pass_round, Score: 2035.02, Visits: 2076
+1:51:39 AM [game]   - Action: enter_spaceship internal-2, Score: 1980.03, Visits: 1
+1:51:39 AM [game]   - Action: use_special_action, Score: 2011.03, Visits: 1
+1:51:39 AM [game] Bot SelfPlayRunner executing: pass_round
+1:51:39 AM [game] Player SelfPlayRunner Gained 6 VP from pass bonus (6 x 1 for mine)
+1:51:39 AM [game] Player SelfPlayRunner returned bon-1o-mine and took bon-2c-1q
+1:51:39 AM [game] Bot SelfPlayRunner successfully executed pass_round
+1:51:39 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:51:40 AM [game] Bot AI Bot 4 found 10 non-pass candidates in Round 4
+1:51:40 AM [game] Bot AI Bot 4 starting MCTS with 10 candidates...
+[MCTS] Executed 2063 iterations in 8003ms
+1:51:48 AM [game] [MCTS] Candidates evaluation:
+1:51:48 AM [game]   - Action: convert_resource, Score: 1415.68, Visits: 1
+1:51:48 AM [game]   - Action: advance_research, Score: 1438.58, Visits: 1
+1:51:48 AM [game]   - Action: advance_research, Score: 1447.77, Visits: 2054
+1:51:48 AM [game]   - Action: use_ship_action, Score: 1415.03, Visits: 1
+1:51:48 AM [game]   - Action: use_power_action, Score: 1415.98, Visits: 1
+1:51:48 AM [game]   - Action: use_power_action, Score: 1415.83, Visits: 1
+1:51:48 AM [game]   - Action: use_ship_action, Score: 1417.03, Visits: 1
+1:51:48 AM [game]   - Action: use_power_action, Score: 1415.98, Visits: 1
+1:51:48 AM [game]   - Action: use_power_action, Score: 1416.05, Visits: 1
+1:51:48 AM [game]   - Action: use_ship_action, Score: 1415.83, Visits: 1
+1:51:48 AM [game] Bot AI Bot 4 executing: advance_research
+1:51:48 AM [game] Player AI Bot 4 gained 1 QIC from AI level 1
+1:51:48 AM [game] Player AI Bot 4 advanced artificialIntelligence to Lv.1: knowledge 4 → 0 (-4)
+1:51:48 AM [game] Bot AI Bot 4 successfully executed advance_research
+1:51:48 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:51:49 AM [game] Bot AI Bot 4 executing: end_turn
+1:51:49 AM [game] Turn ended for bot-p_xqsjyn7u8i. Next player: bot-p_if684n6oyq
+1:51:49 AM [game] Bot AI Bot 4 successfully executed end_turn
+1:51:49 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:51:50 AM [game] Bot AI Bot 2 found 11 non-pass candidates in Round 4
+1:51:50 AM [game] Bot AI Bot 2 starting MCTS with 12 candidates...
+[MCTS] Executed 1732 iterations in 8002ms
+1:51:58 AM [game] [MCTS] Candidates evaluation:
+1:51:58 AM [game]   - Action: enter_spaceship internal-0, Score: 1273.68, Visits: 1
+1:51:58 AM [game]   - Action: use_power_action, Score: 1283.38, Visits: 1
+1:51:58 AM [game]   - Action: build_mine tile-161, Score: 1468.53, Visits: 1
+1:51:58 AM [game]   - Action: use_power_action, Score: 1283.38, Visits: 1
+1:51:58 AM [game]   - Action: pass_round, Score: 1305.18, Visits: 1
+1:51:58 AM [game]   - Action: enter_spaceship internal-2, Score: 1259.88, Visits: 1
+1:51:58 AM [game]   - Action: enter_spaceship internal-3, Score: 1279.68, Visits: 1
+1:51:58 AM [game]   - Action: build_mine tile-120, Score: 1468.53, Visits: 1
+1:51:58 AM [game]   - Action: convert_resource, Score: 1466.98, Visits: 1
+1:51:58 AM [game]   - Action: use_power_action, Score: 1283.45, Visits: 1
+1:51:58 AM [game]   - Action: build_mine tile-44, Score: 1472.52, Visits: 861
+1:51:58 AM [game]   - Action: build_mine tile-177, Score: 1472.52, Visits: 861
+1:51:58 AM [game] Bot AI Bot 2 executing: build_mine
+1:51:58 AM [game] Bot AI Bot 2 successfully executed build_mine
+1:51:58 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:51:59 AM [game] Bot AI Bot 2 executing: end_turn
+1:51:59 AM [game] Turn ended for bot-p_if684n6oyq. Next player: bot-p_xqsjyn7u8i
+1:51:59 AM [game] Bot AI Bot 2 successfully executed end_turn
+1:51:59 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:52:00 AM [game] Bot AI Bot 4 found 8 non-pass candidates in Round 4
+1:52:00 AM [game] Bot AI Bot 4 starting MCTS with 8 candidates...
+[MCTS] Executed 1557 iterations in 8004ms
+1:52:08 AM [game] [MCTS] Candidates evaluation:
+1:52:08 AM [game]   - Action: use_ship_action, Score: 1445.34, Visits: 20
+1:52:08 AM [game]   - Action: enter_spaceship internal-1, Score: 1442.58, Visits: 2
+1:52:08 AM [game]   - Action: use_ship_action, Score: 1445.85, Visits: 116
+1:52:08 AM [game]   - Action: use_power_action, Score: 1445.97, Visits: 283
+1:52:08 AM [game]   - Action: use_ship_action, Score: 1445.86, Visits: 125
+1:52:08 AM [game]   - Action: use_power_action, Score: 1446.05, Visits: 626
+1:52:08 AM [game]   - Action: use_power_action, Score: 1445.82, Visits: 103
+1:52:08 AM [game]   - Action: use_power_action, Score: 1445.97, Visits: 282
+1:52:08 AM [game] Bot AI Bot 4 executing: use_power_action
+1:52:08 AM [game] Bot AI Bot 4 successfully executed use_power_action
+1:52:08 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:52:09 AM [game] Bot AI Bot 4 executing: end_turn
+1:52:09 AM [game] Turn ended for bot-p_xqsjyn7u8i. Next player: bot-p_if684n6oyq
+1:52:09 AM [game] Bot AI Bot 4 successfully executed end_turn
+1:52:09 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:52:10 AM [game] Bot AI Bot 2 found 6 non-pass candidates in Round 4
+1:52:10 AM [game] Bot AI Bot 2 starting MCTS with 7 candidates...
+[MCTS] Executed 2055 iterations in 8000ms
+1:52:18 AM [game] [MCTS] Candidates evaluation:
+1:52:18 AM [game]   - Action: pass_round, Score: 1492.52, Visits: 2049
+1:52:18 AM [game]   - Action: use_power_action, Score: 1469.28, Visits: 1
+1:52:18 AM [game]   - Action: use_power_action, Score: 1470.73, Visits: 1
+1:52:18 AM [game]   - Action: enter_spaceship internal-2, Score: 1447.23, Visits: 1
+1:52:18 AM [game]   - Action: convert_resource, Score: 1474.13, Visits: 1
+1:52:18 AM [game]   - Action: use_power_action, Score: 1470.73, Visits: 1
+1:52:18 AM [game]   - Action: convert_resource, Score: 1469.18, Visits: 1
+1:52:18 AM [game] Bot AI Bot 2 performs cleanup convert before passing: 4power-to-1qic
+1:52:18 AM [game] Bot AI Bot 2 executing: convert_resource
+1:52:18 AM [game] Bot AI Bot 2 successfully executed convert_resource
+1:52:18 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:52:19 AM [game] Bot AI Bot 2 found 6 non-pass candidates in Round 4
+1:52:19 AM [game] Bot AI Bot 2 starting MCTS with 7 candidates...
+[MCTS] Executed 1692 iterations in 8001ms
+1:52:27 AM [game] [MCTS] Candidates evaluation:
+1:52:27 AM [game]   - Action: use_power_action, Score: 1474.13, Visits: 1
+1:52:27 AM [game]   - Action: use_power_action, Score: 1472.68, Visits: 1
+1:52:27 AM [game]   - Action: enter_spaceship internal-3, Score: 1470.38, Visits: 1
+1:52:27 AM [game]   - Action: convert_resource, Score: 1669.24, Visits: 1686
+1:52:27 AM [game]   - Action: use_power_action, Score: 1474.13, Visits: 1
+1:52:27 AM [game]   - Action: enter_spaceship internal-2, Score: 1450.88, Visits: 1
+1:52:27 AM [game]   - Action: pass_round, Score: 1495.93, Visits: 1
+1:52:27 AM [game] Bot AI Bot 2 executing: convert_resource
+1:52:27 AM [game] Bot AI Bot 2 successfully executed convert_resource
+1:52:27 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:52:28 AM [game] Bot AI Bot 2 found 5 non-pass candidates in Round 4
+1:52:28 AM [game] Bot AI Bot 2 starting MCTS with 6 candidates...
+[MCTS] Executed 1746 iterations in 8001ms
+1:52:36 AM [game] [MCTS] Candidates evaluation:
+1:52:36 AM [game]   - Action: build_mine tile-120, Score: 1669.73, Visits: 871
+1:52:36 AM [game]   - Action: enter_spaceship internal-2, Score: 1449.33, Visits: 1
+1:52:36 AM [game]   - Action: burn_power, Score: 1559.63, Visits: 2
+1:52:36 AM [game]   - Action: enter_spaceship internal-3, Score: 1468.83, Visits: 1
+1:52:36 AM [game]   - Action: pass_round, Score: 1494.38, Visits: 1
+1:52:36 AM [game]   - Action: build_mine tile-39, Score: 1669.73, Visits: 870
+1:52:36 AM [game] Bot AI Bot 2 executing: build_mine
+1:52:36 AM [game] Bot AI Bot 2 successfully executed build_mine
+1:52:36 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:52:37 AM [game] Bot AI Bot 2 executing: end_turn
+1:52:37 AM [game] Turn ended for bot-p_if684n6oyq. Next player: bot-p_xqsjyn7u8i
+1:52:37 AM [game] Bot AI Bot 2 successfully executed end_turn
+1:52:37 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:52:38 AM [game] Bot AI Bot 4 found 4 non-pass candidates in Round 4
+1:52:38 AM [game] Bot AI Bot 4 starting MCTS with 4 candidates...
+[MCTS] Executed 376 iterations in 8000ms
+1:52:46 AM [game] [MCTS] Candidates evaluation:
+1:52:46 AM [game]   - Action: use_ship_action, Score: 1443.45, Visits: 368
+1:52:46 AM [game]   - Action: use_ship_action, Score: 1440.55, Visits: 2
+1:52:46 AM [game]   - Action: enter_spaceship internal-1, Score: 1440.55, Visits: 2
+1:52:46 AM [game]   - Action: use_ship_action, Score: 1441.74, Visits: 4
+1:52:46 AM [game] Bot AI Bot 4 executing: use_ship_action
+1:52:46 AM [game] Bot AI Bot 4 successfully executed use_ship_action
+1:52:47 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:52:47 AM [game] Bot AI Bot 4 has no valid action, forcing pass to advance turn
+1:52:47 AM [game] Player AI Bot 4 Gained 2 VP from pass bonus (2 x 1 for planet_type)
+1:52:47 AM [game] Player AI Bot 4 returned bon-1o-planettype and took bon-2c-terraform
+1:52:48 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:52:48 AM [game] Bot AI Bot 2 found 1 non-pass candidates in Round 4
+1:52:48 AM [game] Bot AI Bot 2 starting MCTS with 2 candidates...
+[MCTS] Executed 2461 iterations in 8001ms
+1:52:56 AM [game] [MCTS] Candidates evaluation:
+1:52:56 AM [game]   - Action: enter_spaceship internal-2, Score: 1644.68, Visits: 1
+1:52:56 AM [game]   - Action: pass_round, Score: 1746.55, Visits: 2460
+1:52:56 AM [game] Bot AI Bot 2 performs cleanup convert before passing: 1power-to-1credit
+1:52:56 AM [game] Bot AI Bot 2 executing: convert_resource
+1:52:56 AM [game] Bot AI Bot 2 successfully executed convert_resource
+1:52:57 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:52:57 AM [game] Bot AI Bot 2 found 1 non-pass candidates in Round 4
+1:52:57 AM [game] Bot AI Bot 2 starting MCTS with 2 candidates...
+[MCTS] Executed 2334 iterations in 8000ms
+1:53:05 AM [game] [MCTS] Candidates evaluation:
+1:53:05 AM [game]   - Action: enter_spaceship internal-2, Score: 1644.15, Visits: 1
+1:53:05 AM [game]   - Action: pass_round, Score: 1746.02, Visits: 2333
+1:53:05 AM [game] Bot AI Bot 2 performs cleanup convert before passing: 1power-to-1credit
+1:53:05 AM [game] Bot AI Bot 2 executing: convert_resource
+1:53:05 AM [game] Bot AI Bot 2 successfully executed convert_resource
+1:53:06 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:53:06 AM [game] Bot AI Bot 2 found 1 non-pass candidates in Round 4
+1:53:06 AM [game] Bot AI Bot 2 starting MCTS with 2 candidates...
+[MCTS] Executed 2518 iterations in 8002ms
+1:53:14 AM [game] [MCTS] Candidates evaluation:
+1:53:14 AM [game]   - Action: enter_spaceship internal-2, Score: 1643.63, Visits: 1
+1:53:14 AM [game]   - Action: pass_round, Score: 1745.50, Visits: 2517
+1:53:14 AM [game] Bot AI Bot 2 executing: pass_round
+1:53:14 AM [game] Player AI Bot 2 Gained 4 VP from pass bonus (1 x 4 for big_building)
+1:53:14 AM [game] Player AI Bot 2 returned bon-4pw-bigbuilding and took bon-1o-mine
+1:53:14 AM [game] Triggering income phase for round 5
+1:53:14 AM [game] [Income] AI Bot 3 BEFORE: O:0 C:26 K:2 Q:2 P3:0 | BonusTile: bon-1k-lab
+1:53:14 AM [game] [Income] AI Bot 3 bonus tile (bon-1k-lab): {"knowledge":1}
+1:53:14 AM [game] [Income] AI Bot 3 AFTER: O:3 C:31 K:5 Q:2 P3:0
+1:53:14 AM [game] [Income] SelfPlayRunner BEFORE: O:12 C:1 K:0 Q:0 P3:0 | BonusTile: bon-2c-1q
+1:53:14 AM [game] [Income] SelfPlayRunner bonus tile (bon-2c-1q): {"credits":2,"qic":1}
+1:53:14 AM [game] [Income] SelfPlayRunner auto-received income: 2 power
+1:53:14 AM [game] [Income] SelfPlayRunner AFTER: O:19 C:5 K:1 Q:1 P3:0
+1:53:14 AM [game] [Income] AI Bot 4 BEFORE: O:2 C:20 K:0 Q:1 P3:0 | BonusTile: bon-2c-terraform
+1:53:14 AM [game] [Income] AI Bot 4 bonus tile (bon-2c-terraform): {"credits":2}
+1:53:14 AM [game] [Income] AI Bot 4 AFTER: O:4 C:24 K:4 Q:1 P3:0
+1:53:14 AM [game] [Income] AI Bot 2 BEFORE: O:0 C:5 K:0 Q:0 P3:0 | BonusTile: bon-1o-mine
+1:53:14 AM [game] [Income] AI Bot 2 bonus tile (bon-1o-mine): {"ore":1}
+1:53:14 AM [game] [Income] AI Bot 2 AFTER: O:5 C:10 K:2 Q:0 P3:0
+1:53:14 AM [game] [Income] AI Bot 3 needs to select income items: 3 items
+1:53:14 AM [game] Bot AI Bot 2 successfully executed pass_round
+1:53:15 AM [game] Bot AI Bot 3 auto-handling income selection
+1:53:15 AM [game] Bot AI Bot 3 auto-received all income: 3 items
+1:53:15 AM [game] Triggering income phase for round 5
+1:53:15 AM [game] [Income] Next: AI Bot 4 needs to select income items: 3 items
+1:53:15 AM [game] Bot AI Bot 4 auto-handling income selection
+1:53:15 AM [game] Bot AI Bot 4 auto-received all income: 3 items
+1:53:15 AM [game] Triggering income phase for round 5
+1:53:15 AM [game] [Income] Next: AI Bot 2 needs to select income items: 4 items
+1:53:16 AM [game] Bot AI Bot 2 auto-handling income selection
+1:53:16 AM [game] Bot AI Bot 2 auto-received all income: 4 items
+1:53:16 AM [game] Triggering income phase for round 5
+1:53:16 AM [game] Bot auto-handling Tinkeroid special choice
+1:53:16 AM [game] Bot AI Bot 4 (Tinkeroids) auto-selected special tinkeroid-2qic
+1:53:16 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:53:17 AM [game] Bot AI Bot 3 found 16 non-pass candidates in Round 5
+1:53:17 AM [game] Bot AI Bot 3 starting MCTS with 14 candidates...
+[MCTS] Executed 1722 iterations in 8001ms
+1:53:25 AM [game] [MCTS] Candidates evaluation:
+1:53:25 AM [game]   - Action: upgrade_structure tile-88, Score: 1529.42, Visits: 16
+1:53:25 AM [game]   - Action: use_power_action, Score: 1382.10, Visits: 1
+1:53:25 AM [game]   - Action: upgrade_structure tile-4, Score: 1412.50, Visits: 1
+1:53:25 AM [game]   - Action: enter_spaceship internal-2, Score: 1268.05, Visits: 1
+1:53:25 AM [game]   - Action: build_mine tile-160, Score: 1523.40, Visits: 1
+1:53:25 AM [game]   - Action: advance_research, Score: 1402.05, Visits: 1
+1:53:25 AM [game]   - Action: take_twilight_artifact, Score: 1534.75, Visits: 1694
+1:53:25 AM [game]   - Action: enter_spaceship internal-3, Score: 1372.05, Visits: 1
+1:53:25 AM [game]   - Action: use_ship_action, Score: 1523.40, Visits: 1
+1:53:25 AM [game]   - Action: advance_research, Score: 1396.45, Visits: 1
+1:53:25 AM [game]   - Action: use_ship_action, Score: 1453.32, Visits: 2
+1:53:25 AM [game]   - Action: build_mine tile-60, Score: 1523.40, Visits: 1
+1:53:25 AM [game]   - Action: use_ship_action, Score: 1528.50, Visits: 16
+1:53:25 AM [game]   - Action: use_power_action, Score: 1382.20, Visits: 1
+1:53:25 AM [game] Bot AI Bot 3 executing: take_twilight_artifact
+1:53:25 AM [game] Bot AI Bot 3 successfully executed take_twilight_artifact
+1:53:26 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:53:26 AM [game] Bot AI Bot 3 executing: end_turn
+1:53:26 AM [game] Turn ended for bot-p_8yzzfeehf1. Next player: p_mz1xzfah51
+1:53:26 AM [game] Bot AI Bot 3 successfully executed end_turn
+1:53:27 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:53:27 AM [game] Bot SelfPlayRunner found 14 non-pass candidates in Round 5
+1:53:27 AM [game] Bot SelfPlayRunner starting MCTS with 14 candidates...
+[MCTS] Executed 1286 iterations in 8001ms
+1:53:35 AM [game] [MCTS] Candidates evaluation:
+1:53:35 AM [game]   - Action: form_federation, Score: 2203.47, Visits: 10
+1:53:35 AM [game]   - Action: use_special_action, Score: 1932.02, Visits: 1
+1:53:35 AM [game]   - Action: upgrade_structure tile-97, Score: 1954.85, Visits: 1
+1:53:35 AM [game]   - Action: form_federation, Score: 2204.18, Visits: 53
+1:53:35 AM [game]   - Action: pass_round, Score: 1926.02, Visits: 1
+1:53:35 AM [game]   - Action: form_federation, Score: 2204.38, Visits: 139
+1:53:35 AM [game]   - Action: enter_spaceship internal-1, Score: 1920.82, Visits: 1
+1:53:35 AM [game]   - Action: form_federation, Score: 2203.82, Visits: 19
+1:53:35 AM [game]   - Action: enter_spaceship internal-3, Score: 1920.82, Visits: 1
+1:53:35 AM [game]   - Action: form_federation, Score: 2204.57, Visits: 974
+1:53:35 AM [game]   - Action: burn_power, Score: 2075.16, Visits: 3
+1:53:35 AM [game]   - Action: upgrade_structure tile-3, Score: 1954.85, Visits: 1
+1:53:35 AM [game]   - Action: enter_spaceship internal-2, Score: 1816.02, Visits: 1
+1:53:35 AM [game]   - Action: form_federation, Score: 2204.27, Visits: 81
+1:53:35 AM [game] Bot SelfPlayRunner executing: form_federation
+1:53:35 AM [game] Bot SelfPlayRunner successfully executed form_federation
+1:53:36 AM [game] BotHandler DEBUG: phase=main, currentPlayer=p_mz1xzfah51, isBot=true
+1:53:36 AM [game] Bot SelfPlayRunner executing: end_turn
+1:53:36 AM [game] Turn ended for p_mz1xzfah51. Next player: bot-p_xqsjyn7u8i
+1:53:36 AM [game] Bot SelfPlayRunner successfully executed end_turn
+1:53:37 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_xqsjyn7u8i, isBot=true
+1:53:37 AM [game] Bot AI Bot 4 has no valid action, forcing pass to advance turn
+1:53:37 AM [game] Player AI Bot 4 returned bon-2c-terraform and took bon-1o-gaiaformer
+1:53:38 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:53:38 AM [game] Bot AI Bot 2 found 5 non-pass candidates in Round 5
+1:53:38 AM [game] Bot AI Bot 2 starting MCTS with 6 candidates...
+[MCTS] Executed 14 iterations in 8000ms
+1:53:46 AM [game] [MCTS] Candidates evaluation:
+1:53:46 AM [game]   - Action: upgrade_structure tile-120, Score: 1775.55, Visits: 1
+1:53:46 AM [game]   - Action: burn_power, Score: 1790.51, Visits: 2
+1:53:46 AM [game]   - Action: enter_spaceship internal-2, Score: 1637.05, Visits: 1
+1:53:46 AM [game]   - Action: pass_round, Score: 1791.10, Visits: 1
+1:53:46 AM [game]   - Action: upgrade_structure tile-44, Score: 1775.55, Visits: 1
+1:53:46 AM [game]   - Action: upgrade_structure tile-11, Score: 1805.28, Visits: 326526
+1:53:46 AM [game] Bot AI Bot 2 executing: upgrade_structure
+1:53:46 AM [game] Bot AI Bot 2 successfully executed upgrade_structure
+1:53:47 AM [game] Bot AI Bot 2 auto-handling tech tile selection
+1:53:47 AM [game] Player AI Bot 2 gained 2 Ore from Terraforming level 1
+1:53:47 AM [game] Bot AI Bot 2 gained tech tile tech-imm-7vp and advanced terraforming to level 1
+1:53:48 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_if684n6oyq, isBot=true
+1:53:48 AM [game] Bot AI Bot 2 executing: end_turn
+1:53:48 AM [game] Turn ended for bot-p_if684n6oyq. Next player: bot-p_8yzzfeehf1
+1:53:48 AM [game] Bot AI Bot 2 successfully executed end_turn
+1:53:49 AM [game] BotHandler DEBUG: phase=main, currentPlayer=bot-p_8yzzfeehf1, isBot=true
+1:53:49 AM [game] Bot AI Bot 3 found 6 non-pass candidates in Round 5
+1:53:49 AM [game] Bot AI Bot 3 starting MCTS with 6 candidates...
