@@ -940,9 +940,11 @@ export class BotLogic {
                 }
 
                 // [사용자 피드백] 초반(1~3라운드)에 귀한 QIC를 낭비해서 짓는 행위를 억제.
-                // 대신 연구소 업그레이드를 통해 항해술(Nav) 기술을 먼저 올린 뒤(0 QIC로) 짓게끔 페널티를 부과. (꿀단지는 예외)
-                if (game.roundNumber <= 3 && clusterValue < 2) {
-                    qicPenalty += 70 * neededQicForRange;
+                // 대신 연구소 업그레이드를 통해 항해술(Nav) 기술을 먼저 올린 뒤(0 QIC로) 짓게끔 페널티를 부과.
+                if (game.roundNumber <= 3) {
+                    // 꿀단지라도 초반에 무리하게 QIC를 쓰기보다 Nav 업그레이드를 기대하게 만들기 위해 거대한 페널티 부과.
+                    // 1 QIC 소모당 -300점 (가이아 행성 등 다른 큰 보너스가 붙더라도 2 QIC 이상 점프는 거의 0% 확률로 만듦)
+                    qicPenalty += 300 * neededQicForRange;
                 }
             }
 
@@ -1127,10 +1129,10 @@ export class BotLogic {
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
                 // [사용자 피드백] 생 광물을 너무 많이 써서 건설하는 것을 막음
-                // 3광물이면 약 -500점, 6광물이면 약 -1000점 수준의 강력한 페널티 적용
+                // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
                 let stepPenalty = 0;
                 if (costPerStep >= 3) {
-                    stepPenalty = (terraformCost / 3) * 500;
+                    stepPenalty = (terraformCost / 3) * 1000;
                 } else {
                     stepPenalty = remainingSteps * 20; // 1~2광석으로 저렴해진 경우엔 약하게 페널티
                 }
