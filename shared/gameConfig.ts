@@ -761,7 +761,6 @@ export const FACTIONS: Faction[] = [
     startingPower: { bowl1: 2, bowl2: 2, bowl3: 0 },
     startingMines: 1,
     startingStructure: 'planetary_institute',
-    baseIncome: { qic: 1 },
     piIncome: { power: 4, tokens: 1, qic: 1 }
   },
   {
