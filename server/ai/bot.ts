@@ -544,6 +544,31 @@ export class BotLogic {
 
         const candidates: BotAction[] = [];
 
+        // 0. 기술 타일 선택 대기 상태라면 다른 액션은 불가능. (MCTS 확장을 위해 모든 가능한 타일을 후보로 제공)
+        if (game.pendingTechTileSelection?.playerId === playerId) {
+            const availableTiles: TechTile[] = [];
+            game.techTilesPool.forEach(t => { if (t && !player.techTiles.includes(t.id)) availableTiles.push(t); });
+            for (const trackTiles of Object.values(game.techTilesByTrack)) {
+                const arr = Array.isArray(trackTiles) ? trackTiles : [trackTiles];
+                for (const t of arr) { if (t && !player.techTiles.includes(t.id)) availableTiles.push(t); }
+            }
+            if (game.availableShipTechTileIds) {
+                for (const shipTechId of game.availableShipTechTileIds) {
+                    const shipTech = SHIP_TECH_TILES.find(st => st.id === shipTechId);
+                    if (shipTech && !player.techTiles.includes(shipTechId)) availableTiles.push(shipTech);
+                }
+            }
+
+            // 모든 기술 타일마다 가장 좋은 트랙을 선택해 후보로 추가
+            const tracks = this.pickResearchTracks(game, player, playerId);
+            const trackId = tracks.length > 0 ? tracks[0] : ('economy' as ResearchTrack);
+            
+            for (const tile of availableTiles) {
+                candidates.push({ type: 'select_tech_tile', params: { techTileId: tile.id, trackId } });
+            }
+            return candidates; // 기술 타일 선택 대기 중이면 다른 액션은 못함
+        }
+
         // 1. 연방 구성 (가장 중요)
         const fedAction = FederationPlanner.getBestFederationAction(game, playerId);
         if (fedAction) {
@@ -707,6 +732,7 @@ export class BotLogic {
             id: string;
             score: number;
             action: BotAction;
+            isFederated: boolean;
         }
         const candidates: ScoredUpgrade[] = [];
 
@@ -721,6 +747,7 @@ export class BotLogic {
         /** 연방에 이미 속한 타일 업그레이드는 다음 연방에 불리하므로 감점 */
         // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 다음 연방 구성이 느려지므로 패널티를 70에서 300으로 대폭 상향하여 원천 차단
         const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 300 : 0;
+        const isFederated = (tileId: string) => fedHexes.includes(tileId);
 
         // 1. Mines -> Trading Stations
         if (ore >= 2 && credits >= 3) {
@@ -732,22 +759,29 @@ export class BotLogic {
                     // [사용자 피드백] TS 점수도 전반적으로 광산보다 높게 유지하여 연구소로 가는 발판을 마련함
                     let score = isDiscounted ? 200 : 50;
 
+                    const academyCount = myStructures.filter(t => t.structure === 'academy').length;
+                    const isFirstTS = tsCount === 0 && labCountNow === 0 && academyCount === 0;
+
                     if (!isDiscounted && round <= 3) {
-                        score -= 100; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티
+                        score -= isFirstTS ? 20 : 100; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티 (첫 교역소는 연구소를 위해 완화)
                     }
 
                     // 초반 엔진 빌딩의 기본은 "광산 확장"이다.
                     // 1~2라운드에 광산이 부족하면 TS 업그레이드를 강하게 억제 (할인 TS만 예외적으로 허용)
                     if (round <= 2 && mineCount < 4) {
-                        score -= isDiscounted ? 60 : 240;
+                        score -= isFirstTS ? (isDiscounted ? 0 : 20) : (isDiscounted ? 60 : 240);
                     }
 
                     // [전략 개선] 1라운드 교역소 남발 방지: 연구소/아카데미가 없는 상태에서의 단순 교역소는 감점
-                    if (round === 1) {
-                        const academyCount = myStructures.filter(t => t.structure === 'academy').length;
+                    if (round === 1 && !isFirstTS) {
                         if (labCountNow === 0 && academyCount === 0) {
-                            score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 TS는 비효율적 (할인받아도 패널티 적용)
+                            score -= 60; // 먼저 연구소로 올릴 계획이 아니면 1라 여러 개의 광산을 TS로 올리는 건 비효율적
                         }
+                    }
+
+                    // 아무리 감점되어도 첫 교역소라면 후보에 올라가서 MCTS가 평가할 수 있도록 최소 점수 보장
+                    if (isFirstTS && score <= 0) {
+                        score = 10;
                     }
 
                     score -= fedPenalty(mine.id);
@@ -758,7 +792,8 @@ export class BotLogic {
                     candidates.push({
                         id: `ts-${mine.id}`,
                         score,
-                        action: { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' } }
+                        action: { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' } },
+                        isFederated: isFederated(mine.id),
                     });
                 }
             }
@@ -775,9 +810,9 @@ export class BotLogic {
                 if (round <= 2) {
                     // 첫 연구소가 아니면 1~2라는 억제
                     if (!isFirstLab) continue;
-                    // 1~2라 첫 연구소는 확장 트리거가 되므로 허용.
-                    // 대신 "TS도 거의 없고(=전환 준비 X) 광산도 0~1개" 같은 극단적 과투자만 억제.
-                    if (mineCount <= 1 && tsCount <= 1) continue;
+                    // [사용자 피드백] 발탁(Bal T'aks)처럼 1광산 극단적 시작을 하거나, 자원이 너무 부족해 간신히 1TS만 올린 상태라도
+                    // 첫 연구소(기술 타일 선점)는 무조건 열어두어야 AI가 아무것도 안하고 패스하는 걸 막을 수 있음.
+                    // 기존 과투자 억제(mineCount <= 1 && tsCount <= 1) 조건을 삭제하거나 대폭 완화
                 }
 
                 // [사용자 피드백] 단순 광산 건설보다 TS -> Lab 업그레이드(기술 타일 선점)를 최우선으로 하도록 대폭 상향
@@ -787,8 +822,9 @@ export class BotLogic {
                 if (labCount === 0) score += 100;
 
                 // 광산/TS 엔진이 아직 약하면 추가 감점 (단, "첫 연구소"는 감점을 완화)
-                if (round <= 3 && mineCount < 6) score -= isFirstLab ? 40 : 120;
-                if (round <= 3 && tsCount < 2) score -= isFirstLab ? 20 : 80;
+                // 첫 연구소일지라도 기반이 너무 없으면 살짝 감점을 주되 후보에서 아예 날아가지는 않게 유지
+                if (round <= 3 && mineCount < 3) score -= isFirstLab ? 20 : 120; // 6에서 3으로 기준 완화
+                if (round <= 3 && tsCount < 2) score -= isFirstLab ? 10 : 80;
 
                 score -= fedPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_research_lab');
@@ -797,7 +833,8 @@ export class BotLogic {
                 candidates.push({
                     id: `lab-${ts.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'research_lab' } }
+                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'research_lab' } },
+                    isFederated: isFederated(ts.id),
                 });
             }
         }
@@ -846,7 +883,8 @@ export class BotLogic {
                 candidates.push({
                     id: `pi-${ts.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } }
+                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } },
+                    isFederated: isFederated(ts.id),
                 });
             }
         }
@@ -879,16 +917,22 @@ export class BotLogic {
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: lab.id, target: 'academy_right' } }
+                    action: { type: 'upgrade_structure', params: { tileId: lab.id, target: 'academy_right' } },
+                    isFederated: isFederated(lab.id),
                 });
             }
         }
 
         if (candidates.length === 0) return [];
 
-        candidates.sort((a, b) => b.score - a.score);
+        // 핵심 정책: 연방에 묶인 건물 업그레이드는 "다음 연방"에 도움이 안 되므로,
+        // 비연방 업그레이드 후보가 하나라도 있으면 연방 업그레이드는 전부 제거한다.
+        const hasNonFederated = candidates.some(c => !c.isFederated);
+        const filtered = hasNonFederated ? candidates.filter(c => !c.isFederated) : candidates;
+
+        filtered.sort((a, b) => b.score - a.score);
         // 후보 컷이 너무 강하면 좋은 수가 탐색에서 사라짐 → 상위 5개로 확장
-        return candidates.slice(0, 5).map(c => c.action);
+        return filtered.slice(0, 5).map(c => c.action);
     }
 
     private static findDiscountedUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
@@ -1059,7 +1103,7 @@ export class BotLogic {
             t.type !== 'space' &&
             t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
-            t.type !== 'asteroid' && // 소행성은 별도 처리
+            (t.type !== 'asteroid' || homeType === 'asteroid') && // 다카니안(소행성 모행성) 예외 처리
             !t.type?.startsWith('ship_')
         );
 
@@ -1305,10 +1349,15 @@ export class BotLogic {
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
 
                 // [사용자 피드백] 생 광물을 너무 많이 써서 건설하는 것을 막음
-                // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
                 let stepPenalty = 0;
                 if (costPerStep >= 3) {
-                    stepPenalty = (terraformCost / 3) * 1000;
+                    // [버그 수정] 다카니안이거나 광물이 6개 이상 남아돈다면 예외 (1단계 테라포밍만 허용)
+                    if (remainingSteps === 1 && (player.faction === 'darkanians' || ore >= 6)) {
+                        stepPenalty = 50; 
+                    } else {
+                        // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
+                        stepPenalty = (terraformCost / 3) * 1000;
+                    }
                 } else {
                     stepPenalty = remainingSteps * 20; // 1~2광석으로 저렴해진 경우엔 약하게 페널티
                 }
@@ -1855,13 +1904,14 @@ export class BotLogic {
         // 2. 라운드별 가중치 (초반 수익, 후반 점수)
         if (round <= 3) {
             // 초반: 수익 타일 대폭 우대 (엔진 빌딩)
-            if (tileId.startsWith('tech-inc-')) score += 80;
-            if (tileId === 'tech-act-4p') score += 70;
+            if (tileId.startsWith('tech-inc-')) score += 120; // 스노우볼을 굴려야 하므로 수입 타일을 최우선 고려하도록 대폭 상향
+            if (tileId === 'tech-act-4p') score += 100;
             if (tileId === 'tech-imm-1o-1q') score += 50;
 
-            // 극단적 기피 (즉발 점수 타일)
-            if (tileId === 'tech-imm-7vp' || tileId === 'tech-gaia-3vp' || tileId === 'tech-imm-1k-planet') {
-                score -= 200;
+            // 극단적 기피 (즉발 점수, 패스 점수 등 스노우볼에 무의미한 타일)
+            // [사용자 피드백] 초반에 7VP나 큰큰이(4STR) 타일을 집으면 자원 생산이 안돼서 망하므로 강제 차단
+            if (tileId === 'tech-imm-7vp' || tileId === 'tech-gaia-3vp' || tileId === 'tech-imm-1k-planet' || tileId === 'tech-big-4str') {
+                score -= 300;
             }
         } else if (round >= 5) {
             // 후반: 즉시 점수 및 행성 유형당 지식 타일 우대
@@ -1916,20 +1966,30 @@ export class BotLogic {
         let bestTile = freeTiles[0];
         let bestScore = -1000;
 
+        const myMines = game.map.filter(t => t.ownerId === playerId && t.structure);
+
         for (const tile of freeTiles) {
             let score = 0;
 
             const others = game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure);
             for (const other of others) {
                 const dist = getDistance(tile, other);
-                if (dist <= 2) score += 5;
+                if (dist <= 2) score += 5; // 상대방과 붙어 있으면 파워 수급이 좋으므로 가점
             }
 
             const nearbyPlanets = game.map.filter(t => t.id !== tile.id && !t.ownerId && t.type !== 'space' && t.type !== 'deep_space');
             for (const p of nearbyPlanets) {
                 const dist = getDistance(tile, p);
-                if (dist <= 2) score += 2;
+                if (dist <= 2) score += 2; // 주변에 개척 가능한 행성이 많으면 가점
                 else if (dist <= 3) score += 1;
+            }
+
+            // 두 번째 광산을 첫 번째 광산 근처(거리 3 이하)에 배치하는 것을 매우 강하게 기피 (선택지가 정말 없을 때만 어쩔 수 없이 짓도록)
+            if (myMines.length === 1) {
+                const distToFirst = getDistance(tile, myMines[0]);
+                if (distToFirst <= 3) {
+                    score -= 100; // 엄청난 페널티 부여
+                }
             }
 
             if (score > bestScore) {
@@ -2405,9 +2465,16 @@ export class BotLogic {
         }
 
         if (round <= 3) {
-            score = (resourceValue * 2.0) + (passBonusValue * 0.5);
+            // 엔진 빌딩 시기: 자원 대폭 우대
+            score += (resourceValue * 2.5) + (passBonusValue * 0.5);
+            // [사용자 피드백] 패스는 기본적으로 기피 대상이므로 페널티를 주되,
+            // 아무것도 할 수 없는 (예: 연구소 지을 돈도 없고, 3광물 1테라포밍으로 -1000점을 맞기 싫은) 상황에서는
+            // 어쩔 수 없이 패스를 선택해야 하므로 500점이 아닌 150점 정도로 완화
+            score -= 150; 
         } else {
-            score = (resourceValue * 0.5) + (passBonusValue * 2.0);
+            // 후반: 점수 대폭 우대
+            score += (resourceValue * 0.5) + (passBonusValue * 2.0);
+            score -= 50; // 후반에도 점막 패스를 위해 약간의 페널티
         }
 
         score += Math.random() * 0.1;

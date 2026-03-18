@@ -4404,6 +4404,13 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 	// Asteroid
 	if (tile.type === 'asteroid') {
+		const effectiveGaiaformers = getEffectiveGaiaformers(player);
+		if (effectiveGaiaformers <= 0) {
+			const errorMsg = '소행성에 광산을 건설하려면 사용 가능한 가이아 포머가 1개 이상 필요합니다.';
+			debugLog(game, `executeBuildMine failed (Asteroid): No available gaiaformers (total=${player.gaiaformers ?? 0}, locked=${player.balTakGaiaformersUsedForQic ?? 0})`, 'error');
+			io.to(game.id).emit('game_error', errorMsg);
+			return false;
+		}
 		const geodensTypesBeforeAsteroid = getPlayerPlanetTypesForGeodens(game, playerId);
 		const rm7QualifyAsteroid = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 		tile.structure = 'mine';

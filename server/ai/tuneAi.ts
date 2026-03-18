@@ -189,16 +189,19 @@ async function evalCandidate(socket: Socket, weights: EvaluatorWeights, games: n
   return { avgWinner, avgWinnerR6, finished: maxScores.length, failures };
 }
 
-const TUNE_MCTS_MS = Number(process.env.TUNE_MCTS_MS) || 1000;
+const TUNE_MCTS_MS = Number(process.env.TUNE_MCTS_MS) || 1500;
 
 async function main() {
   console.log(`[tune-ai] Connecting to ${BASE_URL}`);
   console.log(`[tune-ai] Budget: totalGames=${TOTAL_GAMES}, candidates=${CANDIDATES}, gamesPerCandidate=${GAMES_PER_CANDIDATE}, MCTS=${TUNE_MCTS_MS}ms`);
   const runForever = String(process.env.TUNE_RUN_FOREVER || '').trim() === '1';
-  const updateEvery = Math.max(1, Number(process.env.TUNE_UPDATE_EVERY) || GAMES_PER_CANDIDATE);
+  const updateEvery = Math.max(1, Number(process.env.TUNE_UPDATE_EVERY) || 10);
   const reshuffleEvery = Math.max(5, Number(process.env.TUNE_RESHUFFLE_EVERY) || 20);
   if (runForever) {
     console.log(`[tune-ai] RUN_FOREVER enabled: updateEvery=${updateEvery} games, reshuffleEvery=${reshuffleEvery} games`);
+  }
+  if (updateEvery < 10) {
+    console.log(`[tune-ai] 권장: 평가당 게임 수가 적으면 분산이 커서 개선이 잘 안 보일 수 있음. TUNE_UPDATE_EVERY=10 이상 권장`);
   }
   const socket = await connect();
 
@@ -211,14 +214,15 @@ async function main() {
   let bestScore = -Infinity;
   let totalEvaluatedGames = 0;
 
-  const sigma = Number(process.env.TUNE_SIGMA) || 0.18;
+  const sigma = Number(process.env.TUNE_SIGMA) || 0.20;
 
   const evalAndMaybeUpdate = async (label: string, weights: EvaluatorWeights, games: number) => {
     const res = await evalCandidate(socket, weights, games);
     totalEvaluatedGames += games;
+    const bestStr = bestScore > -Infinity ? ` currentBest=${bestScore.toFixed(1)}` : '';
     console.log(
-      `[tune-ai] ${label} avgWinnerVP=${res.avgWinner.toFixed(1)} avgWinnerR6Income=${res.avgWinnerR6.toFixed(1)} ` +
-      `(finished=${res.finished}, failures=${res.failures}, totalGamesEvaluated=${totalEvaluatedGames})`
+      `[tune-ai] ${label} avgWinnerVP=${res.avgWinner.toFixed(1)} avgWinnerR6Income=${res.avgWinnerR6.toFixed(1)}` +
+      `${bestStr} (finished=${res.finished}, failures=${res.failures}, totalGames=${totalEvaluatedGames})`
     );
     return res;
   };
@@ -249,11 +253,15 @@ async function main() {
       console.log(`[tune-ai] NEW BEST: ${bestScore.toFixed(1)} → ${OUT_PATH} 저장됨 (중단해도 유지)`);
     }
 
-    // "맵 바꾸기"는 create_game마다 랜덤이라 매 판 이미 바뀜.
-    // 여기서는 주기적으로 bestWeights를 다시 측정해(reshuffle) 노이즈에 끌리지 않게 한다.
+    // 주기적으로 현재 best를 재측정해서 bestScore를 보정 (운으로 올라갔던 수치를 내려서, 이후 후보 수용이 잘 되게).
     if (runForever && (totalEvaluatedGames % reshuffleEvery === 0)) {
-      console.log(`[tune-ai] Reshuffle checkpoint at ${totalEvaluatedGames} games: re-evaluating current best...`);
-      await evalAndMaybeUpdate('best@checkpoint', bestWeights, updateEvery);
+      console.log(`[tune-ai] Reshuffle @ ${totalEvaluatedGames} games: re-evaluating current best...`);
+      const reshuffleRes = await evalAndMaybeUpdate('best@checkpoint', bestWeights, updateEvery);
+      const newBestScore = reshuffleRes.avgWinner;
+      if (reshuffleRes.finished >= Math.max(3, Math.floor(updateEvery * 0.7))) {
+        bestScore = newBestScore;
+        console.log(`[tune-ai] bestScore 보정 → ${bestScore.toFixed(1)} (이후 후보는 이걸 넘어야 NEW BEST)`);
+      }
     }
 
     if (!runForever && totalEvaluatedGames >= TOTAL_GAMES) break;

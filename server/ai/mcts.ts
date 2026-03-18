@@ -73,7 +73,19 @@ export class MCTS {
         }
 
         console.log(`[MCTS] Executed ${iterations} iterations in ${Date.now() - startTime}ms`);
-        return this.bestChild(root).action;
+        const bestNode = this.bestChild(root);
+
+        // --- PRINT DETAILED BREAKDOWN OF ALL CANDIDATES ---
+        console.log(`\n=== MCTS DETAILED SCORE REPORT ===`);
+        for (const child of root.children) {
+            const avgScore = child.score / child.visits;
+            const actionStr = `${child.action.type} ${JSON.stringify(child.action.params)}`;
+            console.log(`[Candidate] ${actionStr} | Visits: ${child.visits} | AvgScore: ${avgScore.toFixed(2)}`);
+            Evaluator.evaluateState(child.state, playerId, true);
+        }
+        console.log(`==================================\n`);
+
+        return bestNode.action;
     }
 
     private static getDepth(node: MCTSNode): number {
@@ -165,8 +177,8 @@ export class MCTS {
         // Simulate a few steps ahead with a cheap "1-ply" heuristic:
         // - evaluate top-N candidate actions by applying them once
         // - pick best (with a bit of noise) to avoid deterministic traps
-        const ROLLOUT_STEPS = 5;
-        const TOP_N = 6;
+        const ROLLOUT_STEPS = 6;
+        const TOP_N = 8;
         for (let i = 0; i < ROLLOUT_STEPS; i++) {
             if (currentState.turnOrder[currentState.currentPlayerIndex] !== playerId || currentState.currentPhase !== 'main') {
                 break;
@@ -198,7 +210,7 @@ export class MCTS {
 
             // If for some reason we couldn't score, fallback to BotLogic simulate picker
             const nextAction = scored.length > 0
-                ? (Math.random() < 0.15 && scored.length >= 2 ? scored[1].action : scored[0].action)
+                ? (Math.random() < 0.12 && scored.length >= 2 ? scored[1].action : scored[0].action)
                 : await BotLogic.getNextMove(currentState, playerId, true); // isSimulate = true
             if (!nextAction || nextAction.type === 'end_turn') break;
 

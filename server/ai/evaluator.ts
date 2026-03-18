@@ -65,11 +65,11 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     brainStoneBowl2: 1.2,
     brainStoneBowl3: 2.5,
 
-    structureMine: 50, // 24 -> 50 대폭 상향 (확장 최우선)
-    structureTradingStation: 60, // 32 -> 60 (경제/확장)
-    structureResearchLab: 80, // 45 -> 80
-    structurePlanetaryInstitute: 120, // 75 -> 120
-    structureAcademy: 140, // 90 -> 140
+    structureMine: 60, // 50 -> 60
+    structureTradingStation: 150, // 60 -> 150 (경제/확장: 교역소의 가치를 크게 높여 업그레이드 선호)
+    structureResearchLab: 180, // 80 -> 180 (연구소 가치 대폭 상향)
+    structurePlanetaryInstitute: 220, // 120 -> 220
+    structureAcademy: 240, // 140 -> 240
     structureRemainingRoundsFactor: 1.0, // 초반 건물 가치 극대화 (0.5 -> 1.0)
 
     researchTerraforming: 14,
@@ -167,56 +167,115 @@ export class Evaluator {
      * Returns a numerical score. Higher is better.
      * MCTS uses this at the end of a rollout or at depth limit.
      */
-    static evaluateState(game: ServerGameState, playerId: string): number {
+    static evaluateState(game: ServerGameState, playerId: string, debug: boolean = false): number {
         const player = game.players[playerId];
         if (!player) return -9999;
 
         const w = ACTIVE_WEIGHTS;
 
         let score = 0;
+        let logs: string[] = [];
+        const logDebug = (msg: string) => { if (debug) logs.push(msg); };
+
         const round = game.roundNumber;
         const totalRounds = 6;
         const remainingRounds = Math.max(0, totalRounds - round + 1);
 
+        if (debug) logDebug(`\n=== Eval Breakdown: ${player.faction || playerId} (Round ${round}) ===`);
+
         // 1) VP
         const vpWeight = round >= 5 ? w.vpWeightLate : w.vpWeightEarly;
-        score += (player.score || 0) * vpWeight;
+        const vpScore = (player.score || 0) * vpWeight;
+        score += vpScore;
+        logDebug(`1) VP: ${player.score || 0} * ${vpWeight.toFixed(1)} = +${vpScore.toFixed(1)}`);
 
         // 2) Resources
-        const resourceMultiplier = round <= 2 ? w.resourceMultiplierEarly : w.resourceMultiplierLate;
-        score += (player.ore || 0) * w.oreValue * resourceMultiplier;
-        score += (player.credits || 0) * w.creditsValue * resourceMultiplier;
-        score += (player.knowledge || 0) * w.knowledgeValue * resourceMultiplier;
+        // [수정] 턴을 넘기거나 행동을 마쳤을 때, 주머니에 돈/광물/지식이 많이 남아있으면 그건 전부 '버려진 기회비용'입니다.
+        // 엔진을 돌리려면 자원을 써서 건물을 지었어야 함. 따라서 남은 자원은 오히려 '마이너스(-)' 가치를 매겨 쓰레기로 취급합니다. (단, 0.1의 가치만 부여해 정말 할 게 없을 땐 남기게 함)
+        const isLateGame = round >= 5;
+        // 남은 자원에 대한 쥐꼬리만한 기본 점수
+        const oreScore = (player.ore || 0) * w.oreValue * (isLateGame ? 0.3 : 0.1); 
+        const credScore = (player.credits || 0) * w.creditsValue * (isLateGame ? 0.3 : 0.1);
+        const knowScore = (player.knowledge || 0) * w.knowledgeValue * (isLateGame ? 0.3 : 0.1);
+        
+        score += oreScore + credScore + knowScore;
+        logDebug(`2) Unspent Resources (Garbage Penalty): Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)}`);
 
         const qicWeight = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
-        score += (player.qic || 0) * qicWeight;
+        const qicScore = (player.qic || 0) * qicWeight;
+        score += qicScore;
+        logDebug(`3) QIC: ${player.qic || 0} * ${qicWeight.toFixed(1)} = +${qicScore.toFixed(1)}`);
 
         // 3) Power bowls
-        score += (player.power1 || 0) * w.power1Value;
-        score += (player.power2 || 0) * w.power2Value;
-        score += (player.power3 || 0) * w.power3Value;
-        if (player.brainStoneBowl === 1) score += w.brainStoneBowl1;
-        if (player.brainStoneBowl === 2) score += w.brainStoneBowl2;
-        if (player.brainStoneBowl === 3) score += w.brainStoneBowl3;
+        const p1Score = (player.power1 || 0) * w.power1Value;
+        const p2Score = (player.power2 || 0) * w.power2Value;
+        const p3Score = (player.power3 || 0) * w.power3Value;
+        let bsScore = 0;
+        if (player.brainStoneBowl === 1) bsScore += w.brainStoneBowl1;
+        if (player.brainStoneBowl === 2) bsScore += w.brainStoneBowl2;
+        if (player.brainStoneBowl === 3) bsScore += w.brainStoneBowl3;
+        score += p1Score + p2Score + p3Score + bsScore;
+        logDebug(`4) Power: P1(+${p1Score.toFixed(1)}), P2(+${p2Score.toFixed(1)}), P3(+${p3Score.toFixed(1)}), BrainStone(+${bsScore.toFixed(1)})`);
 
         // 4) Structures
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
 
         // 확장(광산 10개 이상)에 대한 추가 보너스
+        let structExpansionScore = 0;
         if (myStructures.length >= 10) {
-            score += (myStructures.length - 9) * 20; // 10개째부터 개당 20점씩 추가 가점
+            structExpansionScore = (myStructures.length - 9) * 20; // 10개째부터 개당 20점씩 추가 가점
+            score += structExpansionScore;
         }
 
-        for (const tile of myStructures) {
-            let baseVal = 0;
-            if (tile.structure === 'mine' || tile.structure === 'lost_planet_mine') baseVal = w.structureMine;
-            else if (tile.structure === 'trading_station') baseVal = w.structureTradingStation;
-            else if (tile.structure === 'research_lab') baseVal = w.structureResearchLab;
-            else if (tile.structure === 'planetary_institute') baseVal = w.structurePlanetaryInstitute;
-            else if (tile.structure === 'academy') baseVal = w.structureAcademy;
+        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length;
+        const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
+        const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
+        const piCount = myStructures.filter(t => t.structure === 'planetary_institute').length;
+        const academyCount = myStructures.filter(t => t.structure === 'academy').length;
 
-            score += baseVal + (baseVal * w.structureRemainingRoundsFactor * remainingRounds);
+        let structScore = 0;
+        const structMultiplier = 1 + w.structureRemainingRoundsFactor * remainingRounds;
+
+        // 1. 선형 건물 점수 (광산, 연구소, 의회, 아카데미)
+        structScore += mineCount * w.structureMine * structMultiplier;
+        structScore += labCount * w.structureResearchLab * structMultiplier;
+        structScore += piCount * w.structurePlanetaryInstitute * structMultiplier;
+        structScore += academyCount * w.structureAcademy * structMultiplier;
+
+        // 2. 퍼널 구조 건물 점수 (교역소 병목 현상 해결)
+        // 첫 번째 교역소는 연구소/아카데미로 가는 발판이므로 가치를 크게 줍니다.
+        // 하지만 이미 연구소나 의회 등 상위 건물이 있다면, 현재 교역소가 0개라도 새로 짓는 교역소는 '두 번째 교역소'로 취급해야 합니다. (첫 교역소의 병목은 이미 뚫었기 때문)
+        const advancedStructuresCount = labCount + piCount + academyCount;
+        let tsScore = 0;
+        for (let i = 0; i < tsCount; i++) {
+            // 상위 건물이 아예 없을 때 짓는 교역소 1개만 '첫 교역소'의 엄청난 보너스를 받음
+            if (i === 0 && advancedStructuresCount === 0) {
+                tsScore += w.structureTradingStation * structMultiplier; 
+            } else {
+                const secondTsBase = round <= 2 ? w.structureMine - 1 : (w.structureTradingStation + w.structureMine) / 2;
+                tsScore += secondTsBase * structMultiplier;
+            }
         }
+        structScore += tsScore;
+
+        // 3. 1~2라운드 이상적인 테크 트리 보너스 (엔진 빌딩)
+        let engineBonus = 0;
+        if (round <= 2) {
+            if (labCount >= 1) {
+                engineBonus += 150; // 첫 연구소를 지으면 강력한 추가 점수
+                engineBonus += mineCount * 15; // 연구소를 지은 뒤에 광산을 확장하면 가점
+            }
+            if (piCount >= 1 || academyCount >= 1) {
+                engineBonus += 250; 
+                engineBonus += mineCount * 10;
+            }
+        }
+        
+        const scaledEngineBonus = engineBonus * structMultiplier;
+        structScore += scaledEngineBonus;
+        
+        score += structScore;
+        logDebug(`5) Structures: funnel-base+rem: +${(structScore - scaledEngineBonus).toFixed(1)}, EngineBns: +${scaledEngineBonus.toFixed(1)}, Expand-bonus: +${structExpansionScore.toFixed(1)}`);
 
         // 5) Research
         const rw: Record<string, number> = {
@@ -227,6 +286,7 @@ export class Evaluator {
             economy: w.researchEconomy,
             science: w.researchScience,
         };
+        let researchScore = 0;
         for (const [track, level] of Object.entries(player.research || {})) {
             const weight = rw[track] ?? 10;
             let factor = 1 + remainingRounds * w.researchRemainingRoundsFactor;
@@ -242,13 +302,16 @@ export class Evaluator {
             if (lvl >= 3) levelMultiplier = 1.2;
             if (lvl >= 4) levelMultiplier = 1.5;
 
-            score += lvl * weight * factor * levelMultiplier;
+            researchScore += lvl * weight * factor * levelMultiplier;
 
-            if (lvl >= 4) score += (w.researchLevel4Bonus || 100);
-            if (lvl === 5) score += w.researchLevel5Bonus;
+            if (lvl >= 4) researchScore += (w.researchLevel4Bonus || 100);
+            if (lvl === 5) researchScore += w.researchLevel5Bonus;
         }
+        score += researchScore;
+        logDebug(`6) Research: +${researchScore.toFixed(1)}`);
 
         // 5.5) Early Game Expansion & Economy Strategy (Round 1-2)
+        let earlyBonus = 0;
         if (round <= 2) {
             const hasAcademy = myStructures.some(t => t.structure === 'academy');
             const hasResearchLab = myStructures.some(t => t.structure === 'research_lab');
@@ -258,38 +321,47 @@ export class Evaluator {
 
             // Strategy 1: Academy -> Economy focus
             if (hasAcademy) {
-                if (ecoLevel >= 1) score += 150;
-                if (ecoLevel >= 2) score += 300;
+                if (ecoLevel >= 1) earlyBonus += 150;
+                if (ecoLevel >= 2) earlyBonus += 150; // cumulative
             }
 
             // Strategy 2: Research Lab -> Navigation focus (for range)
             if (hasResearchLab && !hasAcademy) {
-                if (navLevel === 1) score += 100;
-                if (navLevel >= 2) score += 250;
+                if (navLevel === 1) earlyBonus += 100;
+                if (navLevel >= 2) earlyBonus += 150;
             }
 
             // Strategy 3: Nav+1 Tech Tile early is great for expansion
             if (hasNavTech) {
-                score += 200;
+                earlyBonus += 200;
             }
 
             // Prevent over-investment: if they have both Nav+1 Tech AND Nav track >= 2,
             // penalize slightly to encourage using the resources elsewhere, since 2 range is usually enough early.
             if (hasNavTech && navLevel >= 2) {
-                score -= 150;
+                earlyBonus -= 150;
+            }
+            if (earlyBonus !== 0) {
+                score += earlyBonus;
+                logDebug(`7) Early Game Strat: ${earlyBonus > 0 ? '+' : ''}${earlyBonus.toFixed(1)}`);
             }
         }
 
         // 6) Federations
         const feds = getFederationEntries(player);
-        score += feds.length * w.federationValueEach;
+        const fedScore = feds.length * w.federationValueEach;
+        score += fedScore;
+        logDebug(`8) Federations: ${feds.length} * ${w.federationValueEach} = +${fedScore.toFixed(1)}`);
 
         // 7) Gaiaformers
         if (player.gaiaformers && player.gaiaformers > 0) {
-            score += player.gaiaformers * w.gaiaformerValueEach;
+            const gaiaScore = player.gaiaformers * w.gaiaformerValueEach;
+            score += gaiaScore;
+            logDebug(`9) Gaiaformers: ${player.gaiaformers} * ${w.gaiaformerValueEach} = +${gaiaScore.toFixed(1)}`);
         }
 
         // 8) 현재 라운드 미션 정렬 보너스 (해당 라운드 VP를 더 벌 수 있으면 가치 상승)
+        let roundBonus = 0;
         const roundMissions = game.roundScoringTiles;
         if (roundMissions?.length && round >= 1 && round <= 6) {
             const mission = roundMissions[round - 1];
@@ -302,17 +374,22 @@ export class Evaluator {
                 const bigCount = myStructures.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
                 const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
                 const researchLevels = Object.values(player.research || {}).reduce((s, l) => s + (l as number), 0);
-                if (trigger === 'build_mine') score += mineCount * mission.vp * 2;
-                else if (trigger === 'build_trading_station') score += tsCount * mission.vp * 2;
-                else if (trigger === 'build_research_lab') score += labCount * mission.vp * 2;
-                else if (trigger === 'build_big_building') score += bigCount * mission.vp * 2;
-                else if (trigger === 'build_gaia') score += gaiaCount * mission.vp * 2;
-                else if (trigger === 'research_track') score += researchLevels * mission.vp;
-                else if (trigger === 'federation') score += feds.length * mission.vp * 3;
+                if (trigger === 'build_mine') roundBonus += mineCount * mission.vp * 2;
+                else if (trigger === 'build_trading_station') roundBonus += tsCount * mission.vp * 2;
+                else if (trigger === 'build_research_lab') roundBonus += labCount * mission.vp * 2;
+                else if (trigger === 'build_big_building') roundBonus += bigCount * mission.vp * 2;
+                else if (trigger === 'build_gaia') roundBonus += gaiaCount * mission.vp * 2;
+                else if (trigger === 'research_track') roundBonus += researchLevels * mission.vp;
+                else if (trigger === 'federation') roundBonus += feds.length * mission.vp * 3;
             }
+        }
+        if (roundBonus > 0) {
+            score += roundBonus;
+            logDebug(`10) Round Mission Bonus: +${roundBonus.toFixed(1)}`);
         }
 
         // 9) 최종 미션 정렬 보너스 (게임 끝 1/2/3등 18/12/6점 쪽으로 유도)
+        let finalBonus = 0;
         const finalIds = game.finalMissionIds;
         if (finalIds?.length) {
             const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
@@ -320,22 +397,31 @@ export class Evaluator {
             const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
             const sectorSet = new Set(myStructures.map(t => (t as any).sector).filter((s): s is number => typeof s === 'number'));
             for (const fid of finalIds) {
-                if (fid === 'fm_total_structures') score += structCount * 4;
-                else if (fid === 'fm_federation_buildings' || fid === 'fm_gaia_planets') score += (feds.length * 5 + gaiaCount * 4);
-                else if (fid === 'fm_sectors') score += sectorSet.size * 5;
+                if (fid === 'fm_total_structures') finalBonus += structCount * 4;
+                else if (fid === 'fm_federation_buildings' || fid === 'fm_gaia_planets') finalBonus += (feds.length * 5 + gaiaCount * 4);
+                else if (fid === 'fm_sectors') finalBonus += sectorSet.size * 5;
                 else if (fid === 'fm_satellites') {
                     let sat = 0;
                     for (const v of Object.values(game.satellites || {})) {
                         if (Array.isArray(v)) sat += v.filter((id: string) => id === playerId).length;
                         else if (v === playerId) sat += 1;
                     }
-                    score += sat * 6;
+                    finalBonus += sat * 6;
                 }
                 else if (fid === 'fm_planet_types') {
                     const types = new Set(myStructures.map(t => t.type).filter(Boolean));
-                    score += types.size * 5;
-                } else score += structCount * 2;
+                    finalBonus += types.size * 5;
+                } else finalBonus += structCount * 2;
             }
+        }
+        if (finalBonus > 0) {
+            score += finalBonus;
+            logDebug(`11) Final Mission Bonus: +${finalBonus.toFixed(1)}`);
+        }
+
+        if (debug) {
+            logDebug(`==> Total Score: ${score.toFixed(1)}`);
+            console.log(logs.join('\n'));
         }
 
         return score;
