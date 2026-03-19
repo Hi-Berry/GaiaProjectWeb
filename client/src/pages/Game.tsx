@@ -171,10 +171,21 @@ export default function Game() {
     const n = saved ? parseInt(saved, 10) : 340;
     return Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, isNaN(n) ? 340 : n));
   });
+  const [researchMiniHeight, setResearchMiniHeight] = useState(() => {
+    const saved = gameId ? localStorage.getItem(`research-mini-height-${gameId}`) : null;
+    const n = saved ? parseInt(saved, 10) : 500;
+    return isNaN(n) ? 500 : n;
+  });
+
   const [bonusMiniWidth, setBonusMiniWidth] = useState(() => {
     const saved = gameId ? localStorage.getItem(`bonus-mini-width-${gameId}`) : null;
     const n = saved ? parseInt(saved, 10) : 340;
     return Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, isNaN(n) ? 340 : n));
+  });
+  const [bonusMiniHeight, setBonusMiniHeight] = useState(() => {
+    const saved = gameId ? localStorage.getItem(`bonus-mini-height-${gameId}`) : null;
+    const n = saved ? parseInt(saved, 10) : 500;
+    return isNaN(n) ? 500 : n;
   });
 
   const researchDragControls = useDragControls();
@@ -182,20 +193,50 @@ export default function Game() {
   const [showGameEndScore, setShowGameEndScore] = useState(false);
 
   const lastResizeWidthRef = useRef<number>(340);
-  const startResize = (panel: 'research' | 'bonus', startX: number, startWidth: number) => {
+  const lastResizeHeightRef = useRef<number>(500);
+
+  const startResize = (panel: 'research' | 'bonus', axis: 'x' | 'y' | 'both', e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = panel === 'research' ? researchMiniWidth : bonusMiniWidth;
+    const startHeight = panel === 'research' ? researchMiniHeight : bonusMiniHeight;
+
     lastResizeWidthRef.current = startWidth;
+    lastResizeHeightRef.current = startHeight;
+
     const setWidth = panel === 'research' ? setResearchMiniWidth : setBonusMiniWidth;
-    const key = panel === 'research' ? `research-mini-width-${gameId}` : `bonus-mini-width-${gameId}`;
-    const onMove = (e: MouseEvent) => {
-      const w = Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, startWidth + (e.clientX - startX)));
-      lastResizeWidthRef.current = w;
-      setWidth(w);
-      if (gameId) localStorage.setItem(key, String(w));
+    const setHeight = panel === 'research' ? setResearchMiniHeight : setBonusMiniHeight;
+
+    const keyW = panel === 'research' ? `research-mini-width-${gameId}` : `bonus-mini-width-${gameId}`;
+    const keyH = panel === 'research' ? `research-mini-height-${gameId}` : `bonus-mini-height-${gameId}`;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      if (axis === 'x' || axis === 'both') {
+        const w = Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, startWidth + dx));
+        lastResizeWidthRef.current = w;
+        setWidth(w);
+        if (gameId) localStorage.setItem(keyW, String(w));
+      }
+
+      if (axis === 'y' || axis === 'both') {
+        const h = Math.min(900, Math.max(200, startHeight + dy));
+        lastResizeHeightRef.current = h;
+        setHeight(h);
+        if (gameId) localStorage.setItem(keyH, String(h));
+      }
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (gameId) localStorage.setItem(key, String(lastResizeWidthRef.current));
+      if (gameId) {
+        if (axis === 'x' || axis === 'both') localStorage.setItem(keyW, String(lastResizeWidthRef.current));
+        if (axis === 'y' || axis === 'both') localStorage.setItem(keyH, String(lastResizeHeightRef.current));
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -209,11 +250,15 @@ export default function Game() {
   const lastPendingTechSelectionRef = useRef<string | null>(null);
   const lastWasMyTechRef = useRef(false);
   const lastPowerStateRef = useRef({ p1: 0, p2: 0, p3: 0, bs: 0 });
+  const prevPhaseRef = useRef<string | undefined>(undefined);
 
+  // 결과창: phase가 gameEnd로 바뀌는 순간(또는 최초 로드가 이미 gameEnd일 때)에만 한 번 열기 (관전 시 game_updated 재수신으로 창이 다시 열리는 현상 방지)
   useEffect(() => {
-    if (game?.currentPhase === 'gameEnd') {
+    const phase = game?.currentPhase;
+    if (phase === 'gameEnd' && prevPhaseRef.current !== 'gameEnd') {
       setShowGameEndScore(true);
     }
+    prevPhaseRef.current = phase;
   }, [game?.currentPhase]);
 
   useEffect(() => {
@@ -331,9 +376,13 @@ export default function Game() {
     });
 
     const unsubGameError = GameClient.onGameError((err) => {
+      const message =
+        typeof (err as any) === 'string'
+          ? (err as any)
+          : (err as any)?.message ?? '알 수 없는 오류';
       toast({
         title: '오류',
-        description: err.message,
+        description: message,
         variant: 'destructive',
       });
     });
@@ -720,7 +769,8 @@ export default function Game() {
                 const techTilesSum = b.techTiles.reduce((s, t) => s + t.vp, 0);
                 const spaceshipsSum = b.spaceships.reduce((s, x) => s + x.vp, 0);
                 const otherSum = b.other.reduce((s, o) => s + o.vp, 0);
-                const breakdownTotal = 10 + roundMissionsSum + bonusTilePassSum + techTilesSum + b.finalMissions + b.researchTracks - b.powerReceived + spaceshipsSum + otherSum;
+                const remainingResourcesVp = b.remainingResources ?? 0;
+                const breakdownTotal = 10 + roundMissionsSum + bonusTilePassSum + techTilesSum + b.finalMissions + b.researchTracks + remainingResourcesVp - b.powerReceived + spaceshipsSum + otherSum;
                 const totalMatches = breakdownTotal === (player!.score ?? 0);
 
                 return (
@@ -787,6 +837,12 @@ export default function Game() {
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">Research Board End</span>
                                 <span className="text-sm font-black text-cyan-400">+{b.researchTracks} VP</span>
+                              </div>
+                            )}
+                            {remainingResourcesVp > 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-zinc-400">남은 자원 (O+C+Q+K) 3당 1 VP</span>
+                                <span className="text-sm font-black text-emerald-400/90">+{remainingResourcesVp} VP</span>
                               </div>
                             )}
                             {b.powerReceived > 0 && (
@@ -3798,7 +3854,7 @@ export default function Game() {
               if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
             }}
             className="fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-            style={{ width: researchMiniWidth, maxHeight: '90vh' }}
+            style={{ width: researchMiniWidth, height: researchMiniHeight, maxHeight: '95vh' }}
           >
             <div
               className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
@@ -3811,7 +3867,7 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
                 className="origin-top-left"
                 style={{ width: 340, transform: `scale(${researchMiniWidth / 340})` }}
@@ -3857,11 +3913,26 @@ export default function Game() {
                 />
               </div>
             </div>
+            {/* Right Resize Handle */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 border-r border-white/10 rounded-r-xl transition-colors"
+              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
               title="드래그하여 너비 조절"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); startResize('research', e.clientX, researchMiniWidth); }}
+              onMouseDown={(e) => startResize('research', 'x', e)}
             />
+            {/* Bottom Resize Handle */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
+              title="드래그하여 높이 조절"
+              onMouseDown={(e) => startResize('research', 'y', e)}
+            />
+            {/* Corner Resize Handle */}
+            <div
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-blue-500/50 active:bg-blue-500/70 z-[130] flex items-end justify-end p-0.5 group"
+              title="드래그하여 대각선 크기 조절"
+              onMouseDown={(e) => startResize('research', 'both', e)}
+            >
+              <div className="w-2 h-2 border-r border-b border-blue-400 group-hover:border-white transition-colors" />
+            </div>
           </motion.div>
         )}
 
@@ -3881,7 +3952,7 @@ export default function Game() {
               if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
             }}
             className="fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
-            style={{ width: bonusMiniWidth, maxHeight: '90vh' }}
+            style={{ width: bonusMiniWidth, height: bonusMiniHeight, maxHeight: '95vh' }}
           >
             <div
               className="bg-amber-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
@@ -3894,7 +3965,7 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div className="flex-1 px-2 py-1 overflow-y-auto overflow-x-hidden touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 px-2 py-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
                 className="origin-top-left flex flex-col gap-4"
                 style={{ width: 340, transform: `scale(${bonusMiniWidth / 340})` }}
@@ -3920,11 +3991,26 @@ export default function Game() {
                 />
               </div>
             </div>
+            {/* Right Resize Handle */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 hover:bg-amber-500/30 active:bg-amber-500/50 border-r border-white/10 rounded-r-xl transition-colors"
+              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 hover:bg-amber-500/30 active:bg-amber-500/50 transition-colors z-[120]"
               title="드래그하여 너비 조절"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); startResize('bonus', e.clientX, bonusMiniWidth); }}
+              onMouseDown={(e) => startResize('bonus', 'x', e)}
             />
+            {/* Bottom Resize Handle */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-amber-500/30 active:bg-amber-500/50 transition-colors z-[120]"
+              title="드래그하여 높이 조절"
+              onMouseDown={(e) => startResize('bonus', 'y', e)}
+            />
+            {/* Corner Resize Handle */}
+            <div
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-amber-500/50 active:bg-amber-500/70 z-[130] flex items-end justify-end p-0.5 group"
+              title="드래그하여 대각선 크기 조절"
+              onMouseDown={(e) => startResize('bonus', 'both', e)}
+            >
+              <div className="w-2 h-2 border-r border-b border-amber-400 group-hover:border-white transition-colors" />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

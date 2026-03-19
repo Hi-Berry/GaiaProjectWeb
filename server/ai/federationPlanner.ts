@@ -23,8 +23,22 @@ export class FederationPlanner {
         rewardId: string,
         spentTokens: number
     } | null {
+        const all = this.getFederationActions(game, playerId, extraTokens, 1);
+        return all.length ? all[0] : null;
+    }
+
+    /**
+     * 연방 후보 여러 개 반환 (상위 limit개).
+     * - 봇이 "1개만 연방"에 고착되는 문제를 줄이기 위해, 좋은 대안 연방도 후보로 제공.
+     */
+    static getFederationActions(
+        game: ServerGameState,
+        playerId: string,
+        extraTokens = 0,
+        limit = 3
+    ): { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number }[] {
         const player = game.players[playerId];
-        if (!player) return null;
+        if (!player) return [];
 
         const requiredPower = getFederationRequiredPower(game, playerId);
         const isIvits = player.faction === 'ivits';
@@ -39,19 +53,18 @@ export class FederationPlanner {
             !fedHexes.includes(t.id)
         );
 
-        if (myStructures.length === 0) return null;
+        if (myStructures.length === 0) return [];
 
         // Check if total power is enough
         const allMyPlanetIds = new Set(myStructures.map(t => t.id));
         if (getFederationBuildingPower(game, playerId, allMyPlanetIds) < requiredPower) {
-            return null; // Can't form even if we connect ALL buildings
+            return []; // Can't form even if we connect ALL buildings
         }
 
         // Greedy search from each building, then pick the best considering satellite cost.
         const round = (game as any).roundNumber ?? 1;
 
-        let best: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number } | null = null;
-        let bestScore = -Infinity;
+        const results: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number, score: number }[] = [];
 
         for (const startTile of myStructures) {
             const result = this.tryFormFederationFrom(game, playerId, startTile, requiredPower, availableTokens);
@@ -77,13 +90,20 @@ export class FederationPlanner {
             }
 
             const score = rewardScore - result.spentTokens * satellitePenalty;
-            if (score > bestScore) {
-                bestScore = score;
-                best = result;
-            }
+            results.push({ ...result, score });
         }
 
-        return best;
+        if (results.length === 0) return [];
+        // 중복(같은 선택 셋) 제거 후 상위 limit개
+        const seen = new Set<string>();
+        const unique = results.filter(r => {
+            const key = `${r.rewardId}|${[...r.selectedPlanetIds].sort().join(',')}|${[...r.selectedHexIds].sort().join(',')}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        unique.sort((a, b) => b.score - a.score);
+        return unique.slice(0, Math.max(1, limit)).map(({ score: _s, ...rest }) => rest);
     }
 
     private static needsGreenFederation(game: ServerGameState, playerId: string): boolean {

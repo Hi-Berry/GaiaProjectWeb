@@ -74,7 +74,7 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
 
     researchTerraforming: 14,
     researchNavigation: 14,
-    researchArtificialIntelligence: 16,
+    researchArtificialIntelligence: 10, // 정보(AI) 트랙: QIC용 보조 수준으로 평가 (과도한 우선순위 방지)
     researchGaiaProject: 12,
     researchEconomy: 22,
     researchScience: 10, // 초반 지식 트랙 효율 낮음 — 다른 트랙(경제/테라포밍 등) 우선
@@ -193,18 +193,40 @@ export class Evaluator {
         // [수정] 턴을 넘기거나 행동을 마쳤을 때, 주머니에 돈/광물/지식이 많이 남아있으면 그건 전부 '버려진 기회비용'입니다.
         // 엔진을 돌리려면 자원을 써서 건물을 지었어야 함. 따라서 남은 자원은 오히려 '마이너스(-)' 가치를 매겨 쓰레기로 취급합니다. (단, 0.1의 가치만 부여해 정말 할 게 없을 땐 남기게 함)
         const isLateGame = round >= 5;
-        // 남은 자원에 대한 쥐꼬리만한 기본 점수
-        const oreScore = (player.ore || 0) * w.oreValue * (isLateGame ? 0.3 : 0.1); 
-        const credScore = (player.credits || 0) * w.creditsValue * (isLateGame ? 0.3 : 0.1);
-        const knowScore = (player.knowledge || 0) * w.knowledgeValue * (isLateGame ? 0.3 : 0.1);
-        
+        const resMult = isLateGame ? w.resourceMultiplierLate : w.resourceMultiplierEarly;
+        // 초반에는 "다음 건설/업그레이드로 이어질 자원"이므로 유의미하게 가치를 준다.
+        // 후반에는 남는 자원은 효율이 떨어지므로 낮은 가중치로 둔다.
+        const oreScore = (player.ore || 0) * w.oreValue * resMult * (isLateGame ? 0.15 : 1.0);
+        const credScore = (player.credits || 0) * w.creditsValue * resMult * (isLateGame ? 0.15 : 1.0);
+        const knowScore = (player.knowledge || 0) * w.knowledgeValue * resMult * (isLateGame ? 0.15 : 1.0);
+
         score += oreScore + credScore + knowScore;
-        logDebug(`2) Unspent Resources (Garbage Penalty): Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)}`);
+
+        // "다음 턴에 할 수 있는 액션" 해금 가치: 연구(4K), 연구소(3O+5C), 광산(1O+2C) 등
+        const ore = player.ore ?? 0;
+        const cred = player.credits ?? 0;
+        const know = player.knowledge ?? 0;
+        let actionUnlockBonus = 0;
+        if (know >= 4) actionUnlockBonus += 200; // 연구 1회 가능
+        if (ore >= 3 && cred >= 5) actionUnlockBonus += 180; // 연구소 업그레이드(TS→Lab) 가능
+        if (ore >= 1 && cred >= 2) actionUnlockBonus += 60;  // 광산 1채 가능
+        if (ore >= 2 && cred >= 3) actionUnlockBonus += 80; // 교역소 업그레이드(M→TS) 가능
+        score += actionUnlockBonus;
+        logDebug(`2) Resources: Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)} | Action-unlock: +${actionUnlockBonus.toFixed(0)}`);
 
         const qicWeight = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
         const qicScore = (player.qic || 0) * qicWeight;
         score += qicScore;
         logDebug(`3) QIC: ${player.qic || 0} * ${qicWeight.toFixed(1)} = +${qicScore.toFixed(1)}`);
+
+        // pendingTerraformSteps = "다음 턴에 광산으로 전환"되는 가치이므로, 광산 1개와 동일한 가중치로 평가.
+        const pendingSteps = (player.pendingTerraformSteps || 0);
+        if (pendingSteps > 0) {
+            const structMultiplierForSteps = 1 + w.structureRemainingRoundsFactor * remainingRounds;
+            const pendingValue = pendingSteps * w.structureMine * structMultiplierForSteps;
+            score += pendingValue;
+            logDebug(`3b) Pending Terraform Steps (≈mine): ${pendingSteps} * ${w.structureMine.toFixed(0)} * ${structMultiplierForSteps.toFixed(2)} = +${pendingValue.toFixed(1)}`);
+        }
 
         // 3) Power bowls
         const p1Score = (player.power1 || 0) * w.power1Value;

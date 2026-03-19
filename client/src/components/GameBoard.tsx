@@ -1017,14 +1017,21 @@ export function GameBoard({
                       );
                     })}
 
-                    {/* 하이브 우주정거장 */}
+                    {/* 하이브 우주정거장: 위성(사각형)과 구분되도록 톱니(기어) 모양 */}
                     {tile.spaceStation && (() => {
                       const ssOwner = game.players[tile.spaceStation!.ownerId];
                       const ssFac = ssOwner?.faction ? FACTIONS.find(f => f.id === ssOwner.faction) : null;
+                      const teeth = 8;
+                      const outerR = 2;
+                      const innerR = 1.24;
+                      const gearPoints = Array.from({ length: teeth * 2 }, (_, i) => {
+                        const angle = (Math.PI * 2 * i) / (teeth * 2) - Math.PI / 2;
+                        const r = i % 2 === 0 ? outerR : innerR;
+                        return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
+                      }).join(' ');
                       return (
                         <g>
-                          <circle r="1" fill={ssFac?.color ?? '#888'} stroke="#000" strokeWidth="0.15" opacity="0.95" />
-                          <text y="0.25" style={{ fontSize: '0.65px', fill: '#fff', textAnchor: 'middle', dominantBaseline: 'central', fontWeight: 'bold', pointerEvents: 'none' }}>SS</text>
+                          <polygon points={gearPoints} fill={ssFac?.color ?? '#888'} stroke="#000" strokeWidth="0.15" opacity="0.95" />
                         </g>
                       );
                     })()}
@@ -1494,7 +1501,12 @@ export function GameBoard({
                     <Button
                       className="w-full"
                       variant="secondary"
-                      disabled={game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)}
+                      disabled={
+                        // 테라포밍 파워 액션(1 step 등) 사용 중에는 메인 액션 완료 후에도 광산 건설을 이어서 해야 하므로 예외로 활성화
+                        (game.hasDoneMainAction
+                          && !(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)
+                          && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))
+                      }
                       onClick={() => {
                         onBuildMine(selectedTile.id, selectedTile.type === 'asteroid' ? true : undefined);
                         setSelectedTile(null);

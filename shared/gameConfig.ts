@@ -109,6 +109,8 @@ export interface ScoreBreakdown {
   spaceships: { shipTileId: string; vp: number }[];
   /** 게임 종료 연구 트랙 보너스 (3단계 4점, 4단계 8점, 5단계 12점) */
   researchTracks: number;
+  /** 게임 종료 시 남은 자원 (O+C+QIC+K) 합 3당 1 VP */
+  remainingResources: number;
   /** 기타 (연방 보상 VP 등) */
   other: { source: string; vp: number }[];
 }

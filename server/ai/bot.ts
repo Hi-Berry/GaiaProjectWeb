@@ -17,6 +17,8 @@ import {
     executeUseShipAction,
     executeEndTurn,
     executeSelectTechTile,
+    executeSelectAdvancedTechTile,
+    executeCoverAdvancedTechTile,
     executeBotFederation,
     executeBurnPower,
     executeConvertResource,
@@ -63,6 +65,8 @@ type BotAction = {
     | 'use_ship_action'
     | 'eclipse_build_asteroid_mine'
     | 'select_tech_tile'
+    | 'select_advanced_tech_tile'
+    | 'cover_advanced_tech_tile'
     | 'advance_tech'
     | 'form_federation'
     | 'burn_power'
@@ -303,6 +307,10 @@ export class BotLogic {
             case 'select_tech_tile':
                 executeSelectTechTile(io, game, playerId, action.params.techTileId, action.params.trackId);
                 return true;
+            case 'select_advanced_tech_tile':
+                return executeSelectAdvancedTechTile(io, game, playerId, action.params.advancedTileId, action.params.trackId);
+            case 'cover_advanced_tech_tile':
+                return executeCoverAdvancedTechTile(io, game, playerId, action.params.coverTileId);
             case 'advance_tech':
                 return executeAdvanceTech(io, game, playerId, action.params.trackId);
             case 'form_federation':
@@ -426,7 +434,6 @@ export class BotLogic {
         const player = game.players[playerId];
         if (!player) return null;
 
-        const maxTotalPower = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
         const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
 
         // 현재 파워 상태와 다음 라운드 수입을 합산하여 예측
@@ -446,21 +453,22 @@ export class BotLogic {
         p2 -= charge2to3;
         p3 += charge2to3;
 
-        // 만약 수입 단계에서 낭비되는 파워가 생길 것으로 예측된다면,
-        // *현재* 보유한 p3를 자원으로 미리 변환 (에러 방지: 시뮬레이션된 p3가 아닌 현재 p3 기준)
+        // Gaia의 파워는 "그릇 이동" 구조라 일반적으로 수입으로 낭비되지 않는다.
+        // 따라서 cleanup 변환은 정말 예외적으로만 수행한다:
+        // - 패스 직전, 다음 라운드에 도움이 되는 최소 자원(O/C) 확보가 필요할 때만
+        // - QIC(4P→1Q)는 파워 액션을 대체할 만큼 강하지 않으므로 여기서는 사용하지 않는다
         const currentP3 = player.power3 ?? 0;
-        if (p3 > (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0) || p3 >= 1) {
-            // 변환 우선순위: QIC(4) > Ore(3) > Credit(1). 타클론은 브레인 스톤 우선 사용.
-            const useBrain = player.faction === 'taklons';
-            if (currentP3 >= 4 && (player.qic || 0) < 15) {
-                if (player.faction !== 'gleens' || getAcademyRightCount(game, playerId) > 0) {
-                    return { type: 'convert_resource', params: { type: '4power-to-1qic', useBrain } };
-                }
-            }
-            if (currentP3 >= 3 && (player.ore ?? 0) < 15) {
+        const useBrain = player.faction === 'taklons';
+
+        // 다음 라운드 수입이 아예 없으면 굳이 변환할 이유가 더 줄어듦
+        const hasIncoming = (powerIncome + tokenIncome) > 0;
+
+        // 최소 운영자금 확보(다음 라운드에 광산/교역소를 올릴 수 있게): O/C가 너무 바닥일 때만
+        if (hasIncoming) {
+            if (currentP3 >= 3 && (player.ore ?? 0) < 1) {
                 return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } };
             }
-            if (currentP3 >= 1 && (player.credits ?? 0) < 30) {
+            if (currentP3 >= 1 && (player.credits ?? 0) < 2) {
                 return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain } };
             }
         }
@@ -544,6 +552,17 @@ export class BotLogic {
 
         const candidates: BotAction[] = [];
 
+        // 0a. 고급 기술 타일 커버/트랙 전진 대기 상태는 강제 처리 (이걸 안 하면 턴 진행 불가)
+        if (game.pendingAdvancedTechCover?.playerId === playerId) {
+            const covered = new Set(player.coveredTechTiles ?? []);
+            const coverTileId = (player.techTiles ?? []).find(tid => !covered.has(tid)) ?? (player.techTiles?.[0] ?? null);
+            return coverTileId ? [{ type: 'cover_advanced_tech_tile', params: { coverTileId } }] : [];
+        }
+        if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
+            const tracks = this.pickResearchTracks(game, player, playerId);
+            return tracks.map(trackId => ({ type: 'advance_tech', params: { trackId } }));
+        }
+
         // 0. 기술 타일 선택 대기 상태라면 다른 액션은 불가능. (MCTS 확장을 위해 모든 가능한 타일을 후보로 제공)
         if (game.pendingTechTileSelection?.playerId === playerId) {
             const availableTiles: TechTile[] = [];
@@ -563,6 +582,17 @@ export class BotLogic {
             const tracks = this.pickResearchTracks(game, player, playerId);
             const trackId = tracks.length > 0 ? tracks[0] : ('economy' as ResearchTrack);
             
+            // 트랙 4 이상이고 초록 토큰이 있으면: 트랙 고급 기술 타일도 후보로 제공
+            if (countGreenFederations(player) >= 1 && game.advancedTechTilesByTrack) {
+                for (const [t, adv] of Object.entries(game.advancedTechTilesByTrack)) {
+                    const tr = t as ResearchTrack;
+                    const lvl = player.research?.[tr] ?? 0;
+                    if (lvl >= 4 && adv?.id && !player.techTiles.includes(adv.id)) {
+                        candidates.push({ type: 'select_advanced_tech_tile', params: { advancedTileId: adv.id, trackId: tr } });
+                    }
+                }
+            }
+
             for (const tile of availableTiles) {
                 candidates.push({ type: 'select_tech_tile', params: { techTileId: tile.id, trackId } });
             }
@@ -570,8 +600,8 @@ export class BotLogic {
         }
 
         // 1. 연방 구성 (가장 중요)
-        const fedAction = FederationPlanner.getBestFederationAction(game, playerId);
-        if (fedAction) {
+        const fedActions = FederationPlanner.getFederationActions(game, playerId, 0, 3);
+        for (const fedAction of fedActions) {
             const round = (game as any).roundNumber ?? 1;
             const spent = fedAction.spentTokens ?? 0;
             const totalTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
@@ -583,14 +613,15 @@ export class BotLogic {
         // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
         const oreForFed = player.ore ?? 0;
         for (let k = 2; k <= Math.min(oreForFed, 6); k++) {
-            const fedWithK = FederationPlanner.getBestFederationAction(game, playerId, k);
-            if (!fedWithK) continue;
+            const fedWithKs = FederationPlanner.getFederationActions(game, playerId, k, 2);
+            for (const fedWithK of fedWithKs) {
             const round = (game as any).roundNumber ?? 1;
             const spent = fedWithK.spentTokens ?? 0;
             // 초반엔 "오레 태워서 위성 많이" 연방을 억제 (정말 싸면 허용)
             if (round <= 2 && spent > 2) continue;
             const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
             candidates.push({ type: 'form_federation', params: fedWithK, preActions });
+            }
         }
 
         // 2. pendingTerraformSteps가 있으면 바로 광산 건설
@@ -687,22 +718,40 @@ export class BotLogic {
 
         // 10. 패스 (지식이 충분하여 연구를 더 할 수 있다면 패스를 억제하여 무조건 지식을 소모하게 강제)
         if (!player.hasPassed) {
+            const round = game.roundNumber ?? 1;
             // [사용자 피드백] 가이아포머나 소행성 우주선 액션 등 매우 좋은 액션이 후보에 있다면, MCTS가 엉뚱하게 패스하는 것을 원천 차단
+            // 6라: 남은 자원으로 교역소 하나 더 짓고 연방하면 12점 등이 가능하므로, 연방/업그레이드 가능 시 패스 차단
             const mustDoActions = candidates.filter(c =>
                 (c.type === 'place_gaiaformer') ||
+                (c.type === 'place_ivits_space_station') ||
                 (c.type === 'use_ship_action' && c.params?.actionIndex === 3 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_eclipse') ||
                 (c.type === 'use_ship_action' && c.params?.actionIndex === 1 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_rebellion') ||
-                (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3')
+                (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3') ||
+                (round === 6 && c.type === 'form_federation') ||
+                (round === 6 && c.type === 'upgrade_structure' && c.params?.target === 'trading_station')
             );
 
             if ((player.knowledge ?? 0) >= 4) {
                 // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
             } else if (mustDoActions.length > 0) {
-                // 필수 액션(포밍/소행성/기술)이 가능하면 패스 차단
+                // 필수 액션(포밍/소행성/기술/6라 연방·교역소)이 가능하면 패스 차단
             } else {
                 const bestBonus = this.findBonusTileAction(game, playerId);
                 const bonusTileId = bestBonus?.params?.bonusTileId;
                 candidates.push({ type: 'pass_round', params: { bonusTileId } });
+
+                // 다음 라운드 파워 수입이 그릇1 토큰 부족으로 샐 것으로 예상되면,
+                // 패스 직전에 1O→1토큰 프리액션을 1~2회 미리 수행하는 후보도 추가.
+                // (연방용 토큰 확보 + 파워 수입 누수 방지)
+                const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
+                const p1Next = (player.power1 ?? 0) + tokenIncome;
+                const expectedWaste = Math.max(0, powerIncome - p1Next);
+                const oreNow = player.ore ?? 0;
+                const k = Math.max(0, Math.min(2, expectedWaste, oreNow));
+                if (k > 0) {
+                    const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
+                    candidates.push({ type: 'pass_round', params: { bonusTileId }, preActions });
+                }
             }
         }
 
@@ -788,6 +837,18 @@ export class BotLogic {
                     score += this.calculateRoundScoringBonus(game, playerId, 'build_trading_station');
                     score += this.calculateFinalMissionBonus(game, playerId, mine, 'trading_station');
                     score += this.calculateAdjacencyBonus(game, playerId, mine);
+                    // 6라: 교역소 업그레이드로 연방이 열리거나(혹은 더 싸지면) 패스보다 압도적으로 유리
+                    if (round === 6) {
+                        const before = BotLogic.getBestFederationSpentTokens(game, playerId);
+                        const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, mine.id, 'trading_station');
+                        if (before == null && after != null) {
+                            score += 480; // 업그레이드로 연방이 새로 열림
+                        } else if (before != null && after != null && after < before) {
+                            score += Math.min(240, (before - after) * 80); // 더 싸게 연방 가능
+                        } else {
+                            score += 120;
+                        }
+                    }
 
                     candidates.push({
                         id: `ts-${mine.id}`,
@@ -905,6 +966,19 @@ export class BotLogic {
                 if (round >= 2 && round <= 4 && academyCount === 0) score += 100; // 첫 아카데미는 중반까지 매우 강력 권장
                 if (round >= 5) score += 50;
 
+                // 6라: 연구소→아카데미로 연방이 열리거나(혹은 더 싸지면) 매우 강력
+                if (round === 6) {
+                    const before = BotLogic.getBestFederationSpentTokens(game, playerId);
+                    const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, lab.id, 'academy');
+                    if (before == null && after != null) {
+                        score += 520;
+                    } else if (before != null && after != null && after < before) {
+                        score += Math.min(300, (before - after) * 100);
+                    } else {
+                        score += 140;
+                    }
+                }
+
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, lab, 'academy');
 
@@ -951,6 +1025,25 @@ export class BotLogic {
             }
         }
         return null;
+    }
+
+    private static getBestFederationSpentTokens(game: ServerGameState, playerId: string): number | null {
+        const fed = FederationPlanner.getBestFederationAction(game, playerId);
+        if (!fed) return null;
+        return fed.spentTokens ?? 0;
+    }
+
+    private static getBestFederationSpentTokensAfterUpgrade(
+        game: ServerGameState,
+        playerId: string,
+        tileId: string,
+        upgradedStructure: 'trading_station' | 'academy'
+    ): number | null {
+        // lightweight clone: only what FederationPlanner reads (map + players + satellites/fed state)
+        const clone: ServerGameState = JSON.parse(JSON.stringify(game));
+        const tile = clone.map.find(t => t.id === tileId);
+        if (tile) tile.structure = upgradedStructure;
+        return this.getBestFederationSpentTokens(clone, playerId);
     }
 
     private static checkIfActionNeedsQIC(game: ServerGameState, playerId: string, action: BotAction): boolean {
@@ -1065,6 +1158,7 @@ export class BotLogic {
         const credits = player.credits ?? 0;
         const qic = player.qic ?? 0;
         const power3 = player.power3 ?? 0;
+        const round = game.roundNumber;
 
         if (ore < 1 || credits < 2) {
             // Ore/Credit 부족 시에도 Eclipse 6C 소행성이나 파워 콤보 가능한지 확인
@@ -1086,6 +1180,9 @@ export class BotLogic {
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
         const tfLevel = player.research.terraforming ?? 0;
         const pendingSteps = player.pendingTerraformSteps || 0;
+        const canResearch = (player.knowledge ?? 0) >= 4;
+        const plannedTopTrack = canResearch ? (this.pickResearchTracks(game, player, playerId)[0] ?? null) : null;
+        const likelyNavThisTurn = plannedTopTrack === 'navigation';
 
         // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
         const rangeBonusValue = range >= 2 ? 30 : 0;
@@ -1171,8 +1268,25 @@ export class BotLogic {
             // QIC 소모 제한 해제: QIC만 충분하다면 3거리, 4거리(QIC 3~4 소모) 점프도 교두보 가치가 높으면 시도 가능하도록 허용
             // 단, 자신이 가진 QIC를 초과하면 당연히 불가.
             if (neededQicForRange > qic) continue;
-            // 과도한 점프(5 QIC 이상)는 게임 시스템상 거의 불가능하거나 미친 짓이므로 캡을 씌움
-            if (neededQicForRange > 4) continue;
+
+            // 정책: 이번 턴에 Nav를 올릴 가능성이 높다면(지식>=4이고 navigation이 최우선 트랙),
+            // Nav 업그레이드로 QIC 소모를 줄일 수 있는 타일에 대해 QIC 점프 광산을 미리 짓지 않게 한다.
+            // (즉, "연구 먼저 → 0 QIC로 확장" 플로우 강제)
+            if (likelyNavThisTurn && neededQicForRange > 0) {
+                const probe: BotAction = { type: 'build_mine', params: { tileId: tile.id } };
+                if (this.willNavResearchSaveQIC(game, playerId, probe)) {
+                    continue;
+                }
+            }
+            // 정책 변경: QIC로 거리 점프는 게임 전체적으로 1~2회가 적정.
+            // 따라서 2QIC 이상 점프는 거의 금지(매우 후반 + 진짜 교두보/가이아 같은 예외만 허용).
+            const isLate = round >= 6;
+            const allowBigQicJump = isLate && (bridgeheadBonus >= 180); // 후반에만, 그리고 교두보가 정말 큰 경우만
+            if (neededQicForRange > 1 && !allowBigQicJump) continue;
+            // 1QIC 점프도 기본적으로 매우 큰 페널티를 줘서 "Nav 올리고 가자"로 유도
+            if (neededQicForRange === 1) {
+                qicPenalty += (round <= 4 ? 220 : 160);
+            }
 
             if (tile.type === 'gaia') {
                 // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
@@ -1343,6 +1457,11 @@ export class BotLogic {
             const costPerStep = getTerraformCost(tfLevel || 0);
             const terraformCost = remainingSteps * costPerStep;
             const totalOre = 1 + terraformCost;
+
+            // 정책: "오레로 테라포밍해서 광산"은 전면 금지.
+            // 테라포밍 광산은 pendingTerraformSteps/파워액션/우주선/보너스 등 "무료 단계"를 통해서만 하도록 강제.
+            // (사람 기준으로도 오레 TF는 엔진을 망가뜨리는 경우가 많고, AI가 1라에 3O 등으로 망하는 패턴을 근절하기 위함)
+            continue;
 
             if (ore >= totalOre && credits >= 2) {
                 // 확장 가치를 매우 높게 쳐주므로, 광석을 소모해서라도 짓도록 유도
@@ -1642,19 +1761,12 @@ export class BotLogic {
     }
 
     /**
-     * Ivits 우주정거장 전략:
-     * 건설 가능한 행성 후보 중 거리 밖이지만, 빈 공간에 우주정거장을 배치하면
-     * 거리 1 이내로 오는 행성이 있으면 우주정거장 배치
+     * Ivits 우주정거장: 라운드당 1회 반드시 고려. (서버는 O/C 비용 없음)
+     * 1) 거리 밖 행성에 다리 역할 빈 공간이 있으면 그 타일 우선
+     * 2) 없으면 범위 내(또는 QIC로 도달 가능) 빈 우주 아무 타일이라도 배치 후보로 반환 → 패스 방지
      */
     private static findIvitsSpaceStationAction(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
-        if ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2) return null;
-
-        const faction = FACTIONS.find(f => f.id === player.faction);
-        if (!faction?.homePlanet) return null;
-        const homeType = faction.homePlanet;
-
-        // 현재 건물/우주정거장
         const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
@@ -1662,36 +1774,52 @@ export class BotLogic {
         if (myPlanets.length === 0) return null;
 
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+        const qic = player.qic ?? 0;
+        const satellites = (game as any).satellites || {};
 
-        // 거리 밖의 행성 후보 (모행성 또는 가이아)
-        const targetPlanets = game.map.filter(t =>
-            !t.ownerId && t.structure === null &&
-            (t.type === homeType || t.type === 'gaia') &&
-            Math.min(...myPlanets.map(p => getDistance(p, t))) > range
-        );
+        const emptySpaces = game.map.filter(t => {
+            if ((t.type !== 'space' && t.type !== 'deep_space') || t.structure !== null || t.spaceStation) return false;
+            const onTile = Array.isArray(satellites[t.id]) ? satellites[t.id] : (satellites[t.id] ? [satellites[t.id]] : []);
+            if (onTile.includes(playerId)) return false;
+            return true;
+        });
 
-        // 빈 공간 (우주정거장 배치 가능)
-        const emptySpaces = game.map.filter(t =>
-            (t.type === 'space' || t.type === 'deep_space') &&
-            t.structure === null && !t.spaceStation
-        );
-
-        for (const target of targetPlanets) {
-            for (const space of emptySpaces) {
-                // 이 빈 공간에서 타겟까지 거리 1 이내인지
-                const distToTarget = getDistance(space, target);
-                if (distToTarget > 1) continue;
-
-                // 현재 건물에서 이 빈 공간까지 Nav 범위 내인지
-                const distToSpace = Math.min(...myPlanets.map(p => getDistance(p, space)));
-                const neededQic = distToSpace > range ? Math.ceil((distToSpace - range) / 2) : 0;
-                if (neededQic > (player.qic ?? 0)) continue;
-                if (neededQic > 1) continue; // QIC 1 이상 제한
-
-                return { type: 'place_ivits_space_station', params: { tileId: space.id } };
+        // 1) 전략 배치: 거리 밖 행성에 다리 역할
+        const faction = FACTIONS.find(f => f.id === player.faction);
+        const homeType = faction?.homePlanet;
+        if (homeType) {
+            const targetPlanets = game.map.filter(t =>
+                !t.ownerId && t.structure === null &&
+                (t.type === homeType || t.type === 'gaia') &&
+                Math.min(...myPlanets.map(p => getDistance(p, t))) > range
+            );
+            for (const target of targetPlanets) {
+                for (const space of emptySpaces) {
+                    if (getDistance(space, target) > 1) continue;
+                    const distToSpace = Math.min(...myPlanets.map(p => getDistance(p, space)));
+                    const neededQic = distToSpace > range ? Math.ceil((distToSpace - range) / 2) : 0;
+                    if (neededQic <= qic && neededQic <= 2) {
+                        return { type: 'place_ivits_space_station', params: { tileId: space.id } };
+                    }
+                }
             }
         }
 
+        // 2) 배치 가능한 빈 우주가 있으면 QIC 적은·가까운 순으로 하나 반환 (우주정거장 안 놓고 패스 방지)
+        const reachable = emptySpaces
+            .map(s => ({
+                space: s,
+                dist: Math.min(...myPlanets.map(p => getDistance(p, s))),
+                neededQic: (() => {
+                    const d = Math.min(...myPlanets.map(p => getDistance(p, s)));
+                    return d > range ? Math.ceil((d - range) / 2) : 0;
+                })(),
+            }))
+            .filter(x => x.neededQic <= qic)
+            .sort((a, b) => (a.neededQic - b.neededQic) || (a.dist - b.dist));
+        if (reachable.length > 0) {
+            return { type: 'place_ivits_space_station', params: { tileId: reachable[0].space.id } };
+        }
         return null;
     }
 
@@ -1779,8 +1907,9 @@ export class BotLogic {
                 }
                 break;
             case 'artificialIntelligence':
-                score += (6 - level) * 15;
-                if (round >= 4) score += 20;
+                // 정보(AI) 트랙: QIC 보상은 유용하지만 확장(항해/테라포밍/경제)보다 우선하면 안 됨
+                score += (6 - level) * 8;
+                if (round >= 5 && level < 3) score += 15; // 후반에만 보조적으로
                 break;
             case 'gaiaProject':
                 score += (6 - level) * 8;
@@ -2012,9 +2141,14 @@ export class BotLogic {
 
         const scored: { id: string, score: number }[] = [];
 
-        // 광산 건설 가능 여부 확인 (deltas for step action scoring)
+        // 광산/교역소 수: 스텝 vs 자원(2O/7C) 우선순위 판단용
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
-        const mineCount = myStructures.filter(t => t.structure === 'mine').length;
+        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length
+            + game.map.filter(t => t.parasiticMine?.ownerId === playerId).length
+            + (player.virtualMineAsteroid ? 1 : 0);
+        const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
+        const minesToUpgrade = mineCount - tsCount; // 교역소로 올릴 광산이 몇 개 있는지
+        const needStepsFirst = mineCount <= 2 || minesToUpgrade <= 0; // 광산이 적거나, 올릴 광산이 없으면 스텝 우선
 
         for (const action of availableActions) {
             let score = 0;
@@ -2046,41 +2180,60 @@ export class BotLogic {
                     break;
 
                 // 파워 액션 - 자원/테라포밍 선호도 조정 (전체적으로 +100~150점 상향)
-                case 'gain-2-ore':
+                case 'gain-2-ore': {
                     score = 240;
-                    // ore:credits balance (1:1.2). If ore is lacking, boost score.
                     if (ore * 1.2 < credits) score += 50;
+                    // 액션 해금 가치: 2O 후 연구소(3O+5C)·광산(1O+2C)·트왈라잇 2O+3P→Lab 가능 여부
+                    const oreAfter = ore + 2;
+                    if (oreAfter >= 3 && credits >= 5) score += 120; // 다음 턴 TS→Lab 가능
+                    if (oreAfter >= 2 && p3 >= 3 && game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) score += 100; // 트왈라잇 2O+3P→연구소 가능
+                    if (oreAfter >= 1 && credits >= 2) score += 40;  // 광산 1채 가능
+                    // 교역소 지을 광산이 없으면 자원만 쌓이므로 감점 → 스텝 우선
+                    if (needStepsFirst) score -= 100;
                     break;
-                case 'gain-7-credits':
+                }
+                case 'gain-7-credits': {
                     score = 230;
                     if (credits < ore * 1.2) score += 50;
+                    const credAfter = credits + 7;
+                    if (ore >= 3 && credAfter >= 5) score += 120; // 연구소(TS→Lab) 가능
+                    if (ore >= 1 && credAfter >= 2) score += 50;   // 광산 가능
+                    if (needStepsFirst) score -= 100;
                     break;
-                case 'gain-1-step':
+                }
+                case 'gain-1-step': {
                     score = round <= 3 ? 210 : 120;
                     if (isStepMission) score += 50;
+                    // 업그레이드할 광산이 부족하면 스텝을 우선 (광산 확보 → 그다음 교역소)
+                    if (needStepsFirst) score += 130;
                     break;
-                case 'gain-2-knowledge':
+                }
+                case 'gain-2-knowledge': {
                     score = 200;
-                    // 이클립스 우주선 액션(2K)을 쓸 수 없는 상황이면 파워 액션의 가치 상승
+                    const knowAfter = (player.knowledge || 0) + 2;
+                    if (knowAfter >= 4) score += 100; // 다음 턴 연구(advance_research) 1회 가능
                     const eclipseShip = this.findPlayerShip(game, playerId, 'ship_eclipse');
                     if (eclipseShip) {
                         const shipState = game.spaceships?.[eclipseShip.id];
-                        if (shipState?.usedActionIndices?.includes(2)) score += 30; // 이미 우주선에서 연구 액션을 썼다면 파워 액션이라도 선점
+                        if (shipState?.usedActionIndices?.includes(2)) score += 30;
                     } else {
-                        score += 20; // 우주선에 아예 없다면 파워 액션 선호
+                        score += 20;
                     }
                     break;
+                }
                 case 'gain-2-tokens':
                     score = 160;
                     // 토큰이 부족하여 연방 선언이 어려울 때 가치 상승
                     const totalTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
                     if (totalTokens < 7) score += 40;
                     break;
-                case 'gain-2-steps':
+                case 'gain-2-steps': {
                     score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
                     if (player.faction === 'geodens' || player.faction === 'xenos') score += 40;
                     if (isStepMission) score += 60; // 테라포밍 미션 시 2단계는 4vp 이상 가치
+                    if (needStepsFirst) score += 140; // 광산 부족 시 스텝 우선
                     break;
+                }
                 case 'gain-3-knowledge':
                     score = 170; // 유저 피드백: 거의 안 씀
                     if (player.knowledge === 1) score += 40; // 4지금을 맞추기 위해 3지식 사용 고민 가능
@@ -2217,7 +2370,7 @@ export class BotLogic {
                     } else if (i === 2 && (player.ore || 0) >= 2 && (player.power3 || 0) >= 3) {
                         const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
                         if (ts) {
-                            score = 320; // TS -> Lab 업그레이드
+                            score = 420; // 2O+3P → TS→Lab: 가이아 프로젝트 파워 액션 중 최상급 (연구소+기술타일 선점)
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
                         }
                     } else if (i === 3) {
@@ -2422,7 +2575,8 @@ export class BotLogic {
             resourceValue += (tile.income.qic || 0) * 4;
             resourceValue += (tile.income.credits || 0) * 1;
             resourceValue += (tile.income.power || 0) * 1;
-            resourceValue += (tile.income.powerTokens || 0) * 1;
+            // powerTokens(그릇1 토큰)은 파워 수입을 "받을 수 있게" 해주는 핵심 리소스라 가치가 큼
+            resourceValue += (tile.income.powerTokens || 0) * 6;
         }
         if (tile.specialAction) {
             if (tile.specialAction === 'range_3') resourceValue += 3;
@@ -2462,6 +2616,19 @@ export class BotLogic {
                     break;
             }
             passBonusValue = count * (tile.passBonus?.vp || 0);
+        }
+
+        // 다음 라운드 파워 수입 예측:
+        // 그릇1 토큰이 부족하면(power charge가 새면) 토큰 수급 타일을 강하게 선호
+        {
+            const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
+            const p1Next = (player.power1 ?? 0) + tokenIncome;
+            const expectedWaste = Math.max(0, powerIncome - p1Next);
+            if (expectedWaste > 0) {
+                const tokenGain = tile.income?.powerTokens ?? 0;
+                resourceValue += tokenGain * (30 + expectedWaste * 10);
+                if (tile.id === 'bon-1o-2tokens') resourceValue += 120;
+            }
         }
 
         if (round <= 3) {

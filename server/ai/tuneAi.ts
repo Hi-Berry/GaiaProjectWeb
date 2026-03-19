@@ -71,9 +71,31 @@ type OneGameResult = {
   gameId: string;
   maxScore: number;
   scores: { playerId: string; name: string; faction?: string; score: number }[];
-  /** winner의 6라운드 수입 합 (roundIncomeTotals[6]) */
-  winnerRound6Income?: { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number };
+  /** winner의 건설된 건물 티어 합 (mine=1, TS/lab=2, PI/academy=3 or 4) */
+  winnerStructureTierSum: number;
 };
+
+function structureTier(structure: string, faction: string): number {
+  switch (structure) {
+    case 'mine': case 'lost_planet_mine': return 1;
+    case 'trading_station': return 2;
+    case 'research_lab': return 2;
+    case 'planetary_institute': return (faction === 'bescods' || faction === 'ivits') ? 4 : 3;
+    case 'academy': return (faction === 'bescods' || faction === 'ivits') ? 4 : 3;
+    default: return 0;
+  }
+}
+
+function computeStructureTierSum(map: any[], playerId: string, faction: string): number {
+  let sum = 0;
+  for (const t of map || []) {
+    if (t.ownerId === playerId && t.structure && t.structure !== 'ship') {
+      sum += structureTier(t.structure, faction);
+    }
+    if (t.parasiticMine?.ownerId === playerId) sum += 1;
+  }
+  return sum;
+}
 
 function runOneGame(socket: Socket): Promise<OneGameResult> {
   return new Promise((resolve, reject) => {
@@ -103,19 +125,15 @@ function runOneGame(socket: Socket): Promise<OneGameResult> {
         const maxScore = Math.max(...scores.map(s => s.score));
         const winnerId = scores.find(s => s.score === maxScore)?.playerId;
         const winner = winnerId ? players[winnerId] : null;
-        const r6 = winner?.roundIncomeTotals?.[6];
+        const map = updated.map || [];
+        const winnerStructureTierSum = winnerId && winner
+          ? computeStructureTierSum(map, winnerId, winner.faction || '')
+          : 0;
         resolve({
           gameId: updated.id || gameId,
           maxScore,
           scores,
-          winnerRound6Income: r6 ? {
-            ore: r6.ore ?? 0,
-            credits: r6.credits ?? 0,
-            knowledge: r6.knowledge ?? 0,
-            qic: r6.qic ?? 0,
-            powerCharge: r6.powerCharge ?? 0,
-            powerTokens: r6.powerTokens ?? 0,
-          } : undefined,
+          winnerStructureTierSum,
         });
       });
       socket.emit('auto_setup_test', { gameId, selfPlay: true });
@@ -144,15 +162,10 @@ function mutate(base: EvaluatorWeights, sigma = 0.18): EvaluatorWeights {
   return out;
 }
 
-function sumRound6Income(x?: { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number }) {
-  if (!x) return 0;
-  return (x.ore || 0) + (x.credits || 0) + (x.knowledge || 0) + (x.qic || 0) + (x.powerCharge || 0) + (x.powerTokens || 0);
-}
-
 async function evalCandidate(socket: Socket, weights: EvaluatorWeights, games: number) {
   await setWeights(socket, weights);
   const maxScores: number[] = [];
-  const winnerR6Income: number[] = [];
+  const winnerStructureTierSums: number[] = [];
   let failures = 0;
   const startedAt = Date.now();
   const logEvery = Math.max(1, Number(process.env.TUNE_LOG_EVERY) || 1);
@@ -161,7 +174,7 @@ async function evalCandidate(socket: Socket, weights: EvaluatorWeights, games: n
     try {
       const r = await runOneGame(socket);
       maxScores.push(r.maxScore);
-      winnerR6Income.push(sumRound6Income(r.winnerRound6Income));
+      winnerStructureTierSums.push(r.winnerStructureTierSum);
       if (((i + 1) % logEvery) === 0) {
         const elapsedMs = Date.now() - startedAt;
         const done = i + 1;
@@ -169,10 +182,12 @@ async function evalCandidate(socket: Socket, weights: EvaluatorWeights, games: n
         const remaining = games - done;
         const etaMs = remaining * avgMs;
         const avgWinnerSoFar = maxScores.reduce((a, b) => a + b, 0) / maxScores.length;
-        const avgR6SoFar = winnerR6Income.reduce((a, b) => a + b, 0) / Math.max(1, winnerR6Income.length);
+        const avgTierSoFar = winnerStructureTierSums.length
+          ? winnerStructureTierSums.reduce((a, b) => a + b, 0) / winnerStructureTierSums.length
+          : 0;
         console.log(
           `[tune-ai]   game ${done}/${games} winnerVP=${r.maxScore} avgWinnerVP=${avgWinnerSoFar.toFixed(1)} ` +
-          `avgWinnerR6Income=${avgR6SoFar.toFixed(1)} elapsed=${(elapsedMs / 1000).toFixed(0)}s ETA=${(etaMs / 1000).toFixed(0)}s`
+          `avgWinnerStructureTierSum=${avgTierSoFar.toFixed(1)} elapsed=${(elapsedMs / 1000).toFixed(0)}s ETA=${(etaMs / 1000).toFixed(0)}s`
         );
       }
     } catch {
@@ -185,8 +200,10 @@ async function evalCandidate(socket: Socket, weights: EvaluatorWeights, games: n
   }
 
   const avgWinner = maxScores.length ? maxScores.reduce((a, b) => a + b, 0) / maxScores.length : 0;
-  const avgWinnerR6 = winnerR6Income.length ? winnerR6Income.reduce((a, b) => a + b, 0) / winnerR6Income.length : 0;
-  return { avgWinner, avgWinnerR6, finished: maxScores.length, failures };
+  const avgWinnerStructureTierSum = winnerStructureTierSums.length
+    ? winnerStructureTierSums.reduce((a, b) => a + b, 0) / winnerStructureTierSums.length
+    : 0;
+  return { avgWinner, avgWinnerStructureTierSum, finished: maxScores.length, failures };
 }
 
 const TUNE_MCTS_MS = Number(process.env.TUNE_MCTS_MS) || 1500;
@@ -221,7 +238,7 @@ async function main() {
     totalEvaluatedGames += games;
     const bestStr = bestScore > -Infinity ? ` currentBest=${bestScore.toFixed(1)}` : '';
     console.log(
-      `[tune-ai] ${label} avgWinnerVP=${res.avgWinner.toFixed(1)} avgWinnerR6Income=${res.avgWinnerR6.toFixed(1)}` +
+      `[tune-ai] ${label} avgWinnerVP=${res.avgWinner.toFixed(1)} avgWinnerStructureTierSum=${res.avgWinnerStructureTierSum.toFixed(1)}` +
       `${bestStr} (finished=${res.finished}, failures=${res.failures}, totalGames=${totalEvaluatedGames})`
     );
     return res;

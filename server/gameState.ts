@@ -126,6 +126,7 @@ function ensureScoreBreakdown(player: PlayerState): ScoreBreakdown {
 			powerReceived: 0,
 			spaceships: [],
 			researchTracks: 0,
+			remainingResources: 0,
 			other: [],
 		};
 	}
@@ -176,6 +177,8 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 		b.spaceships.push({ shipTileId: detail.shipTileId, vp: vp });
 	} else if (category === 'researchTracks') {
 		b.researchTracks += vp;
+	} else if (category === 'remainingResources') {
+		b.remainingResources += vp;
 	} else if (category === 'other' && detail?.source) {
 		b.other.push({ source: detail.source, vp: vp });
 	}
@@ -2813,47 +2816,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 		socket.on('use_power_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
-			// 보드 파워 액션은 메인 액션임. 단, 테라포밍 단계 액션은 건설로 이어지므로 체크 로직에서 허용됨.
-			if (game.hasDoneMainAction) return;
-			const action = game.powerActions.find(a => a.id === actionId);
-			if (!action || action.isUsed) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-
-			// 액션 시작 시점 상태 저장 (테라포밍 액션은 제외 - hasDoneMainAction을 설정하지 않으므로)
-			// 하지만 리셋을 위해 상태 저장은 필요함
-			saveActionStartState(game, playerId);
-
-			const player = game.players[playerId];
-			const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-			const powerCost = action.costType === 'power' ? (hasNevlasPI ? Math.ceil((action.cost as number) / 2) : (action.cost as number)) : 0;
-			if (action.costType === 'power' && (player.power3 ?? 0) < powerCost) return;
-			if (action.costType === 'qic' && (player.qic ?? 0) < action.cost) return;
-
-			if (action.costType === 'power') { player.power3 = (player.power3 ?? 0) - powerCost; player.power1 = (player.power1 ?? 0) + powerCost; }
-			else { player.qic = (player.qic ?? 0) - action.cost; }
-
-			// Simplified rewards
-			if (actionId === 'gain-3-knowledge') player.knowledge += 3;
-			if (actionId === 'gain-2-knowledge') player.knowledge += 2;
-			if (actionId === 'gain-2-ore') player.ore += 2;
-			if (actionId === 'gain-7-credits') player.credits += 7;
-			if (actionId === 'gain-2-tokens') player.power1 += 2;
-
-			// 테라포밍 단계 추가
-			if (actionId === 'gain-1-step') {
-				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-				log(`Player ${player.name} gained 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
-			}
-			if (actionId === 'gain-2-steps') {
-				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
-				log(`Player ${player.name} gained 2 terraform steps (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
-			}
-
-			action.isUsed = true;
-			// 보드 파워 액션은 메인 액션임
-			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeUsePowerAction(io, game, playerId, actionId);
 		});
 
 		// 하드쉬 할라 의회 프리 액션: 4C→1QIC, 4C→1K, 3C→1O (Free Action — 크레딧 있으면 반복 사용 가능)
@@ -4232,6 +4196,107 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 }
 
+/** Bot/서버 공용: 고급 기술 타일 선택 (track 4–5 사이 또는 extra tile). */
+export function executeSelectAdvancedTechTile(
+	io: SocketIOServer, game: ServerGameState,
+	playerId: string, advancedTileId: string, trackId?: ResearchTrack
+): boolean {
+	if (!game || !playerId) return false;
+	if (game.currentPhase !== 'main') return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	const player = game.players[playerId];
+	if (!player) return false;
+	// 고급 타일 선택은 기술 타일 선택 대기 중에만 허용
+	if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return false;
+
+	if (trackId != null) {
+		const advTile = game.advancedTechTilesByTrack?.[trackId];
+		if (!advTile || advTile.id !== advancedTileId) return false;
+		const level = player.research?.[trackId] ?? 0;
+		if (level < 4) return false;
+		game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId };
+	} else {
+		const extra = game.extraAdvancedTechTile;
+		if (!extra || extra.id !== advancedTileId) return false;
+		const cond = game.extraAdvancedTechCondition;
+		if (cond === '25vp') {
+			if ((player.score ?? 0) < 25) return false;
+		} else if (cond === '3ships') {
+			const entered = (player.spaceshipsEntered ?? []).length;
+			if (entered < 3) return false;
+		}
+		game.pendingAdvancedTechCover = { playerId, advancedTileId };
+	}
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
+/** Bot/서버 공용: 고급 기술 타일 커버 처리 */
+export function executeCoverAdvancedTechTile(
+	io: SocketIOServer, game: ServerGameState,
+	playerId: string, coverTileId: string
+): boolean {
+	if (!game || !playerId) return false;
+	if (game.currentPhase !== 'main') return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	const player = game.players[playerId];
+	if (!player) return false;
+	const pending = game.pendingAdvancedTechCover;
+	if (!pending || pending.playerId !== playerId) return false;
+	if (!player.techTiles?.includes(coverTileId)) return false;
+
+	if (!player.coveredTechTiles) player.coveredTechTiles = [];
+	// 이미 커버된 타일이면 실패
+	if (player.coveredTechTiles.includes(coverTileId)) return false;
+	player.coveredTechTiles.push(coverTileId);
+	if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
+
+	// socket handler 내부의 applyAdvancedTileImmediateEffect를 여기서도 동일하게 적용
+	(() => {
+		const tileId = pending.advancedTileId;
+		if (tileId === 'adv-imm-1o-sector') {
+			const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
+			player.ore = (player.ore ?? 0) + sectors.size;
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
+		} else if (tileId === 'adv-imm-4vp-ts') {
+			const tsCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
+			addScore(game, playerId, tsCount * 4, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${tsCount * 4} VP (4 per TS)`);
+		} else if (tileId === 'adv-imm-2vp-mine') {
+			const mineCount = getMineCountForPassAndBonuses(game, playerId);
+			addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
+		} else if (tileId === 'adv-imm-2vp-sector') {
+			const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
+			addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
+		} else if (tileId === 'adv-imm-4vp-outer') {
+			const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
+			addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
+		} else if (tileId === 'adv-imm-6vp-big') {
+			const bigCount = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
+			addScore(game, playerId, bigCount * 6, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${bigCount * 6} VP (6 per big building)`);
+		} else if (tileId === 'adv-imm-2vp-gaia') {
+			const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
+			addScore(game, playerId, gaiaCount * 2, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${gaiaCount * 2} VP (2 per Gaia)`);
+		} else if (tileId === 'adv-imm-5vp-fed') {
+			const fedCount = getFederationEntries(player).length;
+			addScore(game, playerId, fedCount * 5, 'techTiles', { tileId });
+			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${fedCount * 5} VP (5 per federation)`);
+		}
+	})();
+	addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}`);
+	game.pendingTechTileSelection = null;
+	game.pendingAdvancedTechCover = null;
+	game.availableShipTechTileIds = undefined;
+	game.pendingAdvancedTechTrackAdvance = { playerId };
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 
 
 export function executeBuildMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, useGaiaformer?: boolean): boolean {
@@ -5219,6 +5284,14 @@ export function executePassRound(
 				}
 				if (researchBonus > 0) addScore(game, pid, researchBonus, 'researchTracks');
 			}
+			// 남은 자원 (O, C, QIC, K) 합 3당 1 VP
+			for (const pid of Object.keys(game.players)) {
+				const p = game.players[pid];
+				if (!p) continue;
+				const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+				const vp = Math.floor(sum / 3);
+				if (vp > 0) addScore(game, pid, vp, 'remainingResources');
+			}
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
 			saveFinalGameState(game);
@@ -5446,6 +5519,9 @@ export function executeUsePowerAction(
 		return false;
 	}
 
+	// Undo를 위해 액션 시작 상태 저장
+	saveActionStartState(game, playerId);
+
 	const player = game.players[playerId];
 	const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 	const powerCost = action.costType === 'power' ? (hasNevlasPI ? Math.ceil(action.cost as number / 2) : action.cost as number) : 0;
@@ -5489,6 +5565,26 @@ export function executeUsePowerAction(
 	}
 	if (actionId === 'gain-2-steps') {
 		player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
+	}
+
+	// 게임 로그 (파워 액션은 화면 로그에 표시되어야 함)
+	{
+		const costText =
+			action.costType === 'power'
+				? `${powerCost}P`
+				: `${action.cost} QIC`;
+		let effectText = action.label || actionId;
+		if (actionId === 'gain-1-step') effectText = `+1 Terraform step`;
+		else if (actionId === 'gain-2-steps') effectText = `+2 Terraform steps`;
+		else if (actionId === 'gain-3-knowledge') effectText = `+3 Knowledge`;
+		else if (actionId === 'gain-2-knowledge') effectText = `+2 Knowledge`;
+		else if (actionId === 'gain-2-ore') effectText = `+2 Ore`;
+		else if (actionId === 'gain-7-credits') effectText = `+7 Credits`;
+		else if (actionId === 'gain-2-tokens') effectText = `+2 Power tokens`;
+
+		const detail = `${effectText} (${costText})`;
+		addGameLog(game, playerId, 'Power Action', detail);
+		log(`Player ${player.name} used power action: ${detail}`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	action.isUsed = true;
