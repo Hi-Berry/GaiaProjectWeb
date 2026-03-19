@@ -258,7 +258,9 @@ export default function Game() {
     if (phase === 'gameEnd' && prevPhaseRef.current !== 'gameEnd') {
       setShowGameEndScore(true);
     }
-    prevPhaseRef.current = phase;
+    // 관전/재연결 등으로 game이 잠깐 undefined가 되는 경우 prevPhaseRef가 리셋되면
+    // 이후 gameEnd를 다시 받았을 때 결과창이 "또" 열릴 수 있으므로, undefined로 덮어쓰지 않는다.
+    if (phase != null) prevPhaseRef.current = phase;
   }, [game?.currentPhase]);
 
   useEffect(() => {

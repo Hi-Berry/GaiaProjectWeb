@@ -207,10 +207,13 @@ export class Evaluator {
         const cred = player.credits ?? 0;
         const know = player.knowledge ?? 0;
         let actionUnlockBonus = 0;
-        if (know >= 4) actionUnlockBonus += 200; // 연구 1회 가능
-        if (ore >= 3 && cred >= 5) actionUnlockBonus += 180; // 연구소 업그레이드(TS→Lab) 가능
-        if (ore >= 1 && cred >= 2) actionUnlockBonus += 60;  // 광산 1채 가능
-        if (ore >= 2 && cred >= 3) actionUnlockBonus += 80; // 교역소 업그레이드(M→TS) 가능
+        // 마지막 라운드(6라)에는 "다음 턴 액션 해금" 가치가 존재하지 않음.
+        if (remainingRounds > 1) {
+            if (know >= 4) actionUnlockBonus += 200; // 연구 1회 가능
+            if (ore >= 3 && cred >= 5) actionUnlockBonus += 180; // 연구소 업그레이드(TS→Lab) 가능
+            if (ore >= 1 && cred >= 2) actionUnlockBonus += 60;  // 광산 1채 가능
+            if (ore >= 2 && cred >= 3) actionUnlockBonus += 80; // 교역소 업그레이드(M→TS) 가능
+        }
         score += actionUnlockBonus;
         logDebug(`2) Resources: Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)} | Action-unlock: +${actionUnlockBonus.toFixed(0)}`);
 

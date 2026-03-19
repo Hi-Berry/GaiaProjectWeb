@@ -272,6 +272,14 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     const action = await BotLogic.getNextMove(game, currentPlayerId);
     if (!action) {
         if (game.currentPhase === 'main' && !player.hasPassed) {
+            // 메인 액션은 했는데 후보만 비어 있으면 end_turn 먼저 시도 (pending 블로커 시 pass 실패 대비)
+            if (game.hasDoneMainAction) {
+                const endOk = await BotLogic.performAction(io, game, { type: 'end_turn', params: {} }, currentPlayerId);
+                if (endOk) {
+                    setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+                    return;
+                }
+            }
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             log(`Bot ${player.name} has no valid action, forcing pass to advance turn`, 'game');
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);

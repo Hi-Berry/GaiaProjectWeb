@@ -393,6 +393,21 @@ export class BotLogic {
                 return { type: 'skip_tfmars_gaia_project', params: {} };
             }
 
+            // 고급 기술 커버/트랙 전진 대기: end_turn은 서버에서 거부되므로 먼저 처리
+            if (game.pendingAdvancedTechCover?.playerId === playerId) {
+                const p = game.players[playerId];
+                const covered = new Set(p?.coveredTechTiles ?? []);
+                const coverTileId = (p?.techTiles ?? []).find((tid: string) => !covered.has(tid)) ?? (p?.techTiles?.[0] ?? null);
+                if (coverTileId) return { type: 'cover_advanced_tech_tile', params: { coverTileId } };
+            }
+            if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
+                const p = game.players[playerId];
+                if (p) {
+                    const tracks = this.pickResearchTracks(game, p, playerId);
+                    if (tracks.length > 0) return { type: 'advance_tech', params: { trackId: tracks[0] } };
+                }
+            }
+
             // 이미 메인 액션을 수행했다면 턴 종료
             if (game.hasDoneMainAction) {
                 return { type: 'end_turn', params: {} };
@@ -718,23 +733,19 @@ export class BotLogic {
 
         // 10. 패스 (지식이 충분하여 연구를 더 할 수 있다면 패스를 억제하여 무조건 지식을 소모하게 강제)
         if (!player.hasPassed) {
-            const round = game.roundNumber ?? 1;
             // [사용자 피드백] 가이아포머나 소행성 우주선 액션 등 매우 좋은 액션이 후보에 있다면, MCTS가 엉뚱하게 패스하는 것을 원천 차단
-            // 6라: 남은 자원으로 교역소 하나 더 짓고 연방하면 12점 등이 가능하므로, 연방/업그레이드 가능 시 패스 차단
             const mustDoActions = candidates.filter(c =>
                 (c.type === 'place_gaiaformer') ||
                 (c.type === 'place_ivits_space_station') ||
                 (c.type === 'use_ship_action' && c.params?.actionIndex === 3 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_eclipse') ||
                 (c.type === 'use_ship_action' && c.params?.actionIndex === 1 && game.map.find(t => t.id === c.params?.shipTileId)?.type === 'ship_rebellion') ||
-                (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3') ||
-                (round === 6 && c.type === 'form_federation') ||
-                (round === 6 && c.type === 'upgrade_structure' && c.params?.target === 'trading_station')
+                (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3')
             );
 
             if ((player.knowledge ?? 0) >= 4) {
                 // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
             } else if (mustDoActions.length > 0) {
-                // 필수 액션(포밍/소행성/기술/6라 연방·교역소)이 가능하면 패스 차단
+                // 필수 액션(가이아포머/소행성 우주선/사거리 보너스)이 가능하면 패스 차단
             } else {
                 const bestBonus = this.findBonusTileAction(game, playerId);
                 const bonusTileId = bestBonus?.params?.bonusTileId;
