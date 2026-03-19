@@ -403,7 +403,7 @@ function grantQic(game: GaiaGameState, playerId: string, amount: number): void {
 }
 
 /** 거리 계산용: 내 건물 + 내 우주정거장이 있는 타일 (하이브 우주정거장도 기준점) */
-function getPlayerRangeTiles(game: ServerGameState, playerId: string, excludeShip?: boolean): HexTile[] {
+export function getPlayerRangeTiles(game: ServerGameState, playerId: string, excludeShip?: boolean): HexTile[] {
 	return game.map.filter(t => {
 		if (t.ownerId === playerId && t.structure !== null && (excludeShip !== true || t.structure !== 'ship'))
 			return true;
@@ -2522,30 +2522,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const pending = game.pendingEclipseAsteroidMine;
-			if (!pending || pending.playerId !== playerId) return;
-			// Eclipse 3 후속 선택은 이미 턴 소모 후이므로 hasDoneMainAction 체크 제외
-			const player = game.players[playerId];
-			const tile = game.map.find(t => t.id === tileId);
-			if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return;
-			let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
-			const rangeTiles = getPlayerRangeTiles(game, playerId, true);
-			if (rangeTiles.length === 0) return;
-			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-			if (minDist > baseRange) return;
-			const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
-			tile.structure = 'mine';
-			tile.ownerId = playerId;
-			game.pendingEclipseAsteroidMine = null;
-			addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', '6C (no Gaiaformer)', tileId);
-			applyRoundMissionScore(game, playerId, 'build_mine');
-			if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
-			applyAdvancedTechTileEffect(game, playerId, 'build_mine');
-			createPowerOffers(game, tile, playerId);
-			addBuildingToFederationIfAdjacent(game, playerId, tileId);
-			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeEclipseBuildAsteroidMine(io, game, playerId, tileId);
 		});
 
 		// 트왈라잇 액션1: 보유 연방 중 하나 선택 후 해당 해택 재수령 (federation reward id)
@@ -5816,6 +5793,34 @@ export function executePlaceIvitsSpaceStation(
 }
 
 /** Bot용: 우주선 액션 실행. 소켓 use_ship_action과 동일 로직 (Twilight/Rebellion/TF Mars/Eclipse 전액션). */
+
+export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string): boolean {
+	const pending = game.pendingEclipseAsteroidMine;
+	if (!pending || pending.playerId !== playerId) return false;
+	const player = game.players[playerId];
+	const tile = game.map.find(t => t.id === tileId);
+	if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return false;
+	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
+	if (rangeTiles.length === 0) return false;
+	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+	if (minDist > baseRange) return false;
+	const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+	tile.structure = 'mine';
+	tile.ownerId = playerId;
+	game.pendingEclipseAsteroidMine = null;
+	addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', '6C (no Gaiaformer)', tileId);
+	applyRoundMissionScore(game, playerId, 'build_mine');
+	if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
+	applyAdvancedTechTileEffect(game, playerId, 'build_mine');
+	createPowerOffers(game, tile, playerId);
+	addBuildingToFederationIfAdjacent(game, playerId, tileId);
+	game.hasDoneMainAction = true;
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 export function executeUseShipAction(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string, shipTileId: string, actionIndex: number,

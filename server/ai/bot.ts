@@ -28,7 +28,7 @@ import {
     executePlaceGaiaformer,
     executeTakeTwilightArtifact,
     executeSkipTfmarsGaiaProject
-} from '../gameState';
+, executeEclipseBuildAsteroidMine , getPlayerRangeTiles } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
@@ -278,26 +278,8 @@ export class BotLogic {
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
             case 'enter_spaceship':
                 return executeEnterSpaceship(io, game, playerId, action.params.tileId, action.params.useRangeBonus, action.params.qicToUse) === null;
-            case 'eclipse_build_asteroid_mine': {
-                // Eclipse 6C 소행성 광산: 서버의 eclipse_build_asteroid_mine 소켓 로직 직접 실행
-                const player = game.players[playerId];
-                const tile = game.map.find(t => t.id === action.params.tileId);
-                if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return false;
-                const rangeTiles = game.map.filter(t =>
-                    (t.ownerId === playerId && t.structure !== null) ||
-                    (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
-                );
-                if (rangeTiles.length === 0) return false;
-                let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-                const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-                if (minDist > baseRange) return false;
-                tile.structure = 'mine';
-                tile.ownerId = playerId;
-                game.pendingEclipseAsteroidMine = null;
-                game.hasDoneMainAction = true;
-                io.to(game.id).emit('game_updated', game);
-                return true;
-            }
+            case 'eclipse_build_asteroid_mine':
+                return executeEclipseBuildAsteroidMine(io, game, playerId, action.params.tileId);
             case 'convert_resource':
                 return executeConvertResource(io, game, playerId, action.params.type, action.params.useBrain);
             case 'charge_power':
@@ -1618,15 +1600,12 @@ export class BotLogic {
                 const shipState = game.spaceships?.[eclipseShip.id];
                 const usedActions = shipState?.usedActionIndices ?? [];
                 if (!usedActions.includes(3)) {
-                    // 범위 내 빈 소행성이 있는지 확인
-                    const myPlanets = game.map.filter(t =>
-                        (t.ownerId === playerId && t.structure) ||
-                        (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
-                    );
+                    // 범위 내 빈 소행성이 있는지 확인 (우주선 포함)
+                    const rangeTiles = getPlayerRangeTiles(game, playerId, true);
                     const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
                     const asteroid = game.map.find(t =>
                         t.type === 'asteroid' && !t.ownerId && t.structure === null &&
-                        Math.min(...myPlanets.map(p => getDistance(p, t))) <= range
+                        Math.min(...rangeTiles.map((p: any) => getDistance(p, t))) <= range
                     );
                     if (asteroid) {
                         return { type: 'use_ship_action', params: { shipTileId: eclipseShip.id, actionIndex: 3 } };
@@ -1713,15 +1692,12 @@ export class BotLogic {
      */
     private static findEclipseAsteroidTarget(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
-        const myPlanets = game.map.filter(t =>
-            (t.ownerId === playerId && t.structure) ||
-            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
-        );
+        const rangeTiles = getPlayerRangeTiles(game, playerId, true); // true includes spaceships
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
 
         const asteroid = game.map.find(t =>
             t.type === 'asteroid' && !t.ownerId && t.structure === null &&
-            Math.min(...myPlanets.map(p => getDistance(p, t))) <= range
+            Math.min(...rangeTiles.map((p: any) => getDistance(p, t))) <= range
         );
 
         if (asteroid) {
