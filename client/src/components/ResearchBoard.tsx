@@ -96,7 +96,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     };
 
     return (
-        <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'shadow-2xl border-blue-500/20' : ''}`}>
+        <Card className={`w-full text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none bg-transparent shadow-none' : 'bg-zinc-950 border-white/5'}`}>
             {!isMini && (
                 <CardHeader className="py-3 px-4 border-b border-white/5 bg-zinc-900/50">
                     <CardTitle className="text-sm font-black tracking-widest uppercase text-zinc-400">
@@ -104,7 +104,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </CardTitle>
                 </CardHeader>
             )}
-            <CardContent className={`${isMini ? 'p-1.5 space-y-0' : 'p-4 space-y-8'}`}>
+            <CardContent className={`${isMini ? 'p-0 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
                 {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
                     <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10 mb-4">

@@ -173,8 +173,8 @@ export default function Game() {
   });
   const [researchMiniHeight, setResearchMiniHeight] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-mini-height-${gameId}`) : null;
-    const n = saved ? parseInt(saved, 10) : 500;
-    return isNaN(n) ? 500 : n;
+    const n = saved ? parseInt(saved, 10) : 650;
+    return isNaN(n) ? 650 : n;
   });
 
   const [bonusMiniWidth, setBonusMiniWidth] = useState(() => {
@@ -184,8 +184,8 @@ export default function Game() {
   });
   const [bonusMiniHeight, setBonusMiniHeight] = useState(() => {
     const saved = gameId ? localStorage.getItem(`bonus-mini-height-${gameId}`) : null;
-    const n = saved ? parseInt(saved, 10) : 500;
-    return isNaN(n) ? 500 : n;
+    const n = saved ? parseInt(saved, 10) : 420;
+    return isNaN(n) ? 420 : n;
   });
 
   const researchDragControls = useDragControls();
@@ -1810,6 +1810,8 @@ export default function Game() {
             }}
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            onFederationToggleMode={() => gameId && GameClient.federationToggleMode(gameId)}
+            onFederationComplete={() => gameId && GameClient.federationComplete(gameId)}
           />
         </div>
 
@@ -3050,53 +3052,7 @@ export default function Game() {
         {isSidebarOpen && (
           <div className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
-              {/* 연방 구현: 모드 진입/취소 및 완료 (X버튼 포함) */}
-              {isMyTurn && game?.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward && (
-                <div className="p-3 bg-black/80 border border-sky-500/40 rounded-xl">
-                  {game.federationMode?.playerId === playerId ? (
-                    <div className="flex flex-col gap-2">
-                      <p className="text-[10px] text-sky-300 font-bold">
-                        빈 공간(위성)·내 건물 행성·우주정거장 클릭 토글. 내 건물/우주정거장 클릭 시 이어진 행성·우주정거장까지 연방에 포함. 위성 0개도 가능.
-                      </p>
-                      <div className="rounded-lg border border-sky-500/30 bg-sky-950/40 p-2 text-left">
-                        <p className="text-[9px] font-bold text-sky-200 mb-1">연방에 포함될 건물·우주정거장 (클릭할 때마다 갱신)</p>
-                        {game.federationPreview ? (
-                          <>
-                            <ul className="text-[9px] text-zinc-300 space-y-0.5 mb-1">
-                              {game.federationPreview.items.length === 0 ? (
-                                <li className="text-zinc-500">빈 칸·내 건물 행성·우주정거장을 클릭해 선택하세요</li>
-                              ) : (
-                                game.federationPreview.items.map((item, i) => (
-                                  <li key={`${item.tileId}-${i}`}>{item.label} ({item.power})</li>
-                                ))
-                              )}
-                            </ul>
-                            <p className={`text-[10px] font-bold ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
-                              파워 {game.federationPreview.power} / {game.federationPreview.requiredPower} 필요
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-[9px] text-zinc-500">파워 계산 중…</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)} title="상태창 닫기">
-                          <X className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" className="flex-1 border-sky-500/50 text-sky-400 text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>취소</Button>
-                        <Button size="sm" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationComplete(gameId)}>완료</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="ghost" className="h-8 w-8 px-0 text-zinc-500 hover:text-white" onClick={() => setIsSidebarOpen(false)} title="상태창 닫기">
-                        <X className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" className="flex-1 bg-sky-600/80 hover:bg-sky-500 text-white text-[9px] font-bold" onClick={() => gameId && GameClient.federationToggleMode(gameId)}>연방 구현</Button>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* 연방 구현: GameBoard의 줌 컨트롤 좌측으로 이동됨 */}
 
 
               {/* 플레이어 영역: 콘텐츠 높이만 사용(flex-none으로 줄어들지 않음), 빈 공간 없음 */}
@@ -3669,9 +3625,9 @@ export default function Game() {
               </div>
             </div>
 
-            {/* Game Log - 고정 높이로 레이아웃 밀림 방지, 내부만 스크롤 */}
-            <div className="mt-2 md:mt-4 pt-2 md:pt-4 border-t flex-none flex flex-col h-[280px] md:h-[350px] hidden md:flex">
-              <h3 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-xs md:text-sm shrink-0">
+            {/* Game Log - 남은 공간을 최대로 활용, 내부만 스크롤 */}
+            <div className="mt-1 flex-1 flex flex-col min-h-[400px] hidden md:flex">
+              <h3 className="font-semibold mb-2 flex items-center gap-2 text-xs md:text-sm shrink-0 text-zinc-400">
                 <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Game Log
               </h3>
@@ -3691,11 +3647,6 @@ export default function Game() {
                   />
                 )}
               </div>
-            </div>
-
-            {/* Debug Panel - reduced flex to give more space to log */}
-            <div className="mt-4 md:mt-8 pt-4 md:pt-6 border-t-2 border-white/5 flex-none overflow-y-auto max-h-[20vh] md:max-h-[30vh] hidden md:block">
-              <DebugPanel game={game} playerId={playerId} />
             </div>
 
             {/* Free Actions Modal */}
@@ -3869,7 +3820,7 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 pl-0 pr-[6px] pb-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
                 className="origin-top-left"
                 style={{ width: 340, transform: `scale(${researchMiniWidth / 340})` }}
@@ -3967,7 +3918,7 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div className="flex-1 px-2 py-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 pl-0 pr-[6px] pb-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
                 className="origin-top-left flex flex-col gap-4"
                 style={{ width: 340, transform: `scale(${bonusMiniWidth / 340})` }}

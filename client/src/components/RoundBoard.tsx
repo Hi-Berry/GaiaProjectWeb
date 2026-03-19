@@ -18,7 +18,7 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
     const isRound6 = game.roundNumber === 6;
 
     return (
-        <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none shadow-none' : 'shadow-2xl'}`}>
+        <Card className={`w-full text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none shadow-none bg-transparent' : 'bg-zinc-950 border-white/5 shadow-2xl'}`}>
             {!isMini && (
                 <CardHeader className="py-3 px-4 border-b border-white/5 bg-zinc-900/50 flex flex-row items-center justify-between">
                     <div className="flex items-center gap-2">

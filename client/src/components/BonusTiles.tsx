@@ -168,7 +168,7 @@ export function BonusTiles({
 
   const pool = game.federationPool ?? {};
   return (
-    <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none bg-transparent' : ''}`}>
+    <Card className={`w-full text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none bg-transparent shadow-none' : 'bg-zinc-950 border-white/5'}`}>
       <CardContent className={`${isMini ? 'p-0.5' : 'p-4'} ${isMini ? 'space-y-1' : 'space-y-6'}`}>
         {/* Bonus Tiles — first */}
         <div className={isMini ? '' : 'space-y-3'}>

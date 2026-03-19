@@ -1060,44 +1060,81 @@ export function GameBoard({
           </HexGrid>
         </motion.div>
 
-        <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-          {onToggleSidebar && (
+        <div className="absolute top-4 right-4 flex items-start gap-2 z-10">
+          {/* 연방 구현 영역 (컴팩트 버전) */}
+          {(() => {
+            const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+            if (!isMyTurn || game.currentPhase !== 'main' || game.hasDoneMainAction || game.pendingFederationReward) return null;
+
+            return isFederationMode ? (
+              <div className="p-2 bg-black/80 backdrop-blur-md border border-sky-500/40 rounded-xl flex flex-col gap-1.5 w-56 shadow-2xl mt-0">
+                <p className="text-[9px] text-sky-300 font-bold leading-tight">
+                  위성·건물을 클릭해 연방에 포함할 대상을 선택.
+                </p>
+                <div className="rounded border border-sky-500/30 bg-sky-950/40 p-1.5">
+                  {game.federationPreview ? (
+                    <>
+                      <div className={`text-[10px] font-black tabular-nums ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
+                        파워: {game.federationPreview.power} / {game.federationPreview.requiredPower}
+                      </div>
+                      <div className="text-[8px] text-zinc-400 mt-1 max-h-[40px] overflow-y-auto custom-scrollbar">
+                        {game.federationPreview.items.length === 0 ? '선택된 칸 없음' : game.federationPreview.items.map(i => `${i.label}(${i.power})`).join(', ')}
+                      </div>
+                    </>
+                  ) : <span className="text-[9px] text-zinc-500">계산 중...</span>}
+                </div>
+                <div className="flex gap-1.5 mt-0.5">
+                  <Button size="sm" variant="outline" className="flex-1 h-6 text-[9px] border-sky-500/50 text-sky-400 px-0" onClick={onFederationToggleMode}>취소</Button>
+                  <Button size="sm" className="flex-1 h-6 text-[9px] bg-sky-600 hover:bg-sky-500 text-white px-0" onClick={onFederationComplete}>완료</Button>
+                </div>
+              </div>
+            ) : (
+              <Button size="sm" className="bg-sky-600/90 hover:bg-sky-500 text-white text-[10px] font-bold h-9 px-4 rounded-full shadow-lg backdrop-blur" onClick={onFederationToggleMode}>
+                연방 구현
+              </Button>
+            );
+          })()}
+
+          {/* 기존 상태창 토글 / 줌 컨트롤 */}
+          <div className="flex flex-col gap-2 relative">
+            {onToggleSidebar && (
+              <Button
+                size="icon"
+                variant="secondary"
+                className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
+                onClick={onToggleSidebar}
+                data-testid="button-toggle-sidebar"
+              >
+                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </Button>
+            )}
             <Button
               size="icon"
               variant="secondary"
-              className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
-              onClick={onToggleSidebar}
-              data-testid="button-toggle-sidebar"
+              onClick={handleZoomIn}
+              data-testid="button-zoom-in"
             >
-              {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              <ZoomIn className="w-4 h-4" />
             </Button>
-          )}
-          <Button
-            size="icon"
-            variant="secondary"
-            onClick={handleZoomIn}
-            data-testid="button-zoom-in"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="secondary"
-            onClick={handleZoomOut}
-            data-testid="button-zoom-out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="secondary"
-            onClick={handleReset}
-            data-testid="button-reset-view"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-          <div className="bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-zinc-300 text-center shadow-xl">
-            {Math.round(zoom * 100)}%
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleZoomOut}
+              data-testid="button-zoom-out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleReset}
+              data-testid="button-reset-view"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </Button>
+            <div className="bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-zinc-300 text-center shadow-xl">
+              {Math.round(zoom * 100)}%
+            </div>
           </div>
         </div>
 
