@@ -116,14 +116,14 @@ export class BotLogic {
         }
 
         // 거리/QIC 체크 (AI는 useRangeBonus를 쓰지 않으므로 baseRange만)
-        const rangeTiles = game.map.filter(t =>
+        const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
-        if (rangeTiles.length === 0) return false;
+        if (myPlanets.length === 0) return false;
 
         const baseRange = this.getEffectiveBaseRange(player);
-        const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+        const minDist = Math.min(...myPlanets.map(t => getDistance(t, tile)));
         const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
         if (qicToUse < neededQIC) return false;
         if ((player.qic || 0) < qicToUse) return false;
@@ -254,14 +254,14 @@ export class BotLogic {
                 const onTile = Array.isArray(raw) ? raw : (raw ? [raw] : []);
                 if (onTile.length > 0) return false;
 
-                const rangeTiles = game.map.filter(t =>
+                const myPlanets = game.map.filter(t =>
                     (t.ownerId === playerId && t.structure !== null) ||
                     (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
                 );
-                if (rangeTiles.length === 0) return false;
+                if (myPlanets.length === 0) return false;
 
                 const baseRange = getRange(5) + (player.navigationBonus || 0);
-                const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+                const minDist = Math.min(...myPlanets.map(t => getDistance(t, tile)));
                 const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
                 const qicSpent = typeof action.params.qicToSpend === 'number' ? action.params.qicToSpend : 0;
                 if (qicSpent !== neededQIC || (player.qic || 0) < neededQIC) return false;
