@@ -275,7 +275,7 @@ export class Evaluator {
         for (let i = 0; i < tsCount; i++) {
             // 상위 건물이 아예 없을 때 짓는 교역소 1개만 '첫 교역소'의 엄청난 보너스를 받음
             if (i === 0 && advancedStructuresCount === 0) {
-                tsScore += w.structureTradingStation * structMultiplier; 
+                tsScore += w.structureTradingStation * structMultiplier;
             } else {
                 const secondTsBase = round <= 2 ? w.structureMine - 1 : (w.structureTradingStation + w.structureMine) / 2;
                 tsScore += secondTsBase * structMultiplier;
@@ -291,14 +291,14 @@ export class Evaluator {
                 engineBonus += mineCount * 15; // 연구소를 지은 뒤에 광산을 확장하면 가점
             }
             if (piCount >= 1 || academyCount >= 1) {
-                engineBonus += 250; 
+                engineBonus += 250;
                 engineBonus += mineCount * 10;
             }
         }
-        
+
         const scaledEngineBonus = engineBonus * structMultiplier;
         structScore += scaledEngineBonus;
-        
+
         score += structScore;
         logDebug(`5) Structures: funnel-base+rem: +${(structScore - scaledEngineBonus).toFixed(1)}, EngineBns: +${scaledEngineBonus.toFixed(1)}, Expand-bonus: +${structExpansionScore.toFixed(1)}`);
 
@@ -442,6 +442,38 @@ export class Evaluator {
         if (finalBonus > 0) {
             score += finalBonus;
             logDebug(`11) Final Mission Bonus: +${finalBonus.toFixed(1)}`);
+        }
+
+        // 10) 기술 타일 등 미래 수입(엔진)에 대한 프로젝션 가치 (사용자 피드백 반영)
+        // 당장 수입이 안 들어왔더라도 앞으로 N라운드 동안 들어올 자원을 미리 당겨서 가치로 환산
+        const incomeRounds = Math.max(0, 6 - round);
+        let projectedTechIncomeScore = 0;
+        if (incomeRounds > 0 && player.techTiles) {
+            for (const techId of player.techTiles) {
+                if (techId === 'tech-inc-1o-1p') {
+                    // 앞으로 incomeRounds 번 1광물, 1파워
+                    const totalOre = incomeRounds * 1;
+                    const totalPower = incomeRounds * 1;
+                    projectedTechIncomeScore += totalOre * w.oreValue * resMult * 4.0; // 엔진 프리미엄 3.0 -> 4.0 으로 상향 (7VP 상회)
+                    projectedTechIncomeScore += totalPower * w.power2Value * 3.0;
+                } else if (techId === 'tech-inc-4c') {
+                    const totalCred = incomeRounds * 4;
+                    projectedTechIncomeScore += totalCred * w.creditsValue * resMult * 3.5;
+                } else if (techId === 'tech-inc-1k-1c') {
+                    const totalKnow = incomeRounds * 1;
+                    const totalCred = incomeRounds * 1;
+                    projectedTechIncomeScore += totalKnow * w.knowledgeValue * resMult * 4.0;
+                    projectedTechIncomeScore += totalCred * w.creditsValue * resMult * 3.5;
+                } else if (techId === 'tech-act-4p') {
+                    // 매 라운드 4파워 액션
+                    const totalPower = (incomeRounds + 1) * 4;
+                    projectedTechIncomeScore += totalPower * w.power2Value * 2.0;
+                }
+            }
+        }
+        if (projectedTechIncomeScore > 0) {
+            score += projectedTechIncomeScore;
+            logDebug(`12) Projected Tech Income (Rounds=${incomeRounds}): +${projectedTechIncomeScore.toFixed(1)}`);
         }
 
         if (debug) {
