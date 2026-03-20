@@ -32,7 +32,6 @@ import {
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
-import { getActiveEvaluatorWeights } from './evaluator';
 import {
     PlayerState,
     HexTile,
@@ -549,16 +548,6 @@ export class BotLogic {
         }
 
         const candidates: BotAction[] = [];
-
-        // 스페이스 자이언트: 라운드당 1회 무료 +2 테라포밍(메인 비소모). findSpecialActions만 넣으면
-        // 후보가 뒤에 밀려 MCTS TOP_N(8) 롤아웃에서 잘려 평가조차 안 됨 → 앞쪽에 명시.
-        if (
-            player.faction === 'space_giants' &&
-            !game.hasDoneMainAction &&
-            !player.usedSpecialActions?.includes('space_giants-2tf')
-        ) {
-            candidates.push({ type: 'use_special_action', params: { actionId: 'space_giants-2tf' } });
-        }
 
         // 0a. 고급 기술 타일 커버/트랙 전진 대기 상태는 강제 처리 (이걸 안 하면 턴 진행 불가)
         if (game.pendingAdvancedTechCover?.playerId === playerId) {
@@ -1204,7 +1193,7 @@ export class BotLogic {
             t.type !== 'space' &&
             t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
-            (t.type !== 'asteroid' || homeType === 'asteroid' || player.faction === 'bal_tak') && // 다카니안 / 발타크(포머→소행성)
+            (t.type !== 'asteroid' || homeType === 'asteroid') && // 다카니안(소행성 모행성) 예외 처리
             !t.type?.startsWith('ship_')
         );
 
@@ -1316,38 +1305,6 @@ export class BotLogic {
                 score += overExpansionPenalty;
 
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
-                score += this.calculateThreatScore(game, playerId, tile);
-                score += rangeBonusValue;
-
-                scored.push({
-                    tile,
-                    score,
-                    action: { type: 'build_mine', params: { tileId: tile.id } }
-                });
-                continue;
-            }
-
-            // 발타크: 소행성 광산은 가이아 포머 1개 소모 — QIC 전환 기회비용 (남은 라운드+1)*QIC 가중치
-            if (tile.type === 'asteroid' && player.faction === 'bal_tak') {
-                const locked = player.balTakGaiaformersUsedForQic ?? 0;
-                const effectiveFormers = Math.max(0, (player.gaiaformers ?? 0) - locked);
-                if (effectiveFormers < 1) continue;
-
-                const totalRounds = 6;
-                const remainingRounds = Math.max(0, totalRounds - round + 1);
-                const w = getActiveEvaluatorWeights();
-                const qicW = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
-                const formerOpportunityPenalty = (remainingRounds + 1) * qicW;
-
-                let score = (neededQicForRange === 0 ? 220 : 180) - qicPenalty + bridgeheadBonus;
-                score -= formerOpportunityPenalty;
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
-                score += this.calculateFinalMissionBonus(game, playerId, tile);
-                score += earlyRushBonus;
-                score += expansionDesire;
-                score += overExpansionPenalty;
-                score += this.calculateAdjacencyBonus(game, playerId, tile);
-                score += this.calculateFederationScore(game, playerId, tile);
                 score += this.calculateThreatScore(game, playerId, tile);
                 score += rangeBonusValue;
 
@@ -1944,14 +1901,6 @@ export class BotLogic {
             case 'gaiaProject':
                 score += (6 - level) * 8;
                 if (faction === 'terran' || faction === 'itars') score += 40;
-                if (faction === 'bal_tak') {
-                    const totalRounds = 6;
-                    const remainingRounds = Math.max(0, totalRounds - round + 1);
-                    const w = getActiveEvaluatorWeights();
-                    const qicW = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
-                    // 가이아 트랙 1칸 전진 시 포머/QIC 가치 — (남은 라운드+1) * QIC 가중치
-                    score += (remainingRounds + 1) * qicW;
-                }
                 break;
             case 'economy':
                 score += (6 - level) * 20; // 상향 (15 -> 20)
@@ -2656,21 +2605,16 @@ export class BotLogic {
             passBonusValue = count * (tile.passBonus?.vp || 0);
         }
 
-        // 다음 라운드 파워 수입 예측: 그릇1 토큰이 부족해 충전이 샐 때만 토큰 수급 타일 가점.
-        // expectedWaste>0만으로는 거의 매 라운드 켜져 bon-1o-2tokens가 항상 1순위가 되므로,
-        // 낭비가 "의미 있을 때"(>=2)만 크게, waste===1은 소폭만.
+        // 다음 라운드 파워 수입 예측:
+        // 그릇1 토큰이 부족하면(power charge가 새면) 토큰 수급 타일을 강하게 선호
         {
             const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
             const p1Next = (player.power1 ?? 0) + tokenIncome;
             const expectedWaste = Math.max(0, powerIncome - p1Next);
-            const tokenGain = tile.income?.powerTokens ?? 0;
-            if (tokenGain > 0 && expectedWaste >= 2) {
-                const w = Math.min(expectedWaste, 10);
-                resourceValue += tokenGain * (10 + w * 8);
-                if (tile.id === 'bon-1o-2tokens') resourceValue += 28 + w * 14;
-            } else if (tokenGain > 0 && expectedWaste === 1) {
-                resourceValue += tokenGain * 5;
-                if (tile.id === 'bon-1o-2tokens') resourceValue += 12;
+            if (expectedWaste > 0) {
+                const tokenGain = tile.income?.powerTokens ?? 0;
+                resourceValue += tokenGain * (30 + expectedWaste * 10);
+                if (tile.id === 'bon-1o-2tokens') resourceValue += 120;
             }
         }
 
@@ -2872,9 +2816,6 @@ export class BotLogic {
         // 2. 종족 특수 액션 (use_special_action)
         if (player.faction === 'gleens' && !player.usedSpecialActions?.includes('gleens-2nav')) {
             res.push({ type: 'use_special_action', params: { actionId: 'gleens-2nav' } });
-        }
-        if (player.faction === 'space_giants' && !player.usedSpecialActions?.includes('space_giants-2tf')) {
-            res.push({ type: 'use_special_action', params: { actionId: 'space_giants-2tf' } });
         }
 
         // Academy right action (getAcademyRightCount is in gameState.ts)

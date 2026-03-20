@@ -212,25 +212,12 @@ export class MCTS {
             const nextAction = scored.length > 0
                 ? (Math.random() < 0.12 && scored.length >= 2 ? scored[1].action : scored[0].action)
                 : await BotLogic.getNextMove(currentState, playerId, true); // isSimulate = true
-            if (!nextAction) break;
-
-            // 메인 액션 후 후보가 [end_turn]뿐일 때: 여기서 break만 하면 턴이 넘어가지 않은 채 평가되어
-            // (예: 테라포밍 +2O 직후) 자원만 불어난 '유령 턴'으로 점수가 매겨짐 → 반드시 턴 종료 적용.
-            if (nextAction.type === 'end_turn') {
-                await BotLogic.performAction(dummyIo, currentState, nextAction, playerId);
-                break;
-            }
+            if (!nextAction || nextAction.type === 'end_turn') break;
 
             await BotLogic.performAction(dummyIo, currentState, nextAction, playerId);
 
             if (currentState.hasDoneMainAction) {
-                // 광산/연구 등 메인만 수행하고 end_turn을 시뮬에 안 하면 턴이 안 넘어간 것처럼 평가됨
-                const toClose = BotLogic.getCandidateMoves(currentState, playerId);
-                const et = toClose?.find((a: any) => a.type === 'end_turn');
-                if (et) {
-                    await BotLogic.performAction(dummyIo, currentState, et, playerId);
-                }
-                break;
+                break; // 메인 액션 수행 시 턴이 넘어가거나 넘겨야하므로 시뮬레이션 종료
             }
         }
 

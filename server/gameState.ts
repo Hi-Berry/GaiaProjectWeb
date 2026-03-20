@@ -759,34 +759,6 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	}
 }
 
-const TECH_TILE_GAIN_ACTIONS = new Set(['Gained Tech Tile', 'Rebellion: Gained Tech Tile']);
-
-/** 같은 플레이어의 가장 최근 기술 타일 획득 로그(직전 몇 줄 내)에 details를 이어붙여 한 줄로 표시 */
-function appendToLastTechTileGainDetail(game: GaiaGameState, playerId: string, fragment: string): void {
-	if ((game as any).simulation) return;
-	if (!fragment || !game.gameLog?.length) return;
-	const log = game.gameLog;
-	for (let i = log.length - 1; i >= Math.max(0, log.length - 20); i--) {
-		const entry = log[i];
-		if (entry.playerId === playerId && TECH_TILE_GAIN_ACTIONS.has(entry.action)) {
-			entry.details = entry.details ? `${entry.details} · ${fragment}` : fragment;
-			return;
-		}
-	}
-	addGameLog(game, playerId, 'Gained Tech Tile', fragment);
-}
-
-function recentTechGainLogIncludesTileId(game: GaiaGameState, playerId: string, techTileId: string): boolean {
-	if (!game.gameLog?.length) return false;
-	const log = game.gameLog;
-	for (let i = log.length - 1; i >= Math.max(0, log.length - 20); i--) {
-		const entry = log[i];
-		if (entry.playerId !== playerId || !TECH_TILE_GAIN_ACTIONS.has(entry.action)) continue;
-		if (entry.details?.includes(techTileId)) return true;
-	}
-	return false;
-}
-
 export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: string, subLog: { playerId: string; playerName: string; text: string }): boolean {
 	if (!game.gameLog || game.gameLog.length === 0) return false;
 	if (!subLog.text) return false;
@@ -4159,15 +4131,15 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		if (poolIndex !== -1) (game.techTilesPool as (typeof game.techTilesPool[0] | null)[])[poolIndex] = null;
 	}
 
-	// 즉시 효과 처리 (트랙/풀에서 이미 Gained Tech Tile 1줄을 썼으면 같은 줄에 이어붙임)
+	// 즉시 효과 처리
 	if (techTileId === 'tech-imm-7vp') {
 		addScore(game, playerId, 7, 'techTiles', { tileId: techTileId });
-		appendToLastTechTileGainDetail(game, playerId, '+7 VP');
+		addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-7vp: +7 VP');
 		log(`Player ${player.name} gained 7 VP from tech tile`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1o-1q') {
 		player.ore = (player.ore || 0) + 1;
 		grantQic(game, playerId, 1);
-		appendToLastTechTileGainDetail(game, playerId, '+1 Ore, +1 QIC');
+		addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-1o-1q: +1 Ore, +1 QIC');
 		log(`Player ${player.name} gained 1 Ore and 1 QIC from tech tile (Ore: ${player.ore}, QIC: ${player.qic})`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1k-planet') {
 		const playerStructures = game.map.filter(t => t.ownerId === playerId);
@@ -4177,9 +4149,9 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				.map(t => t.type)
 		);
 		player.knowledge += planetTypes.size;
-		appendToLastTechTileGainDetail(game, playerId, `+${planetTypes.size} Knowledge (planet types)`);
+		addGameLog(game, playerId, 'Gained Tech Tile', `tech-imm-1k-planet: +${planetTypes.size} Knowledge`);
 		log(`Player ${player.name} gained ${planetTypes.size} Knowledge from tech tile (${planetTypes.size} planet types)`, 'game', undefined, { simulation: (game as any).simulation });
-	} else if (!recentTechGainLogIncludesTileId(game, playerId, techTileId)) {
+	} else {
 		addGameLog(game, playerId, 'Gained Tech Tile', techTileId);
 	}
 
