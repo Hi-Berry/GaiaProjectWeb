@@ -697,12 +697,32 @@ export class BotLogic {
         if (player.bonusTile && !player.usedBonusAction) {
             const bonusTileObj = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
             if (bonusTileObj?.specialAction) {
-                // 사거리 +3 액션은 꿀단지 확장에 매우 유리하므로 최우선으로 쓰도록 강제
-                if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
-                    candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
-                    // MCTS가 무조건 이 액션을 1순위로 평가하게 하도록 다른 일반 액션들 사이에서 우선권 부여
-                    // 이 액션만 단독으로 리턴해서 강제 실행하게 만들 수도 있지만, 보수적으로 후보에 추가만 함
-                } else {
+                let shouldAdd = true;
+
+                // 테라포밍/사거리 증가 액션의 경우, 이 액션을 썼을 때 유효한 대상이 있는지 검증합니다.
+                if (bonusTileObj.specialAction === 'terraform_step') {
+                    // +1 스텝을 얻었을 때 지을 수 있는 후보가 있는지 가상으로 확인 (현재 보너스가 없다면)
+                    const oldSteps = player.pendingTerraformSteps || 0;
+                    player.pendingTerraformSteps = oldSteps + 1;
+                    const canBuild = this.findBuildWithPendingSteps(game, playerId);
+                    player.pendingTerraformSteps = oldSteps;
+                    if (!canBuild) {
+                        shouldAdd = false;
+                    } else {
+                        const targetTile = game.map.find(t => t.id === canBuild.params?.tileId);
+                        if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) === 0) {
+                            shouldAdd = false;
+                        }
+                    }
+                } else if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
+                    const oldTempRange = player.tempRangeBonus;
+                    player.tempRangeBonus = true; // +3 range 적용 테스트
+                    const canBuildAfter = this.findBuildActions(game, playerId).length > 0 || this.findBuildWithPendingSteps(game, playerId) !== null;
+                    player.tempRangeBonus = oldTempRange;
+                    if (!canBuildAfter) shouldAdd = false;
+                }
+
+                if (shouldAdd) {
                     candidates.push({ type: 'use_bonus_action', params: { actionId: bonusTileObj.specialAction } });
                 }
             }
@@ -1684,7 +1704,9 @@ export class BotLogic {
             }
 
             if (steps <= pendingSteps) {
-                const score = steps === 0 ? 100 : (100 - steps * 10);
+                // pendingSteps가 있을 때는 스텝을 최대한 활용할 수 있는 행성(steps가 높은 행성)을 우선시해야 합니다.
+                // 0스텝(모행성)에 지으면 애써 얻은 보너스를 낭비하게 되므로 우선순위를 가장 낮춥니다.
+                const score = steps > 0 ? (100 + steps * 10) : 50;
                 if (score > bestScore) {
                     bestScore = score;
                     bestTile = tile;
@@ -2200,10 +2222,23 @@ export class BotLogic {
                     break;
                 }
                 case 'gain-1-step': {
-                    score = round <= 3 ? 210 : 120;
-                    if (isStepMission) score += 50;
-                    // 업그레이드할 광산이 부족하면 스텝을 우선 (광산 확보 → 그다음 교역소)
-                    if (needStepsFirst) score += 130;
+                    const oldSteps = player.pendingTerraformSteps || 0;
+                    player.pendingTerraformSteps = oldSteps + 1;
+                    const canBuild = this.findBuildWithPendingSteps(game, playerId);
+                    player.pendingTerraformSteps = oldSteps;
+                    let validTarget = false;
+                    if (canBuild) {
+                        const targetTile = game.map.find(t => t.id === canBuild.params?.tileId);
+                        if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0) validTarget = true;
+                    }
+                    if (!validTarget) {
+                        score = -1000;
+                    } else {
+                        score = round <= 3 ? 210 : 120;
+                        if (isStepMission) score += 50;
+                        // 업그레이드할 광산이 부족하면 스텝을 우선 (광산 확보 → 그다음 교역소)
+                        if (needStepsFirst) score += 130;
+                    }
                     break;
                 }
                 case 'gain-2-knowledge': {
@@ -2226,10 +2261,23 @@ export class BotLogic {
                     if (totalTokens < 7) score += 40;
                     break;
                 case 'gain-2-steps': {
-                    score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
-                    if (player.faction === 'geodens' || player.faction === 'xenos') score += 40;
-                    if (isStepMission) score += 60; // 테라포밍 미션 시 2단계는 4vp 이상 가치
-                    if (needStepsFirst) score += 140; // 광산 부족 시 스텝 우선
+                    const oldSteps = player.pendingTerraformSteps || 0;
+                    player.pendingTerraformSteps = oldSteps + 2;
+                    const canBuild = this.findBuildWithPendingSteps(game, playerId);
+                    player.pendingTerraformSteps = oldSteps;
+                    let validTarget = false;
+                    if (canBuild) {
+                        const targetTile = game.map.find(t => t.id === canBuild.params?.tileId);
+                        if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0) validTarget = true;
+                    }
+                    if (!validTarget) {
+                        score = -1000;
+                    } else {
+                        score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
+                        if (player.faction === 'geodens' || player.faction === 'xenos') score += 40;
+                        if (isStepMission) score += 60; // 테라포밍 미션 시 2단계는 4vp 이상 가치
+                        if (needStepsFirst) score += 140; // 광산 부족 시 스텝 우선
+                    }
                     break;
                 }
                 case 'gain-3-knowledge':
@@ -2812,6 +2860,13 @@ export class BotLogic {
             if (player.faction === 'gleens' && !player.usedSpecialActions?.includes('gleens-2nav')) {
                 res.push({ type: 'use_special_action', params: { actionId: 'gleens-2nav' } });
             }
+            // If main action is done, we can ONLY perform free actions!
+            // 'academy-qic' is also a free action, but let's check its logic.
+            const hasRightAcademy = game.map.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right');
+            if (hasRightAcademy && !player.usedSpecialActions?.includes('academy-qic')) {
+                res.push({ type: 'use_special_action', params: { actionId: 'academy-qic' } });
+            }
+            // tech actions, bonus tile actions, and other special actions are MAIN ACTIONS. They cannot be executed here.
             return res;
         }
 
@@ -2839,7 +2894,31 @@ export class BotLogic {
         if (player.bonusTile && !player.usedBonusAction) {
             const tile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
             if (tile?.specialAction) {
-                res.push({ type: 'use_bonus_action', params: { actionId: tile.specialAction } });
+                let shouldAdd = true;
+                if (tile.specialAction === 'terraform_step') {
+                    const oldSteps = player.pendingTerraformSteps || 0;
+                    player.pendingTerraformSteps = oldSteps + 1;
+                    const possibleBuild = this.findBuildWithPendingSteps(game, playerId);
+                    player.pendingTerraformSteps = oldSteps;
+
+                    if (!possibleBuild) {
+                        shouldAdd = false;
+                    } else {
+                        // 만약 보너스를 썼는데도 모행성(steps=0)밖에 지을 데가 없다면 굳이 보너스를 쓸 이유가 없음
+                        const targetTile = game.map.find(t => t.id === possibleBuild.params?.tileId);
+                        if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) === 0) {
+                            shouldAdd = false;
+                        }
+                    }
+                } else if (tile.specialAction === 'range_3' && !player.rangeBonusActive) {
+                    const oldTempRange = player.tempRangeBonus;
+                    player.tempRangeBonus = true;
+                    if (this.findBuildActions(game, playerId).length === 0 && !this.findBuildWithPendingSteps(game, playerId)) shouldAdd = false;
+                    player.tempRangeBonus = oldTempRange;
+                }
+                if (shouldAdd) {
+                    res.push({ type: 'use_bonus_action', params: { actionId: tile.specialAction } });
+                }
             }
         }
 
