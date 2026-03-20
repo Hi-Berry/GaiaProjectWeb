@@ -28,7 +28,7 @@ import {
     executePlaceGaiaformer,
     executeTakeTwilightArtifact,
     executeSkipTfmarsGaiaProject
-, executeEclipseBuildAsteroidMine , getPlayerRangeTiles } from '../gameState';
+, executeEclipseBuildAsteroidMine , getPlayerRangeTiles, getStructureCount } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
@@ -52,7 +52,8 @@ import {
     SHIP_TECH_TILES,
     isPlanetHex,
     FEDERATION_12VP_ID,
-    getGaiaBaseQic
+    getGaiaBaseQic,
+    BUILDING_LIMITS
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -1184,6 +1185,12 @@ export class BotLogic {
         const power3 = player.power3 ?? 0;
         const round = game.roundNumber;
 
+        // 광산 상한(8) 도달 시 광산/파워콤보(3P→스텝 후 광산) 후보를 만들지 않음 — preAction만 실행되고 build_mine 실패하는 버그 방지
+        if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+            const alt = this.findAlternativeBuildAction(game, playerId);
+            return alt ? [alt] : [];
+        }
+
         if (ore < 1 || credits < 2) {
             // Ore/Credit 부족 시에도 Eclipse 6C 소행성이나 파워 콤보 가능한지 확인
             const alt = this.findAlternativeBuildAction(game, playerId);
@@ -1653,6 +1660,8 @@ export class BotLogic {
      */
     private static findBuildWithPendingSteps(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
+        if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return null;
+
         const isFree = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
 
         // 무료 광산이 아니면 1o 2c가 필수. 무료면 자원 불필요.
@@ -2018,9 +2027,11 @@ export class BotLogic {
         // 동적 점수 계산을 통해 최적의 타일 선택
         let bestTile: TechTile = availableTiles[0];
         let maxScore = -Infinity;
+        const tileScores: { id: string; score: number }[] = [];
 
         for (const tile of availableTiles) {
             const score = this.calculateTechTileScore(game, playerId, tile.id);
+            tileScores.push({ id: tile.id, score });
             if (score > maxScore) {
                 maxScore = score;
                 bestTile = tile;
@@ -2033,9 +2044,116 @@ export class BotLogic {
 
         // MCTS 롤아웃 시에는 매 시뮬 상태마다 로그가 쌓이므로, 실제 수 결정 시에만 로그
         if (!isSimulate) {
-            log(`Bot ${player.name} selected Tech Tile: ${bestTile.id} (Score: ${maxScore.toFixed(1)})`, 'game', game.id);
+            const ranked = [...tileScores].sort((a, b) => b.score - a.score);
+            const scoreLine = ranked.map((x) => `${x.id}=${x.score.toFixed(2)}`).join(' | ');
+            log(
+                `Bot ${player.name} tech tile scores R${game.roundNumber} (${ranked.length} candidates, track→${trackId}): ${scoreLine}`,
+                'game',
+                game.id
+            );
+            log(`Bot ${player.name} selected Tech Tile: ${bestTile.id} (Score: ${maxScore.toFixed(2)})`, 'game', game.id);
         }
         return { type: 'select_tech_tile', params: { techTileId: bestTile.id, trackId } };
+    }
+
+    /**
+     * 고급 기술 타일 점수: vp-build(남은 건설·업그레이드 파이프라인), vp-research(~30VP 상당),
+     * 패스(남은 라운드·누적 상향), imm(즉시 VP), 자원형(자원 가치 환산).
+     */
+    private static scoreAdvancedTechTile(game: ServerGameState, playerId: string, tileId: string, round: number, player: PlayerState): number {
+        let s = 45;
+
+        const passesLeft = Math.max(0, 7 - round);
+        // 남은 패스 횟수 × 이후 라운드로 갈수록 패스 VP가 최대에 가깝게 오른다고 가정한 가중
+        const passRamp = passesLeft <= 0 ? 0 : passesLeft * (0.55 + 0.45 * Math.min(1, passesLeft / 5.5));
+
+        const myStructs = game.map.filter(t => t.ownerId === playerId && t.structure);
+        const mineForVp =
+            game.map.filter(t => t.ownerId === playerId && t.structure === 'mine').length +
+            game.map.filter(t => t.parasiticMine?.ownerId === playerId).length +
+            (player.virtualMineAsteroid ? 1 : 0) +
+            (player.virtualMineProto ? 1 : 0) +
+            game.map.filter(t => t.ownerId === playerId && t.structure === 'lost_planet_mine').length;
+        const tsCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
+        const labCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length;
+        const academyCount = myStructs.filter(t => t.structure === 'academy').length;
+        const piCount = myStructs.filter(t => t.structure === 'planetary_institute').length;
+        // 광산만이 아니라 TS→연구소→아카데미/의회 체인을 거친 뒤에도 결국 신규 광산·TS 건설로 이어질 수 있는 “남은 건물” 전부
+        const upgradeChainCount = mineForVp + tsCount + labCount + academyCount + piCount;
+        const sectors = new Set(myStructs.map(t => t.sector).filter((x): x is number => x != null));
+        const planetTypes = new Set(
+            myStructs
+                .filter(t => t.type && t.type !== 'space' && t.type !== 'deep_space')
+                .map(t => t.type!)
+        );
+        if (player.virtualMineAsteroid) planetTypes.add('asteroid');
+        if (player.virtualMineProto) planetTypes.add('proto');
+        if (myStructs.some(t => t.structure === 'lost_planet_mine')) planetTypes.add('lost_planet');
+
+        const fedCount = getFederationEntries(player).length;
+        const outerImm = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
+        const outerPass = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 11 && t.sector < 20).length;
+        const asteroidCount = game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length;
+        const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
+        const bigCount = myStructs.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
+
+        // adv-vp-build-mine: 체인상 모든 건물이 장기적으로 추가 광산 건설 트리거로 이어짐
+        const remainingMineBuildTriggers = Math.min(26, upgradeChainCount + Math.max(0, Math.floor(passesLeft * 1.35)));
+        // adv-vp-build-ts: 광산→TS 직접뿐 아니라 연구소·아카데미·의회 보유가 이후 TS 건설·확장과 연동
+        const remainingTsBuildTriggers = Math.min(
+            24,
+            mineForVp + labCount + academyCount + piCount + Math.max(0, Math.floor(passesLeft * 1.05))
+        );
+
+        const ORE_W = 3; // adv-imm-1o-sector: 광석 1/섹터
+
+        if (tileId === 'adv-vp-build-mine') {
+            s += 3 * remainingMineBuildTriggers;
+        } else if (tileId === 'adv-vp-build-ts') {
+            s += 3 * remainingTsBuildTriggers;
+        } else if (tileId === 'adv-vp-research') {
+            // 약 30VP 상당 베이스 + 남은 라운드당 연구(2VP/회) 기대
+            const expectedAdvances = Math.max(1, Math.floor(passesLeft * 2.2));
+            s += 30 + 2 * expectedAdvances;
+        } else if (tileId === 'adv-vp-terraform') {
+            const pending = player.pendingTerraformSteps || 0;
+            const expectedSteps = pending + Math.max(0, Math.floor(passesLeft * 2.2));
+            s += 2 * expectedSteps;
+        } else if (tileId === 'adv-vp-qic-action') {
+            const expectedQic = Math.max(1, 1 + Math.floor(passesLeft / 2));
+            s += 4 * expectedQic;
+        } else if (tileId === 'adv-pass-1vp-type') {
+            s += planetTypes.size * 1 * passRamp;
+        } else if (tileId === 'adv-pass-3vp-lab') {
+            s += labCount * 3 * passRamp;
+        } else if (tileId === 'adv-pass-3vp-fed') {
+            s += fedCount * 3 * passRamp;
+        } else if (tileId === 'adv-pass-2vp-asteroid') {
+            s += asteroidCount * 2 * passRamp;
+        } else if (tileId === 'adv-pass-2vp-outer') {
+            s += outerPass * 2 * passRamp;
+        } else if (tileId === 'adv-imm-1o-sector') {
+            s += sectors.size * ORE_W;
+        } else if (tileId === 'adv-imm-4vp-ts') {
+            s += tsCount * 4;
+        } else if (tileId === 'adv-imm-2vp-mine') {
+            s += mineForVp * 2;
+        } else if (tileId === 'adv-imm-2vp-sector') {
+            s += sectors.size * 2;
+        } else if (tileId === 'adv-imm-4vp-outer') {
+            s += outerImm * 4;
+        } else if (tileId === 'adv-imm-6vp-big') {
+            s += bigCount * 6;
+        } else if (tileId === 'adv-imm-2vp-gaia') {
+            s += gaiaCount * 2;
+        } else if (tileId === 'adv-imm-5vp-fed') {
+            s += fedCount * 5;
+        } else if (tileId.startsWith('adv-')) {
+            // 알 수 없는 고급 타일: 보수적 베이스만
+            s += 35;
+        }
+
+        return s;
     }
 
     private static calculateTechTileScore(game: ServerGameState, playerId: string, tileId: string): number {
@@ -2073,24 +2191,17 @@ export class BotLogic {
             if (tileId.startsWith('tech-inc-')) score -= 40; // 수입 타일은 후반에 가치 극감
         }
 
-        // 2-1. 고급 기술 타일 (adv-tech-*) 평가
+        // 2-1. 고급 기술 타일 (adv-*): 건물·라운드·즉시 VP·자원 기반 세부 점수
         if (tileId.startsWith('adv-')) {
-            score += 100; // 기본적으로 고벨류
-            if (tileId.includes('vp-build')) score += 40;
-            if (tileId.includes('vp-research')) score += 30;
-            if (tileId.includes('pass-')) {
-                if (round >= 5) score += 60;
-                else score -= 30; // 너무 일찍 가져가면 비효율
-            }
-            if (tileId.includes('imm-')) score += 50;
+            score += this.scoreAdvancedTechTile(game, playerId, tileId, round, player);
         }
 
         // 3. 라운드 미션 시너지 (기술 타일 획득 시 2VP 등)
         score += this.calculateRoundScoringBonus(game, playerId, 'gain_tech_tile');
 
         // 4. 종족별 특정 타일 시너지
-        if (player.faction === 'itars' && tileId === 'tech-act-4p') score += 20; // 아이타는 의회 능력 활용을 위해 4P 매우 선호
-        if (player.faction === 'nevlas' && tileId === 'tech-inc-1o-1p') score += 15; // 네블라스는 파워 충격 시너지
+        if (player.faction === 'taklons' && tileId === 'tech-act-4p') score += 20; // 아이타는 의회 능력 활용을 위해 4P 매우 선호
+        if (player.faction === 'nevlas' && tileId === 'tech-act-4p') score += 20; // 네블라스는 파워 충격 시너지
 
         // 5. 무작위 변동성 (동일 점수 시 다양성 부여)
         score += Math.random() * 2;
@@ -2161,11 +2272,9 @@ export class BotLogic {
 
         const scored: { id: string, score: number }[] = [];
 
-        // 광산/교역소 수: 스텝 vs 자원(2O/7C) 우선순위 판단용
+        // 광산/교역소 수: 스텝 vs 자원(2O/7C) 우선순위 판단용 (서버 executeBuildMine과 동일하게 getStructureCount 사용)
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
-        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length
-            + game.map.filter(t => t.parasiticMine?.ownerId === playerId).length
-            + (player.virtualMineAsteroid ? 1 : 0);
+        const mineCount = getStructureCount(game, playerId, 'mine');
         const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
         const minesToUpgrade = mineCount - tsCount; // 교역소로 올릴 광산이 몇 개 있는지
         const needStepsFirst = mineCount <= 2 || minesToUpgrade <= 0; // 광산이 적거나, 올릴 광산이 없으면 스텝 우선
@@ -2621,8 +2730,6 @@ export class BotLogic {
             resourceValue += (tile.income.qic || 0) * 4;
             resourceValue += (tile.income.credits || 0) * 1;
             resourceValue += (tile.income.power || 0) * 1;
-            // powerTokens(그릇1 토큰)은 파워 수입을 "받을 수 있게" 해주는 핵심 리소스라 가치가 큼
-            resourceValue += (tile.income.powerTokens || 0) * 6;
         }
         if (tile.specialAction) {
             if (tile.specialAction === 'range_3') resourceValue += 3;
@@ -2671,9 +2778,7 @@ export class BotLogic {
             const p1Next = (player.power1 ?? 0) + tokenIncome;
             const expectedWaste = Math.max(0, powerIncome - p1Next);
             if (expectedWaste > 0) {
-                const tokenGain = tile.income?.powerTokens ?? 0;
-                resourceValue += tokenGain * (30 + expectedWaste * 10);
-                if (tile.id === 'bon-1o-2tokens') resourceValue += 120;
+                resourceValue += (tile.income.powerTokens || 0) * 3;
             }
         }
 
@@ -2856,18 +2961,10 @@ export class BotLogic {
         const player = game.players[playerId];
         const res: BotAction[] = [];
 
+        // 메인 액션 완료 후에는 executeUseSpecialAction / use_tech_action 등이 서버에서 전부 거부됨.
+        // (과거에 gleens-2nav·academy-qic를 '무료'로 넣었으나 둘 다 hasDoneMainAction 체크로 막혀 봇이 실패 루프에 빠짐)
         if (game.hasDoneMainAction) {
-            if (player.faction === 'gleens' && !player.usedSpecialActions?.includes('gleens-2nav')) {
-                res.push({ type: 'use_special_action', params: { actionId: 'gleens-2nav' } });
-            }
-            // If main action is done, we can ONLY perform free actions!
-            // 'academy-qic' is also a free action, but let's check its logic.
-            const hasRightAcademy = game.map.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right');
-            if (hasRightAcademy && !player.usedSpecialActions?.includes('academy-qic')) {
-                res.push({ type: 'use_special_action', params: { actionId: 'academy-qic' } });
-            }
-            // tech actions, bonus tile actions, and other special actions are MAIN ACTIONS. They cannot be executed here.
-            return res;
+            return [];
         }
 
         // 1. 기술 타일 액션

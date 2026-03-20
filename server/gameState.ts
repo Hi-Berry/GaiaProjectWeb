@@ -371,7 +371,7 @@ function getEffectiveGaiaformers(player: PlayerState): number {
 }
 
 /** 플레이어 건물 개수 (맵만, 기생/가상 제외). 아카데미는 academyType 별도. */
-function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
+export function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
 	if (structure === 'mine') {
 		return game.map.filter(t => t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')).length
 			+ game.map.filter(t => t.parasiticMine?.ownerId === playerId).length
