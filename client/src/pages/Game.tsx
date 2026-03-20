@@ -1810,8 +1810,6 @@ export default function Game() {
             }}
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            onFederationToggleMode={() => gameId && GameClient.federationToggleMode(gameId)}
-            onFederationComplete={() => gameId && GameClient.federationComplete(gameId)}
           />
         </div>
 
@@ -3128,6 +3126,34 @@ export default function Game() {
                   );
                 };
 
+                const bonusForDetail = p.bonusTile ? ALL_BONUS_TILES.find((t) => t.id === p.bonusTile) : undefined;
+                const hasBonusDetailRow = !!(bonusForDetail?.specialAction);
+                const hasPIForDetail = game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
+                const canDoMainForDetail = isYou && isCurrentTurn && !game.hasDoneMainAction;
+                const hasSpecialDetailRow = (() => {
+                  if ((p.techTiles ?? []).some((tid) => {
+                    const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
+                    return !!tile?.specialAction;
+                  })) return true;
+                  if (game.map?.some((t) => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')) return true;
+                  if (p.faction === 'bescods' || p.faction === 'ivits' || p.faction === 'gleens' || p.faction === 'space_giants') return true;
+                  if (p.faction === 'moweyip' && hasPIForDetail) return true;
+                  if (p.faction === 'ambas' && hasPIForDetail) return true;
+                  if (p.faction === 'firaks' && hasPIForDetail) return true;
+                  if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) return true;
+                  if (p.faction === 'bal_tak') {
+                    if ((p.balTakGaiaformersUsedForQic ?? 0) > 0) return true;
+                    if (canDoMainForDetail && (p.gaiaformers ?? 0) > 0) return true;
+                  }
+                  return false;
+                })();
+                const hasPlayerDetailContent =
+                  fedEntries.length > 0 ||
+                  (p.techTiles?.length ?? 0) > 0 ||
+                  (p.artifacts?.length ?? 0) > 0 ||
+                  hasBonusDetailRow ||
+                  hasSpecialDetailRow;
+
                 return (
                   <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
                     <div
@@ -3317,11 +3343,19 @@ export default function Game() {
                         </div>
                       </PopoverTrigger>
                       {expandedPlayerId === id && (
-                        <PopoverContent side="left" align="start" className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px]">
+                        <PopoverContent side="left" align="start" className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px] space-y-2">
+                          {!hasPlayerDetailContent && (
+                            <p className="text-[9px] text-zinc-400 text-center leading-relaxed px-1">
+                              이 플레이어의 <span className="text-zinc-300">연방 보상 · 기술 타일 · 인공물 · 보너스/스페셜 액션</span> 상태를 보는 창입니다. 지금은 표시할 항목이 없습니다.
+                            </p>
+                          )}
                           {fedEntries.length > 0 && (
-                            <div>
-                              <span className="text-muted-foreground font-medium">연방 </span>
-                              <span className="flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
+                            <div className="flex gap-0 items-stretch">
+                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                                <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">연방</span>
+                              </div>
+                              <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
+                              <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 flex-1 min-w-0 pl-2 content-center py-0.5">
                                 {fedEntries.map((f, i) => {
                                   const reward = FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId);
                                   const label = reward?.label ?? f.rewardId;
@@ -3346,7 +3380,7 @@ export default function Game() {
                                       {imgUrl ? (
                                         <img
                                           src={imgUrl}
-                                          className={`h-[22px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
+                                          className={`h-[32px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
                                           alt={label}
                                         />
                                       ) : (
@@ -3360,13 +3394,16 @@ export default function Game() {
                                     </div>
                                   );
                                 })}
-                              </span>
+                              </div>
                             </div>
                           )}
                           {(p.techTiles?.length ?? 0) > 0 && (
-                            <div>
-                              <span className="text-muted-foreground font-medium">기술 타일 </span>
-                              <div className="flex flex-wrap gap-1.5 mt-1">
+                            <div className="flex gap-0 items-stretch">
+                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                                <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">기술 타일</span>
+                              </div>
+                              <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
+                              <div className="flex flex-wrap gap-1.5 flex-1 min-w-0 pl-2 content-center py-0.5">
                                 {(p.techTiles ?? []).map((tileId) => {
                                   const tile = ALL_TECH_TILES.find((t) => t.id === tileId) ??
                                     SHIP_TECH_TILES.find((t) => t.id === tileId) ??
@@ -3405,9 +3442,12 @@ export default function Game() {
                             </div>
                           )}
                           {(p.artifacts?.length ?? 0) > 0 && (
-                            <div>
-                              <span className="text-muted-foreground font-medium">인공물 </span>
-                              <div className="flex flex-wrap gap-1 mt-0.5">
+                            <div className="flex gap-0 items-stretch">
+                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                                <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">인공물</span>
+                              </div>
+                              <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
+                              <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">
                                 {(p.artifacts ?? []).map((aid) => {
                                   const art = ARTIFACTS.find((a) => a.id === aid);
                                   const artIndex = ARTIFACTS.findIndex((a) => a.id === aid);
@@ -3438,37 +3478,39 @@ export default function Game() {
                               </div>
                             </div>
                           )}
-                          {p.bonusTile && (() => {
-                            const bonus = ALL_BONUS_TILES.find(t => t.id === p.bonusTile);
-                            if (!bonus?.specialAction) return null;
+                          {hasBonusDetailRow && bonusForDetail?.specialAction && (() => {
+                            const bonus = bonusForDetail;
                             const actionNames: Record<string, string> = {
                               'terraform_step': '1테라',
                               'gaia_project': '가이아',
                               'range_3': '+3거리'
                             };
-                            const actionLabel = actionNames[bonus.specialAction] || bonus.specialAction;
+                            const actionLabel = actionNames[bonus.specialAction!] || bonus.specialAction;
                             const isUsed = p.usedBonusAction;
                             const canUse = isYou && isCurrentTurn && !game.hasDoneMainAction;
                             return (
-                              <div className="mb-1">
-                                {renderActionBtn(
-                                  isUsed,
-                                  canUse,
-                                  'bonusAction',
-                                  `보너스 Special: ${actionLabel}`,
-                                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold',
-                                  'bg-emerald-600 hover:bg-emerald-500 text-white font-bold',
-                                  `보너스 타일 액션: ${actionLabel}`
-                                )}
+                              <div className="flex gap-0 items-stretch">
+                                <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                                  <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">보너스</span>
+                                </div>
+                                <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
+                                <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">
+                                  {renderActionBtn(
+                                    isUsed,
+                                    canUse,
+                                    'bonusAction',
+                                    `보너스 Special: ${actionLabel}`,
+                                    'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold',
+                                    'bg-emerald-600 hover:bg-emerald-500 text-white font-bold',
+                                    `보너스 타일 액션: ${actionLabel}`
+                                  )}
+                                </div>
                               </div>
                             );
                           })()}
 
                           {/* Unified Special Actions Status */}
-                          <div className="mt-1 pb-1 space-y-1">
-                            <span className="text-muted-foreground font-medium block h-4">스페셜 액션</span>
-                            <div className="flex flex-wrap gap-1">
-                              {(() => {
+                          {(() => {
                                 const actionNodes: React.ReactNode[] = [];
                                 const canDoMain = isYou && isCurrentTurn && !game.hasDoneMainAction;
 
@@ -3612,10 +3654,17 @@ export default function Game() {
                                   }
                                 }
 
-                                return actionNodes;
+                                if (actionNodes.length === 0) return null;
+                                return (
+                                  <div className="flex gap-0 items-stretch">
+                                    <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                                      <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">스페셜</span>
+                                    </div>
+                                    <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
+                                    <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">{actionNodes}</div>
+                                  </div>
+                                );
                               })()}
-                            </div>
-                          </div>
                         </PopoverContent>
                       )}
                     </div>

@@ -371,7 +371,7 @@ function getEffectiveGaiaformers(player: PlayerState): number {
 }
 
 /** 플레이어 건물 개수 (맵만, 기생/가상 제외). 아카데미는 academyType 별도. */
-function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
+export function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
 	if (structure === 'mine') {
 		return game.map.filter(t => t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')).length
 			+ game.map.filter(t => t.parasiticMine?.ownerId === playerId).length
@@ -403,7 +403,7 @@ function grantQic(game: GaiaGameState, playerId: string, amount: number): void {
 }
 
 /** 거리 계산용: 내 건물 + 내 우주정거장이 있는 타일 (하이브 우주정거장도 기준점) */
-function getPlayerRangeTiles(game: ServerGameState, playerId: string, excludeShip?: boolean): HexTile[] {
+export function getPlayerRangeTiles(game: ServerGameState, playerId: string, excludeShip?: boolean): HexTile[] {
 	return game.map.filter(t => {
 		if (t.ownerId === playerId && t.structure !== null && (excludeShip !== true || t.structure !== 'ship'))
 			return true;
@@ -487,9 +487,14 @@ export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState,
 /** 연방 1회당 필요 파워. 제노스는 의회 보유 시 6, 그 외 7 */
 export function getFederationRequiredPower(game: ServerGameState, playerId: string): number {
 	const player = game.players[playerId];
-	const n = getFederationEntries(player).length + 1;
 	const hasPI = player && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 	const powerPerFed = (player?.faction === 'xenos' && hasPI) ? 6 : 7;
+
+	// 하이브(Ivits)만 연방 횟수에 따라 7 → 14 → 21 ... 처럼 누적 증가 규칙이 적용됨.
+	// 그 외 종족은 매 연방 시도마다 선택된 건물/우주정거장 파워가 7(또는 Xenos면 6) 이상인지로 판정.
+	if (player?.faction !== 'ivits') return powerPerFed;
+
+	const n = getFederationEntries(player).length + 1;
 	return powerPerFed * n;
 }
 
@@ -2522,30 +2527,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const pending = game.pendingEclipseAsteroidMine;
-			if (!pending || pending.playerId !== playerId) return;
-			// Eclipse 3 후속 선택은 이미 턴 소모 후이므로 hasDoneMainAction 체크 제외
-			const player = game.players[playerId];
-			const tile = game.map.find(t => t.id === tileId);
-			if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return;
-			let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
-			const rangeTiles = getPlayerRangeTiles(game, playerId, true);
-			if (rangeTiles.length === 0) return;
-			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-			if (minDist > baseRange) return;
-			const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
-			tile.structure = 'mine';
-			tile.ownerId = playerId;
-			game.pendingEclipseAsteroidMine = null;
-			addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', '6C (no Gaiaformer)', tileId);
-			applyRoundMissionScore(game, playerId, 'build_mine');
-			if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
-			applyAdvancedTechTileEffect(game, playerId, 'build_mine');
-			createPowerOffers(game, tile, playerId);
-			addBuildingToFederationIfAdjacent(game, playerId, tileId);
-			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeEclipseBuildAsteroidMine(io, game, playerId, tileId);
 		});
 
 		// 트왈라잇 액션1: 보유 연방 중 하나 선택 후 해당 해택 재수령 (federation reward id)
@@ -5816,6 +5798,34 @@ export function executePlaceIvitsSpaceStation(
 }
 
 /** Bot용: 우주선 액션 실행. 소켓 use_ship_action과 동일 로직 (Twilight/Rebellion/TF Mars/Eclipse 전액션). */
+
+export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string): boolean {
+	const pending = game.pendingEclipseAsteroidMine;
+	if (!pending || pending.playerId !== playerId) return false;
+	const player = game.players[playerId];
+	const tile = game.map.find(t => t.id === tileId);
+	if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return false;
+	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
+	if (rangeTiles.length === 0) return false;
+	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+	if (minDist > baseRange) return false;
+	const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+	tile.structure = 'mine';
+	tile.ownerId = playerId;
+	game.pendingEclipseAsteroidMine = null;
+	addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', '6C (no Gaiaformer)', tileId);
+	applyRoundMissionScore(game, playerId, 'build_mine');
+	if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
+	applyAdvancedTechTileEffect(game, playerId, 'build_mine');
+	createPowerOffers(game, tile, playerId);
+	addBuildingToFederationIfAdjacent(game, playerId, tileId);
+	game.hasDoneMainAction = true;
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 export function executeUseShipAction(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string, shipTileId: string, actionIndex: number,
@@ -6507,6 +6517,11 @@ export function executeBotFederation(
 
 	if (!game.satellites) game.satellites = {};
 	for (const hexId of selectedHexIds) {
+		// Ivits: 우주정거장 타일은 satellites(위성)로 기록하지 않음.
+		// (우주정거장 타일은 이미 맵에 spaceStation으로 존재하며, 위성 데이터와 섞이면 다른 로직에서 혼동될 수 있음)
+		const tile = game.map.find(t => t.id === hexId);
+		if (isIvits && tile?.spaceStation?.ownerId === playerId) continue;
+
 		const existing = game.satellites[hexId];
 		if (Array.isArray(existing)) {
 			if (!existing.includes(playerId)) existing.push(playerId);

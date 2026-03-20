@@ -132,13 +132,25 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     }
 
     // === 기술 타일 선택 대기: 봇이면 자동 처리 ===
+    // BotLogic.findTechTileAction(점수 로그·calculateTechTileScore)을 쓰도록 함.
+    // 예전 executeBotSelectTechTile은 트랙 순서대로 첫 타일만 집어서 로그/전략이 따로 놀았음.
     if (game.pendingTechTileSelection) {
         const techPlayerId = game.pendingTechTileSelection.playerId;
         if (botPlayerIds.includes(techPlayerId)) {
             await new Promise(resolve => setTimeout(resolve, 300));
             const botPlayer = game.players[techPlayerId];
-            log(`Bot ${botPlayer?.name} auto-handling tech tile selection`, 'game');
-            executeBotSelectTechTile(io, game, techPlayerId);
+            log(`Bot ${botPlayer?.name} auto-handling tech tile selection (scored pick)`, 'game', game.id);
+            const techPick = await BotLogic.getNextMove(game, techPlayerId, false);
+            if (techPick?.type === 'select_tech_tile') {
+                const ok = await BotLogic.performAction(io, game, techPick, techPlayerId);
+                if (!ok) {
+                    log(`Bot ${botPlayer?.name} performAction select_tech_tile failed, fallback executeBotSelectTechTile`, 'game', game.id);
+                    executeBotSelectTechTile(io, game, techPlayerId);
+                }
+            } else {
+                log(`Bot ${botPlayer?.name} getNextMove did not return select_tech_tile (${techPick?.type ?? 'null'}), fallback executeBotSelectTechTile`, 'game', game.id);
+                executeBotSelectTechTile(io, game, techPlayerId);
+            }
             // 기술 타일 선택 후 다시 확인 (pendingShipTechTrackAdvance 등 후속 대기 가능)
             setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
             return;
