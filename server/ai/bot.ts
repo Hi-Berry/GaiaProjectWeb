@@ -390,8 +390,19 @@ export class BotLogic {
                 }
             }
 
-            // 이미 메인 액션을 수행했다면 턴 종료
+            // 이미 메인 액션을 수행했다면 턴 종료 (단, 추가 행동이 대기 중이면 예외)
             if (game.hasDoneMainAction) {
+                // 파워 액션, 보너스 액션, 우주선 액션 등으로 테라포밍 스텝이나 추가 행동을 얻었을 경우
+                // 후속 조치를 취해야 하므로 바로 턴을 종료하면 안 됨.
+                if ((player.pendingTerraformSteps || 0) > 0) {
+                    const buildWithPending = this.findBuildWithPendingSteps(game, playerId);
+                    if (buildWithPending) return buildWithPending;
+                }
+
+                // 그 외 추가 액션(예: 글린 네비게이션 보너스 사용 등 프리액션)을 할 게 있으면 수행
+                const special = this.findSpecialActions(game, playerId);
+                if (special.length > 0) return special[0];
+
                 return { type: 'end_turn', params: {} };
             }
 
@@ -1600,7 +1611,7 @@ export class BotLogic {
                 const shipState = game.spaceships?.[eclipseShip.id];
                 const usedActions = shipState?.usedActionIndices ?? [];
                 if (!usedActions.includes(3)) {
-                    // 범위 내 빈 소행성이 있는지 확인 (우주선 포함)
+                    // 범위 내 빈 소행성이 있는지 확인 (우주선 제외)
                     const rangeTiles = getPlayerRangeTiles(game, playerId, true);
                     const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
                     const asteroid = game.map.find(t =>
@@ -1692,7 +1703,7 @@ export class BotLogic {
      */
     private static findEclipseAsteroidTarget(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
-        const rangeTiles = getPlayerRangeTiles(game, playerId, true); // true includes spaceships
+        const rangeTiles = getPlayerRangeTiles(game, playerId, true); // true excludes spaceships
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
 
         const asteroid = game.map.find(t =>
