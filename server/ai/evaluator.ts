@@ -332,8 +332,33 @@ export class Evaluator {
             if (lvl >= 4) researchScore += (w.researchLevel4Bonus || 100);
             if (lvl === 5) researchScore += w.researchLevel5Bonus;
         }
+
+        // 발타크: 가이아 프로젝트 트랙은 포머 공급 → 1포머=1QIC 전환 가치가 큼.
+        // 레벨당 (남은 라운드+1) * QIC 가중치만큼 추가 이득으로 평가 (MCTS/평가 일치).
+        if (player.faction === 'bal_tak') {
+            const gl = player.research?.gaiaProject ?? 0;
+            const qicW = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
+            const balTakGaiaBonus = gl * (remainingRounds + 1) * qicW;
+            researchScore += balTakGaiaBonus;
+            logDebug(`6b) Bal'Tak GaiaProject track bonus: +${balTakGaiaBonus.toFixed(1)}`);
+        }
+
         score += researchScore;
         logDebug(`6) Research: +${researchScore.toFixed(1)}`);
+
+        // 발타크: 소행성 광산 = 가이아 포머 1개 소모(파괴). 전환 시 매 라운드 QIC화 가능하므로
+        // 광산당 (남은 라운드+1) * QIC 가중치만큼 기회비용 패널티.
+        if (player.faction === 'bal_tak') {
+            const astMines = game.map.filter(
+                t => t.ownerId === playerId && t.type === 'asteroid' && t.structure === 'mine'
+            ).length;
+            if (astMines > 0) {
+                const qicW = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
+                const balTakAstPen = astMines * (remainingRounds + 1) * qicW;
+                score -= balTakAstPen;
+                logDebug(`6c) Bal'Tak asteroid former opportunity cost: -${balTakAstPen.toFixed(1)} (${astMines} mines)`);
+            }
+        }
 
         // 5.5) Early Game Expansion & Economy Strategy (Round 1-2)
         let earlyBonus = 0;
