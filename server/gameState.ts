@@ -487,9 +487,14 @@ export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState,
 /** 연방 1회당 필요 파워. 제노스는 의회 보유 시 6, 그 외 7 */
 export function getFederationRequiredPower(game: ServerGameState, playerId: string): number {
 	const player = game.players[playerId];
-	const n = getFederationEntries(player).length + 1;
 	const hasPI = player && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 	const powerPerFed = (player?.faction === 'xenos' && hasPI) ? 6 : 7;
+
+	// 하이브(Ivits)만 연방 횟수에 따라 7 → 14 → 21 ... 처럼 누적 증가 규칙이 적용됨.
+	// 그 외 종족은 매 연방 시도마다 선택된 건물/우주정거장 파워가 7(또는 Xenos면 6) 이상인지로 판정.
+	if (player?.faction !== 'ivits') return powerPerFed;
+
+	const n = getFederationEntries(player).length + 1;
 	return powerPerFed * n;
 }
 
@@ -6512,6 +6517,11 @@ export function executeBotFederation(
 
 	if (!game.satellites) game.satellites = {};
 	for (const hexId of selectedHexIds) {
+		// Ivits: 우주정거장 타일은 satellites(위성)로 기록하지 않음.
+		// (우주정거장 타일은 이미 맵에 spaceStation으로 존재하며, 위성 데이터와 섞이면 다른 로직에서 혼동될 수 있음)
+		const tile = game.map.find(t => t.id === hexId);
+		if (isIvits && tile?.spaceStation?.ownerId === playerId) continue;
+
 		const existing = game.satellites[hexId];
 		if (Array.isArray(existing)) {
 			if (!existing.includes(playerId)) existing.push(playerId);

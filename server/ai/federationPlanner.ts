@@ -72,22 +72,16 @@ export class FederationPlanner {
 
             const rewardScore = this.getRewardScore(game, playerId, result.rewardId);
 
-            // AI 위성 사용 제한 로직 (기본 3개 이하 권장)
-            // 우주선 연방 보상일 경우, 혹은 고급기술/5단계를 위한 초록 토큰 필요 시는 조금 더 허용
+            // 위성(소모 파워 토큰) 절약을 유도하되,
+            // hard-cut(일정 개수 초과 시 후보 자체 제거) 때문에 2번째/그 이후 연방 후보가 사라지는 문제가 있어
+            // score 페널티로만 제어하도록 변경합니다.
             const isShipReward = result.rewardId.startsWith('ship-fed-') && result.rewardId !== 'ship-fed-mine-free'; // 무한 거리 광산은 쓰레기
             const greenNeeded = this.needsGreenFederation(game, playerId);
 
-            let satellitePenalty = 15; // 기본적으로 위성을 아끼도록 강한 페널티
-            let maxAllowedTokens = 3;
-
-            if (isShipReward || greenNeeded || round >= 5) {
-                maxAllowedTokens = 5; // 예외 상황에서는 최대 5개까지 허용 (그러나 여전히 페널티는 존재)
-                satellitePenalty = 8;
-            }
-
-            if (result.spentTokens > maxAllowedTokens) {
-                continue; // 허용치를 넘는 연방은 아예 형성하지 않음
-            }
+            // 기본 페널티: 위성을 쓸수록 불리하도록
+            let satellitePenalty = 15;
+            // 예외 상황(우주선 연방/초록 연방 급함/후반)은 위성 사용 비용을 낮춰 후보가 살아남게 함
+            if (isShipReward || greenNeeded || round >= 5) satellitePenalty = 8;
 
             const score = rewardScore - result.spentTokens * satellitePenalty;
             results.push({ ...result, score });
@@ -174,6 +168,7 @@ export class FederationPlanner {
         const selectedPlanetIds = new Set<string>();
         const fedHexes = game.playerFederationHexes?.[playerId] || [];
         const player = game.players[playerId];
+        const isIvits = player?.faction === 'ivits';
 
         // Always include the starting planet's connected component
         const initialComponent = getPlanetConnectedComponent(game, playerId, startTile.id);
@@ -193,6 +188,13 @@ export class FederationPlanner {
         initialComponent.forEach(pid => {
             const tile = game.map.find(t => t.id === pid)!;
             getNeighbors(game.map, tile).forEach(n => {
+                // Ivits: 우주정거장 타일은 토큰 비용 없이 파워 계산에 포함될 수 있어야 함.
+                if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
+                    queue.push({ currentHexId: n.id, path: [n.id], cost: 0 });
+                    visited.add(n.id);
+                    return;
+                }
+
                 if (isEmptyHex(n) && !visited.has(n.id)) {
                     // Wait, check if the empty hex is valid (not occupied by another player's satellite)
                     const onTile = game.satellites?.[n.id];
@@ -243,13 +245,14 @@ export class FederationPlanner {
                 path.forEach(hid => {
                     if (!currentHexIds.has(hid)) {
                         currentHexIds.add(hid);
+                        const hidTile = game.map.find(t => t.id === hid);
+                        // 우주정거장(공간) 타일은 Ivits 파워로 쓰되, QIC(위성/토큰) 비용에는 포함하지 않음.
+                        if (isIvits && hidTile?.spaceStation?.ownerId === playerId) return;
 
                         // Check if the player already owns a satellite here
                         const onTile = game.satellites?.[hid];
                         const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
-                        if (!playersOnTile.includes(playerId)) {
-                            actualNewSatellites++;
-                        }
+                        if (!playersOnTile.includes(playerId)) actualNewSatellites++;
                     }
                 });
 
@@ -278,7 +281,10 @@ export class FederationPlanner {
 
                 for (const t of currentFedTiles) {
                     getNeighbors(game.map, t).forEach(n => {
-                        if (isEmptyHex(n) && !visited.has(n.id)) {
+                        if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
+                            queue.push({ currentHexId: n.id, path: [n.id], cost: 0 });
+                            visited.add(n.id);
+                        } else if (isEmptyHex(n) && !visited.has(n.id)) {
                             const onTile = game.satellites?.[n.id];
                             const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
                             if (!playersOnTile.includes(playerId)) {
@@ -291,7 +297,11 @@ export class FederationPlanner {
             } else {
                 // Expand from this empty hex to other empty hexes
                 getNeighbors(game.map, currentTile).forEach(n => {
-                    if (isEmptyHex(n) && !visited.has(n.id)) {
+                    if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
+                        // 우주정거장 타일은 비용 없이 확장
+                        queue.push({ currentHexId: n.id, path: [...path, n.id], cost: cost });
+                        visited.add(n.id);
+                    } else if (isEmptyHex(n) && !visited.has(n.id)) {
                         const onTile = game.satellites?.[n.id];
                         const playersOnTile = Array.isArray(onTile) ? onTile : (onTile ? [onTile as string] : []);
                         if (!playersOnTile.includes(playerId)) {

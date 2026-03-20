@@ -288,8 +288,10 @@ export class BotLogic {
             case 'end_turn':
                 return executeEndTurn(io, game, playerId);
             case 'select_tech_tile':
+                // executeSelectTechTile는 조건 불충족 시 조기 return 하고 pendingTechTileSelection을 clear하지 않습니다.
+                // 따라서 호출 뒤 pending이 실제로 해제됐는지로 성공 여부를 판단합니다.
                 executeSelectTechTile(io, game, playerId, action.params.techTileId, action.params.trackId);
-                return true;
+                return game.pendingTechTileSelection === null;
             case 'select_advanced_tech_tile':
                 return executeSelectAdvancedTechTile(io, game, playerId, action.params.advancedTileId, action.params.trackId);
             case 'cover_advanced_tech_tile':
@@ -1356,25 +1358,31 @@ export class BotLogic {
 
             // 모행성 (테라포밍 불필요)
             if (tile.type === homeType) {
-                let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty + bridgeheadBonus; // 모행성 확장은 최상위 가치
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
-                score += this.calculateFinalMissionBonus(game, playerId, tile);
+                // 일부 확장 종족(예: proto 홈)은 “홈이어도 스텝 비용”이 발생할 수 있음.
+                // 따라서 steps가 0일 때만 모행성(무료 테라포밍) 분기를 적용하고,
+                // homeSteps>0이면 아래 “타종 행성(테라포밍 필요)” 로직으로 내려가도록 함.
+                const homeSteps = getTerraformStepsForFaction(game, player.faction!, tile.type);
+                if (homeSteps <= 0) {
+                    let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty + bridgeheadBonus; // 모행성 확장은 최상위 가치
+                    score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                    score += this.calculateFinalMissionBonus(game, playerId, tile);
 
-                score += earlyRushBonus;
-                score += expansionDesire;
-                score += overExpansionPenalty;
+                    score += earlyRushBonus;
+                    score += expansionDesire;
+                    score += overExpansionPenalty;
 
-                score += this.calculateAdjacencyBonus(game, playerId, tile);
-                score += this.calculateFederationScore(game, playerId, tile);
-                score += this.calculateThreatScore(game, playerId, tile);
-                score += rangeBonusValue;
+                    score += this.calculateAdjacencyBonus(game, playerId, tile);
+                    score += this.calculateFederationScore(game, playerId, tile);
+                    score += this.calculateThreatScore(game, playerId, tile);
+                    score += rangeBonusValue;
 
-                scored.push({
-                    tile,
-                    score,
-                    action: { type: 'build_mine', params: { tileId: tile.id } }
-                });
-                continue;
+                    scored.push({
+                        tile,
+                        score,
+                        action: { type: 'build_mine', params: { tileId: tile.id } }
+                    });
+                    continue;
+                }
             }
 
             // 타종 행성 (테라포밍 필요)
@@ -1695,31 +1703,55 @@ export class BotLogic {
         for (const tile of candidates) {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQic = Math.max(0, Math.ceil((dist - range) / 2));
-            if (neededQic > 1 || neededQic > (player.qic ?? 0)) continue;
+            if (neededQic > (player.qic ?? 0)) continue;
 
-            let steps = 0;
-            if (tile.type === homeType) {
-                steps = 0;
-            } else if (tile.type === 'gaia') {
+            if (tile.type === 'gaia') {
                 // 가이아는 pendingSteps와 무관
                 continue;
-            } else {
-                // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 새로운 행성 유형(모행성과 가이아 제외)에 테라포밍 및 확장하는 것을 절대 금지
-                if (player.faction === 'geodens') {
-                    const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-                    if (!hasPI) continue;
-                }
-                steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
+            }
+            
+            const steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
+
+            // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 “테라포밍이 필요한” 새로운 행성 유형은 확장 불가
+            if (player.faction === 'geodens' && steps > 0) {
+                const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                if (!hasPI) continue;
             }
 
-            if (steps <= pendingSteps) {
-                // pendingSteps가 있을 때는 스텝을 최대한 활용할 수 있는 행성(steps가 높은 행성)을 우선시해야 합니다.
-                // 0스텝(모행성)에 지으면 애써 얻은 보너스를 낭비하게 되므로 우선순위를 가장 낮춥니다.
-                const score = steps > 0 ? (100 + steps * 10) : 50;
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestTile = tile;
-                }
+            // 서버 executeBuildMine과 동일하게:
+            // - pendingTerraformSteps로 steps 일부를 "할인"하고
+            // - 남은 actualSteps는 자원(ore)으로 지불해 타일을 건설할 수 있음
+            const coveredByPending = Math.min(pendingSteps, steps);
+            const actualSteps = Math.max(0, steps - coveredByPending);
+
+            // 무료 광산 여부에 따른 기본 광산 비용(1O/2C)
+            const standardMineOre = isFree ? 0 : 1;
+            const standardMineCredits = isFree ? 0 : 2;
+
+            // pendingTF로 할인 후 남은 테라포밍 스텝 비용
+            // 서버에서는 spaceshipFed3TfMineFree만 테라포밍 비용도 0 처리
+            const terraformCost = player.spaceshipFed3TfMineFree
+                ? 0
+                : actualSteps * getTerraformCost(player.research.terraforming);
+
+            const oreNeeded = terraformCost + standardMineOre;
+            const creditsNeeded = standardMineCredits;
+
+            if ((player.ore ?? 0) < oreNeeded) continue;
+            if ((player.credits ?? 0) < creditsNeeded) continue;
+            if ((player.qic ?? 0) < neededQic) continue;
+
+            // 점수: pending으로 커버되는 실제값(actualSteps)을 줄이고(=자원 덜 들고),
+            // 커버량이 클수록, 그리고 거리가 가까울수록 선호
+            const score = (
+                (coveredByPending > 0 ? 120 + coveredByPending * 30 : 40)
+                - actualSteps * 60
+                - (dist * 2)
+            );
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestTile = tile;
             }
         }
 
@@ -2024,12 +2056,22 @@ export class BotLogic {
 
         if (availableTiles.length === 0) return null;
 
+        // 동일 id 타일은 트랙/풀에 스택(보통 4장)으로 여러 슬롯에 있음. 점수는 id만으로 결정되므로 종류별 1회만 평가·로그.
+        const seenIds = new Set<string>();
+        const uniqueTiles: TechTile[] = [];
+        for (const t of availableTiles) {
+            if (!t?.id || seenIds.has(t.id)) continue;
+            seenIds.add(t.id);
+            uniqueTiles.push(t);
+        }
+        if (uniqueTiles.length === 0) return null;
+
         // 동적 점수 계산을 통해 최적의 타일 선택
-        let bestTile: TechTile = availableTiles[0];
+        let bestTile: TechTile = uniqueTiles[0];
         let maxScore = -Infinity;
         const tileScores: { id: string; score: number }[] = [];
 
-        for (const tile of availableTiles) {
+        for (const tile of uniqueTiles) {
             const score = this.calculateTechTileScore(game, playerId, tile.id);
             tileScores.push({ id: tile.id, score });
             if (score > maxScore) {
@@ -2047,7 +2089,7 @@ export class BotLogic {
             const ranked = [...tileScores].sort((a, b) => b.score - a.score);
             const scoreLine = ranked.map((x) => `${x.id}=${x.score.toFixed(2)}`).join(' | ');
             log(
-                `Bot ${player.name} tech tile scores R${game.roundNumber} (${ranked.length} candidates, track→${trackId}): ${scoreLine}`,
+                `Bot ${player.name} tech tile scores R${game.roundNumber} (${ranked.length} unique types, track→${trackId}): ${scoreLine}`,
                 'game',
                 game.id
             );
@@ -2202,9 +2244,6 @@ export class BotLogic {
         // 4. 종족별 특정 타일 시너지
         if (player.faction === 'taklons' && tileId === 'tech-act-4p') score += 20; // 아이타는 의회 능력 활용을 위해 4P 매우 선호
         if (player.faction === 'nevlas' && tileId === 'tech-act-4p') score += 20; // 네블라스는 파워 충격 시너지
-
-        // 5. 무작위 변동성 (동일 점수 시 다양성 부여)
-        score += Math.random() * 2;
 
         return score;
     }
