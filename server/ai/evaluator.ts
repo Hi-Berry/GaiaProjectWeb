@@ -53,7 +53,7 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     resourceMultiplierLate: 0.5,
     oreValue: 0.8, // 0.5 -> 0.8
     creditsValue: 0.25, // 0.12 -> 0.25
-    knowledgeValue: 0.8, // 0.45 -> 0.8
+    knowledgeValue: 0.5, // 사용자 피드백 반영: 지식가중치 하향 (0.8 -> 0.5)
 
     qicWeightEarly: 3.5, // 2.5 -> 3.5
     qicWeightLate: 6.0,
@@ -190,32 +190,13 @@ export class Evaluator {
         logDebug(`1) VP: ${player.score || 0} * ${vpWeight.toFixed(1)} = +${vpScore.toFixed(1)}`);
 
         // 2) Resources
-        // [수정] 턴을 넘기거나 행동을 마쳤을 때, 주머니에 돈/광물/지식이 많이 남아있으면 그건 전부 '버려진 기회비용'입니다.
-        // 엔진을 돌리려면 자원을 써서 건물을 지었어야 함. 따라서 남은 자원은 오히려 '마이너스(-)' 가치를 매겨 쓰레기로 취급합니다. (단, 0.1의 가치만 부여해 정말 할 게 없을 땐 남기게 함)
-        const isLateGame = round >= 5;
-        const resMult = isLateGame ? w.resourceMultiplierLate : w.resourceMultiplierEarly;
-        // 초반에는 "다음 건설/업그레이드로 이어질 자원"이므로 유의미하게 가치를 준다.
-        // 후반에는 남는 자원은 효율이 떨어지므로 낮은 가중치로 둔다.
-        const oreScore = (player.ore || 0) * w.oreValue * resMult * (isLateGame ? 0.15 : 1.0);
-        const credScore = (player.credits || 0) * w.creditsValue * resMult * (isLateGame ? 0.15 : 1.0);
-        const knowScore = (player.knowledge || 0) * w.knowledgeValue * resMult * (isLateGame ? 0.15 : 1.0);
+        // [수정] 자원을 킵하는 것을 '효율적'이라고 오해하지 않도록, 쓰지 않은 잉여 자원은 0.1수준의 아주 낮은 점수만 부여
+        const oreScore = (player.ore || 0) * w.oreValue * 0.1;
+        const credScore = (player.credits || 0) * w.creditsValue * 0.1;
+        const knowScore = (player.knowledge || 0) * w.knowledgeValue * 0.1;
 
         score += oreScore + credScore + knowScore;
-
-        // "다음 턴에 할 수 있는 액션" 해금 가치: 연구(4K), 연구소(3O+5C), 광산(1O+2C) 등
-        const ore = player.ore ?? 0;
-        const cred = player.credits ?? 0;
-        const know = player.knowledge ?? 0;
-        let actionUnlockBonus = 0;
-        // 마지막 라운드(6라)에는 "다음 턴 액션 해금" 가치가 존재하지 않음.
-        if (remainingRounds > 1) {
-            if (know >= 4) actionUnlockBonus += 200; // 연구 1회 가능
-            if (ore >= 3 && cred >= 5) actionUnlockBonus += 180; // 연구소 업그레이드(TS→Lab) 가능
-            if (ore >= 1 && cred >= 2) actionUnlockBonus += 60;  // 광산 1채 가능
-            if (ore >= 2 && cred >= 3) actionUnlockBonus += 80; // 교역소 업그레이드(M→TS) 가능
-        }
-        score += actionUnlockBonus;
-        logDebug(`2) Resources: Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)} | Action-unlock: +${actionUnlockBonus.toFixed(0)}`);
+        logDebug(`2) Resources: Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)}`);
 
         const qicWeight = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
         const qicScore = (player.qic || 0) * qicWeight;
@@ -277,7 +258,8 @@ export class Evaluator {
             if (i === 0 && advancedStructuresCount === 0) {
                 tsScore += w.structureTradingStation * structMultiplier;
             } else {
-                const secondTsBase = round <= 2 ? w.structureMine - 1 : (w.structureTradingStation + w.structureMine) / 2;
+                // 교역소는 광산을 업그레이드해서 짓는 것이므로 광산보다 가치가 낮아지면 안 됨 (페널티 제거)
+                const secondTsBase = round <= 2 ? w.structureMine + 15 : (w.structureTradingStation + w.structureMine) / 2;
                 tsScore += secondTsBase * structMultiplier;
             }
         }
@@ -288,11 +270,11 @@ export class Evaluator {
         if (round <= 2) {
             if (labCount >= 1) {
                 engineBonus += 150; // 첫 연구소를 지으면 강력한 추가 점수
-                engineBonus += mineCount * 15; // 연구소를 지은 뒤에 광산을 확장하면 가점
+                engineBonus += (mineCount + tsCount) * 15; // 광산을 교역소로 올려도 페널티 없게 합산
             }
             if (piCount >= 1 || academyCount >= 1) {
                 engineBonus += 250;
-                engineBonus += mineCount * 10;
+                engineBonus += (mineCount + tsCount) * 10;
             }
         }
 

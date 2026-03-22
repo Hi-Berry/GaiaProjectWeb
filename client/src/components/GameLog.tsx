@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS } from '@shared/gameConfig';
+import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, ARTIFACTS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
 interface GameLogProps {
@@ -37,7 +37,13 @@ export function GameLog({
 
   const getTechTileImgById = (techTileId: string | null | undefined) => {
     if (!techTileId) return null;
-    return ALL_TECH_TILES.find(t => t.id === techTileId)?.image ?? null;
+    const basic = ALL_TECH_TILES.find(t => t.id === techTileId);
+    if (basic) return basic.image ?? null;
+    const advanced = ALL_ADVANCED_TECH_TILES.find(t => t.id === techTileId);
+    if (advanced) return advanced.image ?? null;
+    const ship = SHIP_TECH_TILES.find(t => t.id === techTileId);
+    if (ship) return ship.image ?? null;
+    return null;
   };
 
   const getBuildingImg = (
@@ -77,9 +83,42 @@ export function GameLog({
 
     // Tech tiles
     if (/Tech Tile|Gained Tech Tile|Advanced Tech Tile|Ship Tech/i.test(actionText) || /tech-(inc|imm|gaia|big|act)|adv-|ship-tech-/i.test(details)) {
-      const tid = details.match(/\b(tech-[a-z0-9-]+|adv-[a-z0-9-]+|ship-tech-[a-z0-9+-]+)\b/i)?.[1];
+      let tid = details.match(/\b(tech-[a-z0-9-]+|adv-[a-z0-9-]+|ship-tech-[a-z0-9+-]+)\b/i)?.[1];
+      
+      if (!tid) {
+        const allTiles = [...ALL_TECH_TILES, ...ALL_ADVANCED_TECH_TILES, ...SHIP_TECH_TILES];
+        for (const t of allTiles) {
+          if (t.label && details.includes(t.label)) {
+            tid = t.id;
+            break;
+          }
+        }
+      }
+      
       const img = getTechTileImgById(tid);
       if (img) return { src: img, alt: tid || 'Tech Tile' };
+    }
+
+    // Artifacts
+    if (/Took Artifact|Used Artifact/i.test(actionText) || /art-[a-z0-9-]+/i.test(details)) {
+      const artMatch = details.match(/\b(art-[a-z0-9-]+)\b/i);
+      if (artMatch) {
+         const artIndex = ARTIFACTS.findIndex(a => a.id === artMatch[1]);
+         if (artIndex !== -1) return { src: `/image/Art${artIndex + 1}.png`, alt: artMatch[1] };
+      }
+    }
+
+    // Federations
+    if (/Formed Federation|Gained Federation|Federation/i.test(actionText) || /fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+/i.test(details)) {
+      const fedMatch = details.match(/\b(fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+)\b/i);
+      if (fedMatch) {
+        const fedId = fedMatch[1];
+        const fedIdx = FEDERATION_REWARDS.findIndex(f => f.id === fedId);
+        if (fedIdx !== -1) return { src: `/image/Federation_${fedIdx + 1}.gif`, alt: fedId };
+        
+        const shipFedIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(f => f.id === fedId);
+        if (shipFedIdx !== -1) return { src: `/image/Federation_${shipFedIdx + 7}.gif`, alt: fedId };
+      }
     }
 
     // Buildings: "해당 종족색깔_건물"이 목표이므로 타일 타입(gaia 등)보다 플레이어 팩션 컬러 기준으로 이미지 선택

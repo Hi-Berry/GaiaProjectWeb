@@ -27,8 +27,11 @@ import {
     executeEnterSpaceship,
     executePlaceGaiaformer,
     executeTakeTwilightArtifact,
-    executeSkipTfmarsGaiaProject
-, executeEclipseBuildAsteroidMine , getPlayerRangeTiles, getStructureCount } from '../gameState';
+    executeSkipTfmarsGaiaProject,
+    executeEclipseBuildAsteroidMine,
+    getPlayerRangeTiles,
+    getStructureCount
+} from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
@@ -366,9 +369,16 @@ export class BotLogic {
                 return this.findTechTileAction(game, playerId, isSimulate);
             }
 
-            // 우주선 기술(2TF+Mine) 광산 건설 대기 중
-            if (game.pendingShipTechMine?.playerId === playerId) {
-                return this.findBuildWithPendingSteps(game, playerId);
+            // 우주선 기술(2TF+Mine) 또는 테라포밍 액션 등으로 단계가 남아있으면 반드시 건설을 완료해야 함 (다른 메인 액션 방지)
+            if (game.pendingShipTechMine?.playerId === playerId || (player.pendingTerraformSteps || 0) > 0) {
+                const pendingBuilds = this.findBuildActionsWithPendingSteps(game, playerId);
+                if (pendingBuilds.length === 1) return pendingBuilds[0];
+                if (pendingBuilds.length > 1) {
+                    log(`Bot ${player.name} must complete pending build with ${pendingBuilds.length} candidates...`, 'game', game.id);
+                    return await MCTS.search(game, playerId, pendingBuilds);
+                }
+                // 만약 건설할 곳이 없다면 강제로 넘어감 (비정상 상황 보호)
+                if (game.pendingShipTechMine?.playerId === playerId) return { type: 'advance_tech', params: { trackId: 'economy' } }; 
             }
 
             // TF Mars/보너스 가이아 프로젝트(가이아포머 배치 또는 스킵) 대기 중
@@ -398,8 +408,8 @@ export class BotLogic {
                 // 파워 액션, 보너스 액션, 우주선 액션 등으로 테라포밍 스텝이나 추가 행동을 얻었을 경우
                 // 후속 조치를 취해야 하므로 바로 턴을 종료하면 안 됨.
                 if ((player.pendingTerraformSteps || 0) > 0) {
-                    const buildWithPending = this.findBuildWithPendingSteps(game, playerId);
-                    if (buildWithPending) return buildWithPending;
+                    const builds = this.findBuildActionsWithPendingSteps(game, playerId);
+                    if (builds.length > 0) return builds[0];
                 }
 
                 // 그 외 추가 액션(예: 글린 네비게이션 보너스 사용 등 프리액션)을 할 게 있으면 수행
@@ -635,10 +645,10 @@ export class BotLogic {
             }
         }
 
-        // 2. pendingTerraformSteps가 있으면 바로 광산 건설
+        // 2. pendingTerraformSteps가 있으면 바로 광산 건설 (다른 메인 액션 차단)
         if ((player.pendingTerraformSteps || 0) > 0) {
-            const buildWithPending = this.findBuildWithPendingSteps(game, playerId);
-            if (buildWithPending) candidates.push(buildWithPending);
+            const builds = this.findBuildActionsWithPendingSteps(game, playerId);
+            return builds; // 건설이 강제되므로 여기서 바로 반환 (업그레이드 등 다른 액션 배제)
         }
 
         // 3. Ivits 우주정거장 전략
@@ -707,12 +717,13 @@ export class BotLogic {
                     // +1 스텝을 얻었을 때 지을 수 있는 후보가 있는지 가상으로 확인 (현재 보너스가 없다면)
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 1;
-                    const canBuild = this.findBuildWithPendingSteps(game, playerId);
+                    const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
+                    const bestPendingBuild = possibleBuildActions.length > 0 ? (possibleBuildActions as any[]).reduce((best, current) => (current.score > best.score ? current : best), possibleBuildActions[0]) : null;
                     player.pendingTerraformSteps = oldSteps;
-                    if (!canBuild) {
+                    if (!bestPendingBuild) {
                         shouldAdd = false;
                     } else {
-                        const targetTile = game.map.find(t => t.id === canBuild.params?.tileId);
+                        const targetTile = game.map.find(t => t.id === bestPendingBuild.params?.tileId);
                         if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) === 0) {
                             shouldAdd = false;
                         }
@@ -720,7 +731,7 @@ export class BotLogic {
                 } else if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
                     const oldTempRange = player.tempRangeBonus;
                     player.tempRangeBonus = true; // +3 range 적용 테스트
-                    const canBuildAfter = this.findBuildActions(game, playerId).length > 0 || this.findBuildWithPendingSteps(game, playerId) !== null;
+                    const canBuildAfter = this.findBuildActions(game, playerId).length > 0 || this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
                     player.tempRangeBonus = oldTempRange;
                     if (!canBuildAfter) shouldAdd = false;
                 }
@@ -1174,6 +1185,17 @@ export class BotLogic {
         return potentialNewTypes.size >= 2;
     }
 
+    /** 발타크는 가이아포머를 QIC(거리 및 가이아 행성)로 대체 사용 가능하므로 이를 포함한 가용 QIC량 계산 */
+    private static getAvailableQic(player: any): number {
+        let q = player.qic ?? 0;
+        if (player.faction === 'bal_tak') {
+            const totalGF = player.gaiaformers ?? 0;
+            const usedGF = player.balTakGaiaformersUsedForQic ?? 0;
+            q += Math.max(0, totalGF - usedGF);
+        }
+        return q;
+    }
+
     /**
      * 광산 건설 전략 (스코어링 시스템)
      * 우선순위: 모행성 > 가이아 > 파워/TF Mars 콤보 > 테라포밍
@@ -1183,7 +1205,7 @@ export class BotLogic {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
-        const qic = player.qic ?? 0;
+        const qic = this.getAvailableQic(player);
         const power3 = player.power3 ?? 0;
         const round = game.roundNumber;
 
@@ -1250,7 +1272,7 @@ export class BotLogic {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
 
-            let qicPenalty = neededQicForRange * 30;
+            let qicPenalty = neededQicForRange * 60; // 사용자 피드백: 거리(QIC) 페널티 2배 상향
             let bridgeheadBonus = 0;
 
             if (neededQicForRange > 0) {
@@ -1587,8 +1609,9 @@ export class BotLogic {
      */
     private static findGaiaformerActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
-        const availableGaiaformers = Math.max(0, (player.gaiaformers || 0) - (player.faction === 'bal_tak' ? (player.balTakGaiaformersUsedForQic || 0) : 0));
+        if (player.faction === 'bal_tak') return []; // 발타크는 가이아 프로젝트 불가
 
+        const availableGaiaformers = Math.max(0, player.gaiaformers || 0);
         if (availableGaiaformers <= 0) return [];
 
         const gaiaLevel = player.research.gaiaProject || 0;
@@ -1666,25 +1689,28 @@ export class BotLogic {
     /**
      * pendingTerraformSteps가 있을 때 광산 건설할 최적 타일 찾기
      */
-    private static findBuildWithPendingSteps(game: ServerGameState, playerId: string): BotAction | null {
+    /**
+     * pendingTerraformSteps가 있을 때 광산 건설할 후보 타일들 찾기 (복수 반환)
+     */
+    private static findBuildActionsWithPendingSteps(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
-        if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return null;
+        if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return [];
 
         const isFree = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
 
         // 무료 광산이 아니면 1o 2c가 필수. 무료면 자원 불필요.
-        if (!isFree && ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2)) return null;
-        if (!player.faction) return null;
+        if (!isFree && ((player.ore ?? 0) < 1 || (player.credits ?? 0) < 2)) return [];
+        if (!player.faction) return [];
 
         const faction = FACTIONS.find(f => f.id === player.faction);
-        if (!faction?.homePlanet) return null;
+        if (!faction?.homePlanet) return [];
         const homeType = faction.homePlanet;
 
         const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
-        if (myPlanets.length === 0) return null;
+        if (myPlanets.length === 0) return [];
 
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
         const pendingSteps = player.pendingTerraformSteps || 0;
@@ -1697,13 +1723,12 @@ export class BotLogic {
             !t.type?.startsWith('ship_')
         );
 
-        let bestTile: HexTile | null = null;
-        let bestScore = -1;
+        const scored: { action: BotAction, score: number }[] = [];
 
         for (const tile of candidates) {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQic = Math.max(0, Math.ceil((dist - range) / 2));
-            if (neededQic > (player.qic ?? 0)) continue;
+            if (neededQic > this.getAvailableQic(player)) continue;
 
             if (tile.type === 'gaia') {
                 // 가이아는 pendingSteps와 무관
@@ -1739,26 +1764,31 @@ export class BotLogic {
 
             if ((player.ore ?? 0) < oreNeeded) continue;
             if ((player.credits ?? 0) < creditsNeeded) continue;
-            if ((player.qic ?? 0) < neededQic) continue;
+            if (this.getAvailableQic(player) < neededQic) continue;
 
-            // 점수: pending으로 커버되는 실제값(actualSteps)을 줄이고(=자원 덜 들고),
+            // 점수: pending으로 커버되는 실제값(steps)을 줄이고(=자원 덜 들고),
             // 커버량이 클수록, 그리고 거리가 가까울수록 선호
-            const score = (
-                (coveredByPending > 0 ? 120 + coveredByPending * 30 : 40)
-                - actualSteps * 60
-                - (dist * 2)
+            // [개선] 사용자 피드백 반영: 거리 2배 상향(15로 대폭), 2라부터 6Ore로 마구 테라포밍하여 자원 낭비하는 현상 억제 (실제 스텝당 -200 페널티 부여)
+            let penaltyPerStep = (game.roundNumber <= 3) ? 350 : (game.roundNumber === 4 ? 200 : 80);
+            if (player.faction === 'darkanians') penaltyPerStep = 60; // 다카니안은 예외
+            
+            let score = (
+                (coveredByPending > 0 ? 150 + coveredByPending * 40 : 40)
+                - actualSteps * penaltyPerStep
+                - (dist * 15) // 거리 페널티 대폭 증가
             );
+            
+            score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+            score += this.calculateFinalMissionBonus(game, playerId, tile);
 
-            if (score > bestScore) {
-                bestScore = score;
-                bestTile = tile;
-            }
+            scored.push({
+                action: { type: 'build_mine', params: { tileId: tile.id } },
+                score
+            });
         }
 
-        if (bestTile) {
-            return { type: 'build_mine', params: { tileId: bestTile.id } };
-        }
-        return null;
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, 5).map(s => s.action);
     }
 
     /**
@@ -1799,7 +1829,7 @@ export class BotLogic {
 
         const satellites = game.satellites || {};
         const baseRange = getRange(5) + (player.navigationBonus || 0);
-        const myQic = player.qic || 0;
+        const myQic = this.getAvailableQic(player);
 
         const candidates = game.map
             .filter(t => (t.type === 'space' || t.type === 'deep_space') && t.structure === null && !t.spaceStation)
@@ -1943,6 +1973,11 @@ export class BotLogic {
                 if (level === 0 && round <= 2) score += 30;
                 break;
             case 'navigation':
+                // 발타크는 PI가 없으면 항해 트랙을 올릴 수 없음
+                if (faction === 'bal_tak') {
+                    const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (!hasPI) return -1000;
+                }
                 score += (6 - level) * 10;
                 // [동적 분석] 항해를 올렸을 때 새로 닿는 행성이 있는가?
                 const currentRange = BotLogic.getEffectiveBaseRange(player);
@@ -1975,6 +2010,8 @@ export class BotLogic {
             case 'gaiaProject':
                 score += (6 - level) * 8;
                 if (faction === 'terran' || faction === 'itars') score += 40;
+                // [사용자 피드백] 발타크는 가이아포머가 곧 QIC(거리 및 가이아행성 확장력)이므로 가이아 포머 트랙을 최우선으로 올림
+                if (faction === 'bal_tak') score += 120;
                 break;
             case 'economy':
                 score += (6 - level) * 20; // 상향 (15 -> 20)
@@ -2372,11 +2409,12 @@ export class BotLogic {
                 case 'gain-1-step': {
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 1;
-                    const canBuild = this.findBuildWithPendingSteps(game, playerId);
+                    const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
+                    const bestPendingBuild = possibleBuildActions.length > 0 ? possibleBuildActions[0] : null;
                     player.pendingTerraformSteps = oldSteps;
                     let validTarget = false;
-                    if (canBuild) {
-                        const targetTile = game.map.find(t => t.id === canBuild.params?.tileId);
+                    if (bestPendingBuild && (bestPendingBuild as any).type === 'build_mine') {
+                        const targetTile = game.map.find(t => t.id === (bestPendingBuild as any).params?.tileId);
                         if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0) validTarget = true;
                     }
                     if (!validTarget) {
@@ -2411,11 +2449,12 @@ export class BotLogic {
                 case 'gain-2-steps': {
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 2;
-                    const canBuild = this.findBuildWithPendingSteps(game, playerId);
+                    const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
+                    const bestPendingBuild = possibleBuildActions.length > 0 ? possibleBuildActions[0] : null;
                     player.pendingTerraformSteps = oldSteps;
                     let validTarget = false;
-                    if (canBuild) {
-                        const targetTile = game.map.find(t => t.id === canBuild.params?.tileId);
+                    if (bestPendingBuild && (bestPendingBuild as any).type === 'build_mine') {
+                        const targetTile = game.map.find(t => t.id === (bestPendingBuild as any).params?.tileId);
                         if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0) validTarget = true;
                     }
                     if (!validTarget) {
@@ -2446,11 +2485,16 @@ export class BotLogic {
         }
 
         if (scored.length === 0) return [];
-        scored.sort((a, b) => b.score - a.score);
+        
+        // Filter out actions with negative scores (like -1000 for invalid targets)
+        const validActions = scored.filter(s => s.score >= 0);
+        if (validActions.length === 0) return [];
+        
+        validActions.sort((a, b) => b.score - a.score);
         // 상위 3개 후보 반환
         const useBrain = player.faction === 'taklons';
         // 상위 5개 후보 반환하여 파워 액션 탐색 다양화
-        return scored.slice(0, 5).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
+        return validActions.slice(0, 5).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
     }
 
     private static findEssentialConversions(game: ServerGameState, playerId: string): BotAction[] {
@@ -3019,6 +3063,12 @@ export class BotLogic {
         if (player.faction === 'gleens' && !player.usedSpecialActions?.includes('gleens-2nav')) {
             res.push({ type: 'use_special_action', params: { actionId: 'gleens-2nav' } });
         }
+        if (player.faction === 'space_giants' && !player.usedSpecialActions?.includes('space_giants-2tf')) {
+            res.push({ type: 'use_special_action', params: { actionId: 'space_giants-2tf' } });
+        }
+        if (player.faction === 'tinkeroids' && player.tinkeroidRoundSpecialId && !player.usedSpecialActions?.includes('tinkeroid-special')) {
+            res.push({ type: 'use_special_action', params: { actionId: player.tinkeroidRoundSpecialId } });
+        }
 
         // Academy right action (getAcademyRightCount is in gameState.ts)
         const hasRightAcademy = game.map.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right');
@@ -3034,14 +3084,15 @@ export class BotLogic {
                 if (tile.specialAction === 'terraform_step') {
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 1;
-                    const possibleBuild = this.findBuildWithPendingSteps(game, playerId);
+                    const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
+                    const bestPendingBuild = possibleBuildActions.length > 0 ? (possibleBuildActions as any[]).reduce((best, current) => (current.score > best.score ? current : best), possibleBuildActions[0]) : null;
                     player.pendingTerraformSteps = oldSteps;
 
-                    if (!possibleBuild) {
+                    if (!bestPendingBuild) {
                         shouldAdd = false;
                     } else {
                         // 만약 보너스를 썼는데도 모행성(steps=0)밖에 지을 데가 없다면 굳이 보너스를 쓸 이유가 없음
-                        const targetTile = game.map.find(t => t.id === possibleBuild.params?.tileId);
+                        const targetTile = game.map.find(t => t.id === bestPendingBuild.params?.tileId);
                         if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) === 0) {
                             shouldAdd = false;
                         }
@@ -3049,7 +3100,7 @@ export class BotLogic {
                 } else if (tile.specialAction === 'range_3' && !player.rangeBonusActive) {
                     const oldTempRange = player.tempRangeBonus;
                     player.tempRangeBonus = true;
-                    if (this.findBuildActions(game, playerId).length === 0 && !this.findBuildWithPendingSteps(game, playerId)) shouldAdd = false;
+                    if (this.findBuildActions(game, playerId).length === 0 && this.findBuildActionsWithPendingSteps(game, playerId).length === 0) shouldAdd = false;
                     player.tempRangeBonus = oldTempRange;
                 }
                 if (shouldAdd) {

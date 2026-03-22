@@ -1537,6 +1537,7 @@ export function helperFinishAfterGaiaformerPhase(io: SocketIOServer, game: GaiaG
 			mapState: JSON.parse(JSON.stringify(game.map)),
 			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 			gameLogLength: game.gameLog?.length || 0,
+			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 		};
 	}
 	clampPlayerResources(game);
@@ -4013,6 +4014,8 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	const techTile = ALL_TECH_TILES.find(t => t.id === techTileId) || SHIP_TECH_TILES.find(t => t.id === techTileId);
 	if (!techTile) return;
 
+	let alreadyLogged = false;
+
 	// 이미 해당 종류의 기술 타일을 가지고 있다면 획득 불가
 	if (player.techTiles.includes(techTileId)) {
 		log(`Player ${player.name} already owns tech tile ${techTileId}. Cannot gain again.`, 'game', undefined, { simulation: (game as any).simulation });
@@ -4075,13 +4078,15 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			if (canAdvance) {
 				player.research[track]++;
 				const levelNow = player.research[track];
+				const tileLabel = techTile.label || techTileId;
 				if (isRebellionGainTrack) {
-					addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${techTileId}, ${track} → Lv.${levelNow}`);
-					log(`Player ${player.name} (Rebellion) gained tech tile ${techTileId} and advanced ${track} to level ${levelNow}`, 'game', undefined, { simulation: (game as any).simulation });
+					addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${tileLabel}, ${track} → Lv.${levelNow}`);
+					log(`Player ${player.name} (Rebellion) gained tech tile ${tileLabel} and advanced ${track} to level ${levelNow}`, 'game', undefined, { simulation: (game as any).simulation });
 				} else {
-					addGameLog(game, playerId, 'Gained Tech Tile', `${techTileId} and advanced ${track} to L${levelNow}`);
-					log(`Player ${player.name} gained tech tile ${techTileId} and advanced ${track} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
+					addGameLog(game, playerId, 'Gained Tech Tile', `${tileLabel} and advanced ${track} to L${levelNow}`);
+					log(`Player ${player.name} gained tech tile ${tileLabel} and advanced ${track} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
+				alreadyLogged = true;
 				applyTrackLevelBonus(game, playerId, player, track, levelNow);
 				applyRoundMissionScore(game, playerId, 'research_track');
 			} else if (isRebellionGainTrack) {
@@ -4111,12 +4116,13 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			player.research[selectedTrack]++;
 			const newLevel = player.research[selectedTrack];
 			if (isRebellionGain) {
-				addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${techTileId} from pool, ${selectedTrack} → Lv.${newLevel}`);
-				log(`Player ${player.name} (Rebellion) gained tech tile ${techTileId} from pool and advanced ${selectedTrack} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
+				addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${techTile.label || techTileId} from pool, ${selectedTrack} → Lv.${newLevel}`);
+				log(`Player ${player.name} (Rebellion) gained tech tile ${techTile.label || techTileId} from pool and advanced ${selectedTrack} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			} else {
-				addGameLog(game, playerId, 'Gained Tech Tile', `${techTileId} from pool and advanced ${selectedTrack} to L${newLevel}`);
-				log(`Player ${player.name} gained tech tile ${techTileId} from pool and advanced ${selectedTrack} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
+				addGameLog(game, playerId, 'Gained Tech Tile', `${techTile.label || techTileId} from pool and advanced ${selectedTrack} to L${newLevel}`);
+				log(`Player ${player.name} gained tech tile ${techTile.label || techTileId} from pool and advanced ${selectedTrack} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			}
+			alreadyLogged = true;
 			applyTrackLevelBonus(game, playerId, player, selectedTrack, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
 			applyAdvancedTechTileEffect(game, playerId, 'research'); // 기술 타일 획득 시 전진에 따른 고급 기술 보너스 누락 해결
@@ -4156,8 +4162,8 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		player.knowledge += planetTypes.size;
 		addGameLog(game, playerId, 'Gained Tech Tile', `tech-imm-1k-planet: +${planetTypes.size} Knowledge`);
 		log(`Player ${player.name} gained ${planetTypes.size} Knowledge from tech tile (${planetTypes.size} planet types)`, 'game', undefined, { simulation: (game as any).simulation });
-	} else {
-		addGameLog(game, playerId, 'Gained Tech Tile', techTileId);
+	} else if (!alreadyLogged) {
+		addGameLog(game, playerId, 'Gained Tech Tile', techTile.label || techTileId);
 	}
 
 	// 아이타 의회: 기술 타일 선택 후 남은 가이아포머 토큰 처리 (4개 이상이면 다시 묻기, 아니면 1그릇 복귀 후 진행)
@@ -5458,6 +5464,7 @@ export function executePassRound(
 				mapState: JSON.parse(JSON.stringify(game.map)),
 				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
 				gameLogLength: game.gameLog?.length || 0,
+				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
 			};
 		}
 

@@ -3143,7 +3143,6 @@ export default function Game() {
                   if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) return true;
                   if (p.faction === 'bal_tak') {
                     if ((p.balTakGaiaformersUsedForQic ?? 0) > 0) return true;
-                    if (canDoMainForDetail && (p.gaiaformers ?? 0) > 0) return true;
                   }
                   return false;
                 })();
@@ -3639,17 +3638,6 @@ export default function Game() {
                                       <span key="bal_tak-qic-info" className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold cursor-help" title="포머를 QIC 대신 사용한 누적 횟수">
                                         포머→QIC:{p.balTakGaiaformersUsedForQic}회
                                       </span>
-                                    );
-                                  }
-                                  if (canDoMain && (p.gaiaformers ?? 0) > 0) {
-                                    actionNodes.push(
-                                      <button
-                                        key="bal_tak-to-qic-btn"
-                                        onClick={(e) => { e.stopPropagation(); if (gameId) GameClient.useBalTakGaiaformerToQic(gameId); }}
-                                        className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border-emerald-500/30 font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
-                                      >
-                                        포머→QIC 수동변환
-                                      </button>
                                     );
                                   }
                                 }
