@@ -363,7 +363,7 @@ function canBalTakAdvanceNavigation(game: GaiaGameState, playerId: string): bool
 }
 
 /** 사용 가능한 가이아 포머 수 (발타크: QIC 전환으로 잠긴 포머 제외, 다음 라운드에 복귀) */
-function getEffectiveGaiaformers(player: PlayerState): number {
+export function getEffectiveGaiaformers(player: PlayerState): number {
 	const total = player.gaiaformers ?? 0;
 	if (player.faction !== 'bal_tak') return total;
 	const locked = player.balTakGaiaformersUsedForQic ?? 0;
@@ -2834,19 +2834,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_bal_tak_gaiaformer_to_qic', ({ gameId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const player = game.players[playerId];
-			if (player?.faction !== 'bal_tak') return;
-			if (getEffectiveGaiaformers(player) < 1) return;
-
-			if (!game.freeActionUndoState) {
-				game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
-			}
-
-			player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
-			grantQic(game, playerId, 1);
-			addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", '1 포머 사용 (다음 라운드까지 복귀)', undefined);
-			log(`Player ${player.name} (Bal T'aks) used 1 Gaiaformer for 1 QIC (locked until next round)`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
 
 		socket.on('convert_resource', ({ gameId, type, useBrain }) => {
@@ -5804,18 +5792,47 @@ export function executePlaceIvitsSpaceStation(
 	return true;
 }
 
+/**
+ * pending 없이 “지금 상태에서 이클립스 6C 직후 질 수 있는” 소행성 (봇이 액션 시도 전 검증용).
+ * 조건은 executeEclipseBuildAsteroidMine과 동일: Nav(+navigationBonus)만, 임시 네비 보너스 없음.
+ */
+export function peekEclipseAsteroidMineTileIds(game: ServerGameState, playerId: string): string[] {
+	const player = game.players[playerId];
+	if (!player) return [];
+	const rangeTiles = getPlayerRangeTiles(game, playerId);
+	if (rangeTiles.length === 0) return [];
+	const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+	const out: string[] = [];
+	for (const tile of game.map) {
+		if (tile.type !== 'asteroid' || tile.structure !== null) continue;
+		const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+		if (minDist <= baseRange) out.push(tile.id);
+	}
+	return out;
+}
+
+/**
+ * Eclipse 6C 후 소행성 광산 배치 가능 타일 (executeEclipseBuildAsteroidMine과 동일 조건).
+ */
+export function getLegalEclipseAsteroidMineTileIds(game: ServerGameState, playerId: string): string[] {
+	const pending = game.pendingEclipseAsteroidMine;
+	if (!pending || pending.playerId !== playerId) return [];
+	return peekEclipseAsteroidMineTileIds(game, playerId);
+}
+
 /** Bot용: 우주선 액션 실행. 소켓 use_ship_action과 동일 로직 (Twilight/Rebellion/TF Mars/Eclipse 전액션). */
 
 export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string): boolean {
 	const pending = game.pendingEclipseAsteroidMine;
 	if (!pending || pending.playerId !== playerId) return false;
 	const player = game.players[playerId];
+	if (!player) return false;
 	const tile = game.map.find(t => t.id === tileId);
 	if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return false;
-	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
+	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) return false;
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+	const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
 	if (minDist > baseRange) return false;
 	const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 	tile.structure = 'mine';
@@ -6550,6 +6567,30 @@ export function executeBotFederation(
 	io.to(game.id).emit('game_updated', game);
 	return true;
 }
+
+/** 발타크: 가이아포머 1개 → QIC 1 (프리 액션). 봇/소켓 공용. */
+export function executeBalTakGaiaformerToQic(
+	io: SocketIOServer,
+	game: ServerGameState,
+	playerId: string
+): boolean {
+	const player = game.players[playerId];
+	if (!player || player.faction !== 'bal_tak') return false;
+	if (getEffectiveGaiaformers(player) < 1) return false;
+
+	if (!game.freeActionUndoState) {
+		game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
+	}
+
+	player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
+	grantQic(game, playerId, 1);
+	addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", '1 포머 사용 (다음 라운드까지 복귀)', undefined);
+	log(`Player ${player.name} (Bal T'aks) used 1 Gaiaformer for 1 QIC (locked until next round)`, 'game', undefined, { simulation: (game as any).simulation });
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 /** 자원 변환 (Free Action) */
 export function executeConvertResource(
 	io: SocketIOServer,

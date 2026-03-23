@@ -29,8 +29,12 @@ import {
     executeTakeTwilightArtifact,
     executeSkipTfmarsGaiaProject,
     executeEclipseBuildAsteroidMine,
+    getLegalEclipseAsteroidMineTileIds,
+    peekEclipseAsteroidMineTileIds,
     getPlayerRangeTiles,
-    getStructureCount
+    getStructureCount,
+    executeBalTakGaiaformerToQic,
+    getEffectiveGaiaformers
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -81,7 +85,8 @@ type BotAction = {
     | 'use_bonus_action'
     | 'place_gaiaformer'
     | 'take_twilight_artifact'
-    | 'skip_tfmars_gaia_project';
+    | 'skip_tfmars_gaia_project'
+    | 'bal_tak_gaiaformer_to_qic';
     params: any;
     /** 프리 액션을 먼저 실행한 뒤 메인 액션 (예: 2O→2토큰 후 연방) */
     preActions?: BotAction[];
@@ -200,10 +205,18 @@ export class BotLogic {
             }
             if (actionIndex === 2) {
                 if ((player.power3 ?? 0) < 2) return false;
-                return (player.gaiaformers ?? 0) > 0;
+                if ((player.gaiaformers ?? 0) <= 0) return false;
+                // 2P→가이아 프로젝트(즉시 포밍) 후 이어질 가이아포머 배치가 실제로 가능해야 함
+                return this.findGaiaformerActions(game, playerId).length > 0;
             }
             if (actionIndex === 3) {
-                return (player.credits ?? 0) >= 3;
+                if ((player.credits ?? 0) < 3) return false;
+                // 3C→1스텝 후 광산: 연계 체인이므로 Nav+영구만(임시 네비 미포함, findBuildActionsWithPendingSteps와 동일)
+                const oldSteps = player.pendingTerraformSteps || 0;
+                player.pendingTerraformSteps = oldSteps + 1;
+                const canFinish = this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
+                player.pendingTerraformSteps = oldSteps;
+                return canFinish;
             }
             return false;
         }
@@ -217,7 +230,8 @@ export class BotLogic {
                 return (player.knowledge ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
             }
             if (actionIndex === 3) {
-                return (player.credits ?? 0) >= 6;
+                if ((player.credits ?? 0) < 6) return false;
+                return peekEclipseAsteroidMineTileIds(game, playerId).length > 0;
             }
             return false;
         }
@@ -226,6 +240,15 @@ export class BotLogic {
     }
 
     static async performAction(io: SocketIOServer, game: ServerGameState, action: BotAction, playerId: string): Promise<boolean> {
+        const nested = (action as any).preActions as BotAction[] | undefined;
+        if (nested?.length) {
+            for (const pre of nested) {
+                const ok = await this.performAction(io, game, pre, playerId);
+                if (!ok) return false;
+            }
+            return this.performAction(io, game, { type: action.type, params: action.params } as BotAction, playerId);
+        }
+
         switch (action.type) {
             case 'build_mine':
                 return executeBuildMine(io, game, playerId, action.params.tileId);
@@ -318,6 +341,8 @@ export class BotLogic {
                 return executeUseSpecialAction(io, game, playerId, action.params.actionId);
             case 'use_bonus_action':
                 return executeUseBonusAction(io, game, playerId);
+            case 'bal_tak_gaiaformer_to_qic':
+                return executeBalTakGaiaformerToQic(io, game, playerId);
             default:
                 console.warn(`Unknown bot action type: ${action.type}`);
                 return false;
@@ -566,8 +591,8 @@ export class BotLogic {
             return [];
         }
 
-        // 이미 메인 액션을 수행했더라도 pendingShipTechMine 상태면 광산 건설이 강제됨
-        if (game.hasDoneMainAction && !game.pendingShipTechMine) {
+        // 이미 메인 액션을 수행했더라도 pendingShipTechMine / Eclipse 소행성 대기면 후속 조치 필요
+        if (game.hasDoneMainAction && !game.pendingShipTechMine && !game.pendingEclipseAsteroidMine) {
             return [{ type: 'end_turn', params: {} }];
         }
 
@@ -618,6 +643,12 @@ export class BotLogic {
                 candidates.push({ type: 'select_tech_tile', params: { techTileId: tile.id, trackId } });
             }
             return candidates; // 기술 타일 선택 대기 중이면 다른 액션은 못함
+        }
+
+        // Eclipse 6C 후 소행성 광산: 합법 타일만 (MCTS/시뮬과 서버 일치)
+        if (game.pendingEclipseAsteroidMine?.playerId === playerId) {
+            const eclipseIds = getLegalEclipseAsteroidMineTileIds(game, playerId);
+            return eclipseIds.map(tileId => ({ type: 'eclipse_build_asteroid_mine', params: { tileId } }));
         }
 
         // 1. 연방 구성 (가장 중요)
@@ -729,10 +760,10 @@ export class BotLogic {
                         }
                     }
                 } else if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
-                    const oldTempRange = player.tempRangeBonus;
-                    player.tempRangeBonus = true; // +3 range 적용 테스트
+                    const oldR = player.rangeBonusActive;
+                    player.rangeBonusActive = true; // 보너스 타일 +3 range(서버 executeUseBonusAction과 동일)
                     const canBuildAfter = this.findBuildActions(game, playerId).length > 0 || this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
-                    player.tempRangeBonus = oldTempRange;
+                    player.rangeBonusActive = oldR;
                     if (!canBuildAfter) shouldAdd = false;
                 }
 
@@ -1185,7 +1216,23 @@ export class BotLogic {
         return potentialNewTypes.size >= 2;
     }
 
-    /** 발타크는 가이아포머를 QIC(거리 및 가이아 행성)로 대체 사용 가능하므로 이를 포함한 가용 QIC량 계산 */
+    /**
+     * 발타크: 미사용 가이아포머를 QIC로 쓸 수 있으나, 서버는 **별도 소켓(use_bal_tak_gaiaformer_to_qic)** 으로만 전환.
+     * executeBuildMine은 **player.qic 숫자만** 거리 QIC로 차감하므로, 광산 거리 후보 필터에는 가이아포머를 넣으면 안 됨.
+     */
+    private static getSpendableQicForMineBuild(player: any): number {
+        return player.qic ?? 0;
+    }
+
+    /** 발타크: 지갑 QIC를 넘어서 필요한 QIC만큼 GF→QIC 프리액션 배열 (앞에서부터 실행) */
+    private static balTakGaiaformerPreActionsForQicShortfall(player: PlayerState, walletQic: number, totalQicNeeded: number): BotAction[] {
+        if (player.faction !== 'bal_tak') return [];
+        const n = Math.max(0, totalQicNeeded - walletQic);
+        if (n <= 0) return [];
+        return Array.from({ length: n }, () => ({ type: 'bal_tak_gaiaformer_to_qic' as const, params: {} }));
+    }
+
+    /** 잊혀진 행성 등 가이아포머→QIC 전환이 앞에 붙을 수 있는 흐름용(발타크 가상 QIC 포함) */
     private static getAvailableQic(player: any): number {
         let q = player.qic ?? 0;
         if (player.faction === 'bal_tak') {
@@ -1197,6 +1244,43 @@ export class BotLogic {
     }
 
     /**
+     * executeBuildMine 표준 광산의 거리·QIC 계산과 동일하게: Nav + 임시 네비 보너스(소모 없이 peek).
+     * 이클립스 6C에는 쓰지 않음(규칙상 임시 보너스 비적용).
+     */
+    private static getEffectiveNavRangeForStandardMine(player: PlayerState): number {
+        return getRange(player.research?.navigation || 0) + (player.navigationBonus || 0)
+            + (player.tempRangeBonus ? 3 : 0)
+            + (player.rangeBonusActive ? 3 : 0)
+            + (player.gleensNavBonusActive ? 2 : 0);
+    }
+
+    /**
+     * 파워 1·2스텝, 스페이스 자이언트 +2TF, 보너스 1스텝, TF 3C→스텝 등 **연계로 이어지는 광산** 거리.
+     * 이클립스 6C와 동일하게: Nav + 영구 navigationBonus 만. 글린+2, 보너스+3, 우주선 임시+3 등은 섞지 않음.
+     */
+    private static getStrictTerraformChainNavRange(player: PlayerState): number {
+        return getRange(player.research?.navigation || 0) + (player.navigationBonus || 0);
+    }
+
+    /** extraPending만큼 스텝을 더 얹었을 때 해당 타일에 광산 건설이 가능한지(연계 액션 검증) */
+    private static canCompleteMineOnTileAfterExtraPending(
+        game: ServerGameState,
+        playerId: string,
+        tileId: string,
+        extraPending: number
+    ): boolean {
+        const player = game.players[playerId];
+        if (!player) return false;
+        const old = player.pendingTerraformSteps || 0;
+        player.pendingTerraformSteps = old + extraPending;
+        const ok = this.findBuildActionsWithPendingSteps(game, playerId).some(
+            a => (a as any).params?.tileId === tileId
+        );
+        player.pendingTerraformSteps = old;
+        return ok;
+    }
+
+    /**
      * 광산 건설 전략 (스코어링 시스템)
      * 우선순위: 모행성 > 가이아 > 파워/TF Mars 콤보 > 테라포밍
      * QIC 소모는 최대 1로 제한
@@ -1205,11 +1289,23 @@ export class BotLogic {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
-        const qic = this.getAvailableQic(player);
+        const walletQic = this.getSpendableQicForMineBuild(player);
+        const maxPayQicForMine =
+            player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic;
+
+        /** 발타크 GF→QIC 프리액션 후 (선택) 파워/우주선 프리액션, 마지막에 광산 */
+        const buildMineAction = (tileId: string, qicTotalForBalTak: number, ...extraPres: BotAction[]): BotAction => {
+            const bal = this.balTakGaiaformerPreActionsForQicShortfall(player, walletQic, qicTotalForBalTak);
+            const pres = [...bal, ...extraPres];
+            return pres.length
+                ? { type: 'build_mine', params: { tileId }, preActions: pres }
+                : { type: 'build_mine', params: { tileId } };
+        };
+
         const power3 = player.power3 ?? 0;
         const round = game.roundNumber;
 
-        // 광산 상한(8) 도달 시 광산/파워콤보(3P→스텝 후 광산) 후보를 만들지 않음 — preAction만 실행되고 build_mine 실패하는 버그 방지
+        // 광산 상한(8) 도달 시 광산/파워콤보(3P→스텝 후 광산) 후보를 만들지 않음 — 프리액션만 실행되고 build_mine 실패하는 버그 방지
         if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
             const alt = this.findAlternativeBuildAction(game, playerId);
             return alt ? [alt] : [];
@@ -1232,7 +1328,7 @@ export class BotLogic {
         );
         if (myPlanets.length === 0) return [];
 
-        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+        const range = this.getEffectiveNavRangeForStandardMine(player);
         const tfLevel = player.research.terraforming ?? 0;
         const pendingSteps = player.pendingTerraformSteps || 0;
         const canResearch = (player.knowledge ?? 0) >= 4;
@@ -1263,7 +1359,6 @@ export class BotLogic {
             tile: HexTile;
             score: number;
             action: BotAction;
-            preAction?: BotAction; // 파워 액션/TF Mars 등 선행 액션
         }
 
         const scored: ScoredCandidate[] = [];
@@ -1321,8 +1416,8 @@ export class BotLogic {
             }
 
             // QIC 소모 제한 해제: QIC만 충분하다면 3거리, 4거리(QIC 3~4 소모) 점프도 교두보 가치가 높으면 시도 가능하도록 허용
-            // 단, 자신이 가진 QIC를 초과하면 당연히 불가.
-            if (neededQicForRange > qic) continue;
+            // 발타크: 가용 가이아포머만큼 지갑 QIC 이전에 GF→QIC 프리액션으로 보충 가능
+            if (neededQicForRange > maxPayQicForMine) continue;
 
             // 정책: 이번 턴에 Nav를 올릴 가능성이 높다면(지식>=4이고 navigation이 최우선 트랙),
             // Nav 업그레이드로 QIC 소모를 줄일 수 있는 타일에 대해 QIC 점프 광산을 미리 짓지 않게 한다.
@@ -1351,9 +1446,9 @@ export class BotLogic {
 
                 if (isGleens) {
                     if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
-                    if (totalQicNeeded > qic) continue;
+                    if (totalQicNeeded > maxPayQicForMine) continue;
                 } else {
-                    if (totalQicNeeded > qic) continue;
+                    if (totalQicNeeded > maxPayQicForMine) continue;
                     if (totalQicNeeded > 4) continue; // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용
                 }
 
@@ -1373,7 +1468,7 @@ export class BotLogic {
                 scored.push({
                     tile,
                     score,
-                    action: { type: 'build_mine', params: { tileId: tile.id } }
+                    action: buildMineAction(tile.id, totalQicNeeded)
                 });
                 continue;
             }
@@ -1401,7 +1496,7 @@ export class BotLogic {
                     scored.push({
                         tile,
                         score,
-                        action: { type: 'build_mine', params: { tileId: tile.id } }
+                        action: buildMineAction(tile.id, neededQicForRange)
                     });
                     continue;
                 }
@@ -1437,32 +1532,36 @@ export class BotLogic {
                 scored.push({
                     tile,
                     score,
-                    action: { type: 'build_mine', params: { tileId: tile.id } }
+                    action: buildMineAction(tile.id, neededQicForRange)
                 });
                 continue;
             }
 
-            // 파워 액션 콤보: 3P→1삽 (gain-1-step, cost 3P)
+            // 파워 액션 콤보: 3P→1삽 (gain-1-step, cost 3P) — 이어서 이 타일에 광산 가능할 때만
             if (remainingSteps === 1) {
                 const stepAction = game.powerActions.find(a => a.id === 'gain-1-step' && !a.isUsed);
-                if (stepAction) {
+                if (stepAction && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {
                     if (power3 >= 3) {
                         scored.push({
                             tile,
                             score: 70 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            preAction: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } },
-                            action: { type: 'build_mine', params: { tileId: tile.id } }
+                            action: buildMineAction(tile.id, neededQicForRange, {
+                                type: 'use_power_action',
+                                params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }
+                            })
                         });
                         continue;
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 3) {
                         scored.push({
                             tile,
                             score: 69 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            preAction: {
+                            action: buildMineAction(tile.id, neededQicForRange, {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
-                            },
-                            action: { type: 'use_power_action', params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' } }
+                            }, {
+                                type: 'use_power_action',
+                                params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }
+                            })
                         });
                         continue;
                     }
@@ -1472,42 +1571,48 @@ export class BotLogic {
             // 파워 액션 콤보: 5P→2삽 (gain-2-steps, cost 5P)
             if (remainingSteps <= 2) {
                 const stepAction = game.powerActions.find(a => a.id === 'gain-2-steps' && !a.isUsed);
-                if (stepAction) {
+                if (stepAction && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 2)) {
                     if (power3 >= 5) {
                         scored.push({
                             tile,
                             score: 60 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            preAction: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } },
-                            action: { type: 'build_mine', params: { tileId: tile.id } }
+                            action: buildMineAction(tile.id, neededQicForRange, {
+                                type: 'use_power_action',
+                                params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }
+                            })
                         });
                         continue;
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         scored.push({
                             tile,
                             score: 59 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            preAction: {
+                            action: buildMineAction(tile.id, neededQicForRange, {
                                 type: 'burn_power',
                                 params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
-                            },
-                            action: { type: 'use_power_action', params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' } }
+                            }, {
+                                type: 'use_power_action',
+                                params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }
+                            })
                         });
                         continue;
                     }
                 }
             }
 
-            // TF Mars 우주선 3번 액션: 3C→1삽 (free action)
+            // TF Mars 우주선 3번 액션: 3C→1삽 — 이 타일에 이어서 광산 가능할 때만
             if (remainingSteps === 1 && credits >= (2 + 3)) { // 2C(mine) + 3C(TF Mars)
                 const tfMarsShip = this.findPlayerShip(game, playerId, 'ship_tf_mars');
                 if (tfMarsShip) {
                     const shipState = game.spaceships?.[tfMarsShip.id];
                     const usedActions = shipState?.usedActionIndices ?? [];
-                    if (!usedActions.includes(3)) {
+                    if (!usedActions.includes(3) && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {
                         scored.push({
                             tile,
                             score: 65 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            preAction: { type: 'use_ship_action', params: { shipTileId: tfMarsShip.id, actionIndex: 3 } },
-                            action: { type: 'build_mine', params: { tileId: tile.id } }
+                            action: buildMineAction(tile.id, neededQicForRange, {
+                                type: 'use_ship_action',
+                                params: { shipTileId: tfMarsShip.id, actionIndex: 3 }
+                            })
                         });
                         continue;
                     }
@@ -1565,7 +1670,7 @@ export class BotLogic {
                     scored.push({
                         tile,
                         score,
-                        action: { type: 'build_mine', params: { tileId: tile.id } }
+                        action: buildMineAction(tile.id, neededQicForRange)
                     });
                 }
             }
@@ -1589,7 +1694,7 @@ export class BotLogic {
         const seenActions = new Set<string>();
 
         for (const s of scored.slice(0, 8)) { // 더 다양한 광산 후보를 고려하도록 상향 (5->8)
-            const act = s.preAction || s.action;
+            const act = s.action;
             const key = JSON.stringify(act);
             if (!seenActions.has(key)) {
                 seenActions.add(key);
@@ -1632,7 +1737,10 @@ export class BotLogic {
         );
         if (myPlanets.length === 0) return [];
 
-        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0) + (player.tempRangeBonus ? 3 : 0) + (player.rangeBonusActive ? 3 : 0) + (player.gleensNavBonusActive ? 2 : 0);
+        // TF Mars 2P·보너스 즉시 포밍 등 "무료 가이아 프로젝트" 연계는 이클립스와 같이 임시 네비 미적용
+        const range = isFreeProject
+            ? this.getStrictTerraformChainNavRange(player)
+            : this.getEffectiveNavRangeForStandardMine(player);
         const qic = player.qic || 0;
 
         const candidates = game.map.filter(t => t.type === 'transdim' && !t.structure && !t.hasGaiaformer);
@@ -1669,14 +1777,7 @@ export class BotLogic {
                 const shipState = game.spaceships?.[eclipseShip.id];
                 const usedActions = shipState?.usedActionIndices ?? [];
                 if (!usedActions.includes(3)) {
-                    // 범위 내 빈 소행성이 있는지 확인 (우주선 제외)
-                    const rangeTiles = getPlayerRangeTiles(game, playerId, true);
-                    const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-                    const asteroid = game.map.find(t =>
-                        t.type === 'asteroid' && !t.ownerId && t.structure === null &&
-                        Math.min(...rangeTiles.map((p: any) => getDistance(p, t))) <= range
-                    );
-                    if (asteroid) {
+                    if (peekEclipseAsteroidMineTileIds(game, playerId).length > 0) {
                         return { type: 'use_ship_action', params: { shipTileId: eclipseShip.id, actionIndex: 3 } };
                     }
                 }
@@ -1696,6 +1797,10 @@ export class BotLogic {
         const player = game.players[playerId];
         if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return [];
 
+        const walletQic = this.getSpendableQicForMineBuild(player);
+        const maxPayQicForMine =
+            player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic;
+
         const isFree = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
 
         // 무료 광산이 아니면 1o 2c가 필수. 무료면 자원 불필요.
@@ -1712,7 +1817,7 @@ export class BotLogic {
         );
         if (myPlanets.length === 0) return [];
 
-        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+        const range = this.getStrictTerraformChainNavRange(player);
         const pendingSteps = player.pendingTerraformSteps || 0;
 
         // pendingSteps로 커버 가능한 행성 중 최적 선택
@@ -1728,7 +1833,7 @@ export class BotLogic {
         for (const tile of candidates) {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQic = Math.max(0, Math.ceil((dist - range) / 2));
-            if (neededQic > this.getAvailableQic(player)) continue;
+            if (neededQic > maxPayQicForMine) continue;
 
             if (tile.type === 'gaia') {
                 // 가이아는 pendingSteps와 무관
@@ -1764,7 +1869,6 @@ export class BotLogic {
 
             if ((player.ore ?? 0) < oreNeeded) continue;
             if ((player.credits ?? 0) < creditsNeeded) continue;
-            if (this.getAvailableQic(player) < neededQic) continue;
 
             // 점수: pending으로 커버되는 실제값(steps)을 줄이고(=자원 덜 들고),
             // 커버량이 클수록, 그리고 거리가 가까울수록 선호
@@ -1781,8 +1885,12 @@ export class BotLogic {
             score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
             score += this.calculateFinalMissionBonus(game, playerId, tile);
 
+            const balPres = this.balTakGaiaformerPreActionsForQicShortfall(player, walletQic, neededQic);
             scored.push({
-                action: { type: 'build_mine', params: { tileId: tile.id } },
+                action:
+                    balPres.length > 0
+                        ? { type: 'build_mine', params: { tileId: tile.id }, preActions: balPres }
+                        : { type: 'build_mine', params: { tileId: tile.id } },
                 score
             });
         }
@@ -1794,20 +1902,29 @@ export class BotLogic {
     /**
      * Eclipse 소행성 광산 타겟 선택 (pendingEclipseAsteroidMine 상태에서)
      */
-    private static findEclipseAsteroidTarget(game: ServerGameState, playerId: string): BotAction | null {
-        const player = game.players[playerId];
-        const rangeTiles = getPlayerRangeTiles(game, playerId, true); // true excludes spaceships
-        const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-
-        const asteroid = game.map.find(t =>
-            t.type === 'asteroid' && !t.ownerId && t.structure === null &&
-            Math.min(...rangeTiles.map((p: any) => getDistance(p, t))) <= range
-        );
-
-        if (asteroid) {
-            return { type: 'eclipse_build_asteroid_mine', params: { tileId: asteroid.id } };
+    /** 합법 소행성 중 네비 거리 최소인 칸 (서버 getLegalEclipseAsteroidMineTileIds와 동일 집합) */
+    static pickBestEclipseAsteroidTile(game: ServerGameState, playerId: string, legalIds: string[]): string {
+        // 서버 Eclipse와 동일: 사거리 원점에 우주선 타일 포함(Nav 숫자는 getLegal에서 트랙만 사용)
+        const rangeTiles = getPlayerRangeTiles(game, playerId);
+        let bestId = legalIds[0];
+        let bestD = Infinity;
+        for (const id of legalIds) {
+            const t = game.map.find(x => x.id === id);
+            if (!t) continue;
+            const d = Math.min(...rangeTiles.map(p => getDistance(p, t)));
+            if (d < bestD) {
+                bestD = d;
+                bestId = id;
+            }
         }
-        return null;
+        return bestId;
+    }
+
+    private static findEclipseAsteroidTarget(game: ServerGameState, playerId: string): BotAction | null {
+        const legalIds = getLegalEclipseAsteroidMineTileIds(game, playerId);
+        if (legalIds.length === 0) return null;
+        const tileId = BotLogic.pickBestEclipseAsteroidTile(game, playerId, legalIds);
+        return { type: 'eclipse_build_asteroid_mine', params: { tileId } };
     }
 
     /**
@@ -2410,14 +2527,12 @@ export class BotLogic {
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 1;
                     const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
-                    const bestPendingBuild = possibleBuildActions.length > 0 ? possibleBuildActions[0] : null;
                     player.pendingTerraformSteps = oldSteps;
-                    let validTarget = false;
-                    if (bestPendingBuild && (bestPendingBuild as any).type === 'build_mine') {
-                        const targetTile = game.map.find(t => t.id === (bestPendingBuild as any).params?.tileId);
-                        if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0) validTarget = true;
-                    }
-                    if (!validTarget) {
+                    const usesTerraforming = possibleBuildActions.some(act => {
+                        const targetTile = game.map.find(t => t.id === (act as any).params?.tileId);
+                        return targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0;
+                    });
+                    if (possibleBuildActions.length === 0 || !usesTerraforming) {
                         score = -1000;
                     } else {
                         score = round <= 3 ? 210 : 120;
@@ -2450,14 +2565,12 @@ export class BotLogic {
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 2;
                     const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
-                    const bestPendingBuild = possibleBuildActions.length > 0 ? possibleBuildActions[0] : null;
                     player.pendingTerraformSteps = oldSteps;
-                    let validTarget = false;
-                    if (bestPendingBuild && (bestPendingBuild as any).type === 'build_mine') {
-                        const targetTile = game.map.find(t => t.id === (bestPendingBuild as any).params?.tileId);
-                        if (targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0) validTarget = true;
-                    }
-                    if (!validTarget) {
+                    const usesTerraforming = possibleBuildActions.some(act => {
+                        const targetTile = game.map.find(t => t.id === (act as any).params?.tileId);
+                        return targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0;
+                    });
+                    if (possibleBuildActions.length === 0 || !usesTerraforming) {
                         score = -1000;
                     } else {
                         score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
@@ -3098,10 +3211,10 @@ export class BotLogic {
                         }
                     }
                 } else if (tile.specialAction === 'range_3' && !player.rangeBonusActive) {
-                    const oldTempRange = player.tempRangeBonus;
-                    player.tempRangeBonus = true;
+                    const oldR = player.rangeBonusActive;
+                    player.rangeBonusActive = true;
                     if (this.findBuildActions(game, playerId).length === 0 && this.findBuildActionsWithPendingSteps(game, playerId).length === 0) shouldAdd = false;
-                    player.tempRangeBonus = oldTempRange;
+                    player.rangeBonusActive = oldR;
                 }
                 if (shouldAdd) {
                     res.push({ type: 'use_bonus_action', params: { actionId: tile.specialAction } });

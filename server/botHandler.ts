@@ -11,7 +11,9 @@ import {
     executeBotItarsGaiaformerExchange,
     executeBotMoweyipPlaceRing,
     executeBotBescodsAdvanceLowestTrack,
-    executeConvertResource
+    executeConvertResource,
+    getLegalEclipseAsteroidMineTileIds,
+    executeEclipseBuildAsteroidMine
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
@@ -56,7 +58,8 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         (game.pendingItarsGaiaformerExchange && game.botPlayerIds.includes(game.pendingItarsGaiaformerExchange.playerId)) ||
         (game.pendingTechTileSelection && game.botPlayerIds.includes(game.pendingTechTileSelection.playerId)) ||
         (game.pendingShipTechTrackAdvance && game.botPlayerIds.includes(game.pendingShipTechTrackAdvance.playerId)) ||
-        (game.pendingAdvancedTechTrackAdvance && game.botPlayerIds.includes(game.pendingAdvancedTechTrackAdvance.playerId));
+        (game.pendingAdvancedTechTrackAdvance && game.botPlayerIds.includes(game.pendingAdvancedTechTrackAdvance.playerId)) ||
+        (game.pendingEclipseAsteroidMine && game.botPlayerIds.includes(game.pendingEclipseAsteroidMine.playerId));
 
     if (!isBotTurn && !hasPendingBotAutoChoice) {
         return;
@@ -156,6 +159,25 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             return;
         }
         return;
+    }
+
+    // === Eclipse 6C 후 소행성 광산: getNextMove null 시 pass_round로 넘어가던 버그 방지, 서버 합법 타일로 즉시 건설 ===
+    if (game.pendingEclipseAsteroidMine && game.currentPhase === 'main') {
+        const eclipsePid = game.pendingEclipseAsteroidMine.playerId;
+        if (botPlayerIds.includes(eclipsePid) && game.turnOrder[game.currentPlayerIndex] === eclipsePid) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const legal = getLegalEclipseAsteroidMineTileIds(game, eclipsePid);
+            if (legal.length > 0) {
+                const tileId = BotLogic.pickBestEclipseAsteroidTile(game, eclipsePid, legal);
+                const botPlayer = game.players[eclipsePid];
+                log(`Bot ${botPlayer?.name} auto eclipse asteroid mine on ${tileId}`, 'game', game.id);
+                executeEclipseBuildAsteroidMine(io, game, eclipsePid, tileId);
+                setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+                return;
+            }
+            log(`Bot ${game.players[eclipsePid]?.name ?? eclipsePid} pending Eclipse mine but no legal asteroid in range`, 'error', game.id);
+            return;
+        }
     }
 
     // === 우주선 기술 트랙 진행 대기: 봇이면 자동 처리 ===
@@ -284,6 +306,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     const action = await BotLogic.getNextMove(game, currentPlayerId);
     if (!action) {
         if (game.currentPhase === 'main' && !player.hasPassed) {
+            // Eclipse 소행성 대기 중인데 후보가 비면 패스하면 안 됨 (6C만 소모된 상태)
+            if (game.pendingEclipseAsteroidMine?.playerId === currentPlayerId) {
+                log(`Bot ${player.name} eclipse mine pending but getNextMove returned null; not forcing pass`, 'error', game.id);
+                return;
+            }
             // 메인 액션은 했는데 후보만 비어 있으면 end_turn 먼저 시도 (pending 블로커 시 pass 실패 대비)
             if (game.hasDoneMainAction) {
                 const endOk = await BotLogic.performAction(io, game, { type: 'end_turn', params: {} }, currentPlayerId);

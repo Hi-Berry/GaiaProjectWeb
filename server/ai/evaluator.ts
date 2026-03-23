@@ -180,6 +180,9 @@ export class Evaluator {
         const round = game.roundNumber;
         const totalRounds = 6;
         const remainingRounds = Math.max(0, totalRounds - round + 1);
+        // 미래 수입(기술 타일 엔진) 등: 초반엔 자원 가치를 높게, 후반엔 낮게 (가중치 resourceMultiplier*)
+        const phaseRes = totalRounds <= 1 ? 0 : (round - 1) / (totalRounds - 1);
+        const resMult = w.resourceMultiplierEarly * (1 - phaseRes) + w.resourceMultiplierLate * phaseRes;
 
         if (debug) logDebug(`\n=== Eval Breakdown: ${player.faction || playerId} (Round ${round}) ===`);
 

@@ -75,6 +75,21 @@ type OneGameResult = {
   winnerStructureTierSum: number;
 };
 
+/** 라운드 미션 등으로 1위 VP만 보면 왜곡되므로, 튜닝 로그에는 항상 4인 전원 점수 출력 */
+function formatScoreboardAll(
+  scores: OneGameResult['scores'],
+  opts?: { sort?: 'desc' | 'asc' }
+): string {
+  const dir = opts?.sort === 'asc' ? 1 : -1;
+  const sorted = [...scores].sort((a, b) => dir * (a.score - b.score));
+  return sorted
+    .map((s) => {
+      const label = s.faction || s.name || s.playerId.slice(0, 8);
+      return `${label}=${s.score}`;
+    })
+    .join(' | ');
+}
+
 function structureTier(structure: string, faction: string): number {
   switch (structure) {
     case 'mine': case 'lost_planet_mine': return 1;
@@ -186,8 +201,9 @@ async function evalCandidate(socket: Socket, weights: EvaluatorWeights, games: n
           ? winnerStructureTierSums.reduce((a, b) => a + b, 0) / winnerStructureTierSums.length
           : 0;
         console.log(
-          `[tune-ai]   game ${done}/${games} winnerVP=${r.maxScore} avgWinnerVP=${avgWinnerSoFar.toFixed(1)} ` +
-          `avgWinnerStructureTierSum=${avgTierSoFar.toFixed(1)} elapsed=${(elapsedMs / 1000).toFixed(0)}s ETA=${(etaMs / 1000).toFixed(0)}s`
+          `[tune-ai]   game ${done}/${games} allVP=[${formatScoreboardAll(r.scores)}] winnerVP=${r.maxScore} ` +
+          `avgWinnerVP=${avgWinnerSoFar.toFixed(1)} avgWinnerStructureTierSum=${avgTierSoFar.toFixed(1)} ` +
+          `elapsed=${(elapsedMs / 1000).toFixed(0)}s ETA=${(etaMs / 1000).toFixed(0)}s`
         );
       }
     } catch {
