@@ -426,45 +426,92 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             })}
                         </div>
 
-                        {/* Pool Tech Tiles (3 extra tiles not in any track) — ZERO GAP */}
-                        {game.techTilesPool && game.techTilesPool.filter(t => t).length > 0 && (() => {
-                            const pool: TechTile[] = game.techTilesPool!.filter((t): t is TechTile => t != null);
+                        {/* Pool Tech Tiles (3 extra tiles not in any track) & Extra Advanced Tech Tile — ZERO GAP */}
+                        {((game.techTilesPool && game.techTilesPool.filter(t => t).length > 0) || game.extraAdvancedTechTile) && (() => {
+                            const pool: TechTile[] = (game.techTilesPool || []).filter((t): t is TechTile => t != null);
                             const seen: { tile: TechTile; count: number }[] = [];
                             pool.forEach(t => {
                                 const ex = seen.find(s => s.tile.id === t.id);
                                 if (ex) ex.count++; else seen.push({ tile: t, count: 1 });
                             });
                             return (
-                                <div className="border-t border-white/5">
-                                    <div className="flex gap-1 flex-wrap justify-center p-0">
-                                        {seen.map(({ tile }) => (
-                                            <div
-                                                key={tile.id}
-                                                className="relative h-[44px] w-[44px] rounded-md overflow-hidden bg-zinc-900/60 border border-yellow-500/10 hover:border-yellow-500/30 cursor-pointer group transition-all"
-                                                onClick={() => {
-                                                    if (pendingTech && onSelectTechTile) {
-                                                        setSelectedTileIdNeedingTrack(tile.id);
-                                                    } else {
-                                                        onGainTechTile(tile.id);
-                                                    }
-                                                }}
-                                            >
-                                                {tile.image ? (
-                                                    <img src={tile.image} alt={tile.label} className="w-full h-full object-contain" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{tile.label}</div>
-                                                )}
-                                                <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
-                                                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
-                                                        <span className="text-yellow-400 font-bold block mb-0.5">{tile.label}</span>{tile.description}
+                                <div className="border-t border-white/5 pt-0.5 mt-0.5 w-full">
+                                    <div className="relative w-full h-[44px]">
+                                        {/* Center: Pool Tiles */}
+                                        <div className="absolute inset-0 pointer-events-none flex justify-center items-center gap-1">
+                                            {seen.map(({ tile }) => (
+                                                <div
+                                                    key={tile.id}
+                                                    className="relative h-[44px] rounded-md overflow-hidden bg-zinc-900/60 border border-yellow-500/10 hover:border-yellow-500/30 cursor-pointer group transition-all shrink-0 pointer-events-auto"
+                                                    style={{ width: 'calc((100% - 20px) / 6)' }}
+                                                    onClick={() => {
+                                                        if (pendingTech && onSelectTechTile) {
+                                                            setSelectedTileIdNeedingTrack(tile.id);
+                                                        } else {
+                                                            onGainTechTile(tile.id);
+                                                        }
+                                                    }}
+                                                >
+                                                    {tile.image ? (
+                                                        <img src={tile.image} alt={tile.label} className="w-full h-full object-contain" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{tile.label}</div>
+                                                    )}
+                                                    <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
+                                                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
+                                                            <span className="text-yellow-400 font-bold block mb-0.5">{tile.label}</span>{tile.description}
+                                                        </div>
                                                     </div>
                                                 </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Right: 7th Extra Advanced Tech Tile */}
+                                        {game.extraAdvancedTechTile && onSelectAdvancedTechTile && (
+                                            <div className="absolute inset-0 pointer-events-none flex justify-end items-center gap-0.5">
+                                                <div className="flex flex-col items-center justify-center text-[5px] text-zinc-400 font-bold uppercase text-center leading-[1.1] w-7 shrink-0 pointer-events-auto tracking-tighter">
+                                                    <span>조건</span>
+                                                    <span className="text-cyan-400 mt-[1px]">
+                                                        {game.extraAdvancedTechCondition === '25vp' ? '25VP' : '우주선3'}
+                                                    </span>
+                                                </div>
+                                                <div
+                                                    className="relative h-[44px] rounded-md overflow-hidden bg-cyan-950/40 border border-cyan-500/20 hover:border-cyan-500/50 cursor-pointer group transition-all shrink-0 pointer-events-auto"
+                                                    style={{ width: 'calc((100% - 20px) / 6)' }}
+                                                    onClick={() => !Object.values(game.players).some(p => p.techTiles?.includes(game.extraAdvancedTechTile!.id)) && onSelectAdvancedTechTile(game.extraAdvancedTechTile!.id)}
+                                                >
+                                                    {(() => {
+                                                        const advTile = game.extraAdvancedTechTile!;
+                                                        const isTaken = Object.values(game.players).some(p => p.techTiles?.includes(advTile.id));
+                                                        return isTaken ? (
+                                                            <div className="w-full h-full flex items-center justify-center bg-black/50 text-[6px] text-zinc-600 font-bold">TAKEN</div>
+                                                        ) : (
+                                                            <>
+                                                                {advTile.image ? (
+                                                                    <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{advTile.label}</div>
+                                                                )}
+                                                                <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
+                                                                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
+                                                                        <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>
+                                                                        {advTile.description}
+                                                                        <div className="mt-1 pt-1 border-t border-white/10 text-amber-400/80 text-[8px] font-bold">
+                                                                            조건: {game.extraAdvancedTechCondition === '25vp' ? '진행 점수 25 VP 이상 도달' : '어떤 우주선이든 3회 진입 달성'}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
                                 </div>
                             );
                         })()}
+
 
                         {/* Power Actions — Compact square grid */}
                         <div className="pt-1 border-t border-white/10 mt-1">
