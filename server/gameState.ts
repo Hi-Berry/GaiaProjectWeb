@@ -433,12 +433,14 @@ export function getFederationBuildingPower(
 		}
 		if (tile.parasiticMine?.ownerId === playerId)
 			sum += 1; // 기생 광산 = 1
+		if (tile.spaceStation?.ownerId === playerId)
+			sum += 1; // 우주정거장 = 1
 	});
-	// 하이브: 선택된 빈공간 중 내 우주정거장이 있으면 1파워씩 (위성은 0)
+	// 하이브: 선택된 빈공간/타일 중 내 우주정거장이 있으면 1파워씩 (위성은 0)
 	if (selectedEmptyHexIds?.length) {
 		for (const hexId of selectedEmptyHexIds) {
 			const tile = game.map.find(t => t.id === hexId);
-			if (tile?.spaceStation?.ownerId === playerId) sum += 1;
+			if (tile?.spaceStation?.ownerId === playerId && !planetTileIds.has(hexId)) sum += 1;
 		}
 	}
 	return sum;
@@ -447,17 +449,27 @@ export function getFederationBuildingPower(
 /** 행성만으로 연결된 컴포넌트 (해당 행성 타일 ID 포함, 인접 행성 중 내 건물만 BFS) */
 export function getPlanetConnectedComponent(game: ServerGameState, playerId: string, startTileId: string): Set<string> {
 	const start = game.map.find(t => t.id === startTileId);
-	if (!start || !isPlanetHex(start) || start.ownerId !== playerId || !start.structure || start.structure === 'ship') return new Set();
+	if (!start) return new Set();
+
+	const isOwn = (tile: HexTile) => {
+		if (tile.ownerId === playerId && tile.structure && tile.structure !== 'ship') return true;
+		if (tile.parasiticMine?.ownerId === playerId) return true;
+		if (tile.spaceStation?.ownerId === playerId) return true;
+		return false;
+	};
+
+	if (!isOwn(start)) return new Set();
+
 	const component = new Set<string>();
 	const queue: string[] = [startTileId];
 	component.add(startTileId);
+
 	while (queue.length > 0) {
 		const tid = queue.shift()!;
 		const tile = game.map.find(t => t.id === tid)!;
 		const neighbors = getNeighbors(game.map, tile);
 		for (const n of neighbors) {
-			if (!isPlanetHex(n)) continue;
-			if (n.ownerId !== playerId || !n.structure || n.structure === 'ship') continue;
+			if (!isOwn(n)) continue;
 			if (component.has(n.id)) continue;
 			component.add(n.id);
 			queue.push(n.id);
@@ -466,7 +478,7 @@ export function getPlanetConnectedComponent(game: ServerGameState, playerId: str
 	return component;
 }
 
-/** 선택된 빈공간들 + 인접 행성들(및 행성끼리 연결된 본인 건물 전체) → 연방에 포함된 행성 타일 ID 집합. 건물끼리 붙어 있으면 한 연방에 같이 포함 */
+/** 선택된 빈공간들 + 인접 행성들(및 행성/건물끼리 연결된 본인 건물 전체) → 연방에 포함된 행성 타일 ID 집합. 건물/우주정거장끼리 붙어 있으면 한 연방에 같이 포함 */
 export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState, playerId: string, selectedHexIds: string[]): Set<string> {
 	const planetIds = new Set<string>();
 	for (const hexId of selectedHexIds) {
@@ -474,8 +486,8 @@ export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState,
 		if (!tile || !isEmptyHex(tile)) continue;
 		const neighbors = getNeighbors(game.map, tile);
 		for (const n of neighbors) {
-			if (isPlanetHex(n)) {
-				// 인접 행성뿐 아니라, 그 행성과 행성끼리 연결된 전체 컴포넌트 포함
+			if (isPlanetHex(n) || n.spaceStation?.ownerId === playerId || n.parasiticMine?.ownerId === playerId || (n.ownerId === playerId && n.structure && n.structure !== 'ship')) {
+				// 인접 행성/건물뿐 아니라, 연결된 전체 컴포넌트 포함
 				const component = getPlanetConnectedComponent(game, playerId, n.id);
 				component.forEach(id => planetIds.add(id));
 			}
@@ -519,11 +531,11 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 	allHexIds.forEach(hexId => {
 		const tile = game.map.find(t => t.id === hexId);
 		if (!tile) return;
-		if (isPlanetHex(tile)) {
+		if (isPlanetHex(tile) || tile.spaceStation?.ownerId === playerId || tile.parasiticMine?.ownerId === playerId) {
 			getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIds.add(pid));
 		}
 		getNeighbors(game.map, tile).forEach(n => {
-			if (isPlanetHex(n)) {
+			if (isPlanetHex(n) || n.spaceStation?.ownerId === playerId || n.parasiticMine?.ownerId === playerId) {
 				getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIds.add(pid));
 			}
 		});
@@ -535,16 +547,17 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 	const items: Array<{ tileId: string; label: string; power: number }> = [];
 	planetIds.forEach(tileId => {
 		const t = game.map.find(x => x.id === tileId);
-		if (!t || t.ownerId !== playerId) return;
-		if (t.structure && t.structure !== 'ship') {
+		if (!t) return;
+		if (t.ownerId === playerId && t.structure && t.structure !== 'ship') {
 			const p = getStructurePowerValue(t.structure, hasBig);
 			items.push({ tileId, label: STRUCTURE_LABELS[t.structure] ?? t.structure, power: p });
 		}
 		if (t.parasiticMine?.ownerId === playerId) items.push({ tileId, label: '기생광산', power: 1 });
+		if (t.spaceStation?.ownerId === playerId) items.push({ tileId, label: '우주정거장', power: 1 });
 	});
 	for (const hexId of selectedSpaceStationHexIds) {
 		const t = game.map.find(x => x.id === hexId);
-		if (t?.spaceStation?.ownerId === playerId) items.push({ tileId: hexId, label: '우주정거장', power: 1 });
+		if (t?.spaceStation?.ownerId === playerId && !planetIds.has(hexId)) items.push({ tileId: hexId, label: '우주정거장', power: 1 });
 	}
 	return { power, requiredPower, items };
 }
@@ -3327,11 +3340,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			allHexIds.forEach(hexId => {
 				const tile = game.map.find(t => t.id === hexId);
 				if (!tile) return;
-				if (isPlanetHex(tile)) {
+				if (isPlanetHex(tile) || tile.spaceStation?.ownerId === playerId || tile.parasiticMine?.ownerId === playerId) {
 					getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIdsForPower.add(pid));
 				}
 				getNeighbors(game.map, tile).forEach(n => {
-					if (isPlanetHex(n)) {
+					if (isPlanetHex(n) || n.spaceStation?.ownerId === playerId || n.parasiticMine?.ownerId === playerId) {
 						getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIdsForPower.add(pid));
 					}
 				});
