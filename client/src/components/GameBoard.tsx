@@ -107,7 +107,7 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
         <circle
           cx={scaleW / 2}
           cy={scaleH / 2}
-          r={scaleW / 1.5}
+          r={(scaleW / 1.5) * 0.8}
           fill="gray"
           opacity="0.9"
         />

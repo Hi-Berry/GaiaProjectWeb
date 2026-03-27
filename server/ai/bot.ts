@@ -1570,6 +1570,14 @@ export class BotLogic {
 
             // 파워 액션 콤보: 5P→2삽 (gain-2-steps, cost 5P)
             if (remainingSteps <= 2) {
+                // 이 타일에 남은 테라가 1스텝뿐이고 3P→1삽으로 갈 수 있으면, 같은 타일에 5P→2삽은 쓰지 않음.
+                // (remainingSteps===2 인 2스텝 행성은 여기서 건너뛰지 않음 → gain-2-steps 후보 유지)
+                if (remainingSteps === 1) {
+                    const gain1 = game.powerActions.find(a => a.id === 'gain-1-step' && !a.isUsed);
+                    if (gain1 && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {
+                        continue;
+                    }
+                }
                 const stepAction = game.powerActions.find(a => a.id === 'gain-2-steps' && !a.isUsed);
                 if (stepAction && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 2)) {
                     if (power3 >= 5) {
@@ -2562,6 +2570,8 @@ export class BotLogic {
                     if (totalTokens < 7) score += 40;
                     break;
                 case 'gain-2-steps': {
+                    // 단독 파워 후보에서는 2스텝 행성 등 “1스텝으로는 부족한” 목표가 있을 수 있으므로,
+                    // gain-1-step으로 열리는 다른 광산이 있다고 gain-2-steps를 막지 않음(타일별 판단은 findBuildActions).
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 2;
                     const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
