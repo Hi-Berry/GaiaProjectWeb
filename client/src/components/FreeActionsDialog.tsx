@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { GameState } from '@/lib/gameClient';
-import { canSpendTaklonsPower } from '@shared/gameConfig';
+import { canSpendTaklonsPower, getTaklonsBowlPowerValue } from '@shared/gameConfig';
 
 interface FreeActionsDialogProps {
     open: boolean;
@@ -159,11 +159,15 @@ export function FreeActionsDialog({
                                         variant="outline"
                                         size="sm"
                                         className="h-10 text-[11px] bg-zinc-900/50 hover:bg-zinc-800"
-                                        disabled={!isCurrentTurn || (currentPlayer.power3 ?? 0) < 3}
+                                        disabled={
+                                            !isCurrentTurn ||
+                                            (currentPlayer.power3 ?? 0) < 3
+                                        }
                                         onClick={() => onConvertResource('3power-to-1ore', false)}
                                     >
                                         3 Power ➔ 1 Ore
                                     </Button>
+                                    {/* 브레인만 그릇3에 있으면 power3=0이라 위 버튼이 막힘 — 브레인(3P)으로만 결제 가능할 때 (B) 표시 */}
                                     {canSpendTaklonsPower(
                                         currentPlayer as Parameters<typeof canSpendTaklonsPower>[0],
                                         3,
@@ -173,7 +177,13 @@ export function FreeActionsDialog({
                                             .brainStoneBowl === 3 &&
                                         !(currentPlayer as { brainStoneInGaia?: boolean })
                                             .brainStoneInGaia &&
-                                        (currentPlayer.power3 ?? 0) >= 1 && (
+                                        getTaklonsBowlPowerValue(
+                                            currentPlayer as Parameters<
+                                                typeof getTaklonsBowlPowerValue
+                                            >[0],
+                                            3
+                                        ) >= 3 &&
+                                        (currentPlayer.power3 ?? 0) < 3 && (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -226,7 +236,7 @@ export function FreeActionsDialog({
                                                 .brainStoneBowl === 3 &&
                                             !(currentPlayer as { brainStoneInGaia?: boolean })
                                                 .brainStoneInGaia &&
-                                            (currentPlayer.power3 ?? 0) >= 2 && (
+                                            (currentPlayer.power3 ?? 0) >= 1 && (
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -380,7 +390,7 @@ export function FreeActionsDialog({
                                             .brainStoneBowl === 3 &&
                                         !(currentPlayer as { brainStoneInGaia?: boolean })
                                             .brainStoneInGaia &&
-                                        (currentPlayer.power3 ?? 0) >= 2 && (
+                                        (currentPlayer.power3 ?? 0) >= 1 && (
                                             <Button
                                                 variant="outline"
                                                 size="sm"

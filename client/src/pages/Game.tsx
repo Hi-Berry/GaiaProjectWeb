@@ -3293,7 +3293,12 @@ export default function Game() {
                                 {/* Power Row */}
                                 <div className="flex bg-black/40 rounded px-2 py-1 border border-white/10 items-center justify-between w-full mt-0.5" title="가이아 구역 | 1, 2, 3그릇 파워">
                                   <div className="flex gap-2.5 items-center w-full justify-between">
-                                    <span className="text-emerald-400 font-black text-sm md:text-base leading-none">{p.gaiaformerPower ?? 0}</span>
+                                    <span className="flex items-center gap-1 shrink-0" title={p.faction === 'taklons' && (p as any).brainStoneInGaia ? '가이아 구역 (브레인 스톤 포함)' : undefined}>
+                                      <span className="text-emerald-400 font-black text-sm md:text-base leading-none">{p.gaiaformerPower ?? 0}</span>
+                                      {p.faction === 'taklons' && (p as any).brainStoneInGaia && (
+                                        <span className="text-[10px] leading-none" aria-hidden>🧠</span>
+                                      )}
+                                    </span>
                                     <div className="w-[1px] h-4 bg-white/20 shrink-0" />
                                     <div className="flex gap-2.5 items-center justify-between w-full">
                                       <span className="flex items-center gap-0.5">
@@ -3314,9 +3319,6 @@ export default function Game() {
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
-                                      {p.faction === 'taklons' && (p as any).brainStoneInGaia && (
-                                        <span className="text-emerald-400 text-[10px] font-bold ml-1" title="브레인스톤: 가이아 구역">🧠G</span>
-                                      )}
                                     </div>
                                   </div>
                                 </div>

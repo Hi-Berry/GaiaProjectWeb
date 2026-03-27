@@ -102,6 +102,18 @@ function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
 	return JSON.parse(JSON.stringify({ ...rest, turnStartState: undefined })) as ServerGameState;
 }
 
+/** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
+function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: string) {
+	return {
+		playerState: JSON.parse(JSON.stringify(game.players[playerId])),
+		mapState: JSON.parse(JSON.stringify(game.map)),
+		spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
+		twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
+		gameLogLength: game.gameLog?.length || 0,
+		fullGameState: cloneGameForTurnStartSnapshot(game),
+	};
+}
+
 /** 자원 상한: O/K 최대 15, C 최대 30 */
 const MAX_ORE = 15;
 const MAX_KNOWLEDGE = 15;
@@ -2744,6 +2756,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			// 현재 턴 플레이어만 자기 턴 시작 스냅샷으로 복구 (다른 소켓/착오 방지)
+			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			const startState = game.turnStartState?.[playerId];
 			if (!startState) return;
 
@@ -2753,13 +2767,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
 				const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
 
-				// 턴 시작 상태가 지워지지 않도록 복원된 객체에 다시 넣어줌
-				restored.turnStartState = game.turnStartState;
+				// 복원된 상태만 기준으로 turnStartState 재구성 (라이브 game.turnStartState 통째 할당 금지 — 타인/과거 스냅샷 혼입 방지)
+				restored.turnStartState = {
+					[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
+				};
 
-				// 중요: restored 상태가 최신 게임 상태가 되도록 Map에 다시 저장
 				games.set(gameId, restored);
 
-				// 복구된 상태에 대해 자원 클램핑 및 클라이언트 업데이트 전송
 				clampPlayerResources(restored);
 				io.to(gameId).emit('game_updated', restored);
 			} else {
@@ -2770,6 +2784,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (startState.twilightArtifactSlots) game.twilightArtifactSlots = JSON.parse(JSON.stringify(startState.twilightArtifactSlots));
 				if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
 				game.hasDoneMainAction = false;
+				game.turnStartState = {
+					[playerId]: buildTurnStartStateEntryForPlayer(game as ServerGameState, playerId),
+				};
 				clampPlayerResources(game);
 				io.to(gameId).emit('game_updated', game);
 			}
@@ -3939,8 +3956,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game', undefined, { simulation: (game as any).simulation });
 				if (startState.fullGameState) {
 					const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
-					restored.turnStartState = game.turnStartState;
-					// Keep the ID and other metadata but restore the game content
+					restored.turnStartState = {
+						[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
+					};
 					games.set(gameId, restored);
 					clampPlayerResources(restored);
 					io.to(gameId).emit('game_updated', restored);
@@ -6147,6 +6165,7 @@ export function executeEndTurn(
 
 	game.hasDoneMainAction = false;
 	const prevPlayerId = game.turnOrder[game.currentPlayerIndex];
+	if (game.turnStartState) delete game.turnStartState[prevPlayerId];
 	if (game.players[prevPlayerId]) game.players[prevPlayerId].tempRangeBonus = false;
 
 	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
