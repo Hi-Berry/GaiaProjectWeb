@@ -98,8 +98,14 @@ const spectatorToGameMap = new Map<string, string>();
  * 중첩으로 인한 기하급수적 용량 증가와 RangeError: Invalid string length 방지.
  */
 function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
-	const { turnStartState: _ts, ...rest } = game;
-	return JSON.parse(JSON.stringify({ ...rest, turnStartState: undefined })) as ServerGameState;
+	const { turnStartState: _ts, freeActionUndoState: _fa, gameLog: _gl, ...rest } = game as any;
+	// Reset 복원에는 gameLog 본문/Undo 원본 문자열이 필수 아님(길이만 사용) → 스냅샷 용량 대폭 절감
+	return JSON.parse(JSON.stringify({
+		...rest,
+		turnStartState: undefined,
+		freeActionUndoState: undefined,
+		gameLog: [],
+	})) as ServerGameState;
 }
 
 /** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
@@ -1037,6 +1043,7 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 						player.federations.push({ rewardId, isGreen: rewardId !== FEDERATION_12VP_ID });
 						pool[rewardId] -= 1;
 						log(`Player ${player.name} gained federation reward from Terraforming 5: ${reward.label}`, 'game', undefined, { simulation: (game as any).simulation });
+						applyRoundMissionScore(game, playerId, 'federation');
 					}
 				}
 			}
@@ -2766,6 +2773,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (startState.fullGameState) {
 				// 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
 				const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+				restored.gameLog = (game.gameLog || []).slice(0, startState.gameLogLength || 0);
 
 				// 복원된 상태만 기준으로 turnStartState 재구성 (라이브 game.turnStartState 통째 할당 금지 — 타인/과거 스냅샷 혼입 방지)
 				restored.turnStartState = {
@@ -3089,7 +3097,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			executeUseTechAction(io, game, playerId, tileId);
+			const ok = executeUseTechAction(io, game, playerId, tileId);
+			if (!ok) {
+				socket.emit('game_error', { message: '기술 타일 액션을 사용할 수 없습니다. (내 턴/메인 액션 상태/소유 여부를 확인하세요)' });
+			}
 		});
 
 		socket.on('tinkeroid_choose_special', ({ gameId, specialId }) => {
@@ -3481,6 +3492,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.playerFederationHexes[playerId]) game.playerFederationHexes[playerId] = [];
 			game.playerFederationHexes[playerId].push(...selectedHexIds, ...selectedPlanetIds, ...selectedSpaceStationHexIds);
 			game.pendingFederationReward = null;
+
+			applyRoundMissionScore(game, playerId, 'federation');
 
 			if (isSpaceshipReward) {
 				switch (rewardId) {
@@ -3956,6 +3969,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game', undefined, { simulation: (game as any).simulation });
 				if (startState.fullGameState) {
 					const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+					restored.gameLog = (game.gameLog || []).slice(0, startState.gameLogLength || 0);
 					restored.turnStartState = {
 						[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
 					};

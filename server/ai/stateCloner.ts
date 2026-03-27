@@ -15,6 +15,21 @@ export class StateCloner {
     }
 
     /**
+     * MCTS/시뮬레이션 전용 경량 복제.
+     * - 시뮬레이션에 불필요한 대용량 필드(gameLog, turnStartState, freeActionUndoState)를 제거해
+     *   메모리 사용량 급증을 완화한다.
+     */
+    static cloneGameStateForSimulation(game: ServerGameState): ServerGameState {
+        const { gameLog: _log, turnStartState: _ts, freeActionUndoState: _fa, ...rest } = game as any;
+        return JSON.parse(JSON.stringify({
+            ...rest,
+            gameLog: [],
+            turnStartState: undefined,
+            freeActionUndoState: undefined,
+        })) as ServerGameState;
+    }
+
+    /**
      * Helper to clone just the player state if we only need partial simulation.
      */
     static clonePlayer(game: ServerGameState, playerId: string) {

@@ -1670,7 +1670,17 @@ export default function Game() {
             onBuildMine={(tileId, useGaiaformer) => {
               const player = game.players[playerId!];
               const isPendingGaiaBuild = (player?.pendingGaiaformerTiles || []).includes(tileId);
-              if (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && !isPendingGaiaBuild) return;
+              /** 메인 액션 후에도 파워로 받은 테라 스텝으로 광산을 이어 지을 수 있음 — 이 경우 막으면 안 됨 */
+              const terraformStepMinePending = (player?.pendingTerraformSteps ?? 0) > 0;
+              if (
+                game.hasDoneMainAction &&
+                (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) &&
+                (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) &&
+                !isPendingGaiaBuild &&
+                !terraformStepMinePending
+              ) {
+                return;
+              }
               const tile = game.map.find(t => t.id === tileId);
               if (!tile || !playerId) return;
 
@@ -1975,7 +1985,14 @@ export default function Game() {
                   }}
                   onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
                   onUseTechAction={(tileId) => {
-                    if (game.hasDoneMainAction) return;
+                    if (!isMyTurn || game.currentPhase !== 'main') {
+                      toast({ title: '사용 불가', description: '내 턴 메인 단계에서만 사용할 수 있습니다.', variant: 'destructive' });
+                      return;
+                    }
+                    if (game.hasDoneMainAction) {
+                      toast({ title: '사용 불가', description: '이미 메인 액션을 사용했습니다.', variant: 'destructive' });
+                      return;
+                    }
                     GameClient.useTechAction(gameId!, tileId);
                   }}
                   onAdvanceTech={(trackId) => {
@@ -3872,7 +3889,17 @@ export default function Game() {
                 onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
                 onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
                 onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
-                onUseTechAction={(tileId) => GameClient.useTechAction(gameId!, tileId)}
+                onUseTechAction={(tileId) => {
+                  if (!isMyTurn || game.currentPhase !== 'main') {
+                    toast({ title: '사용 불가', description: '내 턴 메인 단계에서만 사용할 수 있습니다.', variant: 'destructive' });
+                    return;
+                  }
+                  if (game.hasDoneMainAction) {
+                    toast({ title: '사용 불가', description: '이미 메인 액션을 사용했습니다.', variant: 'destructive' });
+                    return;
+                  }
+                  GameClient.useTechAction(gameId!, tileId);
+                }}
                 onAdvanceTech={(trackId) => {
                   if (game.hasDoneMainAction) return;
                   setAdvanceTechDialog({ open: true, trackId });

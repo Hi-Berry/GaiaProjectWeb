@@ -25,7 +25,16 @@ export class MCTS {
     private static get MAX_TIME_MS(): number {
         if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
         const v = typeof process !== 'undefined' && process.env?.MCTS_TIME_MS ? parseInt(process.env.MCTS_TIME_MS, 10) : NaN;
-        return Number.isFinite(v) ? v : 8000; // 4초에서 8초로 상향 (성능 및 실력 강화)
+        const configured = Number.isFinite(v) ? v : 8000; // 기본 8초
+        // 메모리 압박 시 탐색 시간을 자동 단축하여 힙 급증 완화
+        try {
+            const heapMb = process.memoryUsage().heapUsed / (1024 * 1024);
+            if (heapMb >= 260) return Math.min(configured, 2200);
+            if (heapMb >= 220) return Math.min(configured, 3200);
+        } catch {
+            // ignore
+        }
+        return configured;
     }
     /** 환경 변수 MCTS_MAX_DEPTH(숫자)로 오버라이드 가능. 깊이 늘리면 강해지지만 느려짐 */
     private static get MAX_DEPTH(): number {
@@ -38,7 +47,7 @@ export class MCTS {
         if (possibleActions.length === 0) return null;
         if (possibleActions.length === 1) return possibleActions[0];
 
-        const rootStore = StateCloner.cloneGameState(initialState);
+        const rootStore = StateCloner.cloneGameStateForSimulation(initialState);
         rootStore.simulation = true;
         const root: MCTSNode = {
             state: rootStore,
@@ -139,7 +148,7 @@ export class MCTS {
         const actionIndex = Math.floor(Math.random() * node.untriedActions.length);
         const action = node.untriedActions.splice(actionIndex, 1)[0];
 
-        const newState = StateCloner.cloneGameState(node.state);
+        const newState = StateCloner.cloneGameStateForSimulation(node.state);
         newState.simulation = true;
 
         // Emulate action (this is tricky because performAction requires an IO socket, which we don't really want to trigger events for during MCTS)
@@ -170,7 +179,7 @@ export class MCTS {
 
     private static async simulate(state: ServerGameState, playerId: string): Promise<number> {
         // Rollout phase. Take a few random pseudo-random moves.
-        let currentState = StateCloner.cloneGameState(state);
+        let currentState = StateCloner.cloneGameStateForSimulation(state);
         currentState.simulation = true;
         const dummyIo = { to: () => ({ emit: () => { } }) } as any;
 
@@ -192,7 +201,7 @@ export class MCTS {
             const subset = candidates.slice(0, Math.min(TOP_N, candidates.length));
             for (const act of subset) {
                 try {
-                    const s2 = StateCloner.cloneGameState(currentState);
+                    const s2 = StateCloner.cloneGameStateForSimulation(currentState);
                     s2.simulation = true;
                     const a = act as { type: string; params: any; preActions?: any[] };
                     if (a.preActions?.length) {
