@@ -140,3 +140,13 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('uncaughtException', (err) => {
   log(`Uncaught Exception thrown: ${err.message}\n${err.stack}`, 'error');
 });
+
+// Log memory usage every 10 seconds to help debug potential memory leaks
+setInterval(() => {
+  const memoryUsage = process.memoryUsage();
+  log(
+    `Memory usage: RSS=${(memoryUsage.rss / 1024 / 1024).toFixed(2)}MB, HeapTotal=${(memoryUsage.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)}MB, External=${(memoryUsage.external / 1024 / 1024).toFixed(2)}MB`,
+    "system",
+  );
+}, 10000);
+
