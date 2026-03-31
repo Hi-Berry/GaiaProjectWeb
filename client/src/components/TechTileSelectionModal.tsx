@@ -91,14 +91,15 @@ export function TechTileSelectionModal({
                 const tile = getFirstTrackTile(game.techTilesByTrack, track.id as ResearchTrack);
                 if (!tile) return null;
                 const isSelected = selectedTileId === tile.id;
+                const isOwned = playerId ? game.players[playerId]?.techTiles?.includes(tile.id) : false;
 
                 return (
                   <div
                     key={track.id}
-                    onClick={() => handleTileClick(tile.id)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected
-                      ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]'
-                      : 'bg-zinc-900/50 border-white/10 hover:border-white/30 hover:bg-zinc-800/50'
+                    onClick={() => !isOwned && handleTileClick(tile.id)}
+                    className={`p-4 rounded-xl border-2 transition-all ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : isSelected
+                      ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(var(--primary),0.2)] cursor-pointer'
+                      : 'bg-zinc-900/50 border-white/10 hover:border-white/30 hover:bg-zinc-800/50 cursor-pointer'
                       }`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -142,11 +143,12 @@ export function TechTileSelectionModal({
                 {availableShipTiles.map((tile) => {
                   if (!tile) return null;
                   const isSelected = selectedTileId === tile.id;
+                  const isOwned = playerId ? game.players[playerId]?.techTiles?.includes(tile.id) : false;
                   return (
                     <div
                       key={tile.id}
-                      onClick={() => { setSelectedTileId(tile.id); setSelectedTrackId(null); }}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'bg-cyan-500/20 border-cyan-500' : 'bg-zinc-900/50 border-cyan-500/30 hover:border-cyan-500/60'
+                      onClick={() => { if (!isOwned) { setSelectedTileId(tile.id); setSelectedTrackId(null); } }}
+                      className={`p-4 rounded-xl border-2 transition-all ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : isSelected ? 'bg-cyan-500/20 border-cyan-500 cursor-pointer' : 'bg-zinc-900/50 border-cyan-500/30 hover:border-cyan-500/60 cursor-pointer'
                         }`}
                     >
                       <Badge variant="outline" className="text-[9px] font-black uppercase bg-cyan-500/10 border-cyan-500/30 text-cyan-400 mb-2">Ship</Badge>
@@ -172,14 +174,15 @@ export function TechTileSelectionModal({
               {game.techTilesPool?.map((tile, idx) => {
                 if (!tile) return <div key={`pool-empty-${idx}`} className="p-4 rounded-xl border-2 border-dashed border-white/10 bg-zinc-900/30 flex items-center justify-center text-[9px] text-zinc-500 min-h-[6rem]">빈 칸</div>;
                 const isSelected = selectedTileId === tile.id;
+                const isOwned = playerId ? game.players[playerId]?.techTiles?.includes(tile.id) : false;
 
                 return (
                   <div
                     key={tile.id}
-                    onClick={() => handleTileClick(tile.id)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected
-                      ? 'bg-yellow-500/20 border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
-                      : 'bg-zinc-900/50 border-yellow-500/20 hover:border-yellow-500/50 hover:bg-zinc-800/50'
+                    onClick={() => !isOwned && handleTileClick(tile.id)}
+                    className={`p-4 rounded-xl border-2 transition-all ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : isSelected
+                      ? 'bg-yellow-500/20 border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)] cursor-pointer'
+                      : 'bg-zinc-900/50 border-yellow-500/20 hover:border-yellow-500/50 hover:bg-zinc-800/50 cursor-pointer'
                       }`}
                   >
                     <div className="flex items-center justify-between mb-2">

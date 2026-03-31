@@ -178,12 +178,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const tile = getFirstTrackTile(game.techTilesByTrack, track.id);
                                         if (!tile) return null;
                                         const count = (game.techTilesByTrack[track.id] || []).filter(t => t).length;
+                                        const isOwned = currentPlayer?.techTiles?.includes(tile.id);
                                         return (
                                             <button
                                                 key={tile.id}
                                                 type="button"
-                                                onClick={() => onSelectTechTile && onSelectTechTile(tile.id, track.id)}
-                                                className="p-2 rounded-lg border border-white/20 bg-zinc-900/80 hover:border-yellow-500/50 relative group w-full flex flex-col items-center gap-1"
+                                                onClick={() => !isOwned && onSelectTechTile && onSelectTechTile(tile.id, track.id)}
+                                                className={`p-2 rounded-lg border relative group w-full flex flex-col items-center gap-1 ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : 'border-white/20 bg-zinc-900/80 hover:border-yellow-500/50'}`}
                                             >
                                                 {tile.image ? (
                                                     <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />
@@ -210,12 +211,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             else uniqueTiles.push({ tile: t, count: 1 });
                                         });
 
-                                        return uniqueTiles.map(({ tile, count }) => (
+                                        return uniqueTiles.map(({ tile, count }) => {
+                                            const isOwned = currentPlayer?.techTiles?.includes(tile.id);
+                                            return (
                                             <button
                                                 key={tile.id}
                                                 type="button"
-                                                onClick={() => setSelectedTileIdNeedingTrack(tile.id)}
-                                                className="p-2 rounded-lg border border-yellow-500/30 bg-zinc-900/80 hover:border-yellow-500 relative group flex flex-col items-center gap-1"
+                                                onClick={() => !isOwned && setSelectedTileIdNeedingTrack(tile.id)}
+                                                className={`p-2 rounded-lg border relative group flex flex-col items-center gap-1 ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : 'border-yellow-500/30 bg-zinc-900/80 hover:border-yellow-500'}`}
                                             >
                                                 {tile.image ? (
                                                     <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />
@@ -226,7 +229,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     {count}
                                                 </div>
                                             </button>
-                                        ));
+                                        ); });
                                     })()}
                                     {/* 빈 칸 표시 (3종류 중 하나라도 완전히 소진된 경우 대비) */}
                                     {(() => {
@@ -246,12 +249,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 const tile = SHIP_TECH_TILES.find((t) => t.id === id);
                                                 if (!tile) return null;
                                                 const count = game.shipTechPool?.[id] ?? 0;
+                                                const isOwned = currentPlayer?.techTiles?.includes(tile.id);
                                                 return (
                                                     <button
                                                         key={tile.id}
                                                         type="button"
-                                                        onClick={() => onSelectTechTile(tile.id)}
-                                                        className="p-2 rounded-lg border-2 border-yellow-500/40 bg-zinc-900/80 hover:border-yellow-500 flex flex-col items-center gap-1 relative group"
+                                                        onClick={() => !isOwned && onSelectTechTile(tile.id)}
+                                                        className={`p-2 rounded-lg border-2 flex flex-col items-center gap-1 relative group ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : 'border-yellow-500/40 bg-zinc-900/80 hover:border-yellow-500'}`}
                                                     >
                                                         {tile.image ? (
                                                             <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain" />

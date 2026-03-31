@@ -25,7 +25,7 @@ export class MCTS {
     private static get MAX_TIME_MS(): number {
         if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
         const v = typeof process !== 'undefined' && process.env?.MCTS_TIME_MS ? parseInt(process.env.MCTS_TIME_MS, 10) : NaN;
-        const configured = Number.isFinite(v) ? v : 8000; // 기본 8초
+        const configured = Number.isFinite(v) ? v : 6000; // 기본 6초 (Render 서버의 8초 타임아웃 방지)
         // 메모리 압박 시 탐색 시간을 자동 단축하여 힙 급증 완화
         try {
             const heapMb = process.memoryUsage().heapUsed / (1024 * 1024);

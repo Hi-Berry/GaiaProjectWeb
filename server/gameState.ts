@@ -172,7 +172,7 @@ export function saveFinalGameState(game: ServerGameState) {
 	}
 }
 
-function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; source?: string; missionId?: string }) {
+function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; source?: string; missionId?: string; noLog?: boolean }) {
 	const player = game.players[playerId];
 	if (!player) return;
 	ensureScoreBreakdown(player);
@@ -202,7 +202,7 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 	}
 
 	// Merge into last log if it's the same player's action
-	if (vp > 0 && (category === 'other' || category === 'spaceships')) {
+	if (vp > 0 && (category === 'other' || category === 'spaceships') && !detail?.noLog) {
 		if (!game.gameLog) game.gameLog = [];
 		const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
 		let desc = '';
@@ -4633,7 +4633,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		addGameLog(game, playerId, 'Tech Tile Bonus', `Gaia Planet: +3 VP`, tileId);
 	}
 	if (tile.type === 'gaia' && player.faction === 'gleens') {
-		addScore(game, playerId, 2, 'other', { source: 'Gleens Gaia Bonus' });
+		addScore(game, playerId, 2, 'other', { source: 'Gleens Gaia Bonus', noLog: true });
 		addGameLog(game, playerId, 'Gleens: Gaia building', '+2 VP', tileId);
 	}
 
