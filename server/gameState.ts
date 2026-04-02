@@ -1218,28 +1218,27 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				}
 			}
 
-			// Research Labs
+			// Research Labs — shared/gameConfig.ts getNextRoundIncomePreview와 동일 (labBase는 연구소 0개여도 적용)
 			const labCount = playerStructures.filter(t => t.structure === 'research_lab').length;
-			if (labCount > 0) {
-				if (factionId === 'nevlas') {
-					// 네뷸라: 연구소당 2파워 (1K 대신)
-					incomeItems.push({ type: 'power', amount: 2 * labCount, id: `nevlas-lab-${pId}` });
-					gainedPowerCharge += 2 * labCount;
-				} else {
-					let labBaseKnowledge = factionId === 'firaks' ? 2 : 1;
-					player.knowledge += labBaseKnowledge;
-					gainedKnowledge += labBaseKnowledge;
-					if (factionId === 'bescods') {
-						const labCredits = [3, 4, 5];
-						for (let i = 0; i < labCount && i < labCredits.length; i++) {
-							player.credits += labCredits[i];
-							gainedCredits += labCredits[i];
-						}
+			if (factionId === 'bescods') {
+				if (labCount > 0) {
+					const labCredits = [3, 4, 5];
+					for (let i = 0; i < labCount && i < labCredits.length; i++) {
+						player.credits += labCredits[i];
+						gainedCredits += labCredits[i];
+					}
+				}
+			} else {
+				const labBaseKnowledge = factionId === 'firaks' ? 2 : 1;
+				player.knowledge += labBaseKnowledge;
+				gainedKnowledge += labBaseKnowledge;
+				if (labCount > 0) {
+					if (factionId === 'nevlas') {
+						incomeItems.push({ type: 'power', amount: 2 * labCount, id: `nevlas-lab-${pId}` });
+						gainedPowerCharge += 2 * labCount;
 					} else {
-						for (let i = 1; i < labCount; i++) {
-							player.knowledge += 1;
-							gainedKnowledge += 1;
-						}
+						player.knowledge += labCount;
+						gainedKnowledge += labCount;
 					}
 				}
 			}

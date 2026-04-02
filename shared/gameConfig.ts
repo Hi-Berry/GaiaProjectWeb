@@ -979,15 +979,17 @@ export function getNextRoundIncomePreview(
     else result.credits += STRUCTURE_INCOME.trading_station[i];
   }
   const labCount = structures.filter(t => t.structure === 'research_lab').length;
-  if (labCount > 0) {
-    const labBase = player.faction === 'firaks' ? 2 : 1;
-    result.knowledge += labBase;
-    if (player.faction === 'nevlas') result.powerCharge += 2;
-    if (player.faction === 'bescods') {
+  if (player.faction === 'bescods') {
+    if (labCount > 0) {
       const labCredits = [3, 4, 5];
       for (let i = 0; i < labCount && i < labCredits.length; i++) result.credits += labCredits[i];
-    } else {
-      for (let i = 1; i < labCount; i++) result.knowledge += 1;
+    }
+  } else {
+    const labBase = player.faction === 'firaks' ? 2 : 1;
+    result.knowledge += labBase;
+    if (labCount > 0) {
+      if (player.faction === 'nevlas') result.powerCharge += 2 * labCount;
+      else result.knowledge += labCount;
     }
   }
   const leftAcademyCount = structures.filter(t => t.structure === 'academy' && t.academyType === 'left').length;
