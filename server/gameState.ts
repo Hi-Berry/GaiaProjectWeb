@@ -1024,28 +1024,22 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 				game.federationPool = {};
 				FEDERATION_REWARDS.forEach(r => { game.federationPool![r.id] = 3; });
 			}
-			const pool = game.federationPool;
-			if (rewardId && pool[rewardId] != null && pool[rewardId] > 0) {
-				const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
-				if (reward) {
-					const playerId = Object.keys(game.players).find(id => game.players[id] === player);
-					if (playerId) {
-						addGameLog(game, playerId, 'Terraforming 5', `연방 보상 획득: ${reward.label}`);
-						addScore(game, playerId, reward.vp, 'other', { source: 'Terraforming 5 Reward' });
-						if ('ore' in reward && reward.ore) player.ore += reward.ore;
-						if ('credits' in reward && reward.credits) player.credits += reward.credits;
-						if ('knowledge' in reward && reward.knowledge) player.knowledge += reward.knowledge;
-						if ('qic' in reward && reward.qic) grantQic(game, playerId, reward.qic);
-						if ('powerTokens' in reward && reward.powerTokens) player.power1 = (player.power1 || 0) + reward.powerTokens;
-						if (!Array.isArray(player.federations) || (player.federations.length > 0 && typeof (player.federations as any)[0] === 'string')) {
-							player.federations = getFederationEntries(player);
-						}
-						player.federations.push({ rewardId, isGreen: rewardId !== FEDERATION_12VP_ID });
-						pool[rewardId] -= 1;
-						log(`Player ${player.name} gained federation reward from Terraforming 5: ${reward.label}`, 'game', undefined, { simulation: (game as any).simulation });
-						applyRoundMissionScore(game, playerId, 'federation');
-					}
+			// 연구 트랙에 올려둔 연방 1장은 create_game 시 해당 종류 풀에서 이미 -1 반영됨 — TF5 획득 시 풀을 또 줄이지 않음
+			const reward = rewardId ? FEDERATION_REWARDS.find(r => r.id === rewardId) : undefined;
+			if (reward) {
+				addGameLog(game, playerId, 'Terraforming 5', `연방 보상 획득: ${reward.label}`);
+				addScore(game, playerId, reward.vp, 'other', { source: 'Terraforming 5 Reward' });
+				if ('ore' in reward && reward.ore) player.ore += reward.ore;
+				if ('credits' in reward && reward.credits) player.credits += reward.credits;
+				if ('knowledge' in reward && reward.knowledge) player.knowledge += reward.knowledge;
+				if ('qic' in reward && reward.qic) grantQic(game, playerId, reward.qic);
+				if ('powerTokens' in reward && reward.powerTokens) player.power1 = (player.power1 || 0) + reward.powerTokens;
+				if (!Array.isArray(player.federations) || (player.federations.length > 0 && typeof (player.federations as any)[0] === 'string')) {
+					player.federations = getFederationEntries(player);
 				}
+				player.federations.push({ rewardId: reward.id, isGreen: reward.id !== FEDERATION_12VP_ID });
+				log(`Player ${player.name} gained federation reward from Terraforming 5: ${reward.label}`, 'game', undefined, { simulation: (game as any).simulation });
+				applyRoundMissionScore(game, playerId, 'federation');
 			}
 		}
 	}
