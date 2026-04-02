@@ -4470,6 +4470,18 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		return true;
 	}
 
+	// 가이아 포머가 있는 칸: 다른 플레이어 포머이면 건설 불가 / 본인도 성숙·즉시 건설 가능(pendingGaiaformerTiles)일 때만 표준 광산
+	if (tile.hasGaiaformer) {
+		if (tile.gaiaformerOwnerId != null && tile.gaiaformerOwnerId !== playerId) {
+			debugLog(game, `executeBuildMine failed: Gaiaformer on tile belongs to another player`, 'error');
+			return false;
+		}
+		if (!player.pendingGaiaformerTiles?.includes(tileId)) {
+			debugLog(game, `executeBuildMine failed: Gaiaformer on tile is not ready for mine (not in pendingGaiaformerTiles)`, 'error');
+			return false;
+		}
+	}
+
 	if (tile.structure !== null) {
 		debugLog(game, `executeBuildMine failed: Tile ${tileId} already has structure ${tile.structure}`, 'error');
 		return false;

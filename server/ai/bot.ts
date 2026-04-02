@@ -1352,7 +1352,10 @@ export class BotLogic {
             t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
             (t.type !== 'asteroid' || homeType === 'asteroid') && // 다카니안(소행성 모행성) 예외 처리
-            !t.type?.startsWith('ship_')
+            !t.type?.startsWith('ship_') &&
+            // 남의 가이아 포머만 올라간 칸 / 아직 건설 타이밍이 아닌 칸은 표준 광산 후보에서 제외 (서버 executeBuildMine과 동일)
+            !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
+            !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
         );
 
         interface ScoredCandidate {
@@ -1833,7 +1836,9 @@ export class BotLogic {
             !t.ownerId && t.structure === null &&
             t.type !== 'space' && t.type !== 'deep_space' &&
             t.type !== 'transdim' && t.type !== 'asteroid' &&
-            !t.type?.startsWith('ship_')
+            !t.type?.startsWith('ship_') &&
+            !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
+            !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
         );
 
         const scored: { action: BotAction, score: number }[] = [];
