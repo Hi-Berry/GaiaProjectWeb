@@ -6563,10 +6563,18 @@ export function executeBotFederation(
 	if (!player) return false;
 
 	const isIvits = player.faction === 'ivits';
+	const numEmpty = selectedHexIds.length;
+	// UI의 federation_complete과 동일한 검증/차감을 bot에서도 강제:
+	// - Ivits: QIC로 위성(빈칸) 수만큼 차감
+	// - 그 외: 파워 토큰으로 위성(빈칸) 수만큼 차감
 	if (isIvits) {
-		player.qic -= spentTokens;
+		const qicHave = player.qic ?? 0;
+		if (qicHave < numEmpty) return false;
+		player.qic = qicHave - numEmpty;
 	} else {
-		spendPowerTokens(player, spentTokens);
+		const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+		if (totalPower < numEmpty) return false;
+		if (!spendPowerTokens(player, numEmpty)) return false;
 	}
 
 	if (!game.federationPool) {
@@ -6613,7 +6621,7 @@ export function executeBotFederation(
 	game.playerFederationHexes[playerId].push(...selectedHexIds, ...selectedPlanetIds);
 
 	const unitLabel = isIvits ? '우주정거장' : '위성';
-	addGameLog(game, playerId, 'Federation', `Formed federation (${spentTokens} ${unitLabel}, reward: ${reward?.label})`);
+	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel}, reward: ${reward?.label})`);
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);

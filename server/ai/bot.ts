@@ -663,16 +663,19 @@ export class BotLogic {
         }
 
         // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
-        const oreForFed = player.ore ?? 0;
-        for (let k = 2; k <= Math.min(oreForFed, 6); k++) {
-            const fedWithKs = FederationPlanner.getFederationActions(game, playerId, k, 2);
-            for (const fedWithK of fedWithKs) {
-            const round = (game as any).roundNumber ?? 1;
-            const spent = fedWithK.spentTokens ?? 0;
-            // 초반엔 "오레 태워서 위성 많이" 연방을 억제 (정말 싸면 허용)
-            if (round <= 2 && spent > 2) continue;
-            const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
-            candidates.push({ type: 'form_federation', params: fedWithK, preActions });
+        // Ivits는 연방 위성 비용이 QIC이므로, 여기서 "오레->토큰" 프리액션을 섞으면 계산(availableTokens)이 틀어져 QIC 마이너스가 날 수 있음.
+        if (player.faction !== 'ivits') {
+            const oreForFed = player.ore ?? 0;
+            for (let k = 2; k <= Math.min(oreForFed, 6); k++) {
+                const fedWithKs = FederationPlanner.getFederationActions(game, playerId, k, 2);
+                for (const fedWithK of fedWithKs) {
+                    const round = (game as any).roundNumber ?? 1;
+                    const spent = fedWithK.spentTokens ?? 0;
+                    // 초반엔 "오레 태워서 위성 많이" 연방을 억제 (정말 싸면 허용)
+                    if (round <= 2 && spent > 2) continue;
+                    const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
+                    candidates.push({ type: 'form_federation', params: fedWithK, preActions });
+                }
             }
         }
 
