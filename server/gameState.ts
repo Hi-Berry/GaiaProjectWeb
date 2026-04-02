@@ -5619,6 +5619,7 @@ export function executeUseTechAction(
 
 	const player = game.players[playerId];
 	if (!player) return false;
+	if (!player.usedTechActions) player.usedTechActions = [];
 	if (!player.techTiles.includes(tileId) || player.usedTechActions.includes(tileId)) return false;
 	if (isTechTileCovered(player, tileId)) return false;
 

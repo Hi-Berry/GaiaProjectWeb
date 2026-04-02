@@ -3120,6 +3120,13 @@ export default function Game() {
                               setMoweyipPlaceRingMode(true);
                             } else if (actionId === 'firaks-downgrade') {
                               setFiraksDowngradeMode(true);
+                            } else if (
+                              actionId === 'tech-act-4p' ||
+                              actionId === 'adv-act-3k' ||
+                              actionId === 'adv-act-3o' ||
+                              actionId === 'adv-act-1q-5c'
+                            ) {
+                              GameClient.useTechAction(gameId, actionId);
                             } else {
                               GameClient.useSpecialAction(gameId, actionId);
                             }
