@@ -63,6 +63,7 @@ import {
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded } from './botHandler';
+import * as FactionBidding from './factionBidding';
 
 
 
@@ -1681,6 +1682,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				pendingTechTileSelection: null,
 				gameLog: [],
 				economyVariant: Math.random() < 0.5 ? 'power' : 'vp', // 랜덤으로 경제 트랙 변형 선택
+				useFactionBidding: false,
 			};
 
 			// Randomize Standard Tech Tiles (9종류를 6트랙 + 3풀에 무작위 배정, 각 4개씩 스택)
@@ -1890,6 +1892,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
 
+		socket.on('set_use_faction_bidding', ({ gameId, useFactionBidding }: { gameId: string; useFactionBidding: boolean }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (playerId !== game.hostId) { callback?.({ error: 'Host only' }); return; }
+			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Lobby only' }); return; }
+			game.useFactionBidding = !!useFactionBidding;
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			callback?.({ ok: true });
+		});
+
 		socket.on('start_game', ({ gameId }) => {
 			const game = games.get(gameId);
 			if (!game) return;
@@ -1901,7 +1914,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			const allHaveFaction = Object.values(game.players).every(p => p.faction != null);
-			if (allHaveFaction) {
+			const biddingDeps = {
+				executeSelectFaction,
+				finalizeFactionSelectionToStartingMines,
+			};
+
+			if (game.useFactionBidding && !allHaveFaction) {
+				game.currentPhase = 'factionBidding';
+				log(`Start game: Entering factionBidding phase.`, 'game', undefined, { simulation: (game as any).simulation });
+				FactionBidding.initFactionBiddingPhase(game, io, biddingDeps);
+			} else if (allHaveFaction) {
 				game.currentPhase = 'startingMines';
 				log(`Start game: All factions selected. Resuming startingMines phase.`, 'game', undefined, { simulation: (game as any).simulation });
 			} else {
@@ -1909,19 +1931,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`Start game: Entering factionSelect phase.`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
-			// 확장: 모웨이드/팅커로이드 3테라포밍 땅 3개 설정 (나머지 7색상 4개는 1테라포밍)
-			const playerList = Object.values(game.players);
-			const moweyipPlayer = playerList.find(p => p.faction === 'moweyip');
-			const tinkeroidsPlayer = playerList.find(p => p.faction === 'tinkeroids');
-			if (moweyipPlayer) {
-				const otherHomes = playerList.filter(p => p.faction && p.faction !== 'moweyip').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
-				game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
-				log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
-			}
-			if (tinkeroidsPlayer) {
-				const otherHomes = playerList.filter(p => p.faction && p.faction !== 'tinkeroids').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
-				game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
-				log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+			// 확장: 모웨이드/팅커로이드 (종족 비딩이면 finalizeFactionSelectionToStartingMines에서 적용됨)
+			if (game.currentPhase !== 'factionBidding') {
+				const playerList = Object.values(game.players);
+				const moweyipPlayer = playerList.find(p => p.faction === 'moweyip');
+				const tinkeroidsPlayer = playerList.find(p => p.faction === 'tinkeroids');
+				if (moweyipPlayer) {
+					const otherHomes = playerList.filter(p => p.faction && p.faction !== 'moweyip').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
+					game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+					log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+				}
+				if (tinkeroidsPlayer) {
+					const otherHomes = playerList.filter(p => p.faction && p.faction !== 'tinkeroids').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
+					game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+					log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+				}
 			}
 
 			// 턴 시퀀스 계산 (이미 startingMines라면)
@@ -2090,8 +2114,54 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (game.currentPhase === 'factionBidding') return;
 
 			executeSelectFaction(io, game, playerId, factionId, turnOrder);
+		});
+
+		const factionBiddingDeps = () => ({
+			executeSelectFaction,
+			finalizeFactionSelectionToStartingMines,
+		});
+
+		socket.on('faction_bid_raise', ({ gameId, newBid }: { gameId: string; newBid: number }) => {
+			const game = games.get(gameId);
+			if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId) return;
+			const err = FactionBidding.processFactionBidRaise(game, playerId, newBid);
+			if (err) {
+				io.to(gameId).emit('game_error', { message: err });
+				return;
+			}
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+		});
+
+		socket.on('faction_bid_pass', ({ gameId }: { gameId: string }) => {
+			const game = games.get(gameId);
+			if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId) return;
+			const err = FactionBidding.processFactionBidPass(game, playerId);
+			if (err) {
+				io.to(gameId).emit('game_error', { message: err });
+				return;
+			}
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+		});
+
+		socket.on('faction_bid_pick', ({ gameId, factionId, turnOrder }: { gameId: string; factionId: string; turnOrder: number }) => {
+			const game = games.get(gameId);
+			if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId) return;
+			const err = FactionBidding.processFactionBidPick(game, io, playerId, factionId, turnOrder, factionBiddingDeps());
+			if (err) {
+				io.to(gameId).emit('game_error', { message: err });
+				return;
+			}
+			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
 
 		socket.on('confirm_factions', ({ gameId }) => {
@@ -4806,6 +4876,70 @@ export function executeUpgradeStructure(
 	return false;
 }
 
+/** 모웨이드/팅커로이드 확장 행성 — 종족 확정 후 호출 */
+function applyMoweyipTinkeroidsExpansionPlanets(game: ServerGameState): void {
+	const playerList = Object.values(game.players);
+	const moweyipPlayer = playerList.find(p => p.faction === 'moweyip');
+	const tinkeroidsPlayer = playerList.find(p => p.faction === 'tinkeroids');
+	if (moweyipPlayer) {
+		const otherHomes = playerList
+			.filter(p => p.faction && p.faction !== 'moweyip')
+			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
+			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
+		game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+		log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+	if (tinkeroidsPlayer) {
+		const otherHomes = playerList
+			.filter(p => p.faction && p.faction !== 'tinkeroids')
+			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
+			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
+		game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+		log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+}
+
+export function finalizeFactionSelectionToStartingMines(io: SocketIOServer, game: ServerGameState): void {
+	log(`All players selected faction. Finalizing turn order and moving to startingMines.`, 'game', undefined, { simulation: (game as any).simulation });
+	game.factionBidding = null;
+
+	const playersWithOrder = Object.values(game.players)
+		.filter(p => (p as any).selectedTurnOrder !== undefined)
+		.map(p => ({ id: Object.keys(game.players).find(key => game.players[key] === p)!, order: (p as any).selectedTurnOrder }));
+
+	const takenOrders = new Set(playersWithOrder.map(x => x.order));
+	const playersWithoutOrder = Object.keys(game.players).filter(id => !playersWithOrder.find(p => p.id === id));
+
+	const numPlayers = Object.keys(game.players).length;
+	const availableOrders = Array.from({ length: numPlayers }, (_, i) => i + 1).filter(o => !takenOrders.has(o));
+
+	const finalOrders = [...playersWithOrder];
+	playersWithoutOrder.forEach((id, index) => {
+		if (availableOrders[index] !== undefined) {
+			finalOrders.push({ id, order: availableOrders[index] });
+		}
+	});
+
+	finalOrders.sort((a, b) => a.order - b.order);
+	game.turnOrder = finalOrders.map(x => x.id);
+
+	game.currentPhase = 'startingMines';
+	(game as any).startingMineSequence = buildStartingMineSequence(game);
+	log(`Turn order finalized: ${game.turnOrder.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+
+	applyMoweyipTinkeroidsExpansionPlanets(game);
+
+	if (game.turnOrder?.length) {
+		const seq = buildStartingMineSequence(game);
+		const total = Object.values(game.players).reduce((s, p) => s + (p.startingMinesPlaced || 0), 0);
+		if (total < seq.length) {
+			const idx = game.turnOrder.indexOf(seq[total]);
+			if (idx >= 0) game.currentPlayerIndex = idx;
+		}
+	}
+	clampPlayerResources(game);
+}
+
 export function executeSelectFaction(
 	io: SocketIOServer,
 	game: ServerGameState,
@@ -4925,35 +5059,8 @@ export function executeSelectFaction(
 
 	// 모든 플레이어가 종족 선택을 마쳤다면 턴 순서 확정 및 단계 전환
 	const allHaveFaction = Object.values(game.players).every(p => p.faction != null);
-	if (allHaveFaction && game.currentPhase === 'factionSelect') {
-		log(`All players selected faction. Finalizing turn order and moving to startingMines.`, 'game', undefined, { simulation: (game as any).simulation });
-
-		// 1. 선택한 사람들 & 안 한 사람들 분류
-		const playersWithOrder = Object.values(game.players)
-			.filter(p => (p as any).selectedTurnOrder !== undefined)
-			.map(p => ({ id: Object.keys(game.players).find(key => game.players[key] === p)!, order: (p as any).selectedTurnOrder }));
-
-		const takenOrders = new Set(playersWithOrder.map(x => x.order));
-		const playersWithoutOrder = Object.keys(game.players).filter(id => !playersWithOrder.find(p => p.id === id));
-
-		// 2. 남은 순서 할당
-		const numPlayers = Object.keys(game.players).length;
-		const availableOrders = Array.from({ length: numPlayers }, (_, i) => i + 1).filter(o => !takenOrders.has(o));
-
-		const finalOrders = [...playersWithOrder];
-		playersWithoutOrder.forEach((id, index) => {
-			if (availableOrders[index] !== undefined) {
-				finalOrders.push({ id, order: availableOrders[index] });
-			}
-		});
-
-		// 3. 정렬 및 적용
-		finalOrders.sort((a, b) => a.order - b.order);
-		game.turnOrder = finalOrders.map(x => x.id);
-
-		game.currentPhase = 'startingMines';
-		(game as any).startingMineSequence = buildStartingMineSequence(game);
-		log(`Turn order finalized: ${game.turnOrder.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+	if (allHaveFaction && (game.currentPhase === 'factionSelect' || game.currentPhase === 'factionBidding')) {
+		finalizeFactionSelectionToStartingMines(io, game);
 	}
 
 	// 시작 광산 단계에서 종족을 고르면 "지금 배치할 사람"으로 턴 동기화 (1번=하이브, 2번=테란 → 2번 턴으로)
@@ -5317,6 +5424,12 @@ export function executePassRound(
 				const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
 				const vp = Math.floor(sum / 3);
 				if (vp > 0) addScore(game, pid, vp, 'remainingResources');
+			}
+			for (const pid of Object.keys(game.players)) {
+				const bid = game.players[pid]?.factionBidVp ?? 0;
+				if (bid > 0) {
+					addScore(game, pid, -bid, 'other', { source: '종족 비딩' });
+				}
 			}
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';

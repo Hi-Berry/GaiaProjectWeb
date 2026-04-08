@@ -142,6 +142,31 @@ export const GameClient = {
     s.emit('start_game', { gameId });
   },
 
+  setUseFactionBidding(gameId: string, useFactionBidding: boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('set_use_faction_bidding', { gameId, useFactionBidding }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
+  factionBidRaise(gameId: string, newBid: number) {
+    const s = getSocket();
+    s.emit('faction_bid_raise', { gameId, newBid });
+  },
+
+  factionBidPass(gameId: string) {
+    const s = getSocket();
+    s.emit('faction_bid_pass', { gameId });
+  },
+
+  factionBidPick(gameId: string, factionId: string, turnOrder: number) {
+    const s = getSocket();
+    s.emit('faction_bid_pick', { gameId, factionId, turnOrder });
+  },
+
   autoSetupTest(gameId: string) {
     const s = getSocket();
     s.emit('auto_setup_test', { gameId });

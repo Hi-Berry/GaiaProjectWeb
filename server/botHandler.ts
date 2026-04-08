@@ -35,6 +35,9 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
 
     // Determine current player ID based on phase
     let currentPlayerId: string | null = null;
+    if (game.currentPhase === 'factionBidding') {
+        return;
+    }
     if (game.currentPhase === 'main' || game.currentPhase === 'factionSelect') {
         currentPlayerId = game.turnOrder[game.currentPlayerIndex];
     } else if (game.currentPhase === 'startingMines') {

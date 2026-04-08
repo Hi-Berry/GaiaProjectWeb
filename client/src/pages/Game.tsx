@@ -14,6 +14,7 @@ import { FreeActionsDialog } from '@/components/FreeActionsDialog';
 import { PlayerPanel } from '@/components/PlayerPanel';
 import { GameLog } from '@/components/GameLog';
 import { FactionSelect } from '@/components/FactionSelect';
+import { FactionBiddingPanel } from '@/components/FactionBiddingPanel';
 import { GameLobby } from '@/components/GameLobby';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -442,7 +443,7 @@ export default function Game() {
   useEffect(() => {
     if (!gameId || !game || !isHostSessionRef.current) return;
     const phase = game.currentPhase;
-    if (phase === 'lobby' || phase === 'factionSelect' || phase === 'startingMines') return;
+    if (phase === 'lobby' || phase === 'factionSelect' || phase === 'factionBidding' || phase === 'startingMines') return;
 
     // // 수익 선택 대기 중인 플레이어가 봇이면 포커스 이동 (사람일 때는 이동 안 함)
     // const pendingIncome = game.pendingIncomeOrder;
@@ -510,7 +511,7 @@ export default function Game() {
   useEffect(() => {
     if (!game || !gameId || !playerId) return;
     const cur = game.players[playerId];
-    if (!cur?.faction && game.isTestMode && (game.currentPhase === 'factionSelect' || game.currentPhase === 'startingMines')) {
+    if (!cur?.faction && game.isTestMode && game.currentPhase !== 'factionBidding' && (game.currentPhase === 'factionSelect' || game.currentPhase === 'startingMines')) {
       GameClient.selectFaction(gameId, 'ivits');
     }
   }, [game?.currentPhase, game?.isTestMode, game?.players, gameId, playerId]);
@@ -1608,7 +1609,10 @@ export default function Game() {
         </div>
       </div>
 
-      <main className="flex-1 flex flex-col overflow-auto bg-zinc-900/20">
+      <main className="flex-1 flex flex-col overflow-auto bg-zinc-900/20 relative">
+        {game.currentPhase === 'factionBidding' && (
+          <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
+        )}
         <div className="flex-1 min-h-[600px]">
           <GameBoard
             game={game}
@@ -3198,14 +3202,18 @@ export default function Game() {
                         >
                           {/* Left: Main info, Buildings, Resources */}
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
-                            {/* Score and Name Row */}
-                            <div className="flex items-center justify-between gap-1 md:gap-2 min-w-0 mb-1 md:mb-1.5">
-                              <span className="w-6 md:w-8 text-right text-sm md:text-base font-bold text-white flex-shrink-0">{p.score}</span>
-                              <div className="flex items-center gap-1 md:gap-1.5 min-w-0 flex-1 ml-1">
+                            {/* Score / Name / Bid Row */}
+                            <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
+                              <span className="w-6 md:w-8 text-right text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
+                                {p.score}
+                              </span>
+
+                              <div className="flex items-center gap-1 md:gap-1.5 min-w-0 flex-1">
                                 <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
                                 <span className="truncate font-medium text-xs md:text-sm text-zinc-200">
                                   {faction ? `${faction.name} (${p.name})` : p.name}
                                 </span>
+
                                 {/* Toggles */}
                                 {isYou && <span className="text-[8px] md:text-[10px] text-primary flex-shrink-0">(나)</span>}
                                 {isCurrentTurn && !hasPassed && (
@@ -3213,8 +3221,19 @@ export default function Game() {
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
                                   </span>
                                 )}
+                              </div>
+
+                              <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                                {(p.factionBidVp ?? 0) > 0 && (
+                                  <span
+                                    className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-none text-rose-300 font-semibold tabular-nums"
+                                    title={`비딩: −${p.factionBidVp}VP`}
+                                  >
+                                    −{p.factionBidVp}
+                                  </span>
+                                )}
                                 {hasPassed && (
-                                  <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1 ml-auto">PASSED</span>
+                                  <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1">PASSED</span>
                                 )}
                               </div>
                             </div>

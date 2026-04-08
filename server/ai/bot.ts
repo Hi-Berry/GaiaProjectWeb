@@ -357,6 +357,10 @@ export class BotLogic {
             return null;
         }
 
+        if (game.currentPhase === 'factionBidding') {
+            return null;
+        }
+
         if (game.currentPhase === 'factionSelect') {
             if (!player.faction) {
                 const availableFactions = FACTIONS.map(f => f.id);

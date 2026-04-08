@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import type { GameState } from '@/lib/gameClient';
 import { Users, Play, ArrowLeft, UserPlus, Gamepad2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { GameClient } from '@/lib/gameClient';
 
 interface GameLobbyProps {
   game: GameState;
@@ -174,23 +177,41 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
             </Button>
 
             {isHost && (
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <Button
-                  variant="secondary"
-                  onClick={onAutoSetupTest}
-                  className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20 text-xs sm:text-sm"
-                >
-                  Auto Setup (Random)
-                </Button>
-                <Button
-                  onClick={onStartGame}
-                  disabled={!canStart}
-                  data-testid="button-start-game"
-                  className="w-full sm:w-auto"
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Start Game {!canStart && '(Need 1+)'}
-                </Button>
+              <div className="flex flex-col gap-3 w-full sm:w-auto">
+                <div className="flex items-center space-x-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+                  <Checkbox
+                    id="use-faction-bidding"
+                    checked={!!game.useFactionBidding}
+                    onCheckedChange={async (v) => {
+                      try {
+                        await GameClient.setUseFactionBidding(gameId, v === true);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="use-faction-bidding" className="text-sm cursor-pointer leading-tight">
+                    종족 비딩 사용 (경매 후 종족·턴 선택, AI는 랜덤 즉시 배정)
+                  </Label>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={onAutoSetupTest}
+                    className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20 text-xs sm:text-sm"
+                  >
+                    Auto Setup (Random)
+                  </Button>
+                  <Button
+                    onClick={onStartGame}
+                    disabled={!canStart}
+                    data-testid="button-start-game"
+                    className="w-full sm:w-auto"
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    Start Game {!canStart && '(Need 1+)'}
+                  </Button>
+                </div>
               </div>
             )}
 

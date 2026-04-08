@@ -89,6 +89,8 @@ export interface PlayerState {
    * tune/self-play에서 6라운드 수입을 안정 지표로 쓰기 위함.
    */
   roundIncomeTotals?: Record<number, { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number }>;
+  /** 종족 비딩 낙찰 VP (게임 중 score에는 반영하지 않음, 종료 시에만 차감) */
+  factionBidVp?: number;
 }
 
 /** 게임 종료 시 플레이어별 점수 내역 (왜 이 점수인지 정리) */
@@ -381,7 +383,7 @@ export interface GaiaGameState {
   maxPlayers?: number;
   players: Record<string, PlayerState>;
   map: HexTile[];
-  currentPhase: 'lobby' | 'setup' | 'factionSelect' | 'startingMines' | 'main' | 'bonusSelection' | 'gameEnd';
+  currentPhase: 'lobby' | 'setup' | 'factionSelect' | 'factionBidding' | 'startingMines' | 'main' | 'bonusSelection' | 'gameEnd';
   roundNumber: number;
   /** 최종미션: 이번 게임에 적용된 2개 미션 ID (9개 중 랜덤 2개) */
   finalMissionIds?: string[];
@@ -509,6 +511,29 @@ export interface GaiaGameState {
   pendingTinkeroidSpecialChoice?: { playerId: string; round: number; options: string[] } | null;
   /** Undo용 전체 게임 상태 스냅샷 (StateCloner.cloneGameState로 JSON화). 프리액션 첫 수행 직전에 저장됨 */
   freeActionUndoState?: string;
+
+  /** 로비에서 호스트가 켠 경우에만 start_game 시 종족 비딩 단계로 진입 */
+  useFactionBidding?: boolean;
+  /** 종족 비딩 진행 상태 (factionBidding 단계에서만) */
+  factionBidding?: FactionBiddingState | null;
+}
+
+/** 종족 비딩(경매) 서버 상태 */
+export interface FactionBiddingState {
+  phase: 'bidding' | 'pick';
+  /** 아직 배정되지 않은 종족 ID (이번 판 풀) */
+  remainingFactionIds: string[];
+  /** 경매 참가자 순서 (턴 순서 기준) */
+  auctionBaseOrder: string[];
+  /** 현재 라운드 경매에 남은 플레이어 */
+  inAuction: string[];
+  /** 현재 입찰 차례 (bidding 단계) */
+  currentBidderId: string | null;
+  currentHighBid: number;
+  leaderId: string | null;
+  /** pick 단계: 낙찰자 */
+  pickPlayerId: string | null;
+  pendingWinningBid: number;
 }
 
 /** 연방 1개: rewardId + 초록(5단계/고급타일 획득에 사용 가능) 또는 빨강(이미 사용). 12점 연방은 획득 시 빨강 */
@@ -1458,6 +1483,7 @@ export function createInitialPlayerState(name: string = 'Player'): PlayerState {
   return {
     name,
     faction: null,
+    factionBidVp: 0,
 
     ore: 4,
     knowledge: 2,
