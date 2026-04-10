@@ -1836,7 +1836,7 @@ export default function Game() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute bottom-0 left-0 right-[340px] border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120]"
+              className={`absolute bottom-0 left-0 border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120] ${isSidebarOpen ? 'right-[340px] md:right-0' : 'right-0'}`}
             >
               <button
                 type="button"
@@ -1872,15 +1872,13 @@ export default function Game() {
                 </div>
               </button>
               {isBonusSelectionPanelExpanded && (
-                <div className="px-6 pb-6 pt-2 max-h-[45vh] overflow-y-auto border-t border-white/5 custom-scrollbar bg-black/20">
-                  <div className="max-w-6xl mx-auto">
-                    <BonusTiles
-                      game={game}
-                      playerId={playerId}
-                      isSelectionMode={isMyTurnBonusSelection}
-                      onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
-                    />
-                  </div>
+                <div className="px-4 sm:px-6 pb-6 pt-2 max-h-[45vh] overflow-y-auto border-t border-white/5 custom-scrollbar bg-black/20 w-full min-w-0">
+                  <BonusTiles
+                    game={game}
+                    playerId={playerId}
+                    isSelectionMode={isMyTurnBonusSelection}
+                    onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
+                  />
                 </div>
               )}
             </motion.div>
@@ -3716,7 +3714,7 @@ export default function Game() {
 
             {/* Game Log - 남은 공간을 최대로 활용, 내부만 스크롤 */}
             <div className="mt-1 flex-1 flex flex-col min-h-[400px] hidden md:flex">
-              <h3 className="font-semibold mb-2 flex items-center gap-2 text-xs md:text-sm shrink-0 text-zinc-400">
+              <h3 className="font-semibold mb-1 flex items-center gap-2 text-xs md:text-sm shrink-0 text-zinc-400">
                 <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Game Log
               </h3>

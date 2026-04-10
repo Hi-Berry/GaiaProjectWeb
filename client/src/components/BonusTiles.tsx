@@ -183,7 +183,15 @@ export function BonusTiles({
               마지막 라운드입니다. 아무 타일이나 클릭하면 다음 라운드 타일 선택 없이 라운드를 종료(패스)합니다.
             </p>
           )}
-          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-[1px] pb-1' : 'flex flex-wrap gap-3'}`}>
+          <div
+            className={
+              isMini
+                ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-[1px] pb-1'
+                : isSelectionMode
+                  ? 'grid w-full grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] gap-3 justify-items-center'
+                  : 'flex flex-wrap gap-3'
+            }
+          >
             {/* Available Bonus Tiles */}
             {game.availableBonusTiles.map((tile) => (
               <BonusTileCard

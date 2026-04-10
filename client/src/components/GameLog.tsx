@@ -183,7 +183,7 @@ export function GameLog({
   };
 
   const content = (
-    <div className={`space-y-2 flex flex-col ${!hideHeader ? "p-4" : "p-0 pr-3"}`}>
+    <div className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0 pr-2"}`}>
       {logs.length === 0 ? (
         <div className="text-center text-zinc-500 text-sm py-8 uppercase tracking-widest font-black opacity-30">
           No actions yet
@@ -193,6 +193,9 @@ export function GameLog({
           const actionText = log.action || '';
           const isPowerAction = /power|income|energy|bowl/i.test(actionText) || /Accepted|Declined/i.test(actionText);
           const isMainAction = /Built|Upgraded|Advanced|Pass|Pass Round|Gaia Project|Federation|Chosen/i.test(actionText) && !isPowerAction;
+          const isBonusTilePickLog = /^Selected Bonus Tile$/i.test(actionText);
+          const isBonusSwapLog = /^Selected Bonus$/i.test(actionText);
+          const isBonusTileLog = isBonusTilePickLog || isBonusSwapLog;
 
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
@@ -203,7 +206,7 @@ export function GameLog({
               key={index}
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
-              className={`flex items-start gap-2 p-2 rounded-lg border-l-4 transition-all duration-200 ${isMainAction
+              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-70'
@@ -214,33 +217,39 @@ export function GameLog({
               }}
             >
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] leading-tight mt-1 flex items-center gap-2 min-w-0">
+                <div
+                  className={`text-[11px] leading-tight flex items-center min-w-0 ${isBonusTileLog ? 'gap-1.5' : 'gap-2'}`}
+                >
                   {primaryImg && (
                     (() => {
                       const isBonus = primaryImg.src.startsWith('/image/BoostTile_');
                       const isTech = primaryImg.src.startsWith('/tech/');
                       const isBuilding = primaryImg.src.startsWith('/image/buildings/');
+                      const bonusHero = isBonus && isBonusTileLog;
 
-                      // 로그 행 크기를 이미지가 늘리지 않도록 고정 크기/최대치로 제한
-                      // - 건물: 정사각형 아이콘
-                      // - 보너스/테크: 세로는 아이콘 높이에 맞추고, 가로는 자동 (전체가 보이도록 contain)
-                      const wrapperClass = isBonus
-                        ? `h-7 w-12 rounded-sm overflow-visible flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
-                        : isTech
-                          ? `h-7 w-12 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
-                        : `h-7 w-7 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`;
+                      // 보너스: 높이를 텍스트 한 줄에 맞춤 — 과한 고정 높이 + contain은 위아래 빈 띠만 만듦
+                      const wrapperClass = bonusHero
+                        ? `h-9 w-[5rem] sm:h-10 sm:w-[5.5rem] overflow-hidden flex-shrink-0 flex items-center justify-center ${isPowerAction ? 'opacity-60 grayscale' : ''}`
+                        : isBonus
+                          ? `h-7 w-12 rounded-sm overflow-visible flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
+                          : isTech
+                            ? `h-7 w-12 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
+                            : `h-7 w-7 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`;
 
-                      const imgClass = isBonus || isTech
-                        ? (isBonus ? 'w-full h-full object-contain scale-[1.5] origin-center' : 'w-full h-full object-contain')
-                        : isBuilding
-                          ? 'w-full h-full object-cover'
-                          : 'w-full h-full object-cover';
+                      const imgClass = bonusHero
+                        ? 'h-full w-full min-h-0 min-w-0 object-contain object-center -rotate-90 origin-center scale-[2.0]'
+                        : isBonus || isTech
+                          ? (isBonus ? 'w-full h-full object-contain scale-[2.0] origin-center' : 'w-full h-full object-contain')
+                          : isBuilding
+                            ? 'w-full h-full object-cover'
+                            : 'w-full h-full object-cover';
 
                       return (
                         <div className={wrapperClass}>
                           <img
                             src={primaryImg.src}
                             alt={primaryImg.alt}
+                            title={log.details || primaryImg.alt}
                             className={imgClass}
                             loading="lazy"
                             onError={(e) => {
@@ -252,11 +261,29 @@ export function GameLog({
                       );
                     })()
                   )}
-                  <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: '10px' } : { color: '#d4d4d8' })}>
-                    {log.action}
-                  </span>
-                  {log.details && (
-                    <span className="ml-1.5">
+                  {!isBonusTileLog && (
+                    <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: '10px' } : { color: '#d4d4d8' })}>
+                      {log.action}
+                    </span>
+                  )}
+                  {isBonusTileLog && log.details && (
+                    <div className="min-w-0 flex-1 flex flex-col gap-0 leading-none">
+                      {isBonusTilePickLog ? (
+                        <span className="text-[10px] sm:text-[11px] text-zinc-200 font-bold leading-tight break-words">
+                          {log.details}
+                        </span>
+                      ) : (
+                        <span className="min-w-0">
+                          {renderDetailsWithTrackColor(
+                            log.details,
+                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium text-[10px]'}`
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {!isBonusTileLog && log.details && (
+                    <span className="ml-1.5 min-w-0">
                       {renderDetailsWithTrackColor(
                         log.details,
                         `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium text-[10px]'}`
@@ -266,7 +293,7 @@ export function GameLog({
                 </div>
                 {/* subLogs rendering */}
                 {log.subLogs && log.subLogs.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1 border-t border-white/5 pt-1.5">
+                  <div className="mt-1 flex flex-wrap gap-1 border-t border-white/5 pt-1">
                     {log.subLogs.map((subLog, i) => {
                       if (!subLog) return null;
                       const subPlayer = subLog.playerId ? game.players[subLog.playerId] : undefined;
@@ -299,7 +326,7 @@ export function GameLog({
 
   return (
     <Card className={`w-full bg-zinc-950 border-white/5 text-zinc-100 overflow-hidden font-orbitron shadow-2xl ${className}`}>
-      <CardHeader className="py-3 px-4 border-b border-white/5 bg-zinc-900/50">
+      <CardHeader className="py-2 px-3 border-b border-white/5 bg-zinc-900/50">
         <CardTitle className="text-sm font-black tracking-widest uppercase text-zinc-400 flex items-center gap-2">
           <Clock className="w-4 h-4" />
           Game Log
