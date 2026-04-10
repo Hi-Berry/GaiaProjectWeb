@@ -168,6 +168,11 @@ export function startNewAuctionRound(
 	fb.pickPlayerId = null;
 	fb.pendingWinningBid = 0;
 	fb.currentBidderId = nextBidderInOrder(fb.auctionBaseOrder, new Set(fb.inAuction), null);
+
+	for (const pid of fb.inAuction) {
+		const pl = game.players[pid];
+		if (pl) delete pl.factionAuctionLastBid;
+	}
 }
 
 export function initFactionBiddingPhase(
@@ -192,6 +197,9 @@ export function processFactionBidRaise(
 	if (fb.currentBidderId !== playerId) return '당신 차례가 아닙니다.';
 	const minBid = fb.currentHighBid === 0 ? 1 : fb.currentHighBid + 1;
 	if (newBid < minBid) return `최소 ${minBid} 이상 입찰해야 합니다.`;
+
+	const bidder = game.players[playerId];
+	if (bidder) bidder.factionAuctionLastBid = newBid;
 
 	fb.currentHighBid = newBid;
 	fb.leaderId = playerId;

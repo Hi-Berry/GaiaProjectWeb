@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
+import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 
 import { ResearchBoard } from '@/components/ResearchBoard';
 import { RoundBoard } from '@/components/RoundBoard';
@@ -3077,13 +3078,16 @@ export default function Game() {
               {/* 플레이어 영역: 콘텐츠 높이만 사용(flex-none으로 줄어들지 않음), 빈 공간 없음 */}
               <div className="space-y-2 md:space-y-4 flex-none overflow-visible">
                 <div className="space-y-1.5 md:space-y-2">
-              {([...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
-                const pa = game.players[a];
-                const pb = game.players[b];
-                if (pa?.hasPassed && !pb?.hasPassed) return 1;
-                if (!pa?.hasPassed && pb?.hasPassed) return -1;
-                return 0;
-              })).map((id) => {
+              {(game.currentPhase === 'factionBidding' && game.factionBidding
+                ? playerIdsForFactionBiddingUi(game, game.factionBidding)
+                : [...(game.turnOrder ?? Object.keys(game.players))].sort((a, b) => {
+                    const pa = game.players[a];
+                    const pb = game.players[b];
+                    if (pa?.hasPassed && !pb?.hasPassed) return 1;
+                    if (!pa?.hasPassed && pb?.hasPassed) return -1;
+                    return 0;
+                  })
+              ).map((id) => {
                 const p = game.players[id] as PlayerState | undefined;
                 if (!p) return null;
                 const fedEntries = getFederationEntries(p);
@@ -3211,6 +3215,9 @@ export default function Game() {
                               <div className="flex items-center gap-1 md:gap-1.5 min-w-0 flex-1">
                                 <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
                                 <span className="truncate font-medium text-xs md:text-sm text-zinc-200">
+                                  {game.currentPhase === 'factionBidding' && faction && p.selectedTurnOrder != null && (
+                                    <span className="text-zinc-500 font-mono tabular-nums mr-1">[{p.selectedTurnOrder}]</span>
+                                  )}
                                   {faction ? `${faction.name} (${p.name})` : p.name}
                                 </span>
 

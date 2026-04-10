@@ -16,6 +16,8 @@ export const RESEARCH_TRACKS: { id: ResearchTrack; name: string; color: string }
 export interface PlayerState {
   name: string;
   faction: string | null;
+  /** 종족 선택 시 고른 라운드 턴 순서 (1..N) */
+  selectedTurnOrder?: number;
   ore: number;
   knowledge: number;
   credits: number;
@@ -91,6 +93,8 @@ export interface PlayerState {
   roundIncomeTotals?: Record<number, { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number }>;
   /** 종족 비딩 낙찰 VP (게임 중 score에는 반영하지 않음, 종료 시에만 차감) */
   factionBidVp?: number;
+  /** 현재 종족 경매 라운드에서 해당 플레이어가 마지막으로 부른 입찰가 (라운드 시작 시 초기화) */
+  factionAuctionLastBid?: number;
 }
 
 /** 게임 종료 시 플레이어별 점수 내역 (왜 이 점수인지 정리) */

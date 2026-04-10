@@ -4,7 +4,40 @@ import { Badge } from '@/components/ui/badge';
 import type { GameState } from '@/lib/gameClient';
 import { FACTIONS } from '@shared/gameConfig';
 import { GameClient } from '@/lib/gameClient';
+import { racePortraitSrc } from '@/lib/racePortrait';
+import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+
+/** 종족 카드: 2열 그리드용, 이미지 비율 유지(contain), 박스는 이미지에 맞춤(불필요한 세로 여백 최소화) */
+function RaceCardFrame({
+  src,
+  name,
+  color,
+}: {
+  src: string | null;
+  name: string;
+  color?: string;
+}) {
+  return (
+    <div className="w-full bg-zinc-900 flex items-center justify-center py-0.5 px-0.5">
+      {src ? (
+        <img
+          src={src}
+          alt={name}
+          className="max-w-full w-auto h-auto object-contain max-h-[6.25rem] sm:max-h-[7rem]"
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="min-h-[4rem] flex items-center justify-center text-center text-[11px] font-bold text-zinc-400 px-2 py-2 leading-snug"
+          style={{ color: color ?? undefined }}
+        >
+          {name}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Props = {
   game: GameState;
@@ -15,6 +48,7 @@ type Props = {
 export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [draftBid, setDraftBid] = useState<number | null>(null);
+  const [pickFactionId, setPickFactionId] = useState<string | null>(null);
 
   const fb = game.factionBidding;
   const shouldRender = !!fb && game.currentPhase === 'factionBidding';
@@ -44,6 +78,17 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
     });
   }, [isMyBidTurn, minRaise]);
 
+  const remainingKey = fb?.remainingFactionIds.join(',') ?? '';
+
+  useEffect(() => {
+    if (!isMyPick) {
+      setPickFactionId(null);
+      return;
+    }
+    const ids = remainingKey ? remainingKey.split(',') : [];
+    setPickFactionId((cur) => (cur && ids.includes(cur) ? cur : null));
+  }, [isMyPick, remainingKey]);
+
   if (!shouldRender) return null;
 
   const takenTurnOrders = new Set(
@@ -57,6 +102,8 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
 
   const needsAttention =
     (fb.phase === 'bidding' && isMyBidTurn) || (fb.phase === 'pick' && isMyPick);
+
+  const panelPlayerOrder = playerIdsForFactionBiddingUi(game, fb);
 
   if (collapsed) {
     return (
@@ -111,23 +158,73 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
         </Button>
       </div>
 
+      {isPick && isMyPick && (
+        <p className="text-center text-sm text-emerald-300 mb-3">
+          낙찰! 낙찰가 {fb.pendingWinningBid} VP — 아래 종족을 누른 뒤 턴 순서를 고르세요.
+        </p>
+      )}
+
       <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/80 p-2">
-        <p className="text-[10px] uppercase text-zinc-500 mb-1">이번에 고를 수 있는 종족</p>
-        <div className="flex flex-wrap gap-2 justify-center">
+        <p className="text-[10px] uppercase text-zinc-500 mb-2">이번에 고를 수 있는 종족</p>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {fb.remainingFactionIds.map((fid) => {
             const f = FACTIONS.find((x) => x.id === fid);
+            const src = racePortraitSrc(fid);
+            const name = f?.name ?? fid;
+            if (isPick && isMyPick) {
+              const selected = pickFactionId === fid;
+              return (
+                <button
+                  key={fid}
+                  type="button"
+                  className={`rounded-lg border-2 overflow-hidden text-left transition-all hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 min-w-0 ${
+                    selected ? 'border-amber-400 ring-1 ring-amber-400/40' : 'border-zinc-700'
+                  }`}
+                  onClick={() => {
+                    if (availOrders.length === 1) {
+                      GameClient.factionBidPick(gameId, fid, availOrders[0]!);
+                      return;
+                    }
+                    setPickFactionId(fid);
+                  }}
+                  aria-label={`${name} 선택`}
+                  title={availOrders.length === 1 ? `${name} — 즉시 선택` : name}
+                >
+                  <RaceCardFrame src={src} name={name} color={f?.color} />
+                </button>
+              );
+            }
             return (
-              <Badge
+              <div
                 key={fid}
-                className="text-xs font-bold border"
-                style={{ borderColor: f?.color ?? '#666', color: f?.color ?? '#fff' }}
+                className="rounded-lg border border-zinc-700 bg-zinc-950/60 overflow-hidden shadow-sm min-w-0"
+                title={name}
               >
-                {f?.name ?? fid}
-              </Badge>
+                <RaceCardFrame src={src} name={name} color={f?.color} />
+              </div>
             );
           })}
         </div>
       </div>
+
+      {isPick && isMyPick && pickFactionId && availOrders.length > 1 && (
+        <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/60 p-2 space-y-2">
+          <p className="text-[10px] uppercase text-zinc-500 text-center">턴 순서</p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {availOrders.map((ord) => (
+              <Button
+                key={ord}
+                size="sm"
+                variant="secondary"
+                className="min-w-[4.5rem] text-xs"
+                onClick={() => GameClient.factionBidPick(gameId, pickFactionId, ord)}
+              >
+                턴 {ord}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {fb.phase === 'bidding' && (
         <div className="text-center text-sm text-zinc-300 mb-3 space-y-1">
@@ -201,56 +298,46 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
         </div>
       )}
 
-      {isPick && isMyPick && (
-        <div className="space-y-3">
-          <p className="text-center text-sm text-emerald-300">
-            낙찰! 낙찰가 {fb.pendingWinningBid} VP — 종족과 턴 순서를 고르세요.
-          </p>
-          <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
-            {fb.remainingFactionIds.flatMap((fid) => {
-              const f = FACTIONS.find((x) => x.id === fid);
-              return availOrders.map((ord) => (
-                <Button
-                  key={`${fid}-${ord}`}
-                  size="sm"
-                  variant="secondary"
-                  className="text-xs justify-between"
-                  onClick={() => GameClient.factionBidPick(gameId, fid, ord)}
-                >
-                  <span>{f?.name ?? fid}</span>
-                  <span className="text-zinc-400">턴 {ord}</span>
-                </Button>
-              ));
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="mt-4 border-t border-zinc-800 pt-2">
         <p className="text-zinc-500 uppercase text-[9px] tracking-wider mb-1.5">플레이어</p>
+        <p className="text-[9px] text-zinc-600 mb-1.5 leading-snug">
+          확정: 턴 순 · 진행 중: 입찰 순서
+        </p>
         <div className="space-y-1">
-          {game.turnOrder.map((id) => {
+          {panelPlayerOrder.map((id) => {
             const p = game.players[id];
             if (!p) return null;
             const bid = p.factionBidVp ?? 0;
             const isBot = game.botPlayerIds?.includes(id);
             const hasF = !!p.faction;
+            const lastAuctionBid = p.factionAuctionLastBid;
             let label = '';
+            let titleExtra = '';
             if (hasF) label = `${bid}VP`;
             else if (isBot) label = 'AI';
-            else if (fb.phase === 'bidding' && fb.inAuction.includes(id)) label = '입찰중';
-            else if (fb.phase === 'bidding') label = '탈락';
+            else if (fb.phase === 'bidding' && fb.inAuction.includes(id)) {
+              if (lastAuctionBid != null && lastAuctionBid > 0) {
+                label = `입찰중 ${lastAuctionBid}`;
+                titleExtra = `마지막 입찰 ${lastAuctionBid}VP`;
+              } else {
+                label = '입찰중';
+                titleExtra = '아직 입찰 전';
+              }
+            } else if (fb.phase === 'bidding') label = '패스';
             else if (fb.phase === 'pick' && fb.pickPlayerId === id) label = '선택';
             else label = '대기';
             return (
               <div key={id} className="flex items-center justify-between gap-2 min-h-[28px]">
                 <span className="truncate text-[11px] text-zinc-200 min-w-0 flex-1">
+                  {hasF && p.selectedTurnOrder != null && (
+                    <span className="text-zinc-500 font-mono tabular-nums mr-1">[{p.selectedTurnOrder}]</span>
+                  )}
                   {p.name}
                   {isBot && <span className="text-zinc-500"> · BOT</span>}
                 </span>
                 <span
-                  className="shrink-0 inline-flex min-w-[3.25rem] items-center justify-center rounded border border-zinc-600/70 bg-zinc-900/80 px-2 py-1 text-[10px] leading-none text-zinc-400 tabular-nums text-center shadow-sm"
-                  title={label}
+                  className="shrink-0 inline-flex min-w-[3.25rem] max-w-[7rem] items-center justify-center rounded border border-zinc-600/70 bg-zinc-900/80 px-1.5 py-1 text-[10px] leading-tight text-zinc-400 tabular-nums text-center shadow-sm"
+                  title={titleExtra || label}
                 >
                   {label}
                 </span>
