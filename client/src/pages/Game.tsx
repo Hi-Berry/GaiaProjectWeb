@@ -633,6 +633,9 @@ export default function Game() {
   // boardgame.io doesn't always use currentPlayerIndex this way in custom setups, 
   // but we'll follow our server logic.
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+  const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
+  const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
+  const pendingPowerOfferCount = game.pendingPowerOffers?.length ?? 0;
 
 
   if (game.currentPhase === 'lobby') {
@@ -1322,6 +1325,15 @@ export default function Game() {
       <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
+          {pendingTurnEndPlayerName && pendingPowerOfferCount > 0 && (
+            <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs md:text-sm flex items-center gap-2">
+              <Clock className="w-4 h-4 shrink-0 text-amber-300" />
+              <span>
+                <strong>{pendingTurnEndPlayerName}</strong> 턴의 파워 수락 처리 중입니다.
+                {' '}응답 완료 후 다음 턴으로 넘어갑니다.
+              </span>
+            </div>
+          )}
           <div className="flex gap-1 items-end bg-black/80 rounded-lg p-1 md:p-0 md:bg-transparent shadow-xl md:shadow-none">
             {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
             {!isSpectator && isHost && game && game.turnOrder.length > 1 && (

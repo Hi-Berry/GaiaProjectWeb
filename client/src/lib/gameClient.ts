@@ -343,9 +343,11 @@ export const GameClient = {
     getSocket().emit('confirm_advanced_tech_cover', { gameId, coverTileId });
   },
 
-  undoFreeAction(gameId: string) {
+  undoFreeAction(gameId: string, steps?: number) {
     const s = getSocket();
-    s.emit('undo_free_action', { gameId });
+    const payload: { gameId: string; steps?: number } = { gameId };
+    if (steps != null && Number.isFinite(steps) && steps > 0) payload.steps = Math.floor(steps);
+    s.emit('undo_free_action', payload);
   },
 
   useSpecialAction(gameId: string, actionId: string) {

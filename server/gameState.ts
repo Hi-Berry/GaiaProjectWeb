@@ -84,6 +84,9 @@ export interface ServerGameState extends GaiaGameState {
 	turnStartState?: Record<string, any>; // [playerId]: PlayerTurnState
 	isBotExecuting?: boolean; // 봇 로직이 실행 중인지 확인하는 락
 	simulation?: boolean; // MCTS 시뮬레이션 중인지 여부 (로그 억제용)
+	freeActionUndoStack?: string[]; // Free Action 단계별 Undo 스냅샷 스택(최신이 끝)
+	queuedPowerOffers?: NonNullable<GaiaGameState['pendingPowerOffers']>; // 턴 종료 전까지 보류되는 파워 제안
+	pendingTurnEndPlayerId?: string; // 파워 수락 대기 때문에 턴 종료가 보류된 플레이어 ID
 }
 
 
@@ -94,6 +97,36 @@ const socketToPlayerMap = new Map<string, string>();
 const socketToSpectatorMap = new Map<string, string>();
 const spectatorToGameMap = new Map<string, string>();
 
+function deepClone<T>(value: T): T {
+	// Prefer structuredClone to preserve undefined/Date/Map/Set/etc.
+	// Fallback to JSON clone for older runtimes or unsupported values.
+	try {
+		const sc = (globalThis as any).structuredClone;
+		if (typeof sc === 'function') return sc(value) as T;
+	} catch (_e) {
+		// ignore and fall back
+	}
+	return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function buildFreeActionUndoSnapshot(game: ServerGameState): string {
+	const cloned = StateCloner.cloneGameState(game) as ServerGameState;
+	// Undo 스냅샷 내부에 다시 Undo 스택이 들어가면 중첩/용량이 급격히 커질 수 있어 제거
+	(cloned as any).freeActionUndoState = undefined;
+	cloned.freeActionUndoStack = undefined;
+	return JSON.stringify(cloned);
+}
+
+function pushFreeActionUndoSnapshot(game: ServerGameState): void {
+	if (!game.freeActionUndoStack) game.freeActionUndoStack = [];
+	// 하위 호환: 기존 단일 스냅샷이 남아 있으면 스택의 첫 항목으로 승격
+	if ((game as any).freeActionUndoState && game.freeActionUndoStack.length === 0) {
+		game.freeActionUndoStack.push((game as any).freeActionUndoState);
+	}
+	game.freeActionUndoStack.push(buildFreeActionUndoSnapshot(game));
+	(game as any).freeActionUndoState = undefined;
+}
+
 /**
  * 턴 시작/리셋용 전체 게임 스냅샷. turnStartState를 제외해 복사하면
  * 중첩으로 인한 기하급수적 용량 증가와 RangeError: Invalid string length 방지.
@@ -101,21 +134,23 @@ const spectatorToGameMap = new Map<string, string>();
 function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
 	const { turnStartState: _ts, freeActionUndoState: _fa, gameLog: _gl, ...rest } = game as any;
 	// Reset 복원에는 gameLog 본문/Undo 원본 문자열이 필수 아님(길이만 사용) → 스냅샷 용량 대폭 절감
-	return JSON.parse(JSON.stringify({
-		...rest,
-		turnStartState: undefined,
-		freeActionUndoState: undefined,
-		gameLog: [],
-	})) as ServerGameState;
+	const cloned = deepClone(rest) as ServerGameState;
+	cloned.turnStartState = undefined;
+	(cloned as any).freeActionUndoState = undefined;
+	cloned.freeActionUndoStack = undefined;
+	cloned.queuedPowerOffers = undefined;
+	cloned.pendingTurnEndPlayerId = undefined;
+	cloned.gameLog = [];
+	return cloned;
 }
 
 /** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
 function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: string) {
 	return {
-		playerState: JSON.parse(JSON.stringify(game.players[playerId])),
-		mapState: JSON.parse(JSON.stringify(game.map)),
-		spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-		twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
+		playerState: deepClone(game.players[playerId]),
+		mapState: deepClone(game.map),
+		spaceshipsState: game.spaceships ? deepClone(game.spaceships) : undefined,
+		twilightArtifactSlots: game.twilightArtifactSlots ? deepClone(game.twilightArtifactSlots) : undefined,
 		gameLogLength: game.gameLog?.length || 0,
 		fullGameState: cloneGameForTurnStartSnapshot(game),
 	};
@@ -606,9 +641,7 @@ function isSpaceshipFederationRewardTaken(game: GaiaGameState, rewardId: string)
 
 function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId: string): void {
 	const nearbyPlayers = findNearbyPlayersForPower(game, tile, sourcePlayerId);
-	if (!game.pendingPowerOffers) game.pendingPowerOffers = [];
-
-	const sourcePlayer = game.players[sourcePlayerId];
+	if (!game.queuedPowerOffers) game.queuedPowerOffers = [];
 	for (const { playerId, maxPower, tileId } of nearbyPlayers) {
 		const targetPlayer = game.players[playerId];
 		const potentialGain = getMaxPowerGain(targetPlayer);
@@ -628,42 +661,7 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 		const maxAffordable = Math.min(actualGain, targetPlayer.score + 1);
 		const vpCost = Math.max(0, maxAffordable - 1);
 
-		// 이타르·타클론 제외: 발생 파워가 얼마든, 비용(vpCost) 없이 지불되는 파워가 1 이하라면 자동 수락(autoAcceptOne)
-		const autoAcceptOne = vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
-		if (autoAcceptOne) {
-			addScore(game, playerId, -vpCost, 'powerReceived');
-			applyPlayerPowerCharge(game, playerId, maxAffordable);
-			const text = `+${maxAffordable}P`;
-			const added = addSubLogToLastAction(game, sourcePlayerId, {
-				playerId,
-				playerName: targetPlayer.name,
-				text: `↳ Received Power ${text} ${targetPlayer.name}`
-			});
-			if (!added) {
-				addGameLog(game, playerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, tileId);
-			}
-			continue;
-		}
-		// Bot Auto-Accept Logic
-		if (game.botPlayerIds?.includes(playerId)) {
-			const shouldAccept = true;
-			if (shouldAccept) {
-				addScore(game, playerId, -vpCost, 'powerReceived');
-				applyPlayerPowerCharge(game, playerId, maxAffordable);
-				const text = `+${maxAffordable}P`;
-				const added = addSubLogToLastAction(game, sourcePlayerId, {
-					playerId,
-					playerName: targetPlayer.name,
-					text: `↳ Received Power ${text} ${targetPlayer.name}`
-				});
-				if (!added) {
-					addGameLog(game, playerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, tileId);
-				}
-			}
-			continue;
-		}
-
-		game.pendingPowerOffers.push({
+		game.queuedPowerOffers.push({
 			id: `${Date.now()}_${playerId}_${Math.random()}`,
 			targetPlayerId: playerId,
 			sourcePlayerId,
@@ -671,6 +669,75 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 			vpCost,
 			tileId,
 			responded: false
+		});
+	}
+}
+
+function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerId: string): number {
+	const queued = game.queuedPowerOffers ?? [];
+	if (!queued.length) return 0;
+	if (!game.pendingPowerOffers) game.pendingPowerOffers = [];
+
+	const sourcePlayer = game.players[sourcePlayerId];
+	const remaining: NonNullable<GaiaGameState['pendingPowerOffers']> = [];
+	for (const offer of queued) {
+		if (offer.sourcePlayerId !== sourcePlayerId) {
+			remaining.push(offer);
+			continue;
+		}
+		const targetPlayer = game.players[offer.targetPlayerId];
+		if (!targetPlayer) continue;
+
+		const autoAcceptOne = offer.vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
+		const autoAcceptBot = !!game.botPlayerIds?.includes(offer.targetPlayerId);
+		if (autoAcceptOne || autoAcceptBot) {
+			addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
+			applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount);
+			const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
+			const added = addSubLogToLastAction(game, sourcePlayerId, {
+				playerId: offer.targetPlayerId,
+				playerName: targetPlayer.name,
+				text: `↳ Received Power ${text} ${targetPlayer.name}`
+			});
+			if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
+			continue;
+		}
+		game.pendingPowerOffers.push({ ...offer, responded: false });
+	}
+
+	game.queuedPowerOffers = remaining;
+	return game.pendingPowerOffers.length;
+}
+
+function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
+	game.hasDoneMainAction = false;
+	if (game.turnStartState) delete game.turnStartState[endedPlayerId];
+	if (game.players[endedPlayerId]) game.players[endedPlayerId].tempRangeBonus = false;
+	game.pendingTurnEndPlayerId = undefined;
+
+	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
+	let passCount = 0;
+	while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
+		game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
+		passCount++;
+		if (passCount >= game.turnOrder.length) break;
+	}
+
+	const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
+	if (newCurrentPlayerId) {
+		if (!game.turnStartState) game.turnStartState = {};
+		game.turnStartState[newCurrentPlayerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, newCurrentPlayerId);
+	}
+
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+
+	if (options?.reason) {
+		log(`Turn ended for ${endedPlayerId}. Next player: ${newCurrentPlayerId} (${options.reason})`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+	if (options?.triggerBot) {
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (${options.reason || 'finalizeTurnEnd'}): ${err}`, 'error');
 		});
 	}
 }
@@ -1099,10 +1166,17 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		log(`Income phase already in progress for player ${game.pendingIncomeOrder.playerId}`, 'game', undefined, { simulation: (game as any).simulation });
 		return;
 	}
-	// 파워 수신은 건물 지을 때만 표시. 라운드 시작(수익 단계)에서는 이전 라운드 잔여 제안 제거
+	// 파워 수신은 턴 종료 시점에만 처리. 라운드 시작(수익 단계)에서는 잔여 제안을 정리.
 	if (game.pendingPowerOffers && game.pendingPowerOffers.length > 0) {
 		game.pendingPowerOffers = [];
-		log(`Income phase: cleared pending power offers (파워 수신은 건물 배치 시에만)`, 'game', undefined, { simulation: (game as any).simulation });
+		log(`Income phase: cleared pending power offers`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+	if ((game as ServerGameState).queuedPowerOffers && (game as ServerGameState).queuedPowerOffers!.length > 0) {
+		(game as ServerGameState).queuedPowerOffers = [];
+		log(`Income phase: cleared queued power offers`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+	if ((game as ServerGameState).pendingTurnEndPlayerId) {
+		(game as ServerGameState).pendingTurnEndPlayerId = undefined;
 	}
 	log(`Triggering income phase for round ${game.roundNumber}`, 'game', undefined, { simulation: (game as any).simulation });
 	const turnOrder = game.turnOrder ?? Object.keys(game.players);
@@ -1498,13 +1572,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 	const currentId = game.turnOrder[game.currentPlayerIndex];
 	if (currentId) {
 		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[currentId] = {
-			playerState: JSON.parse(JSON.stringify(game.players[currentId])),
-			mapState: JSON.parse(JSON.stringify(game.map)),
-			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-		};
+		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
 	}
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
 
@@ -1538,13 +1606,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 	const currentId = game.turnOrder[game.currentPlayerIndex];
 	if (currentId) {
 		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[currentId] = {
-			playerState: JSON.parse(JSON.stringify(game.players[currentId])),
-			mapState: JSON.parse(JSON.stringify(game.map)),
-			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-		};
+		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
 	}
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
 
@@ -1558,13 +1620,7 @@ export function helperFinishAfterGaiaformerPhase(io: SocketIOServer, game: GaiaG
 	const currentId = game.turnOrder[game.currentPlayerIndex];
 	if (currentId) {
 		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[currentId] = {
-			playerState: JSON.parse(JSON.stringify(game.players[currentId])),
-			mapState: JSON.parse(JSON.stringify(game.map)),
-			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-		};
+		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
 	}
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
@@ -2826,6 +2882,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (game.pendingTurnEndPlayerId === playerId) return;
 			// 현재 턴 플레이어만 자기 턴 시작 스냅샷으로 복구 (다른 소켓/착오 방지)
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			const startState = game.turnStartState?.[playerId];
@@ -2835,7 +2892,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			if (startState.fullGameState) {
 				// 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
-				const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+				const restored = deepClone(startState.fullGameState) as ServerGameState;
 				restored.gameLog = (game.gameLog || []).slice(0, startState.gameLogLength || 0);
 
 				// 복원된 상태만 기준으로 turnStartState 재구성 (라이브 game.turnStartState 통째 할당 금지 — 타인/과거 스냅샷 혼입 방지)
@@ -2849,10 +2906,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_updated', restored);
 			} else {
 				// 하위 호환성용 (기존 필드 복구)
-				game.players[playerId] = JSON.parse(JSON.stringify(startState.playerState));
-				game.map = JSON.parse(JSON.stringify(startState.mapState));
-				if (startState.spaceshipsState) game.spaceships = JSON.parse(JSON.stringify(startState.spaceshipsState));
-				if (startState.twilightArtifactSlots) game.twilightArtifactSlots = JSON.parse(JSON.stringify(startState.twilightArtifactSlots));
+				game.players[playerId] = deepClone(startState.playerState);
+				game.map = deepClone(startState.mapState);
+				if (startState.spaceshipsState) game.spaceships = deepClone(startState.spaceshipsState);
+				if (startState.twilightArtifactSlots) game.twilightArtifactSlots = deepClone(startState.twilightArtifactSlots);
 				if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
 				game.hasDoneMainAction = false;
 				game.turnStartState = {
@@ -2908,6 +2965,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_hadsch_hallas_pi_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (game.pendingTurnEndPlayerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			const player = game.players[playerId];
 			if (player.faction !== 'hadsch_hallas') return;
@@ -2917,9 +2975,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!action) return;
 			if ((player.credits ?? 0) < action.costCredits) return;
 
-			if (!game.freeActionUndoState) {
-				game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
-			}
+			pushFreeActionUndoSnapshot(game);
 
 			player.credits = (player.credits ?? 0) - action.costCredits;
 			if (actionId === 'hh-4c-1qic') grantQic(game, playerId, 1);
@@ -2941,11 +2997,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('convert_resource', ({ gameId, type, useBrain }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (game.pendingTurnEndPlayerId) return;
 
-			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (최초 1회만)
-			if (!game.freeActionUndoState) {
-				game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
-			}
+			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
+			pushFreeActionUndoSnapshot(game);
 
 			if (executeConvertResource(io, game, playerId, type, useBrain)) {
 				// 이미 executeConvertResource에서 clamp 및 emit을 수행함
@@ -2955,33 +3010,46 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('burn_power', ({ gameId, moveBrainToBowl3 }: { gameId: string; moveBrainToBowl3?: boolean }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (game.pendingTurnEndPlayerId) return;
 
-			if (!game.freeActionUndoState) {
-				game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
-			}
+			pushFreeActionUndoSnapshot(game);
 
 			if (executeBurnPower(game, playerId, moveBrainToBowl3)) {
 				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			}
 		});
 
-		socket.on('undo_free_action', ({ gameId }) => {
+		socket.on('undo_free_action', ({ gameId, steps }: { gameId: string; steps?: number }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 
-			if (!game.freeActionUndoState) return;
+			if (!game.freeActionUndoStack) game.freeActionUndoStack = [];
+			// 하위 호환: 기존 단일 스냅샷을 스택으로 승격
+			if ((game as any).freeActionUndoState && game.freeActionUndoStack.length === 0) {
+				game.freeActionUndoStack.push((game as any).freeActionUndoState);
+			}
+			const stack = game.freeActionUndoStack;
+			if (!stack.length) return;
 
 			try {
-				const restoredGame = JSON.parse(game.freeActionUndoState) as ServerGameState;
+				const requestedSteps = typeof steps === 'number' && Number.isFinite(steps) ? Math.floor(steps) : 1;
+				const popCount = Math.max(1, requestedSteps);
+				let snapshot = stack[stack.length - 1];
+				for (let i = 0; i < popCount && stack.length > 0; i++) {
+					snapshot = stack.pop() as string;
+				}
+				const restoredGame = JSON.parse(snapshot) as ServerGameState;
+				restoredGame.freeActionUndoStack = stack;
+				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
 				games.set(gameId, restoredGame);
 				const player = restoredGame.players[playerId];
-				log(`Player ${player?.name} undone all free actions`, 'game', undefined, { simulation: (game as any).simulation });
-				addGameLog(restoredGame, playerId, 'Undo Free Action', 'Reverted free actions');
+				log(`Player ${player?.name} undone free actions (${popCount} step)`, 'game', undefined, { simulation: (game as any).simulation });
+				addGameLog(restoredGame, playerId, 'Undo Free Action', `Reverted ${popCount} free action step(s)`);
 				io.to(gameId).emit('game_updated', restoredGame);
 			} catch (err) {
-				log(`Failed to restore freeActionUndoState: ${err}`, 'error');
+				log(`Failed to restore freeActionUndoStack: ${err}`, 'error');
 			}
 		});
 
@@ -3659,6 +3727,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 보너스 선택 단계에서는 턴 종료 불가 (보너스 선택만 가능)
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (game.pendingTurnEndPlayerId) return;
 
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			// 가이아 프로젝트(보너스/TF Mars) 대기 중에는 턴 종료 불가 → 배치 또는 건너뛰기 먼저
@@ -3684,38 +3753,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 				return;
 			}
 
-			game.hasDoneMainAction = false;
-			const prevPlayerIndex = game.currentPlayerIndex;
-			const prevPlayerId = game.turnOrder[prevPlayerIndex];
-
-			// 턴이 끝난 플레이어의 이전 상태 저장 데이터 삭제
-			if (game.turnStartState) delete game.turnStartState[prevPlayerId];
-
-			if (game.players[prevPlayerId]) game.players[prevPlayerId].tempRangeBonus = false;
-			game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
-			while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
-				game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
-				if (Object.values(game.players).every(p => p.hasPassed)) break;
+			const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
+			const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
+			if (manualOfferCount > 0) {
+				game.pendingTurnEndPlayerId = endingPlayerId;
+				clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+				return;
 			}
 
-			// 다음 플레이어의 턴 시작 상태 저장 (Reset 시 복원용)
-			const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
-			if (newCurrentPlayerId && !game.players[newCurrentPlayerId].hasPassed) {
-				if (!game.turnStartState) game.turnStartState = {};
-				game.turnStartState[newCurrentPlayerId] = {
-					playerState: JSON.parse(JSON.stringify(game.players[newCurrentPlayerId])),
-					mapState: JSON.parse(JSON.stringify(game.map)),
-					spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-					gameLogLength: game.gameLog?.length || 0,
-					fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-				};
-			}
-
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
-
-			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
-				log(`Bot turn execution error (end_turn): ${err}`, 'error');
-			});
+			finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'end_turn' });
 		});
 
 
@@ -4031,7 +4077,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (startState) {
 				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game', undefined, { simulation: (game as any).simulation });
 				if (startState.fullGameState) {
-					const restored = JSON.parse(JSON.stringify(startState.fullGameState)) as ServerGameState;
+					const restored = deepClone(startState.fullGameState) as ServerGameState;
 					restored.gameLog = (game.gameLog || []).slice(0, startState.gameLogLength || 0);
 					restored.turnStartState = {
 						[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
@@ -4040,10 +4086,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 					clampPlayerResources(restored);
 					io.to(gameId).emit('game_updated', restored);
 				} else {
-					game.players[playerId] = JSON.parse(JSON.stringify(startState.playerState));
-					game.map = JSON.parse(JSON.stringify(startState.mapState));
-					if (startState.spaceshipsState) game.spaceships = JSON.parse(JSON.stringify(startState.spaceshipsState));
-					if (startState.twilightArtifactSlots) game.twilightArtifactSlots = JSON.parse(JSON.stringify(startState.twilightArtifactSlots));
+					game.players[playerId] = deepClone(startState.playerState);
+					game.map = deepClone(startState.mapState);
+					if (startState.spaceshipsState) game.spaceships = deepClone(startState.spaceshipsState);
+					if (startState.twilightArtifactSlots) game.twilightArtifactSlots = deepClone(startState.twilightArtifactSlots);
 					if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
 					game.hasDoneMainAction = false;
 					game.pendingTwilightFederation = null;
@@ -4089,16 +4135,10 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
 
 	// 메인 액션이 시작되면 Free Action Undo 내역을 삭제해 더 이상 되돌리지 못하게 한다.
 	game.freeActionUndoState = undefined;
+	game.freeActionUndoStack = [];
 
 	if (!game.turnStartState) game.turnStartState = {};
-	game.turnStartState[playerId] = {
-		playerState: JSON.parse(JSON.stringify(game.players[playerId])),
-		mapState: JSON.parse(JSON.stringify(game.map)),
-		spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-		twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
-		gameLogLength: game.gameLog?.length || 0,
-		fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-	};
+	game.turnStartState[playerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, playerId);
 }
 
 export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState, playerId: string, techTileId: string, trackId?: string) {
@@ -5206,13 +5246,7 @@ export function executeSelectBonus(
 		const firstPlayerId = game.turnOrder[0];
 		if (firstPlayerId) {
 			if (!game.turnStartState) game.turnStartState = {};
-			game.turnStartState[firstPlayerId] = {
-				playerState: JSON.parse(JSON.stringify(game.players[firstPlayerId])),
-				mapState: JSON.parse(JSON.stringify(game.map)),
-				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-				gameLogLength: game.gameLog?.length || 0,
-				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-			};
+			game.turnStartState[firstPlayerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, firstPlayerId);
 		}
 
 		helperTriggerIncomePhase(io, game);
@@ -5450,14 +5484,7 @@ export function executePassRound(
 		const nextId = game.turnOrder[game.currentPlayerIndex];
 		if (nextId && !game.players[nextId].hasPassed) {
 			if (!game.turnStartState) game.turnStartState = {};
-			game.turnStartState[nextId] = {
-				playerState: JSON.parse(JSON.stringify(game.players[nextId])),
-				mapState: JSON.parse(JSON.stringify(game.map)),
-				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-				twilightArtifactSlots: game.twilightArtifactSlots ? JSON.parse(JSON.stringify(game.twilightArtifactSlots)) : undefined,
-				gameLogLength: game.gameLog?.length || 0,
-				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-			};
+			game.turnStartState[nextId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, nextId);
 		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -5610,13 +5637,7 @@ export function executePassRound(
 		const newCurrentId = game.turnOrder[game.currentPlayerIndex];
 		if (newCurrentId) {
 			if (!game.turnStartState) game.turnStartState = {};
-			game.turnStartState[newCurrentId] = {
-				playerState: JSON.parse(JSON.stringify(game.players[newCurrentId])),
-				mapState: JSON.parse(JSON.stringify(game.map)),
-				spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-				gameLogLength: game.gameLog?.length || 0,
-				fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-			};
+			game.turnStartState[newCurrentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, newCurrentId);
 		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -6280,6 +6301,7 @@ export function executeEndTurn(
 	playerId: string
 ): boolean {
 	if (!game || game.currentPhase !== 'main') return false;
+	if (game.pendingTurnEndPlayerId) return false;
 	if (game.turnOrder[game.currentPlayerIndex] !== playerId) {
 		debugLog(game, `executeEndTurn failed: Not Player ${playerId}'s turn (Current: ${game.turnOrder[game.currentPlayerIndex]})`, 'error');
 		return false;
@@ -6296,44 +6318,19 @@ export function executeEndTurn(
 	if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) return false;
 	if (game.pendingShipTechMine?.playerId === playerId) return false;
 
-	game.hasDoneMainAction = false;
-	const prevPlayerId = game.turnOrder[game.currentPlayerIndex];
-	if (game.turnStartState) delete game.turnStartState[prevPlayerId];
-	if (game.players[prevPlayerId]) game.players[prevPlayerId].tempRangeBonus = false;
-
-	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
-	let passCount = 0;
-	while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
-		game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
-		passCount++;
-		if (passCount >= game.turnOrder.length) break;
+	const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
+	const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
+	if (manualOfferCount > 0) {
+		game.pendingTurnEndPlayerId = endingPlayerId;
+		clampPlayerResources(game);
+		io.to(game.id).emit('game_updated', game);
+		return true;
 	}
 
-	// 다음 플레이어의 턴 시작 상태 저장
-	const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
-	if (newCurrentPlayerId) {
-		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[newCurrentPlayerId] = {
-			playerState: JSON.parse(JSON.stringify(game.players[newCurrentPlayerId])),
-			mapState: JSON.parse(JSON.stringify(game.map)),
-			spaceshipsState: game.spaceships ? JSON.parse(JSON.stringify(game.spaceships)) : undefined,
-			gameLogLength: game.gameLog?.length || 0,
-			fullGameState: cloneGameForTurnStartSnapshot(game as ServerGameState),
-		};
-	}
-
-	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
-	if (!(game as any).simulation) {
-		log(`Turn ended for ${playerId}. Next player: ${newCurrentPlayerId}`, 'game', undefined, { simulation: (game as any).simulation });
-	}
-
-	// Trigger next bot turn if applicable (시뮬레이션 중에는 호출하지 않음)
-	if (!(game as any).simulation) {
-		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
-			log(`Bot turn execution error (after executeEndTurn): ${err}`, 'error');
-		});
-	}
+	finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, {
+		triggerBot: !(game as any).simulation,
+		reason: 'executeEndTurn'
+	});
 
 	return true;
 }
@@ -6653,6 +6650,12 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 		game.pendingPowerOffers = [];
 	}
 
+	if ((game.pendingPowerOffers?.length || 0) === 0 && game.pendingTurnEndPlayerId) {
+		const endingPlayerId = game.pendingTurnEndPlayerId;
+		finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
+		return;
+	}
+
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 
@@ -6747,13 +6750,12 @@ export function executeBalTakGaiaformerToQic(
 	game: ServerGameState,
 	playerId: string
 ): boolean {
+	if (game.pendingTurnEndPlayerId) return false;
 	const player = game.players[playerId];
 	if (!player || player.faction !== 'bal_tak') return false;
 	if (getEffectiveGaiaformers(player) < 1) return false;
 
-	if (!game.freeActionUndoState) {
-		game.freeActionUndoState = JSON.stringify(StateCloner.cloneGameState(game));
-	}
+	pushFreeActionUndoSnapshot(game);
 
 	player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
 	grantQic(game, playerId, 1);

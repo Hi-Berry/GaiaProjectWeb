@@ -451,6 +451,8 @@ export interface GaiaGameState {
     tileId: string;
     responded: boolean;
   }>; // 파워 교환 제안 대기
+  /** 턴 종료는 눌렀지만 파워 수락/거절 응답 대기 때문에 다음 턴으로 아직 넘기지 못한 플레이어 ID */
+  pendingTurnEndPlayerId?: string;
   /** 우주선: 맵 타일 ID -> { 잠금해제 여부, 입장한 플레이어 ID 순서, 이번 라운드 사용한 액션 번호(1,2,3) 목록 } */
   spaceships?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[] }>;
   /** 트왈라잇 액션1: 연방 해택 재수령 선택 대기 (보유 연방 중 하나 선택 = federation reward id) */
