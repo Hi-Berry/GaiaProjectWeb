@@ -1016,8 +1016,6 @@ export function getNextRoundIncomePreview(
       for (let i = 0; i < labCount && i < labCredits.length; i++) result.credits += labCredits[i];
     }
   } else {
-    const labBase = player.faction === 'firaks' ? 2 : 1;
-    result.knowledge += labBase;
     if (labCount > 0) {
       if (player.faction === 'nevlas') result.powerCharge += 2 * labCount;
       else result.knowledge += labCount;

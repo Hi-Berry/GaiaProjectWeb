@@ -1298,9 +1298,6 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					}
 				}
 			} else {
-				const labBaseKnowledge = factionId === 'firaks' ? 2 : 1;
-				player.knowledge += labBaseKnowledge;
-				gainedKnowledge += labBaseKnowledge;
 				if (labCount > 0) {
 					if (factionId === 'nevlas') {
 						incomeItems.push({ type: 'power', amount: 2 * labCount, id: `nevlas-lab-${pId}` });
