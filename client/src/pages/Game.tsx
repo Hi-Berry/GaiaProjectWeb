@@ -1302,15 +1302,15 @@ export default function Game() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background font-sans text-foreground relative">
-      {/* 관전자 배너: 포탈로 body에 렌더해 항상 최상단(z-[9999]), 다른 모달/다이얼로그 위에 표시 */}
+      {/* 관전자 표시: 전체 상단을 덮지 않도록 작은 플로팅 배지로만 표시 */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
-        <div className="fixed top-0 left-0 right-0 z-[9999] py-2 px-4 bg-amber-500/95 text-zinc-900 font-bold text-center text-sm flex items-center justify-center gap-3 shadow-lg">
-          <Eye className="w-4 h-4 shrink-0" />
-          관전 중 — 턴이 돌아오지 않으며, 조작할 수 없습니다.
+        <div className="fixed left-3 bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
+          <Eye className="w-3.5 h-3.5 shrink-0" />
+          <span>관전 중</span>
           <Button
             variant="outline"
             size="sm"
-            className="border-zinc-700 bg-white/20 hover:bg-white/30 text-zinc-900 h-8"
+            className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white"
             onClick={() => {
               if (gameId) localStorage.removeItem(`gaia-${gameId}-spectatorId`);
               setLocation('/');
