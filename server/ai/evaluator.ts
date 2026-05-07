@@ -44,6 +44,11 @@ export type EvaluatorWeights = {
     gaiaformerValueEach: number;
 };
 
+export type EvaluatorWeightsProfile = {
+    global: EvaluatorWeights;
+    byFaction?: Record<string, Partial<EvaluatorWeights>>;
+};
+
 /** 사람 150점대에 가깝게: VP·연방·연구5 비중을 크게 둔 기본값 */
 export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     vpWeightEarly: 5,
@@ -86,7 +91,7 @@ export const DEFAULT_EVALUATOR_WEIGHTS: EvaluatorWeights = {
     gaiaformerValueEach: 5,
 };
 
-let ACTIVE_WEIGHTS: EvaluatorWeights = { ...DEFAULT_EVALUATOR_WEIGHTS };
+let ACTIVE_PROFILE: EvaluatorWeightsProfile = { global: { ...DEFAULT_EVALUATOR_WEIGHTS }, byFaction: {} };
 
 function normalizeWeights(w: EvaluatorWeights): EvaluatorWeights {
     // Basic sanity clamps to avoid pathological tuning runs
@@ -135,22 +140,59 @@ function normalizeWeights(w: EvaluatorWeights): EvaluatorWeights {
     };
 }
 
-export function setActiveEvaluatorWeights(next: Partial<EvaluatorWeights>): EvaluatorWeights {
-    ACTIVE_WEIGHTS = normalizeWeights({ ...ACTIVE_WEIGHTS, ...next } as EvaluatorWeights);
-    return ACTIVE_WEIGHTS;
+function normalizeProfile(profile: EvaluatorWeightsProfile): EvaluatorWeightsProfile {
+    const global = normalizeWeights(profile.global);
+    const byFaction: Record<string, Partial<EvaluatorWeights>> = {};
+    for (const [faction, patch] of Object.entries(profile.byFaction || {})) {
+        byFaction[faction] = normalizeWeights({ ...global, ...patch } as EvaluatorWeights);
+    }
+    return { global, byFaction };
 }
 
-export function getActiveEvaluatorWeights(): EvaluatorWeights {
-    return ACTIVE_WEIGHTS;
+function isProfileShape(v: any): v is Partial<EvaluatorWeightsProfile> {
+    return !!v && typeof v === 'object' && ('global' in v || 'byFaction' in v);
 }
 
-export function loadEvaluatorWeightsFromFile(filePath: string): EvaluatorWeights | null {
+export function setActiveEvaluatorWeights(next: Partial<EvaluatorWeights> | Partial<EvaluatorWeightsProfile>): EvaluatorWeightsProfile {
+    if (isProfileShape(next)) {
+        const merged: EvaluatorWeightsProfile = {
+            global: {
+                ...ACTIVE_PROFILE.global,
+                ...(next.global || {}),
+            } as EvaluatorWeights,
+            byFaction: {
+                ...(ACTIVE_PROFILE.byFaction || {}),
+                ...(next.byFaction || {}),
+            },
+        };
+        ACTIVE_PROFILE = normalizeProfile(merged);
+        return ACTIVE_PROFILE;
+    }
+
+    ACTIVE_PROFILE = normalizeProfile({
+        ...ACTIVE_PROFILE,
+        global: {
+            ...ACTIVE_PROFILE.global,
+            ...next,
+        } as EvaluatorWeights,
+    });
+    return ACTIVE_PROFILE;
+}
+
+export function getActiveEvaluatorWeights(): EvaluatorWeightsProfile {
+    return ACTIVE_PROFILE;
+}
+
+export function loadEvaluatorWeightsFromFile(filePath: string): EvaluatorWeightsProfile | null {
     try {
         const abs = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
         if (!fs.existsSync(abs)) return null;
         const raw = fs.readFileSync(abs, 'utf-8');
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object') return null;
+        if (isProfileShape(parsed)) {
+            return setActiveEvaluatorWeights(parsed as Partial<EvaluatorWeightsProfile>);
+        }
         return setActiveEvaluatorWeights(parsed as Partial<EvaluatorWeights>);
     } catch {
         return null;
@@ -171,7 +213,10 @@ export class Evaluator {
         const player = game.players[playerId];
         if (!player) return -9999;
 
-        const w = ACTIVE_WEIGHTS;
+        const factionPatch = player.faction ? ACTIVE_PROFILE.byFaction?.[player.faction] : undefined;
+        const w = factionPatch
+            ? normalizeWeights({ ...ACTIVE_PROFILE.global, ...factionPatch } as EvaluatorWeights)
+            : ACTIVE_PROFILE.global;
 
         let score = 0;
         let logs: string[] = [];
@@ -232,7 +277,9 @@ export class Evaluator {
         // 확장(광산 10개 이상)에 대한 추가 보너스
         let structExpansionScore = 0;
         if (myStructures.length >= 10) {
-            structExpansionScore = (myStructures.length - 9) * 20; // 10개째부터 개당 20점씩 추가 가점
+            // 과도한 확장 편향을 줄이기 위해 보너스를 라운드 기반으로 완화
+            const perStructure = round <= 3 ? 8 : 14;
+            structExpansionScore = (myStructures.length - 9) * perStructure;
             score += structExpansionScore;
         }
 
@@ -272,16 +319,17 @@ export class Evaluator {
         let engineBonus = 0;
         if (round <= 2) {
             if (labCount >= 1) {
-                engineBonus += 150; // 첫 연구소를 지으면 강력한 추가 점수
-                engineBonus += (mineCount + tsCount) * 15; // 광산을 교역소로 올려도 페널티 없게 합산
+                engineBonus += 45;
+                engineBonus += (mineCount + tsCount) * 6;
             }
             if (piCount >= 1 || academyCount >= 1) {
-                engineBonus += 250;
-                engineBonus += (mineCount + tsCount) * 10;
+                engineBonus += 70;
+                engineBonus += (mineCount + tsCount) * 5;
             }
         }
 
-        const scaledEngineBonus = engineBonus * structMultiplier;
+        // 엔진 보너스는 이미 구조 점수와 중첩되므로 별도 multiplier를 적용하지 않음(중복 증폭 방지)
+        const scaledEngineBonus = engineBonus;
         structScore += scaledEngineBonus;
 
         score += structScore;
@@ -331,25 +379,25 @@ export class Evaluator {
 
             // Strategy 1: Academy -> Economy focus
             if (hasAcademy) {
-                if (ecoLevel >= 1) earlyBonus += 150;
-                if (ecoLevel >= 2) earlyBonus += 150; // cumulative
+                if (ecoLevel >= 1) earlyBonus += 35;
+                if (ecoLevel >= 2) earlyBonus += 45; // cumulative
             }
 
             // Strategy 2: Research Lab -> Navigation focus (for range)
             if (hasResearchLab && !hasAcademy) {
-                if (navLevel === 1) earlyBonus += 100;
-                if (navLevel >= 2) earlyBonus += 150;
+                if (navLevel === 1) earlyBonus += 25;
+                if (navLevel >= 2) earlyBonus += 35;
             }
 
             // Strategy 3: Nav+1 Tech Tile early is great for expansion
             if (hasNavTech) {
-                earlyBonus += 200;
+                earlyBonus += 45;
             }
 
             // Prevent over-investment: if they have both Nav+1 Tech AND Nav track >= 2,
             // penalize slightly to encourage using the resources elsewhere, since 2 range is usually enough early.
             if (hasNavTech && navLevel >= 2) {
-                earlyBonus -= 150;
+                earlyBonus -= 35;
             }
             if (earlyBonus !== 0) {
                 score += earlyBonus;
@@ -384,13 +432,13 @@ export class Evaluator {
                 const bigCount = myStructures.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
                 const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
                 const researchLevels = Object.values(player.research || {}).reduce((s, l) => s + (l as number), 0);
-                if (trigger === 'build_mine') roundBonus += mineCount * mission.vp * 2;
-                else if (trigger === 'build_trading_station') roundBonus += tsCount * mission.vp * 2;
-                else if (trigger === 'build_research_lab') roundBonus += labCount * mission.vp * 2;
-                else if (trigger === 'build_big_building') roundBonus += bigCount * mission.vp * 2;
-                else if (trigger === 'build_gaia') roundBonus += gaiaCount * mission.vp * 2;
+                if (trigger === 'build_mine') roundBonus += mineCount * mission.vp * 1.1;
+                else if (trigger === 'build_trading_station') roundBonus += tsCount * mission.vp * 1.1;
+                else if (trigger === 'build_research_lab') roundBonus += labCount * mission.vp * 1.1;
+                else if (trigger === 'build_big_building') roundBonus += bigCount * mission.vp * 1.1;
+                else if (trigger === 'build_gaia') roundBonus += gaiaCount * mission.vp * 1.1;
                 else if (trigger === 'research_track') roundBonus += researchLevels * mission.vp;
-                else if (trigger === 'federation') roundBonus += feds.length * mission.vp * 3;
+                else if (trigger === 'federation') roundBonus += feds.length * mission.vp * 1.5;
             }
         }
         if (roundBonus > 0) {
@@ -439,23 +487,25 @@ export class Evaluator {
                     // 앞으로 incomeRounds 번 1광물, 1파워
                     const totalOre = incomeRounds * 1;
                     const totalPower = incomeRounds * 1;
-                    projectedTechIncomeScore += totalOre * w.oreValue * resMult * 4.0; // 엔진 프리미엄 3.0 -> 4.0 으로 상향 (7VP 상회)
-                    projectedTechIncomeScore += totalPower * w.power2Value * 3.0;
+                    projectedTechIncomeScore += totalOre * w.oreValue * resMult * 1.8;
+                    projectedTechIncomeScore += totalPower * w.power2Value * 1.3;
                 } else if (techId === 'tech-inc-4c') {
                     const totalCred = incomeRounds * 4;
-                    projectedTechIncomeScore += totalCred * w.creditsValue * resMult * 3.5;
+                    projectedTechIncomeScore += totalCred * w.creditsValue * resMult * 1.6;
                 } else if (techId === 'tech-inc-1k-1c') {
                     const totalKnow = incomeRounds * 1;
                     const totalCred = incomeRounds * 1;
-                    projectedTechIncomeScore += totalKnow * w.knowledgeValue * resMult * 4.0;
-                    projectedTechIncomeScore += totalCred * w.creditsValue * resMult * 3.5;
+                    projectedTechIncomeScore += totalKnow * w.knowledgeValue * resMult * 1.9;
+                    projectedTechIncomeScore += totalCred * w.creditsValue * resMult * 1.6;
                 } else if (techId === 'tech-act-4p') {
                     // 매 라운드 4파워 액션
                     const totalPower = (incomeRounds + 1) * 4;
-                    projectedTechIncomeScore += totalPower * w.power2Value * 2.0;
+                    projectedTechIncomeScore += totalPower * w.power2Value * 1.1;
                 }
             }
         }
+        // 미래 수입 보너스가 현재 보드/점수 신호를 압도하지 않도록 상한
+        projectedTechIncomeScore = Math.min(projectedTechIncomeScore, 220);
         if (projectedTechIncomeScore > 0) {
             score += projectedTechIncomeScore;
             logDebug(`12) Projected Tech Income (Rounds=${incomeRounds}): +${projectedTechIncomeScore.toFixed(1)}`);

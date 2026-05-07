@@ -573,6 +573,9 @@ export const SPACESHIP_FEDERATION_REWARDS = [
   { id: 'ship-fed-mine-free', label: 'Free Mine (Nav ignore)', vp: 0 },
 ] as const;
 
+/** 글린 전용 의회 보상 연방. 일반/우주선 연방 이미지 번호를 유지하기 위해 별도 ID로 관리 */
+export const GLEENS_FEDERATION_REWARD = { id: 'gleens-fed-1o1k2c', label: '1O 1K 2C', vp: 0, ore: 1, knowledge: 1, credits: 2 } as const;
+
 /** 플레이어 연방 배열 정규화 (레거시 string[] → FederationEntry[]) */
 export function getFederationEntries(player: { federations?: string[] | FederationEntry[] } | null): FederationEntry[] {
   if (!player?.federations?.length) return [];

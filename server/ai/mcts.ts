@@ -73,7 +73,8 @@ export class MCTS {
             }
 
             if (node.untriedActions.length > 0) {
-                node = await this.expand(node, playerId);
+                const expanded = await this.expand(node, playerId);
+                if (expanded) node = expanded;
             }
 
             const score = await this.simulate(node.state, playerId);
@@ -82,6 +83,10 @@ export class MCTS {
         }
 
         console.log(`[MCTS] Executed ${iterations} iterations in ${Date.now() - startTime}ms`);
+        if (root.children.length === 0) {
+            // All expansions may have failed due to illegal transitions; fallback to safe candidate.
+            return possibleActions[0] ?? null;
+        }
         const bestNode = this.bestChild(root);
 
         // --- PRINT DETAILED BREAKDOWN OF ALL CANDIDATES ---
@@ -144,7 +149,8 @@ export class MCTS {
         return bestChild;
     }
 
-    private static async expand(node: MCTSNode, playerId: string): Promise<MCTSNode> {
+    private static async expand(node: MCTSNode, playerId: string): Promise<MCTSNode | null> {
+        if (node.untriedActions.length === 0) return null;
         const actionIndex = Math.floor(Math.random() * node.untriedActions.length);
         const action = node.untriedActions.splice(actionIndex, 1)[0];
 
@@ -158,10 +164,12 @@ export class MCTS {
         const act = action as { type: string; params: any; preActions?: any[] };
         if (act.preActions?.length) {
             for (const pre of act.preActions) {
-                await BotLogic.performAction(dummyIo, newState, pre, playerId);
+                const ok = await BotLogic.performAction(dummyIo, newState, pre, playerId);
+                if (!ok) return null;
             }
         }
-        await BotLogic.performAction(dummyIo, newState, { type: action.type, params: action.params }, playerId);
+        const applied = await BotLogic.performAction(dummyIo, newState, { type: action.type, params: action.params }, playerId);
+        if (!applied) return null;
 
         const childNode: MCTSNode = {
             state: newState,
@@ -206,10 +214,12 @@ export class MCTS {
                     const a = act as { type: string; params: any; preActions?: any[] };
                     if (a.preActions?.length) {
                         for (const pre of a.preActions) {
-                            await BotLogic.performAction(dummyIo, s2, pre as any, playerId);
+                            const okPre = await BotLogic.performAction(dummyIo, s2, pre as any, playerId);
+                            if (!okPre) throw new Error('preAction_failed');
                         }
                     }
-                    await BotLogic.performAction(dummyIo, s2, { type: a.type, params: a.params } as any, playerId);
+                    const okMain = await BotLogic.performAction(dummyIo, s2, { type: a.type, params: a.params } as any, playerId);
+                    if (!okMain) throw new Error('mainAction_failed');
                     scored.push({ action: act, score: Evaluator.evaluateState(s2, playerId) });
                 } catch {
                     // ignore invalid sim transitions
@@ -223,7 +233,8 @@ export class MCTS {
                 : await BotLogic.getNextMove(currentState, playerId, true); // isSimulate = true
             if (!nextAction || nextAction.type === 'end_turn') break;
 
-            await BotLogic.performAction(dummyIo, currentState, nextAction, playerId);
+            const ok = await BotLogic.performAction(dummyIo, currentState, nextAction, playerId);
+            if (!ok) break;
 
             if (currentState.hasDoneMainAction) {
                 break; // 메인 액션 수행 시 턴이 넘어가거나 넘겨야하므로 시뮬레이션 종료

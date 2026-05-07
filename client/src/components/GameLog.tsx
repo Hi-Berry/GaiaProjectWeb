@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, ARTIFACTS } from '@shared/gameConfig';
+import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
 interface GameLogProps {
@@ -109,10 +109,12 @@ export function GameLog({
     }
 
     // Federations
-    if (/Formed Federation|Gained Federation|Federation/i.test(actionText) || /fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+/i.test(details)) {
-      const fedMatch = details.match(/\b(fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+)\b/i);
+    if (/Formed Federation|Gained Federation|Federation/i.test(actionText) || /gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+/i.test(details)) {
+      const fedMatch = details.match(/\b(gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+)\b/i);
       if (fedMatch) {
         const fedId = fedMatch[1];
+        if (fedId === GLEENS_FEDERATION_REWARD.id) return { src: '/image/Federation_15.gif', alt: fedId };
+
         const fedIdx = FEDERATION_REWARDS.findIndex(f => f.id === fedId);
         if (fedIdx !== -1) return { src: `/image/Federation_${fedIdx + 1}.gif`, alt: fedId };
         

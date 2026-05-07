@@ -46,7 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -705,6 +705,7 @@ export default function Game() {
     };
 
     const getFederationImage = (rewardId: string) => {
+      if (rewardId === GLEENS_FEDERATION_REWARD.id) return '/image/Federation_15.gif';
       let rewardIndex = FEDERATION_REWARDS.findIndex(r => r.id === rewardId);
       if (rewardIndex !== -1) return `/image/Federation_${rewardIndex + 1}.gif`;
       rewardIndex = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === rewardId);
@@ -1037,7 +1038,7 @@ export default function Game() {
                               {(player!.federations ?? []).map((fed, i) => {
                                 const img = getFederationImage(typeof fed === 'string' ? fed : fed.rewardId);
                                 const rid = typeof fed === 'string' ? fed : fed.rewardId;
-                                const allRewards = [...FEDERATION_REWARDS, ...SPACESHIP_FEDERATION_REWARDS] as any[];
+                                const allRewards = [...FEDERATION_REWARDS, ...SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD] as any[];
                                 const vp = allRewards.find(r => r.id === rid)?.vp || 0;
                                 return (
                                   <div key={i} className="flex flex-col items-center gap-1 group">
@@ -2487,7 +2488,7 @@ export default function Game() {
         {/* Twilight 액션1: 보유 연방 중 하나 선택해서 해택 재수령 */}
         {game.pendingTwilightFederation && game.pendingTwilightFederation.playerId === playerId && gameId && (() => {
           const myFedIds = getFederationEntries(currentPlayer as PlayerState).map((f) => f.rewardId);
-          const myRewards = myFedIds.map((id) => FEDERATION_REWARDS.find((r) => r.id === id) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === id)).filter(Boolean);
+          const myRewards = myFedIds.map((id) => FEDERATION_REWARDS.find((r) => r.id === id) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === id) || (id === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined)).filter(Boolean);
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
               <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
@@ -3418,17 +3419,21 @@ export default function Game() {
                               <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
                               <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 flex-1 min-w-0 pl-2 content-center py-0.5">
                                 {fedEntries.map((f, i) => {
-                                  const reward = FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId);
+                                  const reward = FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === f.rewardId) || (f.rewardId === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined);
                                   const label = reward?.label ?? f.rewardId;
 
                                   // Determine image index
                                   let imgIdx = -1;
-                                  const regIdx = FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
-                                  if (regIdx !== -1) {
-                                    imgIdx = regIdx + 1;
+                                  if (f.rewardId === GLEENS_FEDERATION_REWARD.id) {
+                                    imgIdx = 15;
                                   } else {
-                                    const shipIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
-                                    if (shipIdx !== -1) imgIdx = shipIdx + 7;
+                                    const regIdx = FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
+                                    if (regIdx !== -1) {
+                                      imgIdx = regIdx + 1;
+                                    } else {
+                                      const shipIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === f.rewardId);
+                                      if (shipIdx !== -1) imgIdx = shipIdx + 7;
+                                    }
                                   }
                                   const imgUrl = imgIdx !== -1 ? `/image/Federation_${imgIdx}.gif` : null;
 

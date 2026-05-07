@@ -46,6 +46,7 @@ import {
 	SHIP_TECH_BY_SHIP,
 	FEDERATION_REWARDS,
 	FEDERATION_12VP_ID,
+	GLEENS_FEDERATION_REWARD,
 	SPACESHIP_FEDERATION_REWARDS,
 	getFederationEntries,
 	countGreenFederations,
@@ -454,6 +455,21 @@ function grantQic(game: GaiaGameState, playerId: string, amount: number): void {
 	} else {
 		player.qic = (player.qic ?? 0) + amount;
 	}
+}
+
+function grantGleensFederationReward(game: GaiaGameState, playerId: string, tileId?: string): void {
+	const player = game.players[playerId];
+	if (!player || player.faction !== 'gleens') return;
+
+	player.ore = (player.ore ?? 0) + GLEENS_FEDERATION_REWARD.ore;
+	player.knowledge = (player.knowledge ?? 0) + GLEENS_FEDERATION_REWARD.knowledge;
+	player.credits = (player.credits ?? 0) + GLEENS_FEDERATION_REWARD.credits;
+	if (!Array.isArray(player.federations) || (player.federations.length > 0 && typeof (player.federations as any)[0] === 'string')) {
+		player.federations = getFederationEntries(player);
+	}
+	player.federations.push({ rewardId: GLEENS_FEDERATION_REWARD.id, isGreen: true });
+	addGameLog(game, playerId, 'Gleens: PI Federation', `+${GLEENS_FEDERATION_REWARD.label} (${GLEENS_FEDERATION_REWARD.id})`, tileId);
+	applyRoundMissionScore(game, playerId, 'federation');
 }
 
 /** 거리 계산용: 내 건물 + 내 우주정거장이 있는 타일 (하이브 우주정거장도 기준점) */
@@ -2689,7 +2705,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const myFed = getFederationEntries(player);
 			if (!rewardId || !myFed.some((f) => f.rewardId === rewardId)) return;
 
-			const normalReward = FEDERATION_REWARDS.find(r => r.id === rewardId);
+			const normalReward = FEDERATION_REWARDS.find(r => r.id === rewardId)
+				|| (rewardId === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined);
 			const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 
 			if (normalReward) {
@@ -4849,6 +4866,9 @@ export function executeUpgradeStructure(
 			game.pendingTechTileSelection = { playerId: playerId, tileId, structureType: 'space_giants_pi' };
 			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 			addGameLog(game, playerId, 'Space Giants: PI built', 'Choose 1 tech tile + track', tileId);
+		}
+		if (player.faction === 'gleens') {
+			grantGleensFederationReward(game, playerId, tileId);
 		}
 
 		addGameLog(game, playerId, 'Upgraded to Planetary Institute', '4O, 6C', tileId);
