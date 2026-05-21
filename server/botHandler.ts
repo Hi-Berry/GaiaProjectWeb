@@ -13,12 +13,42 @@ import {
     executeBotBescodsAdvanceLowestTrack,
     executeConvertResource,
     getLegalEclipseAsteroidMineTileIds,
-    executeEclipseBuildAsteroidMine
+    executeEclipseBuildAsteroidMine,
+    addGameLog
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
 
 const botExecutingGames = new Set<string>();
+
+function recordBotActionForFeedback(game: ServerGameState, playerId: string, action: { type: string; params?: any; preActions?: any[] }, source: string) {
+    const player = game.players[playerId];
+    if (!player) return null;
+    const entry = {
+        id: `${Date.now()}-${playerId}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        playerId,
+        playerName: player.name,
+        actionType: action.type,
+        params: action.params,
+        preActions: action.preActions,
+        source,
+        roundNumber: game.roundNumber,
+        phase: game.currentPhase,
+    };
+    if (!game.botActionsForFeedback) game.botActionsForFeedback = [];
+    game.botActionsForFeedback.push(entry);
+    if (game.botActionsForFeedback.length > 50) game.botActionsForFeedback.shift();
+    game.lastBotActionForFeedback = entry;
+    return entry;
+}
+
+function addBotFeedbackLog(game: ServerGameState, playerId: string, entry: NonNullable<ReturnType<typeof recordBotActionForFeedback>>) {
+    const params = entry.params ? ` ${JSON.stringify(entry.params)}` : '';
+    addGameLog(game, playerId, 'AI Move', `${entry.actionType}${params}`);
+    const lastLog = game.gameLog?.[game.gameLog.length - 1];
+    if (lastLog) lastLog.aiFeedbackActionId = entry.id;
+}
 
 /**
  * Execute bot turn if current player is a bot
@@ -148,14 +178,21 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             log(`Bot ${botPlayer?.name} auto-handling tech tile selection (scored pick)`, 'game', game.id);
             const techPick = await BotLogic.getNextMove(game, techPlayerId, false);
             if (techPick?.type === 'select_tech_tile') {
+                const feedbackEntry = recordBotActionForFeedback(game, techPlayerId, techPick, 'pending_tech');
                 const ok = await BotLogic.performAction(io, game, techPick, techPlayerId);
                 if (!ok) {
                     log(`Bot ${botPlayer?.name} performAction select_tech_tile failed, fallback executeBotSelectTechTile`, 'game', game.id);
+                    const fallbackEntry = recordBotActionForFeedback(game, techPlayerId, { type: 'select_tech_tile_fallback', params: {} }, 'pending_tech_fallback');
                     executeBotSelectTechTile(io, game, techPlayerId);
+                    if (fallbackEntry) addBotFeedbackLog(game, techPlayerId, fallbackEntry);
+                } else if (feedbackEntry) {
+                    addBotFeedbackLog(game, techPlayerId, feedbackEntry);
                 }
             } else {
                 log(`Bot ${botPlayer?.name} getNextMove did not return select_tech_tile (${techPick?.type ?? 'null'}), fallback executeBotSelectTechTile`, 'game', game.id);
+                const fallbackEntry = recordBotActionForFeedback(game, techPlayerId, { type: 'select_tech_tile_fallback', params: { reason: techPick?.type ?? 'null' } }, 'pending_tech_fallback');
                 executeBotSelectTechTile(io, game, techPlayerId);
+                if (fallbackEntry) addBotFeedbackLog(game, techPlayerId, fallbackEntry);
             }
             // 기술 타일 선택 후 다시 확인 (pendingShipTechTrackAdvance 등 후속 대기 가능)
             setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
@@ -202,7 +239,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             }
             if (bestTrack) {
                 log(`Bot ${botPlayer?.name} auto-advancing ship tech track: ${bestTrack}`, 'game');
+                const feedbackEntry = recordBotActionForFeedback(game, shipTechPlayerId, { type: 'advance_tech', params: { trackId: bestTrack } }, 'pending_ship_tech_track');
                 executeAdvanceTech(io, game, shipTechPlayerId, bestTrack);
+                if (feedbackEntry) addBotFeedbackLog(game, shipTechPlayerId, feedbackEntry);
             }
             setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
             return;
@@ -228,7 +267,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             }
             if (bestTrack) {
                 log(`Bot ${botPlayer?.name} auto-advancing advanced tech track: ${bestTrack}`, 'game');
+                const feedbackEntry = recordBotActionForFeedback(game, advPlayerId, { type: 'advance_tech', params: { trackId: bestTrack } }, 'pending_advanced_tech_track');
                 executeAdvanceTech(io, game, advPlayerId, bestTrack);
+                if (feedbackEntry) addBotFeedbackLog(game, advPlayerId, feedbackEntry);
             }
             setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
             return;
@@ -344,9 +385,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         }
     }
     const mainAction = preActions?.length ? { type: action.type, params: action.params } : action;
+    const feedbackEntry = recordBotActionForFeedback(game, currentPlayerId, action as any, 'main_turn');
     const success = preOk && await BotLogic.performAction(io, game, mainAction, currentPlayerId);
 
     if (success) {
+        if (feedbackEntry) addBotFeedbackLog(game, currentPlayerId, feedbackEntry);
         log(`Bot ${player.name} successfully executed ${action.type}`, 'game', game.id);
         setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
     } else {

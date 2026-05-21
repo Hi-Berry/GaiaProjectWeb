@@ -7,6 +7,7 @@ interface GameLogProps {
   game: GameState;
   onEntryMouseEnter?: (tileId: string) => void;
   onEntryMouseLeave?: () => void;
+  onAiFeedbackClick?: (actionId: string) => void;
   hideHeader?: boolean;
   className?: string;
   maxHeight?: string;
@@ -16,6 +17,7 @@ export function GameLog({
   game,
   onEntryMouseEnter,
   onEntryMouseLeave,
+  onAiFeedbackClick,
   hideHeader = false,
   className = "",
   maxHeight = "400px"
@@ -194,7 +196,7 @@ export function GameLog({
         [...logs].reverse().map((log, index) => {
           const actionText = log.action || '';
           const isPowerAction = /power|income|energy|bowl/i.test(actionText) || /Accepted|Declined/i.test(actionText);
-          const isMainAction = /Built|Upgraded|Advanced|Pass|Pass Round|Gaia Project|Federation|Chosen/i.test(actionText) && !isPowerAction;
+          const isMainAction = /AI Move|Built|Upgraded|Advanced|Pass|Pass Round|Gaia Project|Federation|Chosen/i.test(actionText) && !isPowerAction;
           const isBonusTilePickLog = /^Selected Bonus Tile$/i.test(actionText);
           const isBonusSwapLog = /^Selected Bonus$/i.test(actionText);
           const isBonusTileLog = isBonusTilePickLog || isBonusSwapLog;
@@ -202,20 +204,23 @@ export function GameLog({
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
           const primaryImg = getLogPrimaryImage(log, player?.faction);
+          const isAiFeedbackLog = !!log.aiFeedbackActionId;
 
           return (
             <div
               key={index}
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
+              onClick={() => log.aiFeedbackActionId && onAiFeedbackClick?.(log.aiFeedbackActionId)}
+              title={isAiFeedbackLog ? '클릭해서 이 AI 수 평가하기' : undefined}
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-70'
                   : 'bg-zinc-900/30 border-y border-r border-y-white/5 border-r-white/5'
-                } ${log.tileId ? 'cursor-pointer hover:border-primary/50 hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
+                } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:border-primary/50 hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
               style={{
-                borderLeftColor: factionColor ? factionColor : (isMainAction ? '#3b82f6' : '#52525b')
+                borderLeftColor: isAiFeedbackLog ? '#22d3ee' : factionColor ? factionColor : (isMainAction ? '#3b82f6' : '#52525b')
               }}
             >
               <div className="flex-1 min-w-0">

@@ -449,6 +449,16 @@ export const GameClient = {
     s.emit('federation_select_reward', { gameId, rewardId });
   },
 
+  submitAiFeedback(gameId: string, feedback: { actionId?: string; rating: string; expertMove?: string; reason?: string; tags?: string[] }): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('submit_ai_feedback', { gameId, ...feedback }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
   /** Terran council: exchange tokens (4→QIC/K, 3→O, 1→C). Total cost must be ≤ tokenCount. */
   terranCouncilConfirmBenefits(gameId: string, qic: number, knowledge: number, ore: number, credits: number) {
     const s = getSocket();

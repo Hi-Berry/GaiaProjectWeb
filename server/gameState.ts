@@ -879,6 +879,58 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	}
 }
 
+function getAiFeedbackFilePath(): string {
+	return path.resolve(process.cwd(), 'server', 'ai', 'expertFeedback.jsonl');
+}
+
+function summarizeGameForAiFeedback(game: GaiaGameState) {
+	return {
+		roundNumber: game.roundNumber,
+		currentPhase: game.currentPhase,
+		currentPlayerId: game.turnOrder?.[game.currentPlayerIndex],
+		players: Object.fromEntries(Object.entries(game.players).map(([id, p]) => [id, {
+			name: p.name,
+			faction: p.faction,
+			score: p.score,
+			ore: p.ore,
+			credits: p.credits,
+			knowledge: p.knowledge,
+			qic: p.qic,
+			research: p.research,
+			bonusTile: p.bonusTile,
+			federations: getFederationEntries(p),
+			techTiles: p.techTiles,
+			coveredTechTiles: p.coveredTechTiles,
+		}])),
+		structures: game.map
+			.filter((t) => t.ownerId && t.structure)
+			.map((t) => ({ id: t.id, ownerId: t.ownerId, type: t.type, sector: t.sector, structure: t.structure })),
+		recentLogs: (game.gameLog ?? []).slice(-12),
+	};
+}
+
+function saveAiExpertFeedback(game: GaiaGameState, submitterId: string, role: 'player' | 'spectator', payload: any, targetAction: NonNullable<GaiaGameState['lastBotActionForFeedback']>) {
+	const feedbackPath = getAiFeedbackFilePath();
+	fs.mkdirSync(path.dirname(feedbackPath), { recursive: true });
+
+	const record = {
+		schemaVersion: 1,
+		createdAt: new Date().toISOString(),
+		gameId: game.id,
+		submitterId,
+		submitterRole: role,
+		lastBotAction: targetAction,
+		rating: typeof payload?.rating === 'string' ? payload.rating.slice(0, 32) : 'unspecified',
+		expertMove: typeof payload?.expertMove === 'string' ? payload.expertMove.slice(0, 500) : '',
+		reason: typeof payload?.reason === 'string' ? payload.reason.slice(0, 2000) : '',
+		tags: Array.isArray(payload?.tags) ? payload.tags.filter((x: unknown) => typeof x === 'string').slice(0, 12) : [],
+		gameSummary: summarizeGameForAiFeedback(game),
+	};
+
+	fs.appendFileSync(feedbackPath, JSON.stringify(record) + '\n', 'utf8');
+	return record;
+}
+
 export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: string, subLog: { playerId: string; playerName: string; text: string }): boolean {
 	if (!game.gameLog || game.gameLog.length === 0) return false;
 	if (!subLog.text) return false;
@@ -1959,6 +2011,42 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) { callback({ error: 'Game not found' }); return; }
 			callback({ game });
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
+		});
+
+		socket.on('submit_ai_feedback', ({ gameId, actionId, rating, expertMove, reason, tags }, callback) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			const spectatorId = socketToSpectatorMap.get(socket.id);
+			const isPlayerInGame = !!playerId && playerGameMap.get(playerId) === gameId;
+			const isSpectatorInGame = !!spectatorId && spectatorToGameMap.get(spectatorId) === gameId;
+			if (!isPlayerInGame && !isSpectatorInGame) {
+				callback?.({ error: 'Not connected to this game' });
+				return;
+			}
+			const targetAction = actionId
+				? (game.botActionsForFeedback ?? []).find((a) => a.id === actionId) ?? null
+				: game.lastBotActionForFeedback ?? null;
+			if (!targetAction) {
+				callback?.({ error: 'No bot action to review' });
+				return;
+			}
+
+			try {
+				const record = saveAiExpertFeedback(game, playerId || spectatorId || socket.id, isPlayerInGame ? 'player' : 'spectator', {
+					rating,
+					expertMove,
+					reason,
+					tags,
+				}, targetAction);
+				addGameLog(game, targetAction.playerId, 'AI Feedback', `${rating || 'unspecified'} by ${isPlayerInGame ? game.players[playerId!]?.name ?? playerId : 'spectator'}`);
+				log(`AI feedback saved for game ${gameId}: ${record.lastBotAction?.actionType ?? 'unknown'} (${rating ?? 'unspecified'})`, 'game', gameId);
+				io.to(gameId).emit('game_updated', game);
+				callback?.({ ok: true });
+			} catch (err) {
+				log(`Failed to save AI feedback: ${err}`, 'error', gameId);
+				callback?.({ error: 'Failed to save feedback' });
+			}
 		});
 
 		socket.on('set_use_faction_bidding', ({ gameId, useFactionBidding }: { gameId: string; useFactionBidding: boolean }, callback?: (r: { ok?: boolean; error?: string }) => void) => {

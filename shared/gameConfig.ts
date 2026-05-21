@@ -381,6 +381,19 @@ export const FINAL_MISSION_LABELS: Record<string, string> = {
   fm_asteroid_buildings: '소행성 건물 수',
 };
 
+export interface BotActionForFeedback {
+  id: string;
+  timestamp: number;
+  playerId: string;
+  playerName: string;
+  actionType: string;
+  params?: any;
+  preActions?: any[];
+  source?: string;
+  roundNumber: number;
+  phase: GaiaGameState['currentPhase'];
+}
+
 export interface GaiaGameState {
   id: string;
   hostId?: string;
@@ -397,6 +410,10 @@ export interface GaiaGameState {
   turnOrder: string[];
   /** AI 봇 플레이어 ID 목록 */
   botPlayerIds?: string[];
+  /** 사용자가 AI 수를 평가할 때 기준으로 삼는 최근 봇 액션들 */
+  botActionsForFeedback?: BotActionForFeedback[];
+  /** 하위 호환/빠른 접근용 최근 봇 액션 */
+  lastBotActionForFeedback?: BotActionForFeedback | null;
   /** 방장이 수동으로 추가한 로컬 플레이어 ID (봇 제외) */
   hostAddedPlayerIds?: string[];
 
@@ -432,7 +449,7 @@ export interface GaiaGameState {
     /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
     powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number }>;
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
-  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }> }>; // 게임 액션 로그
+  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }> }>; // 게임 액션 로그
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
   turnStartState?: Record<string, {
     playerState: PlayerState;

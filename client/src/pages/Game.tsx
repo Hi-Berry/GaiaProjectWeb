@@ -20,6 +20,7 @@ import { GameLobby } from '@/components/GameLobby';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight } from 'lucide-react';
@@ -193,6 +194,12 @@ export default function Game() {
   const researchDragControls = useDragControls();
   const bonusDragControls = useDragControls();
   const [showGameEndScore, setShowGameEndScore] = useState(false);
+  const [aiFeedbackOpen, setAiFeedbackOpen] = useState(false);
+  const [aiFeedbackRating, setAiFeedbackRating] = useState<'bad' | 'questionable' | 'good'>('bad');
+  const [aiFeedbackExpertMove, setAiFeedbackExpertMove] = useState('');
+  const [aiFeedbackReason, setAiFeedbackReason] = useState('');
+  const [aiFeedbackSubmitting, setAiFeedbackSubmitting] = useState(false);
+  const [selectedAiFeedbackActionId, setSelectedAiFeedbackActionId] = useState<string | null>(null);
 
   const lastResizeWidthRef = useRef<number>(340);
   const lastResizeHeightRef = useRef<number>(500);
@@ -1299,6 +1306,46 @@ export default function Game() {
   const cost = pendingAction ? getActionCost(pendingAction) : null;
 
   const isHost = (game && playerId === game.hostId) || isHostSessionRef.current;
+  const selectedBotAction = selectedAiFeedbackActionId
+    ? game?.botActionsForFeedback?.find((a) => a.id === selectedAiFeedbackActionId) ?? game?.lastBotActionForFeedback
+    : game?.lastBotActionForFeedback;
+  const selectedBotActionLabel = selectedBotAction
+    ? `${selectedBotAction.playerName}: ${selectedBotAction.actionType}${selectedBotAction.params ? ` ${JSON.stringify(selectedBotAction.params)}` : ''}`
+    : '';
+
+  const submitAiFeedback = async () => {
+    if (!gameId || !selectedBotAction) return;
+    const reason = aiFeedbackReason.trim();
+    const expertMove = aiFeedbackExpertMove.trim();
+    if (!reason && !expertMove) {
+      toast({ title: '메모 필요', description: '추천 수나 이유 중 하나는 남겨주세요.', variant: 'destructive' });
+      return;
+    }
+    setAiFeedbackSubmitting(true);
+    try {
+      await GameClient.submitAiFeedback(gameId, {
+        actionId: selectedBotAction.id,
+        rating: aiFeedbackRating,
+        expertMove,
+        reason,
+      });
+      toast({ title: 'AI 피드백 저장됨', description: 'server/ai/expertFeedback.jsonl에 기록했습니다.' });
+      setAiFeedbackOpen(false);
+      setAiFeedbackExpertMove('');
+      setAiFeedbackReason('');
+      setAiFeedbackRating('bad');
+      setSelectedAiFeedbackActionId(null);
+    } catch (err: any) {
+      toast({ title: '저장 실패', description: err?.message || 'AI 피드백 저장에 실패했습니다.', variant: 'destructive' });
+    } finally {
+      setAiFeedbackSubmitting(false);
+    }
+  };
+
+  const openAiFeedbackForAction = (actionId: string) => {
+    setSelectedAiFeedbackActionId(actionId);
+    setAiFeedbackOpen(true);
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background font-sans text-foreground relative">
@@ -1321,6 +1368,75 @@ export default function Game() {
         </div>,
         document.body
       )}
+
+      <AlertDialog open={aiFeedbackOpen} onOpenChange={setAiFeedbackOpen}>
+        <AlertDialogContent className="bg-zinc-950 border-zinc-700 max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white font-black">AI 수 평가 남기기</AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              마지막 봇 액션과 현재 상태 요약이 함께 저장됩니다. 나중에 후보 생성/평가 함수 개선에 사용합니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-lg border border-white/10 bg-zinc-900/80 p-2 text-xs text-zinc-300">
+              <div className="text-cyan-300 font-bold mb-1">대상 수</div>
+              <div className="break-words">{selectedBotActionLabel || '평가할 AI 수를 로그에서 선택하세요.'}</div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                ['bad', '나쁜 수'],
+                ['questionable', '애매함'],
+                ['good', '좋은 수'],
+              ] as const).map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={aiFeedbackRating === value ? 'default' : 'outline'}
+                  className={aiFeedbackRating === value ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}
+                  onClick={() => setAiFeedbackRating(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-zinc-300">더 좋은 수 / 추천 방향</label>
+              <Textarea
+                value={aiFeedbackExpertMove}
+                onChange={(e) => setAiFeedbackExpertMove(e.target.value)}
+                placeholder="예: 경제 4단계, 2O 파워 액션 후 연방 준비, 이 보너스 타일 패스 등"
+                className="mt-1 min-h-[72px] bg-zinc-900 border-zinc-700 text-zinc-100"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-zinc-300">이유 / 고수 판단 근거</label>
+              <Textarea
+                value={aiFeedbackReason}
+                onChange={(e) => setAiFeedbackReason(e.target.value)}
+                placeholder="왜 나쁜지, 어떤 목표/타이밍/상대 상황 때문에 다른 수가 좋은지 적어주세요."
+                className="mt-1 min-h-[110px] bg-zinc-900 border-zinc-700 text-zinc-100"
+              />
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white">
+              취소
+            </AlertDialogCancel>
+            <Button
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-black"
+              disabled={aiFeedbackSubmitting || !selectedBotAction}
+              onClick={submitAiFeedback}
+            >
+              {aiFeedbackSubmitting ? '저장 중...' : '저장'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Sidebar Overlay (Left) */}
       <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
@@ -3748,6 +3864,7 @@ export default function Game() {
                     maxHeight="100%"
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}
+                    onAiFeedbackClick={openAiFeedbackForAction}
                   />
                 )}
               </div>
