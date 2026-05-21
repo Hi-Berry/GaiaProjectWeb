@@ -315,21 +315,30 @@ export class Evaluator {
         }
         structScore += tsScore;
 
-        // 3. 1~2라운드 이상적인 테크 트리 보너스 (엔진 빌딩)
+        // 3. 초반(1~3R) 엔진 빌딩 보너스 — 자원 수급 인프라 강력 유도
+        // 라운드별 강도: R1 1.0x, R2 0.7x, R3 0.4x (점진 감쇠)
         let engineBonus = 0;
-        if (round <= 2) {
-            if (labCount >= 1) {
-                engineBonus += 45;
-                engineBonus += (mineCount + tsCount) * 6;
+        if (round <= 3) {
+            const roundFactor = round === 1 ? 1.0 : round === 2 ? 0.7 : 0.4;
+            // 첫 교역소(이미 funnel에서 가산되지만 추가 boost)
+            if (tsCount >= 1 && labCount === 0 && piCount === 0 && academyCount === 0) {
+                engineBonus += 80 * roundFactor;
             }
+            // 연구소: 지식 수급 핵심 인프라
+            if (labCount >= 1) {
+                engineBonus += 160 * roundFactor;
+                engineBonus += (mineCount + tsCount) * 18 * roundFactor;
+            }
+            // 의회/아카데미: 고급 엔진
             if (piCount >= 1 || academyCount >= 1) {
-                engineBonus += 70;
-                engineBonus += (mineCount + tsCount) * 5;
+                engineBonus += 240 * roundFactor;
+                engineBonus += (mineCount + tsCount) * 14 * roundFactor;
             }
         }
 
-        // 엔진 보너스는 이미 구조 점수와 중첩되므로 별도 multiplier를 적용하지 않음(중복 증폭 방지)
-        const scaledEngineBonus = engineBonus;
+        // 남은 라운드만큼 미래 수입이 누적되므로 multiplier 적용 (중복 증폭을 막기 위해 0.4 계수)
+        const engineMultiplier = 1 + w.structureRemainingRoundsFactor * remainingRounds * 0.4;
+        const scaledEngineBonus = engineBonus * engineMultiplier;
         structScore += scaledEngineBonus;
 
         score += structScore;
@@ -354,16 +363,20 @@ export class Evaluator {
             }
             const lvl = level as number;
 
-            // 연구 단계 점수 부스팅
-            // 후반 라운드일수록 높은 단계의 연구가 더 가치가 높도록 (종료 점수 등)
+            // 연구 단계 점수 부스팅 — 4단계 이상은 결정적
             let levelMultiplier = 1;
-            if (lvl >= 3) levelMultiplier = 1.2;
-            if (lvl >= 4) levelMultiplier = 1.5;
+            if (lvl >= 3) levelMultiplier = 1.3;
+            if (lvl >= 4) levelMultiplier = 1.7;
+            if (lvl >= 5) levelMultiplier = 2.0;
 
             researchScore += lvl * weight * factor * levelMultiplier;
 
             if (lvl >= 4) researchScore += (w.researchLevel4Bonus || 100);
-            if (lvl === 5) researchScore += w.researchLevel5Bonus;
+            // 5단계 진입 보너스: 종족별 강력한 이득 + 종료 점수 12점 → 후반일수록 추가 가산
+            if (lvl === 5) {
+                const lateFactor = round >= 4 ? 1.2 : 1.0;
+                researchScore += w.researchLevel5Bonus * lateFactor;
+            }
         }
         score += researchScore;
         logDebug(`6) Research: +${researchScore.toFixed(1)}`);
@@ -405,11 +418,18 @@ export class Evaluator {
             }
         }
 
-        // 6) Federations
+        // 6) Federations — 라운드 기반 스케일링
+        // 초반(R1~2)엔 연방 구성이 자원 손해 ↔ 중후반(R3~5)엔 결정적 가치
+        // 라운드 1: 0.6x, 2: 0.85x, 3: 1.1x, 4: 1.35x, 5: 1.5x, 6: 1.5x
         const feds = getFederationEntries(player);
-        const fedScore = feds.length * w.federationValueEach;
+        let fedRoundScale = 0.6;
+        if (round === 2) fedRoundScale = 0.85;
+        else if (round === 3) fedRoundScale = 1.1;
+        else if (round === 4) fedRoundScale = 1.35;
+        else if (round >= 5) fedRoundScale = 1.5;
+        const fedScore = feds.length * w.federationValueEach * fedRoundScale;
         score += fedScore;
-        logDebug(`8) Federations: ${feds.length} * ${w.federationValueEach} = +${fedScore.toFixed(1)}`);
+        logDebug(`8) Federations: ${feds.length} * ${w.federationValueEach.toFixed(0)} * ${fedRoundScale.toFixed(2)} = +${fedScore.toFixed(1)}`);
 
         // 7) Gaiaformers
         if (player.gaiaformers && player.gaiaformers > 0) {
@@ -447,29 +467,31 @@ export class Evaluator {
         }
 
         // 9) 최종 미션 정렬 보너스 (게임 끝 1/2/3등 18/12/6점 쪽으로 유도)
+        // 후반일수록 가중치 상향 — R1~2엔 0.7x, R3엔 1.0x, R4~5엔 1.4x, R6엔 1.8x
         let finalBonus = 0;
         const finalIds = game.finalMissionIds;
+        const finalScaling = round <= 2 ? 0.7 : round === 3 ? 1.0 : round <= 5 ? 1.4 : 1.8;
         if (finalIds?.length) {
             const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
             const structCount = myStructures.length;
             const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
             const sectorSet = new Set(myStructures.map(t => (t as any).sector).filter((s): s is number => typeof s === 'number'));
             for (const fid of finalIds) {
-                if (fid === 'fm_total_structures') finalBonus += structCount * 4;
-                else if (fid === 'fm_federation_buildings' || fid === 'fm_gaia_planets') finalBonus += (feds.length * 5 + gaiaCount * 4);
-                else if (fid === 'fm_sectors') finalBonus += sectorSet.size * 5;
+                if (fid === 'fm_total_structures') finalBonus += structCount * 5 * finalScaling;
+                else if (fid === 'fm_federation_buildings' || fid === 'fm_gaia_planets') finalBonus += (feds.length * 6 + gaiaCount * 5) * finalScaling;
+                else if (fid === 'fm_sectors') finalBonus += sectorSet.size * 6 * finalScaling;
                 else if (fid === 'fm_satellites') {
                     let sat = 0;
                     for (const v of Object.values(game.satellites || {})) {
                         if (Array.isArray(v)) sat += v.filter((id: string) => id === playerId).length;
                         else if (v === playerId) sat += 1;
                     }
-                    finalBonus += sat * 6;
+                    finalBonus += sat * 7 * finalScaling;
                 }
                 else if (fid === 'fm_planet_types') {
                     const types = new Set(myStructures.map(t => t.type).filter(Boolean));
-                    finalBonus += types.size * 5;
-                } else finalBonus += structCount * 2;
+                    finalBonus += types.size * 6 * finalScaling;
+                } else finalBonus += structCount * 2.5 * finalScaling;
             }
         }
         if (finalBonus > 0) {
@@ -504,8 +526,73 @@ export class Evaluator {
                 }
             }
         }
-        // 미래 수입 보너스가 현재 보드/점수 신호를 압도하지 않도록 상한
-        projectedTechIncomeScore = Math.min(projectedTechIncomeScore, 220);
+        // 미래 수입 보너스가 현재 보드/점수 신호를 압도하지 않도록 상한 (조금 더 풀어줌)
+        projectedTechIncomeScore = Math.min(projectedTechIncomeScore, 320);
+
+        // 10b) 고급 기술 타일 직접 평가 (선택 가치 인식)
+        // - imm-* : 즉시 VP — 현재 보드 상태에서 곧장 환산
+        // - pass-* : 패스시 VP — 남은 라운드(incomeRounds+1: 이번 라운드 포함) × 보드 카운트
+        // - vp-act-* : 액션마다 VP — 라운드당 평균 활동량 × 남은 라운드
+        // - act-* : 라운드당 1회 자원 액션 — 남은 라운드 × 자원 가치
+        const remainingPasses = incomeRounds + 1; // 이번 라운드 포함
+        let advTechScore = 0;
+        if (player.techTiles) {
+            // 보드 카운트 미리 계산 (재사용)
+            const _myStructs = game.map.filter(t => t.ownerId === playerId && t.structure);
+            const _mineCount = _myStructs.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length;
+            const _tsCount = _myStructs.filter(t => t.structure === 'trading_station').length;
+            const _labCount = _myStructs.filter(t => t.structure === 'research_lab').length;
+            const _bigCount = _myStructs.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
+            const _gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.type === 'gaia').length;
+            const _planetTypes = new Set(_myStructs.map(t => t.type).filter(Boolean)).size;
+            const _outerSectors = new Set(
+                _myStructs
+                    .filter(t => typeof (t as any).sector === 'number' && (t as any).sector >= 11)
+                    .map(t => (t as any).sector as number)
+            ).size;
+            const _asteroidCount = _myStructs.filter(t => (t as any).type === 'asteroid').length;
+            const _sectorSet = new Set(_myStructs.map(t => (t as any).sector).filter((s): s is number => typeof s === 'number')).size;
+            const _fedsCount = (getFederationEntries(player) ?? []).length;
+            // 라운드당 평균 활동량 (대략 광산+TS 건설 1~2 / 연구 1 / 테라포밍 1 / QIC액션 0.5)
+            const buildsPerRound = Math.max(1, Math.min(2, 1 + (mineCount + tsCount) / 8));
+            const researchPerRound = Math.min(1.5, 0.6 + Object.keys(player.research || {}).length * 0.1);
+            const terraformPerRound = 1.0;
+            const qicActPerRound = 0.5;
+
+            for (const techId of player.techTiles) {
+                // 즉시형
+                if (techId === 'adv-imm-4vp-ts') advTechScore += _tsCount * 4 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-2vp-mine') advTechScore += _mineCount * 2 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-2vp-sector') advTechScore += _sectorSet * 2 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-4vp-outer') advTechScore += _outerSectors * 4 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-6vp-big') advTechScore += _bigCount * 6 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-2vp-gaia') advTechScore += _gaiaCount * 2 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-5vp-fed') advTechScore += _fedsCount * 5 * w.vpWeightLate * 0.6;
+                else if (techId === 'adv-imm-1o-sector') advTechScore += _sectorSet * 1 * w.oreValue * resMult * 2.0;
+                // 패스형 (남은 라운드 × 카운트 × VP)
+                else if (techId === 'adv-pass-1vp-type') advTechScore += remainingPasses * _planetTypes * 1 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-pass-3vp-lab') advTechScore += remainingPasses * Math.max(_labCount, 1) * 3 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-pass-3vp-fed') advTechScore += remainingPasses * Math.max(_fedsCount, 1) * 3 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-pass-2vp-asteroid') advTechScore += remainingPasses * _asteroidCount * 2 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-pass-2vp-outer') advTechScore += remainingPasses * _outerSectors * 2 * w.vpWeightLate * 0.5;
+                // 액션마다 VP (남은 라운드 × 라운드당 빈도 × VP)
+                else if (techId === 'adv-vp-build-mine') advTechScore += incomeRounds * buildsPerRound * 0.6 * 3 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-vp-build-ts') advTechScore += incomeRounds * buildsPerRound * 0.4 * 3 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-vp-research') advTechScore += incomeRounds * researchPerRound * 2 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-vp-terraform') advTechScore += incomeRounds * terraformPerRound * 2 * w.vpWeightLate * 0.5;
+                else if (techId === 'adv-vp-qic-action') advTechScore += incomeRounds * qicActPerRound * 4 * w.vpWeightLate * 0.5;
+                // 라운드당 1회 자원 액션
+                else if (techId === 'adv-act-3k') advTechScore += remainingPasses * 3 * w.knowledgeValue * resMult * 1.6;
+                else if (techId === 'adv-act-3o') advTechScore += remainingPasses * 3 * w.oreValue * resMult * 1.6;
+                else if (techId === 'adv-act-1q-5c') advTechScore += remainingPasses * (1 * qicWeight + 5 * w.creditsValue * resMult) * 1.3;
+            }
+        }
+        advTechScore = Math.min(advTechScore, 600);
+        if (advTechScore > 0) {
+            score += advTechScore;
+            logDebug(`12b) Advanced Tech Tiles: +${advTechScore.toFixed(1)}`);
+        }
+
         if (projectedTechIncomeScore > 0) {
             score += projectedTechIncomeScore;
             logDebug(`12) Projected Tech Income (Rounds=${incomeRounds}): +${projectedTechIncomeScore.toFixed(1)}`);

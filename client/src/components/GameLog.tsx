@@ -1,5 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import type { CSSProperties } from 'react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
@@ -11,6 +12,7 @@ interface GameLogProps {
   hideHeader?: boolean;
   className?: string;
   maxHeight?: string;
+  textScale?: number;
 }
 
 export function GameLog({
@@ -20,9 +22,18 @@ export function GameLog({
   onAiFeedbackClick,
   hideHeader = false,
   className = "",
-  maxHeight = "400px"
+  maxHeight = "400px",
+  textScale = 1
 }: GameLogProps) {
   const logs = game.gameLog || [];
+  const mainTextStyle: CSSProperties = {
+    fontSize: `${11 * textScale}px`,
+    lineHeight: `${13 * textScale}px`,
+  };
+  const secondaryTextStyle: CSSProperties = {
+    fontSize: `${10 * textScale}px`,
+    lineHeight: `${12 * textScale}px`,
+  };
 
   const getBonusTileImgById = (bonusTileId: string | null | undefined) => {
     if (!bonusTileId) return null;
@@ -225,7 +236,8 @@ export function GameLog({
             >
               <div className="flex-1 min-w-0">
                 <div
-                  className={`text-[11px] leading-tight flex items-center min-w-0 ${isBonusTileLog ? 'gap-1.5' : 'gap-2'}`}
+                  className={`flex items-center min-w-0 ${isBonusTileLog ? 'gap-1.5' : 'gap-2'}`}
+                  style={mainTextStyle}
                 >
                   {primaryImg && (
                     (() => {
@@ -269,21 +281,21 @@ export function GameLog({
                     })()
                   )}
                   {!isBonusTileLog && (
-                    <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: '10px' } : { color: '#d4d4d8' })}>
+                    <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: `${10 * textScale}px` } : { color: '#d4d4d8' })}>
                       {log.action}
                     </span>
                   )}
                   {isBonusTileLog && log.details && (
                     <div className="min-w-0 flex-1 flex flex-col gap-0 leading-none">
                       {isBonusTilePickLog ? (
-                        <span className="text-[10px] sm:text-[11px] text-zinc-200 font-bold leading-tight break-words">
+                        <span className="text-zinc-200 font-bold break-words" style={secondaryTextStyle}>
                           {log.details}
                         </span>
                       ) : (
                         <span className="min-w-0">
                           {renderDetailsWithTrackColor(
                             log.details,
-                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium text-[10px]'}`
+                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium'}`
                           )}
                         </span>
                       )}
@@ -293,7 +305,7 @@ export function GameLog({
                     <span className="ml-1.5 min-w-0">
                       {renderDetailsWithTrackColor(
                         log.details,
-                        `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium text-[10px]'}`
+                        `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium'}`
                       )}
                     </span>
                   )}
@@ -308,7 +320,15 @@ export function GameLog({
                       const cleanText = subLog.text.replace(`↳ ${subLog.playerName} `, '').replace('↳ ', '');
 
                       return (
-                        <div key={i} className="text-[9px] leading-[10px] flex items-center gap-1.5 bg-black/40 border border-white/5 px-2 py-1 rounded shadow-inner" style={{ borderLeft: subColor ? `2px solid ${subColor}` : '1px solid #3f3f46' }}>
+                        <div
+                          key={i}
+                          className="flex items-center gap-1.5 bg-black/40 border border-white/5 px-2 py-1 rounded shadow-inner"
+                          style={{
+                            borderLeft: subColor ? `2px solid ${subColor}` : '1px solid #3f3f46',
+                            fontSize: `${9 * textScale}px`,
+                            lineHeight: `${10 * textScale}px`,
+                          }}
+                        >
                           <span className="text-zinc-400 font-medium">{cleanText}</span>
                         </div>
                       );

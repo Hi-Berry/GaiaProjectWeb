@@ -655,14 +655,17 @@ export class BotLogic {
             return eclipseIds.map(tileId => ({ type: 'eclipse_build_asteroid_mine', params: { tileId } }));
         }
 
-        // 1. 연방 구성 (가장 중요)
-        const fedActions = FederationPlanner.getFederationActions(game, playerId, 0, 3);
+        // 1. 연방 구성 (가장 중요) — 라운드별 상한을 다르게 적용
+        // R≤2: 토큰 후보 3개까지, R3+: 5개까지, R4+: 8개까지 (후보 다양성 확대로 큰 연방 선택지 확보)
+        const _round = (game as any).roundNumber ?? 1;
+        const fedTopN = _round >= 4 ? 8 : _round >= 3 ? 5 : 3;
+        const fedActions = FederationPlanner.getFederationActions(game, playerId, 0, fedTopN);
         for (const fedAction of fedActions) {
-            const round = (game as any).roundNumber ?? 1;
             const spent = fedAction.spentTokens ?? 0;
             const totalTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
             const tokenSurplus = totalTokens - spent;
-            const allowEarlyExpensiveFed = round >= 3 || spent <= 2 || tokenSurplus >= 8;
+            // R≥3은 비싼 연방도 적극 허용, R≥4는 토큰 부족해도 일단 후보로 넣어 MCTS가 판단
+            const allowEarlyExpensiveFed = _round >= 4 || (_round >= 3 && (spent <= 6 || tokenSurplus >= 4)) || spent <= 2 || tokenSurplus >= 8;
             if (allowEarlyExpensiveFed) candidates.push({ type: 'form_federation', params: fedAction });
         }
 
@@ -670,13 +673,17 @@ export class BotLogic {
         // Ivits는 연방 위성 비용이 QIC이므로, 여기서 "오레->토큰" 프리액션을 섞으면 계산(availableTokens)이 틀어져 QIC 마이너스가 날 수 있음.
         if (player.faction !== 'ivits') {
             const oreForFed = player.ore ?? 0;
-            for (let k = 2; k <= Math.min(oreForFed, 6); k++) {
-                const fedWithKs = FederationPlanner.getFederationActions(game, playerId, k, 2);
+            // R≥4 후반엔 더 많은 광물 태우는 후보도 허용 (오레 8개까지)
+            const maxK = _round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6);
+            const fedSubN = _round >= 4 ? 4 : 2;
+            for (let k = 2; k <= maxK; k++) {
+                const fedWithKs = FederationPlanner.getFederationActions(game, playerId, k, fedSubN);
                 for (const fedWithK of fedWithKs) {
-                    const round = (game as any).roundNumber ?? 1;
                     const spent = fedWithK.spentTokens ?? 0;
                     // 초반엔 "오레 태워서 위성 많이" 연방을 억제 (정말 싸면 허용)
-                    if (round <= 2 && spent > 2) continue;
+                    if (_round <= 2 && spent > 2) continue;
+                    // R3+: 다소 비싼 후보도 허용
+                    if (_round === 3 && spent > 6) continue;
                     const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
                     candidates.push({ type: 'form_federation', params: fedWithK, preActions });
                 }
@@ -807,10 +814,44 @@ export class BotLogic {
                 (c.type === 'use_bonus_action' && c.params?.actionId === 'range_3')
             );
 
+            // [추가] "1빌딩 후 패스" 회귀 방지 — 다음 조건들이 만족되면 패스를 차단
+            const ore = player.ore ?? 0;
+            const credits = player.credits ?? 0;
+
+            // (a) 할인 업그레이드(인접 플레이어 보너스)가 가능하면 패스 차단 — 자원 효율 최상
+            const hasDiscountedUpgrade = this.findDiscountedUpgradeAction(game, playerId) !== null;
+
+            // (b) 연방을 한 개 더 구성할 수 있고 라운드 ≥3이면 패스 차단 (점수원)
+            const fedCandidatesNow = candidates.filter(c => c.type === 'form_federation');
+            const canFormFedNow = fedCandidatesNow.length > 0 && (game.roundNumber ?? 1) >= 3;
+
+            // (c) 광산/TS 건설이 가능하고 자원이 충분하면 패스 차단 — 엔진 빌딩 중간에 멈추지 말 것
+            //     특히 R1~3 초반엔 자원 수급 인프라가 우선이라 자원 남기고 패스하는 행동을 막음
+            const hasCheapBuildOrUpgrade =
+                ((game.roundNumber ?? 1) <= 3) &&
+                (
+                    candidates.some(c => c.type === 'build_mine') && ore >= 1 && credits >= 2
+                    || candidates.some(c => c.type === 'upgrade_structure') && credits >= 3
+                );
+
+            // (d) "메인 액션을 한 번도 안 했는데 패스"는 라운드 ≤4까진 차단 (자원/턴 낭비)
+            //     단 자원이 정말 바닥(ore<1 && credits<3 && knowledge<1)이면 허용
+            const noMainActionYet = !game.hasDoneMainAction;
+            const trulyStarved = ore < 1 && credits < 3 && (player.knowledge ?? 0) < 1 && (player.qic ?? 0) < 1;
+            const passTooEarly = noMainActionYet && (game.roundNumber ?? 1) <= 4 && !trulyStarved;
+
             if ((player.knowledge ?? 0) >= 4) {
                 // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
             } else if (mustDoActions.length > 0) {
                 // 필수 액션(가이아포머/소행성 우주선/사거리 보너스)이 가능하면 패스 차단
+            } else if (hasDiscountedUpgrade) {
+                // 할인 업그레이드는 자원 효율이 최상이므로 항상 우선
+            } else if (canFormFedNow) {
+                // 라운드 3+ 에서 연방 구성 가능하면 패스보다 연방 우선
+            } else if (hasCheapBuildOrUpgrade) {
+                // 초반 자원 수급 인프라(광산/TS)는 패스보다 우선
+            } else if (passTooEarly) {
+                // 자원 남았는데 메인 액션 안 하고 패스하는 행동은 R1~4까지 차단
             } else {
                 const bestBonus = this.findBonusTileAction(game, playerId);
                 const bonusTileId = bestBonus?.params?.bonusTileId;
@@ -828,6 +869,14 @@ export class BotLogic {
                     const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
                     candidates.push({ type: 'pass_round', params: { bonusTileId }, preActions });
                 }
+            }
+
+            // 패스 후보가 차단되어 후보가 0개가 되는 사고를 막기 위한 안전망:
+            // 차단됐는데 다른 후보가 하나도 없으면 패스를 다시 추가 (게임 진행 보장)
+            if (candidates.length === 0) {
+                const bestBonus = this.findBonusTileAction(game, playerId);
+                const bonusTileId = bestBonus?.params?.bonusTileId;
+                candidates.push({ type: 'pass_round', params: { bonusTileId } });
             }
         }
 

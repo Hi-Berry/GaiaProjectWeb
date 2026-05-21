@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -111,8 +111,45 @@ export default function Game() {
     const saved = localStorage.getItem('is-sidebar-open');
     return saved !== null ? saved === 'true' : true;
   });
+  const LOG_TEXT_SCALES = [1, 1.5, 2] as const;
+  const [logTextScale, setLogTextScale] = useState<(typeof LOG_TEXT_SCALES)[number]>(() => {
+    const saved = localStorage.getItem('game-log-text-scale');
+    const n = saved ? parseFloat(saved) : 1;
+    return LOG_TEXT_SCALES.includes(n as (typeof LOG_TEXT_SCALES)[number]) ? n as (typeof LOG_TEXT_SCALES)[number] : 1;
+  });
+  const SIDEBAR_MIN_WIDTH = 280;
+  const SIDEBAR_MAX_WIDTH = 720;
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('sidebar-width');
+    const n = saved ? parseInt(saved, 10) : 340;
+    return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, isNaN(n) ? 340 : n));
+  });
   const [isZoomInitialized, setIsZoomInitialized] = useState(false);
 
+  const startSidebarResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    let lastWidth = startWidth;
+    const maxAllowed = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - 200));
+    const onMove = (moveEvent: MouseEvent) => {
+      // 사이드바는 우측에 붙어있으므로 왼쪽으로 드래그(마우스가 왼쪽으로) = 너비 증가
+      const dx = startX - moveEvent.clientX;
+      const w = Math.min(maxAllowed, Math.max(SIDEBAR_MIN_WIDTH, startWidth + dx));
+      lastWidth = w;
+      setSidebarWidth(w);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      localStorage.setItem('sidebar-width', String(lastWidth));
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  // 상태 영역 ↕ 로그 영역 분할 드래그
   // 로컬 스토리지 로드 (gameId가 준비되면 한 번만)
   useEffect(() => {
     if (gameId && !isZoomInitialized) {
@@ -158,17 +195,47 @@ export default function Game() {
     gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
   );
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  // 미니뷰가 뷰포트 밖으로 못 나가게 클램프
+  // 좌상단 좌표 기준이므로 (0, 0)이 최소값. 우/하단은 일부만 보여도 다시 드래그 가능하게 마진
+  const clampMiniPos = (pos: { x: number; y: number }) => {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const VISIBLE_MIN = 80;
+    return {
+      x: Math.max(0, Math.min(vw - VISIBLE_MIN, pos.x)),
+      y: Math.max(0, Math.min(vh - VISIBLE_MIN, pos.y)),
+    };
+  };
   const [researchPos, setResearchPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
-    return saved ? JSON.parse(saved) : { x: 20, y: 90 };
+    const initial = saved ? JSON.parse(saved) : { x: 20, y: 90 };
+    return clampMiniPos(initial);
   });
   const [bonusPos, setBonusPos] = useState(() => {
     const saved = gameId ? localStorage.getItem(`bonus-pos-${gameId}`) : null;
-    return saved ? JSON.parse(saved) : { x: 380, y: 90 };
+    const initial = saved ? JSON.parse(saved) : { x: 380, y: 90 };
+    return clampMiniPos(initial);
   });
+
+  // 뷰포트 크기가 줄어도 클램프 (창 리사이즈 대응)
+  useEffect(() => {
+    const handler = () => {
+      setResearchPos((p: { x: number; y: number }) => clampMiniPos(p));
+      setBonusPos((p: { x: number; y: number }) => clampMiniPos(p));
+    };
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   const MIN_MINI_WIDTH = 280;
   const MAX_MINI_WIDTH = 600;
+  const MINI_CONTENT_BASE_WIDTH = 340;
+  const MINI_CONTENT_SIDE_GUTTER = 6;
+  const getMiniContentScale = (width: number) => Math.max(0.1, (width - MINI_CONTENT_SIDE_GUTTER) / MINI_CONTENT_BASE_WIDTH);
+  const getMiniContentStyle = (width: number) => ({
+    width: MINI_CONTENT_BASE_WIDTH,
+    zoom: getMiniContentScale(width),
+  }) as CSSProperties;
   const [researchMiniWidth, setResearchMiniWidth] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-mini-width-${gameId}`) : null;
     const n = saved ? parseInt(saved, 10) : 340;
@@ -221,19 +288,28 @@ export default function Game() {
     const keyW = panel === 'research' ? `research-mini-width-${gameId}` : `bonus-mini-width-${gameId}`;
     const keyH = panel === 'research' ? `research-mini-height-${gameId}` : `bonus-mini-height-${gameId}`;
 
+    // 미니뷰가 화면 밖으로 튀어나가지 않도록 뷰포트 기반 동적 상한 (창 위치까지 고려)
+    const panelPos = panel === 'research' ? researchPos : bonusPos;
+    const margin = 20;
+    const maxWForViewport = Math.max(MIN_MINI_WIDTH, window.innerWidth - panelPos.x - margin);
+    const maxHForViewport = Math.max(200, window.innerHeight - panelPos.y - margin);
+    const maxW = Math.min(MAX_MINI_WIDTH, maxWForViewport);
+    const maxH = Math.min(900, maxHForViewport);
+    const MIN_H = 200;
+
     const onMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
 
+      // 축별 독립 처리 — 사용자가 가로 드래그하면 가로만, 세로면 세로만, 대각이면 둘 다
       if (axis === 'x' || axis === 'both') {
-        const w = Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, startWidth + dx));
+        const w = Math.min(maxW, Math.max(MIN_MINI_WIDTH, startWidth + dx));
         lastResizeWidthRef.current = w;
         setWidth(w);
         if (gameId) localStorage.setItem(keyW, String(w));
       }
-
       if (axis === 'y' || axis === 'both') {
-        const h = Math.min(900, Math.max(200, startHeight + dy));
+        const h = Math.min(maxH, Math.max(MIN_H, startHeight + dy));
         lastResizeHeightRef.current = h;
         setHeight(h);
         if (gameId) localStorage.setItem(keyH, String(h));
@@ -1235,8 +1311,10 @@ export default function Game() {
         let needsExtraTerraforming = false;
 
         if (tile.type === 'gaia') {
-          if (tile.hasGaiaformer) {
-            // 포머 설치된 곳은 Qic 소모 없음
+          // 포머 설치된 곳(내 포머가 회수 대기 중)은 거리 QIC 및 기본 Gaia QIC 모두 면제
+          // (포머 배치 시 거리 QIC를 이미 지불했음)
+          if (tile.hasGaiaformer && player.pendingGaiaformerTiles?.includes(tile.id)) {
+            qicCost = 0;
           }
           else if (faction.id === 'gleens') {
             oreCost += 1;
@@ -1835,7 +1913,8 @@ export default function Game() {
               const maxPossibleRange = baseRange + (player.qic * 2);
 
               // Check if planet is unreachable even with all QIC
-              if (minDist > maxPossibleRange) {
+              // 단, 내 포머가 이미 설치/회수대기 중인 칸은 거리 체크 면제 (배치 시 거리 QIC 지불 완료)
+              if (!isPendingGaiaBuild && minDist > maxPossibleRange) {
                 toast({
                   title: 'Cannot Build',
                   description: `Planet is too far away. Distance: ${minDist}, Max range with ${player.qic} QIC: ${maxPossibleRange}`,
@@ -3189,13 +3268,25 @@ export default function Game() {
       </main>
 
       {/* Right Sidebar */}
-      <div className={`
-        ${isSidebarOpen ? 'w-[340px] translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'}
+      <div
+        className={`
+        ${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'}
         right-0 top-0 bottom-0 z-50 lg:z-auto
-        transition-all duration-300 ease-in-out
+        transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         max-w-[85vw] md:max-w-none
-      `}>
+        relative
+      `}
+        style={isSidebarOpen ? { width: sidebarWidth } : undefined}
+      >
+        {/* 사이드바 너비 리사이즈 핸들 (왼쪽 가장자리) */}
+        {isSidebarOpen && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[125] hidden md:block"
+            title="드래그하여 너비 조절"
+            onMouseDown={startSidebarResize}
+          />
+        )}
         {isSidebarOpen && (
           <div className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
@@ -3845,11 +3936,31 @@ export default function Game() {
               </div>
             </div>
 
-            {/* Game Log - 남은 공간을 최대로 활용, 내부만 스크롤 */}
-            <div className="mt-1 flex-1 flex flex-col min-h-[400px] hidden md:flex">
+              {/* === 게임 로그 (단일 스크롤 내부의 sibling) === */}
+              <div
+                className="mt-1 flex-1 flex flex-col hidden md:flex"
+                style={{ minHeight: `${400 * logTextScale}px` }}
+              >
               <h3 className="font-semibold mb-1 flex items-center gap-2 text-xs md:text-sm shrink-0 text-zinc-400">
                 <Clock className="w-3 h-3 md:w-4 md:h-4" />
-                Game Log
+                <span className="shrink-0">Game Log</span>
+                <div className="ml-auto flex items-center gap-1">
+                  {LOG_TEXT_SCALES.map((scale) => (
+                    <Button
+                      key={scale}
+                      type="button"
+                      variant={logTextScale === scale ? 'default' : 'outline'}
+                      size="sm"
+                      className={`h-5 px-1.5 text-[9px] font-black leading-none ${logTextScale === scale ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                      onClick={() => {
+                        setLogTextScale(scale);
+                        localStorage.setItem('game-log-text-scale', String(scale));
+                      }}
+                    >
+                      *{scale * 100}
+                    </Button>
+                  ))}
+                </div>
               </h3>
               <div className="flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar">
                 {(!game.gameLog || game.gameLog.length === 0) ? (
@@ -3862,12 +3973,14 @@ export default function Game() {
                     hideHeader
                     className="w-full"
                     maxHeight="100%"
+                    textScale={logTextScale}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}
                     onAiFeedbackClick={openAiFeedbackForAction}
                   />
                 )}
               </div>
+            </div>
             </div>
 
             {/* Free Actions Modal */}
@@ -3889,9 +4002,8 @@ export default function Game() {
               }}
             />
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
 
       <AnimatePresence>
         {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
@@ -4023,7 +4135,7 @@ export default function Game() {
             animate={researchPos}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
             onDragEnd={(_, info) => {
-              const newPos = { x: researchPos.x + info.offset.x, y: researchPos.y + info.offset.y };
+              const newPos = clampMiniPos({ x: researchPos.x + info.offset.x, y: researchPos.y + info.offset.y });
               setResearchPos(newPos);
               if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
             }}
@@ -4044,7 +4156,7 @@ export default function Game() {
             <div className="flex-1 pl-0 pr-[6px] pb-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
                 className="origin-top-left"
-                style={{ width: 340, transform: `scale(${researchMiniWidth / 340})` }}
+                style={getMiniContentStyle(researchMiniWidth)}
               >
                 <ResearchBoard
                   game={game}
@@ -4131,7 +4243,7 @@ export default function Game() {
             animate={bonusPos}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
             onDragEnd={(_, info) => {
-              const newPos = { x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y };
+              const newPos = clampMiniPos({ x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y });
               setBonusPos(newPos);
               if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
             }}
@@ -4152,7 +4264,7 @@ export default function Game() {
             <div className="flex-1 pl-0 pr-[6px] pb-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div
                 className="origin-top-left flex flex-col gap-4"
-                style={{ width: 340, transform: `scale(${bonusMiniWidth / 340})` }}
+                style={getMiniContentStyle(bonusMiniWidth)}
               >
                 <RoundBoard
                   game={game}
