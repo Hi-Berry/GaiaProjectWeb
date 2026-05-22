@@ -19,7 +19,7 @@ interface FreeActionsDialogProps {
     onConvertResource: (type: string, useBrain?: boolean) => void;
     onBurnPower: (useBrain?: boolean) => void;
     onUseBalTakGaiaformerToQic?: () => void;
-    onUndoFreeAction?: () => void;
+    onUndoFreeAction?: (steps?: number) => void;
 }
 
 export function FreeActionsDialog({
@@ -35,12 +35,14 @@ export function FreeActionsDialog({
 }: FreeActionsDialogProps) {
     const currentPlayer = playerId ? game.players[playerId] : null;
     if (!currentPlayer) return null;
+    const freeActionUndoCount = game.freeActionUndoStack?.length ?? (game.freeActionUndoState ? 1 : 0);
 
     const hasNevlasPI =
         currentPlayer.faction === 'nevlas' &&
         game.map?.some(
             (t) => t.ownerId === playerId && t.structure === 'planetary_institute'
         );
+    const isXenos = currentPlayer.faction === 'xenos';
     const academyRightCount =
         game.map?.filter(
             (t) =>
@@ -58,15 +60,27 @@ export function FreeActionsDialog({
                             Free Actions
                         </DialogTitle>
                         <div className="flex gap-2 items-center">
-                            {onUndoFreeAction && game.freeActionUndoState && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={onUndoFreeAction}
-                                    className="bg-red-950/40 hover:bg-red-900/60 text-red-400 border-red-500/30 h-7 text-xs uppercase font-bold"
-                                >
-                                    Undo All
-                                </Button>
+                            {onUndoFreeAction && freeActionUndoCount > 0 && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => onUndoFreeAction(1)}
+                                        className="bg-red-950/40 hover:bg-red-900/60 text-red-400 border-red-500/30 h-7 text-xs uppercase font-bold"
+                                    >
+                                        Undo
+                                    </Button>
+                                    {freeActionUndoCount > 1 && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => onUndoFreeAction(freeActionUndoCount)}
+                                            className="bg-red-950/40 hover:bg-red-900/60 text-red-400 border-red-500/30 h-7 text-xs uppercase font-bold"
+                                        >
+                                            Undo All
+                                        </Button>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -364,7 +378,7 @@ export function FreeActionsDialog({
                                 disabled={!isCurrentTurn || (currentPlayer.ore ?? 0) < 1}
                                 onClick={() => onConvertResource('1ore-to-1token')}
                             >
-                                1 Ore ➔ 1 Token
+                                {isXenos ? '1 Ore ➔ 1 Token to Bowl III' : '1 Ore ➔ 1 Token'}
                             </Button>
                             {currentPlayer?.faction === 'taklons' ? (
                                 <>

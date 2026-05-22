@@ -260,6 +260,16 @@ export const GameClient = {
     s.emit('debug_set_resources', { gameId, resources });
   },
 
+  adminSetPlayerState(gameId: string, targetPlayerId: string, resources: Partial<PlayerState>, adminCode: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('admin_set_player_state', { gameId, targetPlayerId, resources, adminCode }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
   upgradeStructure(gameId: string, tileId: string, target: StructureType | 'academy_left' | 'academy_right') {
     const s = getSocket();
     s.emit('upgrade_structure', { gameId, tileId, target });

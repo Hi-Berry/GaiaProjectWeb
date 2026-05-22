@@ -114,7 +114,8 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(port, () => {
+  const host = process.env.HOST?.trim();
+  const onListening = () => {
     const { local, lan } = getConnectionUrls(port);
     log("--- 접속 주소 (다른 사람이 접속할 URL) ---", "express");
     log(`  로컬: ${local}`, "express");
@@ -124,8 +125,13 @@ app.use((req, res, next) => {
       log("  같은 네트워크: (감지된 LAN IP 없음)", "express");
     }
     log("----------------------------------------", "express");
-    log(`serving on port ${port}`);
-  });
+    log(`serving on ${host || 'all interfaces'}:${port}`);
+  };
+  if (host) {
+    httpServer.listen(port, host, onListening);
+  } else {
+    httpServer.listen(port, onListening);
+  }
 
   // Setup Socket.IO game server
   setupGameServer(httpServer);

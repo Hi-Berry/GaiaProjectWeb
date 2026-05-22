@@ -213,33 +213,37 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 	const player = game.players[playerId];
 	if (!player) return;
 	ensureScoreBreakdown(player);
-	player.score = Math.max(0, player.score + vp);
+	const previousScore = player.score ?? 0;
+	const nextScore = Math.max(0, previousScore + vp);
+	const appliedVp = nextScore - previousScore;
+	player.score = nextScore;
+	if (appliedVp === 0) return;
 	const b = player.scoreBreakdown!;
 	if (category === 'roundMissions' && detail?.round != null) {
-		b.roundMissions.push({ round: detail.round, vp: vp });
+		b.roundMissions.push({ round: detail.round, vp: appliedVp });
 	} else if (category === 'bonusTilePass' && detail?.round != null) {
-		b.bonusTilePass.push({ round: detail.round, vp: vp, tileId: detail.tileId });
+		b.bonusTilePass.push({ round: detail.round, vp: appliedVp, tileId: detail.tileId });
 	} else if (category === 'techTiles' && detail?.tileId) {
-		b.techTiles.push({ tileId: detail.tileId, vp: vp });
+		b.techTiles.push({ tileId: detail.tileId, vp: appliedVp });
 	} else if (category === 'finalMissions') {
-		b.finalMissions += vp;
+		b.finalMissions += appliedVp;
 		if (detail?.missionId) {
-			b.finalMissionDetails.push({ missionId: detail.missionId, vp });
+			b.finalMissionDetails.push({ missionId: detail.missionId, vp: appliedVp });
 		}
-	} else if (category === 'powerReceived' && vp < 0) {
-		b.powerReceived += -vp;
+	} else if (category === 'powerReceived' && appliedVp < 0) {
+		b.powerReceived += -appliedVp;
 	} else if (category === 'spaceships' && detail?.shipTileId) {
-		b.spaceships.push({ shipTileId: detail.shipTileId, vp: vp });
+		b.spaceships.push({ shipTileId: detail.shipTileId, vp: appliedVp });
 	} else if (category === 'researchTracks') {
-		b.researchTracks += vp;
+		b.researchTracks += appliedVp;
 	} else if (category === 'remainingResources') {
-		b.remainingResources += vp;
+		b.remainingResources += appliedVp;
 	} else if (category === 'other' && detail?.source) {
-		b.other.push({ source: detail.source, vp: vp });
+		b.other.push({ source: detail.source, vp: appliedVp });
 	}
 
 	// Merge into last log if it's the same player's action
-	if (vp > 0 && (category === 'other' || category === 'spaceships') && !detail?.noLog) {
+	if (appliedVp > 0 && (category === 'other' || category === 'spaceships') && !detail?.noLog) {
 		if (!game.gameLog) game.gameLog = [];
 		const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
 		let desc = '';
@@ -248,12 +252,12 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 
 		if (lastLog && lastLog.playerId === playerId) {
 			if (lastLog.details) {
-				lastLog.details += ` (+${vp}VP ${desc})`;
+				lastLog.details += ` (+${appliedVp}VP ${desc})`;
 			} else {
-				lastLog.details = `+${vp}VP (${desc})`;
+				lastLog.details = `+${appliedVp}VP (${desc})`;
 			}
 		} else if (desc) {
-			addGameLog(game, playerId, '', `+${vp}VP (${desc})`);
+			addGameLog(game, playerId, '', `+${appliedVp}VP (${desc})`);
 		}
 	}
 }
@@ -2266,6 +2270,43 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
+		socket.on('admin_set_player_state', ({ gameId, targetPlayerId, resources, adminCode }, callback) => {
+			const game = games.get(gameId);
+			if (!game) {
+				callback?.({ error: 'Game not found' });
+				return;
+			}
+			if (adminCode !== '0011') {
+				callback?.({ error: 'Invalid admin password' });
+				return;
+			}
+			const target = game.players[targetPlayerId];
+			if (!target) {
+				callback?.({ error: 'Player not found' });
+				return;
+			}
+
+			const setNumber = (key: 'score' | 'credits' | 'ore' | 'knowledge' | 'qic' | 'power1' | 'power2' | 'power3') => {
+				const value = resources?.[key];
+				if (typeof value === 'number' && Number.isFinite(value)) {
+					(target as any)[key] = Math.max(0, Math.floor(value));
+				}
+			};
+
+			setNumber('score');
+			setNumber('credits');
+			setNumber('ore');
+			setNumber('knowledge');
+			setNumber('qic');
+			setNumber('power1');
+			setNumber('power2');
+			setNumber('power3');
+
+			log(`Admin: Set player state for ${target.name}: ${JSON.stringify(resources)}`, 'game', gameId);
+			io.to(gameId).emit('game_updated', game);
+			callback?.({ ok: true });
+		});
+
 		socket.on('select_faction', ({ gameId, factionId, turnOrder }) => {
 			const game = games.get(gameId);
 			if (!game) return;
@@ -3848,6 +3889,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
 				socket.emit('game_error', { message: '고급 기술 보상으로 트랙을 전진해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			if (game.pendingLostPlanet?.playerId === playerId) {
+				socket.emit('game_error', { message: '검은 행성을 배치해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
 			if (!game.hasDoneMainAction) {
@@ -6422,6 +6467,7 @@ export function executeEndTurn(
 	if (game.pendingShipTechTrackAdvance?.playerId === playerId) return false;
 	if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) return false;
 	if (game.pendingShipTechMine?.playerId === playerId) return false;
+	if (game.pendingLostPlanet?.playerId === playerId) return false;
 
 	const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
 	const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
@@ -6962,8 +7008,15 @@ export function executeConvertResource(
 		logDesc = '1O → 1C'; success = true;
 	}
 	else if (type === '1ore-to-1token' && (player.ore ?? 0) >= 1) {
-		player.ore! -= 1; player.power1 = (player.power1 ?? 0) + 1;
-		logDesc = '1O → 1 Token'; success = true;
+		player.ore! -= 1;
+		if (player.faction === 'xenos') {
+			player.power3 = (player.power3 ?? 0) + 1;
+			logDesc = '1O → 1 Token to Bowl III';
+		} else {
+			player.power1 = (player.power1 ?? 0) + 1;
+			logDesc = '1O → 1 Token';
+		}
+		success = true;
 	}
 	else if (type === '4power-to-1knowledge') {
 		if (hasNevlasPI && (player.power3 ?? 0) >= 2) {
@@ -7066,24 +7119,29 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	const useQic = qicToUse ?? 0;
 	if (neededQIC > 0 && useQic < neededQIC) return '사거리가 부족합니다.';
 	if ((player.qic || 0) < useQic) return 'QIC가 부족합니다.';
-	player.qic = (player.qic || 0) - useQic;
+
+	// 우주선 입장 비용: 입장자마다 5 VP (발타크는 7 VP)
+	const entryCost = player.faction === 'bal_tak' ? 7 : 5;
+	if ((player.score || 0) < entryCost) return `우주선 입장에 ${entryCost} VP가 필요합니다.`;
 
 	// 아이타·네뷸라: 우주선 입장 시 토큰 1개 비용 (1그릇 → 2그릇 → 3그릇 순으로 차감, 없으면 입장 불가)
 	if (player.faction === 'itars' || player.faction === 'nevlas') {
 		const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
 		if (p1 + p2 + p3 < 1) return '우주선 입장에 파워 토큰 1개가 필요합니다.';
+	}
+
+	player.qic = (player.qic || 0) - useQic;
+	addScore(game, playerId, -entryCost, 'other', { source: '우주선 입장' });
+
+	if (player.faction === 'itars' || player.faction === 'nevlas') {
+		const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
 		if (p1 >= 1) player.power1 = p1 - 1;
 		else if (p2 >= 1) player.power2 = p2 - 1;
 		else player.power3 = p3 - 1;
 	}
 
-	// 잠금 해제 비용: 첫 입장 시 5 VP (발타크는 7 VP) (거리 통과 후 적용)
 	if (!shipState.unlocked) {
-		const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
-		if ((player.score || 0) < unlockCost) return `우주선 잠금해제에 ${unlockCost} VP가 필요합니다.`;
-		addScore(game, playerId, -unlockCost, 'other', { source: '우주선 잠금해제' });
 		shipState.unlocked = true;
-		addGameLog(game, playerId, 'Unlocked & Entered Ship', `-${unlockCost} VP (${tile.type})`, tileId);
 	}
 
 	shipState.occupants = shipState.occupants || [];
@@ -7106,9 +7164,7 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	if (idx === 2 || idx === 3) chargePower(player, 2);
 	else if (idx === 4) chargePower(player, 3);
 
-	if (shipState.unlocked && shipState.occupants.length > 1) {
-		addGameLog(game, playerId, 'Entered Ship', `${tile.type} (#${idx})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
-	}
+	addGameLog(game, playerId, 'Entered Ship', `${tile.type} (#${idx}), -${entryCost}VP${useQic ? `, ${useQic}QIC` : ''}`, tileId);
 
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);

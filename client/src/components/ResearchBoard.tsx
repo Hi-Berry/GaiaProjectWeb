@@ -106,7 +106,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
             )}
             <CardContent className={`${isMini ? 'p-0 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
-                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
+                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
                     <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10 mb-4">
                         <p className="text-[10px] text-zinc-400 mb-2 font-medium">메인 액션을 완료했습니다. 행동을 확정(Turn End)하거나 취소(Reset)할 수 있습니다.</p>
                         <div className="flex gap-2">
@@ -757,6 +757,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                                         {/* Levels 0-5 */}
                                         {[0, 1, 2, 3, 4, 5].map((level) => {
+                                            const isTerraforming5FederationAvailable =
+                                                level === 5 &&
+                                                track.id === 'terraforming' &&
+                                                !!game.federationOnTerraforming5 &&
+                                                !Object.values(game.players).some((p) => (p.research?.terraforming ?? 0) >= 5);
                                             const getTrackBonus = (trackId: string, lvl: number): string => {
                                                 if (trackId === 'terraforming') {
                                                     if (lvl === 0) return '3 Ore/Step';
@@ -764,7 +769,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     if (lvl === 2) return '2 Ore/Step';
                                                     if (lvl === 3) return '1 Ore/Step';
                                                     if (lvl === 4) return '1 Ore/Step (+2O)';
-                                                    if (lvl === 5) return 'L5: 연방';
+                                                    if (lvl === 5) return '';
                                                 }
                                                 if (trackId === 'navigation') {
                                                     if (lvl === 0) return 'Range 1';
@@ -833,15 +838,15 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     >
                                                         <span className={`absolute top-0 left-1 font-bold text-zinc-700 ${isMini ? 'text-[6px]' : 'text-[8px]'}`}>L{level}</span>
                                                         <div className="flex flex-col items-center justify-center p-0.5">
-                                                            {level === 5 && track.id === 'terraforming' && game.federationOnTerraforming5 ? (() => {
-                                                                const rewardIdx = FEDERATION_REWARDS.findIndex(r => r.id === game.federationOnTerraforming5);
-                                                                const label = FEDERATION_REWARDS[rewardIdx]?.label || 'L5 Federation';
+                                                            {isTerraforming5FederationAvailable ? (() => {
+                                                                const rewardIdx = FEDERATION_REWARDS.findIndex((r) => r.id === game.federationOnTerraforming5);
+                                                                const label = FEDERATION_REWARDS[rewardIdx]?.label ?? 'L5 Federation';
                                                                 return rewardIdx !== -1 ? (
                                                                     <img
                                                                         src={`/image/Federation_${rewardIdx + 1}.gif`}
                                                                         alt={label}
-                                                                        className="h-16 w-auto object-contain"
-                                                                        title={label}
+                                                                        className="h-7 w-auto object-contain"
+                                                                        title={`Terraforming 5 보상: ${label}`}
                                                                     />
                                                                 ) : (
                                                                     <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">

@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { DebugPanel } from '@/components/DebugPanel';
+import { AdminModeDialog } from '@/components/AdminModeDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -47,7 +47,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -267,6 +267,7 @@ export default function Game() {
   const [aiFeedbackReason, setAiFeedbackReason] = useState('');
   const [aiFeedbackSubmitting, setAiFeedbackSubmitting] = useState(false);
   const [selectedAiFeedbackActionId, setSelectedAiFeedbackActionId] = useState<string | null>(null);
+  const [isAdminModeOpen, setIsAdminModeOpen] = useState(false);
 
   const lastResizeWidthRef = useRef<number>(340);
   const lastResizeHeightRef = useRef<number>(500);
@@ -351,6 +352,11 @@ export default function Game() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setIsAdminModeOpen(true);
+        return;
+      }
       if (e.key.toLowerCase() === 'f') {
         const isMyTurn = game?.turnOrder[game?.currentPlayerIndex ?? -1] === playerId;
         if (!isMyTurn || game?.currentPhase !== 'main') return;
@@ -3379,6 +3385,65 @@ export default function Game() {
                 const bonusForDetail = p.bonusTile ? ALL_BONUS_TILES.find((t) => t.id === p.bonusTile) : undefined;
                 const hasBonusDetailRow = !!(bonusForDetail?.specialAction);
                 const hasPIForDetail = game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
+                const ownedPlanetCounts = (() => {
+                  const counts: Partial<Record<PlanetType, number>> = {};
+                  game.map
+                    ?.filter((t) => t.ownerId === id && t.structure && t.structure !== 'ship')
+                    .forEach((t) => {
+                      const type = t.type as PlanetType;
+                      if (type === 'space' || type === 'deep_space' || type.startsWith('ship_') || type === 'lost_fleet_ship') return;
+                      counts[type] = (counts[type] ?? 0) + 1;
+                    });
+                  return counts;
+                })();
+                const planetLabel = (type: PlanetType) => {
+                  if (type === 'terra') return '파';
+                  if (type === 'volcanic') return '빨';
+                  if (type === 'titanium') return '검';
+                  if (type === 'swamp') return '갈';
+                  if (type === 'ice') return '흰';
+                  if (type === 'desert') return '노';
+                  if (type === 'oxide') return '주';
+                  if (type === 'gaia') return '가이아';
+                  if (type === 'asteroid') return '소행성';
+                  if (type === 'proto') return '원시';
+                  if (type === 'lost_planet') return '검은';
+                  return type;
+                };
+                const homePlanet = faction?.homePlanet;
+                const terraformStepFor = (type: PlanetType) => {
+                  if (!p.faction) return homePlanet ? getTerraformSteps(homePlanet, type) : 0;
+                  return getTerraformStepsForFaction(game, p.faction, type);
+                };
+                const homeTypes = homePlanet && HOME_PLANETS.includes(homePlanet) ? [homePlanet] : [];
+                const stepTypes = HOME_PLANETS.filter((type) => type !== homePlanet);
+                const neutralTypes = ['gaia', 'asteroid', 'proto', 'lost_planet'] as PlanetType[];
+                const planetGroups: Array<{ label: string; types: PlanetType[] }> = [
+                  { label: '홈', types: homeTypes },
+                  { label: '1', types: stepTypes.filter((type) => terraformStepFor(type) === 1) },
+                  { label: '2', types: stepTypes.filter((type) => terraformStepFor(type) === 2) },
+                  { label: '3', types: stepTypes.filter((type) => terraformStepFor(type) >= 3) },
+                  { label: '중립', types: neutralTypes },
+                ].filter((group) => group.types.length > 0);
+                const allDisplayedPlanetTypes: PlanetType[] = [...HOME_PLANETS, 'gaia', 'asteroid', 'proto', 'lost_planet'];
+                const ownedPlanetTypeCount = allDisplayedPlanetTypes
+                  .filter((type) => (ownedPlanetCounts[type] ?? 0) > 0)
+                  .length;
+                const playerStructureTiles = game.map?.filter((t) => t.ownerId === id && t.structure && t.structure !== 'ship') ?? [];
+                const occupiedSectorCount = new Set(
+                  playerStructureTiles
+                    .filter((t) => typeof t.sector === 'number' && t.sector < 11)
+                    .map((t) => t.sector)
+                ).size;
+                const occupiedOuterSectorCount = new Set(
+                  playerStructureTiles
+                    .filter((t) => typeof t.sector === 'number' && t.sector >= 11 && t.sector < 20)
+                    .map((t) => t.sector)
+                ).size;
+                const satelliteCount = Object.values(game.satellites ?? {})
+                  .filter((ids) => Array.isArray(ids) && ids.includes(id))
+                  .length;
+                const hasPlanetTypeDetailRow = true;
                 const canDoMainForDetail = isYou && isCurrentTurn && !game.hasDoneMainAction;
                 const hasSpecialDetailRow = (() => {
                   if ((p.techTiles ?? []).some((tid) => {
@@ -3397,6 +3462,7 @@ export default function Game() {
                   return false;
                 })();
                 const hasPlayerDetailContent =
+                  hasPlanetTypeDetailRow ||
                   fedEntries.length > 0 ||
                   (p.techTiles?.length ?? 0) > 0 ||
                   (p.artifacts?.length ?? 0) > 0 ||
@@ -3617,6 +3683,54 @@ export default function Game() {
                             <p className="text-[9px] text-zinc-400 text-center leading-relaxed px-1">
                               이 플레이어의 <span className="text-zinc-300">연방 보상 · 기술 타일 · 인공물 · 보너스/스페셜 액션</span> 상태를 보는 창입니다. 지금은 표시할 항목이 없습니다.
                             </p>
+                          )}
+                          {hasPlanetTypeDetailRow && (
+                            <div className="flex gap-0 items-stretch">
+                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                                <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">행성</span>
+                              </div>
+                              <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
+                              <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">
+                                <div className="w-full text-[9px] text-zinc-500 font-bold leading-none flex flex-wrap gap-x-1.5 gap-y-0.5">
+                                  <span>유형 {ownedPlanetTypeCount}개</span>
+                                  {occupiedSectorCount > 0 && <span>/ 판 {occupiedSectorCount}개</span>}
+                                  {occupiedOuterSectorCount > 0 && <span>/ 외각 {occupiedOuterSectorCount}개</span>}
+                                  {satelliteCount > 0 && <span>/ 위성 {satelliteCount}개</span>}
+                                </div>
+                                {planetGroups.map((group, groupIndex) => (
+                                  <div key={groupIndex} className="flex flex-wrap items-center gap-0.5">
+                                    {groupIndex > 0 && (
+                                      <span className="mx-0.5 text-[9px] font-black text-white/20 leading-none">/</span>
+                                    )}
+                                    {group.types.map((type) => {
+                                      const count = ownedPlanetCounts[type] ?? 0;
+                                      const isOwned = count > 0;
+                                      const showCount = type === 'gaia' || type === 'asteroid' || count > 1;
+                                      const isThreeStep = group.label === '3';
+                                      const color = PLANET_COLORS[type] ?? (type === 'lost_planet' ? '#f8fafc' : '#ffffff');
+                                      const label = planetLabel(type);
+                                      return (
+                                        <div
+                                          key={type}
+                                          className={`relative inline-flex items-center justify-center rounded-full border transition-all ${isOwned ? 'w-4 h-4 border-white/70 bg-black/40 opacity-100 shadow-[0_0_6px_rgba(255,255,255,0.15)]' : 'w-3.5 h-3.5 border-white/15 bg-black/20 opacity-65'}`}
+                                          title={`${label}: ${count}${isThreeStep ? ' (3삽)' : ''}`}
+                                        >
+                                          <span
+                                            className={`${isOwned ? 'w-3 h-3' : 'w-2.5 h-2.5'} rounded-full border border-black/30 shadow-sm`}
+                                            style={{ backgroundColor: color }}
+                                          />
+                                          {showCount && (
+                                            <span className={`absolute -bottom-1 -right-1 text-[7px] font-black leading-none rounded px-[2px] ${isOwned ? 'bg-zinc-100 text-black' : 'bg-zinc-800 text-zinc-400'}`}>
+                                              {count}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                           {fedEntries.length > 0 && (
                             <div className="flex gap-0 items-stretch">
@@ -3997,16 +4111,24 @@ export default function Game() {
               onUseBalTakGaiaformerToQic={() => {
                 if (gameId) GameClient.useBalTakGaiaformerToQic(gameId);
               }}
-              onUndoFreeAction={() => {
-                if (gameId) GameClient.undoFreeAction(gameId);
+              onUndoFreeAction={(steps) => {
+                if (gameId) GameClient.undoFreeAction(gameId, steps);
               }}
             />
           </div>
         )}
       </div>
 
+      {game && (
+        <AdminModeDialog
+          open={isAdminModeOpen}
+          onOpenChange={setIsAdminModeOpen}
+          game={game}
+        />
+      )}
+
       <AnimatePresence>
-        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))) && (
+        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
           <motion.div
             initial={{ y: -50, x: '-50%', opacity: 0 }}
             animate={{ y: 0, x: '-50%', opacity: 1 }}
@@ -4091,7 +4213,7 @@ export default function Game() {
               )}
 
               {/* Reset/End Turn (Integrated inside bar) */}
-              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"

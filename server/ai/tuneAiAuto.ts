@@ -221,7 +221,7 @@ function startServerProcess(port: number): ChildProcess {
   const args = isWin ? ['/d', '/s', '/c', 'npx tsx server/index.ts'] : ['tsx', 'server/index.ts'];
   return spawn(cmd, args, {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(port), NODE_ENV: 'development' },
+    env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), NODE_ENV: 'development' },
     stdio: 'ignore',
     windowsHide: true,
   });

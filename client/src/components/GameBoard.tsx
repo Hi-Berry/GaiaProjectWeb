@@ -1237,9 +1237,8 @@ export function GameBoard({
                     const enteredCount = currentPlayer.spaceshipsEntered?.length ?? 0;
                     const alreadyEntered = currentPlayer.spaceshipsEntered?.includes(selectedTile.id);
                     const canEnter = isMyTurn && enteredCount < 3 && !alreadyEntered;
-                    const isLocked = !ship.unlocked;
                     const vpCost = currentPlayer.faction === 'bal_tak' ? 7 : 5;
-                    const needVP = isLocked && (currentPlayer.score ?? 0) < vpCost;
+                    const needVP = (currentPlayer.score ?? 0) < vpCost;
                     const isItarsOrNevlas = currentPlayer.faction === 'itars' || currentPlayer.faction === 'nevlas';
                     const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0);
                     const needToken = isItarsOrNevlas && totalPower < 1;
@@ -1257,7 +1256,7 @@ export function GameBoard({
                     return (
                       <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
                         <p className="text-xs font-semibold text-white">{shipName} 입장</p>
-                        <p className="text-xs text-zinc-300">{isLocked ? `${vpCost} VP로 입장` : '입장'}{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
+                        <p className="text-xs text-zinc-300">{vpCost} VP로 입장{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
                         {minDist !== Infinity && (
                           <p className="text-xs text-muted-foreground">
                             거리: {minDist} | 기본 범위: {baseRange}
@@ -1267,7 +1266,7 @@ export function GameBoard({
                           </p>
                         )}
                         {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
-                        {canReach && needVP && <p className="text-xs text-amber-400">잠긴 우주선: {vpCost} VP 필요</p>}
+                        {canReach && needVP && <p className="text-xs text-amber-400">입장 비용: {vpCost} VP 필요</p>}
                         {canReach && isItarsOrNevlas && needToken && <p className="text-xs text-amber-400">입장 비용: 파워 토큰 1개 필요 (1/2/3그릇 순)</p>}
                         <Button
                           className="w-full text-xs"

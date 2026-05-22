@@ -532,8 +532,10 @@ export interface GaiaGameState {
   tinkeroidsThreeStepPlanets?: PlanetType[];
   /** 팅커로이드: 라운드 시작 시 Special 1개 선택 대기 (옵션 1개면 자동 지정) */
   pendingTinkeroidSpecialChoice?: { playerId: string; round: number; options: string[] } | null;
-  /** Undo용 전체 게임 상태 스냅샷 (StateCloner.cloneGameState로 JSON화). 프리액션 첫 수행 직전에 저장됨 */
+  /** 구버전 Undo용 전체 게임 상태 스냅샷. freeActionUndoStack으로 대체됨. */
   freeActionUndoState?: string;
+  /** Free Action 단계별 Undo 스냅샷 스택(최신이 끝). */
+  freeActionUndoStack?: string[];
 
   /** 로비에서 호스트가 켠 경우에만 start_game 시 종족 비딩 단계로 진입 */
   useFactionBidding?: boolean;

@@ -93,6 +93,16 @@ type BotAction = {
 };
 
 export class BotLogic {
+    private static getTrackForTechTile(game: ServerGameState, techTileId: string): ResearchTrack | null {
+        for (const [trackId, trackTiles] of Object.entries(game.techTilesByTrack || {})) {
+            const tiles = Array.isArray(trackTiles) ? trackTiles : (trackTiles ? [trackTiles] : []);
+            if (tiles.some(tile => tile?.id === techTileId)) {
+                return trackId as ResearchTrack;
+            }
+        }
+        return null;
+    }
+
     /** server/gameState.ts executeEnterSpaceship와 동일한 규칙(동기 버전) */
     private static canEnterSpaceship(game: ServerGameState, playerId: string, shipTileId: string, qicToUse: number): boolean {
         if (game.hasDoneMainAction) return false;
@@ -114,9 +124,8 @@ export class BotLogic {
         if (entered.length >= 3) return false;
         if (entered.includes(shipTileId)) return false;
 
-        const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
-        const isUnlocked = shipState?.unlocked ?? false;
-        if (!isUnlocked && (player.score || 0) < unlockCost) return false;
+        const entryCost = player.faction === 'bal_tak' ? 7 : 5;
+        if ((player.score || 0) < entryCost) return false;
 
         // Itars/Nevlas: token 1개 필요
         if (player.faction === 'itars' || player.faction === 'nevlas') {
@@ -644,7 +653,8 @@ export class BotLogic {
             }
 
             for (const tile of availableTiles) {
-                candidates.push({ type: 'select_tech_tile', params: { techTileId: tile.id, trackId } });
+                const resolvedTrackId = this.getTrackForTechTile(game, tile.id) ?? trackId;
+                candidates.push({ type: 'select_tech_tile', params: { techTileId: tile.id, trackId: resolvedTrackId } });
             }
             return candidates; // 기술 타일 선택 대기 중이면 다른 액션은 못함
         }
@@ -2305,7 +2315,8 @@ export class BotLogic {
 
         // 트랙 선택 (해당 타일이 요구하는 트랙 또는 가장 높은 점수의 트랙)
         const tracks = this.pickResearchTracks(game, player, playerId);
-        const trackId = tracks.length > 0 ? tracks[0] : 'economy';
+        const preferredTrackId = tracks.length > 0 ? tracks[0] : 'economy';
+        const trackId = this.getTrackForTechTile(game, bestTile.id) ?? preferredTrackId;
 
         // MCTS 롤아웃 시에는 매 시뮬 상태마다 로그가 쌓이므로, 실제 수 결정 시에만 로그
         if (!isSimulate) {
@@ -2718,8 +2729,8 @@ export class BotLogic {
             if (entered.includes(tile.id)) continue;
 
             const shipState = game.spaceships?.[tile.id];
-            const unlockCost = player.faction === 'bal_tak' ? 7 : 5;
-            if (!shipState?.unlocked && (player.score || 0) < unlockCost) continue;
+            const entryCost = player.faction === 'bal_tak' ? 7 : 5;
+            if ((player.score || 0) < entryCost) continue;
 
             // Faction specific cost (Itars/Nevlas)
             if (['itars', 'nevlas'].includes(player.faction || '')) {

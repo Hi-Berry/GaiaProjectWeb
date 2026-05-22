@@ -13,8 +13,7 @@ import {
     executeBotBescodsAdvanceLowestTrack,
     executeConvertResource,
     getLegalEclipseAsteroidMineTileIds,
-    executeEclipseBuildAsteroidMine,
-    addGameLog
+    executeEclipseBuildAsteroidMine
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
@@ -44,10 +43,14 @@ function recordBotActionForFeedback(game: ServerGameState, playerId: string, act
 }
 
 function addBotFeedbackLog(game: ServerGameState, playerId: string, entry: NonNullable<ReturnType<typeof recordBotActionForFeedback>>) {
-    const params = entry.params ? ` ${JSON.stringify(entry.params)}` : '';
-    addGameLog(game, playerId, 'AI Move', `${entry.actionType}${params}`);
-    const lastLog = game.gameLog?.[game.gameLog.length - 1];
-    if (lastLog) lastLog.aiFeedbackActionId = entry.id;
+    const logs = game.gameLog ?? [];
+    for (let i = logs.length - 1; i >= 0; i--) {
+        const logEntry = logs[i];
+        if (logEntry.playerId === playerId && !logEntry.aiFeedbackActionId) {
+            logEntry.aiFeedbackActionId = entry.id;
+            return;
+        }
+    }
 }
 
 /**
