@@ -76,6 +76,7 @@ type BotAction = {
     | 'select_advanced_tech_tile'
     | 'cover_advanced_tech_tile'
     | 'advance_tech'
+    | 'skip_ship_tech_mine'
     | 'form_federation'
     | 'burn_power'
     | 'convert_resource'
@@ -333,6 +334,17 @@ export class BotLogic {
                 return executeCoverAdvancedTechTile(io, game, playerId, action.params.coverTileId);
             case 'advance_tech':
                 return executeAdvanceTech(io, game, playerId, action.params.trackId);
+            case 'skip_ship_tech_mine': {
+                const player = game.players[playerId];
+                if (!player || game.pendingShipTechMine?.playerId !== playerId) return false;
+                game.pendingShipTechMine = null;
+                player.pendingTerraformSteps = 0;
+                player.nextMineFreeFromShipTech = false;
+                game.pendingShipTechTrackAdvance = { playerId };
+                log(`Bot ${player.name} skipped Ship Tech 2TF+Mine fallback because no legal mine target was available`, 'game', game.id);
+                io.to(game.id).emit('game_updated', game);
+                return true;
+            }
             case 'form_federation':
                 return executeBotFederation(io, game, playerId, action.params.selectedHexIds, action.params.selectedPlanetIds, action.params.rewardId, action.params.spentTokens);
             case 'burn_power':
@@ -415,8 +427,8 @@ export class BotLogic {
                     log(`Bot ${player.name} must complete pending build with ${pendingBuilds.length} candidates...`, 'game', game.id);
                     return await MCTS.search(game, playerId, pendingBuilds);
                 }
-                // 만약 건설할 곳이 없다면 강제로 넘어감 (비정상 상황 보호)
-                if (game.pendingShipTechMine?.playerId === playerId) return { type: 'advance_tech', params: { trackId: 'economy' } }; 
+                // 만약 건설할 곳이 없다면 무효 advance_tech 반복 대신 pending을 정리한다.
+                if (game.pendingShipTechMine?.playerId === playerId) return { type: 'skip_ship_tech_mine', params: {} };
             }
 
             // TF Mars/보너스 가이아 프로젝트(가이아포머 배치 또는 스킵) 대기 중
@@ -1901,7 +1913,8 @@ export class BotLogic {
         const candidates = game.map.filter(t =>
             !t.ownerId && t.structure === null &&
             t.type !== 'space' && t.type !== 'deep_space' &&
-            t.type !== 'transdim' && t.type !== 'asteroid' &&
+            t.type !== 'transdim' &&
+            (t.type !== 'asteroid' || homeType === 'asteroid') &&
             !t.type?.startsWith('ship_') &&
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
@@ -2442,6 +2455,21 @@ export class BotLogic {
         if (isShipTech) {
             if (round <= 3) score += 90; // 초반 우주선 타일 매우 선호
             else score += 45;
+        }
+        if (tileId === 'ship-tech-2tf-mine') {
+            const oldSteps = player.pendingTerraformSteps || 0;
+            const oldFreeMine = player.nextMineFreeFromShipTech;
+            player.pendingTerraformSteps = oldSteps + 2;
+            player.nextMineFreeFromShipTech = true;
+            const buildCandidates = this.findBuildActionsWithPendingSteps(game, playerId);
+            player.pendingTerraformSteps = oldSteps;
+            player.nextMineFreeFromShipTech = oldFreeMine;
+
+            if (buildCandidates.length === 0) {
+                score -= 10000;
+            } else {
+                score += 35 + buildCandidates.length * 5;
+            }
         }
 
         // 2. 라운드별 가중치 (초반 수익, 후반 점수)

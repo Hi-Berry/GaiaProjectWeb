@@ -1800,7 +1800,7 @@ export default function Game() {
               Special
             </Button>
           )}
-          {/* 팅커로이드: 라운드 시작 시 고른 Special 1회 사용 (메인 액션 소모 안 함) */}
+          {/* 팅커로이드: 라운드 시작 시 고른 Special 1회 사용 (메인 액션) */}
           {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && currentPlayer?.faction === 'tinkeroids' && currentPlayer?.tinkeroidRoundSpecialId && !currentPlayer?.usedSpecialActions?.includes('tinkeroid-special') && (
             <Button
               variant="outline"
@@ -4012,7 +4012,7 @@ export default function Game() {
                                 if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
                                   actionNodes.push(
                                     renderActionBtn(
-                                      (p as any).usedSpecialActions?.includes('tinkeroid-special') ?? false, canDoMain, 'tinkeroid-special', `팅커:${p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`,
+                                      (p as any).usedSpecialActions?.includes('tinkeroid-special') ?? false, canDoMain, p.tinkeroidRoundSpecialId, `팅커:${p.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`,
                                       'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold',
                                       'bg-pink-500/20 text-pink-300 border-pink-500/40 font-bold hover:bg-pink-500/40'
                                     )
