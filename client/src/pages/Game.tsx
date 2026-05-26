@@ -692,6 +692,33 @@ export default function Game() {
     lastPowerStateRef.current = { p1, p2, p3, bs: bs ?? 0 };
   }, [game?.players[playerId ?? '']?.power1, game?.players[playerId ?? '']?.power2, game?.players[playerId ?? '']?.power3, game?.players[playerId ?? '']?.brainStoneBowl, playerId]);
 
+  const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean }) => {
+    if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(Boolean(options?.fromMini));
+    if (!gameId || !game || !playerId) return;
+
+    let advanceToLevel5: boolean | undefined;
+    if (trackId) {
+      const track = trackId as ResearchTrack;
+      const player = game.players[playerId];
+      const currentLevel = player?.research?.[track] ?? 0;
+      if (player && currentLevel === 4) {
+        const isLevel5Taken = Object.entries(game.players).some(([pid, p]) => pid !== playerId && (p.research?.[track] ?? 0) >= 5);
+        const hasGreenFederation = getFederationEntries(player as PlayerState).some((f) => f.isGreen);
+        if (isLevel5Taken) {
+          advanceToLevel5 = false;
+          toast({ title: '5단계 진입 불가', description: '이미 다른 플레이어가 해당 트랙 5단계에 있어 기술 타일만 획득합니다.' });
+        } else if (!hasGreenFederation) {
+          advanceToLevel5 = false;
+          toast({ title: '연방 토큰 없음', description: '초록 연방이 없어 기술 타일만 획득하고 4단계에 머뭅니다.' });
+        } else {
+          advanceToLevel5 = window.confirm(`${track} 5단계로 올라가려면 초록 연방 1개를 소모합니다.\n5단계로 올라갈까요?\n\n취소하면 기술 타일만 받고 4단계에 머뭅니다.`);
+        }
+      }
+    }
+
+    GameClient.selectTechTile(gameId, techTileId, trackId, advanceToLevel5);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -867,8 +894,9 @@ export default function Game() {
                 const spaceshipsSum = b.spaceships.reduce((s, x) => s + x.vp, 0);
                 const otherSum = b.other.reduce((s, o) => s + o.vp, 0);
                 const remainingResourcesVp = b.remainingResources ?? 0;
-                const breakdownTotal = 10 + roundMissionsSum + bonusTilePassSum + techTilesSum + b.finalMissions + b.researchTracks + remainingResourcesVp - b.powerReceived + spaceshipsSum + otherSum;
-                const totalMatches = breakdownTotal === (player!.score ?? 0);
+                const rawBreakdownTotal = 10 + roundMissionsSum + bonusTilePassSum + techTilesSum + b.finalMissions + b.researchTracks + remainingResourcesVp - b.powerReceived + spaceshipsSum + otherSum;
+                const legacyScoreAdjustment = (player!.score ?? 0) - rawBreakdownTotal;
+                const breakdownTotal = rawBreakdownTotal + legacyScoreAdjustment;
 
                 return (
                   <TabsContent key={pid} value={pid} className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
@@ -891,8 +919,8 @@ export default function Game() {
                                 <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Total Score</span>
                                 <span className="text-4xl font-black tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{player!.score} <span className="text-sm font-bold text-zinc-500 tracking-normal uppercase">VP</span></span>
                               </div>
-                              {!totalMatches && (
-                                <p className="text-[10px] text-amber-400 mt-1">(Breakdown 합계: {breakdownTotal} VP — 서버 총점과 불일치)</p>
+                              {legacyScoreAdjustment !== 0 && (
+                                <p className="text-[10px] text-amber-400 mt-1">미분류/레거시 보정 {legacyScoreAdjustment >= 0 ? '+' : ''}{legacyScoreAdjustment} VP 포함</p>
                               )}
                             </div>
                           </div>
@@ -973,6 +1001,12 @@ export default function Game() {
                                 </div>
                               ));
                             })()}
+                            {legacyScoreAdjustment !== 0 && (
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <span className="text-xs font-bold text-amber-400/90">미분류/레거시 보정</span>
+                                <span className="text-sm font-black text-amber-300">{legacyScoreAdjustment >= 0 ? '+' : ''}{legacyScoreAdjustment} VP</span>
+                              </div>
+                            )}
                             <div className="p-3 flex justify-between items-center border-t border-white/10 bg-white/[0.02]">
                               <span className="text-xs font-black text-zinc-300 uppercase tracking-wider">Breakdown 합계</span>
                               <span className="text-sm font-black tabular-nums text-white">= {breakdownTotal} VP</span>
@@ -2240,8 +2274,7 @@ export default function Game() {
                   }}
                   onSelectTechTile={(techTileId, trackId) => {
                     // 오버레이 R창에서 선택한 경우: 자동 닫기/열기 동작하도록 플래그 OFF
-                    if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(false);
-                    if (gameId) GameClient.selectTechTile(gameId, techTileId, trackId);
+                    selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: false });
                   }}
                   onSelectAdvancedTechTile={(advancedTileId, trackId) => { if (gameId) GameClient.selectAdvancedTechTile(gameId, advancedTileId, trackId); }}
                   onConfirmAdvancedTechCover={(coverTileId) => { if (gameId) GameClient.confirmAdvancedTechCover(gameId, coverTileId); }}
@@ -4128,7 +4161,7 @@ export default function Game() {
       )}
 
       <AnimatePresence>
-        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
+        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
           <motion.div
             initial={{ y: -50, x: '-50%', opacity: 0 }}
             animate={{ y: 0, x: '-50%', opacity: 1 }}
@@ -4183,7 +4216,7 @@ export default function Game() {
                   </div>
                 ) : (
                   <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-                    {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId ? 'Pending Mine Construction' : 'Main Action Done'}
+                    {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId ? 'Pending Mine Construction' : game.pendingSpaceshipFedMine && game.pendingSpaceshipFedMine.playerId === playerId ? 'Pending Spaceship Fed Mine' : 'Main Action Done'}
                   </span>
                 )}
               </div>
@@ -4213,7 +4246,7 @@ export default function Game() {
               )}
 
               {/* Reset/End Turn (Integrated inside bar) */}
-              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"
@@ -4305,8 +4338,7 @@ export default function Game() {
                 }}
                 onSelectTechTile={(techTileId, trackId) => {
                   // 미니 R패널에서 선택한 경우: 자동 R창 열고닫기 하지 않도록 플래그 ON
-                  if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(true);
-                  GameClient.selectTechTile(gameId!, techTileId, trackId);
+                  selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: true });
                 }}
                 onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
                 onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}

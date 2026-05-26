@@ -334,10 +334,11 @@ export const GameClient = {
     s.emit('use_tech_action', { gameId, tileId });
   },
 
-  selectTechTile(gameId: string, techTileId: string, trackId?: string) {
+  selectTechTile(gameId: string, techTileId: string, trackId?: string, advanceToLevel5?: boolean) {
     const s = getSocket();
-    const payload: { gameId: string; techTileId: string; trackId?: string } = { gameId, techTileId };
+    const payload: { gameId: string; techTileId: string; trackId?: string; advanceToLevel5?: boolean } = { gameId, techTileId };
     if (trackId != null && trackId !== '') payload.trackId = trackId;
+    if (advanceToLevel5 != null) payload.advanceToLevel5 = advanceToLevel5;
     s.emit('select_tech_tile', payload);
   },
 

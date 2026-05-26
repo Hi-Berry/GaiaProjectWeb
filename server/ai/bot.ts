@@ -34,7 +34,8 @@ import {
     getPlayerRangeTiles,
     getStructureCount,
     executeBalTakGaiaformerToQic,
-    getEffectiveGaiaformers
+    getEffectiveGaiaformers,
+    executeConfirmTwilightFederation
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -60,7 +61,11 @@ import {
     isPlanetHex,
     FEDERATION_12VP_ID,
     getGaiaBaseQic,
-    BUILDING_LIMITS
+    BUILDING_LIMITS,
+    getNextRoundIncomePreview,
+    FEDERATION_REWARDS,
+    SPACESHIP_FEDERATION_REWARDS,
+    GLEENS_FEDERATION_REWARD
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -86,6 +91,7 @@ type BotAction = {
     | 'use_bonus_action'
     | 'place_gaiaformer'
     | 'take_twilight_artifact'
+    | 'confirm_twilight_federation'
     | 'skip_tfmars_gaia_project'
     | 'bal_tak_gaiaformer_to_qic';
     params: any;
@@ -326,7 +332,7 @@ export class BotLogic {
             case 'select_tech_tile':
                 // executeSelectTechTile는 조건 불충족 시 조기 return 하고 pendingTechTileSelection을 clear하지 않습니다.
                 // 따라서 호출 뒤 pending이 실제로 해제됐는지로 성공 여부를 판단합니다.
-                executeSelectTechTile(io, game, playerId, action.params.techTileId, action.params.trackId);
+                executeSelectTechTile(io, game, playerId, action.params.techTileId, action.params.trackId, action.params.advanceToLevel5);
                 return game.pendingTechTileSelection === null;
             case 'select_advanced_tech_tile':
                 return executeSelectAdvancedTechTile(io, game, playerId, action.params.advancedTileId, action.params.trackId);
@@ -356,6 +362,8 @@ export class BotLogic {
                 return executeSkipTfmarsGaiaProject(io, game, playerId);
             case 'take_twilight_artifact':
                 return executeTakeTwilightArtifact(io, game, playerId, action.params.artifactId);
+            case 'confirm_twilight_federation':
+                return executeConfirmTwilightFederation(io, game, playerId, action.params.rewardId);
             case 'use_tech_action':
                 return executeUseTechAction(io, game, playerId, action.params.tileId);
             case 'use_special_action':
@@ -404,6 +412,11 @@ export class BotLogic {
         }
 
         if (game.currentPhase === 'main') {
+            if (game.pendingTwilightFederation?.playerId === playerId) {
+                const rewardId = this.getBestTwilightFederationRewardId(game, playerId);
+                return rewardId ? { type: 'confirm_twilight_federation', params: { rewardId } } : null;
+            }
+
             // Eclipse 소행성 광산 배치 대기 중
             if (game.pendingEclipseAsteroidMine?.playerId === playerId) {
                 return this.findEclipseAsteroidTarget(game, playerId);
@@ -412,6 +425,11 @@ export class BotLogic {
             // Nav 5 잊혀진 행성 배치 대기 중
             if (game.pendingLostPlanet?.playerId === playerId) {
                 return this.findLostPlanetTarget(game, playerId);
+            }
+
+            if (game.pendingSpaceshipFedMine?.playerId === playerId) {
+                const mineTarget = this.findSpaceshipFedMineTarget(game, playerId);
+                if (mineTarget) return mineTarget;
             }
 
             // 기술 타일 선택 대기 중
@@ -471,7 +489,17 @@ export class BotLogic {
 
             // MCTS 켜기 (후보군 탐색)
             const candidates = this.getCandidateMoves(game, playerId);
-            if (candidates.length === 1) return candidates[0];
+            if (candidates.length === 1) {
+                const onlyAction = candidates[0];
+                if (onlyAction.type === 'pass_round') {
+                    const cleanup = this.findCleanupConvertAction(game, playerId, onlyAction.params?.bonusTileId);
+                    if (cleanup) {
+                        log(`Bot ${player.name} performs cleanup convert before passing: ${cleanup.params.type}`, 'game', game.id);
+                        return cleanup;
+                    }
+                }
+                return onlyAction;
+            }
             if (candidates.length > 1) {
                 if (isSimulate) {
                     // 시뮬레이션 다양성 확보: 상위 후보 중 가중 랜덤 (롤아웃 품질 개선)
@@ -485,7 +513,7 @@ export class BotLogic {
 
                 // 패스하기 직전 자원 변환 (Cleanup logic)
                 if (bestAction?.type === 'pass_round') {
-                    const cleanup = this.findCleanupConvertAction(game, playerId);
+                    const cleanup = this.findCleanupConvertAction(game, playerId, bestAction.params?.bonusTileId);
                     if (cleanup) {
                         log(`Bot ${player.name} performs cleanup convert before passing: ${cleanup.params.type}`, 'game', game.id);
                         return cleanup;
@@ -500,12 +528,15 @@ export class BotLogic {
         return null;
     }
 
-    /** 패스하기 직전에 다음 라운드 수입으로 인해 버려지는 파워가 생기지 않도록 미리 변환 시도 */
-    private static findCleanupConvertAction(game: ServerGameState, playerId: string): BotAction | null {
+    /** 패스하기 직전에 다음 라운드 수입으로 인해 버려지는 자원이 생기지 않도록 미리 변환 시도 */
+    private static findCleanupConvertAction(game: ServerGameState, playerId: string, nextBonusTileId?: string): BotAction | null {
         const player = game.players[playerId];
         if (!player) return null;
 
-        const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
+        const overflowActions = this.getPassResourceOverflowCleanupActions(game, playerId, nextBonusTileId);
+        if (overflowActions.length > 0) return overflowActions[0];
+
+        const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId, nextBonusTileId);
 
         // 현재 파워 상태와 다음 라운드 수입을 합산하여 예측
         let p1 = (player.power1 ?? 0) + tokenIncome;
@@ -547,60 +578,92 @@ export class BotLogic {
         return null;
     }
 
-    /** 다음 라운드 수입 단계에서 들어올 파워와 토큰 양 예측 */
-    private static calculateExpectedPowerIncome(game: ServerGameState, playerId: string): { powerIncome: number; tokenIncome: number } {
+    /** 패스 후 받을 수입까지 계산했을 때 O/K 15 상한을 넘으면, 넘칠 만큼 C로 바꿔 보존한다. */
+    private static getPassResourceOverflowCleanupActions(game: ServerGameState, playerId: string, nextBonusTileId?: string): BotAction[] {
         const player = game.players[playerId];
-        if (!player) return { powerIncome: 0, tokenIncome: 0 };
+        if (!player) return [];
 
-        let powerIncome = 0;
-        let tokenIncome = 0;
+        const expected = this.calculateExpectedRoundIncome(game, playerId, nextBonusTileId);
+        let ore = player.ore ?? 0;
+        let knowledge = player.knowledge ?? 0;
+        let credits = player.credits ?? 0;
+        const actions: BotAction[] = [];
 
-        // 1. Faction Base Income
-        const faction = FACTIONS.find(f => f.id === player.faction);
-        tokenIncome += faction?.baseIncome?.powerTokens ?? 0;
+        while (actions.length < 30) {
+            const creditRoomAfterIncome = 30 - (credits + expected.credits);
+            if (creditRoomAfterIncome <= 0) break;
 
-        // 2. Bonus Tile Income
-        if (player.bonusTile) {
-            const tile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
-            if (tile?.income?.power) powerIncome += tile.income.power;
-            if (tile?.income?.powerTokens) tokenIncome += tile.income.powerTokens;
-        }
+            const oreOverflow = Math.max(0, ore + expected.ore - 15);
+            const knowledgeOverflow = Math.max(0, knowledge + expected.knowledge - 15);
+            if (oreOverflow <= 0 && knowledgeOverflow <= 0) break;
 
-        // 3. Tech Tiles Income
-        for (const tid of player.techTiles || []) {
-            if (tid === 'tech-inc-1o-1p') powerIncome += 1;
-            if (tid === 'tech-act-4p' && !player.usedSpecialActions?.includes(tid)) {
-                // 이 액션은 메인 액션 대신 쓰는 거지만 수입 단계 직전 수동 고려 가능성 (여기선 제외)
+            if (oreOverflow >= knowledgeOverflow && ore > 0) {
+                ore -= 1;
+                credits += 1;
+                actions.push({ type: 'convert_resource', params: { type: '1ore-to-1credit' } });
+            } else if (knowledge > 0) {
+                knowledge -= 1;
+                credits += 1;
+                actions.push({ type: 'convert_resource', params: { type: '1knowledge-to-1credit' } });
+            } else if (ore > 0) {
+                ore -= 1;
+                credits += 1;
+                actions.push({ type: 'convert_resource', params: { type: '1ore-to-1credit' } });
+            } else {
+                break;
             }
         }
 
-        // 4. Research Track Income
-        for (const trackId of Object.keys(player.research || {}) as ResearchTrack[]) {
-            const level = player.research[trackId] ?? 0;
-            if (trackId === 'economy') {
-                if (level >= 1) powerIncome += 1;
-                if (level >= 2) powerIncome += 1;
-                if (level >= 3) powerIncome += 1;
-                if (level >= 4) powerIncome += 1;
-            } else if (trackId === 'science') {
-                // 과학 트랙은 충전 없음
-            }
+        return actions;
+    }
+
+    private static calculateExpectedRoundIncome(
+        game: ServerGameState,
+        playerId: string,
+        nextBonusTileId?: string
+    ): { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number } {
+        const result = getNextRoundIncomePreview(playerId, game, { excludeBonusTiles: true });
+        const player = game.players[playerId];
+        const covered = new Set(player?.coveredTechTiles ?? []);
+
+        if (covered.has('tech-inc-1o-1p')) {
+            result.ore = Math.max(0, result.ore - 1);
+            result.powerCharge = Math.max(0, result.powerCharge - 1);
+        }
+        if (covered.has('tech-inc-4c')) {
+            result.credits = Math.max(0, result.credits - 4);
+        }
+        if (covered.has('tech-inc-1k-1c')) {
+            result.knowledge = Math.max(0, result.knowledge - 1);
+            result.credits = Math.max(0, result.credits - 1);
         }
 
-        // 5. Structure Income
-        const structures = game.map.filter(t => t.ownerId === playerId);
-        // Labs (네뷸라는 연구소당 2P)
-        const labs = structures.filter(t => t.structure === 'research_lab').length;
-        if (labs > 0 && player.faction === 'nevlas') powerIncome += 2 * labs;
-
-        // PI / Academy Income (Power)
-        const hasPI = structures.some(t => t.structure === 'planetary_institute');
-        if (hasPI) {
-            if (player.faction === 'taklons') powerIncome += 4;
-            else if (['terrans', 'xenos', 'ambas', 'ivits', 'firaks'].includes(player.faction || '')) powerIncome += 4;
+        if (nextBonusTileId) {
+            const bonusTile = ALL_BONUS_TILES.find(t => t.id === nextBonusTileId);
+            const income = bonusTile?.income;
+            if (income?.ore) result.ore += income.ore;
+            if (income?.credits) result.credits += income.credits;
+            if (income?.knowledge) result.knowledge += income.knowledge;
+            if (income?.qic) result.qic += income.qic;
+            if (income?.power) result.powerCharge += income.power;
+            if (income?.powerTokens) result.powerTokens += income.powerTokens;
         }
 
-        return { powerIncome, tokenIncome };
+        if (player?.artifacts?.includes('art-income-1k1o')) {
+            result.knowledge += 1;
+            result.ore += 1;
+        }
+        if (player?.artifacts?.includes('art-income-2p3')) {
+            result.powerTokens += 2;
+        }
+
+        return result;
+    }
+
+    /** 다음 라운드 수입 단계에서 들어올 파워와 토큰 양 예측 */
+    private static calculateExpectedPowerIncome(game: ServerGameState, playerId: string, nextBonusTileId?: string): { powerIncome: number; tokenIncome: number } {
+        const income = this.calculateExpectedRoundIncome(game, playerId, nextBonusTileId);
+        return { powerIncome: income.powerCharge, tokenIncome: income.powerTokens };
     }
 
     // ... rest of the file stays same
@@ -616,8 +679,8 @@ export class BotLogic {
             return [];
         }
 
-        // 이미 메인 액션을 수행했더라도 pendingShipTechMine / Eclipse 소행성 대기면 후속 조치 필요
-        if (game.hasDoneMainAction && !game.pendingShipTechMine && !game.pendingEclipseAsteroidMine) {
+        // 이미 메인 액션을 수행했더라도 후속 배치 대기면 후속 조치 필요
+        if (game.hasDoneMainAction && !game.pendingShipTechMine && !game.pendingSpaceshipFedMine && !game.pendingEclipseAsteroidMine) {
             return [{ type: 'end_turn', params: {} }];
         }
 
@@ -666,7 +729,14 @@ export class BotLogic {
 
             for (const tile of availableTiles) {
                 const resolvedTrackId = this.getTrackForTechTile(game, tile.id) ?? trackId;
-                candidates.push({ type: 'select_tech_tile', params: { techTileId: tile.id, trackId: resolvedTrackId } });
+                candidates.push({
+                    type: 'select_tech_tile',
+                    params: {
+                        techTileId: tile.id,
+                        trackId: resolvedTrackId,
+                        advanceToLevel5: this.shouldAdvanceToLevel5OnTechSelection(game, playerId, resolvedTrackId),
+                    }
+                });
             }
             return candidates; // 기술 타일 선택 대기 중이면 다른 액션은 못함
         }
@@ -680,15 +750,17 @@ export class BotLogic {
         // 1. 연방 구성 (가장 중요) — 라운드별 상한을 다르게 적용
         // R≤2: 토큰 후보 3개까지, R3+: 5개까지, R4+: 8개까지 (후보 다양성 확대로 큰 연방 선택지 확보)
         const _round = (game as any).roundNumber ?? 1;
+        const totalPowerTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
         const fedTopN = _round >= 4 ? 8 : _round >= 3 ? 5 : 3;
         const fedActions = FederationPlanner.getFederationActions(game, playerId, 0, fedTopN);
         for (const fedAction of fedActions) {
             const spent = fedAction.spentTokens ?? 0;
-            const totalTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
-            const tokenSurplus = totalTokens - spent;
+            const tokenSurplus = totalPowerTokens - spent;
             // R≥3은 비싼 연방도 적극 허용, R≥4는 토큰 부족해도 일단 후보로 넣어 MCTS가 판단
             const allowEarlyExpensiveFed = _round >= 4 || (_round >= 3 && (spent <= 6 || tokenSurplus >= 4)) || spent <= 2 || tokenSurplus >= 8;
-            if (allowEarlyExpensiveFed) candidates.push({ type: 'form_federation', params: fedAction });
+            if (allowEarlyExpensiveFed && this.canSpendPowerTokensForStrategicAction(game, player, spent)) {
+                candidates.push({ type: 'form_federation', params: fedAction });
+            }
         }
 
         // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
@@ -706,6 +778,7 @@ export class BotLogic {
                     if (_round <= 2 && spent > 2) continue;
                     // R3+: 다소 비싼 후보도 허용
                     if (_round === 3 && spent > 6) continue;
+                    if (!this.canSpendPowerTokensForStrategicAction(game, player, spent, k)) continue;
                     const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
                     candidates.push({ type: 'form_federation', params: fedWithK, preActions });
                 }
@@ -1944,7 +2017,7 @@ export class BotLogic {
             !t.ownerId && t.structure === null &&
             t.type !== 'space' && t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
-            (t.type !== 'asteroid' || homeType === 'asteroid') &&
+            (t.type !== 'asteroid' || homeType === 'asteroid' || (isFree && getEffectiveGaiaformers(player) > 0)) &&
             !t.type?.startsWith('ship_') &&
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
@@ -1958,7 +2031,24 @@ export class BotLogic {
             if (neededQic > maxPayQicForMine) continue;
 
             if (tile.type === 'gaia') {
-                // 가이아는 pendingSteps와 무관
+                if (!isFree) continue;
+                const gaiaBaseQic = player.faction === 'gleens' ? 0 : getGaiaBaseQic(player.faction || '');
+                const gaiaOre = player.faction === 'gleens' ? 1 : 0;
+                if (neededQic + gaiaBaseQic > maxPayQicForMine) continue;
+                if ((player.ore ?? 0) < gaiaOre) continue;
+                scored.push({
+                    action: { type: 'build_mine', params: { tileId: tile.id } },
+                    score: 120 - (neededQic * 20) + this.calculateRoundScoringBonus(game, playerId, 'build_gaia') + this.calculateFinalMissionBonus(game, playerId, tile)
+                });
+                continue;
+            }
+
+            if (tile.type === 'asteroid') {
+                if (!isFree || getEffectiveGaiaformers(player) <= 0) continue;
+                scored.push({
+                    action: { type: 'build_mine', params: { tileId: tile.id } },
+                    score: 105 - (dist * 10) + this.calculateFinalMissionBonus(game, playerId, tile)
+                });
                 continue;
             }
             
@@ -2051,6 +2141,32 @@ export class BotLogic {
         if (legalIds.length === 0) return null;
         const tileId = BotLogic.pickBestEclipseAsteroidTile(game, playerId, legalIds);
         return { type: 'eclipse_build_asteroid_mine', params: { tileId } };
+    }
+
+    private static findSpaceshipFedMineTarget(game: ServerGameState, playerId: string): BotAction | null {
+        if (game.pendingSpaceshipFedMine?.playerId !== playerId) return null;
+        const player = game.players[playerId];
+        if (!player) return null;
+        const forbidden = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'asteroid']);
+        const myTiles = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) ||
+            t.parasiticMine?.ownerId === playerId ||
+            (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
+        );
+        const candidates = game.map
+            .filter(t => !forbidden.has(t.type || '') && !t.ownerId && t.structure === null)
+            .map(t => {
+                const dist = myTiles.length > 0 ? Math.min(...myTiles.map(p => getDistance(p, t))) : 0;
+                const steps = t.type ? getTerraformStepsForFaction(game, player.faction!, t.type as any) : 0;
+                const score =
+                    (steps === 0 ? 120 : 80 - steps * 10) +
+                    this.calculateRoundScoringBonus(game, playerId, 'build_mine') +
+                    this.calculateFinalMissionBonus(game, playerId, t) -
+                    dist;
+                return { tileId: t.id, score };
+            })
+            .sort((a, b) => b.score - a.score);
+        return candidates[0] ? { type: 'build_mine', params: { tileId: candidates[0].tileId } } : null;
     }
 
     /**
@@ -2305,6 +2421,16 @@ export class BotLogic {
         return score;
     }
 
+    private static shouldAdvanceToLevel5OnTechSelection(game: ServerGameState, playerId: string, trackId: ResearchTrack): boolean {
+        const player = game.players[playerId];
+        if (!player) return false;
+        const currentLevel = player.research?.[trackId] ?? 0;
+        if (currentLevel !== 4) return false;
+        if (countGreenFederations(player) < 1) return false;
+        if (Object.entries(game.players).some(([pid, p]) => pid !== playerId && (p.research?.[trackId] ?? 0) >= 5)) return false;
+        return this.calculateResearchScore(game, player, playerId, trackId) >= 120 || game.roundNumber >= 5;
+    }
+
     private static findTechTileAction(game: ServerGameState, playerId: string, isSimulate = false): BotAction | null {
         const player = game.players[playerId];
         const pending = game.pendingTechTileSelection;
@@ -2376,7 +2502,7 @@ export class BotLogic {
             );
             log(`Bot ${player.name} selected Tech Tile: ${bestTile.id} (Score: ${maxScore.toFixed(2)})`, 'game', game.id);
         }
-        return { type: 'select_tech_tile', params: { techTileId: bestTile.id, trackId } };
+        return { type: 'select_tech_tile', params: { techTileId: bestTile.id, trackId, advanceToLevel5: this.shouldAdvanceToLevel5OnTechSelection(game, playerId, trackId) } };
     }
 
     /**
@@ -2754,6 +2880,34 @@ export class BotLogic {
         return validActions.slice(0, 5).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
     }
 
+    private static getPowerTokenReserve(game: ServerGameState, player: PlayerState): number {
+        const round = game.roundNumber ?? 1;
+        if (round <= 2) return 4;
+        if (round <= 4) return 3;
+        if (round === 5) return 1;
+        return 0;
+    }
+
+    private static getAvailableBonusTokenRefill(game: ServerGameState): number {
+        return Math.max(0, ...((game.availableBonusTiles ?? []).map(tile => tile.income?.powerTokens ?? 0)));
+    }
+
+    private static canSpendPowerTokensForStrategicAction(
+        game: ServerGameState,
+        player: PlayerState,
+        tokensSpent: number,
+        tokensCreatedBeforeSpend = 0,
+        tokenRefillAfterSpend = 0
+    ): boolean {
+        if (player.faction === 'ivits') return true;
+        const totalTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0) + tokensCreatedBeforeSpend;
+        const remainingTokens = totalTokens - tokensSpent;
+        if (remainingTokens < 0) return false;
+        const refillAllowance = Math.min(2, tokenRefillAfterSpend + this.getAvailableBonusTokenRefill(game));
+        const reserve = Math.max(0, this.getPowerTokenReserve(game, player) - refillAllowance);
+        return remainingTokens >= reserve;
+    }
+
     private static findEssentialConversions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const p3 = player.power3 ?? 0;
@@ -2973,26 +3127,107 @@ export class BotLogic {
         let bestScore = -Infinity;
 
         for (const artifactId of availableArtifacts) {
-            let score = 50;
-            if (artifactId === 'art-imm-2o5c' || artifactId === 'art-imm-3o3c') {
-                if (game.roundNumber <= 3) score += 200;
-                else score += 40;
-            } else if (artifactId === 'art-imm-3k1q') {
-                if (game.roundNumber <= 4) score += 180;
-                else score += 50;
-            } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
-                score += 150;
-            } else if (artifactId === 'art-vp-planet-types' || artifactId === 'art-vp-bridge') {
-                if (game.roundNumber >= 5) score += 150;
-            } else if (artifactId === 'art-fed-once') {
-                score += 100;
-            }
+            const score = this.calculateArtifactScore(game, playerId, artifactId);
             if (score > bestScore) {
                 bestScore = score;
                 bestArtifact = artifactId;
             }
         }
         return bestScore > 80 ? bestArtifact : null;
+    }
+
+    private static calculateTwilightFederationRewardScore(game: ServerGameState, playerId: string): number {
+        const bestRewardId = this.getBestTwilightFederationRewardId(game, playerId);
+        return bestRewardId ? this.calculateTwilightFederationRewardScoreForId(game, bestRewardId) : 0;
+    }
+
+    private static getBestTwilightFederationRewardId(game: ServerGameState, playerId: string): string | null {
+        const player = game.players[playerId];
+        if (!player) return null;
+
+        let bestRewardId: string | null = null;
+        let bestScore = 0;
+        for (const fed of getFederationEntries(player)) {
+            const score = this.calculateTwilightFederationRewardScoreForId(game, fed.rewardId);
+            if (score > bestScore) {
+                bestScore = score;
+                bestRewardId = fed.rewardId;
+            }
+        }
+
+        return bestRewardId;
+    }
+
+    private static calculateTwilightFederationRewardScoreForId(game: ServerGameState, rewardId: string): number {
+        const normalReward = FEDERATION_REWARDS.find(r => r.id === rewardId)
+            || (rewardId === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined);
+        const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
+
+        let score = 0;
+        if (normalReward) {
+            const reward = normalReward as any;
+            score += (reward.vp ?? 0) * (game.roundNumber >= 5 ? 24 : 18);
+            score += (reward.ore ?? 0) * 28;
+            score += (reward.credits ?? 0) * 7;
+            score += (reward.knowledge ?? 0) * 24;
+            score += (reward.qic ?? 0) * 42;
+            score += (reward.powerTokens ?? 0) * 28;
+        } else if (shipReward) {
+            const reward = shipReward as any;
+            score += (reward.vp ?? 0) * (game.roundNumber >= 5 ? 24 : 18);
+            if (rewardId === 'ship-fed-tech') score += game.roundNumber <= 4 ? 260 : 160;
+            if (rewardId === 'ship-fed-4vp4k') score += 4 * 24;
+            if (rewardId === 'ship-fed-4vp1q2o') score += 42 + 2 * 28;
+            if (rewardId === 'ship-fed-8vp8c') score += 8 * 7;
+            if (rewardId === 'ship-fed-7vp3p2t') score += 3 * 18 + 2 * 28;
+            if (rewardId === 'ship-fed-mine-free') score += game.roundNumber <= 4 ? 220 : 90;
+            if (rewardId === 'ship-fed-3tf-mine') score += game.roundNumber <= 4 ? 260 : 110;
+        }
+
+        return score;
+    }
+
+    private static calculateArtifactScore(game: ServerGameState, playerId: string, artifactId: string): number {
+        const player = game.players[playerId];
+        if (!player) return 0;
+
+        let score = 50;
+        if (artifactId === 'art-income-2p3') {
+            // 매 수익마다 3그릇에 2토큰을 직접 넣어 주므로 초중반 최상위 인공물로 평가한다.
+            score += game.roundNumber <= 2 ? 360 : game.roundNumber <= 3 ? 300 : game.roundNumber <= 4 ? 220 : game.roundNumber <= 5 ? 120 : 40;
+        } else if (artifactId === 'art-fed-once') {
+            const bestReward = this.calculateTwilightFederationRewardScore(game, playerId);
+            score += bestReward > 0 ? 120 + bestReward : 0;
+        } else if (artifactId === 'art-income-1k1o') {
+            const remainingIncomeRounds = Math.max(0, 6 - (game.roundNumber ?? 1));
+            score += remainingIncomeRounds * 70;
+        } else if (artifactId === 'art-imm-2o5c' || artifactId === 'art-imm-3o3c') {
+            score += game.roundNumber <= 3 ? 200 : 40;
+        } else if (artifactId === 'art-imm-3k1q') {
+            score += game.roundNumber <= 4 ? 180 : 50;
+        } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
+            score += 150;
+        } else if (artifactId === 'art-vp-planet-types') {
+            const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+            const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
+            if (player.virtualMineAsteroid) types.add('asteroid');
+            if (player.virtualMineProto) types.add('proto');
+            score += (3 + types.size) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-bridge') {
+            const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
+            const count = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure)).length;
+            score += count * 3 * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-gaia') {
+            score += ((player.research?.gaiaProject ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-science') {
+            score += ((player.research?.science ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-tracks3') {
+            const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
+                .filter(t => (player.research?.[t] ?? 0) >= 3).length;
+            score += (tracks * 3) * (game.roundNumber >= 5 ? 24 : 12);
+        }
+
+        return score;
     }
 
     /** 인공물 획득 후보. 파워 6 미만이면 need=6-totalPower만큼 1O→1토큰 후보를 need~min(6,ore)까지 넣어 MCTS가 효율 판단. */
@@ -3005,6 +3240,8 @@ export class BotLogic {
 
         if (totalPower >= 6) {
             const bestId = this.getBestArtifactId(game, playerId);
+            const refill = bestId === 'art-income-2p3' ? 2 : 0;
+            if (!bestId || !this.canSpendPowerTokensForStrategicAction(game, player, 6, 0, refill)) return results;
             if (bestId) results.push({ type: 'take_twilight_artifact', params: { artifactId: bestId } });
             return results;
         }
@@ -3016,7 +3253,9 @@ export class BotLogic {
         if (!artifactId) return results;
 
         const oneConvert = { type: 'convert_resource' as const, params: { type: '1ore-to-1token' } };
+        const refill = artifactId === 'art-income-2p3' ? 2 : 0;
         for (let n = need; n <= Math.min(6, ore); n++) {
+            if (!this.canSpendPowerTokensForStrategicAction(game, player, 6, n, refill)) continue;
             results.push({
                 type: 'take_twilight_artifact',
                 params: { artifactId },

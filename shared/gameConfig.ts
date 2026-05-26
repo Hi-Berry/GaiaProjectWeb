@@ -456,6 +456,10 @@ export interface GaiaGameState {
     mapState: HexTile[];
     spaceshipsState?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[] }>;
     gameLogLength: number;
+    gameLogState?: NonNullable<GaiaGameState['gameLog']>;
+    gameLogSnapshotAt?: number;
+    humanActionJournalLength?: number;
+    humanActionJournalState?: any[];
     /** 전체 게임 상태 스냅샷 (기술 타일 풀, 트랙 등 복구용) */
     fullGameState?: any;
   }>; // 각 플레이어의 턴 시작 시점 상태 저장 (액션 시작 시점으로 업데이트됨)

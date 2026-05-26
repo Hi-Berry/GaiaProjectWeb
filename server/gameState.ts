@@ -65,6 +65,7 @@ import {
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded } from './botHandler';
 import * as FactionBidding from './factionBidding';
+import { exportHumanGameDataset, recordHumanActionFromLog, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -86,8 +87,11 @@ export interface ServerGameState extends GaiaGameState {
 	isBotExecuting?: boolean; // 봇 로직이 실행 중인지 확인하는 락
 	simulation?: boolean; // MCTS 시뮬레이션 중인지 여부 (로그 억제용)
 	freeActionUndoStack?: string[]; // Free Action 단계별 Undo 스냅샷 스택(최신이 끝)
+	freeActionUndoContext?: { playerId: string; roundNumber: number; currentPlayerIndex: number };
 	queuedPowerOffers?: NonNullable<GaiaGameState['pendingPowerOffers']>; // 턴 종료 전까지 보류되는 파워 제안
 	pendingTurnEndPlayerId?: string; // 파워 수락 대기 때문에 턴 종료가 보류된 플레이어 ID
+	humanActionJournal?: HumanActionJournalEntry[];
+	humanActionJournalExported?: boolean;
 }
 
 
@@ -115,15 +119,36 @@ function buildFreeActionUndoSnapshot(game: ServerGameState): string {
 	// Undo 스냅샷 내부에 다시 Undo 스택이 들어가면 중첩/용량이 급격히 커질 수 있어 제거
 	(cloned as any).freeActionUndoState = undefined;
 	cloned.freeActionUndoStack = undefined;
+	cloned.freeActionUndoContext = undefined;
+	cloned.turnStartState = undefined;
+	cloned.queuedPowerOffers = undefined;
+	cloned.pendingTurnEndPlayerId = undefined;
 	return JSON.stringify(cloned);
 }
 
+function clearFreeActionUndo(game: ServerGameState): void {
+	(game as any).freeActionUndoState = undefined;
+	game.freeActionUndoStack = [];
+	game.freeActionUndoContext = undefined;
+}
+
 function pushFreeActionUndoSnapshot(game: ServerGameState): void {
+	const playerId = game.turnOrder?.[game.currentPlayerIndex];
+	const context = {
+		playerId: playerId ?? '',
+		roundNumber: game.roundNumber ?? 0,
+		currentPlayerIndex: game.currentPlayerIndex ?? 0,
+	};
+	const oldContext = game.freeActionUndoContext;
+	if (!oldContext || oldContext.playerId !== context.playerId || oldContext.roundNumber !== context.roundNumber || oldContext.currentPlayerIndex !== context.currentPlayerIndex) {
+		game.freeActionUndoStack = [];
+	}
 	if (!game.freeActionUndoStack) game.freeActionUndoStack = [];
 	// 하위 호환: 기존 단일 스냅샷이 남아 있으면 스택의 첫 항목으로 승격
 	if ((game as any).freeActionUndoState && game.freeActionUndoStack.length === 0) {
 		game.freeActionUndoStack.push((game as any).freeActionUndoState);
 	}
+	game.freeActionUndoContext = context;
 	game.freeActionUndoStack.push(buildFreeActionUndoSnapshot(game));
 	(game as any).freeActionUndoState = undefined;
 }
@@ -133,12 +158,13 @@ function pushFreeActionUndoSnapshot(game: ServerGameState): void {
  * 중첩으로 인한 기하급수적 용량 증가와 RangeError: Invalid string length 방지.
  */
 function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
-	const { turnStartState: _ts, freeActionUndoState: _fa, gameLog: _gl, ...rest } = game as any;
+	const { turnStartState: _ts, freeActionUndoState: _fa, gameLog: _gl, humanActionJournal: _haj, ...rest } = game as any;
 	// Reset 복원에는 gameLog 본문/Undo 원본 문자열이 필수 아님(길이만 사용) → 스냅샷 용량 대폭 절감
 	const cloned = deepClone(rest) as ServerGameState;
 	cloned.turnStartState = undefined;
 	(cloned as any).freeActionUndoState = undefined;
 	cloned.freeActionUndoStack = undefined;
+	cloned.freeActionUndoContext = undefined;
 	cloned.queuedPowerOffers = undefined;
 	cloned.pendingTurnEndPlayerId = undefined;
 	cloned.gameLog = [];
@@ -147,14 +173,49 @@ function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
 
 /** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
 function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: string) {
+	clearFreeActionUndo(game);
 	return {
+		playerId,
+		roundNumber: game.roundNumber,
+		currentPlayerIndex: game.currentPlayerIndex,
 		playerState: deepClone(game.players[playerId]),
 		mapState: deepClone(game.map),
 		spaceshipsState: game.spaceships ? deepClone(game.spaceships) : undefined,
 		twilightArtifactSlots: game.twilightArtifactSlots ? deepClone(game.twilightArtifactSlots) : undefined,
 		gameLogLength: game.gameLog?.length || 0,
+		gameLogState: deepClone(game.gameLog ?? []),
+		gameLogSnapshotAt: Date.now(),
+		humanActionJournalLength: game.humanActionJournal?.length ?? 0,
+		humanActionJournalState: deepClone(game.humanActionJournal ?? []),
 		fullGameState: cloneGameForTurnStartSnapshot(game),
 	};
+}
+
+function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
+	if (startState.gameLogState) return deepClone(startState.gameLogState);
+
+	// 하위 호환: 이미 진행 중인 게임은 과거 스냅샷에 gameLogState가 없다.
+	// 길이 기준 복원 후, 해당 플레이어가 이번 턴에 남긴 액션 로그가 꼬리에 남아 있으면 제거한다.
+	const logs = ((game.gameLog || []).slice(0, startState.gameLogLength || 0)) as NonNullable<GaiaGameState['gameLog']>;
+	const resettable = new Set([
+		'Power Action',
+		'Used Tech Action',
+		'Used Bonus Action',
+		'Built Mine',
+		'Built Parasitic Mine',
+		'Upgraded to Trading Station',
+		'Upgraded to Research Lab',
+		'Upgraded to Planetary Institute',
+		'Advanced Research',
+		'Federation',
+	]);
+	while (logs.length > 0) {
+		const last = logs[logs.length - 1];
+		if (last.playerId !== playerId) break;
+		if (!resettable.has(last.action)) break;
+		logs.pop();
+	}
+	return logs;
 }
 
 /** 자원 상한: O/K 최대 15, C 최대 30 */
@@ -204,6 +265,13 @@ export function saveFinalGameState(game: ServerGameState) {
 		const filePath = path.join(logDir, filename);
 		fs.writeFileSync(filePath, JSON.stringify(game, null, 2));
 		debugLog(game, `Final game state saved to ${filename}`, 'system');
+		if (!game.humanActionJournalExported) {
+			game.humanActionJournalExported = true;
+			exportHumanGameDataset(game).catch((error) => {
+				log(`Failed to export human game dataset: ${error}`, 'error', game.id);
+				game.humanActionJournalExported = false;
+			});
+		}
 	} catch (error) {
 		log(`Failed to save final game state: ${error}`, 'error', game.id);
 	}
@@ -219,27 +287,40 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 	player.score = nextScore;
 	if (appliedVp === 0) return;
 	const b = player.scoreBreakdown!;
+	let recordedInBreakdown = false;
 	if (category === 'roundMissions' && detail?.round != null) {
 		b.roundMissions.push({ round: detail.round, vp: appliedVp });
+		recordedInBreakdown = true;
 	} else if (category === 'bonusTilePass' && detail?.round != null) {
 		b.bonusTilePass.push({ round: detail.round, vp: appliedVp, tileId: detail.tileId });
+		recordedInBreakdown = true;
 	} else if (category === 'techTiles' && detail?.tileId) {
 		b.techTiles.push({ tileId: detail.tileId, vp: appliedVp });
+		recordedInBreakdown = true;
 	} else if (category === 'finalMissions') {
 		b.finalMissions += appliedVp;
 		if (detail?.missionId) {
 			b.finalMissionDetails.push({ missionId: detail.missionId, vp: appliedVp });
 		}
+		recordedInBreakdown = true;
 	} else if (category === 'powerReceived' && appliedVp < 0) {
 		b.powerReceived += -appliedVp;
-	} else if (category === 'spaceships' && detail?.shipTileId) {
-		b.spaceships.push({ shipTileId: detail.shipTileId, vp: appliedVp });
+		recordedInBreakdown = true;
+	} else if (category === 'spaceships') {
+		b.spaceships.push({ shipTileId: detail?.shipTileId || detail?.tileId || detail?.source || 'spaceship-reward', vp: appliedVp });
+		recordedInBreakdown = true;
 	} else if (category === 'researchTracks') {
 		b.researchTracks += appliedVp;
+		recordedInBreakdown = true;
 	} else if (category === 'remainingResources') {
 		b.remainingResources += appliedVp;
+		recordedInBreakdown = true;
 	} else if (category === 'other' && detail?.source) {
 		b.other.push({ source: detail.source, vp: appliedVp });
+		recordedInBreakdown = true;
+	}
+	if (!recordedInBreakdown) {
+		b.other.push({ source: `Uncategorized: ${category}`, vp: appliedVp });
 	}
 
 	// Merge into last log if it's the same player's action
@@ -731,6 +812,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
 	game.hasDoneMainAction = false;
+	clearFreeActionUndo(game);
 	if (game.turnStartState) delete game.turnStartState[endedPlayerId];
 	if (game.players[endedPlayerId]) game.players[endedPlayerId].tempRangeBonus = false;
 	game.pendingTurnEndPlayerId = undefined;
@@ -877,6 +959,8 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 			tileId,
 		});
 	}
+
+	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId);
 
 	if (game.gameLog.length > 100) {
 		game.gameLog.shift();
@@ -3011,13 +3095,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			executeUpgradeStructure(io, game, playerId, tileId, target);
 		});
-		socket.on('select_tech_tile', ({ gameId, techTileId, trackId }) => {
+		socket.on('select_tech_tile', ({ gameId, techTileId, trackId, advanceToLevel5 }) => {
 			const game = games.get(gameId);
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
 
-			executeSelectTechTile(io, game, playerId, techTileId, trackId);
+			executeSelectTechTile(io, game, playerId, techTileId, trackId, advanceToLevel5);
 		});
 
 		socket.on('reset_turn', ({ gameId }) => {
@@ -3030,13 +3114,20 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			const startState = game.turnStartState?.[playerId];
 			if (!startState) return;
+			if (startState.playerId && startState.playerId !== playerId) return;
+			if (typeof startState.roundNumber === 'number' && startState.roundNumber !== game.roundNumber) return;
+			if (typeof startState.currentPlayerIndex === 'number' && startState.currentPlayerIndex !== game.currentPlayerIndex) return;
 
 			log(`Player ${game.players[playerId].name} reset turn`, 'game', undefined, { simulation: (game as any).simulation });
 
 			if (startState.fullGameState) {
 				// 전체 상태 복구 (기술 타일 트랙, 풀, 맵, 플레이어 데이터 등 모두 포함)
 				const restored = deepClone(startState.fullGameState) as ServerGameState;
-				restored.gameLog = (game.gameLog || []).slice(0, startState.gameLogLength || 0);
+				restored.gameLog = restoreGameLogForReset(game, startState, playerId);
+				restored.humanActionJournal = startState.humanActionJournalState
+					? deepClone(startState.humanActionJournalState)
+					: (game.humanActionJournal || []).slice(0, startState.humanActionJournalLength || 0);
+				clearFreeActionUndo(restored);
 
 				// 복원된 상태만 기준으로 turnStartState 재구성 (라이브 game.turnStartState 통째 할당 금지 — 타인/과거 스냅샷 혼입 방지)
 				restored.turnStartState = {
@@ -3053,8 +3144,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				game.map = deepClone(startState.mapState);
 				if (startState.spaceshipsState) game.spaceships = deepClone(startState.spaceshipsState);
 				if (startState.twilightArtifactSlots) game.twilightArtifactSlots = deepClone(startState.twilightArtifactSlots);
-				if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
+				game.gameLog = restoreGameLogForReset(game as ServerGameState, startState, playerId);
+				game.humanActionJournal = startState.humanActionJournalState
+					? deepClone(startState.humanActionJournalState)
+					: (game.humanActionJournal || []).slice(0, startState.humanActionJournalLength || 0);
 				game.hasDoneMainAction = false;
+				clearFreeActionUndo(game as ServerGameState);
 				game.turnStartState = {
 					[playerId]: buildTurnStartStateEntryForPlayer(game as ServerGameState, playerId),
 				};
@@ -3175,6 +3270,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!stack.length) return;
 
 			try {
+				const currentTurnStartState = game.turnStartState ? deepClone(game.turnStartState) : undefined;
+				const currentUndoContext = game.freeActionUndoContext ? { ...game.freeActionUndoContext } : undefined;
 				const requestedSteps = typeof steps === 'number' && Number.isFinite(steps) ? Math.floor(steps) : 1;
 				const popCount = Math.max(1, requestedSteps);
 				let snapshot = stack[stack.length - 1];
@@ -3183,6 +3280,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 				const restoredGame = JSON.parse(snapshot) as ServerGameState;
 				restoredGame.freeActionUndoStack = stack;
+				restoredGame.freeActionUndoContext = currentUndoContext;
+				restoredGame.turnStartState = currentTurnStartState;
 				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
@@ -3680,10 +3779,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			game.federationMode = null;
 			game.federationPreview = null;
+			const federatedPlanetIds = Array.from(new Set([...selectedPlanetIds, ...Array.from(planetIdsForPower)]));
 			game.pendingFederationReward = {
 				playerId,
 				selectedHexIds,
-				selectedPlanetIds,
+				selectedPlanetIds: federatedPlanetIds,
 				selectedSpaceStationHexIds,
 				spentTokens: numEmpty
 			};
@@ -3764,28 +3864,34 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			if (!game.playerFederationHexes) game.playerFederationHexes = {};
 			if (!game.playerFederationHexes[playerId]) game.playerFederationHexes[playerId] = [];
-			game.playerFederationHexes[playerId].push(...selectedHexIds, ...selectedPlanetIds, ...selectedSpaceStationHexIds);
+			game.playerFederationHexes[playerId] = Array.from(new Set([
+				...game.playerFederationHexes[playerId],
+				...selectedHexIds,
+				...selectedPlanetIds,
+				...selectedSpaceStationHexIds,
+			]));
 			game.pendingFederationReward = null;
 
 			applyRoundMissionScore(game, playerId, 'federation');
 
 			if (isSpaceshipReward) {
+				const spaceshipBreakdownId = rewardId;
 				switch (rewardId) {
 					case 'ship-fed-tech':
 						game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 						game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 						break;
 					case 'ship-fed-4vp4k':
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: (game.pendingFederationReward as any)?.shipTileId ?? '' });
+						addScore(game, playerId, 4, 'spaceships', { shipTileId: spaceshipBreakdownId });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: (game.pendingFederationReward as any)?.shipTileId ?? '' });
+						addScore(game, playerId, 4, 'spaceships', { shipTileId: spaceshipBreakdownId });
 						grantQic(game, playerId, 1);
 						player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
-						addScore(game, playerId, 8, 'spaceships', { shipTileId: (game.pendingFederationReward as any)?.shipTileId ?? '' });
+						addScore(game, playerId, 8, 'spaceships', { shipTileId: spaceshipBreakdownId });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-mine-free':
@@ -3796,10 +3902,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 						player.spaceshipFed3TfMineFree = true;
 						break;
 					case 'ship-fed-12vp':
-						addScore(game, playerId, 12, 'spaceships', { shipTileId: (game.pendingFederationReward as any)?.shipTileId ?? '' });
+						addScore(game, playerId, 12, 'spaceships', { shipTileId: spaceshipBreakdownId });
 						break;
 					case 'ship-fed-7vp3p2t':
-						addScore(game, playerId, 7, 'spaceships', { shipTileId: (game.pendingFederationReward as any)?.shipTileId ?? '' });
+						addScore(game, playerId, 7, 'spaceships', { shipTileId: spaceshipBreakdownId });
 						if (player.faction === 'taklons') chargePowerTaklons(player, 3, true);
 						else chargePower(player, 3);
 						player.power1 = (player.power1 || 0) + 2;
@@ -3889,6 +3995,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
 				socket.emit('game_error', { message: '고급 기술 보상으로 트랙을 전진해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			if (game.pendingSpaceshipFedMine?.playerId === playerId) {
+				socket.emit('game_error', { message: '우주선 연방 보상 광산을 배치해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
 			if (game.pendingLostPlanet?.playerId === playerId) {
@@ -4225,7 +4335,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`Player ${game.players[playerId].name} canceled Twilight Federation selection (reverting to action start)`, 'game', undefined, { simulation: (game as any).simulation });
 				if (startState.fullGameState) {
 					const restored = deepClone(startState.fullGameState) as ServerGameState;
-					restored.gameLog = (game.gameLog || []).slice(0, startState.gameLogLength || 0);
+					restored.gameLog = restoreGameLogForReset(game, startState, playerId);
+					restored.humanActionJournal = startState.humanActionJournalState
+						? deepClone(startState.humanActionJournalState)
+						: (game.humanActionJournal || []).slice(0, startState.humanActionJournalLength || 0);
 					restored.turnStartState = {
 						[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
 					};
@@ -4237,7 +4350,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.map = deepClone(startState.mapState);
 					if (startState.spaceshipsState) game.spaceships = deepClone(startState.spaceshipsState);
 					if (startState.twilightArtifactSlots) game.twilightArtifactSlots = deepClone(startState.twilightArtifactSlots);
-					if (game.gameLog) game.gameLog = game.gameLog.slice(0, startState.gameLogLength);
+					game.gameLog = restoreGameLogForReset(game as ServerGameState, startState, playerId);
+					game.humanActionJournal = startState.humanActionJournalState
+						? deepClone(startState.humanActionJournalState)
+						: (game.humanActionJournal || []).slice(0, startState.humanActionJournalLength || 0);
 					game.hasDoneMainAction = false;
 					game.pendingTwilightFederation = null;
 					clampPlayerResources(game);
@@ -4276,19 +4392,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 }
 
 export function saveActionStartState(game: ServerGameState, playerId: string) {
+	// 메인 액션이 시작되면 Free Action Undo 내역을 삭제해 더 이상 예전 프리액션 스냅샷으로 되돌리지 못하게 한다.
+	if (!game.hasDoneMainAction) {
+		clearFreeActionUndo(game);
+	}
 	// 이미 해당 플레이어의 턴 시작 상태가 저장되어 있다면(이 턴의 첫 번째 액션이 아니라면) 덮어쓰지 않는다.
 	if (game.turnStartState?.[playerId]) return;
 	if (game.hasDoneMainAction) return;
-
-	// 메인 액션이 시작되면 Free Action Undo 내역을 삭제해 더 이상 되돌리지 못하게 한다.
-	game.freeActionUndoState = undefined;
-	game.freeActionUndoStack = [];
 
 	if (!game.turnStartState) game.turnStartState = {};
 	game.turnStartState[playerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, playerId);
 }
 
-export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState, playerId: string, techTileId: string, trackId?: string) {
+export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState, playerId: string, techTileId: string, trackId?: string, advanceToLevel5?: boolean) {
 	if (!game || !game.pendingTechTileSelection) return;
 	if (game.pendingTechTileSelection.playerId !== playerId) return;
 
@@ -4351,9 +4467,15 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const idx = tiles.findIndex((t: { id?: string } | null) => t?.id === techTileId);
 		if (idx !== -1 && selectedTrack) {
 			const track = selectedTrack as ResearchTrack;
-			const canAdvance = player.research[track] < 5 && (track !== 'navigation' || canBalTakAdvanceNavigation(game, playerId));
-			const newLevel = canAdvance ? (player.research[track] ?? 0) + 1 : 0;
-			if (newLevel === 5 && isTrackLevel5Taken(game, track, playerId)) return;
+			const currentLevel = player.research[track] ?? 0;
+			const baseCanAdvance = currentLevel < 5 && (track !== 'navigation' || canBalTakAdvanceNavigation(game, playerId));
+			const targetLevel = baseCanAdvance ? currentLevel + 1 : 0;
+			const isLevel5Advance = targetLevel === 5;
+			const level5Blocked = isLevel5Advance && isTrackLevel5Taken(game, track, playerId);
+			const wantsLevel5 = advanceToLevel5 !== false;
+			const canSpendLevel5Fed = !isLevel5Advance || countGreenFederations(player) >= 1;
+			const canAdvance = baseCanAdvance && (!isLevel5Advance || (wantsLevel5 && !level5Blocked && canSpendLevel5Fed));
+			const newLevel = canAdvance ? targetLevel : 0;
 			const isAdvancedTile = techTileId.startsWith('adv-') || Object.values(game.advancedTechTilesByTrack || {}).some((t: { id?: string } | null) => t?.id === techTileId);
 			const greenNeeded = (isAdvancedTile ? 1 : 0) + (newLevel === 5 ? 1 : 0);
 			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) return;
@@ -4372,6 +4494,10 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				alreadyLogged = true;
 				applyTrackLevelBonus(game, playerId, player, track, levelNow);
 				applyRoundMissionScore(game, playerId, 'research_track');
+			} else if (isLevel5Advance) {
+				const reason = level5Blocked ? 'L5 already occupied' : !canSpendLevel5Fed ? 'no green federation' : 'stayed at L4';
+				addGameLog(game, playerId, 'Gained Tech Tile', `${techTile.label || techTileId} (${track} stays L4: ${reason})`);
+				alreadyLogged = true;
 			} else if (isRebellionGainTrack) {
 				addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
 			}
@@ -4388,14 +4514,20 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const selectedTrack = (hasTrackId ? trackId : null) as ResearchTrack | null;
 		const validTracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
 		const trackOk = selectedTrack && validTracks.includes(selectedTrack);
-		const canAdvancePool = trackOk && player.research[selectedTrack] < 5 && (selectedTrack !== 'navigation' || canBalTakAdvanceNavigation(game, playerId));
-		const newLevelPool = canAdvancePool ? (player.research[selectedTrack] ?? 0) + 1 : 0;
-		if (newLevelPool === 5 && selectedTrack && isTrackLevel5Taken(game, selectedTrack, playerId)) return;
+		const currentLevelPool = trackOk ? (player.research[selectedTrack] ?? 0) : 0;
+		const baseCanAdvancePool = Boolean(trackOk && player.research[selectedTrack] < 5 && (selectedTrack !== 'navigation' || canBalTakAdvanceNavigation(game, playerId)));
+		const targetLevelPool = baseCanAdvancePool ? currentLevelPool + 1 : 0;
+		const isLevel5AdvancePool = targetLevelPool === 5;
+		const level5BlockedPool = Boolean(isLevel5AdvancePool && selectedTrack && isTrackLevel5Taken(game, selectedTrack, playerId));
+		const wantsLevel5Pool = advanceToLevel5 !== false;
+		const canSpendLevel5FedPool = !isLevel5AdvancePool || countGreenFederations(player) >= 1;
+		const canAdvancePool = baseCanAdvancePool && (!isLevel5AdvancePool || (wantsLevel5Pool && !level5BlockedPool && canSpendLevel5FedPool));
+		const newLevelPool = canAdvancePool ? targetLevelPool : 0;
 		const isAdvancedPool = techTileId.startsWith('adv-');
 		const greenNeededPool = (isAdvancedPool ? 1 : 0) + (newLevelPool === 5 ? 1 : 0);
 		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) return;
 		for (let i = 0; i < greenNeededPool; i++) spendGreenFederation(player);
-		if (canAdvancePool) {
+		if (canAdvancePool && selectedTrack) {
 			player.research[selectedTrack]++;
 			const newLevel = player.research[selectedTrack];
 			if (isRebellionGain) {
@@ -4409,6 +4541,10 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			applyTrackLevelBonus(game, playerId, player, selectedTrack, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
 			applyAdvancedTechTileEffect(game, playerId, 'research'); // 기술 타일 획득 시 전진에 따른 고급 기술 보너스 누락 해결
+		} else if (isLevel5AdvancePool && selectedTrack) {
+			const reason = level5BlockedPool ? 'L5 already occupied' : !canSpendLevel5FedPool ? 'no green federation' : 'stayed at L4';
+			addGameLog(game, playerId, 'Gained Tech Tile', `${techTile.label || techTileId} from pool (${selectedTrack} stays L4: ${reason})`);
+			alreadyLogged = true;
 		} else if (isRebellionGain && !selectedTrack) {
 			addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
 		}
@@ -4578,7 +4714,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	const player = game.players[playerId];
 	const isTerraformingPowerActionBuild = (player.pendingTerraformSteps || 0) > 0;
 	const isPendingGaiaBuild = (player.pendingGaiaformerTiles || []).includes(tileId);
-	if (game.hasDoneMainAction && !isTerraformingPowerActionBuild && !isPendingGaiaBuild) {
+	const isPendingSpaceshipFedMine = game.pendingSpaceshipFedMine?.playerId === playerId;
+	if (game.hasDoneMainAction && !isTerraformingPowerActionBuild && !isPendingGaiaBuild && !isPendingSpaceshipFedMine) {
 		debugLog(game, `executeBuildMine failed: Player ${playerId} has already done a main action`, 'error');
 		return false;
 	}
@@ -6470,6 +6607,7 @@ export function executeEndTurn(
 	if (game.pendingTechTileSelection?.playerId === playerId) return false;
 	if (game.pendingShipTechTrackAdvance?.playerId === playerId) return false;
 	if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) return false;
+	if (game.pendingSpaceshipFedMine?.playerId === playerId) return false;
 	if (game.pendingShipTechMine?.playerId === playerId) return false;
 	if (game.pendingLostPlanet?.playerId === playerId) return false;
 
@@ -6889,7 +7027,11 @@ export function executeBotFederation(
 
 	if (!game.playerFederationHexes) game.playerFederationHexes = {};
 	if (!game.playerFederationHexes[playerId]) game.playerFederationHexes[playerId] = [];
-	game.playerFederationHexes[playerId].push(...selectedHexIds, ...selectedPlanetIds);
+	game.playerFederationHexes[playerId] = Array.from(new Set([
+		...game.playerFederationHexes[playerId],
+		...selectedHexIds,
+		...selectedPlanetIds,
+	]));
 
 	const unitLabel = isIvits ? '우주정거장' : '위성';
 	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel}, reward: ${reward?.label})`);
@@ -7386,6 +7528,87 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		if (p.knowledge != null && p.knowledge > 15) p.knowledge = 15;
 		if (p.credits != null && p.credits > 30) p.credits = 30;
 	}
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
+export function executeConfirmTwilightFederation(
+	io: SocketIOServer,
+	game: ServerGameState,
+	playerId: string,
+	rewardId: string
+): boolean {
+	const pending = game.pendingTwilightFederation;
+	if (!pending || pending.playerId !== playerId) return false;
+	const player = game.players[playerId];
+	if (!player) return false;
+	const myFed = getFederationEntries(player);
+	if (!rewardId || !myFed.some((f) => f.rewardId === rewardId)) return false;
+
+	const normalReward = FEDERATION_REWARDS.find(r => r.id === rewardId)
+		|| (rewardId === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined);
+	const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
+
+	if (normalReward) {
+		addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, pending.shipTileId);
+		addScore(game, playerId, normalReward.vp, 'other', { source: 'Twilight Federation Benefit' });
+		if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
+		if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
+		if ('knowledge' in normalReward && normalReward.knowledge) player.knowledge += normalReward.knowledge;
+		if ('qic' in normalReward && normalReward.qic) grantQic(game, playerId, normalReward.qic);
+		if ('powerTokens' in normalReward && normalReward.powerTokens) player.power1 = (player.power1 || 0) + normalReward.powerTokens;
+	} else if (shipReward) {
+		switch (rewardId) {
+			case 'ship-fed-tech':
+				game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
+				game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
+				break;
+			case 'ship-fed-4vp4k':
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
+				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId });
+				player.knowledge = (player.knowledge || 0) + 4;
+				break;
+			case 'ship-fed-4vp1q2o':
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
+				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId });
+				grantQic(game, playerId, 1);
+				player.ore = (player.ore || 0) + 2;
+				break;
+			case 'ship-fed-8vp8c':
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
+				addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId });
+				player.credits = (player.credits || 0) + 8;
+				break;
+			case 'ship-fed-12vp':
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
+				addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId });
+				break;
+			case 'ship-fed-7vp3p2t':
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
+				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId });
+				if (player.faction === 'taklons') chargePowerTaklons(player, 3, true);
+				else chargePower(player, 3);
+				player.power1 = (player.power1 || 0) + 2;
+				break;
+			case 'ship-fed-mine-free':
+			case 'ship-fed-3tf-mine':
+				addGameLog(game, playerId, 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, pending.shipTileId);
+				if (shipReward.id === 'ship-fed-3tf-mine') {
+					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
+					player.spaceshipFed3TfMineFree = true;
+					log(`Player ${player.name} received 3 terraform steps from ship-fed-3tf-mine`, 'game', undefined, { simulation: (game as any).simulation });
+				}
+				break;
+			default:
+				return false;
+		}
+	} else {
+		return false;
+	}
+
+	game.pendingTwilightFederation = null;
+	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 	return true;
 }

@@ -287,6 +287,46 @@ export function GameBoard({
   const isStartingPhase = game.currentPhase === 'startingMines' && currentPlayer && (currentPlayer.startingMinesPlaced || 0) < (currentPlayer.faction ? (FACTIONS.find(f => f.id === currentPlayer.faction)?.startingMines ?? 2) : 2);
   const faction = currentPlayer?.faction ? FACTIONS.find(f => f.id === currentPlayer.faction) : null;
 
+  const hoveredFederationHexIds = useMemo(() => {
+    const seeds = hoveredPlayerId ? game.playerFederationHexes?.[hoveredPlayerId] ?? [] : [];
+    const expanded = new Set(seeds);
+    if (!hoveredPlayerId || seeds.length === 0) return expanded;
+
+    const byId = new Map(game.map.map((t: HexTile) => [t.id, t]));
+    const byCoord = new Map(game.map.map((t: HexTile) => [`${t.q},${t.r}`, t]));
+    const dirs = [
+      [1, 0], [1, -1], [0, -1],
+      [-1, 0], [-1, 1], [0, 1],
+    ];
+    const getNeighborTiles = (tile: HexTile) => dirs
+      .map(([dq, dr]) => byCoord.get(`${tile.q + dq},${tile.r + dr}`))
+      .filter((t): t is HexTile => Boolean(t));
+    const isOwnFederationNode = (tile: HexTile) =>
+      (tile.ownerId === hoveredPlayerId && Boolean(tile.structure) && tile.structure !== 'ship')
+      || tile.parasiticMine?.ownerId === hoveredPlayerId
+      || tile.spaceStation?.ownerId === hoveredPlayerId;
+    const addConnectedComponent = (start: HexTile) => {
+      if (!isOwnFederationNode(start)) return;
+      const queue = [start];
+      expanded.add(start.id);
+      for (let i = 0; i < queue.length; i += 1) {
+        for (const neighbor of getNeighborTiles(queue[i])) {
+          if (expanded.has(neighbor.id) || !isOwnFederationNode(neighbor)) continue;
+          expanded.add(neighbor.id);
+          queue.push(neighbor);
+        }
+      }
+    };
+
+    for (const seedId of seeds) {
+      const seed = byId.get(seedId);
+      if (!seed) continue;
+      addConnectedComponent(seed);
+      getNeighborTiles(seed).forEach(addConnectedComponent);
+    }
+    return expanded;
+  }, [game.map, game.playerFederationHexes, hoveredPlayerId]);
+
   const isEclipseAsteroidMode = game.pendingEclipseAsteroidMine?.playerId === playerId;
   const eclipseBuildableTileIds = useMemo(() => {
     if (!isEclipseAsteroidMode || !currentPlayer || !playerId) return new Set<string>();
@@ -588,8 +628,9 @@ export function GameBoard({
 
     if (!faction) return null;
 
-    let oreCost = 1;
-    let credits = 2;
+    const freeMine = !!currentPlayer.nextMineFreeFromShipTech || !!currentPlayer.spaceshipFed3TfMineFree;
+    let oreCost = freeMine ? 0 : 1;
+    let credits = freeMine ? 0 : 2;
     let qicCost = neededQIC;
     const terraformingLevel = currentPlayer.research?.terraforming ?? 0;
     let terraformSteps = 0;
@@ -613,8 +654,8 @@ export function GameBoard({
       (selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) ||
       (selectedTile.type === 'gaia' && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id))
     ) {
-      oreCost = 1;
-      credits = 2;
+      oreCost = freeMine ? 0 : 1;
+      credits = freeMine ? 0 : 2;
       qicCost = 0;
     }
     // 가이아 행성 (다른 출처, 내 pending 아님)
@@ -643,6 +684,12 @@ export function GameBoard({
       !selectedTile.parasiticMine;
 
     if (selectedTile.structure !== null && !isLantidaParasitic) return false;
+
+    if (game.pendingSpaceshipFedMine?.playerId === playerId) {
+      if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) return false;
+      if (selectedTile.type === 'asteroid') return false;
+      return true;
+    }
 
     if (isLantidaParasitic) {
       const baseRange = getEffectiveBaseRange(currentPlayer);
@@ -711,6 +758,46 @@ export function GameBoard({
     if (mineBuildCost.qicCost > 0 && (currentPlayer.qic ?? 0) < mineBuildCost.qicCost) return false;
     return true;
   }, [selectedTile, currentPlayer, game.currentPhase, game.map, playerId, mineBuildCost]);
+
+  const canShowBuildMineOption = useMemo(() => {
+    const isTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+    if (!selectedTile || !currentPlayer || game.currentPhase !== 'main' || !isTurn || !mineBuildCost) return false;
+    if (selectedTile.structure !== null) return false;
+
+    if (game.pendingSpaceshipFedMine?.playerId === playerId) {
+      if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) return false;
+      if (selectedTile.type === 'asteroid') return false;
+      return true;
+    }
+
+    if (selectedTile.type === 'transdim') {
+      return !!selectedTile.hasGaiaformer && !!currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id);
+    }
+    if (selectedTile.type === 'gaia' && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) {
+      return true;
+    }
+    if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) {
+      return false;
+    }
+    if (selectedTile.type === 'asteroid') {
+      const total = currentPlayer.gaiaformers ?? 0;
+      const locked = currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0;
+      return total - locked > 0;
+    }
+
+    const baseRange = getEffectiveBaseRange(currentPlayer);
+    const playerQIC = currentPlayer.qic ?? 0;
+    const maxRangeWithQIC = baseRange + (playerQIC * 2);
+    const rangeTiles = game.map.filter((t: HexTile) =>
+      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
+      t.parasiticMine?.ownerId === playerId ||
+      t.spaceStation?.ownerId === playerId
+    );
+    if (rangeTiles.length === 0) return false;
+
+    const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
+    return game.isTestMode || minDist <= maxRangeWithQIC;
+  }, [selectedTile, currentPlayer, game.currentPhase, game.map, game.isTestMode, playerId, mineBuildCost]);
 
   if (!game || !game.map || game.map.length === 0) {
     return (
@@ -975,7 +1062,7 @@ export function GameBoard({
                       const isSpaceStation = tile.spaceStation?.ownerId === hoveredPlayerId;
                       if (!isOwnBuilding && !isSatellite && !isSpaceStation) return null;
 
-                      const isFederated = game.playerFederationHexes?.[hoveredPlayerId]?.includes(tile.id);
+                      const isFederated = hoveredFederationHexIds.has(tile.id);
                       // 건물: 연방 포함→금색, 미포함→시안. 위성 칸→금색. 우주정거장: 연방 포함→금색, 미포함→파란색
                       const highlightColor = isSpaceStation
                         ? (isFederated ? '#FFD700' : '#3b82f6')
@@ -1553,16 +1640,18 @@ export function GameBoard({
                 })()}
 
                 {/* 일반 광산 건설 버튼: 타일에 건물이 없을 때만 표시 */}
-                {canBuildMine && !selectedTile.structure && mineBuildCost && (
+                {canShowBuildMineOption && !selectedTile.structure && mineBuildCost && (
                   <div className="space-y-2">
                     <Button
                       className="w-full"
                       variant="secondary"
                       disabled={
                         // 테라포밍 파워 액션(1 step 등) 사용 중에는 메인 액션 완료 후에도 광산 건설을 이어서 해야 하므로 예외로 활성화
+                        !canBuildMine ||
                         (game.hasDoneMainAction
                           && !(currentPlayer?.pendingTerraformSteps && currentPlayer.pendingTerraformSteps > 0)
-                          && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId))
+                          && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)
+                          && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId))
                       }
                       onClick={() => {
                         onBuildMine(selectedTile.id, selectedTile.type === 'asteroid' ? true : undefined);
@@ -1601,6 +1690,11 @@ export function GameBoard({
                             Terraforming Level {mineBuildCost.terraformingLevel} - Extra terraforming required!
                           </div>
                         )}
+                      </div>
+                    )}
+                    {!canBuildMine && (
+                      <div className="text-red-400 text-[10px] font-bold bg-red-500/10 p-1 rounded border border-red-500/30">
+                        자원 또는 QIC가 부족합니다.
                       </div>
                     )}
                   </div>
