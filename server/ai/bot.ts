@@ -1201,6 +1201,7 @@ export class BotLogic {
 
         const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
+            t.parasiticMine?.ownerId === playerId ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
         const range = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
@@ -1443,6 +1444,35 @@ export class BotLogic {
         }
 
         const scored: ScoredCandidate[] = [];
+
+        if (player.faction === 'lantids') {
+            const parasiticTargets = game.map.filter(t =>
+                t.ownerId &&
+                t.ownerId !== playerId &&
+                t.structure !== null &&
+                !t.parasiticMine &&
+                !t.type?.startsWith('ship_')
+            );
+
+            for (const tile of parasiticTargets) {
+                const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+                const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
+                if (neededQicForRange > maxPayQicForMine) continue;
+                if (neededQicForRange > 1 && round <= 4) continue;
+
+                let score = 260 - neededQicForRange * (round <= 3 ? 220 : 120);
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                score += this.calculateFinalMissionBonus(game, playerId, tile);
+                score += this.calculateFederationScore(game, playerId, tile);
+                score += rangeBonusValue;
+
+                scored.push({
+                    tile,
+                    score,
+                    action: buildMineAction(tile.id, neededQicForRange)
+                });
+            }
+        }
 
         for (const tile of candidates) {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
@@ -1955,6 +1985,10 @@ export class BotLogic {
             const terraformCost = player.spaceshipFed3TfMineFree
                 ? 0
                 : actualSteps * getTerraformCost(player.research.terraforming);
+
+            // 초반에는 "2삽 액션 + 남은 1삽을 광석으로 지불" 같은 우회가 엔진을 망가뜨린다.
+            // 1~3라운드에는 pending step으로 전부 커버되는 행성만 후속 광산 후보로 둔다.
+            if (game.roundNumber <= 3 && actualSteps > 0 && !player.spaceshipFed3TfMineFree) continue;
 
             const oreNeeded = terraformCost + standardMineOre;
             const creditsNeeded = standardMineCredits;

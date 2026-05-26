@@ -563,7 +563,9 @@ export function GameBoard({
 
     const baseRange = getEffectiveBaseRange(currentPlayer);
     const rangeTiles = game.map.filter((t: HexTile) =>
-      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
+      t.parasiticMine?.ownerId === playerId ||
+      t.spaceStation?.ownerId === playerId
     );
     const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : 0;
     let neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
@@ -641,6 +643,25 @@ export function GameBoard({
       !selectedTile.parasiticMine;
 
     if (selectedTile.structure !== null && !isLantidaParasitic) return false;
+
+    if (isLantidaParasitic) {
+      const baseRange = getEffectiveBaseRange(currentPlayer);
+      const playerQIC = currentPlayer.qic ?? 0;
+      const maxRangeWithQIC = baseRange + (playerQIC * 2);
+      const rangeTiles = game.map.filter((t: HexTile) =>
+        (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
+        t.parasiticMine?.ownerId === playerId ||
+        t.spaceStation?.ownerId === playerId
+      );
+      if (rangeTiles.length === 0) return false;
+
+      const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
+      if (minDist > maxRangeWithQIC && !game.isTestMode) return false;
+      if (!mineBuildCost) return false;
+      if (currentPlayer.ore < mineBuildCost.oreCost || currentPlayer.credits < mineBuildCost.credits) return false;
+      if (mineBuildCost.qicCost > 0 && (currentPlayer.qic ?? 0) < mineBuildCost.qicCost) return false;
+      return true;
+    }
 
     // Transdim+가이아포머: pendingGaiaformerTiles에 있을 때만 건설 가능 (TF2/보너스 즉포만 당장 들어감, 일반은 다음 라운드)
     if (selectedTile.type === 'transdim') {
