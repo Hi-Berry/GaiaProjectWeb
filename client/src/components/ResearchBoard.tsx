@@ -68,6 +68,18 @@ const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: 
     ],
 };
 
+/** 메인 보드 파워 액션 — 어두운 배경에서 잘 보이도록 앰버(밝은 텍스트) */
+const POWER_ACTION_BTN = {
+    available:
+        'border-amber-400/55 bg-amber-950/70 text-amber-50 hover:bg-amber-500/25 hover:border-amber-300/70 cursor-pointer shadow-[0_0_6px_rgba(251,191,36,0.12)]',
+    used: 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50',
+    labelAvailable: 'text-amber-50',
+    labelUsed: 'text-zinc-500',
+    costAvailable: 'text-amber-200/90',
+    costUsed: 'text-zinc-600',
+    panelAvailable: 'bg-amber-950/50 hover:bg-amber-900/55 border-amber-500/45 hover:border-amber-400/65',
+};
+
 export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini }: ResearchBoardProps) {
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
@@ -562,9 +574,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         key={action.id}
                                         disabled={action.isUsed}
                                         onClick={() => !action.isUsed && onUsePowerAction(action.id)}
-                                        className={`aspect-square flex items-center justify-center rounded-[2px] text-[7px] font-black border transition-all ${action.isUsed
-                                            ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
-                                            : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer'}`}
+                                        className={`aspect-square flex items-center justify-center rounded-[2px] text-[7px] font-black border transition-all ${action.isUsed ? POWER_ACTION_BTN.used : POWER_ACTION_BTN.available}`}
                                         title={
                                             action.isUsed
                                                 ? `${action.label} (${action.cost} ${action.costType.toUpperCase()})\n사용됨: ${action.usedByPlayerName ?? '알 수 없음'}`
@@ -1167,18 +1177,18 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     <Button
                                         key={action.id}
                                         variant="outline"
-                                        className={`h-16 flex flex-col items-center justify-center gap-1 border-white/5 transition-all ${action.isUsed
-                                            ? 'opacity-30 grayscale cursor-not-allowed bg-zinc-900'
-                                            : 'bg-zinc-900/50 hover:bg-zinc-800 hover:border-primary/50'
+                                        className={`h-16 flex flex-col items-center justify-center gap-1 border transition-all ${action.isUsed
+                                            ? 'opacity-30 grayscale cursor-not-allowed bg-zinc-900 border-white/5'
+                                            : POWER_ACTION_BTN.panelAvailable
                                             }`}
                                         disabled={action.isUsed}
                                         onClick={() => onUsePowerAction(action.id)}
                                         title={action.isUsed ? `사용됨: ${action.usedByPlayerName ?? '알 수 없음'}` : undefined}
                                     >
-                                        <div className={`text-xs font-black ${action.isUsed ? 'text-zinc-500' : 'text-primary'}`}>
+                                        <div className={`text-xs font-black ${action.isUsed ? POWER_ACTION_BTN.labelUsed : POWER_ACTION_BTN.labelAvailable}`}>
                                             {action.label}
                                         </div>
-                                        <div className="text-[8px] uppercase font-bold text-zinc-500 tracking-tighter">
+                                        <div className={`text-[8px] uppercase font-bold tracking-tighter ${action.isUsed ? POWER_ACTION_BTN.costUsed : POWER_ACTION_BTN.costAvailable}`}>
                                             {action.cost} {action.costType.toUpperCase()}
                                         </div>
                                     </Button>

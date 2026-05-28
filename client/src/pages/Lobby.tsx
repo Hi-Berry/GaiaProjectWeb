@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { GameClient, getSocket, storeSpectatorId } from '@/lib/gameClient';
-import { Users, Plus, RefreshCw, Play, LogIn, Eye } from 'lucide-react';
+import { Users, Plus, RefreshCw, Play, LogIn, Eye, Clock, Crown } from 'lucide-react';
 
 interface GameInfo {
   id: string;
@@ -15,6 +15,27 @@ interface GameInfo {
   maxPlayers: number;
   phase: string;
   createdAt: number;
+  hostName: string | null;
+  players: Array<{ id: string; name: string; isHost: boolean }>;
+}
+
+function formatCreatedAt(ts: number): { relative: string; absolute: string } {
+  if (!ts) return { relative: '시간 미상', absolute: '' };
+  const d = new Date(ts);
+  const absolute = d.toLocaleString('ko-KR', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const diffMs = Date.now() - ts;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return { relative: '방금 전', absolute };
+  if (diffMin < 60) return { relative: `${diffMin}분 전`, absolute };
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return { relative: `${diffHr}시간 전`, absolute };
+  const diffDay = Math.floor(diffHr / 24);
+  return { relative: `${diffDay}일 전`, absolute };
 }
 
 export default function Lobby() {
@@ -232,7 +253,7 @@ export default function Lobby() {
             {loading && games.length === 0 ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
+                  <Skeleton key={i} className="h-24 w-full" />
                 ))}
               </div>
             ) : games.length === 0 ? (
@@ -248,31 +269,73 @@ export default function Lobby() {
                   const isFinished = game.phase === 'gameEnd';
                   const storedPlayerId = localStorage.getItem(`gaia-${game.id}-playerId`);
                   const canRejoin = !!storedPlayerId;
-                  const phaseLabel = isFinished ? 'Finished' : game.phase.replace(/([A-Z])/g, ' $1').trim();
+                  const phaseLabel = isFinished
+                    ? '종료'
+                    : game.phase === 'lobby'
+                      ? '대기 중'
+                      : game.phase.replace(/([A-Z])/g, ' $1').trim();
+                  const created = formatCreatedAt(game.createdAt);
+                  const roster = game.players ?? [];
 
                   return (
                     <div
                       key={game.id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4"
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4 hover:border-primary/30 transition-colors"
                       data-testid={`game-${game.id}`}
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">
-                            Game #{game.id}
+                      <div className="space-y-2 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-bold">
+                            #{game.id}
                           </span>
                           {isFinished && (
-                            <Badge variant="secondary">Finished</Badge>
+                            <Badge variant="secondary">종료</Badge>
                           )}
                           {isStarted && !isFinished && (
-                            <Badge>In Progress</Badge>
+                            <Badge variant="default">진행 중</Badge>
+                          )}
+                          {!isStarted && !isFinished && (
+                            <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">
+                              로비
+                            </Badge>
                           )}
                           {isFull && !isStarted && (
-                            <Badge variant="secondary">Full</Badge>
+                            <Badge variant="secondary">만원</Badge>
                           )}
                         </div>
-                        <div className="text-sm text-muted-foreground capitalize">
-                          Phase: {phaseLabel}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1" title={created.absolute}>
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            {created.relative}
+                            {created.absolute ? ` · ${created.absolute}` : ''}
+                          </span>
+                          <span className="capitalize">단계: {phaseLabel}</span>
+                          {game.hostName && (
+                            <span className="flex items-center gap-1">
+                              <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              방장 {game.hostName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {roster.length === 0 ? (
+                            <span className="text-xs text-muted-foreground italic">아직 없음</span>
+                          ) : (
+                            roster.map((p) => (
+                              <Badge
+                                key={p.id}
+                                variant="secondary"
+                                className={`text-xs font-medium ${p.isHost ? 'border-amber-500/40 bg-amber-500/10' : ''}`}
+                              >
+                                {p.isHost ? '★ ' : ''}{p.name}
+                              </Badge>
+                            ))
+                          )}
+                          {Array.from({ length: Math.max(0, game.maxPlayers - roster.length) }).map((_, i) => (
+                            <Badge key={`empty-${i}`} variant="outline" className="text-xs text-muted-foreground/50 border-dashed">
+                              빈 자리
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -317,7 +380,7 @@ export default function Lobby() {
             )}
           </CardContent>
           <CardFooter className="text-sm text-muted-foreground">
-            Games refresh automatically every 5 seconds
+            5초마다 자동 새로고침 · 로비(대기 중) 방이 위에, 최근 생성 순
           </CardFooter>
         </Card>
       </div>

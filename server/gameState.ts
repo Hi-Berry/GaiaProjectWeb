@@ -1831,13 +1831,28 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		socket.on('list_games', (callback) => {
-			const gameList = Array.from(games.values()).map(g => ({
-				id: g.id,
-				playerCount: Object.keys(g.players).length,
-				maxPlayers: g.maxPlayers,
-				phase: g.currentPhase,
-				createdAt: g.createdAt,
-			}));
+			const gameList = Array.from(games.values()).map(g => {
+				const playerEntries = Object.entries(g.players).map(([id, p]) => ({
+					id,
+					name: p.name || id,
+					isHost: id === g.hostId,
+				}));
+				return {
+					id: g.id,
+					playerCount: playerEntries.length,
+					maxPlayers: g.maxPlayers,
+					phase: g.currentPhase,
+					createdAt: g.createdAt ?? 0,
+					players: playerEntries,
+					hostName: g.players[g.hostId]?.name ?? null,
+				};
+			});
+			gameList.sort((a, b) => {
+				const aLobby = a.phase === 'lobby' ? 0 : 1;
+				const bLobby = b.phase === 'lobby' ? 0 : 1;
+				if (aLobby !== bLobby) return aLobby - bLobby;
+				return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+			});
 			callback({ games: gameList });
 		});
 
@@ -2374,7 +2389,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 			setNumber('power2');
 			setNumber('power3');
 
+			// Taklons: Brainstone position controls (GM/Admin)
+			if (typeof (resources as any)?.brainStoneInGaia === 'boolean') {
+				(target as any).brainStoneInGaia = (resources as any).brainStoneInGaia;
+				// Gaia에 두면 보통 다음 라운드 시작에 1그릇 복귀하므로 기본값 안전하게 맞춤
+				if ((target as any).brainStoneInGaia === true && (target as any).brainStoneBowl == null) {
+					(target as any).brainStoneBowl = 1;
+				}
+			}
+			const bowl = (resources as any)?.brainStoneBowl;
+			if (bowl === 1 || bowl === 2 || bowl === 3) {
+				(target as any).brainStoneBowl = bowl;
+			}
+
 			log(`Admin: Set player state for ${target.name}: ${JSON.stringify(resources)}`, 'game', gameId);
+			clampPlayerResources(game);
 			io.to(gameId).emit('game_updated', game);
 			callback?.({ ok: true });
 		});
@@ -4228,6 +4257,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
+			if (game.pendingTurnEndPlayerId) {
+				const endingPlayerId = game.pendingTurnEndPlayerId;
+				finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
+				return;
+			}
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -7190,6 +7224,10 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	if (player.faction === 'itars' || player.faction === 'nevlas') {
 		const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
 		if (p1 + p2 + p3 < 1) return '우주선 입장에 파워 토큰 1개가 필요합니다.';
+	}
+	// 타클론: 브레인 스톤이 가이아 영역에 있으면 (이번 라운드에 브레인 토큰이 없으므로) 우주선 입장 불가
+	if (player.faction === 'taklons' && player.brainStoneInGaia) {
+		return '타클론: 브레인 스톤이 가이아 영역에 있어 이번 라운드에는 우주선에 입장할 수 없습니다.';
 	}
 
 	player.qic = (player.qic || 0) - useQic;

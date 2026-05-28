@@ -39,7 +39,17 @@ export function storeSpectatorId(gameId: string, spectatorId: string) {
 }
 
 export const GameClient = {
-  listGames(): Promise<{ games: Array<{ id: string; playerCount: number; maxPlayers: number; phase: string; createdAt: number }> }> {
+  listGames(): Promise<{
+    games: Array<{
+      id: string;
+      playerCount: number;
+      maxPlayers: number;
+      phase: string;
+      createdAt: number;
+      hostName: string | null;
+      players: Array<{ id: string; name: string; isHost: boolean }>;
+    }>;
+  }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
       s.emit('list_games', (response: any) => {

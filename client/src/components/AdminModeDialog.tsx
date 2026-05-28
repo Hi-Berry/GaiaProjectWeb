@@ -16,6 +16,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 const ADMIN_PASSWORD = '0011';
 
 type EditablePlayerStats = Pick<PlayerState, 'score' | 'credits' | 'ore' | 'knowledge' | 'qic' | 'power1' | 'power2' | 'power3'>;
+type EditableTaklonsBrain = {
+  brainStoneBowl?: 1 | 2 | 3;
+  brainStoneInGaia?: boolean;
+};
 
 interface AdminModeDialogProps {
   open: boolean;
@@ -39,6 +43,10 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
     power2: String(player.power2 ?? 0),
     power3: String(player.power3 ?? 0),
   });
+  const [taklonsBrain, setTaklonsBrain] = useState<EditableTaklonsBrain>({
+    brainStoneBowl: (player as any).brainStoneBowl,
+    brainStoneInGaia: (player as any).brainStoneInGaia,
+  });
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -52,6 +60,10 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
       power2: String(player.power2 ?? 0),
       power3: String(player.power3 ?? 0),
     });
+    setTaklonsBrain({
+      brainStoneBowl: (player as any).brainStoneBowl,
+      brainStoneInGaia: (player as any).brainStoneInGaia,
+    });
   }, [player.score, player.credits, player.ore, player.knowledge, player.qic, player.power1, player.power2, player.power3]);
 
   const setField = (field: keyof EditablePlayerStats, value: string) => {
@@ -60,7 +72,7 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
   };
 
   const save = async () => {
-    const resources: Partial<EditablePlayerStats> = {
+    const resources: Partial<EditablePlayerStats & EditableTaklonsBrain> = {
       score: toNumber(values.score),
       credits: toNumber(values.credits),
       ore: toNumber(values.ore),
@@ -70,6 +82,12 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
       power2: toNumber(values.power2),
       power3: toNumber(values.power3),
     };
+    if (player.faction === 'taklons') {
+      if (typeof taklonsBrain.brainStoneInGaia === 'boolean') resources.brainStoneInGaia = taklonsBrain.brainStoneInGaia;
+      if (taklonsBrain.brainStoneBowl === 1 || taklonsBrain.brainStoneBowl === 2 || taklonsBrain.brainStoneBowl === 3) {
+        resources.brainStoneBowl = taklonsBrain.brainStoneBowl;
+      }
+    }
 
     try {
       await GameClient.adminSetPlayerState(gameId, playerId, resources, ADMIN_PASSWORD);
@@ -115,6 +133,52 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
           </div>
         ))}
       </div>
+
+      {player.faction === 'taklons' && (
+        <div className="pt-2 border-t border-white/10">
+          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">Brainstone</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input
+                type="checkbox"
+                checked={Boolean(taklonsBrain.brainStoneInGaia)}
+                onChange={(e) => {
+                  setTaklonsBrain((prev) => ({
+                    ...prev,
+                    brainStoneInGaia: e.target.checked,
+                    brainStoneBowl: e.target.checked ? 1 : (prev.brainStoneBowl ?? 1),
+                  }));
+                  setMessage('');
+                }}
+              />
+              Gaia
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <span className="text-zinc-400">Bowl</span>
+              <select
+                className="h-7 rounded bg-zinc-900 border border-white/10 px-2 text-xs text-zinc-100 disabled:opacity-50"
+                value={String(taklonsBrain.brainStoneBowl ?? 1)}
+                disabled={Boolean(taklonsBrain.brainStoneInGaia)}
+                onChange={(e) => {
+                  const v = Number.parseInt(e.target.value, 10);
+                  const bowl = (v === 1 || v === 2 || v === 3) ? (v as 1 | 2 | 3) : 1;
+                  setTaklonsBrain((prev) => ({ ...prev, brainStoneBowl: bowl }));
+                  setMessage('');
+                }}
+              >
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
+            </label>
+
+            <span className="text-[10px] text-zinc-500">
+              {taklonsBrain.brainStoneInGaia ? 'Gaia' : `Bowl ${taklonsBrain.brainStoneBowl ?? 1}`}
+            </span>
+          </div>
+        </div>
+      )}
       {message && <div className="text-[10px] text-zinc-400">{message}</div>}
     </div>
   );

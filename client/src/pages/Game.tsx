@@ -731,6 +731,37 @@ export default function Game() {
     lastPowerStateRef.current = { p1, p2, p3, bs: bs ?? 0 };
   }, [game?.players[playerId ?? '']?.power1, game?.players[playerId ?? '']?.power2, game?.players[playerId ?? '']?.power3, game?.players[playerId ?? '']?.brainStoneBowl, playerId]);
 
+  // Power offer reminder: 내게 온 파워 제안을 안 누르면 5초마다 알림음
+  useEffect(() => {
+    if (!game || !playerId) return;
+    if (isSpectator) return;
+
+    const myPendingOffers = (game.pendingPowerOffers ?? []).filter(
+      (o) => o && !o.responded && o.targetPlayerId === playerId,
+    );
+    if (myPendingOffers.length === 0) return;
+
+    const interval = window.setInterval(() => {
+      // 입력 중에는 방해하지 않기
+      const el = document.activeElement;
+      const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+      if (isTyping) return;
+      playPowerReceiveSound();
+    }, 5000);
+
+    // 첫 알림은 5초 뒤(즉시 울리면 너무 시끄러움)
+    const t = window.setTimeout(() => {
+      const el = document.activeElement;
+      const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+      if (!isTyping) playPowerReceiveSound();
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(t);
+      window.clearInterval(interval);
+    };
+  }, [game?.pendingPowerOffers, playerId, isSpectator]);
+
   const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean }) => {
     if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(Boolean(options?.fromMini));
     if (!gameId || !game || !playerId) return;
@@ -836,7 +867,18 @@ export default function Game() {
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
-  const pendingPowerOfferCount = game.pendingPowerOffers?.length ?? 0;
+  const pendingPowerWaiters = (() => {
+    const offers = game.pendingPowerOffers?.filter((o) => o && !o.responded) ?? [];
+    const byTarget = new Map<string, number>();
+    for (const o of offers) {
+      byTarget.set(o.targetPlayerId, (byTarget.get(o.targetPlayerId) ?? 0) + 1);
+    }
+    return Array.from(byTarget.entries()).map(([id, offerCount]) => ({
+      id,
+      name: game.players[id]?.name ?? id,
+      offerCount,
+    }));
+  })();
 
 
   if (game.currentPhase === 'lobby') {
@@ -1645,13 +1687,43 @@ export default function Game() {
       <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
-          {pendingTurnEndPlayerName && pendingPowerOfferCount > 0 && (
-            <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs md:text-sm flex items-center gap-2">
-              <Clock className="w-4 h-4 shrink-0 text-amber-300" />
-              <span>
-                <strong>{pendingTurnEndPlayerName}</strong> 턴의 파워 수락 처리 중입니다.
-                {' '}응답 완료 후 다음 턴으로 넘어갑니다.
-              </span>
+          {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
+            <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs md:text-sm">
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 shrink-0 text-amber-300 mt-0.5 animate-pulse" />
+                <p className="leading-snug">
+                  <strong>{pendingTurnEndPlayerName}</strong> 턴 · 파워 수락 대기 중
+                  <span className="block text-[10px] text-amber-200/75 font-medium mt-0.5">
+                    아래 플레이어가 모두 응답하면 다음 턴으로 넘어갑니다
+                  </span>
+                </p>
+              </div>
+              <ul className="mt-2 space-y-1 border-l-2 border-amber-400/35 pl-2.5">
+                <AnimatePresence mode="popLayout">
+                  {pendingPowerWaiters.map((w) => (
+                    <motion.li
+                      key={w.id}
+                      layout
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-center gap-2 overflow-hidden"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                      <span className="font-bold text-amber-50 truncate">{w.name}</span>
+                      {w.id === playerId && (
+                        <Badge variant="outline" className="h-4 px-1 text-[9px] border-amber-400/50 text-amber-200 shrink-0">
+                          나
+                        </Badge>
+                      )}
+                      {w.offerCount > 1 && (
+                        <span className="text-[10px] text-amber-300/70 shrink-0">제안 {w.offerCount}건</span>
+                      )}
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+              </ul>
             </div>
           )}
           <div className="flex gap-1 items-end bg-black/80 rounded-lg p-1 md:p-0 md:bg-transparent shadow-xl md:shadow-none">
