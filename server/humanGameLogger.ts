@@ -126,6 +126,32 @@ function writeLocalPayload(payload: HumanGamePayload) {
   log(`Human game dataset saved locally: ${filePath}`, 'system', payload.gameId);
 }
 
+/** Render env에 /rest/v1 이 붙은 URL이 들어가면 PGRST125(Invalid path)가 납니다. */
+export function normalizeSupabaseProjectUrl(raw: string): string {
+  let base = raw.trim().replace(/\/+$/, '');
+  base = base.replace(/\/rest\/v1\/?$/i, '');
+  base = base.replace(/\/auth\/v1\/?$/i, '');
+  if (!/^https?:\/\//i.test(base)) {
+    throw new Error(`SUPABASE_URL must start with https:// (got: ${raw.slice(0, 40)}...)`);
+  }
+  return base;
+}
+
+/** public.human_game_sessions 처럼 넣으면 REST 경로가 깨집니다. */
+export function normalizeSupabaseTableName(raw: string): string {
+  const name = raw.trim().replace(/^public\./i, '').replace(/^\//, '').replace(/\/$/, '');
+  if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid HUMAN_LOG_SUPABASE_TABLE: ${raw}`);
+  }
+  return name;
+}
+
+function buildHumanSessionsRestUrl(projectUrl: string, tableName: string): string {
+  const base = normalizeSupabaseProjectUrl(projectUrl);
+  const table = normalizeSupabaseTableName(tableName);
+  return `${base}/rest/v1/${table}?on_conflict=game_id`;
+}
+
 async function uploadToSupabase(payload: HumanGamePayload) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -135,14 +161,17 @@ async function uploadToSupabase(payload: HumanGamePayload) {
     return;
   }
 
-  const endpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${tableName}`;
+  const endpoint = buildHumanSessionsRestUrl(supabaseUrl, tableName);
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       apikey: serviceKey,
       Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates',
+      Accept: 'application/json',
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      Prefer: 'resolution=merge-duplicates,return=minimal',
     },
     body: JSON.stringify({
       game_id: payload.gameId,
@@ -153,7 +182,9 @@ async function uploadToSupabase(payload: HumanGamePayload) {
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Supabase upload failed: ${res.status} ${body}`);
+    throw new Error(
+      `Supabase upload failed: ${res.status} ${body} (POST ${endpoint.replace(/\?.*$/, '')})`,
+    );
   }
   log(`Human game dataset uploaded to Supabase: ${payload.gameId}`, 'system', payload.gameId);
 }
@@ -168,7 +199,8 @@ export async function exportHumanGameDataset(game: GaiaGameState & {
   if (payload.actionJournal.length === 0 && payload.gameLog.length === 0) return;
 
   const storage = (process.env.HUMAN_LOG_STORAGE || '').toLowerCase();
-  if (storage === 'supabase') {
+  const hasSupabaseCreds = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (storage === 'supabase' || (hasSupabaseCreds && storage !== 'local')) {
     await uploadToSupabase(payload);
     return;
   }

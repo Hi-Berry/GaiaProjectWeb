@@ -24,6 +24,10 @@ import {
 	STRUCTURE_INCOME,
 	chargePower,
 	chargePowerTaklons,
+	applyPowerIncome,
+	findOptimalIncomeOrder,
+	snapshotPlayerPower,
+	restorePlayerPowerSnapshot,
 	getMaxPowerGain,
 	canSpendTaklonsPower,
 	spendTaklonsPower,
@@ -418,19 +422,6 @@ function findNearbyPlayersForPower(game: ServerGameState, tile: HexTile, sourceP
 
 export function hasNearbyPlayersForDiscount(game: ServerGameState, tile: HexTile, sourcePlayerId: string): boolean {
 	return findNearbyPlayersForPower(game, tile, sourcePlayerId).length > 0;
-}
-
-/** 파워 수익: 새 토큰 추가 없음. amount만큼 1→2로 옮기고, 남은 양만큼 2→3으로 옮김. 그래도 남으면 소멸(3그릇에 넣지 않음) */
-function applyPowerIncome(player: PlayerState, amount: number): void {
-	let rem = amount;
-	const from1 = Math.min(rem, player.power1 || 0);
-	player.power1 = (player.power1 || 0) - from1;
-	player.power2 = (player.power2 || 0) + from1;
-	rem -= from1;
-	const from2 = Math.min(rem, player.power2 || 0);
-	player.power2 = (player.power2 || 0) - from2;
-	player.power3 = (player.power3 || 0) + from2;
-	/* rem - from2 는 소멸 (추가하지 않음) */
 }
 
 /** 파워 토큰 소비: 1그릇 → 2그릇 → 3그릇 순. 성공 시 true */
@@ -856,15 +847,14 @@ function applyPlayerPowerCharge(game: GaiaGameState, playerId: string, amount: n
 
 	if (isTaklons) {
 		if (hasPI) {
+			// 타클론 의회(PI) 보너스는 "파워 토큰 +1(그릇1)"이며, 그 토큰은 즉시 충전(그릇 이동)되지 않는다.
+			// 따라서 순서(piAddFirst)는 시각적/일관성만 결정하고, 추가 charge는 하지 않는다.
 			if (piAddFirst) {
-				// PI 보너스 토큰 먼저 추가하고 충전
 				player.power1 = (player.power1 || 0) + 1;
-				chargePowerTaklons(player, amount + 1, brainFirst);
+				chargePowerTaklons(player, amount, brainFirst);
 			} else {
-				// 건물 파워 먼저 충전하고 토큰 추가 후 충전
 				chargePowerTaklons(player, amount, brainFirst);
 				player.power1 = (player.power1 || 0) + 1;
-				chargePowerTaklons(player, 1, brainFirst);
 			}
 		} else {
 			chargePowerTaklons(player, amount, brainFirst);
@@ -1588,8 +1578,6 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			if (player.faction === 'taklons' && player.brainStoneInGaia) {
 				player.brainStoneInGaia = false;
 				player.brainStoneBowl = 1;
-				player.power1 = (player.power1 ?? 0) + 1;
-				gainedPowerTokens += 1;
 				log(`[Income] ${player.name} (Taklons): Brain Stone returned to Bowl 1`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 			// 아이타: 2그릇 태울 때 보관해 둔 토큰을 1그릇으로 복귀 (이제 gaiaformerPower로 통합 관리되므로 이 부분은 삭제 가능하거나 gaiaformerPower 로직으로 대체됨)
@@ -2707,10 +2695,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 				if (actionIndex === 2) {
 					// 2K+3P 지불 후 원하는 연구 트랙을 선택해 1칸 진행
-					if (player.knowledge < 2 || player.power3 < 3) return;
+					if (player.knowledge < 2) return;
+					if (player.faction === 'taklons') {
+						if (!canSpendTaklonsPower(player, 3, 3)) return;
+					} else if ((player.power3 ?? 0) < 3) {
+						return;
+					}
 					player.knowledge -= 2;
-					player.power3 -= 3;
-					player.power1 = (player.power1 || 0) + 3;
+					if (player.faction === 'taklons') {
+						spendTaklonsPower(player, 3, 3, true);
+					} else {
+						player.power3 -= 3;
+						player.power1 = (player.power1 || 0) + 3;
+					}
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					game.pendingEclipseResearch = { playerId, shipTileId };
@@ -4043,10 +4040,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				return;
 			}
 
-			// Undo용: 적용 직전 파워 스냅샷 저장
-			const snap = { p1: player.power1 ?? 0, p2: player.power2 ?? 0, p3: player.power3 ?? 0 };
+			// Undo용: 적용 직전 파워·브레인 스톤 스냅샷 저장
 			if (!game.pendingIncomeOrder.powerBeforeSnapshots) game.pendingIncomeOrder.powerBeforeSnapshots = [];
-			game.pendingIncomeOrder.powerBeforeSnapshots.push(snap);
+			game.pendingIncomeOrder.powerBeforeSnapshots.push(snapshotPlayerPower(player));
 
 			// 수익 적용: 파워는 미리보기와 동일(applyPowerIncome), 토큰은 1그릇에만 추가
 			if (item.type === 'power') {
@@ -4084,81 +4080,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.pendingIncomeOrder.powerBeforeSnapshots) game.pendingIncomeOrder.powerBeforeSnapshots = [];
 			const applied: typeof items = [];
 
-			// --- Simulation for Optimal Order ---
-			// 1. Generate all permutations of items (or feasible subset if too many - though usually small < 10)
-			// Since items are usually condensed (e.g. "4 Power Charge", "1 Token"), the count is small.
-			// Even if spread out, max income items usually < 10. permutations of 10 is 3.6M, a bit high for realtime.
-			// But typically it's just a few distinct groups: Tokens and Charges.
-			// Actually, within same type (e.g. 2 tokens vs 1 token), order doesn't matter.
-			// Order ONLY matters between 'tokens' and 'power' types.
-			// So we can simplify: we just need to decide the interleaving of Token items and Power items.
-			// Wait, user said "1 token -> 4 charge -> 1 token" might be optimal.
-			// So we should try to treat them as individual steps if they are separate items.
-			// If items list is large (>8), we fallback to a heuristic (Tokens first, then Charge).
-
-			let bestOrder = [...items];
-			if (items.length <= 8) {
-				const permutations = (arr: typeof items): (typeof items)[] => {
-					if (arr.length <= 1) return [arr];
-					const result: (typeof items)[] = [];
-					for (let i = 0; i < arr.length; i++) {
-						const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-						const subPerms = permutations(rest);
-						for (const sub of subPerms) {
-							result.push([arr[i], ...sub]);
-						}
-					}
-					return result;
-				};
-
-				const allPerms = permutations(items);
-				let bestState = { p1: -1, p2: -1, p3: -1 };
-
-				// Helper to simulate
-				const simulate = (p1: number, p2: number, p3: number, order: typeof items) => {
-					let cp1 = p1, cp2 = p2, cp3 = p3;
-					for (const item of order) {
-						if (item.type === 'tokens') {
-							cp1 += item.amount;
-						} else if (item.type === 'power') {
-							let rem = item.amount;
-							const from1 = Math.min(rem, cp1);
-							cp1 -= from1; cp2 += from1; rem -= from1;
-							const from2 = Math.min(rem, cp2);
-							cp2 -= from2; cp3 += from2;
-						}
-					}
-					return { p1: cp1, p2: cp2, p3: cp3 };
-				};
-
-				// Evaluate all
-				for (const order of allPerms) {
-					const finalState = simulate(player.power1 || 0, player.power2 || 0, player.power3 || 0, order);
-
-					// Compare: 3rd bowl max > 2nd bowl max > 1st bowl max
-					let isBetter = false;
-					if (bestState.p3 === -1) isBetter = true;
-					else if (finalState.p3 > bestState.p3) isBetter = true;
-					else if (finalState.p3 === bestState.p3) {
-						if (finalState.p2 > bestState.p2) isBetter = true;
-						else if (finalState.p2 === bestState.p2) {
-							if (finalState.p1 > bestState.p1) isBetter = true;
-						}
-					}
-
-					if (isBetter) {
-						bestState = finalState;
-						bestOrder = order;
-					}
-				}
-			} else {
-				// Fallback heuristic: Tokens first (usually better to fill bowl 1 before charge)
-				bestOrder = items.sort((a, b) => (a.type === 'tokens' ? -1 : 1));
-			}
+			const bestOrder = findOptimalIncomeOrder(player, items);
 
 			// Apply best order
 			for (const item of bestOrder) {
-				game.pendingIncomeOrder.powerBeforeSnapshots.push({ p1: player.power1 ?? 0, p2: player.power2 ?? 0, p3: player.power3 ?? 0 });
+				game.pendingIncomeOrder.powerBeforeSnapshots.push(snapshotPlayerPower(player));
 				if (item.type === 'tokens') {
 					player.power1 = (player.power1 || 0) + item.amount;
 				} else if (item.type === 'power') {
@@ -4186,10 +4112,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const lastItem = game.pendingIncomeOrder.appliedItems.pop()!;
 			const snapshots = game.pendingIncomeOrder.powerBeforeSnapshots;
 			if (snapshots && snapshots.length > 0) {
-				const before = snapshots.pop()!;
-				player.power1 = before.p1;
-				player.power2 = before.p2;
-				player.power3 = before.p3;
+				restorePlayerPowerSnapshot(player, snapshots.pop()!);
 			}
 
 			game.pendingIncomeOrder.incomeItems.push(lastItem);
@@ -4294,16 +4217,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 			for (const offer of myOffers) {
 				const targetPlayer = game.players[offer.targetPlayerId];
 				if (!targetPlayer) continue;
-				const isTaklons = targetPlayer.faction === 'taklons';
 
 				if (offer.vpCost > (targetPlayer.score || 0)) continue; // VP 부족 시 스킵
 				offer.responded = true;
 				addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
-				if (isTaklons) {
-					chargePowerTaklons(targetPlayer, offer.amount, true); // 일괄 수락 시 브레인 우선
-				} else {
-					chargePower(targetPlayer, offer.amount);
-				}
+				// 파워 수령 로직 통일: 타클론 브레인/PI 보너스 포함
+				applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount, { brainFirst: true });
 				const sourcePlayer = game.players[offer.sourcePlayerId];
 				addGameLog(game, offer.targetPlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
 			}
@@ -5874,7 +5793,7 @@ export function executePassRound(
 		if (Object.values(game.players).every(p => p.hasPassed)) {
 			game.roundNumber++;
 			(game as any).incomePhaseAppliedThisRound = false;
-			game.powerActions.forEach(a => a.isUsed = false);
+			game.powerActions.forEach(a => { a.isUsed = false; (a as any).usedByPlayerId = undefined; (a as any).usedByPlayerName = undefined; });
 			Object.values(game.players).forEach(p => {
 				if (p.hadschHallasPIActions) p.hadschHallasPIActions.forEach(a => { a.isUsed = false; });
 				p.usedIvitsSpaceStationThisRound = false;
@@ -6036,6 +5955,8 @@ export function executeUsePowerAction(
 	}
 
 	action.isUsed = true;
+	action.usedByPlayerId = playerId;
+	action.usedByPlayerName = player.name ?? playerId;
 	game.hasDoneMainAction = true; // Bot version also marks main action done
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
@@ -6492,10 +6413,19 @@ export function executeUseShipAction(
 			return true;
 		}
 		if (actionIndex === 2) {
-			if (player.knowledge < 2 || player.power3 < 3) return false;
+			if (player.knowledge < 2) return false;
+			if (player.faction === 'taklons') {
+				if (!canSpendTaklonsPower(player, 3, 3)) return false;
+			} else if ((player.power3 ?? 0) < 3) {
+				return false;
+			}
 			player.knowledge -= 2;
-			player.power3 -= 3;
-			player.power1 = (player.power1 || 0) + 3;
+			if (player.faction === 'taklons') {
+				spendTaklonsPower(player, 3, 3, true);
+			} else {
+				player.power3 -= 3;
+				player.power1 = (player.power1 || 0) + 3;
+			}
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			game.pendingEclipseResearch = { playerId, shipTileId };
@@ -6541,36 +6471,10 @@ export function executeBotIncomeSelection(
 
 	if (!game.pendingIncomeOrder.powerBeforeSnapshots) game.pendingIncomeOrder.powerBeforeSnapshots = [];
 
-	// 최적 순서 시뮬레이션
-	let bestOrder = [...items];
-	if (items.length <= 8) {
-		const perms = (arr: typeof items): (typeof items)[] => {
-			if (arr.length <= 1) return [arr];
-			const result: (typeof items)[] = [];
-			for (let i = 0; i < arr.length; i++) {
-				const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-				for (const sub of perms(rest)) result.push([arr[i], ...sub]);
-			}
-			return result;
-		};
-		const allPerms = perms(items);
-		let bestP3 = -1, bestP2 = -1, bestP1 = -1;
-		for (const order of allPerms) {
-			let cp1 = player.power1 || 0, cp2 = player.power2 || 0, cp3 = player.power3 || 0;
-			for (const item of order) {
-				if (item.type === 'tokens') { cp1 += item.amount; }
-				else { let r = item.amount; const f1 = Math.min(r, cp1); cp1 -= f1; cp2 += f1; r -= f1; const f2 = Math.min(r, cp2); cp2 -= f2; cp3 += f2; }
-			}
-			if (bestP3 === -1 || cp3 > bestP3 || (cp3 === bestP3 && cp2 > bestP2) || (cp3 === bestP3 && cp2 === bestP2 && cp1 > bestP1)) {
-				bestP3 = cp3; bestP2 = cp2; bestP1 = cp1; bestOrder = order;
-			}
-		}
-	} else {
-		bestOrder = items.sort((a, b) => (a.type === 'tokens' ? -1 : 1));
-	}
+	const bestOrder = findOptimalIncomeOrder(player, items);
 
 	for (const item of bestOrder) {
-		game.pendingIncomeOrder.powerBeforeSnapshots.push({ p1: player.power1 ?? 0, p2: player.power2 ?? 0, p3: player.power3 ?? 0 });
+		game.pendingIncomeOrder.powerBeforeSnapshots.push(snapshotPlayerPower(player));
 		if (item.type === 'tokens') { player.power1 = (player.power1 || 0) + item.amount; }
 		else { applyPowerIncome(player, item.amount); }
 	}
@@ -7079,8 +6983,20 @@ export function executeConvertResource(
 	let success = false;
 	let logDesc = '';
 
+	// 타클론 전용: 브레인 스톤(3그릇) 1개 → 크레딧 3 (브레인은 1그릇으로 이동)
+	// 규칙(사용자 설명): 브레인은 3그릇에서 사용되면 우선 사용되고(3파워 이상), 사용 시 1그릇으로 이동한다.
+	// 여기서는 명시적으로 "1B"를 소비하는 전용 프리 액션으로 제공한다.
+	if (type === '1brain-to-3credit') {
+		if (!isTaklons) return false;
+		if (player.brainStoneInGaia) return false;
+		if (player.brainStoneBowl !== 3) return false;
+		player.brainStoneBowl = 1;
+		player.credits = (player.credits ?? 0) + 3;
+		logDesc = '1B → 3C';
+		success = true;
+	}
 	// 네뷸라 전용: 3그릇 토큰 → 가이아포머 공간 + 1K (의회 시 2P→1K)
-	if (type === '1power-to-1k-gaiaformer') {
+	else if (type === '1power-to-1k-gaiaformer') {
 		if (player.faction !== 'nevlas') return false;
 		if ((player.power3 ?? 0) < 1) return false;
 		player.power3! -= 1;
@@ -7094,7 +7010,7 @@ export function executeConvertResource(
 			player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.ore = (player.ore ?? 0) + 1;
 			logDesc = '2P → 1O'; success = true;
 		} else if (isTaklons) {
-			if (canSpendTaklonsPower(player, 3, 3) && spendTaklonsPower(player, 3, 3, useBrain ?? false)) {
+			if (canSpendTaklonsPower(player, 3, 3) && spendTaklonsPower(player, 3, 3, useBrain ?? true)) {
 				player.ore = (player.ore ?? 0) + 1; logDesc = '3P → 1O'; success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 3) {
@@ -7120,7 +7036,7 @@ export function executeConvertResource(
 			player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; grantQic(game, playerId, 1);
 			logDesc = '2P → 1Q'; success = true;
 		} else if (isTaklons) {
-			if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? false)) {
+			if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? true)) {
 				grantQic(game, playerId, 1); logDesc = '4P → 1Q'; success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 4) {
@@ -7169,7 +7085,7 @@ export function executeConvertResource(
 			player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.knowledge = (player.knowledge ?? 0) + 1;
 			logDesc = '2P → 1K'; success = true;
 		} else if (isTaklons) {
-			if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? false)) {
+			if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? true)) {
 				player.knowledge = (player.knowledge ?? 0) + 1; logDesc = '4P → 1K'; success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 4) {
@@ -7192,33 +7108,33 @@ export function executeBurnPower(game: ServerGameState, playerId: string, moveBr
 	const player = game.players[playerId];
 	if (!player) return false;
 
-	if (player.power2 < 2) return false;
-
 	const isTaklonsBrainIn2 = player.faction === 'taklons' && player.brainStoneBowl === 2 && !player.brainStoneInGaia;
+
+	// 타클론 규칙(사용자 설명 기준):
+	// - Burn(2→1)은 "2파워"를 소모하는데, 이때 브레인도 1파워로 취급됨.
+	// - 따라서 브레인이 2그릇에 있으면, 브레인(1) + 2그릇 일반 토큰 1개(1)만으로 2파워 소모가 성립.
+	// - 결과로 브레인이 3그릇으로 이동하고, 2그릇 일반 토큰은 1개만 제거된다.
 	if (isTaklonsBrainIn2) {
-		if (moveBrainToBowl3 === true) {
-			player.brainStoneBowl = 3;
-			player.power2 -= 2;
-			player.power3 += 1;
-			log(`Player ${player.name} burned 2 power (Bowl II -> III, moved Brain to III)`, 'game', undefined, { simulation: (game as any).simulation });
-		} else if (moveBrainToBowl3 === false && (player.power2 ?? 0) >= 3) {
-			player.power2 -= 2;
-			player.power3 += 1;
-			log(`Player ${player.name} burned 2 power (Bowl II -> III, 2 regular tokens)`, 'game', undefined, { simulation: (game as any).simulation });
-		} else {
-			return false; // Can't burn without specifying for Taklons when brain is in bowl 2
-		}
+		if ((player.power2 ?? 0) < 1) return false;
+		player.power2 -= 1;
+		player.brainStoneBowl = 3;
+		addGameLog(game, playerId, 'Taklons: Burn (B+T)', 'Brain(2) + 1 token -> Brain(3)');
+		log(`Player ${player.name} burned Brain+1 token (Bowl II -> Brain Bowl III)`, 'game', undefined, { simulation: (game as any).simulation });
+		return true;
+	}
+
+	// 일반 2→1 번: 2그릇 일반 토큰 2개 제거, 3그릇에 1개 추가
+	if ((player.power2 ?? 0) < 2) return false;
+
+	player.power2 -= 2;
+	player.power3 += 1;
+	if (player.faction === 'itars') {
+		player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
+		addGameLog(game, playerId, 'Power Burn', `1 token to Bowl III, 1 to Gaia area`);
+		log(`Player ${player.name} (Itars) burned 2 power: 1 token to Bowl III, 1 to Gaia area (→Bowl I next round)`, 'game', undefined, { simulation: (game as any).simulation });
 	} else {
-		player.power2 -= 2;
-		player.power3 += 1;
-		if (player.faction === 'itars') {
-			player.gaiaformerPower = (player.gaiaformerPower ?? 0) + 1;
-			addGameLog(game, playerId, 'Power Burn', `1 token to Bowl III, 1 to Gaia area`);
-			log(`Player ${player.name} (Itars) burned 2 power: 1 token to Bowl III, 1 to Gaia area (→Bowl I next round)`, 'game', undefined, { simulation: (game as any).simulation });
-		} else {
-			addGameLog(game, playerId, 'Power Burn', `Bowl II -> III`);
-			log(`Player ${player.name} burned 2 power (Bowl II -> III)`, 'game', undefined, { simulation: (game as any).simulation });
-		}
+		addGameLog(game, playerId, 'Power Burn', `Bowl II -> III`);
+		log(`Player ${player.name} burned 2 power (Bowl II -> III)`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 	return true;
 }
@@ -7297,10 +7213,6 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 
 	// 타클론: 우주선 입장 시 브레인 스톤을 가이아 영역으로 (다음 라운드까지 사용 불가)
 	if (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) {
-		const b = player.brainStoneBowl as 1 | 2 | 3;
-		if (b === 1) player.power1 = Math.max(0, (player.power1 ?? 0) - 1);
-		else if (b === 2) player.power2 = Math.max(0, (player.power2 ?? 0) - 1);
-		else player.power3 = Math.max(0, (player.power3 ?? 0) - 1);
 		player.brainStoneInGaia = true;
 		addGameLog(game, playerId, 'Taklons: Brain Stone', 'Moved to Gaia (until next round)', tileId);
 	}

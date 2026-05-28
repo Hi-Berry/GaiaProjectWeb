@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -47,7 +47,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -68,6 +68,54 @@ type PotentialAction =
   | { type: 'useTechAction', tileId: string }
   | { type: 'useSpecialAction', actionId: string }
   | { type: 'bonusAction' };
+
+const MIN_MINI_WIDTH = 280;
+const MAX_MINI_WIDTH = 600;
+const MINI_CONTENT_BASE_WIDTH = 340;
+const MINI_CONTENT_SIDE_GUTTER = 6;
+const getMiniContentScale = (width: number) => Math.max(0.1, (width - MINI_CONTENT_SIDE_GUTTER) / MINI_CONTENT_BASE_WIDTH);
+
+/** 미니 패널: transform scale 시 스크롤 높이가 실제 보이는 높이와 맞도록 래핑 */
+function MiniScaledContent({ panelWidth, children, className }: { panelWidth: number; children: ReactNode; className?: string }) {
+  const scale = getMiniContentScale(panelWidth);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scaledHeight, setScaledHeight] = useState(0);
+
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const update = () => setScaledHeight(el.scrollHeight * scale);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scale, children]);
+
+  return (
+    <div
+      className={className}
+      style={{
+        width: MINI_CONTENT_BASE_WIDTH * scale,
+        height: scaledHeight > 0 ? scaledHeight : undefined,
+        position: 'relative',
+      }}
+    >
+      <div
+        ref={innerRef}
+        style={{
+          width: MINI_CONTENT_BASE_WIDTH,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function Game() {
   const params = useParams<{ matchID: string }>();
@@ -227,15 +275,6 @@ export default function Game() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const MIN_MINI_WIDTH = 280;
-  const MAX_MINI_WIDTH = 600;
-  const MINI_CONTENT_BASE_WIDTH = 340;
-  const MINI_CONTENT_SIDE_GUTTER = 6;
-  const getMiniContentScale = (width: number) => Math.max(0.1, (width - MINI_CONTENT_SIDE_GUTTER) / MINI_CONTENT_BASE_WIDTH);
-  const getMiniContentStyle = (width: number) => ({
-    width: MINI_CONTENT_BASE_WIDTH,
-    zoom: getMiniContentScale(width),
-  }) as CSSProperties;
   const [researchMiniWidth, setResearchMiniWidth] = useState(() => {
     const saved = gameId ? localStorage.getItem(`research-mini-width-${gameId}`) : null;
     const n = saved ? parseInt(saved, 10) : 340;
@@ -746,6 +785,52 @@ export default function Game() {
   }
 
   const currentPlayer = playerId ? game.players[playerId] : null;
+
+  /** R창·미니 R·맵에서 트랙 클릭 시: Eclipse 2K+3P / 우주선·고급기술 보상 / 일반 4K 연구 구분 */
+  const handleResearchAdvanceTech = (trackId: ResearchTrack, options?: { closeResearchOverlay?: boolean }) => {
+    if (!gameId || !playerId) return;
+
+    if (game.pendingEclipseResearch?.playerId === playerId) {
+      GameClient.eclipseAdvanceTrack(gameId, trackId);
+      if (options?.closeResearchOverlay) setIsResearchOpen(false);
+      return;
+    }
+    if (game.pendingShipTechTrackAdvance?.playerId === playerId) {
+      GameClient.advanceTech(gameId, trackId);
+      return;
+    }
+    if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
+      GameClient.advanceTech(gameId, trackId);
+      return;
+    }
+
+    if (game.hasDoneMainAction) return;
+
+    const player = game.players[playerId];
+    if (!player) return;
+
+    if (player.pendingTerraformSteps && player.pendingTerraformSteps > 0) {
+      toast({
+        title: 'Cannot Advance Tech',
+        description: 'Terraform action active. Only mine building is allowed.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (player.knowledge < 4) {
+      toast({
+        title: 'Cannot Advance',
+        description: 'Requires 4 Knowledge.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (options?.closeResearchOverlay) setIsResearchOpen(false);
+    setAdvanceTechDialog({ open: true, trackId });
+  };
+
   // boardgame.io doesn't always use currentPlayerIndex this way in custom setups, 
   // but we'll follow our server logic.
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
@@ -2027,29 +2112,7 @@ export default function Game() {
               }
               setPendingAction({ type: 'upgrade', tileId, target });
             }}
-            onAdvanceTech={(trackId) => {
-              if (game.hasDoneMainAction) return;
-              // 테라포밍 액션 사용 중이면 기술 연구 금지
-              const player = game.players[playerId!];
-              if (player.pendingTerraformSteps && player.pendingTerraformSteps > 0) {
-                toast({
-                  title: 'Cannot Advance Tech',
-                  description: 'Terraform action active. Only mine building is allowed.',
-                  variant: 'destructive',
-                });
-                return;
-              }
-              if (player.knowledge < 4) {
-                toast({
-                  title: 'Cannot Advance',
-                  description: 'Requires 4 Knowledge.',
-                  variant: 'destructive',
-                });
-                return;
-              }
-              // 예쁜 다이얼로그 표시
-              setAdvanceTechDialog({ open: true, trackId });
-            }}
+            onAdvanceTech={(trackId) => handleResearchAdvanceTech(trackId)}
             onUsePowerAction={(actionId) => {
               if (game.hasDoneMainAction) return;
               GameClient.usePowerAction(gameId!, actionId);
@@ -2214,9 +2277,22 @@ export default function Game() {
                     const action = game.powerActions?.find(a => a.id === actionId);
                     const cur = currentPlayer;
                     if (action && cur) {
-                      if (action.costType === 'power' && (cur.power3 ?? 0) < action.cost) {
-                        toast({ title: '파워 부족', description: '3그릇 파워가 부족합니다.', variant: 'destructive' });
-                        return;
+                      if (action.costType === 'power') {
+                        const canPay =
+                          cur.faction === 'taklons'
+                            ? canSpendTaklonsPower(cur, 3, action.cost)
+                            : (cur.power3 ?? 0) >= action.cost;
+                        if (!canPay) {
+                          toast({
+                            title: '파워 부족',
+                            description:
+                              cur.faction === 'taklons'
+                                ? '3그릇(브레인 스톤 포함)에서 낼 파워가 부족합니다.'
+                                : '3그릇 파워가 부족합니다.',
+                            variant: 'destructive',
+                          });
+                          return;
+                        }
                       }
                       if (action.costType === 'qic' && (cur.qic ?? 0) < action.cost) {
                         toast({ title: 'QIC 부족', description: 'QIC가 부족합니다.', variant: 'destructive' });
@@ -2246,32 +2322,7 @@ export default function Game() {
                     }
                     GameClient.useTechAction(gameId!, tileId);
                   }}
-                  onAdvanceTech={(trackId) => {
-                    // Eclipse 2번(2K+3P)으로 트랙 올리기 대기 중이면 확인 없이 해당 트랙 진행
-                    if (game.pendingEclipseResearch?.playerId === playerId) {
-                      GameClient.eclipseAdvanceTrack(gameId!, trackId);
-                      return;
-                    }
-                    // 우주선 기술 타일 3개 중 하나 획득 후: 6개 트랙 중 원하는 트랙 1칸 무료 진행
-                    if (game.pendingShipTechTrackAdvance?.playerId === playerId) {
-                      GameClient.advanceTech(gameId!, trackId);
-                      return;
-                    }
-                    // 고급 기술 타일 획득(덮기) 후: 아무 트랙 1칸 무료 진행
-                    if (game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
-                      GameClient.advanceTech(gameId!, trackId);
-                      return;
-                    }
-                    // ↑ pending 상태 체크 이후에만 hasDoneMainAction 가드 적용
-                    if (game.hasDoneMainAction) return;
-                    const player = game.players[playerId!];
-                    if (player.knowledge < 4) {
-                      toast({ title: 'Cannot Advance', description: 'Requires 4 Knowledge.', variant: 'destructive' });
-                      return;
-                    }
-                    setIsResearchOpen(false);
-                    setAdvanceTechDialog({ open: true, trackId });
-                  }}
+                  onAdvanceTech={(trackId) => handleResearchAdvanceTech(trackId, { closeResearchOverlay: true })}
                   onSelectTechTile={(techTileId, trackId) => {
                     // 오버레이 R창에서 선택한 경우: 자동 닫기/열기 동작하도록 플래그 OFF
                     selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: false });
@@ -2305,9 +2356,11 @@ export default function Game() {
                         setIsResearchOpen(false);
                         return;
                       }
-                      // TF Mars 2번(가이아 프로젝트): 토스트 없이 서버만 호출 → 가이아포머 배치/건너뛰기 다이얼로그로 진행
-                      GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
-                      setIsResearchOpen(false);
+                      if (shipTile?.type === 'ship_tf_mars') {
+                        GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
+                        setIsResearchOpen(false);
+                        return;
+                      }
                     }
                     GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
                     setPendingTwilightTSUpgrade(null);
@@ -2380,7 +2433,19 @@ export default function Game() {
                 passBonusVp = new Set(myMapTiles.filter(t => t.structure != null && t.structure !== 'ship').map(t => t.type)).size * vp;
                 break;
               case 'bridge_sector':
-                passBonusVp = new Set(myMapTiles.filter(t => t.structure != null && t.structure !== 'ship' && typeof t.sector === 'number').map(t => t.sector)).size * vp;
+                // 서버 로직과 동일하게 "외곽 브릿지 섹터(11~18)"만 카운트
+                passBonusVp = new Set(
+                  myMapTiles
+                    .filter(
+                      t =>
+                        t.structure != null &&
+                        t.structure !== 'ship' &&
+                        typeof t.sector === 'number' &&
+                        t.sector >= 11 &&
+                        t.sector <= 18
+                    )
+                    .map(t => t.sector)
+                ).size * vp;
                 break;
             }
           }
@@ -3105,74 +3170,16 @@ export default function Game() {
                         </span>
                       </div>
                       {pending.incomeItems.length > 0 && (() => {
-                        // 서버의 select_all_income_items와 동일한 최적화 시뮬레이션으로 미리보기
-                        const items = [...pending.incomeItems];
-                        let bestP1 = actualPlayer.power1 ?? 0;
-                        let bestP2 = actualPlayer.power2 ?? 0;
-                        let bestP3 = actualPlayer.power3 ?? 0;
-
-                        if (items.length <= 8) {
-                          const perms = (arr: typeof items): (typeof items)[] => {
-                            if (arr.length <= 1) return [arr];
-                            const result: (typeof items)[] = [];
-                            for (let i = 0; i < arr.length; i++) {
-                              const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-                              for (const sub of perms(rest)) result.push([arr[i], ...sub]);
-                            }
-                            return result;
-                          };
-                          const allPerms = perms(items);
-                          let best = { p1: bestP1, p2: bestP2, p3: bestP3 };
-                          for (const order of allPerms) {
-                            let p1 = actualPlayer.power1 ?? 0;
-                            let p2 = actualPlayer.power2 ?? 0;
-                            let p3 = actualPlayer.power3 ?? 0;
-                            for (const item of order) {
-                              if (item.type === 'tokens') {
-                                p1 += item.amount;
-                              } else {
-                                let rem = item.amount;
-                                const from1 = Math.min(rem, p1);
-                                p1 -= from1; p2 += from1; rem -= from1;
-                                const from2 = Math.min(rem, p2);
-                                p2 -= from2; p3 += from2;
-                              }
-                            }
-                            if (
-                              p3 > best.p3 ||
-                              (p3 === best.p3 && p2 > best.p2) ||
-                              (p3 === best.p3 && p2 === best.p2 && p1 > best.p1)
-                            ) {
-                              best = { p1, p2, p3 };
-                            }
-                          }
-                          bestP1 = best.p1;
-                          bestP2 = best.p2;
-                          bestP3 = best.p3;
-                        } else {
-                          // 아이템이 많을 때는 서버와 동일하게 토큰→파워 순으로 처리
-                          let p1 = actualPlayer.power1 ?? 0;
-                          let p2 = actualPlayer.power2 ?? 0;
-                          let p3 = actualPlayer.power3 ?? 0;
-                          const sorted = items.slice().sort((a, b) => (a.type === 'tokens' ? -1 : 1));
-                          for (const item of sorted) {
-                            if (item.type === 'tokens') {
-                              p1 += item.amount;
-                            } else {
-                              let rem = item.amount;
-                              const from1 = Math.min(rem, p1);
-                              p1 -= from1; p2 += from1; rem -= from1;
-                              const from2 = Math.min(rem, p2);
-                              p2 -= from2; p3 += from2;
-                            }
-                          }
-                          bestP1 = p1;
-                          bestP2 = p2;
-                          bestP3 = p3;
-                        }
+                        const best = simulateIncomeOrder(
+                          actualPlayer,
+                          findOptimalIncomeOrder(actualPlayer, [...pending.incomeItems])
+                        );
+                        const brainNote = actualPlayer.faction === 'taklons' && !actualPlayer.brainStoneInGaia && best.brainStoneBowl
+                          ? ` · 🧠${best.brainStoneBowl}그릇`
+                          : '';
                         return (
                           <p className="text-[10px] text-zinc-500">
-                            자동 받기 시 결과: 1/2/3그릇 → <span className="font-mono text-zinc-300 font-bold">{bestP1} / {bestP2} / {bestP3}</span>
+                            자동 받기 시 결과: 1/2/3그릇 → <span className="font-mono text-zinc-300 font-bold">{best.p1} / {best.p2} / {best.p3}</span>{brainNote}
                           </p>
                         );
                       })()}
@@ -3180,16 +3187,14 @@ export default function Game() {
                         {pending.incomeItems.map((item) => {
                           let preview = '';
                           const { power1, power2, power3 } = actualPlayer;
+                          const after = simulateIncomeOrder(actualPlayer, [item]);
                           if (item.type === 'power') {
-                            let p1 = power1 ?? 0, p2 = power2 ?? 0, p3 = power3 ?? 0;
-                            let rem = item.amount;
-                            const from1 = Math.min(rem, p1);
-                            p1 -= from1; p2 += from1; rem -= from1;
-                            const from2 = Math.min(rem, p2);
-                            p2 -= from2; p3 += from2;
-                            preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${p1}/${p2}/${p3}`;
+                            preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${after.p1}/${after.p2}/${after.p3}`;
+                            if (actualPlayer.faction === 'taklons' && !actualPlayer.brainStoneInGaia && after.brainStoneBowl) {
+                              preview += ` ·🧠${after.brainStoneBowl}`;
+                            }
                           } else if (item.type === 'tokens') {
-                            preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${(power1 ?? 0) + item.amount}/${power2 ?? 0}/${power3 ?? 0}`;
+                            preview = `${power1 ?? 0}/${power2 ?? 0}/${power3 ?? 0} → ${after.p1}/${after.p2}/${after.p3}`;
                           }
 
                           return (
@@ -4308,11 +4313,12 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div className="flex-1 pl-0 pr-[6px] pb-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div
-                className="origin-top-left"
-                style={getMiniContentStyle(researchMiniWidth)}
-              >
+            <div
+              className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-2 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              <MiniScaledContent panelWidth={researchMiniWidth}>
                 <ResearchBoard
                   game={game}
                   playerId={playerId}
@@ -4332,10 +4338,7 @@ export default function Game() {
                   }
                   GameClient.useTechAction(gameId!, tileId);
                 }}
-                onAdvanceTech={(trackId) => {
-                  if (game.hasDoneMainAction) return;
-                  setAdvanceTechDialog({ open: true, trackId });
-                }}
+                onAdvanceTech={(trackId) => handleResearchAdvanceTech(trackId)}
                 onSelectTechTile={(techTileId, trackId) => {
                   // 미니 R패널에서 선택한 경우: 자동 R창 열고닫기 하지 않도록 플래그 ON
                   selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: true });
@@ -4361,7 +4364,7 @@ export default function Game() {
                     GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
                 }}
                 />
-              </div>
+              </MiniScaledContent>
             </div>
             {/* Right Resize Handle */}
             <div
@@ -4415,11 +4418,12 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div className="flex-1 pl-0 pr-[6px] pb-1 overflow-y-auto overflow-x-hidden touch-pan-y custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div
-                className="origin-top-left flex flex-col gap-4"
-                style={getMiniContentStyle(bonusMiniWidth)}
-              >
+            <div
+              className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-2 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              <MiniScaledContent panelWidth={bonusMiniWidth} className="flex flex-col gap-4">
                 <RoundBoard
                   game={game}
                   playerId={playerId}
@@ -4439,7 +4443,7 @@ export default function Game() {
                   }) : undefined}
                   onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
                 />
-              </div>
+              </MiniScaledContent>
             </div>
             {/* Right Resize Handle */}
             <div

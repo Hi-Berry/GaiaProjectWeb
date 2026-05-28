@@ -180,6 +180,9 @@ export interface PowerAction {
   cost: number;
   costType: 'power' | 'qic';
   isUsed: boolean;
+  /** 이미 사용된 경우: 사용한 플레이어 (표시용) */
+  usedByPlayerId?: string;
+  usedByPlayerName?: string;
   label: string;
 }
 
@@ -446,8 +449,8 @@ export interface GaiaGameState {
     playerId: string;
     incomeItems: Array<{ type: 'power' | 'tokens'; amount: number; id: string }>;
     appliedItems: Array<{ type: 'power' | 'tokens'; amount: number; id: string }>;
-    /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
-    powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number }>;
+    /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3[,bs]) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
+    powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 }>;
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
   gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }> }>; // 게임 액션 로그
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
@@ -1183,6 +1186,110 @@ export function chargePowerTaklons(player: PlayerState, amount: number, brainFir
   }
 }
 
+/** 파워 수익(충전): 기존 토큰을 1→2→3으로 이동. 타클론은 브레인 스톤 캐스케이드(chargePowerTaklons) 적용. */
+export function applyPowerIncome(player: PlayerState, amount: number): void {
+  if (player.faction === 'taklons' && !player.brainStoneInGaia) {
+    chargePowerTaklons(player, amount, true);
+    return;
+  }
+  let rem = amount;
+  const from1 = Math.min(rem, player.power1 ?? 0);
+  player.power1 = (player.power1 ?? 0) - from1;
+  player.power2 = (player.power2 ?? 0) + from1;
+  rem -= from1;
+  const from2 = Math.min(rem, player.power2 ?? 0);
+  player.power2 = (player.power2 ?? 0) - from2;
+  player.power3 = (player.power3 ?? 0) + from2;
+}
+
+export type IncomeOrderItem = { type: 'power' | 'tokens'; amount: number; id: string };
+
+export function simulateIncomeOrder(
+  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia'>,
+  order: IncomeOrderItem[]
+): { p1: number; p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3 } {
+  const sim = {
+    faction: base.faction,
+    power1: base.power1 ?? 0,
+    power2: base.power2 ?? 0,
+    power3: base.power3 ?? 0,
+    brainStoneBowl: base.brainStoneBowl,
+    brainStoneInGaia: base.brainStoneInGaia,
+  } as PlayerState;
+  for (const item of order) {
+    if (item.type === 'tokens') {
+      sim.power1 = (sim.power1 ?? 0) + item.amount;
+    } else {
+      applyPowerIncome(sim, item.amount);
+    }
+  }
+  return {
+    p1: sim.power1 ?? 0,
+    p2: sim.power2 ?? 0,
+    p3: sim.power3 ?? 0,
+    brainStoneBowl: sim.brainStoneBowl,
+  };
+}
+
+function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: { p1: number; p2: number; p3: number }): number {
+  if (a.p3 !== b.p3) return a.p3 - b.p3;
+  if (a.p2 !== b.p2) return a.p2 - b.p2;
+  return a.p1 - b.p1;
+}
+
+/** 수익 항목 적용 순서 최적화 (3그릇 > 2그릇 > 1그릇 우선) */
+export function findOptimalIncomeOrder(
+  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia'>,
+  items: IncomeOrderItem[]
+): IncomeOrderItem[] {
+  if (items.length === 0) return [];
+  if (items.length > 8) {
+    return items.slice().sort((a, b) => (a.type === 'tokens' ? -1 : 1));
+  }
+  const permutations = (arr: IncomeOrderItem[]): IncomeOrderItem[][] => {
+    if (arr.length <= 1) return [arr];
+    const result: IncomeOrderItem[][] = [];
+    for (let i = 0; i < arr.length; i++) {
+      const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const sub of permutations(rest)) {
+        result.push([arr[i], ...sub]);
+      }
+    }
+    return result;
+  };
+  let bestOrder = items;
+  let bestState = simulateIncomeOrder(base, items);
+  for (const order of permutations(items)) {
+    const state = simulateIncomeOrder(base, order);
+    if (compareIncomeBowlTotals(state, bestState) > 0) {
+      bestState = state;
+      bestOrder = order;
+    }
+  }
+  return bestOrder;
+}
+
+export function snapshotPlayerPower(player: PlayerState): { p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 } {
+  return {
+    p1: player.power1 ?? 0,
+    p2: player.power2 ?? 0,
+    p3: player.power3 ?? 0,
+    bs: player.faction === 'taklons' && !player.brainStoneInGaia ? (player.brainStoneBowl ?? 1) : undefined,
+  };
+}
+
+export function restorePlayerPowerSnapshot(
+  player: PlayerState,
+  snap: { p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 }
+): void {
+  player.power1 = snap.p1;
+  player.power2 = snap.p2;
+  player.power3 = snap.p3;
+  if (snap.bs != null && player.faction === 'taklons') {
+    player.brainStoneBowl = snap.bs;
+  }
+}
+
 /** 타클론: 해당 그릇에서 낼 수 있는 파워 값 (브레인 스톤 = 3, 일반 = 1) */
 export function getTaklonsBowlPowerValue(player: PlayerState, bowl: 1 | 2 | 3): number {
   if (player.brainStoneInGaia) {
@@ -1205,11 +1312,26 @@ export function canSpendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, p
   return count >= powerValue; // no brain or use only regular
 }
 
+/** 타클론: 브레인 스톤 없이 해당 그릇의 일반 토큰만으로 powerValue를 낼 수 있는지 */
+export function canSpendTaklonsPowerWithoutBrain(player: PlayerState, fromBowl: 1 | 2 | 3, powerValue: number): boolean {
+  const count = fromBowl === 1 ? (player.power1 ?? 0) : fromBowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);
+  return count >= powerValue;
+}
+
+/** 타클론: (B) 프리액션 — 해당 그릇의 브레인 스톤을 포함해 powerValue를 낼 수 있는지 */
+export function canTaklonsSpendUsingBrain(player: PlayerState, fromBowl: 1 | 2 | 3, powerValue: number): boolean {
+  if (player.faction !== 'taklons' || player.brainStoneInGaia) return false;
+  if (player.brainStoneBowl !== fromBowl) return false;
+  return canSpendTaklonsPower(player, fromBowl, powerValue);
+}
+
 /** 타클론: 그릇에서 powerValue 파워 소비. useBrain이면 브레인 포함해서 소비 (토큰 수 최소화). 사용한 토큰은 그릇1으로. */
 export function spendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, powerValue: number, useBrain: boolean): boolean {
   const count = fromBowl === 1 ? (player.power1 ?? 0) : fromBowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);
   const hasBrain = !player.brainStoneInGaia && player.brainStoneBowl === fromBowl;
-  const toRemove = (useBrain && hasBrain && powerValue >= 3)
+  // 타클론 규칙: 3그릇에서 3파워 이상 지불 시 브레인 스톤을 우선 사용
+  const effectiveUseBrain = useBrain || (hasBrain && fromBowl === 3 && powerValue >= 3);
+  const toRemove = (effectiveUseBrain && hasBrain && powerValue >= 3)
     ? Math.max(0, powerValue - 3) // ONLY regular tokens to remove; brainstone is handled via boolean flag
     : powerValue;                     // otherwise all spent power comes from regular tokens
   if (count < toRemove) return false;
@@ -1223,7 +1345,7 @@ export function spendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, powe
   player.power1 = (player.power1 ?? 0) + toRemove;
 
   // Move spent brainstone to Bowl 1
-  if (useBrain && hasBrain && powerValue >= 1) player.brainStoneBowl = 1;
+  if (effectiveUseBrain && hasBrain && powerValue >= 1) player.brainStoneBowl = 1;
   return true;
 }
 

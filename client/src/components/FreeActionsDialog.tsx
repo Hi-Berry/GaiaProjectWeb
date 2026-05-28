@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { GameState } from '@/lib/gameClient';
-import { canSpendTaklonsPower, getTaklonsBowlPowerValue } from '@shared/gameConfig';
+import { canSpendTaklonsPower, canSpendTaklonsPowerWithoutBrain } from '@shared/gameConfig';
 
 interface FreeActionsDialogProps {
     open: boolean;
@@ -137,29 +137,28 @@ export function FreeActionsDialog({
                                     variant="outline"
                                     size="sm"
                                     className="h-10 text-[11px] bg-purple-900/20 hover:bg-purple-900/40 border-purple-500/30 text-purple-200"
-                                    disabled={!isCurrentTurn || (currentPlayer.power2 ?? 0) < 2}
+                                    disabled={
+                                        !isCurrentTurn ||
+                                        (currentPlayer.faction === 'taklons' &&
+                                        (currentPlayer as any).brainStoneBowl === 2 &&
+                                        !(currentPlayer as any).brainStoneInGaia
+                                            ? (currentPlayer.power2 ?? 0) < 1
+                                            : (currentPlayer.power2 ?? 0) < 2)
+                                    }
                                     onClick={() => onBurnPower(false)}
-                                    title="Bowl 2: 2 tokens -> Bowl 3: 1 token (Itars: 1 into Gaia)"
+                                    title="Bowl 2: 2 power -> Bowl 3 (Taklons: Brain+T -> Brain)"
                                 >
                                     Power Burn (2➔1)
                                 </Button>
-                                {currentPlayer.faction === 'taklons' && (currentPlayer as any).brainStoneBowl === 2 && !(currentPlayer as any).brainStoneInGaia && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-10 text-[11px] bg-amber-900/30 hover:bg-amber-800/40 border-amber-500/40 text-amber-200"
-                                        disabled={!isCurrentTurn || (currentPlayer.power2 ?? 0) < 2}
-                                        onClick={() => onBurnPower(true)}
-                                        title="Bowl 2: Brainstone -> Bowl 3"
-                                    >
-                                        Burn Brainstone
-                                    </Button>
-                                )}
                             </div>
                             <p className="text-[10px] text-zinc-500 text-center leading-tight">
                                 {currentPlayer.faction === 'itars'
                                     ? "Itars: Bowl 2에서 2개를 제거하여 1개는 Bowl 3로, 1개는 가이아 구역으로 보냅니다."
-                                    : "Bowl 2에서 2개를 제거하여 1개는 Bowl 3로 보냅니다 (토큰 1개 영구 손실)."}
+                                    : currentPlayer.faction === 'taklons' &&
+                                      (currentPlayer as any).brainStoneBowl === 2 &&
+                                      !(currentPlayer as any).brainStoneInGaia
+                                        ? "Taklons: Brain(2) + Bowl2 일반토큰 1개 제거 → Brain이 Bowl3로 이동"
+                                        : "Bowl 2에서 2개를 제거하여 1개는 Bowl 3로 보냅니다 (토큰 1개 영구 손실)."}
                             </p>
                         </div>
 
@@ -172,42 +171,29 @@ export function FreeActionsDialog({
                                     <Button
                                         variant="outline"
                                         size="sm"
+                                        className="h-10 text-[11px] bg-amber-900/30 hover:bg-amber-800/40 border-amber-500/40 text-amber-200"
+                                        disabled={
+                                            !isCurrentTurn ||
+                                            (currentPlayer as any).brainStoneInGaia ||
+                                            (currentPlayer as any).brainStoneBowl !== 3
+                                        }
+                                        onClick={() => onConvertResource('1brain-to-3credit')}
+                                        title="Taklons: Brain Stone (Bowl III) → +3 Credits (Brain → Bowl I)"
+                                    >
+                                        1B ➔ 3 Credit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
                                         className="h-10 text-[11px] bg-zinc-900/50 hover:bg-zinc-800"
                                         disabled={
                                             !isCurrentTurn ||
-                                            (currentPlayer.power3 ?? 0) < 3
+                                            !canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 3)
                                         }
-                                        onClick={() => onConvertResource('3power-to-1ore', false)}
+                                        onClick={() => onConvertResource('3power-to-1ore')}
                                     >
                                         3 Power ➔ 1 Ore
                                     </Button>
-                                    {/* 브레인만 그릇3에 있으면 power3=0이라 위 버튼이 막힘 — 브레인(3P)으로만 결제 가능할 때 (B) 표시 */}
-                                    {canSpendTaklonsPower(
-                                        currentPlayer as Parameters<typeof canSpendTaklonsPower>[0],
-                                        3,
-                                        3
-                                    ) &&
-                                        (currentPlayer as { brainStoneBowl?: number })
-                                            .brainStoneBowl === 3 &&
-                                        !(currentPlayer as { brainStoneInGaia?: boolean })
-                                            .brainStoneInGaia &&
-                                        getTaklonsBowlPowerValue(
-                                            currentPlayer as Parameters<
-                                                typeof getTaklonsBowlPowerValue
-                                            >[0],
-                                            3
-                                        ) >= 3 &&
-                                        (currentPlayer.power3 ?? 0) < 3 && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-10 text-[11px] bg-amber-900/50 hover:bg-amber-800 border-amber-500/40"
-                                                disabled={!isCurrentTurn}
-                                                onClick={() => onConvertResource('3power-to-1ore', true)}
-                                            >
-                                                3 Power ➔ 1 Ore (B)
-                                            </Button>
-                                        )}
                                 </>
                             ) : (
                                 <Button
@@ -233,36 +219,13 @@ export function FreeActionsDialog({
                                             size="sm"
                                             className="h-10 text-[11px] bg-zinc-900/50 hover:bg-zinc-800"
                                             disabled={
-                                                !isCurrentTurn || (currentPlayer.power3 ?? 0) < 4
+                                                !isCurrentTurn ||
+                                                !canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 4)
                                             }
-                                            onClick={() => onConvertResource('4power-to-1qic', false)}
+                                            onClick={() => onConvertResource('4power-to-1qic')}
                                         >
                                             4 Power ➔ 1 QIC
                                         </Button>
-                                        {canSpendTaklonsPower(
-                                            currentPlayer as Parameters<
-                                                typeof canSpendTaklonsPower
-                                            >[0],
-                                            3,
-                                            4
-                                        ) &&
-                                            (currentPlayer as { brainStoneBowl?: number })
-                                                .brainStoneBowl === 3 &&
-                                            !(currentPlayer as { brainStoneInGaia?: boolean })
-                                                .brainStoneInGaia &&
-                                            (currentPlayer.power3 ?? 0) >= 1 && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-10 text-[11px] bg-amber-900/50 hover:bg-amber-800 border-amber-500/40"
-                                                    disabled={!isCurrentTurn}
-                                                    onClick={() =>
-                                                        onConvertResource('4power-to-1qic', true)
-                                                    }
-                                                >
-                                                    4 Power ➔ 1 QIC (B)
-                                                </Button>
-                                            )}
                                     </>
                                 ) : (
                                     <Button
@@ -285,10 +248,8 @@ export function FreeActionsDialog({
                                     className="h-10 text-[11px] bg-zinc-900/50 hover:bg-zinc-800"
                                     disabled={
                                         !isCurrentTurn ||
-                                        !canSpendTaklonsPower(
-                                            currentPlayer as Parameters<
-                                                typeof canSpendTaklonsPower
-                                            >[0],
+                                        !canSpendTaklonsPowerWithoutBrain(
+                                            currentPlayer as Parameters<typeof canSpendTaklonsPowerWithoutBrain>[0],
                                             3,
                                             1
                                         )
@@ -387,36 +348,15 @@ export function FreeActionsDialog({
                                         size="sm"
                                         className="h-10 text-[11px] bg-zinc-900/50 hover:bg-zinc-800"
                                         disabled={
-                                            !isCurrentTurn || (currentPlayer.power3 ?? 0) < 4
+                                            !isCurrentTurn ||
+                                            !canSpendTaklonsPower(currentPlayer as Parameters<typeof canSpendTaklonsPower>[0], 3, 4)
                                         }
                                         onClick={() =>
-                                            onConvertResource('4power-to-1knowledge', false)
+                                            onConvertResource('4power-to-1knowledge')
                                         }
                                     >
                                         4 Power ➔ 1 Know
                                     </Button>
-                                    {canSpendTaklonsPower(
-                                        currentPlayer as Parameters<typeof canSpendTaklonsPower>[0],
-                                        3,
-                                        4
-                                    ) &&
-                                        (currentPlayer as { brainStoneBowl?: number })
-                                            .brainStoneBowl === 3 &&
-                                        !(currentPlayer as { brainStoneInGaia?: boolean })
-                                            .brainStoneInGaia &&
-                                        (currentPlayer.power3 ?? 0) >= 1 && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-10 text-[11px] bg-amber-900/50 hover:bg-amber-800 border-amber-500/40"
-                                                disabled={!isCurrentTurn}
-                                                onClick={() =>
-                                                    onConvertResource('4power-to-1knowledge', true)
-                                                }
-                                            >
-                                                4 Power ➔ 1 Know (B)
-                                            </Button>
-                                        )}
                                 </>
                             ) : (
                                 <Button

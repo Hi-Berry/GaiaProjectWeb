@@ -65,7 +65,9 @@ import {
     getNextRoundIncomePreview,
     FEDERATION_REWARDS,
     SPACESHIP_FEDERATION_REWARDS,
-    GLEENS_FEDERATION_REWARD
+    GLEENS_FEDERATION_REWARD,
+    canTaklonsSpendUsingBrain,
+    canSpendTaklonsPowerWithoutBrain,
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -560,18 +562,22 @@ export class BotLogic {
         // - 패스 직전, 다음 라운드에 도움이 되는 최소 자원(O/C) 확보가 필요할 때만
         // - QIC(4P→1Q)는 파워 액션을 대체할 만큼 강하지 않으므로 여기서는 사용하지 않는다
         const currentP3 = player.power3 ?? 0;
-        const useBrain = player.faction === 'taklons';
+        const isTaklons = player.faction === 'taklons';
 
         // 다음 라운드 수입이 아예 없으면 굳이 변환할 이유가 더 줄어듦
         const hasIncoming = (powerIncome + tokenIncome) > 0;
 
         // 최소 운영자금 확보(다음 라운드에 광산/교역소를 올릴 수 있게): O/C가 너무 바닥일 때만
         if (hasIncoming) {
-            if (currentP3 >= 3 && (player.ore ?? 0) < 1) {
+            const can3pOre = isTaklons
+                ? canSpendTaklonsPowerWithoutBrain(player, 3, 3) || canTaklonsSpendUsingBrain(player, 3, 3)
+                : currentP3 >= 3;
+            if (can3pOre && (player.ore ?? 0) < 1) {
+                const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
                 return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } };
             }
             if (currentP3 >= 1 && (player.credits ?? 0) < 2) {
-                return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain } };
+                return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } };
             }
         }
 
@@ -2912,12 +2918,24 @@ export class BotLogic {
         const player = game.players[playerId];
         const p3 = player.power3 ?? 0;
         const res: BotAction[] = [];
-        const useBrain = player.faction === 'taklons';
+        const isTaklons = player.faction === 'taklons';
 
         // 자원 상황이 정말 좋지 않을 때만 후보에 추가 (MCTS 탐색 공간 낭비 방지). 타클론은 브레인 스톤 우선 사용.
-        if (p3 >= 3 && (player.ore ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } });
-        if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain } });
-        if (p3 >= 4 && (player.qic ?? 0) < 1) res.push({ type: 'convert_resource', params: { type: '4power-to-1qic', useBrain } });
+        const can3pOre = isTaklons
+            ? canSpendTaklonsPowerWithoutBrain(player, 3, 3) || canTaklonsSpendUsingBrain(player, 3, 3)
+            : p3 >= 3;
+        if (can3pOre && (player.ore ?? 0) < 2) {
+            const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
+            res.push({ type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } });
+        }
+        if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } });
+        const can4pQic = isTaklons
+            ? canSpendTaklonsPowerWithoutBrain(player, 3, 4) || canTaklonsSpendUsingBrain(player, 3, 4)
+            : p3 >= 4;
+        if (can4pQic && (player.qic ?? 0) < 1) {
+            const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 4) && !canSpendTaklonsPowerWithoutBrain(player, 3, 4);
+            res.push({ type: 'convert_resource', params: { type: '4power-to-1qic', useBrain } });
+        }
 
         return res;
     }

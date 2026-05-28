@@ -84,6 +84,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     const isRebellionGain = pendingTech?.structureType === 'rebellion_gain';
     const pendingShipTrack = game.pendingShipTechTrackAdvance?.playerId === playerId;
     const pendingAdvTechTrack = game.pendingAdvancedTechTrackAdvance?.playerId === playerId;
+    const pendingEclipseTrack = game.pendingEclipseResearch?.playerId === playerId;
     const pendingAdvancedCover = game.pendingAdvancedTechCover?.playerId === playerId ? game.pendingAdvancedTechCover : null;
 
     const handleTrackClick = (trackId: ResearchTrack) => {
@@ -96,7 +97,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     };
 
     return (
-        <Card className={`w-full text-zinc-100 overflow-hidden font-orbitron ${isMini ? 'border-none bg-transparent shadow-none' : 'bg-zinc-950 border-white/5'}`}>
+        <Card className={`w-full text-zinc-100 font-orbitron ${isMini ? 'border-none bg-transparent shadow-none overflow-visible' : 'bg-zinc-950 border-white/5 overflow-hidden'}`}>
             {!isMini && (
                 <CardHeader className="py-3 px-4 border-b border-white/5 bg-zinc-900/50">
                     <CardTitle className="text-sm font-black tracking-widest uppercase text-zinc-400">
@@ -106,7 +107,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
             )}
             <CardContent className={`${isMini ? 'p-0 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
-                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
+                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && !pendingEclipseTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
                     <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10 mb-4">
                         <p className="text-[10px] text-zinc-400 mb-2 font-medium">메인 액션을 완료했습니다. 행동을 확정(Turn End)하거나 취소(Reset)할 수 있습니다.</p>
                         <div className="flex gap-2">
@@ -304,6 +305,35 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </div>
                 )}
 
+                {/* Eclipse 2K+3P: 올릴 트랙 선택 */}
+                {pendingEclipseTrack && !isMini && (
+                    <div className="space-y-3 p-3 rounded-xl border border-violet-500/30 bg-violet-500/5">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-violet-400">Eclipse: 연구 트랙 선택</h4>
+                        <p className="text-[9px] text-zinc-400">2K+3P 지불됨 — 아래 트랙 또는 6개 라인 중 하나를 클릭하세요.</p>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            {RESEARCH_TRACKS.map((track) => {
+                                const lvl = playerId ? (game.players[playerId]?.research?.[track.id as ResearchTrack] ?? 0) : 0;
+                                const navBlocked = track.id === 'navigation' && !balTakCanAdvanceNav;
+                                const disabled = lvl >= 5 || navBlocked;
+                                return (
+                                    <button
+                                        key={track.id}
+                                        type="button"
+                                        disabled={disabled}
+                                        title={navBlocked ? "발타크: 의회 건설 후 Nav 트랙 진행 가능" : undefined}
+                                        onClick={() => onAdvanceTech(track.id as ResearchTrack)}
+                                        className="p-3 rounded-lg border-2 border-violet-500/40 bg-zinc-900/80 hover:border-violet-400 disabled:opacity-50 disabled:cursor-not-allowed text-center"
+                                        style={{ borderColor: disabled ? undefined : track.color ? `${track.color}80` : undefined }}
+                                    >
+                                        <div className="text-[10px] font-bold text-zinc-100">{track.name}</div>
+                                        <div className="text-[9px] text-zinc-500">Lv.{lvl}/5</div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {/* 우주선 기술 타일 / 고급 기술 타일 획득 후: 올릴 트랙 선택 (6개 중 1개) */}
                 {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && !isMini && (
                     <div className="space-y-3 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
@@ -330,6 +360,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 );
                             })}
                         </div>
+                    </div>
+                )}
+
+                {/* Eclipse 2K+3P — 미니 R 패널 */}
+                {pendingEclipseTrack && isMini && (
+                    <div className="px-1 py-1 mb-1 rounded border border-violet-500/40 bg-violet-500/10">
+                        <p className="text-[7px] font-black text-violet-300 uppercase">Eclipse: 트랙 클릭 (2K+3P 지불됨)</p>
                     </div>
                 )}
 
@@ -528,7 +565,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         className={`aspect-square flex items-center justify-center rounded-[2px] text-[7px] font-black border transition-all ${action.isUsed
                                             ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
                                             : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer'}`}
-                                        title={`${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
+                                        title={
+                                            action.isUsed
+                                                ? `${action.label} (${action.cost} ${action.costType.toUpperCase()})\n사용됨: ${action.usedByPlayerName ?? '알 수 없음'}`
+                                                : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`
+                                        }
                                     >
                                         {action.label}
                                     </button>
@@ -1132,6 +1173,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             }`}
                                         disabled={action.isUsed}
                                         onClick={() => onUsePowerAction(action.id)}
+                                        title={action.isUsed ? `사용됨: ${action.usedByPlayerName ?? '알 수 없음'}` : undefined}
                                     >
                                         <div className={`text-xs font-black ${action.isUsed ? 'text-zinc-500' : 'text-primary'}`}>
                                             {action.label}
