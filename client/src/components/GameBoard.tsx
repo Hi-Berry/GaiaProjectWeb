@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCcw, Menu, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle } from 'lucide-react';
+import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
 import {
   PLANET_COLORS,
@@ -172,8 +173,14 @@ interface GameBoardProps {
   hoveredPlayerId?: string | null;
   /** 상태창(Sidebar) 열림 여부 */
   isSidebarOpen?: boolean;
+  /** 상태창 너비(px) — 오버레이를 맵 영역 중앙에 맞출 때 사용 */
+  sidebarWidth?: number;
   /** 상태창 토글 함수 */
   onToggleSidebar?: () => void;
+  /** 플레이어 상세 팝오버 배율 (1 | 2) */
+  playerDetailScale?: 1 | 2;
+  /** 플레이어 상세 1배/2배 토글 */
+  onTogglePlayerDetailScale?: () => void;
 }
 
 
@@ -219,10 +226,14 @@ export function GameBoard({
   onPanChange,
   hoveredPlayerId = null,
   isSidebarOpen = false,
+  sidebarWidth = 0,
   onToggleSidebar,
+  playerDetailScale = 1,
+  onTogglePlayerDetailScale,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
+  const [isUiHelpOpen, setIsUiHelpOpen] = useState(false);
   const [zoom, setZoomInternal] = useState(zoomValue ?? 1);
   const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
   const isSyncingRef = useRef(false);
@@ -831,7 +842,14 @@ export function GameBoard({
 
         {/* Turn Status Overlay */}
         {/* fixed로 올려서 우측 패널 열림 시에도 중앙 유지(좌측 미니뷰와 겹침 방지) */}
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center pointer-events-none">
+        <div
+          className="fixed top-4 z-[35] flex flex-col items-center pointer-events-none -translate-x-1/2"
+          style={{
+            left: isSidebarOpen && sidebarWidth > 0
+              ? `calc((100% - ${sidebarWidth}px) / 2)`
+              : '50%',
+          }}
+        >
           <div className="bg-black/80 backdrop-blur-md border border-white/10 px-6 py-2 rounded-full shadow-2xl flex items-center gap-4">
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Round {game.roundNumber}</span>
@@ -1216,6 +1234,18 @@ export function GameBoard({
                 {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </Button>
             )}
+            {onTogglePlayerDetailScale && (
+              <Button
+                size="icon"
+                variant="secondary"
+                className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2 text-[10px] font-black leading-none px-0"
+                onClick={onTogglePlayerDetailScale}
+                title={playerDetailScale === 2 ? '플레이어 상세 1배 (×1)' : '플레이어 상세 2배 (×2)'}
+                data-testid="button-toggle-player-detail-scale"
+              >
+                {playerDetailScale === 2 ? '×1' : '×2'}
+              </Button>
+            )}
             <Button
               size="icon"
               variant="secondary"
@@ -1237,8 +1267,19 @@ export function GameBoard({
               variant="secondary"
               onClick={handleReset}
               data-testid="button-reset-view"
+              title="맵 보기 초기화"
             >
               <RotateCcw className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => setIsUiHelpOpen(true)}
+              data-testid="button-ui-help"
+              title="UI · 단축키 안내"
+              className="text-blue-300 hover:text-blue-200"
+            >
+              <HelpCircle className="w-4 h-4" />
             </Button>
             <div className="bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-zinc-300 text-center shadow-xl">
               {Math.round(zoom * 100)}%
@@ -1246,6 +1287,7 @@ export function GameBoard({
           </div>
         </div>
 
+        <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} />
 
       </div>
 

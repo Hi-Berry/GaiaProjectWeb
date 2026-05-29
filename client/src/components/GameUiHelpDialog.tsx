@@ -1,0 +1,182 @@
+import { Fragment } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+interface HelpItem {
+  label: string;
+  description: string;
+  isKey?: boolean;
+}
+
+interface HelpSection {
+  title: string;
+  items: HelpItem[];
+}
+
+/** 2열 그리드에 균형 맞게 배치 */
+const HELP_COLUMNS: HelpSection[][] = [
+  [
+    {
+      title: '단축키',
+      items: [
+        { label: 'R', description: '연구 보드', isKey: true },
+        { label: 'T', description: '보너스 타일 보드', isKey: true },
+        { label: 'L', description: '하단 로그 시트 (단축키만)', isKey: true },
+        { label: 'F', description: 'Free Actions', isKey: true },
+        { label: 'Space', description: '미니보드 핀', isKey: true },
+        { label: 'Esc', description: '오버레이 닫기', isKey: true },
+      ],
+    },
+    {
+      title: '맵 배너',
+      items: [
+        { label: 'Round', description: '라운드·메인 액션' },
+        { label: 'Confirm', description: '확정·Undo·End Turn' },
+        { label: 'Power', description: '파워 제안·알림음' },
+      ],
+    },
+    {
+      title: '하단·오버레이',
+      items: [
+        { label: '보너스', description: '패스 후 선택 패널' },
+        { label: '로그 L', description: '하단 절반 시트 (L/Esc/×)' },
+        { label: '미니창', description: '핀·드래그·리사이즈' },
+        { label: 'Income', description: '수익 선택' },
+      ],
+    },
+  ],
+  [
+    {
+      title: '맵 우측',
+      items: [
+        { label: '메뉴', description: '상태창 on/off' },
+        { label: '×2', description: '상세 팝오버 크기', isKey: true },
+        { label: '±/휠', description: '줌' },
+        { label: '↺', description: '뷰 초기화', isKey: true },
+        { label: '?', description: '이 안내', isKey: true },
+        { label: '연방', description: '연방 구현 모드' },
+      ],
+    },
+    {
+      title: '왼쪽 패널',
+      items: [
+        { label: 'Free', description: '프리 액션 (F)' },
+        { label: 'T/R', description: '보너스·연구 오버레이' },
+        { label: 'Layers', description: '미니보드 일괄' },
+        { label: '핀', description: '연구·보너스 고정' },
+        { label: 'Special', description: '종족 스페셜' },
+        { label: '▶', description: '모바일 패널', isKey: true },
+      ],
+    },
+  ],
+  [
+    {
+      title: '오른쪽 상태창',
+      items: [
+        { label: '클릭', description: '연방·기술·스페셜' },
+        { label: 'hover', description: '맵 강조' },
+        { label: '드래그', description: '너비 조절' },
+        { label: 'AI', description: '봇 피드백 (L 로그)' },
+      ],
+    },
+    {
+      title: '맵·기타',
+      items: [
+        { label: '드래그', description: '맵 팬' },
+        { label: '클릭', description: '행동→Confirm' },
+        { label: '방장', description: '플레이어 전환' },
+        { label: '관전', description: '조작 불가 배지' },
+        { label: '종료', description: '점수 breakdown' },
+      ],
+    },
+  ],
+];
+
+function LabelCell({ label, isKey }: { label: string; isKey?: boolean }) {
+  if (isKey || label.length <= 6) {
+    return (
+      <kbd className="inline-block rounded border border-white/15 bg-zinc-800 px-1 py-px font-mono text-[9px] font-bold text-zinc-100 whitespace-nowrap leading-none">
+        {label}
+      </kbd>
+    );
+  }
+  return <span className="font-semibold text-zinc-200 text-[10px] leading-tight whitespace-nowrap">{label}</span>;
+}
+
+function HelpSectionBlock({ section }: { section: HelpSection }) {
+  const rows: HelpItem[][] = [];
+  for (let i = 0; i < section.items.length; i += 2) {
+    rows.push(section.items.slice(i, i + 2));
+  }
+
+  return (
+    <section className="overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">
+        {section.title}
+      </h3>
+      <table className="w-full border-collapse text-[10px]">
+        <tbody>
+          {rows.map((pair, rowIdx) => (
+            <tr key={rowIdx} className="border-b border-white/5 last:border-0 hover:bg-zinc-900/35">
+              {pair.map((item) => (
+                <Fragment key={item.label}>
+                  <td className="w-[2.75rem] max-w-[2.75rem] px-1.5 py-px align-top">
+                    <LabelCell label={item.label} isKey={item.isKey} />
+                  </td>
+                  <td className="min-w-0 px-1 py-px pr-2 align-top leading-snug text-zinc-400">
+                    {item.description}
+                  </td>
+                </Fragment>
+              ))}
+              {pair.length === 1 && (
+                <>
+                  <td className="w-[2.75rem] px-1.5 py-px" />
+                  <td className="px-1 py-px" />
+                </>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+interface GameUiHelpDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function GameUiHelpDialog({ open, onOpenChange }: GameUiHelpDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100">
+        <DialogHeader className="shrink-0 space-y-0 border-b border-white/10 px-3 py-2 pr-10">
+          <DialogTitle className="text-sm font-bold text-white">UI · 단축키 안내</DialogTitle>
+          <DialogDescription className="text-[10px] leading-none text-zinc-500">
+            웹 클라이언트 UI (게임 규칙 제외)
+          </DialogDescription>
+        </DialogHeader>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-2"
+          style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
+        >
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {HELP_COLUMNS.map((column, colIdx) => (
+              <div key={colIdx} className="flex min-w-0 flex-col gap-2">
+                {column.map((section) => (
+                  <HelpSectionBlock key={section.title} section={section} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -344,6 +344,9 @@ export function GameLog({
   );
 
   if (hideHeader) {
+    if (maxHeight === 'none') {
+      return <div className={`w-full ${className}`}>{content}</div>;
+    }
     return (
       <ScrollArea className={`flex-1 ${className}`} style={{ height: maxHeight }}>
         {content}

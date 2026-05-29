@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -75,40 +75,23 @@ const MINI_CONTENT_BASE_WIDTH = 340;
 const MINI_CONTENT_SIDE_GUTTER = 6;
 const getMiniContentScale = (width: number) => Math.max(0.1, (width - MINI_CONTENT_SIDE_GUTTER) / MINI_CONTENT_BASE_WIDTH);
 
-/** 미니 패널: transform scale 시 스크롤 높이가 실제 보이는 높이와 맞도록 래핑 */
+/** 미니 패널: 폭에 맞춰 내용을 축소 렌더링 */
 function MiniScaledContent({ panelWidth, children, className }: { panelWidth: number; children: ReactNode; className?: string }) {
   const scale = getMiniContentScale(panelWidth);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [scaledHeight, setScaledHeight] = useState(0);
-
-  useEffect(() => {
-    const el = innerRef.current;
-    if (!el) return;
-    const update = () => setScaledHeight(el.scrollHeight * scale);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [scale, children]);
 
   return (
-    <div
-      className={className}
-      style={{
-        width: MINI_CONTENT_BASE_WIDTH * scale,
-        height: scaledHeight > 0 ? scaledHeight : undefined,
-        position: 'relative',
-      }}
-    >
+    <div className={className} style={{ width: MINI_CONTENT_BASE_WIDTH * scale }}>
+      {/* 
+        NOTE:
+        - transform+absolute 기반 스케일은 실제 스크롤 높이를 과소계산하는 케이스가 있어
+          (특히 overflow-visible + 복잡한 레이아웃) 작은 화면에서 아래가 안 보일 수 있음.
+        - zoom은 레이아웃 흐름을 유지하면서 축소돼 스크롤 컨테이너가 자연스럽게 높이를 계산함.
+      */}
       <div
-        ref={innerRef}
         style={{
           width: MINI_CONTENT_BASE_WIDTH,
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          position: 'absolute',
-          top: 0,
-          left: 0,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          zoom: scale as any,
         }}
       >
         {children}
@@ -150,6 +133,12 @@ export default function Game() {
   const [moweyipPlaceRingMode, setMoweyipPlaceRingMode] = useState(false);
   /** 보너스 타일 선택 단계에서 패널 접기/펼치기 (맵 보면서 선택 가능) */
   const [isBonusSelectionPanelExpanded, setIsBonusSelectionPanelExpanded] = useState(true);
+  /** L 키: 게임 로그 오버레이 (평소에는 UI 없음) */
+  const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
+  /** 플레이어 상세(클릭 시) 팝오버 배율 */
+  const [playerDetailScale, setPlayerDetailScale] = useState<1 | 2>(() => {
+    return localStorage.getItem('player-detail-scale') === '2' ? 2 : 1;
+  });
   /** 오른쪽 플레이어 요약: 클릭 시 펼쳐서 연방·기술타일·인공물·Special 사용여부 등 표시 */
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   /** 맵 줌/팬: 페이즈 전환 시에도 유지 (localStorage 연동) */
@@ -626,9 +615,13 @@ export default function Game() {
         setIsBonusTilesOpen(prev => !prev);
         setIsResearchOpen(false);
       }
+      if (e.key.toLowerCase() === 'l') {
+        setIsLogPanelOpen((prev) => !prev);
+      }
       if (e.key === 'Escape') {
         setIsResearchOpen(false);
         setIsBonusTilesOpen(false);
+        setIsLogPanelOpen(false);
         setShowGameEndScore(false);
       }
     };
@@ -2207,7 +2200,16 @@ export default function Game() {
               toast({ title: 'Rebellion 액션', description: '2: 1O+3P → M→TS', variant: 'default' });
             }}
             isSidebarOpen={isSidebarOpen}
+            sidebarWidth={isSidebarOpen ? sidebarWidth : 0}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            playerDetailScale={playerDetailScale}
+            onTogglePlayerDetailScale={() => {
+              setPlayerDetailScale((prev) => {
+                const next = prev === 2 ? 1 : 2;
+                localStorage.setItem('player-detail-scale', String(next));
+                return next;
+              });
+            }}
           />
         </div>
 
@@ -2219,7 +2221,8 @@ export default function Game() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`absolute bottom-0 left-0 border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120] ${isSidebarOpen ? 'right-[340px] md:right-0' : 'right-0'}`}
+              className={`absolute bottom-0 left-0 right-0 border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120] ${isSidebarOpen ? 'max-md:!right-[var(--sidebar-w)]' : ''}`}
+              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${sidebarWidth}px` } as CSSProperties) : undefined}
             >
               <button
                 type="button"
@@ -3387,7 +3390,7 @@ export default function Game() {
       <div
         className={`
         ${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'}
-        right-0 top-0 bottom-0 z-50 lg:z-auto
+        right-0 top-0 bottom-0 z-[80]
         transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         max-w-[85vw] md:max-w-none
@@ -3788,7 +3791,12 @@ export default function Game() {
                         </div>
                       </PopoverTrigger>
                       {expandedPlayerId === id && (
-                        <PopoverContent side="left" align="start" className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px] space-y-2">
+                        <PopoverContent
+                          side="left"
+                          align="start"
+                          className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px] space-y-2"
+                          style={{ zoom: playerDetailScale }}
+                        >
                           {!hasPlayerDetailContent && (
                             <p className="text-[9px] text-zinc-400 text-center leading-relaxed px-1">
                               이 플레이어의 <span className="text-zinc-300">연방 보상 · 기술 타일 · 인공물 · 보너스/스페셜 액션</span> 상태를 보는 창입니다. 지금은 표시할 항목이 없습니다.
@@ -4160,51 +4168,6 @@ export default function Game() {
               </div>
             </div>
 
-              {/* === 게임 로그 (단일 스크롤 내부의 sibling) === */}
-              <div
-                className="mt-1 flex-1 flex flex-col hidden md:flex"
-                style={{ minHeight: `${400 * logTextScale}px` }}
-              >
-              <h3 className="font-semibold mb-1 flex items-center gap-2 text-xs md:text-sm shrink-0 text-zinc-400">
-                <Clock className="w-3 h-3 md:w-4 md:h-4" />
-                <span className="shrink-0">Game Log</span>
-                <div className="ml-auto flex items-center gap-1">
-                  {LOG_TEXT_SCALES.map((scale) => (
-                    <Button
-                      key={scale}
-                      type="button"
-                      variant={logTextScale === scale ? 'default' : 'outline'}
-                      size="sm"
-                      className={`h-5 px-1.5 text-[9px] font-black leading-none ${logTextScale === scale ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
-                      onClick={() => {
-                        setLogTextScale(scale);
-                        localStorage.setItem('game-log-text-scale', String(scale));
-                      }}
-                    >
-                      *{scale * 100}
-                    </Button>
-                  ))}
-                </div>
-              </h3>
-              <div className="flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar">
-                {(!game.gameLog || game.gameLog.length === 0) ? (
-                  <div className="text-center text-muted-foreground text-xs py-8">
-                    No actions yet
-                  </div>
-                ) : (
-                  <GameLog
-                    game={game}
-                    hideHeader
-                    className="w-full"
-                    maxHeight="100%"
-                    textScale={logTextScale}
-                    onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                    onEntryMouseLeave={() => setHighlightedTileId(null)}
-                    onAiFeedbackClick={openAiFeedbackForAction}
-                  />
-                )}
-              </div>
-            </div>
             </div>
 
             {/* Free Actions Modal */}
@@ -4237,6 +4200,90 @@ export default function Game() {
         />
       )}
 
+      {/* L 키: 게임 로그 — 평소 UI 없음, 하단 시트로 절반 정도 올라옴 */}
+      <AnimatePresence>
+        {isLogPanelOpen && game && (
+          <>
+            <motion.button
+              type="button"
+              aria-label="로그 닫기"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[117] bg-black/25 backdrop-blur-[1px]"
+              onClick={() => setIsLogPanelOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`fixed bottom-0 left-0 right-0 z-[118] flex flex-col h-[min(50vh,540px)] max-h-[55vh] border-t border-white/10 bg-zinc-950/95 backdrop-blur shadow-[0_-8px_32px_rgba(0,0,0,0.5)] ${isSidebarOpen ? 'max-md:!right-[var(--sidebar-w)]' : ''}`}
+              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${sidebarWidth}px` } as CSSProperties) : undefined}
+            >
+              <div className="flex items-center justify-between gap-4 shrink-0 border-b border-white/10 px-4 sm:px-6 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Clock className="w-5 h-5 text-blue-400 shrink-0" />
+                  <span className="font-black uppercase tracking-[0.2em] text-white text-sm truncate">
+                    Game Log
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1">
+                    {LOG_TEXT_SCALES.map((scale) => (
+                      <Button
+                        key={scale}
+                        type="button"
+                        variant={logTextScale === scale ? 'default' : 'outline'}
+                        size="sm"
+                        className={`h-7 px-2 text-[10px] font-black leading-none ${logTextScale === scale ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                        onClick={() => {
+                          setLogTextScale(scale);
+                          localStorage.setItem('game-log-text-scale', String(scale));
+                        }}
+                      >
+                        *{scale * 100}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/10 shrink-0"
+                    onClick={() => setIsLogPanelOpen(false)}
+                    title="닫기 (L / Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <div
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-4 sm:px-6 py-3 bg-black/20"
+                onWheel={(e) => e.stopPropagation()}
+              >
+                {(!game.gameLog || game.gameLog.length === 0) ? (
+                  <div className="text-center text-muted-foreground text-sm py-12">
+                    No actions yet
+                  </div>
+                ) : (
+                  <GameLog
+                    game={game}
+                    hideHeader
+                    className="w-full"
+                    maxHeight="none"
+                    textScale={logTextScale}
+                    onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
+                    onEntryMouseLeave={() => setHighlightedTileId(null)}
+                    onAiFeedbackClick={openAiFeedbackForAction}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
           <motion.div
@@ -4244,7 +4291,10 @@ export default function Game() {
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: -50, x: '-50%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-20 left-1/2 z-[130] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+            className="fixed top-20 z-[70] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+            style={{
+              left: isSidebarOpen ? `calc((100% - ${sidebarWidth}px) / 2)` : '50%',
+            }}
           >
             {/* Title & Costs (Left Side) */}
             <div className="flex items-center gap-3 border-r border-white/10 pr-4">
@@ -4386,7 +4436,7 @@ export default function Game() {
               </Button>
             </div>
             <div
-              className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-2 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+              className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-10 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
               style={{ WebkitOverflowScrolling: 'touch' }}
               onWheel={(e) => e.stopPropagation()}
             >
@@ -4491,7 +4541,7 @@ export default function Game() {
               </Button>
             </div>
             <div
-              className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-2 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+              className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-10 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
               style={{ WebkitOverflowScrolling: 'touch' }}
               onWheel={(e) => e.stopPropagation()}
             >

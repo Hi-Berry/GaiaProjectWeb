@@ -68,6 +68,73 @@ const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: 
     ],
 };
 
+const MINI_SHIP_RING_INACTIVE = 'rgba(82, 82, 91, 0.45)'; // zinc-600
+
+/** 시계 구간 — 종족 선택 시 고른 턴 순서 번호(1~4)와 1:1 */
+const SHIP_QUADRANT_CLOCK = ['9~12시', '12~3시', '3~6시', '6~9시'] as const;
+
+/**
+ * 우주선 테두리 구역: 플레이어 고정 좌석(selectedTurnOrder 1~4).
+ * 라운드마다 turnOrder가 바뀌어도, A가 1번 자리면 항상 9~12시 구역.
+ */
+function getShipQuadrantsByPlayerSeat(game: GameState, occupants: string[]) {
+    const quadrantFactionColors: Array<string | null> = [null, null, null, null];
+    const quadrantTitles: Array<string | undefined> = [undefined, undefined, undefined, undefined];
+
+    for (const pid of occupants) {
+        const p = game.players[pid];
+        const seat = p?.selectedTurnOrder;
+        if (seat == null || seat < 1 || seat > 4) continue;
+        const slot = seat - 1;
+        const faction = p?.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
+        quadrantFactionColors[slot] = faction?.color ?? null;
+        const name = p?.name;
+        quadrantTitles[slot] = name
+            ? `${name} · ${SHIP_QUADRANT_CLOCK[slot]} (자리 ${seat})`
+            : undefined;
+    }
+
+    return { quadrantFactionColors, quadrantTitles };
+}
+
+/** 미니 우주선 카드: 시계 방향 4등분(12→3→6→9→12) 테두리 링 */
+function MiniShipQuadrantFrame({
+    /** selectedTurnOrder 1~4 → [9~12, 12~3, 3~6, 6~9], 탑승 중인 플레이어만 색 */
+    quadrantFactionColors,
+    quadrantTitles,
+    children,
+    className = '',
+}: {
+    quadrantFactionColors: Array<string | null | undefined>;
+    quadrantTitles?: Array<string | undefined>;
+    children: React.ReactNode;
+    className?: string;
+}) {
+    const ringColor = (idx: number) => quadrantFactionColors[idx] ?? MINI_SHIP_RING_INACTIVE;
+    // CSS conic-gradient: 0deg = 12시, 시계 방향
+    const c12to3 = ringColor(1);
+    const c3to6 = ringColor(2);
+    const c6to9 = ringColor(3);
+    const c9to12 = ringColor(0);
+    const hasAnyOccupant = quadrantFactionColors.some(Boolean);
+    const ringThickness = hasAnyOccupant ? 4 : 2;
+
+    return (
+        <div
+            className={`relative rounded-lg ${className}`}
+            style={{
+                padding: ringThickness,
+                background: `conic-gradient(from 0deg, ${c12to3} 0deg 90deg, ${c3to6} 90deg 180deg, ${c6to9} 180deg 270deg, ${c9to12} 270deg 360deg)`,
+            }}
+            title={quadrantTitles?.filter(Boolean).join(' · ')}
+        >
+            <div className="relative flex flex-col gap-1 rounded-[6px] bg-zinc-950/95 min-h-0 h-full">
+                {children}
+            </div>
+        </div>
+    );
+}
+
 /** 메인 보드 파워 액션 — 어두운 배경에서 잘 보이도록 앰버(밝은 텍스트) */
 const POWER_ACTION_BTN = {
     available:
@@ -606,8 +673,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const techTile = techId ? SHIP_TECH_TILES.find((t) => t.id === techId) : null;
                                         const actionLabels = SHIP_ACTION_LABELS[tile.type] || ['—', '—', '—'];
 
+                                        const { quadrantFactionColors: quadrantColors, quadrantTitles } =
+                                            getShipQuadrantsByPlayerSeat(game, ship.occupants ?? []);
+
                                         return (
-                                            <div key={tile.id} className={`p-1.5 rounded bg-zinc-900/60 border relative flex flex-col gap-1 ${isInShip ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]' : 'border-white/5'}`}>
+                                            <MiniShipQuadrantFrame
+                                                key={tile.id}
+                                                quadrantFactionColors={quadrantColors}
+                                                quadrantTitles={quadrantTitles}
+                                                className={isInShip ? 'shadow-[0_0_12px_rgba(52,211,153,0.2)]' : ''}
+                                            >
+                                                <div className="p-1.5 flex flex-col gap-1 min-h-0">
                                                 <div className="flex justify-between items-center border-b border-white/5 pb-0.5 min-w-0">
                                                     <div className="flex items-center gap-1 min-w-0 overflow-hidden">
                                                         <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate">{SHIP_NAMES[tile.type]}</span>
@@ -627,7 +703,12 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             })}
                                                         </div>
                                                     </div>
-                                                    {!isInShip && <Lock className="w-1.5 h-1.5 text-amber-500/60 shrink-0 ml-1" />}
+                                                    {!isInShip && (
+                                                        <span className="shrink-0 ml-1 inline-flex items-center gap-0.5 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1 py-0.5">
+                                                            <Lock className="w-2.5 h-2.5 text-amber-300" />
+                                                            <span className="text-[6px] font-black uppercase tracking-wide text-amber-200">LOCK</span>
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div className="flex items-center justify-center gap-1 py-1 flex-grow">
@@ -711,7 +792,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     : canUse && theme
                                                                         ? `${theme.border} ${theme.color} ${theme.text} ${theme.hover} cursor-pointer`
                                                                         : theme
-                                                                            ? `border-white/5 ${theme.color} text-zinc-500 cursor-default opacity-40`
+                                                                            ? `border-white/10 ${theme.color} text-zinc-200 cursor-default`
                                                                             : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
                                                                 title={label + (isUsed ? ' (이미 사용됨)' : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                             >
@@ -721,7 +802,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     })}
                                                 </div>
 
-                                            </div>
+                                                </div>
+                                            </MiniShipQuadrantFrame>
                                         );
                                     })}
                                 </div>
