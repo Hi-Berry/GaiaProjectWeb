@@ -452,12 +452,12 @@ export class Evaluator {
                 const bigCount = myStructures.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
                 const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
                 const researchLevels = Object.values(player.research || {}).reduce((s, l) => s + (l as number), 0);
-                if (trigger === 'build_mine') roundBonus += mineCount * mission.vp * 1.1;
-                else if (trigger === 'build_trading_station') roundBonus += tsCount * mission.vp * 1.1;
-                else if (trigger === 'build_research_lab') roundBonus += labCount * mission.vp * 1.1;
-                else if (trigger === 'build_big_building') roundBonus += bigCount * mission.vp * 1.1;
-                else if (trigger === 'build_gaia') roundBonus += gaiaCount * mission.vp * 1.1;
-                else if (trigger === 'research_track') roundBonus += researchLevels * mission.vp;
+                if (trigger === 'build_mine') roundBonus += mineCount * mission.vp * 1.4;
+                else if (trigger === 'build_trading_station') roundBonus += tsCount * mission.vp * 1.4;
+                else if (trigger === 'build_research_lab') roundBonus += labCount * mission.vp * 1.4;
+                else if (trigger === 'build_big_building') roundBonus += bigCount * mission.vp * 1.4;
+                else if (trigger === 'build_gaia') roundBonus += gaiaCount * mission.vp * 1.4;
+                else if (trigger === 'research_track') roundBonus += researchLevels * mission.vp * 1.3;
                 else if (trigger === 'federation') roundBonus += feds.length * mission.vp * 1.5;
             }
         }
@@ -579,10 +579,27 @@ export class Evaluator {
                 else if (techId === 'adv-act-1q-5c') advTechScore += remainingPasses * (1 * qicWeight + 5 * w.creditsValue * resMult) * 1.3;
             }
         }
-        advTechScore = Math.min(advTechScore, 600);
+        // [개선] 고급 기술타일은 다(多)연방/다구조물형 반복VP라 잠재가치가 큼 — 상한 600→1000으로 상향.
+        advTechScore = Math.min(advTechScore, 1000);
         if (advTechScore > 0) {
             score += advTechScore;
             logDebug(`12b) Advanced Tech Tiles: +${advTechScore.toFixed(1)}`);
+        }
+
+        // [개선] 소득형 인공물(Twilight) 미래가치 — 남은 라운드 동안 매 수입마다 들어오는 자원을 미리 환산.
+        // 기존엔 evaluator가 인공물 보유를 전혀 평가하지 않아 봇이 인공물 상태가치를 과소평가했음.
+        if (player.artifacts && incomeRounds > 0) {
+            let artIncomeScore = 0;
+            if (player.artifacts.includes('art-income-2p3')) {
+                artIncomeScore += incomeRounds * 2 * w.power3Value * 2.5; // 매 수입 +2 파워(그릇3)
+            }
+            if (player.artifacts.includes('art-income-1k1o')) {
+                artIncomeScore += incomeRounds * (w.knowledgeValue + w.oreValue) * resMult * 2.0; // 매 수입 +1K +1O
+            }
+            if (artIncomeScore > 0) {
+                score += artIncomeScore;
+                logDebug(`12c) Artifact Income (Rounds=${incomeRounds}): +${artIncomeScore.toFixed(1)}`);
+            }
         }
 
         if (projectedTechIncomeScore > 0) {

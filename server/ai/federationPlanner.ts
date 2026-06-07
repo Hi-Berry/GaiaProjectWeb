@@ -123,10 +123,20 @@ export class FederationPlanner {
     private static getRewardScore(game: ServerGameState, playerId: string, rewardId: string): number {
         let score = 0;
 
-        // 우선순위 1: 우주선 연방 (무한 거리 광산 제외)
-        if (rewardId.startsWith('ship-fed-') && rewardId !== 'ship-fed-mine-free') {
-            return 300;
+        // 우선순위 1: 우주선 연방 — [개선] 기존엔 모두 300 고정이라 12VP/기술타일과 약한 보상을 동일 취급했음.
+        // 사용자 지정 핵심 레버이므로 전반적으로 매력 유지하되, 가치 차등화해 좋은 우주선 연방을 선택하게 함.
+        switch (rewardId) {
+            case 'ship-fed-tech': return 360;      // 기술 타일 — 고급 기술타일 잠재가치 大 (최우선)
+            case 'ship-fed-12vp': return 320;      // 12 VP 플랫
+            case 'ship-fed-8vp8c': return 290;     // 8 VP + 8C
+            case 'ship-fed-7vp3p2t': return 285;   // 7 VP + 2토큰 (다음 연방용)
+            case 'ship-fed-4vp1q2o': return 250;   // 4 VP + 1Q + 2O
+            case 'ship-fed-4vp4k': return 245;     // 4 VP + 4K
+            case 'ship-fed-3tf-mine': return 240;  // 무료 광산(3테라포밍) — 확장
+            case 'ship-fed-mine-free': return 90;  // Nav-ignore 무료광산 — 약함
+            default: break;
         }
+        if (rewardId.startsWith('ship-fed-')) return 250; // 미분류 우주선 연방 기본값
 
         const greenNeeded = this.needsGreenFederation(game, playerId);
 

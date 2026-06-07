@@ -3413,7 +3413,8 @@ export class BotLogic {
         let futureBonus = 0;
         for (let i = currentRoundIndex + 1; i < game.roundScoringTiles.length; i++) {
             const futureTile = game.roundScoringTiles[i];
-            if (futureTile.triggerType === triggerType) futureBonus += futureTile.vp * 1;
+            // [개선] 미래 라운드 정렬 신호 강화(1→2): 다가올 라운드 점수타일에 맞춰 미리 엔진/구조를 갖추도록.
+            if (futureTile.triggerType === triggerType) futureBonus += futureTile.vp * 2;
         }
         return futureBonus;
     }
