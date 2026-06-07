@@ -104,11 +104,13 @@ export class FederationPlanner {
         const player = game.players[playerId];
         if (!player) return false;
 
-        // 1. 현재 기술 트랙 중 4단계인 것이 있는지 확인
+        // 1. 현재 기술 트랙 중 3단계 이상인 것이 있는지 확인.
+        //    [개선] 트랙이 4에 도달한 "후"에 초록을 원하면 이미 늦어 고급타일 기회를 놓침.
+        //    레벨3(곧 4)부터 미리 초록 토큰을 확보해, 4 도달 시 즉시 5로 밀고 고급타일을 가져오게 한다.
         const tracks = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
-        const hasLevel4 = tracks.some(t => (player.research?.[t as keyof typeof player.research] ?? 0) === 4);
+        const hasLevel3Plus = tracks.some(t => (player.research?.[t as keyof typeof player.research] ?? 0) >= 3);
 
-        if (hasLevel4) {
+        if (hasLevel3Plus) {
             // 현재 초록 연방 토큰이 없는지 확인
             const fedEntries = player.federations || [];
             const greenCount = fedEntries.filter(f => typeof f !== 'string' && f.isGreen).length;
