@@ -1,5 +1,5 @@
 import { ServerGameState } from '../gameState';
-import { getFederationEntries } from '@shared/gameConfig';
+import { getFederationEntries, getFinalMissionVp, getFinalMissionValue } from '@shared/gameConfig';
 import fs from 'fs';
 import path from 'path';
 
@@ -472,26 +472,18 @@ export class Evaluator {
         const finalIds = game.finalMissionIds;
         const finalScaling = round <= 2 ? 0.7 : round === 3 ? 1.0 : round <= 5 ? 1.4 : 1.8;
         if (finalIds?.length) {
-            const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
-            const structCount = myStructures.length;
-            const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.structure && (t.type === 'gaia' || (t as any).gaiaformed)).length;
-            const sectorSet = new Set(myStructures.map(t => (t as any).sector).filter((s): s is number => typeof s === 'number'));
+            // [개선] 수작업 절대값 공식 대신, 실제 채점과 동일한 순위기반 함수(getFinalMissionVp)로
+            // "이 보드에서 게임이 끝났다면 받을 최종미션 VP(18/12/6)"를 그대로 투영한다.
+            // → 봇이 모든 9종 미션을 정확히 인식하고, 상대 대비 내 순위를 따라잡거나(또는 이미 1등이면 과투자 안 함) 판단.
+            // 추가로 raw value 그래디언트(ownVal)를 약하게 더해, 같은 순위 안에서도 수치를 계속 끌어올려
+            // 다음 등수로 추월하도록 유도한다.
             for (const fid of finalIds) {
-                if (fid === 'fm_total_structures') finalBonus += structCount * 5 * finalScaling;
-                else if (fid === 'fm_federation_buildings' || fid === 'fm_gaia_planets') finalBonus += (feds.length * 6 + gaiaCount * 5) * finalScaling;
-                else if (fid === 'fm_sectors') finalBonus += sectorSet.size * 6 * finalScaling;
-                else if (fid === 'fm_satellites') {
-                    let sat = 0;
-                    for (const v of Object.values(game.satellites || {})) {
-                        if (Array.isArray(v)) sat += v.filter((id: string) => id === playerId).length;
-                        else if (v === playerId) sat += 1;
-                    }
-                    finalBonus += sat * 7 * finalScaling;
-                }
-                else if (fid === 'fm_planet_types') {
-                    const types = new Set(myStructures.map(t => t.type).filter(Boolean));
-                    finalBonus += types.size * 6 * finalScaling;
-                } else finalBonus += structCount * 2.5 * finalScaling;
+                let projVp = 0;
+                try { projVp = getFinalMissionVp(game as any, playerId, fid); } catch { projVp = 0; }
+                let ownVal = 0;
+                try { ownVal = getFinalMissionValue(game as any, playerId, fid); } catch { ownVal = 0; }
+                // projVp(0~18)를 주신호로, ownVal은 연속적 진척 신호로 약하게 가산
+                finalBonus += (projVp * 3.0 + ownVal * 2.5) * finalScaling;
             }
         }
         if (finalBonus > 0) {

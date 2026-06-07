@@ -1822,11 +1822,11 @@ export class BotLogic {
             const terraformCost = remainingSteps * costPerStep;
             const totalOre = 1 + terraformCost;
 
-            // 정책: "오레로 테라포밍해서 광산"은 전면 금지.
-            // 테라포밍 광산은 pendingTerraformSteps/파워액션/우주선/보너스 등 "무료 단계"를 통해서만 하도록 강제.
-            // (사람 기준으로도 오레 TF는 엔진을 망가뜨리는 경우가 많고, AI가 1라에 3O 등으로 망하는 패턴을 근절하기 위함)
-            continue;
-
+            // 정책: 오레 테라포밍 확장 허용 (Gaia의 기본 확장 수단). 단 비효율 케이스는 아래 페널티로 강하게 억제.
+            //  - TF레벨0~1(3광물/스텝): 거의 금지에 가까운 큰 페널티. 단 1스텝이고 오레 여유(>=6) 또는 다카니안이면 허용.
+            //  - TF레벨2+(1~2광물/스텝): 약한 페널티로 적극 확장 허용.
+            // (예전엔 무조건 continue로 전면 금지했으나, 그 결과 봇이 사거리 내 행성 소진 후 확장이 정체되어
+            //  자원을 쥔 채 패스하는 치명적 약점이 있었음 → 재활성화)
             if (ore >= totalOre && credits >= 2) {
                 // 확장 가치를 매우 높게 쳐주므로, 광석을 소모해서라도 짓도록 유도
                 const tfScore = tfLevel >= 3 ? 150 : (tfLevel >= 2 ? 100 : (tfLevel >= 1 ? 80 : 30));
@@ -2413,6 +2413,12 @@ export class BotLogic {
 
         // 3. 라운드 미션 연계
         score += this.calculateRoundScoringBonus(game, playerId, 'research_track');
+
+        // 3b. [개선] "트랙 완주" 유인 — 기본항 (6-level)*weight 가 낮은 레벨을 선호해
+        //   봇이 여러 트랙을 얕게 펼치고(레벨2~3 다수) 레벨5에 못 가는 문제를 교정.
+        //   이미 올린 트랙을 끝까지 밀어 레벨4(고급타일 자격·종료보너스8) → 레벨5(종료보너스12·강력 능력)로 가게 한다.
+        if (level === 2) score += 25;   // 2→3 진척
+        else if (level === 3) score += 55; // 3→4: 고급 기술 타일 자격 + 5단계 발판이라 강하게 완주 유도
 
         // 4. 다음 레벨 보상 가치
         if (level === 4) {
