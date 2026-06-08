@@ -1,6 +1,6 @@
 import { ServerGameState } from '../gameState';
 import { getFederationEntries, getFinalMissionVp, getFinalMissionValue } from '@shared/gameConfig';
-import { getPlayerVariant } from './variant';
+import { getPlayerVariant, getPlayerFlag } from './variant';
 import fs from 'fs';
 import path from 'path';
 
@@ -313,7 +313,16 @@ export class Evaluator {
 
         // 확장(광산 10개 이상)에 대한 추가 보너스
         let structExpansionScore = 0;
-        if (myStructures.length >= 10) {
+        if (getPlayerFlag(playerId, 'expandDrive', false)) {
+            // [실험] 확장 부족(봇 대부분 8-11개)이 연방2/연구5 미달성의 뿌리 → 5번째 구조물부터 강하게 보상해
+            // 확장을 적극 유도. 기존은 10개 이상부터라 대부분 봇이 보너스를 못 받았음.
+            const threshold = 4;
+            if (myStructures.length > threshold) {
+                const perStructure = round <= 4 ? 28 : 18;
+                structExpansionScore = (myStructures.length - threshold) * perStructure;
+                score += structExpansionScore;
+            }
+        } else if (myStructures.length >= 10) {
             // 과도한 확장 편향을 줄이기 위해 보너스를 라운드 기반으로 완화
             const perStructure = round <= 3 ? 8 : 14;
             structExpansionScore = (myStructures.length - 9) * perStructure;
