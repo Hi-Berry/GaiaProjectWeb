@@ -3005,7 +3005,10 @@ export class BotLogic {
             const neededQic = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
             if (neededQic > qic) continue;
 
-            let score = 200; // 우주선 탑승 우선순위를 폭발적으로 상향
+            // 기존 200(의회급)은 명시적 과보정이라 봇이 우주선에 과탑승 → 확장(광산) 메인액션 잠식
+            // → 연방/연구 미달성의 한 원인이었다. head2head에서 낮출수록 +방향(우주선 입장의 66%가 미사용).
+            // 과보정을 정상화(200→80). shipLowPriority 플래그로 더 공격적(40) 실험 가능.
+            let score = getPlayerFlag(playerId, 'shipLowPriority', false) ? 40 : 80;
 
             // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
             const occupants = shipState?.occupants?.length || 0;
