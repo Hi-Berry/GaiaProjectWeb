@@ -67,7 +67,8 @@ import {
 	RESEARCH_TRACKS,
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
-import { executeBotTurnIfNeeded } from './botHandler';
+import { executeBotTurnIfNeeded, setBotDelayMs } from './botHandler';
+import { setPlayerVariant, clearAllPlayerVariants, type PlayerVariant } from './ai/variant';
 import * as FactionBidding from './factionBidding';
 import { exportHumanGameDataset, recordHumanActionFromLog, type HumanActionJournalEntry } from './humanGameLogger';
 
@@ -833,6 +834,76 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 			log(`Bot turn execution error (${options.reason || 'finalizeTurnEnd'}): ${err}`, 'error');
 		});
 	}
+}
+
+/**
+ * 봇 루프 stall 우선 안전망(graceful): 막힌 봇만 이번 라운드 패스 처리하고 다음 플레이어로 진행시켜
+ * **게임은 계속**되게 한다. 실유저가 봇과 플레이 중 봇이 막혀도 게임이 멈추거나 강제 종료되지 않게 하는 것이 목적.
+ * 전원이 패스 상태가 되면(=더 진행 불가) 비로소 정상 종료한다.
+ */
+export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState, playerId: string, reason: string): void {
+	if (game.currentPhase === 'gameEnd') return;
+	const player = game.players[playerId];
+	log(`forceSkipStuckBotTurn: skipping ${player?.name ?? playerId} (${reason})`, 'error', game.id);
+	if (player) player.hasPassed = true; // 이 라운드 동안만 스킵 (다음 라운드에 hasPassed 리셋되어 복귀)
+
+	if (Object.values(game.players).every(p => p.hasPassed)) {
+		forceFinishStalledGame(io, game, `all passed after skip (${reason})`);
+		return;
+	}
+
+	if (game.turnStartState) delete game.turnStartState[playerId];
+	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
+	let guard = 0;
+	while (game.players[game.turnOrder[game.currentPlayerIndex]]?.hasPassed && guard++ < game.turnOrder.length) {
+		game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
+	}
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+		log(`Bot turn execution error (forceSkipStuckBotTurn): ${err}`, 'error');
+	});
+}
+
+/**
+ * 봇 루프 stall 최종 안전망: 어떤 이유로든 게임이 진행 불가일 때 모든 플레이어를 패스 처리하고
+ * 정상 종료(최종 미션/연구/잔여자원 점수 포함)시켜 측정/플레이가 영구 정지하지 않게 한다.
+ * 라운드6 전원패스 종료(executePassRound)와 동일한 점수 계산을 사용한다. 드물게만 호출되는 안전망.
+ */
+export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState, reason: string): void {
+	if (game.currentPhase === 'gameEnd') return;
+	log(`forceFinishStalledGame: ending game ${game.id} (${reason})`, 'error', game.id);
+	for (const p of Object.values(game.players)) p.hasPassed = true;
+
+	applyFinalMissionScoring(game);
+	for (const pid of game.turnOrder) {
+		const p = game.players[pid];
+		if (!p?.research) continue;
+		let researchBonus = 0;
+		for (const track of RESEARCH_TRACKS) {
+			const level = p.research[track.id] ?? 0;
+			if (level >= 5) researchBonus += RESEARCH_TRACK_END_BONUS[5] ?? 12;
+			else if (level >= 4) researchBonus += RESEARCH_TRACK_END_BONUS[4] ?? 8;
+			else if (level >= 3) researchBonus += RESEARCH_TRACK_END_BONUS[3] ?? 4;
+		}
+		if (researchBonus > 0) addScore(game, pid, researchBonus, 'researchTracks');
+	}
+	for (const pid of Object.keys(game.players)) {
+		const p = game.players[pid];
+		if (!p) continue;
+		const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+		const vp = Math.floor(sum / 3);
+		if (vp > 0) addScore(game, pid, vp, 'remainingResources');
+	}
+	for (const pid of Object.keys(game.players)) {
+		const bid = game.players[pid]?.factionBidVp ?? 0;
+		if (bid > 0) addScore(game, pid, -bid, 'other', { source: '종족 비딩' });
+	}
+	for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
+	game.currentPhase = 'gameEnd';
+	saveFinalGameState(game);
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
 }
 
 /** 특정 플레이어에 대해 파워 충전 처리 (타클론 브레인스톤 및 의회 보너스 포함) */
@@ -1830,6 +1901,26 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 		});
 
+		/** 하니스(self-play/head-to-head)에서 봇 턴 사이 지연(ms) 런타임 변경. null이면 기본값 복원 */
+		socket.on('admin_set_bot_delay_ms', ({ delayMs, token }, callback) => {
+			try {
+				const requiredToken = process.env.AI_TUNING_TOKEN;
+				const isProd = process.env.NODE_ENV === 'production';
+				if (isProd && !requiredToken) {
+					callback?.({ error: 'Not allowed in production without AI_TUNING_TOKEN' });
+					return;
+				}
+				if (requiredToken && token !== requiredToken) {
+					callback?.({ error: 'Invalid token' });
+					return;
+				}
+				setBotDelayMs(typeof delayMs === 'number' && delayMs >= 0 ? delayMs : null);
+				callback?.({ ok: true });
+			} catch (e) {
+				callback?.({ error: (e as Error).message });
+			}
+		});
+
 		socket.on('list_games', (callback) => {
 			const gameList = Array.from(games.values()).map(g => {
 				const playerEntries = Object.entries(g.players).map(([id, p]) => ({
@@ -2227,13 +2318,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
-		/** 테스트용 원클릭 자동 세팅 (봇 3개 + 랜덤 팩션 + 게임 시작). selfPlay: true 시 호스트도 봇으로 간주해 4인 전부 봇으로 진행 */
-		socket.on('auto_setup_test', ({ gameId, selfPlay }: { gameId: string; selfPlay?: boolean }) => {
+		/**
+		 * 테스트용 원클릭 자동 세팅 (봇 3개 + 랜덤 팩션 + 게임 시작). selfPlay: true 시 호스트도 봇으로 간주해 4인 전부 봇으로 진행.
+		 * headToHead: 같은 테이블 A/B 비교. bPositions(0-base 턴순서 위치)에 해당하는 좌석은 그룹 B(도전자),
+		 *   나머지는 그룹 A(챔피언) 변형을 갖는다. 좌석별로 evaluator 가중치/기능 플래그가 달라진다.
+		 */
+		socket.on('auto_setup_test', ({ gameId, selfPlay, headToHead }: {
+			gameId: string;
+			selfPlay?: boolean;
+			headToHead?: { bPositions: number[]; A: PlayerVariant; B: PlayerVariant };
+		}) => {
 			const game = games.get(gameId);
 			if (!game) return;
 			const callerId = socketToPlayerMap.get(socket.id);
 			if (callerId !== game.hostId) return;
 			if (game.currentPhase !== 'lobby') return;
+
+			// head-to-head: 이전 게임의 좌석별 변형을 비운다(워커는 게임을 순차 실행)
+			if (headToHead) clearAllPlayerVariants();
 
 			// 1. 봇 3개 추가 (최대 4인)
 			if (!game.botPlayerIds) game.botPlayerIds = [];
@@ -2324,6 +2426,28 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (tinkeroidsPlayer) {
 					const otherHomes = playerList.filter(p => p.faction && p.faction !== 'tinkeroids').map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet).filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 					game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+				}
+
+				// === head-to-head A/B: 좌석(턴순서)별로 챔피언(A)/도전자(B) 변형 주입 ===
+				if (headToHead) {
+					const bSet = new Set(headToHead.bPositions || []);
+					const assigned: string[] = [];
+					Object.keys(game.players).forEach(pid => {
+						const order = (game.players[pid] as any).selectedTurnOrder as number | undefined;
+						if (typeof order !== 'number') return;
+						const pos = order - 1; // 0-base 턴순서 위치
+						const isB = bSet.has(pos);
+						const variant = isB
+							? { ...headToHead.B, label: headToHead.B.label ?? 'challenger' }
+							: { ...headToHead.A, label: headToHead.A.label ?? 'champion' };
+						setPlayerVariant(pid, variant);
+						// 집계용으로 게임 상태에도 그룹/라벨을 박아 game_updated로 러너에 전달
+						(game.players[pid] as any).h2hGroup = isB ? 'B' : 'A';
+						(game.players[pid] as any).h2hLabel = variant.label;
+						(game.players[pid] as any).h2hPos = pos;
+						assigned.push(`${(game.players[pid] as any).faction || pid}=pos${pos}/${isB ? 'B' : 'A'}`);
+					});
+					log(`Head-to-head variants assigned: ${assigned.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 
 				log(`Auto setup test completed for game ${gameId}. Current Phase: ${game.currentPhase}`, 'game', undefined, { simulation: (game as any).simulation });

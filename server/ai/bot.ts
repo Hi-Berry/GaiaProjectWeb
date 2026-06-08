@@ -40,6 +40,7 @@ import {
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
+import { getPlayerFlag } from './variant';
 import {
     PlayerState,
     HexTile,
@@ -990,6 +991,16 @@ export class BotLogic {
                 seen.add(key);
                 uniqueCandidates.push(c);
             }
+        }
+
+        // [flag: candReorder] 우주선/인공물/고급기술 후보를 앞으로 끌어올려 MCTS 롤아웃(candidates.slice(0,TOP_N))
+        // starvation 완화. 고가치 연방(form_federation)은 맨 앞 유지, 나머지는 안정 정렬로 우선순위 버킷만 전진.
+        if (getPlayerFlag(playerId, 'candReorder', false)) {
+            const PRIORITY = new Set(['select_advanced_tech_tile', 'use_ship_action', 'take_twilight_artifact']);
+            const feds = uniqueCandidates.filter(c => c.type === 'form_federation');
+            const prio = uniqueCandidates.filter(c => c.type !== 'form_federation' && PRIORITY.has(c.type));
+            const rest = uniqueCandidates.filter(c => c.type !== 'form_federation' && !PRIORITY.has(c.type));
+            return [...feds, ...prio, ...rest];
         }
 
         return uniqueCandidates;
@@ -2953,6 +2964,19 @@ export class BotLogic {
 
         const entered = player.spaceshipsEntered || [];
         if (entered.length >= 3) return [];
+
+        // [flag: shipEntryGate] 데이터 분석 결과 우주선 입장의 66%가 액션 없이 -5VP만 날림(순손실).
+        // "타고서 안 쓰는" 패턴을 후보 생성 단계에서 차단한다.
+        if (getPlayerFlag(playerId, 'shipEntryGate', false)) {
+            // 1) 마지막 라운드(6)엔 입장 금지: 액션 쓸 턴이 없어 사실상 -5VP 순손실.
+            if (round >= 6) return [];
+            // 2) 이미 탑승했지만 액션을 하나도 안 쓴 우주선이 있으면 추가 탑승 금지(미사용 우주선 적재 방지).
+            const hasUnusedShip = entered.some(id => {
+                const st = game.spaceships?.[id];
+                return (st?.usedActionIndices?.length ?? 0) < 1;
+            });
+            if (hasUnusedShip) return [];
+        }
 
         const shipTiles = game.map.filter(t => ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].includes(t.type || ''));
         const candidates: { action: BotAction; score: number }[] = [];

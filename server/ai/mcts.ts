@@ -2,7 +2,12 @@ import { ServerGameState } from '../gameState';
 import { BotLogic } from './bot';
 import { StateCloner } from './stateCloner';
 import { Evaluator } from './evaluator';
+import { getPlayerFlag } from './variant';
 import { log } from '../index';
+
+// MCTS 디버그 로깅(후보 상세 리포트 등)은 매우 비싸다(턴당 수백 회 동기 console.log + 중복 전체평가).
+// 기본 OFF. 디버깅 시 AI_MCTS_DEBUG=1 로 켠다. self-play/튜닝/측정 성능에 직결.
+const MCTS_DEBUG = typeof process !== 'undefined' && process.env?.AI_MCTS_DEBUG === '1';
 
 export interface MCTSNode {
     state: ServerGameState;
@@ -62,7 +67,10 @@ export class MCTS {
         const startTime = Date.now();
         let iterations = 0;
 
-        while (Date.now() - startTime < this.MAX_TIME_MS) {
+        // 좌석별 think-time 배수(head-to-head로 "더 깊은 탐색=더 강함" 측정용). 기본 1.0.
+        const timeBudget = this.MAX_TIME_MS * getPlayerFlag(playerId, 'mctsTimeMul', 1);
+
+        while (Date.now() - startTime < timeBudget) {
             let node = this.selectNode(root);
 
             // Limit depth
@@ -82,22 +90,24 @@ export class MCTS {
             iterations++;
         }
 
-        console.log(`[MCTS] Executed ${iterations} iterations in ${Date.now() - startTime}ms`);
+        if (MCTS_DEBUG) console.log(`[MCTS] Executed ${iterations} iterations in ${Date.now() - startTime}ms`);
         if (root.children.length === 0) {
             // All expansions may have failed due to illegal transitions; fallback to safe candidate.
             return possibleActions[0] ?? null;
         }
         const bestNode = this.bestChild(root);
 
-        // --- PRINT DETAILED BREAKDOWN OF ALL CANDIDATES ---
-        console.log(`\n=== MCTS DETAILED SCORE REPORT ===`);
-        for (const child of root.children) {
-            const avgScore = child.score / child.visits;
-            const actionStr = `${child.action.type} ${JSON.stringify(child.action.params)}`;
-            console.log(`[Candidate] ${actionStr} | Visits: ${child.visits} | AvgScore: ${avgScore.toFixed(2)}`);
-            Evaluator.evaluateState(child.state, playerId, true);
+        // --- PRINT DETAILED BREAKDOWN OF ALL CANDIDATES (디버그 전용: 매우 비싸므로 기본 OFF) ---
+        if (MCTS_DEBUG) {
+            console.log(`\n=== MCTS DETAILED SCORE REPORT ===`);
+            for (const child of root.children) {
+                const avgScore = child.score / child.visits;
+                const actionStr = `${child.action.type} ${JSON.stringify(child.action.params)}`;
+                console.log(`[Candidate] ${actionStr} | Visits: ${child.visits} | AvgScore: ${avgScore.toFixed(2)}`);
+                Evaluator.evaluateState(child.state, playerId, true);
+            }
+            console.log(`==================================\n`);
         }
-        console.log(`==================================\n`);
 
         return bestNode.action;
     }
@@ -137,10 +147,10 @@ export class MCTS {
         let bestScore = -Infinity;
         let bestChild: MCTSNode = node.children[0];
 
-        log(`[MCTS] Candidates evaluation:`, 'game', node.state.id);
+        if (MCTS_DEBUG) log(`[MCTS] Candidates evaluation:`, 'game', node.state.id);
         for (const child of node.children) {
             const avgScore = child.score / child.visits;
-            log(`  - Action: ${child.action.type}${child.action.params?.tileId ? ' ' + child.action.params.tileId : ''}, Score: ${avgScore.toFixed(2)}, Visits: ${child.visits}`, 'game', node.state.id);
+            if (MCTS_DEBUG) log(`  - Action: ${child.action.type}${child.action.params?.tileId ? ' ' + child.action.params.tileId : ''}, Score: ${avgScore.toFixed(2)}, Visits: ${child.visits}`, 'game', node.state.id);
             if (avgScore > bestScore) {
                 bestScore = avgScore;
                 bestChild = child;
@@ -195,7 +205,8 @@ export class MCTS {
         // - evaluate top-N candidate actions by applying them once
         // - pick best (with a bit of noise) to avoid deterministic traps
         const ROLLOUT_STEPS = 6;
-        const TOP_N = 8;
+        // 좌석별 플래그로 롤아웃 평가 폭(TOP_N)을 조정 가능. 기본 8. 후보 starvation 완화 실험용(예: 12).
+        const TOP_N = getPlayerFlag(playerId, 'rolloutTopN', 8);
         for (let i = 0; i < ROLLOUT_STEPS; i++) {
             if (currentState.turnOrder[currentState.currentPlayerIndex] !== playerId || currentState.currentPhase !== 'main') {
                 break;

@@ -1,5 +1,6 @@
 import { ServerGameState } from '../gameState';
 import { getFederationEntries, getFinalMissionVp, getFinalMissionValue } from '@shared/gameConfig';
+import { getPlayerVariant } from './variant';
 import fs from 'fs';
 import path from 'path';
 
@@ -183,18 +184,52 @@ export function getActiveEvaluatorWeights(): EvaluatorWeightsProfile {
     return ACTIVE_PROFILE;
 }
 
+/** raw 가중치(평면 EvaluatorWeights 또는 Profile)를 정규화된 Profile로 변환 */
+function resolveProfile(raw: unknown): EvaluatorWeightsProfile {
+    if (isProfileShape(raw)) {
+        const p = raw as Partial<EvaluatorWeightsProfile>;
+        return normalizeProfile({
+            global: { ...DEFAULT_EVALUATOR_WEIGHTS, ...(p.global || {}) } as EvaluatorWeights,
+            byFaction: p.byFaction || {},
+        });
+    }
+    return normalizeProfile({
+        global: { ...DEFAULT_EVALUATOR_WEIGHTS, ...(raw as Partial<EvaluatorWeights>) } as EvaluatorWeights,
+        byFaction: {},
+    });
+}
+
+// evaluateState는 MCTS에서 수천 번 호출되므로, 좌석별 프로필 정규화 결과를 캐싱한다.
+// variant.weights 객체 참조가 게임 내내 동일하므로 참조 비교로 캐시 무효화한다.
+const resolvedPlayerProfileCache = new Map<string, { src: unknown; profile: EvaluatorWeightsProfile }>();
+
+/** 좌석별 변형 가중치가 있으면 정규화 프로필을 반환, 없으면 null(전역 프로필 사용) */
+function getPlayerProfile(playerId: string): EvaluatorWeightsProfile | null {
+    const variant = getPlayerVariant(playerId);
+    if (!variant?.weights) return null;
+    const cached = resolvedPlayerProfileCache.get(playerId);
+    if (cached && cached.src === variant.weights) return cached.profile;
+    const profile = resolveProfile(variant.weights);
+    resolvedPlayerProfileCache.set(playerId, { src: variant.weights, profile });
+    return profile;
+}
+
 export function loadEvaluatorWeightsFromFile(filePath: string): EvaluatorWeightsProfile | null {
     try {
         const abs = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
         if (!fs.existsSync(abs)) return null;
-        const raw = fs.readFileSync(abs, 'utf-8');
+        // PowerShell로 저장하면 UTF-8 BOM이 붙어 JSON.parse가 실패한다. 과거엔 catch에서 조용히 null을
+        // 반환해 튜닝한 가중치가 무시되고 DEFAULT로 폴백되는 버그가 있었음 → BOM을 제거하고 파싱한다.
+        const raw = fs.readFileSync(abs, 'utf-8').replace(/^﻿/, '');
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object') return null;
         if (isProfileShape(parsed)) {
             return setActiveEvaluatorWeights(parsed as Partial<EvaluatorWeightsProfile>);
         }
         return setActiveEvaluatorWeights(parsed as Partial<EvaluatorWeights>);
-    } catch {
+    } catch (e) {
+        // 조용한 폴백은 가중치 무시 버그를 숨긴다 → 최소한 콘솔에 경고
+        console.warn(`[evaluator] failed to load weights from ${filePath}: ${(e as Error).message} (falling back to DEFAULT)`);
         return null;
     }
 }
@@ -213,10 +248,12 @@ export class Evaluator {
         const player = game.players[playerId];
         if (!player) return -9999;
 
-        const factionPatch = player.faction ? ACTIVE_PROFILE.byFaction?.[player.faction] : undefined;
+        // 좌석별 변형(head-to-head A/B)이 있으면 그 프로필을, 없으면 전역 프로필을 사용
+        const profile = getPlayerProfile(playerId) ?? ACTIVE_PROFILE;
+        const factionPatch = player.faction ? profile.byFaction?.[player.faction] : undefined;
         const w = factionPatch
-            ? normalizeWeights({ ...ACTIVE_PROFILE.global, ...factionPatch } as EvaluatorWeights)
-            : ACTIVE_PROFILE.global;
+            ? normalizeWeights({ ...profile.global, ...factionPatch } as EvaluatorWeights)
+            : profile.global;
 
         let score = 0;
         let logs: string[] = [];

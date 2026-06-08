@@ -13,12 +13,46 @@ import {
     executeBotBescodsAdvanceLowestTrack,
     executeConvertResource,
     getLegalEclipseAsteroidMineTileIds,
-    executeEclipseBuildAsteroidMine
+    executeEclipseBuildAsteroidMine,
+    forceSkipStuckBotTurn
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
 
 const botExecutingGames = new Set<string>();
+
+// 봇 턴 사이 지연(ms). 기본은 데모/디버깅 가시성용. 자기대국/head-to-head 하니스에서는
+// admin_set_bot_delay_ms 로 0에 가깝게 낮춰 게임을 빠르게 돌린다(로직 변화 없음).
+let BOT_DELAY_MS: number | null = (typeof process !== 'undefined' && process.env?.BOT_DELAY_MS != null && process.env.BOT_DELAY_MS !== '')
+    ? Math.max(0, parseInt(process.env.BOT_DELAY_MS, 10) || 0)
+    : null;
+export function setBotDelayMs(ms: number | null): void {
+    BOT_DELAY_MS = ms == null ? null : Math.max(0, ms);
+}
+/** 기본 지연값 def를 받아, 오버라이드가 설정돼 있으면 그 값을, 아니면 def를 반환 */
+function d(def: number): number {
+    return BOT_DELAY_MS == null ? def : BOT_DELAY_MS;
+}
+
+// === Stall 워치독 ===
+// 봇 액션/패스가 실패하면(라운드 전환 레이스, 보너스타일 부재 등) 그냥 멈추지 않고 재호출해 자가복구하되,
+// 연속 무진행이 임계치를 넘으면 게임을 강제 종료해 영구 정지를 막는다. 진행이 있으면 카운터를 리셋.
+const STALL_THRESHOLD = 60;
+function resetBotProgress(game: ServerGameState): void {
+    (game as any)._botNoProgress = 0;
+}
+function ensureBotProgress(io: SocketIOServer, game: ServerGameState, currentPlayerId: string, reason: string): void {
+    if (game.currentPhase === 'gameEnd') return; // 이미 종료 → 헛돌지 않게
+    const g = game as any;
+    g._botNoProgress = (g._botNoProgress || 0) + 1;
+    if (g._botNoProgress >= STALL_THRESHOLD) {
+        g._botNoProgress = 0;
+        // 게임을 끝내지 않고 막힌 봇만 스킵 → 유저 게임이 계속됨
+        forceSkipStuckBotTurn(io, game, currentPlayerId, `bot stall watchdog: ${reason}`);
+        return;
+    }
+    setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
+}
 
 function recordBotActionForFeedback(game: ServerGameState, playerId: string, action: { type: string; params?: any; preActions?: any[] }, source: string) {
     const player = game.players[playerId];
@@ -120,12 +154,12 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingIncomeOrder) {
         const incomePlayerId = game.pendingIncomeOrder.playerId;
         if (botPlayerIds.includes(incomePlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             const botPlayer = game.players[incomePlayerId];
             log(`Bot ${botPlayer?.name} auto-handling income selection`, 'game');
             executeBotIncomeSelection(io, game, incomePlayerId);
             // 수익 선택 후 다음 수익 선택자나 턴 시작 확인을 위해 재호출
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -135,10 +169,10 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingTinkeroidSpecialChoice) {
         const tinkerPlayerId = game.pendingTinkeroidSpecialChoice.playerId;
         if (botPlayerIds.includes(tinkerPlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             log(`Bot auto-handling Tinkeroid special choice`, 'game');
             executeBotTinkeroidSpecial(io, game, tinkerPlayerId);
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -148,10 +182,10 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingTerranCouncilBenefit) {
         const terranPlayerId = game.pendingTerranCouncilBenefit.playerId;
         if (botPlayerIds.includes(terranPlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             log(`Bot auto-handling Terran council benefits`, 'game');
             executeBotTerranCouncilBenefit(io, game, terranPlayerId);
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -161,10 +195,10 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingItarsGaiaformerExchange) {
         const itarsPlayerId = game.pendingItarsGaiaformerExchange.playerId;
         if (botPlayerIds.includes(itarsPlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             log(`Bot auto-handling Itars Gaiaformer exchange`, 'game');
             executeBotItarsGaiaformerExchange(io, game, itarsPlayerId);
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -176,7 +210,7 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingTechTileSelection) {
         const techPlayerId = game.pendingTechTileSelection.playerId;
         if (botPlayerIds.includes(techPlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             const botPlayer = game.players[techPlayerId];
             log(`Bot ${botPlayer?.name} auto-handling tech tile selection (scored pick)`, 'game', game.id);
             const techPick = await BotLogic.getNextMove(game, techPlayerId, false);
@@ -198,7 +232,7 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
                 if (fallbackEntry) addBotFeedbackLog(game, techPlayerId, fallbackEntry);
             }
             // 기술 타일 선택 후 다시 확인 (pendingShipTechTrackAdvance 등 후속 대기 가능)
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -208,14 +242,14 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingEclipseAsteroidMine && game.currentPhase === 'main') {
         const eclipsePid = game.pendingEclipseAsteroidMine.playerId;
         if (botPlayerIds.includes(eclipsePid) && game.turnOrder[game.currentPlayerIndex] === eclipsePid) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             const legal = getLegalEclipseAsteroidMineTileIds(game, eclipsePid);
             if (legal.length > 0) {
                 const tileId = BotLogic.pickBestEclipseAsteroidTile(game, eclipsePid, legal);
                 const botPlayer = game.players[eclipsePid];
                 log(`Bot ${botPlayer?.name} auto eclipse asteroid mine on ${tileId}`, 'game', game.id);
                 executeEclipseBuildAsteroidMine(io, game, eclipsePid, tileId);
-                setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+                setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
                 return;
             }
             log(`Bot ${game.players[eclipsePid]?.name ?? eclipsePid} pending Eclipse mine but no legal asteroid in range`, 'error', game.id);
@@ -227,26 +261,31 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingShipTechTrackAdvance) {
         const shipTechPlayerId = game.pendingShipTechTrackAdvance.playerId;
         if (botPlayerIds.includes(shipTechPlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             const botPlayer = game.players[shipTechPlayerId];
-            // 가장 낮은 트랙을 선택해 진행
+            // 낮은 레벨 우선으로, 실제로 진행 가능한(executeAdvanceTech가 true를 반환하는) 첫 트랙을 올린다.
+            // 4→5는 초록연방/트랙선점 게이트로 막힐 수 있어, 막힌 트랙을 계속 고르면 pending이 안 풀려
+            // 무한 재시도(데드락)가 난다. 반환값으로 판별하고, 전부 막히면 보너스를 포기하고 pending을 해제한다.
             const tracks: ResearchTrack[] = ['economy', 'terraforming', 'science', 'navigation', 'artificialIntelligence', 'gaiaProject'];
-            let bestTrack: ResearchTrack | null = null;
-            let bestLevel = 99;
-            for (const t of tracks) {
-                const lv = botPlayer.research[t] ?? 0;
-                if (lv < 5 && lv < bestLevel) {
-                    bestLevel = lv;
-                    bestTrack = t;
+            const ordered = tracks
+                .map(t => ({ t, lv: botPlayer.research[t] ?? 0 }))
+                .filter(x => x.lv < 5)
+                .sort((a, b) => a.lv - b.lv);
+            let advanced = false;
+            for (const { t } of ordered) {
+                if (executeAdvanceTech(io, game, shipTechPlayerId, t)) {
+                    log(`Bot ${botPlayer?.name} auto-advancing ship tech track: ${t}`, 'game');
+                    const feedbackEntry = recordBotActionForFeedback(game, shipTechPlayerId, { type: 'advance_tech', params: { trackId: t } }, 'pending_ship_tech_track');
+                    if (feedbackEntry) addBotFeedbackLog(game, shipTechPlayerId, feedbackEntry);
+                    advanced = true;
+                    break;
                 }
             }
-            if (bestTrack) {
-                log(`Bot ${botPlayer?.name} auto-advancing ship tech track: ${bestTrack}`, 'game');
-                const feedbackEntry = recordBotActionForFeedback(game, shipTechPlayerId, { type: 'advance_tech', params: { trackId: bestTrack } }, 'pending_ship_tech_track');
-                executeAdvanceTech(io, game, shipTechPlayerId, bestTrack);
-                if (feedbackEntry) addBotFeedbackLog(game, shipTechPlayerId, feedbackEntry);
+            if (!advanced) {
+                game.pendingShipTechTrackAdvance = null; // 진행 가능한 트랙 없음 → 데드락 방지 위해 해제
+                log(`Bot ${botPlayer?.name} ship tech: no advanceable track, clearing pending to avoid stall`, 'game', game.id);
             }
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -256,25 +295,29 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (game.pendingAdvancedTechTrackAdvance) {
         const advPlayerId = game.pendingAdvancedTechTrackAdvance.playerId;
         if (botPlayerIds.includes(advPlayerId)) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, d(300)));
             const botPlayer = game.players[advPlayerId];
+            // ship tech와 동일: 진행 가능한 트랙을 반환값으로 찾고, 전부 막히면 pending 해제(데드락 방지).
             const tracks: ResearchTrack[] = ['economy', 'terraforming', 'science', 'navigation', 'artificialIntelligence', 'gaiaProject'];
-            let bestTrack: ResearchTrack | null = null;
-            let bestLevel = 99;
-            for (const t of tracks) {
-                const lv = botPlayer.research[t] ?? 0;
-                if (lv < 5 && lv < bestLevel) {
-                    bestLevel = lv;
-                    bestTrack = t;
+            const ordered = tracks
+                .map(t => ({ t, lv: botPlayer.research[t] ?? 0 }))
+                .filter(x => x.lv < 5)
+                .sort((a, b) => a.lv - b.lv);
+            let advanced = false;
+            for (const { t } of ordered) {
+                if (executeAdvanceTech(io, game, advPlayerId, t)) {
+                    log(`Bot ${botPlayer?.name} auto-advancing advanced tech track: ${t}`, 'game');
+                    const feedbackEntry = recordBotActionForFeedback(game, advPlayerId, { type: 'advance_tech', params: { trackId: t } }, 'pending_advanced_tech_track');
+                    if (feedbackEntry) addBotFeedbackLog(game, advPlayerId, feedbackEntry);
+                    advanced = true;
+                    break;
                 }
             }
-            if (bestTrack) {
-                log(`Bot ${botPlayer?.name} auto-advancing advanced tech track: ${bestTrack}`, 'game');
-                const feedbackEntry = recordBotActionForFeedback(game, advPlayerId, { type: 'advance_tech', params: { trackId: bestTrack } }, 'pending_advanced_tech_track');
-                executeAdvanceTech(io, game, advPlayerId, bestTrack);
-                if (feedbackEntry) addBotFeedbackLog(game, advPlayerId, feedbackEntry);
+            if (!advanced) {
+                game.pendingAdvancedTechTrackAdvance = null; // 진행 가능한 트랙 없음 → 데드락 방지 위해 해제
+                log(`Bot ${botPlayer?.name} advanced tech: no advanceable track, clearing pending to avoid stall`, 'game', game.id);
             }
-            setTimeout(() => executeBotTurnIfNeeded(io, game), 300);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;
         }
         return;
@@ -311,11 +354,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             game.map.some(t => t.ownerId === currentPlayerId && t.structure === 'planetary_institute') &&
             game.map.some(t => t.ownerId === currentPlayerId && t.structure && t.structure !== 'ship' && !(t as any).moweyipRing)
         ) {
-            await new Promise(resolve => setTimeout(resolve, 400));
+            await new Promise(resolve => setTimeout(resolve, d(400)));
             log(`Bot ${moweyipPlayer.name} (Moweyip) auto-placing ring`, 'game');
             const ok = executeBotMoweyipPlaceRing(io, game, currentPlayerId);
             if (ok) {
-                setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+                setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
                 return;
             }
         }
@@ -328,11 +371,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             bescodsPlayer?.faction === 'bescods' &&
             !bescodsPlayer.usedSpecialActions?.includes('bescods-advance-lowest')
         ) {
-            await new Promise(resolve => setTimeout(resolve, 400));
+            await new Promise(resolve => setTimeout(resolve, d(400)));
             log(`Bot ${bescodsPlayer.name} (Bescods) auto-advancing lowest track`, 'game');
             const ok = executeBotBescodsAdvanceLowestTrack(io, game, currentPlayerId!);
             if (ok) {
-                setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+                setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
                 return;
             }
         }
@@ -348,7 +391,7 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (!player || player.hasPassed) return;
 
     // Delay to make it more visible for debugging/demo
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, d(500)));
 
     const action = await BotLogic.getNextMove(game, currentPlayerId);
     if (!action) {
@@ -362,14 +405,15 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             if (game.hasDoneMainAction) {
                 const endOk = await BotLogic.performAction(io, game, { type: 'end_turn', params: {} }, currentPlayerId);
                 if (endOk) {
-                    setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+                    setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
                     return;
                 }
             }
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             log(`Bot ${player.name} has no valid action, forcing pass to advance turn`, 'game');
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
-            if (passOk) setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+            if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }
+            else ensureBotProgress(io, game, currentPlayerId, 'no-action pass failed'); // 멈추지 말고 재시도/스킵
         }
         return;
     }
@@ -394,13 +438,17 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (success) {
         if (feedbackEntry) addBotFeedbackLog(game, currentPlayerId, feedbackEntry);
         log(`Bot ${player.name} successfully executed ${action.type}`, 'game', game.id);
-        setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+        resetBotProgress(game);
+        setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
     } else {
         log(`Bot ${player.name} failed to execute ${action.type}. Action details: ${JSON.stringify(action)}`, 'error', game.id);
         if (game.currentPhase === 'main' && !player.hasPassed) {
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
-            if (passOk) setTimeout(() => executeBotTurnIfNeeded(io, game), 500);
+            if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }
+            else ensureBotProgress(io, game, currentPlayerId, `action ${action.type} + pass failed`);
+        } else {
+            ensureBotProgress(io, game, currentPlayerId, `action ${action.type} failed, not main/passed`);
         }
     }
 }
