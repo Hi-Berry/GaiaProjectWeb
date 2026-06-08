@@ -1,8 +1,24 @@
 import { ServerGameState } from '../gameState';
 import { getFederationEntries, getFinalMissionVp, getFinalMissionValue } from '@shared/gameConfig';
 import { getPlayerVariant, getPlayerFlag } from './variant';
+import { ValueNet } from './valueNet';
+import { extractFeatures } from './features';
 import fs from 'fs';
 import path from 'path';
+
+// 학습된 가치망(있으면) 지연 로드. useValueNet 플래그가 켜진 좌석은 휴리스틱 대신 이 망의 예측 최종VP를 리프값으로 사용.
+let _valueNet: ValueNet | null = null;
+let _valueNetTried = false;
+function getValueNet(): ValueNet | null {
+    if (_valueNetTried) return _valueNet;
+    _valueNetTried = true;
+    try {
+        const p = process.env.VALUE_NET_OUT || path.join(process.cwd(), 'server', 'ai', 'valueNet.json');
+        if (fs.existsSync(p)) _valueNet = ValueNet.fromJSON(JSON.parse(fs.readFileSync(p, 'utf8')));
+    } catch { _valueNet = null; }
+    return _valueNet;
+}
+export function reloadValueNet(): void { _valueNetTried = false; _valueNet = null; }
 
 export type EvaluatorWeights = {
     vpWeightEarly: number;
@@ -247,6 +263,13 @@ export class Evaluator {
     static evaluateState(game: ServerGameState, playerId: string, debug: boolean = false): number {
         const player = game.players[playerId];
         if (!player) return -9999;
+
+        // [flag: useValueNet] 학습된 가치망이 있으면 휴리스틱 대신 예측 최종 VP를 리프값으로 사용.
+        // 비선형 학습 평가라 가중치 튜닝(선형, null)의 천장을 넘을 수 있는지 head2head로 검증.
+        if (getPlayerFlag(playerId, 'useValueNet', false)) {
+            const net = getValueNet();
+            if (net) return net.predict(extractFeatures(game, playerId));
+        }
 
         // 좌석별 변형(head-to-head A/B)이 있으면 그 프로필을, 없으면 전역 프로필을 사용
         const profile = getPlayerProfile(playerId) ?? ACTIVE_PROFILE;

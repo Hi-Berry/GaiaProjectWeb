@@ -19,6 +19,7 @@
     "validate-ai:promote": "cross-env VALIDATE_PROMOTE=1 tsx server/ai/validateAi.ts",
     "head2head": "tsx server/ai/headToHead.ts",
     "head2head:quick": "cross-env H2H_GAMES=24 H2H_MCTS_MS=400 tsx server/ai/headToHead.ts",
+    "train-valuenet": "tsx server/ai/trainValueNet.ts",
     "tune-ai:forever": "cross-env TUNE_RUN_FOREVER=1 TUNE_UPDATE_EVERY=10 TUNE_RESHUFFLE_EVERY=20 TUNE_MCTS_MS=1500 TUNE_SIGMA=0.2 tsx server/ai/tuneAi.ts",
     "tune-ai:1000": "cross-env TUNE_GAMES=1000 tsx server/ai/tuneAi.ts",
     "tune-ai:20": "cross-env TUNE_GAMES=20 TUNE_GPC=20 tsx server/ai/tuneAi.ts",

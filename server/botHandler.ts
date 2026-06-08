@@ -18,6 +18,7 @@ import {
 } from './gameState';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
+import { recordDecisionFeatures } from './ai/valueData';
 
 const botExecutingGames = new Set<string>();
 
@@ -392,6 +393,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
 
     // Delay to make it more visible for debugging/demo
     await new Promise(resolve => setTimeout(resolve, d(500)));
+
+    // 가치망 학습 데이터: 봇이 결정하는 시점의 상태 특징 기록(VALUE_NET_COLLECT=1일 때만)
+    recordDecisionFeatures(game, currentPlayerId);
 
     const action = await BotLogic.getNextMove(game, currentPlayerId);
     if (!action) {

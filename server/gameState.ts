@@ -69,6 +69,7 @@ import {
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs } from './botHandler';
 import { setPlayerVariant, clearAllPlayerVariants, type PlayerVariant } from './ai/variant';
+import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { exportHumanGameDataset, recordHumanActionFromLog, type HumanActionJournalEntry } from './humanGameLogger';
 
@@ -902,6 +903,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 	game.currentPhase = 'gameEnd';
 	saveFinalGameState(game);
+	flushGameData(game);
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 }
@@ -5832,6 +5834,7 @@ export function executePassRound(
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
 			saveFinalGameState(game);
+			flushGameData(game);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
 		}
