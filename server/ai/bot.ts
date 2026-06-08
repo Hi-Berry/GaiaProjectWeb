@@ -511,6 +511,18 @@ export class BotLogic {
                     if (candidates.length >= 2 && r < 0.30) return candidates[1];
                     return candidates[0];
                 }
+                // [flag: scriptedStrategy] 다턴 실행 우회: MCTS가 얕은 시야로 "지금 연방 형성"을 자주 놓침
+                // (로그: 연방1개 봇의 33%가 파워≥7인데 2번째 미형성). 형성 가능 + 연방<2면 MCTS 건너뛰고 즉시 형성.
+                if (getPlayerFlag(playerId, 'scriptedStrategy', false)) {
+                    const myFeds = ((player as any).federations?.length ?? (player as any).federationTokens?.length ?? 0) as number;
+                    if (myFeds < 2) {
+                        const fed = FederationPlanner.getBestFederationAction(game, playerId);
+                        if (fed) {
+                            log(`Bot ${player.name} scripted: force form federation (feds=${myFeds})`, 'game', game.id);
+                            return { type: 'form_federation', params: fed };
+                        }
+                    }
+                }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await MCTS.search(game, playerId, candidates);
 
