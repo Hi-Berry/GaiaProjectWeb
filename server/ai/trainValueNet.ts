@@ -13,18 +13,28 @@ const OUT = process.env.VALUE_NET_OUT || path.join(process.cwd(), 'server', 'ai'
 const EPOCHS = Number(process.env.VN_EPOCHS) || 40;
 const LR = Number(process.env.VN_LR) || 0.02;
 const VAL_FRAC = Number(process.env.VN_VAL) || 0.15;
+const HUMAN_WEIGHT = Math.max(1, Number(process.env.VN_HUMAN_WEIGHT) || 1); // 사람(bot:false) 레코드 복제 가중
+const HUMAN_ONLY = process.env.VN_HUMAN_ONLY === '1';
 
 function shuffle<T>(a: T[]) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } }
 
 function main() {
     if (!fs.existsSync(DATA)) throw new Error(`데이터 없음: ${DATA} (먼저 VALUE_NET_COLLECT=1 로 self-play 수집)`);
     const lines = fs.readFileSync(DATA, 'utf8').split('\n').filter(l => l.trim());
-    const rows: { y: number; f: number[] }[] = [];
+    let rows: { y: number; f: number[]; bot: boolean }[] = [];
     for (const l of lines) {
-        try { const r = JSON.parse(l); if (Array.isArray(r.f) && r.f.length === FEATURE_DIM && typeof r.y === 'number') rows.push({ y: r.y, f: r.f }); } catch { }
+        try { const r = JSON.parse(l); if (Array.isArray(r.f) && r.f.length === FEATURE_DIM && typeof r.y === 'number') rows.push({ y: r.y, f: r.f, bot: r.bot !== false }); } catch { }
+    }
+    const humanRows = rows.filter(r => !r.bot).length;
+    if (HUMAN_ONLY) rows = rows.filter(r => !r.bot);
+    // 사람 레코드 가중(복제): 강한 플레이를 우선 학습
+    if (HUMAN_WEIGHT > 1) {
+        const extra: typeof rows = [];
+        for (const r of rows) if (!r.bot) for (let k = 1; k < HUMAN_WEIGHT; k++) extra.push(r);
+        rows = rows.concat(extra);
     }
     if (rows.length < 200) throw new Error(`샘플 부족: ${rows.length} (최소 200+ 권장)`);
-    console.log(`[train] samples=${rows.length}, dim=${FEATURE_DIM}, epochs=${EPOCHS}, lr=${LR}`);
+    console.log(`[train] samples=${rows.length} (human=${humanRows}, humanWeight=${HUMAN_WEIGHT}, humanOnly=${HUMAN_ONLY}), dim=${FEATURE_DIM}, epochs=${EPOCHS}, lr=${LR}`);
 
     shuffle(rows);
     const nVal = Math.floor(rows.length * VAL_FRAC);

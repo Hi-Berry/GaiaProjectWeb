@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { GaiaGameState, PlayerState } from '@shared/gameConfig';
 import { log } from './index';
+import { recordDecisionFeatures } from './ai/valueData';
 
 export type HumanActionJournalEntry = {
   id: string;
@@ -89,6 +90,10 @@ export function recordHumanActionFromLog(game: GaiaGameState & {
     playerBefore: summarizePlayer(startPlayer),
     playerAfter: summarizePlayer(player),
   });
+
+  // 가치망 학습 데이터: 사람(강한 플레이어)의 결정 시점 상태도 수집 (VALUE_NET_COLLECT=1일 때만).
+  // 봇 데이터(botHandler)와 합쳐 강한 플레이를 학습 → 약봇 데이터의 한계를 돌파.
+  recordDecisionFeatures(game as any, playerId);
 }
 
 function buildPayload(game: GaiaGameState & {

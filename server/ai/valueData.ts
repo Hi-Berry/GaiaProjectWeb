@@ -13,7 +13,7 @@ import type { ServerGameState } from '../gameState';
 const ENABLED = process.env.VALUE_NET_COLLECT === '1';
 const OUT = process.env.VALUE_NET_DATA || path.join(process.cwd(), 'data', 'valuenet-data.jsonl');
 
-type Rec = { playerId: string; round: number; f: number[] };
+type Rec = { playerId: string; round: number; bot: boolean; f: number[] };
 const buffers = new Map<string, Rec[]>();
 
 export function valueCollectEnabled(): boolean { return ENABLED; }
@@ -21,8 +21,9 @@ export function valueCollectEnabled(): boolean { return ENABLED; }
 export function recordDecisionFeatures(game: ServerGameState, playerId: string): void {
     if (!ENABLED || (game as any).simulation || !game.id) return;
     if (!game.players[playerId]) return;
+    const bot = game.botPlayerIds?.includes(playerId) ?? false;
     const arr = buffers.get(game.id) ?? [];
-    arr.push({ playerId, round: game.roundNumber ?? 0, f: extractFeatures(game, playerId) });
+    arr.push({ playerId, round: game.roundNumber ?? 0, bot, f: extractFeatures(game, playerId) });
     buffers.set(game.id, arr);
 }
 
@@ -32,7 +33,7 @@ export function flushGameData(game: ServerGameState): void {
     if (!arr || !arr.length) { buffers.delete(game.id); return; }
     try {
         const lines = arr
-            .map(r => JSON.stringify({ y: game.players[r.playerId]?.score ?? 0, round: r.round, f: r.f }))
+            .map(r => JSON.stringify({ y: game.players[r.playerId]?.score ?? 0, round: r.round, bot: r.bot, f: r.f }))
             .join('\n') + '\n';
         fs.mkdirSync(path.dirname(OUT), { recursive: true });
         fs.appendFileSync(OUT, lines);
