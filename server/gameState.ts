@@ -3111,9 +3111,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					case 'ship-fed-7vp3p2t':
 						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
 						addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId });
-						if (player.faction === 'taklons') chargePowerTaklons(player, 3, true);
-						else chargePower(player, 3);
-						player.power1 = (player.power1 || 0) + 2;
+						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					case 'ship-fed-mine-free':
 					case 'ship-fed-3tf-mine':
@@ -4058,9 +4056,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 						break;
 					case 'ship-fed-7vp3p2t':
 						addScore(game, playerId, 7, 'spaceships', { shipTileId: spaceshipBreakdownId });
-						if (player.faction === 'taklons') chargePowerTaklons(player, 3, true);
-						else chargePower(player, 3);
-						player.power1 = (player.power1 || 0) + 2;
+						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					default:
 						break;
@@ -4491,6 +4487,13 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	const isShipTech = game.availableShipTechTileIds?.includes(techTileId);
 	const techTile = ALL_TECH_TILES.find(t => t.id === techTileId) || SHIP_TECH_TILES.find(t => t.id === techTileId);
 	if (!techTile) return;
+
+	// [방어] 탑승하지 않은 우주선의 ship 기술 타일 선택은 무시 (pendingTechTileSelection을 유지해 턴이 넘어가지 않게).
+	// 기존엔 이 경우 rebellion_gain 분기로 빠져 효과 없이 타일만 추가되고 pending이 해제되어 턴을 잃는 버그가 있었음.
+	if (SHIP_TECH_TILES.some(t => t.id === techTileId) && !isShipTech) {
+		log(`Player ${player.name} tried to select ship tech tile ${techTileId} that is not available (ship not entered). Ignored — turn kept.`, 'game', undefined, { simulation: (game as any).simulation });
+		return;
+	}
 
 	let alreadyLogged = false;
 
@@ -7664,9 +7667,7 @@ export function executeConfirmTwilightFederation(
 			case 'ship-fed-7vp3p2t':
 				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
 				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId });
-				if (player.faction === 'taklons') chargePowerTaklons(player, 3, true);
-				else chargePower(player, 3);
-				player.power1 = (player.power1 || 0) + 2;
+				player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 				break;
 			case 'ship-fed-mine-free':
 			case 'ship-fed-3tf-mine':

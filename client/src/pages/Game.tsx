@@ -72,7 +72,9 @@ type PotentialAction =
 const MIN_MINI_WIDTH = 280;
 const MAX_MINI_WIDTH = 600;
 const MINI_CONTENT_BASE_WIDTH = 340;
-const MINI_CONTENT_SIDE_GUTTER = 6;
+// 미니 패널 콘텐츠 좌우 여백. 스크롤 컨테이너의 우측 패딩(6px)+세로 스크롤바(5px)=11px를
+// 확보하지 않으면 콘텐츠 오른쪽 끝(연구 트랙 6열의 마지막 열)이 스크롤바에 가려 안 보임 → 14로 상향.
+const MINI_CONTENT_SIDE_GUTTER = 14;
 const getMiniContentScale = (width: number) => Math.max(0.1, (width - MINI_CONTENT_SIDE_GUTTER) / MINI_CONTENT_BASE_WIDTH);
 
 /** 미니 패널: 폭에 맞춰 내용을 축소 렌더링 */
@@ -756,8 +758,20 @@ export default function Game() {
   }, [game?.pendingPowerOffers, playerId, isSpectator]);
 
   const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean }) => {
-    if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(Boolean(options?.fromMini));
     if (!gameId || !game || !playerId) return;
+
+    // 탑승하지 않은 우주선의 기술 타일은 선택 불가 — 에러만 띄우고 전송하지 않음(턴이 넘어가지 않게).
+    // (서버에서도 방어하지만, 잘못 클릭 시 턴을 잃지 않도록 클라이언트에서 먼저 차단)
+    if (techTileId.startsWith('ship-tech-') && !(game.availableShipTechTileIds?.includes(techTileId))) {
+      toast({
+        title: '선택할 수 없는 기술 타일',
+        description: '탑승하지 않은 우주선의 기술 타일입니다. 먼저 해당 우주선에 탑승하세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (techTileId === 'ship-tech-2tf-mine') setShipTech2TfMineFromMini(Boolean(options?.fromMini));
 
     let advanceToLevel5: boolean | undefined;
     if (trackId) {
@@ -4168,6 +4182,53 @@ export default function Game() {
               </div>
             </div>
 
+            </div>
+
+            {/* Game Log — 상태 영역 아래 항상 표시 (L키 하단시트와 별개, 데스크톱만) */}
+            <div className="border-t border-white/10 flex-none flex-col min-h-[180px] max-h-[42vh] hidden md:flex">
+              <div className="flex items-center justify-between gap-2 shrink-0 px-4 pt-3 pb-2">
+                <h3 className="font-semibold flex items-center gap-2 text-xs md:text-sm">
+                  <Clock className="w-3.5 h-3.5 text-blue-400" /> Game Log
+                </h3>
+                <div className="flex items-center gap-1">
+                  {LOG_TEXT_SCALES.map((scale) => (
+                    <Button
+                      key={scale}
+                      type="button"
+                      variant={logTextScale === scale ? 'default' : 'outline'}
+                      size="sm"
+                      className={`h-6 px-1.5 text-[10px] font-black leading-none ${logTextScale === scale ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                      onClick={() => {
+                        setLogTextScale(scale);
+                        localStorage.setItem('game-log-text-scale', String(scale));
+                      }}
+                    >
+                      *{scale * 100}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div
+                className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-4 pb-3"
+                onWheel={(e) => e.stopPropagation()}
+              >
+                {(!game.gameLog || game.gameLog.length === 0) ? (
+                  <div className="text-center text-muted-foreground text-xs py-8">
+                    No actions yet
+                  </div>
+                ) : (
+                  <GameLog
+                    game={game}
+                    hideHeader
+                    className="w-full"
+                    maxHeight="none"
+                    textScale={logTextScale}
+                    onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
+                    onEntryMouseLeave={() => setHighlightedTileId(null)}
+                    onAiFeedbackClick={openAiFeedbackForAction}
+                  />
+                )}
+              </div>
             </div>
 
             {/* Free Actions Modal */}
