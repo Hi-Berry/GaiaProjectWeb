@@ -293,7 +293,14 @@ export class Evaluator {
 
         // 1) VP
         const vpWeight = round >= 5 ? w.vpWeightLate : w.vpWeightEarly;
-        const vpScore = (player.score || 0) * vpWeight;
+        let vpBasis = (player.score || 0);
+        // [flag: valueNetBlend] 휴리스틱 구조(빌드/연구 그래디언트)는 유지하고 VP 항목만 전진적으로:
+        // 현재 점수와 가치망 "예측 최종 점수"를 반반 섞음. 망은 보조 신호(경계 有)라 탐색 악용 완화.
+        if (getPlayerFlag(playerId, 'valueNetBlend', false)) {
+            const net = getValueNet();
+            if (net) vpBasis = 0.5 * (player.score || 0) + 0.5 * net.predict(extractFeatures(game, playerId));
+        }
+        const vpScore = vpBasis * vpWeight;
         score += vpScore;
         logDebug(`1) VP: ${player.score || 0} * ${vpWeight.toFixed(1)} = +${vpScore.toFixed(1)}`);
 
