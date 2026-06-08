@@ -683,6 +683,32 @@ export class Evaluator {
             logDebug(`12) Projected Tech Income (Rounds=${incomeRounds}): +${projectedTechIncomeScore.toFixed(1)}`);
         }
 
+        // 13) [실험·플래그 useGoalPlanner] 다턴 목표 플래너 바이어스.
+        // 강한 사람(Space Giants 273) 빌드오더의 "형태"로 유도. 국소 튜닝(expandDrive 등)이 null이었던 점을 감안,
+        // "라운드별 페이스 목표"에 못 미칠 때 해당 영역을 보상해 다턴 시퀀스(연구심화·우주선엔진·고급패스타일·연방조기)를 유도.
+        if (getPlayerFlag(playerId, 'useGoalPlanner', false)) {
+            let gp = 0;
+            const gpTech = player.techTiles || [];
+            // (1) 연구 깊이 페이스: 273게임 누적 총레벨 곡선 근사. 뒤처지면 연구를 강하게 우선.
+            const gpTotalResearch = Object.values(player.research || {}).reduce((s, l) => s + (l as number), 0);
+            const gpResearchTarget = [0, 3, 6, 9, 12, 15, 17][Math.min(round, 6)] ?? 0;
+            if (gpTotalResearch < gpResearchTarget) gp += (gpResearchTarget - gpTotalResearch) * 20;
+            const gpTracksL4 = Object.values(player.research || {}).filter(l => (l as number) >= 4).length;
+            gp += gpTracksL4 * 45; // 다트랙 심화(273게임은 5트랙 L4~5)
+            // (2) 우주선 액션 엔진: 탑승만이 아니라 "사용한 액션"을 보상(활용 유도). 소행성광산=확장+adv-pass+최종미션 트리플.
+            let gpUsedShipActions = 0;
+            for (const sid of (player.spaceshipsEntered || [])) gpUsedShipActions += (game.spaceships?.[sid]?.usedActionIndices?.length || 0);
+            gp += gpUsedShipActions * 35;
+            const gpAsteroid = myStructures.filter(t => (t as any).type === 'asteroid').length;
+            gp += gpAsteroid * 16;
+            // (3) 고급 패스 기술타일(반복 VP) 보유 강화
+            gp += gpTech.filter(t => t.startsWith('adv-pass-')).length * 55;
+            // (4) 연방 조기 페이스
+            const gpFedTarget = round >= 4 ? 3 : round >= 3 ? 2 : round >= 2 ? 1 : 0;
+            if (feds.length < gpFedTarget) gp += (gpFedTarget - feds.length) * 45;
+            if (gp !== 0) { score += gp; logDebug(`13) GoalPlanner: +${gp.toFixed(1)}`); }
+        }
+
         if (debug) {
             logDebug(`==> Total Score: ${score.toFixed(1)}`);
             console.log(logs.join('\n'));

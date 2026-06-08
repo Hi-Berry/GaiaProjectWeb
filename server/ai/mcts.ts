@@ -204,7 +204,13 @@ export class MCTS {
         // Simulate a few steps ahead with a cheap "1-ply" heuristic:
         // - evaluate top-N candidate actions by applying them once
         // - pick best (with a bit of noise) to avoid deterministic traps
-        const ROLLOUT_STEPS = 6;
+        // [실험·플래그 deepRollout] 근시안 롤아웃(메인액션 1회 후 중단) 교정.
+        // 켜면 메인액션 후에도 hasDoneMainAction을 리셋해 "현재 자원으로의 다턴 연쇄"를 시뮬 →
+        // 셋업(우주선 진입/가이아포머/연구)이 만드는 후속 페이오프를 탐색이 보게 함. 수입/상대턴은 미시뮬(휴리스틱).
+        const deepRollout = getPlayerFlag(playerId, 'deepRollout', false);
+        const MAIN_ACTION_CAP = deepRollout ? 5 : 1;
+        let mainActionsUsed = 0;
+        const ROLLOUT_STEPS = deepRollout ? 14 : 6;
         // 좌석별 플래그로 롤아웃 평가 폭(TOP_N)을 조정 가능. 기본 8. 후보 starvation 완화 실험용(예: 12).
         const TOP_N = getPlayerFlag(playerId, 'rolloutTopN', 8);
         for (let i = 0; i < ROLLOUT_STEPS; i++) {
@@ -248,7 +254,15 @@ export class MCTS {
             if (!ok) break;
 
             if (currentState.hasDoneMainAction) {
-                break; // 메인 액션 수행 시 턴이 넘어가거나 넘겨야하므로 시뮬레이션 종료
+                mainActionsUsed++;
+                // 기본: 메인 액션 1회 후 종료(턴 종료). deepRollout: 남은 자원으로 다음 메인 액션을 더 연쇄.
+                if (deepRollout && mainActionsUsed < MAIN_ACTION_CAP
+                    && currentState.turnOrder[currentState.currentPlayerIndex] === playerId
+                    && currentState.currentPhase === 'main') {
+                    currentState.hasDoneMainAction = false; // 가상의 다음 턴(수입/상대 미반영, 자원 제약은 유지)
+                } else {
+                    break;
+                }
             }
         }
 
