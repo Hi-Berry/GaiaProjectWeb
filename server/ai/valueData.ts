@@ -10,7 +10,10 @@ import path from 'path';
 import { extractFeatures } from './features';
 import type { ServerGameState } from '../gameState';
 
-const ENABLED = process.env.VALUE_NET_COLLECT === '1';
+// 수집 활성: VALUE_NET_COLLECT=1 명시, 또는 개발 모드 기본 ON(=0으로 명시 opt-out).
+// → 사용자가 평소 `npm run dev`로 그냥 플레이해도 강한 게임이 자동 수집됨(특별 명령 불필요).
+const ENABLED = process.env.VALUE_NET_COLLECT === '1'
+    || (process.env.NODE_ENV === 'development' && process.env.VALUE_NET_COLLECT !== '0');
 const OUT = process.env.VALUE_NET_DATA || path.join(process.cwd(), 'data', 'valuenet-data.jsonl');
 
 type Rec = { playerId: string; round: number; bot: boolean; f: number[]; a?: string };
