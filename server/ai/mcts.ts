@@ -208,6 +208,7 @@ export class MCTS {
         // 켜면 메인액션 후에도 hasDoneMainAction을 리셋해 "현재 자원으로의 다턴 연쇄"를 시뮬 →
         // 셋업(우주선 진입/가이아포머/연구)이 만드는 후속 페이오프를 탐색이 보게 함. 수입/상대턴은 미시뮬(휴리스틱).
         const deepRollout = getPlayerFlag(playerId, 'deepRollout', false);
+        const rolloutIncome = getPlayerFlag(playerId, 'rolloutIncome', false);
         const MAIN_ACTION_CAP = deepRollout ? 5 : 1;
         let mainActionsUsed = 0;
         const ROLLOUT_STEPS = deepRollout ? 14 : 6;
@@ -259,7 +260,10 @@ export class MCTS {
                 if (deepRollout && mainActionsUsed < MAIN_ACTION_CAP
                     && currentState.turnOrder[currentState.currentPlayerIndex] === playerId
                     && currentState.currentPhase === 'main') {
-                    currentState.hasDoneMainAction = false; // 가상의 다음 턴(수입/상대 미반영, 자원 제약은 유지)
+                    currentState.hasDoneMainAction = false; // 가상의 다음 턴(자원 제약 유지)
+                    // [flag: rolloutIncome] 가상 라운드 사이 구조물 기반 수입 근사 → 다라운드 경제 빌드업
+                    // (지금 경제 깔고 → 다음 자원으로 연방/연구5)을 롤아웃이 보게 함. 수입/상대턴 미반영의 보완.
+                    if (rolloutIncome) this.applyApproxIncome(currentState, playerId);
                 } else {
                     break;
                 }
@@ -267,6 +271,27 @@ export class MCTS {
         }
 
         return Evaluator.evaluateState(currentState, playerId);
+    }
+
+    /** 롤아웃 가상 라운드 사이 수입 근사(방향만 맞는 단순 모델: 구조물 많을수록 자원↑). 정확한 income은 아님. */
+    private static applyApproxIncome(state: ServerGameState, playerId: string): void {
+        const p = state.players[playerId];
+        if (!p) return;
+        let mine = 0, ts = 0, lab = 0, pi = 0, acad = 0;
+        for (const t of state.map) {
+            if (t.ownerId !== playerId || !t.structure || t.structure === 'ship') continue;
+            switch (t.structure) {
+                case 'mine': case 'lost_planet_mine': mine++; break;
+                case 'trading_station': ts++; break;
+                case 'research_lab': lab++; break;
+                case 'planetary_institute': pi++; break;
+                case 'academy': acad++; break;
+            }
+        }
+        p.ore = (p.ore || 0) + Math.min(mine, 8) + 1;
+        p.credits = (p.credits || 0) + ts * 2 + pi * 2 + 2;
+        p.knowledge = (p.knowledge || 0) + lab * 2 + acad;
+        p.power1 = (p.power1 || 0) + mine + ts + pi * 2; // 대략적 파워 수입(그릇1 추가)
     }
 
     private static backpropagate(node: MCTSNode, score: number): void {

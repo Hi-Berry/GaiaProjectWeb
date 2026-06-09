@@ -2078,6 +2078,18 @@ export default function Game() {
             }}
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
+            onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
+              const shipTile = game.map.find(t => t.id === shipTileId);
+              // 타깃이 필요한 액션2(TS→Lab / M→TS)는 서버 직접 호출 대신 맵 선택 모드를 켠다 (ResearchBoard와 동일).
+              if (actionIndex === 2 && targetTileId == null) {
+                if (shipTile?.type === 'ship_twilight') { setPendingTwilightTSUpgrade(shipTileId); return; }
+                if (shipTile?.type === 'ship_rebellion') { setPendingRebellionMineToTS(shipTileId); return; }
+              }
+              GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
+              setPendingTwilightTSUpgrade(null);
+              setPendingRebellionMineToTS(null);
+            }}
+            onTakeTwilightArtifact={(artifactId) => GameClient.takeTwilightArtifact(gameId!, artifactId)}
             onEclipseBuildAsteroidMine={(tileId) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId)}
             zoomValue={mapZoom}
             panValue={mapPan}

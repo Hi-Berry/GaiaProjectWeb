@@ -23,7 +23,10 @@ import {
   BUILDING_LIMITS,
   HOME_PLANETS,
   SECTOR_CENTERS,
-  getGaiaBaseQic
+  getGaiaBaseQic,
+  ARTIFACTS,
+  SHIP_TECH_BY_SHIP,
+  SHIP_TECH_TILES
 } from '@shared/gameConfig';
 
 const HEX_SIZE = 4.8;
@@ -136,6 +139,8 @@ interface GameBoardProps {
   highlightedTileId?: string | null;
   onPlaceGaiaformer?: (tileId: string, qicUsed?: number) => void;
   onEnterSpaceship?: (tileId: string, useRangeBonus: boolean, qicToUse: number) => void;
+  onUseShipAction?: (shipTileId: string, actionIndex: number, targetTileId?: string) => void;
+  onTakeTwilightArtifact?: (artifactId: string) => void;
   onEclipseBuildAsteroidMine?: (tileId: string) => void;
   pendingTwilightTSUpgrade?: string | null;
   pendingRebellionMineToTS?: string | null;
@@ -196,6 +201,8 @@ export function GameBoard({
   highlightedTileId,
   onPlaceGaiaformer,
   onEnterSpaceship,
+  onUseShipAction,
+  onTakeTwilightArtifact,
   onEclipseBuildAsteroidMine,
   pendingTwilightTSUpgrade = null,
   pendingRebellionMineToTS = null,
@@ -383,6 +390,12 @@ export function GameBoard({
     ship_rebellion: 'Rebellion',
     ship_tf_mars: 'TF Mars',
     ship_eclipse: 'Eclipse',
+  };
+  const SHIP_ACTION_LABELS: Record<string, [string, string, string]> = {
+    ship_twilight: ['3Q → Fed', '2O+3P → TS→Lab', '1K → +3 Range'],
+    ship_rebellion: ['3Q → Tech', '1O+3P → M→TS', '2K → 1Q 2C'],
+    ship_tf_mars: ['2Q → (2+기술타일)VP', '2P → Gaia', '3C → 1 TF'],
+    ship_eclipse: ['2Q → (2+행성종류)VP', '2K+3P → Research', '6C → 소행성'],
   };
 
   const renderSpaceship = (type: PlanetType) => {
@@ -1380,20 +1393,98 @@ export function GameBoard({
             {!ivitsSpaceStationMode && (
               <>
                 {/* 우주선 입장: 메인 단계에서만 표시 (세팅 단계에서는 무반응 방지) */}
-                {game.currentPhase === 'main' && selectedTile.type?.startsWith('ship_') && onEnterSpaceship && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
+                {game.currentPhase === 'main' && selectedTile.type?.startsWith('ship_') && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
                   (() => {
                     const ship = game.spaceships[selectedTile.id];
+                    const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
                     const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+                    const isInShip = ship.occupants.includes(playerId);
+                    const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0);
+
+                    // 우주선 기술타일 (탑승/미탑승 공통 표시)
+                    const techId = game.shipTechByShip?.[selectedTile.type] ?? SHIP_TECH_BY_SHIP[selectedTile.type];
+                    const techTile = techId ? SHIP_TECH_TILES.find(t => t.id === techId) : null;
+                    const techTileNode = techTile ? (
+                      <div className="flex items-center gap-2 p-1.5 bg-zinc-800/80 rounded border border-yellow-500/30">
+                        {techTile.image ? <img src={techTile.image} alt={techTile.label} className="h-10 w-auto object-contain shrink-0" /> : null}
+                        <div className="min-w-0">
+                          <div className="text-[8px] font-black text-yellow-500/90 uppercase tracking-tight">Technology</div>
+                          <div className="text-[10px] font-bold text-zinc-100 truncate">{techTile.label}</div>
+                          <div className="text-[9px] text-zinc-400 leading-tight line-clamp-2" title={techTile.description}>{techTile.description}</div>
+                        </div>
+                      </div>
+                    ) : null;
+
+                    // === 이미 탑승: 액션 UI ===
+                    if (isInShip) {
+                      const usedIndices = ship.usedActionIndices ?? [];
+                      const actionsUsedCount = usedIndices.length;
+                      const actionLabels = SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—'];
+                      const canActNow = isMyTurn && !game.hasDoneMainAction;
+                      return (
+                        <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-blue-500/40">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-white">{shipName} · 탑승 중</p>
+                            <span className="text-[10px] text-zinc-400">액션 {actionsUsedCount}/3</span>
+                          </div>
+                          {techTileNode}
+                          {!canActNow && <p className="text-[11px] text-amber-400">{!isMyTurn ? '내 턴이 아닙니다' : '이번 턴 메인 액션을 이미 사용했습니다'}</p>}
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[0, 1, 2].map((idx) => {
+                              const actionNum = idx + 1;
+                              const isUsed = usedIndices.includes(actionNum);
+                              const canUse = canActNow && !!onUseShipAction && !isUsed && actionsUsedCount < 3;
+                              return (
+                                <button
+                                  key={idx}
+                                  disabled={!canUse}
+                                  onClick={() => { if (canUse) { onUseShipAction!(selectedTile.id, actionNum); setSelectedTile(null); } }}
+                                  className={`w-full text-[9px] h-12 px-1 rounded border font-bold text-center leading-tight flex items-center justify-center ${isUsed
+                                    ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through opacity-50 cursor-not-allowed'
+                                    : canUse
+                                      ? 'border-blue-500/40 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 cursor-pointer'
+                                      : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default opacity-60'}`}
+                                  title={actionLabels[idx] + (isUsed ? ' (사용됨)' : '')}
+                                >
+                                  {actionLabels[idx]}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {selectedTile.type === 'ship_twilight' && (game.twilightArtifactSlots?.length ?? 0) > 0 && (
+                            <div className="pt-2 border-t border-white/5">
+                              <p className="text-[10px] text-zinc-400 mb-1">인공물 (파워 6 소모)</p>
+                              <div className="grid grid-cols-4 gap-1.5">
+                                {(game.twilightArtifactSlots ?? []).map((aid, i) => {
+                                  if (!aid) return <div key={i} className="h-12 rounded border border-dashed border-white/5 bg-black/20" />;
+                                  const art = ARTIFACTS.find(a => a.id === aid);
+                                  if (!art) return <div key={i} />;
+                                  const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
+                                  const artImg = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
+                                  const canTake = canActNow && !!onTakeTwilightArtifact && totalPower >= 6;
+                                  return (
+                                    <button key={i} disabled={!canTake}
+                                      onClick={() => { if (canTake) { onTakeTwilightArtifact!(aid); setSelectedTile(null); } }}
+                                      className="h-12 p-0.5 rounded border border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40"
+                                      title={`${art.label}: ${art.description}`}>
+                                      {artImg ? <img src={artImg} alt={art.label} className="h-full w-full object-contain" /> : <span className="text-[8px]">{art.label}</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // === 미탑승: 입장 가능하면 입장 UI, 아니면 안내 메시지 ===
                     const enteredCount = currentPlayer.spaceshipsEntered?.length ?? 0;
-                    const alreadyEntered = currentPlayer.spaceshipsEntered?.includes(selectedTile.id);
-                    const canEnter = isMyTurn && enteredCount < 3 && !alreadyEntered;
                     const vpCost = currentPlayer.faction === 'bal_tak' ? 7 : 5;
                     const needVP = (currentPlayer.score ?? 0) < vpCost;
                     const isItarsOrNevlas = currentPlayer.faction === 'itars' || currentPlayer.faction === 'nevlas';
-                    const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0);
                     const needToken = isItarsOrNevlas && totalPower < 1;
                     const baseRange = getEffectiveBaseRange(currentPlayer);
-                    // 거리 출발점: 내 건물 + 내 우주정거장 (서버와 동일)
                     const rangeTiles = game.map.filter((t: HexTile) =>
                       (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
                     );
@@ -1401,34 +1492,40 @@ export function GameBoard({
                     const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
                     const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer.qic ?? 0) * 2);
                     const qicOk = neededQIC <= (currentPlayer.qic ?? 0);
-                    if (!canEnter) return null;
-                    const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
+                    const canEnter = isMyTurn && enteredCount < 3 && !!onEnterSpaceship;
+
                     return (
                       <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
-                        <p className="text-xs font-semibold text-white">{shipName} 입장</p>
-                        <p className="text-xs text-zinc-300">{vpCost} VP로 입장{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
-                        {minDist !== Infinity && (
-                          <p className="text-xs text-muted-foreground">
-                            거리: {minDist} | 기본 범위: {baseRange}
-                            {neededQIC > 0 && (
-                              <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>
+                        <p className="text-xs font-semibold text-white">{shipName}</p>
+                        {techTileNode}
+                        <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>
+                        {!isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
+                        {isMyTurn && enteredCount >= 3 && <p className="text-[11px] text-zinc-400">이미 우주선 3척에 탑승하여 더 탈 수 없습니다.</p>}
+                        {canEnter && (
+                          <>
+                            <p className="text-xs text-zinc-300">{vpCost} VP로 입장{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
+                            {minDist !== Infinity && (
+                              <p className="text-xs text-muted-foreground">
+                                거리: {minDist} | 기본 범위: {baseRange}
+                                {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>}
+                              </p>
                             )}
-                          </p>
+                            {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
+                            {canReach && needVP && <p className="text-xs text-amber-400">입장 비용: {vpCost} VP 필요</p>}
+                            {canReach && isItarsOrNevlas && needToken && <p className="text-xs text-amber-400">입장 비용: 파워 토큰 1개 필요 (1/2/3그릇 순)</p>}
+                            <Button
+                              className="w-full text-xs"
+                              size="sm"
+                              disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
+                              onClick={() => {
+                                onEnterSpaceship!(selectedTile.id, !!currentPlayer.rangeBonusActive, neededQIC);
+                                setSelectedTile(null);
+                              }}
+                            >
+                              입장{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
+                            </Button>
+                          </>
                         )}
-                        {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
-                        {canReach && needVP && <p className="text-xs text-amber-400">입장 비용: {vpCost} VP 필요</p>}
-                        {canReach && isItarsOrNevlas && needToken && <p className="text-xs text-amber-400">입장 비용: 파워 토큰 1개 필요 (1/2/3그릇 순)</p>}
-                        <Button
-                          className="w-full text-xs"
-                          size="sm"
-                          disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
-                          onClick={() => {
-                            onEnterSpaceship(selectedTile.id, !!currentPlayer.rangeBonusActive, neededQIC);
-                            setSelectedTile(null);
-                          }}
-                        >
-                          입장{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
-                        </Button>
                       </div>
                     );
                   })()

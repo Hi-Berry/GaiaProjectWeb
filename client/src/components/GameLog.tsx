@@ -227,7 +227,7 @@ export function GameLog({
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
-                  ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-70'
+                  ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-90'
                   : 'bg-zinc-900/30 border-y border-r border-y-white/5 border-r-white/5'
                 } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:border-primary/50 hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
               style={{
@@ -281,7 +281,7 @@ export function GameLog({
                     })()
                   )}
                   {!isBonusTileLog && (
-                    <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#71717a', fontSize: `${10 * textScale}px` } : { color: '#d4d4d8' })}>
+                    <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#a1a1aa', fontSize: `${10 * textScale}px` } : { color: '#d4d4d8' })}>
                       {log.action}
                     </span>
                   )}
@@ -295,7 +295,7 @@ export function GameLog({
                         <span className="min-w-0">
                           {renderDetailsWithTrackColor(
                             log.details,
-                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium'}`
+                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
                           )}
                         </span>
                       )}
@@ -305,7 +305,7 @@ export function GameLog({
                     <span className="ml-1.5 min-w-0">
                       {renderDetailsWithTrackColor(
                         log.details,
-                        `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-500 font-medium'}`
+                        `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
                       )}
                     </span>
                   )}
@@ -329,7 +329,7 @@ export function GameLog({
                             lineHeight: `${10 * textScale}px`,
                           }}
                         >
-                          <span className="text-zinc-400 font-medium">{cleanText}</span>
+                          <span className="text-zinc-200 font-medium">{cleanText}</span>
                         </div>
                       );
                     })}
