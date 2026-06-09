@@ -1802,7 +1802,28 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 			const r = p.research || {};
 			const rs = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const).map(k => (r[k] ?? 0)).join('');
 			const feds = ((p as any).federations?.length ?? 0);
-			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}`, 'game', undefined, { simulation: (game as any).simulation });
+			// [연방 진단] 연방이 (a)총파워부족 (b)파워충분하나 분산(위성필요) (c)이미형성가능 중 어느 상태인지 구분
+			let fedProbe = '';
+			try {
+				const g = game as any;
+				const req = getFederationRequiredPower(g, pid);
+				const fedHexes = game.playerFederationHexes?.[pid] || [];
+				const freeStructs = st.filter(t => !fedHexes.includes(t.id));
+				const allIds = new Set(freeStructs.map(t => t.id));
+				const totalPow = getFederationBuildingPower(g, pid, allIds);
+				let maxComp = 0; const seenComp = new Set<string>();
+				for (const t of freeStructs) {
+					if (seenComp.has(t.id)) continue;
+					const comp = getPlanetConnectedComponent(g, pid, t.id);
+					comp.forEach((id: string) => seenComp.add(id));
+					const cp = getFederationBuildingPower(g, pid, new Set(comp));
+					if (cp > maxComp) maxComp = cp;
+				}
+				const tok = p.faction === 'ivits' ? (p.qic ?? 0) : ((p.power1 ?? 0) + (p.power2 ?? 0) + (p.power3 ?? 0));
+				const stateTag = totalPow < req ? 'LOW_POWER' : (maxComp >= req ? 'FORMABLE' : 'SCATTERED');
+				fedProbe = ` | FED[${stateTag} req${req} tot${totalPow} maxC${maxComp} tok${tok}]`;
+			} catch { /* 진단 실패 무시 */ }
+			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}${fedProbe}`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 	}
 
