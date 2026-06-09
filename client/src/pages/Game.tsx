@@ -2379,10 +2379,13 @@ export default function Game() {
                     const cur = currentPlayer;
                     if (action && cur) {
                       if (action.costType === 'power') {
+                        // Nevlas 의회: 3그릇 토큰 1개 = 파워 2 → 필요 토큰 수 절반(올림) (서버 executeUsePowerAction와 일치)
+                        const hasNevlasPI = cur.faction === 'nevlas' && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                        const needTokens = hasNevlasPI ? Math.ceil((action.cost as number) / 2) : action.cost;
                         const canPay =
                           cur.faction === 'taklons'
                             ? canSpendTaklonsPower(cur, 3, action.cost)
-                            : (cur.power3 ?? 0) >= action.cost;
+                            : (cur.power3 ?? 0) >= needTokens;
                         if (!canPay) {
                           toast({
                             title: '파워 부족',
@@ -3680,7 +3683,7 @@ export default function Game() {
                             {/* Resources & Power / Gaiaformers */}
                             <div className="flex flex-row gap-2 mt-1 border-t border-white/10 pt-1.5">
                               {/* Left: 2x2 Resource Grid (O C / K Q) */}
-                              <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-1/2 tabular-nums">
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-1/2 tabular-nums">
                                 {/* O: Ore */}
                                 <div className="flex items-baseline justify-start">
                                   <span className="text-zinc-300 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">O</span>

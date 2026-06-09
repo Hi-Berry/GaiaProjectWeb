@@ -2868,14 +2868,23 @@ export class BotLogic {
                     // 단독 파워 후보에서는 2스텝 행성 등 “1스텝으로는 부족한” 목표가 있을 수 있으므로,
                     // gain-1-step으로 열리는 다른 광산이 있다고 gain-2-steps를 막지 않음(타일별 판단은 findBuildActions).
                     const oldSteps = player.pendingTerraformSteps || 0;
+                    const isTfTile = (tid: string) => { const t = game.map.find(m => m.id === tid); return !!(t && getTerraformStepsForFaction(game, player.faction!, t.type!) > 0); };
+                    // +1스텝으로 열리는 테라포밍 빌드 타일
+                    player.pendingTerraformSteps = oldSteps + 1;
+                    const tfTiles1 = new Set(this.findBuildActionsWithPendingSteps(game, playerId).map(a => (a as any).params?.tileId).filter(isTfTile));
+                    // +2스텝으로 열리는 테라포밍 빌드 타일
                     player.pendingTerraformSteps = oldSteps + 2;
                     const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
                     player.pendingTerraformSteps = oldSteps;
-                    const usesTerraforming = possibleBuildActions.some(act => {
-                        const targetTile = game.map.find(t => t.id === (act as any).params?.tileId);
-                        return targetTile && getTerraformStepsForFaction(game, player.faction!, targetTile.type!) > 0;
-                    });
-                    if (possibleBuildActions.length === 0 || !usesTerraforming) {
+                    const tfTiles2 = possibleBuildActions.map(a => (a as any).params?.tileId).filter(isTfTile);
+                    const usesTerraforming = tfTiles2.length > 0;
+                    // 2스텝이 1스텝보다 "추가로" 여는 타일(=2스텝 필요 행성)이 있어야 의미. 없으면 1스텝으로 충분 →
+                    // gain-1-step(3P)을 쓰도록 후보에서 제외(score<0 → 필터됨)하여 5P 낭비 방지.
+                    const opensExtra = tfTiles2.some((tid: string) => !tfTiles1.has(tid));
+                    const gain1Available = game.powerActions.some(a => a.id === 'gain-1-step' && !a.isUsed);
+                    // 2스텝 필요 타일(opensExtra)이 있으면 1스텝 땅 유무와 무관하게 5P 제공.
+                    // 1스텝 땅만 있으면 3P(gain-1-step)를 우선하고, 3P가 소진돼 없을 때만 5P를 폴백으로 허용.
+                    if (!usesTerraforming || (!opensExtra && gain1Available)) {
                         score = -1000;
                     } else {
                         score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀

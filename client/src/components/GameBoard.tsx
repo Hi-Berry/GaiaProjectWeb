@@ -26,7 +26,9 @@ import {
   getGaiaBaseQic,
   ARTIFACTS,
   SHIP_TECH_BY_SHIP,
-  SHIP_TECH_TILES
+  SHIP_TECH_TILES,
+  SPACESHIP_FEDERATION_REWARDS,
+  getFederationEntries
 } from '@shared/gameConfig';
 
 const HEX_SIZE = 4.8;
@@ -1415,6 +1417,23 @@ export function GameBoard({
                       </div>
                     ) : null;
 
+                    // 이 우주선에서 획득 가능한 연방 보상 (탑승/미탑승 공통 표시)
+                    const shipFedId = game.spaceshipFederationByShip?.[selectedTile.type];
+                    const shipFedReward = shipFedId ? SPACESHIP_FEDERATION_REWARDS.find(r => r.id === shipFedId) : null;
+                    const shipFedTaken = shipFedId ? Object.values(game.players).some(pl => getFederationEntries(pl).some(e => e.rewardId === shipFedId)) : false;
+                    const shipFedIdx = shipFedId ? SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId) : -1;
+                    const shipFedImg = shipFedIdx !== -1 ? `/image/Federation_${shipFedIdx + 7}.gif` : null;
+                    const shipFedNode = shipFedReward ? (
+                      <div className="flex items-center gap-2 p-1.5 bg-zinc-800/60 rounded border border-cyan-500/30">
+                        <span className="text-[10px] text-zinc-400 font-semibold shrink-0">연방 보상</span>
+                        {shipFedTaken
+                          ? <span className="text-[10px] text-zinc-500 italic">이미 획득됨</span>
+                          : shipFedImg
+                            ? <img src={shipFedImg} alt={shipFedReward.label} title={shipFedReward.label} className="h-12 w-auto object-contain rounded-sm border border-white/10" />
+                            : <span className="text-[10px] text-zinc-200 font-bold">{shipFedReward.label}</span>}
+                      </div>
+                    ) : null;
+
                     // === 이미 탑승: 액션 UI ===
                     if (isInShip) {
                       const usedIndices = ship.usedActionIndices ?? [];
@@ -1428,6 +1447,7 @@ export function GameBoard({
                             <span className="text-[10px] text-zinc-400">액션 {actionsUsedCount}/3</span>
                           </div>
                           {techTileNode}
+                          {shipFedNode}
                           {!canActNow && <p className="text-[11px] text-amber-400">{!isMyTurn ? '내 턴이 아닙니다' : '이번 턴 메인 액션을 이미 사용했습니다'}</p>}
                           <div className="grid grid-cols-3 gap-1.5">
                             {[0, 1, 2].map((idx) => {
@@ -1498,6 +1518,7 @@ export function GameBoard({
                       <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
                         <p className="text-xs font-semibold text-white">{shipName}</p>
                         {techTileNode}
+                        {shipFedNode}
                         <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>
                         {!isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
                         {isMyTurn && enteredCount >= 3 && <p className="text-[11px] text-zinc-400">이미 우주선 3척에 탑승하여 더 탈 수 없습니다.</p>}

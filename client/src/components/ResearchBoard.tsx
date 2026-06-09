@@ -499,23 +499,23 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             return (
                                                 <div
                                                     key={level}
-                                                    className={`rounded flex items-center justify-center relative border h-4 overflow-hidden cursor-pointer hover:bg-white/5 transition-all flex-shrink-0 ${level === 5 ? 'border-primary/30' : 'border-white/5'}`}
+                                                    className={`rounded flex items-center justify-center relative border h-6 overflow-hidden cursor-pointer hover:bg-white/5 transition-all flex-shrink-0 ${level === 5 ? 'border-primary/30' : 'border-white/5'}`}
                                                     style={{
                                                         backgroundColor: level > 0 ? `${track.color}${level === 5 ? '25' : '12'}` : 'rgba(0,0,0,0.1)',
                                                     }}
                                                     onClick={() => { if (!navBlocked) handleTrackClick(track.id as ResearchTrack); }}
                                                 >
-                                                    <span className="text-[6px] font-black text-zinc-600/50 absolute left-0.5 leading-none select-none">{level}</span>
+                                                    <span className="text-[9px] font-black text-zinc-400 absolute left-0.5 leading-none select-none">{level}</span>
                                                     {/* player tokens — overlap with negative margin */}
                                                     {playersHere.length > 0 && (
-                                                        <div className="flex ml-1 items-center justify-center">
+                                                        <div className="flex ml-1.5 items-center justify-center">
                                                             {playersHere.map((p, i) => {
                                                                 const faction = FACTIONS.find(f => f.id === p.faction);
                                                                 return (
                                                                     <div
                                                                         key={p.id}
-                                                                        className="w-1.5 h-1.5 rounded-full border border-black/40 shadow-sm flex-shrink-0"
-                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-0.5px' : '0' }}
+                                                                        className="w-3 h-3 rounded-full border border-black/50 shadow-md flex-shrink-0"
+                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-3px' : '0' }}
                                                                         title={p.name}
                                                                     />
                                                                 );

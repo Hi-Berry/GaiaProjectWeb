@@ -341,6 +341,17 @@ export class Evaluator {
         // 4) Structures
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
 
+        // [수정] 초반 저확장 교정 (보드 프레즌스): 봇이 시작 광산만 업그레이드하고 새 광산을 안 짓는 문제.
+        // 보드 규모 ~6개 전엔 "새 구조물"이 "업그레이드"보다 가치 높게(structMultiplier 동일 스케일,
+        // presencePer>60이면 새 광산(60+presencePer) > 업글이득(120)) → 봇이 광산 깔고 그다음 업그레이드.
+        {
+            const presenceMult = 1 + w.structureRemainingRoundsFactor * remainingRounds;
+            const presencePer = round <= 4 ? 80 : 40;
+            const boardPresence = Math.min(myStructures.length, 6) * presencePer * presenceMult;
+            score += boardPresence;
+            logDebug(`4a) Board presence(<=6): min(${myStructures.length},6)*${presencePer}*${presenceMult.toFixed(1)} = +${boardPresence.toFixed(0)}`);
+        }
+
         // 확장(광산 10개 이상)에 대한 추가 보너스
         let structExpansionScore = 0;
         if (getPlayerFlag(playerId, 'expandDrive', false)) {

@@ -1792,6 +1792,20 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 
 	log(`[RoundStart] New round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', undefined, { simulation: (game as any).simulation });
 
+	// [분석] 라운드별 빌드 페이스 스냅샷 (봇 약점 진단용). AI_PACE_LOG=1 일 때만.
+	if (process.env.AI_PACE_LOG === '1') {
+		for (const pid of game.turnOrder) {
+			const p = game.players[pid]; if (!p) continue;
+			const st = (game.map as HexTile[]).filter(t => t.ownerId === pid && t.structure && t.structure !== 'ship');
+			const c: Record<string, number> = {};
+			for (const t of st) c[t.structure!] = (c[t.structure!] || 0) + 1;
+			const r = p.research || {};
+			const rs = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const).map(k => (r[k] ?? 0)).join('');
+			const feds = ((p as any).federations?.length ?? 0);
+			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}`, 'game', undefined, { simulation: (game as any).simulation });
+		}
+	}
+
 	// 첫 플레이어가 봇이면 바로 봇 턴 시작
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (StartNewRoundTurn): ${err}`, 'error');
@@ -2685,6 +2699,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			saveActionStartState(game, playerId);
 			const player = game.players[playerId];
+			// Nevlas 의회: 3그릇(area III) 토큰 1개 = 파워 2 → 우주선 액션 파워 코스트의 실제 토큰 소모를 절반(올림)으로.
+			const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+			const shipPowerTokens = (cost: number) => hasNevlasPI ? Math.ceil(cost / 2) : cost;
 			const shipTile = game.map.find(t => t.id === shipTileId);
 			const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
 			if (!shipTile || !shipTypes.includes(shipTile.type)) return;
@@ -2711,10 +2728,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!targetTileId) return;
 					const target = game.map.find(t => t.id === targetTileId);
 					if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return;
-					if (player.ore < 2 || player.power3 < 3) return;
+					{ const tok = shipPowerTokens(3);
+					if (player.ore < 2 || player.power3 < tok) return;
 					player.ore -= 2;
-					player.power3 -= 3;
-					player.power1 += 3;
+					player.power3 -= tok;
+					player.power1 += tok; }
 					target.structure = 'research_lab';
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -2761,10 +2779,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!tid) return;
 					const target = game.map.find(t => t.id === tid || String(t.id) === tid);
 					if (!target || target.ownerId !== playerId || target.structure !== 'mine') return;
-					if (player.ore < 1 || player.power3 < 3) return;
+					{ const tok = shipPowerTokens(3);
+					if (player.ore < 1 || player.power3 < tok) return;
 					player.ore -= 1;
-					player.power3 -= 3;
-					player.power1 += 3;
+					player.power3 -= tok;
+					player.power1 += tok; }
 					target.structure = 'trading_station';
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -2804,13 +2823,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 					return;
 				}
 				if (actionIndex === 2) {
-					if (player.power3 < 2) return; // 3그릇 2pw = 5 from bowl 3
+					if (player.power3 < shipPowerTokens(2)) return; // Nevlas 의회: 2pw=1토큰
 					if (getEffectiveGaiaformers(player) < 1) {
 						socket.emit('game_error', { message: '사용 가능한 가이아포머가 없습니다.' });
 						return;
 					}
-					player.power3 -= 2;
-					player.power1 += 2;
+					player.power3 -= shipPowerTokens(2);
+					player.power1 += shipPowerTokens(2);
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					game.pendingTFMarsGaiaProject = { playerId, shipTileId };
@@ -2853,15 +2872,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (player.knowledge < 2) return;
 					if (player.faction === 'taklons') {
 						if (!canSpendTaklonsPower(player, 3, 3)) return;
-					} else if ((player.power3 ?? 0) < 3) {
+					} else if ((player.power3 ?? 0) < shipPowerTokens(3)) {
 						return;
 					}
 					player.knowledge -= 2;
 					if (player.faction === 'taklons') {
 						spendTaklonsPower(player, 3, 3, true);
 					} else {
-						player.power3 -= 3;
-						player.power1 = (player.power1 || 0) + 3;
+						player.power3 -= shipPowerTokens(3);
+						player.power1 = (player.power1 || 0) + shipPowerTokens(3);
 					}
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
