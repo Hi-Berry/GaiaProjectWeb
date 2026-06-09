@@ -91,9 +91,9 @@ export function recordHumanActionFromLog(game: GaiaGameState & {
     playerAfter: summarizePlayer(player),
   });
 
-  // 가치망 학습 데이터: 사람(강한 플레이어)의 결정 시점 상태도 수집 (VALUE_NET_COLLECT=1일 때만).
-  // 봇 데이터(botHandler)와 합쳐 강한 플레이를 학습 → 약봇 데이터의 한계를 돌파.
-  recordDecisionFeatures(game as any, playerId);
+  // 가치망 학습 데이터: 사람(강한 플레이어)의 결정 시점 상태 + 선택한 수(모방학습용)도 수집
+  // (VALUE_NET_COLLECT=1일 때만). 봇 데이터(botHandler)와 합쳐 강한 플레이를 학습.
+  recordDecisionFeatures(game as any, playerId, action);
 }
 
 function buildPayload(game: GaiaGameState & {
