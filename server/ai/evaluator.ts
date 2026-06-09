@@ -350,6 +350,16 @@ export class Evaluator {
             const boardPresence = Math.min(myStructures.length, 6) * presencePer * presenceMult;
             score += boardPresence;
             logDebug(`4a) Board presence(<=6): min(${myStructures.length},6)*${presencePer}*${presenceMult.toFixed(1)} = +${boardPresence.toFixed(0)}`);
+
+            // [확장 사슬] 작은 보드·초반엔 항해(거리)를 Nav2까지 평가함수에서 보상 → 우선순위가
+            // 빌드(~140) > Nav(130) > 업그레이드(120)가 되어: 지을 땅 있으면 짓고, 막히면 업글 대신
+            // Nav를 올려 새 땅을 연다. (사용자 전략 "Nav2 만들고 광산 뿌린다". 후보생성 boost와 함께 작동)
+            if (getPlayerFlag(playerId, 'navExpandEval', true) && round <= 4 && myStructures.length < 6) {
+                const navLvl = Math.min(player.research.navigation ?? 0, 2);
+                const navExpand = navLvl * 130 * presenceMult;
+                score += navExpand;
+                logDebug(`4b) Nav-for-expansion: nav${navLvl}*130*${presenceMult.toFixed(1)} = +${navExpand.toFixed(0)}`);
+            }
         }
 
         // 확장(광산 10개 이상)에 대한 추가 보너스

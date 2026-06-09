@@ -2376,6 +2376,12 @@ export class BotLogic {
                 const newPlanets = Array.from(reachableNext).filter(t => !reachableNow.has(t));
                 if (newPlanets.length > 0) {
                     score += newPlanets.length * 15; // 새로운 행성 개수당 가점
+                    // [확장 사슬·사용자 전략] 지금 닿는 빈 행성이 거의 없어(확장 병목) 항해가 새 땅을 열면,
+                    // 경제/과학보다 우선해 항해를 올리도록 강한 가점 — "땅 없으면 Nav 올려 새 땅 연다".
+                    // (데이터: 정체봇 nav0-1/struct≤6 vs 확장봇 nav2-5/struct9-13)
+                    if (reachableNow.size <= 1 && round <= 5) {
+                        score += 90 + newPlanets.length * 20;
+                    }
                 } else if (reachableNext.size === 0 && round <= 4) {
                     score += 40;
                 }
