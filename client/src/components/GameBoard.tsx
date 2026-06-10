@@ -1539,6 +1539,21 @@ export function GameBoard({
                         <p className="text-xs font-semibold text-white">{shipName}</p>
                         {techTileNode}
                         {shipFedNode}
+                        {/* 미탑승이어도 이 우주선의 액션을 미리보기(읽기전용)로 표시 — 게임 시작 전에도 확인 가능 */}
+                        <div>
+                          <p className="text-[10px] text-zinc-400 mb-1">우주선 액션 (탑승 시 사용 가능)</p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {(SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—']).map((label, idx) => (
+                              <div
+                                key={idx}
+                                className="w-full text-[9px] h-12 px-1 rounded border border-white/10 bg-zinc-800/40 text-zinc-400 font-bold text-center leading-tight flex items-center justify-center"
+                                title={label}
+                              >
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                         <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>
                         {!isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
                         {isMyTurn && game.currentPhase !== 'main' && <p className="text-[11px] text-zinc-400">우주선 입장은 메인(액션) 단계에서 가능합니다.</p>}
