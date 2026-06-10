@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle } from 'lucide-react';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
+import { fireTurnNotification } from '@/lib/turnNotify';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
 import {
   PLANET_COLORS,
@@ -307,6 +308,19 @@ export function GameBoard({
   const [isPinching, setIsPinching] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 내 차례 데스크톱 알림: "내 차례 아님 → 내 차례" 전환 시 (백그라운드 탭일 때) 알림.
+  const isMyTurnForNotify = !!playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId;
+  const prevMyTurnRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const prev = prevMyTurnRef.current;
+    prevMyTurnRef.current = isMyTurnForNotify;
+    if (prev === null) return; // 마운트 첫 렌더에선 알림 안 함 (새로고침 시 오발 방지)
+    if (!prev && isMyTurnForNotify && game.currentPhase !== 'gameEnd') {
+      const myName = playerId ? game.players[playerId]?.name : '';
+      fireTurnNotification('가이아 프로젝트 — 당신 차례', `${myName ? myName + ', ' : ''}행동할 차례입니다.`);
+    }
+  }, [isMyTurnForNotify, game.currentPhase, playerId]);
 
   const currentPlayer = playerId ? game.players[playerId] : null;
   const isStartingPhase = game.currentPhase === 'startingMines' && currentPlayer && (currentPlayer.startingMinesPlaced || 0) < (currentPlayer.faction ? (FACTIONS.find(f => f.id === currentPlayer.faction)?.startingMines ?? 2) : 2);

@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,6 +6,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  getNotifyPref,
+  setNotifyPref,
+  requestNotifyPermission,
+  getNotifyPermission,
+  notificationsSupported,
+} from '@/lib/turnNotify';
 
 interface HelpItem {
   label: string;
@@ -147,6 +154,65 @@ function HelpSectionBlock({ section }: { section: HelpSection }) {
   );
 }
 
+function NotifyToggle() {
+  const supported = notificationsSupported();
+  const [on, setOn] = useState(false);
+  const [perm, setPerm] = useState<string>('default');
+
+  useEffect(() => {
+    setOn(getNotifyPref());
+    setPerm(getNotifyPermission());
+  }, []);
+
+  const toggle = async () => {
+    if (!supported) return;
+    const next = !on;
+    if (next) {
+      const result = await requestNotifyPermission();
+      setPerm(result);
+      if (result !== 'granted') {
+        // 권한 거부/미허용이면 켜지 않음
+        setNotifyPref(false);
+        setOn(false);
+        return;
+      }
+    }
+    setNotifyPref(next);
+    setOn(next);
+  };
+
+  const denied = perm === 'denied';
+
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">
+        알림
+      </h3>
+      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold text-zinc-200">내 차례 데스크톱 알림</div>
+          <div className="text-[9px] leading-snug text-zinc-500">
+            {!supported
+              ? '이 브라우저는 알림을 지원하지 않습니다.'
+              : denied
+                ? '브라우저에서 알림이 차단됨 — 주소창 자물쇠 → 알림 허용으로 변경하세요.'
+                : '탭을 백그라운드에 둬도 내 차례가 되면 알려줍니다 (보고 있을 땐 안 뜸).'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={!supported || denied}
+          aria-pressed={on}
+          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? 'bg-blue-600' : 'bg-zinc-700'} ${(!supported || denied) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? 'left-[1.125rem]' : 'left-0.5'}`} />
+        </button>
+      </div>
+    </section>
+  );
+}
+
 interface GameUiHelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -166,6 +232,7 @@ export function GameUiHelpDialog({ open, onOpenChange }: GameUiHelpDialogProps) 
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-2"
           style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
         >
+          <NotifyToggle />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {HELP_COLUMNS.map((column, colIdx) => (
               <div key={colIdx} className="flex min-w-0 flex-col gap-2">
