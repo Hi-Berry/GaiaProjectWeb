@@ -155,33 +155,51 @@ function HelpSectionBlock({ section }: { section: HelpSection }) {
 }
 
 function NotifyToggle() {
-  const supported = notificationsSupported();
   const [on, setOn] = useState(false);
-  const [perm, setPerm] = useState<string>('default');
+  const [msg, setMsg] = useState<string>('');
 
   useEffect(() => {
     setOn(getNotifyPref());
-    setPerm(getNotifyPermission());
   }, []);
 
-  const toggle = async () => {
-    if (!supported) return;
-    const next = !on;
-    if (next) {
-      const result = await requestNotifyPermission();
-      setPerm(result);
-      if (result !== 'granted') {
-        // 권한 거부/미허용이면 켜지 않음
-        setNotifyPref(false);
-        setOn(false);
-        return;
-      }
-    }
-    setNotifyPref(next);
-    setOn(next);
-  };
+  const supported = notificationsSupported();
+  const secure = typeof window !== 'undefined' ? window.isSecureContext : true;
 
-  const denied = perm === 'denied';
+  // 버튼은 항상 클릭 가능 — 안 되는 이유를 메시지로 피드백(비활성화하면 "클릭이 안 된다"로 느껴짐).
+  const toggle = async () => {
+    setMsg('');
+    if (!supported) {
+      setMsg('이 브라우저는 알림 API를 지원하지 않습니다.');
+      return;
+    }
+    if (!secure) {
+      setMsg('알림은 https 또는 localhost 접속에서만 동작합니다. 지금처럼 http://(IP) 주소면 브라우저가 막습니다 → localhost로 접속해 주세요.');
+      return;
+    }
+    if (on) {
+      setNotifyPref(false);
+      setOn(false);
+      return;
+    }
+    // 켜는 중: 권한 확인/요청
+    let p = getNotifyPermission();
+    if (p === 'default') {
+      p = await requestNotifyPermission();
+    }
+    if (p !== 'granted') {
+      setMsg(
+        p === 'denied'
+          ? '브라우저에서 알림이 차단되어 있습니다 — 주소창 자물쇠 아이콘 → 알림 "허용"으로 바꾼 뒤 다시 시도하세요.'
+          : '알림 권한이 허용되지 않았습니다. 다시 시도해 주세요.'
+      );
+      setNotifyPref(false);
+      setOn(false);
+      return;
+    }
+    setNotifyPref(true);
+    setOn(true);
+    setMsg('알림이 켜졌습니다. 탭을 백그라운드에 두면 내 차례에 알림이 뜹니다.');
+  };
 
   return (
     <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
@@ -192,19 +210,14 @@ function NotifyToggle() {
         <div className="min-w-0">
           <div className="text-[10px] font-semibold text-zinc-200">내 차례 데스크톱 알림</div>
           <div className="text-[9px] leading-snug text-zinc-500">
-            {!supported
-              ? '이 브라우저는 알림을 지원하지 않습니다.'
-              : denied
-                ? '브라우저에서 알림이 차단됨 — 주소창 자물쇠 → 알림 허용으로 변경하세요.'
-                : '탭을 백그라운드에 둬도 내 차례가 되면 알려줍니다 (보고 있을 땐 안 뜸).'}
+            {msg || '탭을 백그라운드에 둬도 내 차례가 되면 알려줍니다 (보고 있을 땐 안 뜸).'}
           </div>
         </div>
         <button
           type="button"
           onClick={toggle}
-          disabled={!supported || denied}
           aria-pressed={on}
-          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? 'bg-blue-600' : 'bg-zinc-700'} ${(!supported || denied) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          className={`relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${on ? 'bg-blue-600' : 'bg-zinc-700'}`}
         >
           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? 'left-[1.125rem]' : 'left-0.5'}`} />
         </button>
