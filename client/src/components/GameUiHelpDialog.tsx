@@ -12,6 +12,11 @@ import {
   requestNotifyPermission,
   getNotifyPermission,
   notificationsSupported,
+  getNotifyTitle,
+  setNotifyTitle,
+  getNotifyBody,
+  setNotifyBody,
+  fireTestNotification,
 } from '@/lib/turnNotify';
 
 interface HelpItem {
@@ -157,9 +162,13 @@ function HelpSectionBlock({ section }: { section: HelpSection }) {
 function NotifyToggle() {
   const [on, setOn] = useState(false);
   const [msg, setMsg] = useState<string>('');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
 
   useEffect(() => {
     setOn(getNotifyPref());
+    setTitle(getNotifyTitle());
+    setBody(getNotifyBody());
   }, []);
 
   const supported = notificationsSupported();
@@ -221,6 +230,44 @@ function NotifyToggle() {
         >
           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? 'left-[1.125rem]' : 'left-0.5'}`} />
         </button>
+      </div>
+
+      {/* 커스텀 문구 (스텔스용) — 비워두면 기본 문구 사용 */}
+      <div className="border-t border-white/8 px-2 py-1.5 space-y-1.5">
+        <div className="text-[9px] text-zinc-500">알림 문구 (비워두면 기본값). 회사 등에서 무난한 문구로 바꿔두기 좋아요.</div>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => { setTitle(e.target.value); setNotifyTitle(e.target.value); }}
+          placeholder="제목 예: Claude 작업이 완료되었습니다."
+          className="w-full rounded border border-white/10 bg-zinc-900/70 px-2 py-1 text-[10px] text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500/60 focus:outline-none"
+        />
+        <input
+          type="text"
+          value={body}
+          onChange={(e) => { setBody(e.target.value); setNotifyBody(e.target.value); }}
+          placeholder="내용 (선택) 예: 결과를 확인하세요."
+          className="w-full rounded border border-white/10 bg-zinc-900/70 px-2 py-1 text-[10px] text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500/60 focus:outline-none"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const ok = fireTestNotification();
+              setMsg(ok ? '테스트 알림을 보냈습니다 (화면 오른쪽 아래 확인).' : '알림 권한이 없거나 지원되지 않아 테스트할 수 없습니다. 먼저 위 토글로 권한을 허용하세요.');
+            }}
+            className="rounded border border-blue-500/40 bg-blue-600/20 px-2 py-1 text-[10px] font-semibold text-blue-300 hover:bg-blue-600/30"
+          >
+            테스트 알림
+          </button>
+          <button
+            type="button"
+            onClick={() => { setTitle('Claude 작업이 완료되었습니다.'); setNotifyTitle('Claude 작업이 완료되었습니다.'); setBody(''); setNotifyBody(''); }}
+            className="rounded border border-white/10 bg-zinc-800/60 px-2 py-1 text-[10px] text-zinc-300 hover:bg-zinc-700/60"
+          >
+            예시 채우기
+          </button>
+        </div>
       </div>
     </section>
   );
