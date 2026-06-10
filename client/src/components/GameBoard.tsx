@@ -1395,7 +1395,7 @@ export function GameBoard({
             {!ivitsSpaceStationMode && (
               <>
                 {/* 우주선 입장: 메인 단계에서만 표시 (세팅 단계에서는 무반응 방지) */}
-                {game.currentPhase === 'main' && selectedTile.type?.startsWith('ship_') && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
+                {selectedTile.type?.startsWith('ship_') && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
                   (() => {
                     const ship = game.spaceships[selectedTile.id];
                     const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
@@ -1439,7 +1439,7 @@ export function GameBoard({
                       const usedIndices = ship.usedActionIndices ?? [];
                       const actionsUsedCount = usedIndices.length;
                       const actionLabels = SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—'];
-                      const canActNow = isMyTurn && !game.hasDoneMainAction;
+                      const canActNow = isMyTurn && game.currentPhase === 'main' && !game.hasDoneMainAction;
                       return (
                         <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-blue-500/40">
                           <div className="flex items-center justify-between">
@@ -1512,7 +1512,7 @@ export function GameBoard({
                     const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
                     const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer.qic ?? 0) * 2);
                     const qicOk = neededQIC <= (currentPlayer.qic ?? 0);
-                    const canEnter = isMyTurn && enteredCount < 3 && !!onEnterSpaceship;
+                    const canEnter = isMyTurn && game.currentPhase === 'main' && enteredCount < 3 && !!onEnterSpaceship;
 
                     return (
                       <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
@@ -1521,7 +1521,8 @@ export function GameBoard({
                         {shipFedNode}
                         <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>
                         {!isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
-                        {isMyTurn && enteredCount >= 3 && <p className="text-[11px] text-zinc-400">이미 우주선 3척에 탑승하여 더 탈 수 없습니다.</p>}
+                        {isMyTurn && game.currentPhase !== 'main' && <p className="text-[11px] text-zinc-400">우주선 입장은 메인(액션) 단계에서 가능합니다.</p>}
+                        {isMyTurn && game.currentPhase === 'main' && enteredCount >= 3 && <p className="text-[11px] text-zinc-400">이미 우주선 3척에 탑승하여 더 탈 수 없습니다.</p>}
                         {canEnter && (
                           <>
                             <p className="text-xs text-zinc-300">{vpCost} VP로 입장{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
