@@ -985,7 +985,7 @@ export type EconomyIncome = {
 // 경제 트랙 수익 - 파워 변형 (옵션 A)
 export const ECONOMY_INCOME_POWER: EconomyIncome[] = [
   { credits: 0, ore: 0, power: 0 }, // L0
-  { credits: 1, ore: 0, power: 1 }, // L1
+  { credits: 2, ore: 0, power: 1 }, // L1
   { credits: 2, ore: 1, power: 2 }, // L2
   { credits: 2, ore: 1, power: 3 }, // L3
   { credits: 2, ore: 2, power: 2 }, // L4
@@ -995,7 +995,7 @@ export const ECONOMY_INCOME_POWER: EconomyIncome[] = [
 // 경제 트랙 수익 - 점수 변형 (옵션 B)
 export const ECONOMY_INCOME_VP: EconomyIncome[] = [
   { credits: 0, ore: 0, power: 0 }, // L0
-  { credits: 1, ore: 0, power: 1 }, // L1
+  { credits: 2, ore: 0, power: 1 }, // L1
   { credits: 2, ore: 1, power: 2 }, // L2
   { credits: 3, ore: 1, power: 0, vp: 1 }, // L3
   { credits: 4, ore: 2, power: 0, vp: 1 }, // L4

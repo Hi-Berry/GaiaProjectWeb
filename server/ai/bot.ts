@@ -1043,8 +1043,10 @@ export class BotLogic {
         const labCountNow = myStructures.filter(t => t.structure === 'research_lab').length;
 
         /** 연방에 이미 속한 타일 업그레이드는 다음 연방에 불리하므로 감점 */
-        // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 다음 연방 구성이 느려지므로 패널티를 70에서 300으로 대폭 상향하여 원천 차단
-        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 300 : 0;
+        // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 이미 형성된 연방의 파워만 7 초과로 낭비되고
+        // 다음 연방 구성은 늦어짐. 페널티 70→300→450으로 상향해 연방 외부(새 연방용) 업글/확장을 우선.
+        // (비연방 타일 업글은 영향 없음 → 정상 income/연구소 업글은 그대로 유지)
+        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 450 : 0;
         const isFederated = (tileId: string) => fedHexes.includes(tileId);
 
         // 1. Mines -> Trading Stations
@@ -1086,15 +1088,17 @@ export class BotLogic {
                     score += this.calculateRoundScoringBonus(game, playerId, 'build_trading_station');
                     score += this.calculateFinalMissionBonus(game, playerId, mine, 'trading_station');
                     score += this.calculateAdjacencyBonus(game, playerId, mine);
-                    // 6라: 교역소 업그레이드로 연방이 열리거나(혹은 더 싸지면) 패스보다 압도적으로 유리
-                    if (round === 6) {
+                    // [수정 #2] 위성 낭비 완화: 교역소 업그레이드(파워값↑)로 연방이 새로 열리거나 더 적은 위성으로
+                    // 가능해지면 강하게 우대. 기존엔 6라 전용이라 중반에 "위성 줄이는 업글"을 고려 못 했음 → 4라+로 확장.
+                    // (실게임 턴에서만 평가해 MCTS 시뮬 비용 폭증 방지)
+                    if (round >= 4 && !game.simulation) {
                         const before = BotLogic.getBestFederationSpentTokens(game, playerId);
                         const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, mine.id, 'trading_station');
                         if (before == null && after != null) {
                             score += 480; // 업그레이드로 연방이 새로 열림
                         } else if (before != null && after != null && after < before) {
-                            score += Math.min(240, (before - after) * 80); // 더 싸게 연방 가능
-                        } else {
+                            score += Math.min(280, (before - after) * 90); // 위성을 더 적게 쓰는 연방 가능 → 절감폭만큼 가점
+                        } else if (round === 6) {
                             score += 120;
                         }
                     }
@@ -1652,12 +1656,15 @@ export class BotLogic {
             }
 
             if (tile.type === 'gaia') {
+                // [수정 #1] 내 가이아포머가 성숙한 타일(pendingGaiaformerTiles)은 이미 포밍 완료 → 추가 QIC/오레 비용 없음.
+                // 기존엔 gaiaBaseQic를 그대로 요구해 QIC가 0이면 영영 스킵 → 가이아포머(파워+토큰) 낭비. 강하게 우선 건설.
+                const alreadyFormed = player.pendingGaiaformerTiles?.includes(tile.id) ?? false;
                 // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
                 const isGleens = player.faction === 'gleens';
-                const gaiaBaseQic = getGaiaBaseQic(player.faction || '');
-                const totalQicNeeded = isGleens ? neededQicForRange : neededQicForRange + gaiaBaseQic;
+                const gaiaBaseQic = alreadyFormed ? 0 : getGaiaBaseQic(player.faction || '');
+                const totalQicNeeded = (isGleens && !alreadyFormed) ? neededQicForRange : neededQicForRange + gaiaBaseQic;
 
-                if (isGleens) {
+                if (isGleens && !alreadyFormed) {
                     if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
                     if (totalQicNeeded > maxPayQicForMine) continue;
                 } else {
@@ -1666,6 +1673,7 @@ export class BotLogic {
                 }
 
                 let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
+                if (alreadyFormed) score += 400; // 성숙한 가이아포머는 반드시 건설(투자 낭비 방지) — 최우선 처리
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
@@ -2219,7 +2227,19 @@ export class BotLogic {
         const baseRange = getRange(5) + (player.navigationBonus || 0);
         const myQic = this.getAvailableQic(player);
 
-        const candidates = game.map
+        // [수정] 기존엔 "가장 가까운" 빈 우주를 골라 사거리를 낭비하고 기존 건물/연방 바로 옆에 붙였음.
+        // → 좋은 땅을 점수화: 확장 교두보(주변 미점유 행성)·새 섹터·최종미션·새 연방 씨앗을 우대,
+        //   이미 형성된 연방 바로 옆(중복·낭비)은 페널티. 사거리 안(무료)이면 거리는 비용 아님.
+        const fedHexes = new Set<string>(game.playerFederationHexes?.[playerId] || []);
+        const finalIds = game.finalMissionIds || [];
+        const wantsSectors = finalIds.includes('fm_sectors');
+        const wantsOuter = finalIds.includes('fm_outer_sectors');
+        const mySectors = new Set<number>(myTiles.map(t => (t as any).sector).filter((s): s is number => typeof s === 'number'));
+        const isExpandablePlanet = (o: HexTile) => !!o.type
+            && o.type !== 'space' && o.type !== 'deep_space' && o.type !== 'transdim'
+            && !o.type.startsWith('ship_') && !o.ownerId && o.structure === null;
+
+        const scored = game.map
             .filter(t => (t.type === 'space' || t.type === 'deep_space') && t.structure === null && !t.spaceStation)
             .filter(t => {
                 const raw = (satellites as any)[t.id] as (string | string[] | undefined);
@@ -2229,13 +2249,38 @@ export class BotLogic {
             .map(t => {
                 const minDist = Math.min(...myTiles.map(p => getDistance(p, t)));
                 const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                return { tileId: t.id, neededQIC, minDist };
+                let score = 0;
+                // 1) QIC 소모만 비용(사거리 안 거리는 무료라 패널티 없음)
+                score -= neededQIC * 30;
+                // 2) 확장 교두보: 주변 미점유 행성(가까울수록↑)
+                for (const o of game.map) {
+                    if (o.id === t.id || !isExpandablePlanet(o)) continue;
+                    const d = getDistance(t, o);
+                    if (d === 1) score += 22; else if (d === 2) score += 11;
+                }
+                // 3) 새 섹터(확장·미션)
+                const sec = (t as any).sector as number | undefined;
+                if (typeof sec === 'number' && !mySectors.has(sec)) {
+                    score += 35;
+                    if (wantsSectors) score += 30;
+                    if (wantsOuter && sec >= 11) score += 30;
+                }
+                // 4) 새 연방 씨앗 vs 기존 연방 낭비: 주변(≤2칸) 내 건물의 연방 소속 확인
+                let adjFreeOwn = false, adjFedOwn = false;
+                for (const o of game.map) {
+                    if (o.ownerId !== playerId || !o.structure) continue;
+                    if (getDistance(t, o) > 2) continue;
+                    if (fedHexes.has(o.id)) adjFedOwn = true; else adjFreeOwn = true;
+                }
+                if (adjFreeOwn) score += 25;             // 미연방 건물 근처 → 새 연방 형성에 보탬
+                if (adjFedOwn && !adjFreeOwn) score -= 45; // 이미 형성된 연방 바로 옆 = 사거리·연방 모두 낭비
+                return { tileId: t.id, neededQIC, minDist, score };
             })
             .filter(x => x.neededQIC <= myQic)
-            .sort((a, b) => (a.neededQIC - b.neededQIC) || (a.minDist - b.minDist));
+            .sort((a, b) => (b.score - a.score) || (a.neededQIC - b.neededQIC));
 
-        if (candidates.length === 0) return null;
-        const best = candidates[0];
+        if (scored.length === 0) return null;
+        const best = scored[0];
         return { type: 'place_lost_planet', params: { tileId: best.tileId, qicToSpend: best.neededQIC } };
     }
 
