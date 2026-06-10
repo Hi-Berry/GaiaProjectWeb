@@ -20,6 +20,7 @@ interface FreeActionsDialogProps {
     onBurnPower: (useBrain?: boolean) => void;
     onUseBalTakGaiaformerToQic?: () => void;
     onUndoFreeAction?: (steps?: number) => void;
+    onUseHadschHallasPIAction?: (actionId: string) => void;
 }
 
 export function FreeActionsDialog({
@@ -32,6 +33,7 @@ export function FreeActionsDialog({
     onBurnPower,
     onUseBalTakGaiaformerToQic,
     onUndoFreeAction,
+    onUseHadschHallasPIAction,
 }: FreeActionsDialogProps) {
     const currentPlayer = playerId ? game.players[playerId] : null;
     if (!currentPlayer) return null;
@@ -43,6 +45,12 @@ export function FreeActionsDialog({
             (t) => t.ownerId === playerId && t.structure === 'planetary_institute'
         );
     const isXenos = currentPlayer.faction === 'xenos';
+    // 하드쉬 할라스 의회(PI): 크레딧 → 자원 무제한 프리액션 (4C→1QIC, 4C→1K, 3C→1O). 기존엔 R창에만 떠서 안 보였음 → 프리액션에도 노출.
+    const hadschPIActions: { id: string; costCredits: number; label: string }[] =
+        currentPlayer.faction === 'hadsch_hallas'
+            && game.map?.some((t) => t.ownerId === playerId && t.structure === 'planetary_institute')
+            ? (((currentPlayer as any).hadschHallasPIActions ?? []) as { id: string; costCredits: number; label: string }[])
+            : [];
     const academyRightCount =
         game.map?.filter(
             (t) =>
@@ -341,6 +349,19 @@ export function FreeActionsDialog({
                             >
                                 {isXenos ? '1 Ore ➔ 1 Token to Bowl III' : '1 Ore ➔ 1 Token'}
                             </Button>
+                            {hadschPIActions.length > 0 && onUseHadschHallasPIAction && hadschPIActions.map((a) => (
+                                <Button
+                                    key={a.id}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-10 text-[11px] bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/30 text-amber-200"
+                                    disabled={!isCurrentTurn || (currentPlayer.credits ?? 0) < a.costCredits}
+                                    onClick={() => onUseHadschHallasPIAction(a.id)}
+                                    title="하드쉬 할라스 의회: 크레딧으로 자원 교환 (무제한 프리액션)"
+                                >
+                                    {a.label}
+                                </Button>
+                            ))}
                             {currentPlayer?.faction === 'taklons' ? (
                                 <>
                                     <Button

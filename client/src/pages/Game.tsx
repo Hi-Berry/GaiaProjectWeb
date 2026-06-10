@@ -4263,6 +4263,9 @@ export default function Game() {
               onUndoFreeAction={(steps) => {
                 if (gameId) GameClient.undoFreeAction(gameId, steps);
               }}
+              onUseHadschHallasPIAction={(actionId) => {
+                if (gameId) GameClient.useHadschHallasPIAction(gameId, actionId);
+              }}
             />
           </div>
         )}
