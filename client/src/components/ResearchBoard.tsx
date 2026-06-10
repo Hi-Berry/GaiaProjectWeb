@@ -528,7 +528,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                                         {/* Standard Tech Tile (bottom) */}
                                         <div className="h-[44px] w-full rounded overflow-hidden flex items-center justify-center bg-zinc-900/60 border border-yellow-500/10 relative group cursor-pointer hover:border-yellow-500/40 transition-colors"
-                                            onClick={(e) => { e.stopPropagation(); if (trackTile) onGainTechTile(trackTile.id); }}
+                                            onClick={(e) => { e.stopPropagation(); if (!trackTile) return; if (pendingTech && onSelectTechTile) { onSelectTechTile(trackTile.id, track.id as ResearchTrack); } else { onGainTechTile(trackTile.id); } }}
                                         >
                                             {trackTile?.image ? (
                                                 <>

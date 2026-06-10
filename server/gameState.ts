@@ -1802,6 +1802,10 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 			const r = p.research || {};
 			const rs = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const).map(k => (r[k] ?? 0)).join('');
 			const feds = ((p as any).federations?.length ?? 0);
+			// [우주선 진단] 탑승 척수 / 실제 사용한 액션 수 (66% 미사용 문제 추적)
+			const shEntered = (p.spaceshipsEntered ?? []);
+			let shUsed = 0; for (const sid of shEntered) shUsed += ((game as any).spaceships?.[sid]?.usedActionIndices?.length ?? 0);
+			const shTag = ` sh${shEntered.length}/u${shUsed}`;
 			// [연방 진단] 연방이 (a)총파워부족 (b)파워충분하나 분산(위성필요) (c)이미형성가능 중 어느 상태인지 구분
 			let fedProbe = '';
 			try {
@@ -1823,7 +1827,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 				const stateTag = totalPow < req ? 'LOW_POWER' : (maxComp >= req ? 'FORMABLE' : 'SCATTERED');
 				fedProbe = ` | FED[${stateTag} req${req} tot${totalPow} maxC${maxComp} tok${tok}]`;
 			} catch { /* 진단 실패 무시 */ }
-			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}${fedProbe}`, 'game', undefined, { simulation: (game as any).simulation });
+			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}${shTag}${fedProbe}`, 'game', undefined, { simulation: (game as any).simulation });
 		}
 	}
 
@@ -3593,7 +3597,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 
-			if (player.techTiles.includes(tileId)) return;
+			// [중대 버그수정] 보류 중인 기술타일 선택이 없으면 거저 획득 차단(연구소 1개로 타일 2개 먹던 버그).
+				// 정상 획득은 select_tech_tile 경로가 담당. 이 핸들러는 보류가 있을 때만 동작하고 보류를 소모한다.
+				if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return;
+
+				if (player.techTiles.includes(tileId)) return;
 			// 고급 기술 타일 획득 시 초록 연방 1개 소모 (없으면 획득 불가)
 			if (tileId.startsWith('adv-')) {
 				if (countGreenFederations(player) < 1) return;
@@ -3654,7 +3662,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${fedCount * 5} VP (5 per federation)`);
 			}
 
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			game.pendingTechTileSelection = null; game.availableShipTechTileIds = undefined;
+				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
