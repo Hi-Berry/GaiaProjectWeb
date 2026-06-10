@@ -123,7 +123,12 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
         width={scaleW}
         height={scaleH}
         preserveAspectRatio="xMidYMid meet"
-        style={{ pointerEvents: 'none' }}
+        style={{
+          pointerEvents: 'none',
+          // 색감 강한 맵에서 건물이 묻히는 문제 → 건물 모양을 따라가는 테두리.
+          // 어두운 외곽선(밝은 행성에서 분리) + 옅은 흰 후광(어두운 행성에서 분리)으로 어떤 행성색에서도 도드라지게.
+          filter: 'drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.85px rgba(255,255,255,0.45))',
+        }}
       />
     </g>
   );
@@ -931,7 +936,8 @@ export function GameBoard({
                 <image href="/map/ts_forming.png" width="1" height="1" preserveAspectRatio="xMidYMid slice" />
               </pattern>
             </defs>
-            <g id="sector-backgrounds-layer">
+            {/* 행성 배경만 살짝 채도/밝기를 낮춰 건물이 도드라지게 (행성색 정보는 유지되는 선에서 약하게). 건물은 윗 레이어라 영향 없음. */}
+            <g id="sector-backgrounds-layer" style={{ filter: 'saturate(0.82) brightness(0.9)' }}>
               {SECTOR_CENTERS.map((center) => {
                 const cx = HEX_SIZE * SQRT3 * (center.q + center.r / 2);
                 const cy = HEX_SIZE * 1.5 * center.r;
