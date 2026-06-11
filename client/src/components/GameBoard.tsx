@@ -497,11 +497,15 @@ export function GameBoard({
     if (isFederationMode && onFederationToggleHex && !hasDragged) {
       const satList = game.satellites?.[tile.id];
       const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
-      if (isEmptyHex(tile) && !mySatellite) {
+      const isSpaceHex = tile.type === 'space' || tile.type === 'deep_space';
+      // 내 우주정거장 칸: 연결 건물로 토글 (파워 +1)
+      if (isSpaceHex && tile.spaceStation?.ownerId === playerId) {
         onFederationToggleHex(tile.id);
         return;
       }
-      if ((tile.type === 'space' || tile.type === 'deep_space') && tile.spaceStation?.ownerId === playerId) {
+      // 빈 우주칸, 또는 "상대 우주정거장만 있는" 우주칸 → 내 위성 배치 가능 (내 위성이 이미 있으면 제외).
+      // isEmptyHex는 spaceStation이 있으면 false라, 상대 하이브 우주정거장 칸이 막히던 버그 수정.
+      if (isSpaceHex && tile.structure == null && tile.spaceStation?.ownerId !== playerId && !mySatellite) {
         onFederationToggleHex(tile.id);
         return;
       }
@@ -1255,9 +1259,12 @@ export function GameBoard({
                 <div className="rounded border border-sky-500/30 bg-sky-950/40 p-1.5">
                   {game.federationPreview ? (
                     <>
-                      <div className={`text-[10px] font-black tabular-nums ${game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
+                      <div className={`text-[10px] font-black tabular-nums ${game.federationPreview.connected !== false && game.federationPreview.power >= game.federationPreview.requiredPower ? 'text-green-400' : 'text-amber-400'}`}>
                         파워: {game.federationPreview.power} / {game.federationPreview.requiredPower}
                       </div>
+                      {game.federationPreview.connected === false && (
+                        <div className="text-[8px] text-red-400 font-bold mt-0.5">⚠ 선택한 위성·건물이 하나로 연결되지 않았습니다</div>
+                      )}
                       <div className="text-[8px] text-zinc-400 mt-1 max-h-[40px] overflow-y-auto custom-scrollbar">
                         {game.federationPreview.items.length === 0 ? '선택된 칸 없음' : game.federationPreview.items.map(i => `${i.label}(${i.power})`).join(', ')}
                       </div>
@@ -1266,7 +1273,7 @@ export function GameBoard({
                 </div>
                 <div className="flex gap-1.5 mt-0.5">
                   <Button size="sm" variant="outline" className="flex-1 h-6 text-[9px] border-sky-500/50 text-sky-400 px-0" onClick={onFederationToggleMode}>취소</Button>
-                  <Button size="sm" className="flex-1 h-6 text-[9px] bg-sky-600 hover:bg-sky-500 text-white px-0" onClick={onFederationComplete}>완료</Button>
+                  <Button size="sm" disabled={!game.federationPreview || game.federationPreview.connected === false || game.federationPreview.power < game.federationPreview.requiredPower} className="flex-1 h-6 text-[9px] bg-sky-600 hover:bg-sky-500 text-white px-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={onFederationComplete}>완료</Button>
                 </div>
               </div>
             ) : (
