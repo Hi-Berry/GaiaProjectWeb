@@ -1118,8 +1118,8 @@ export default function Game() {
                             )}
                             {(() => {
                               const grouped = b.other.reduce((acc, curr) => {
-                                // "Federation" 이 포함된 소스는 하나로 묶음
-                                const isFederation = curr.source.toLowerCase().includes('federation');
+                                // 연방 관련 소스("Federation" 영문 또는 "연방" 한글)는 한 줄(Federations 총합)로 묶음
+                                const isFederation = curr.source.toLowerCase().includes('federation') || curr.source.includes('연방');
                                 const sourceName = isFederation ? 'Federations' : curr.source;
 
                                 const existing = acc.find(item => item.source === sourceName);
