@@ -1094,6 +1094,15 @@ export function getNextRoundIncomePreview(
     if (c.ore) result.ore += c.ore;
     if (c.qic) result.qic += c.qic;
   }
+  // 트왈라잇 인공물 수익 (서버 income 적용과 동일: art-income-1k1o=1K 1O, art-income-2p3=3그릇에 2파워)
+  const arts = player.artifacts ?? [];
+  if (arts.includes('art-income-1k1o')) {
+    result.knowledge += 1;
+    result.ore += 1;
+  }
+  if (arts.includes('art-income-2p3')) {
+    result.powerCharge += 2;
+  }
   return result;
 }
 
