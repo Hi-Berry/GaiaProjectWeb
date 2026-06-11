@@ -3990,17 +3990,16 @@ export default function Game() {
                                       {imgUrl ? (
                                         <img
                                           src={imgUrl}
-                                          className={`h-[32px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-40 brightness-50'}`}
+                                          className="h-[32px] w-auto object-contain border border-white/10 rounded transition-all brightness-110 saturate-[1.1]"
                                           alt={label}
                                         />
                                       ) : (
-                                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${f.isGreen ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+                                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${f.isGreen ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>
                                           {label}
                                         </Badge>
                                       )}
-                                      {f.isGreen && (
-                                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full border border-black shadow-sm" />
-                                      )}
+                                      {/* 사용 여부는 흑백 대신 점 마커로 구분 (정보 가독성 유지): 미사용=초록, 사용=빨강 */}
+                                      <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black shadow-sm ${f.isGreen ? 'bg-green-500' : 'bg-red-500'}`} />
                                     </div>
                                   );
                                 })}
