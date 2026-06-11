@@ -1547,7 +1547,11 @@ export default function Game() {
         }
         if (tile.structure === 'trading_station' && action.target === 'research_lab') return { ore: 3, credits: 5 };
         if (tile.structure === 'trading_station' && action.target === 'planetary_institute') return { ore: 4, credits: 6 };
+        // 매안(Bescods) 전용: 연구소 → 의회 (교역소가 아니라 연구소에서 PI를 짓는 경로)
+        if (tile.structure === 'research_lab' && action.target === 'planetary_institute') return { ore: 4, credits: 6 };
         if (tile.structure === 'research_lab' && (action.target === 'academy' || action.target === 'academy_left' || action.target === 'academy_right')) return { ore: 6, credits: 6 };
+        // 매안(Bescods) 전용: 교역소 → 아카데미 (일반 진영은 연구소→아카데미)
+        if (tile.structure === 'trading_station' && (action.target === 'academy' || action.target === 'academy_left' || action.target === 'academy_right')) return { ore: 6, credits: 6 };
         return null;
       }
       case 'advanceTech': return { knowledge: 4 };
@@ -2191,7 +2195,15 @@ export default function Game() {
                 return;
               }
               const potentialCost = getActionCost({ type: 'upgrade', tileId, target });
-              if (!potentialCost) return;
+              if (!potentialCost) {
+                // 비용 매핑 누락 시 조용히 죽지 않고 알린다 (예: 진영 특수 업그레이드 경로 미반영)
+                toast({
+                  title: 'Cannot Upgrade',
+                  description: `이 업그레이드 경로의 비용 정보가 없습니다 (${game.map.find(t => t.id === tileId)?.structure ?? '?'} → ${target}). 버그일 수 있어요.`,
+                  variant: 'destructive',
+                });
+                return;
+              }
 
               if (player.ore < (potentialCost.ore ?? 0) || player.credits < (potentialCost.credits ?? 0)) {
                 toast({
@@ -2994,6 +3006,16 @@ export default function Game() {
                     );
                   })}
                 </div>
+                <AlertDialogFooter>
+                  {/* 취소: 턴 시작 상태로 복구 → 연방 형성(위성 배치·토큰 소비) 자체를 되돌림 */}
+                  <Button
+                    variant="outline"
+                    className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                    onClick={() => GameClient.resetTurn(gameId)}
+                  >
+                    취소 (연방 형성 되돌리기)
+                  </Button>
+                </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           );
