@@ -197,9 +197,15 @@ async function uploadToSupabase(payload: HumanGamePayload) {
 export async function exportHumanGameDataset(game: GaiaGameState & {
   id?: string;
   createdAt?: number;
+  botPlayerIds?: string[];
   humanActionJournal?: HumanActionJournalEntry[];
 }) {
   if ((game as any).simulation) return;
+  // 진짜 사람이 한 명도 없으면(= self-play / head2head 등 봇 전용 게임) 사람 데이터셋에 저장하지 않는다.
+  // (러너들이 data/human-games / Supabase 를 오염시키던 문제 수정)
+  const playerIds = Object.keys(game.players ?? {});
+  const hasRealHuman = playerIds.some(id => !(game.botPlayerIds ?? []).includes(id));
+  if (!hasRealHuman) return;
   const payload = buildPayload(game);
   if (payload.actionJournal.length === 0 && payload.gameLog.length === 0) return;
 
