@@ -457,7 +457,7 @@ export interface GaiaGameState {
   turnStartState?: Record<string, {
     playerState: PlayerState;
     mapState: HexTile[];
-    spaceshipsState?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[] }>;
+    spaceshipsState?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[]; usedActionBy?: Record<number, string> }>;
     gameLogLength: number;
     gameLogState?: NonNullable<GaiaGameState['gameLog']>;
     gameLogSnapshotAt?: number;
@@ -478,7 +478,7 @@ export interface GaiaGameState {
   /** 턴 종료는 눌렀지만 파워 수락/거절 응답 대기 때문에 다음 턴으로 아직 넘기지 못한 플레이어 ID */
   pendingTurnEndPlayerId?: string;
   /** 우주선: 맵 타일 ID -> { 잠금해제 여부, 입장한 플레이어 ID 순서, 이번 라운드 사용한 액션 번호(1,2,3) 목록 } */
-  spaceships?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[] }>;
+  spaceships?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[]; usedActionBy?: Record<number, string> }>;
   /** 트왈라잇 액션1: 연방 해택 재수령 선택 대기 (보유 연방 중 하나 선택 = federation reward id) */
   pendingTwilightFederation?: { playerId: string; shipTileId: string } | null;
   /** 트왈라잇 액션2: 2O+3P로 TS→연구소 업그레이드 시 기술 타일 선택은 기존 pendingTechTileSelection 사용 */

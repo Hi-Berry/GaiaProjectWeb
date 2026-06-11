@@ -2817,6 +2817,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.qic -= 3;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingTwilightFederation = { playerId, shipTileId };
 					addGameLog(game, playerId, 'Twilight: Federation benefit', '3 QIC (choose reward)', shipTileId);
 					game.hasDoneMainAction = true; // 우주선 액션 = 파워액션과 동일, 한 턴에 하나
@@ -2835,6 +2837,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					target.structure = 'research_lab';
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					applyRoundMissionScore(game, playerId, 'build_research_lab');
 					addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
 					// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
@@ -2854,6 +2858,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.tempRangeBonus = true;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId);
 					// hasDoneMainAction 설정하지 않음 → 같은 턴에 광산 건설/가이아포밍 등 후 End Turn
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -2868,6 +2874,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.qic -= 3;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					// 연구소/아카데미와 동일: 6트랙+풀+우주선 기술 타일 모두 선택 가능
 					game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 					game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
@@ -2889,6 +2897,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					target.structure = 'trading_station';
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					applyRoundMissionScore(game, playerId, 'build_trading_station');
 					addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
 					createPowerOffers(game, target, playerId);
@@ -2904,6 +2914,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.credits += 2;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId);
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -2920,6 +2932,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					addScore(game, playerId, count + 2, 'other', { source: 'TF Mars Action' });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `(${count}+2) VP`, shipTileId);
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -2935,6 +2949,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.power1 += shipPowerTokens(2);
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingTFMarsGaiaProject = { playerId, shipTileId };
 					addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId);
 					game.hasDoneMainAction = true; // 가이아포머 배치는 후속 선택이지만 턴은 이미 소모
@@ -2948,6 +2964,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step, use when building)', shipTileId);
 					// 같은 턴에 광산 건설 시 테라포밍 할인 받을 수 있도록 hasDoneMainAction 설정하지 않음
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -2965,6 +2983,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					addScore(game, playerId, types.size + 2, 'other', { source: 'Eclipse Action' });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `(${types.size}+2) VP`, shipTileId);
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -2987,6 +3007,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					}
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingEclipseResearch = { playerId, shipTileId };
 					addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
 					game.hasDoneMainAction = true;
@@ -2999,6 +3021,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.credits -= 6;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
+					if (!shipState.usedActionBy) shipState.usedActionBy = {};
+					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingEclipseAsteroidMine = { playerId, shipTileId };
 					addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId);
 					// hasDoneMainAction은 소행성 선택 후 eclipse_build_asteroid_mine에서 설정
@@ -6128,6 +6152,7 @@ export function executePassRound(
 				Object.keys(game.spaceships).forEach(id => {
 					game.spaceships![id].actionsUsed = 0;
 					game.spaceships![id].usedActionIndices = [];
+					game.spaceships![id].usedActionBy = {};
 				});
 			}
 
@@ -6597,6 +6622,8 @@ export function executeUseShipAction(
 			player.qic -= 3;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingTwilightFederation = { playerId, shipTileId };
 			addGameLog(game, playerId, 'Twilight: Federation benefit', '3 QIC (choose reward)', shipTileId);
 			game.hasDoneMainAction = true;
@@ -6614,6 +6641,8 @@ export function executeUseShipAction(
 			target.structure = 'research_lab';
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			applyRoundMissionScore(game, playerId, 'build_research_lab');
 			addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
 			// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
@@ -6631,6 +6660,8 @@ export function executeUseShipAction(
 			player.tempRangeBonus = true;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -6645,6 +6676,8 @@ export function executeUseShipAction(
 			player.qic -= 3;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 			addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
@@ -6664,6 +6697,8 @@ export function executeUseShipAction(
 			target.structure = 'trading_station';
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			applyRoundMissionScore(game, playerId, 'build_trading_station');
 			addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
 			createPowerOffers(game, target, playerId);
@@ -6679,6 +6714,8 @@ export function executeUseShipAction(
 			player.credits = (player.credits || 0) + 2;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -6696,6 +6733,8 @@ export function executeUseShipAction(
 			addScore(game, playerId, count + 2, 'other', { source: 'TF Mars Action' });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `(${count}+2) VP`, shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -6708,6 +6747,8 @@ export function executeUseShipAction(
 			player.power1 = (player.power1 || 0) + 2;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingTFMarsGaiaProject = { playerId, shipTileId };
 			addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId);
 			game.hasDoneMainAction = true;
@@ -6720,6 +6761,8 @@ export function executeUseShipAction(
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step)', shipTileId);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -6737,6 +6780,8 @@ export function executeUseShipAction(
 			addScore(game, playerId, types.size + 2, 'other', { source: 'Eclipse Action' });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `(${types.size}+2) VP`, shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -6758,6 +6803,8 @@ export function executeUseShipAction(
 			}
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingEclipseResearch = { playerId, shipTileId };
 			addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
 			game.hasDoneMainAction = true;
@@ -6769,6 +6816,8 @@ export function executeUseShipAction(
 			player.credits -= 6;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
+			if (!shipState.usedActionBy) shipState.usedActionBy = {};
+			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingEclipseAsteroidMine = { playerId, shipTileId };
 			addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);

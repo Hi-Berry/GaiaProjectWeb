@@ -800,22 +800,28 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         const actionNum = idx + 1;
                                                         const isInShip = playerId && ship.occupants.includes(playerId);
                                                         const canUse = isInShip && onUseShipAction && !isUsed && usedIndices.length < 3;
+                                                        const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
+                                                        const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                                                        const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
 
                                                         return (
                                                             <button
                                                                 key={idx}
                                                                 disabled={!canUse}
                                                                 onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
-                                                                className={`flex-1 text-[5px] leading-tight px-0.5 py-1 rounded-[2px] border transition-all font-black text-center ${isUsed
+                                                                className={`relative flex-1 text-[5px] leading-tight px-0.5 py-1 rounded-[2px] border transition-all font-black text-center ${isUsed
                                                                     ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
                                                                     : canUse && theme
                                                                         ? `${theme.border} ${theme.color} ${theme.text} ${theme.hover} cursor-pointer`
                                                                         : theme
                                                                             ? `border-white/10 ${theme.color} text-zinc-200 cursor-default`
                                                                             : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
-                                                                title={label + (isUsed ? ' (이미 사용됨)' : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                                title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                             >
                                                                 {label}
+                                                                {usedByColor && (
+                                                                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black/60" style={{ backgroundColor: usedByColor }} />
+                                                                )}
                                                             </button>
                                                         );
                                                     })}

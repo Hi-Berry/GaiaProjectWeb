@@ -1501,19 +1501,25 @@ export function GameBoard({
                               const actionNum = idx + 1;
                               const isUsed = usedIndices.includes(actionNum);
                               const canUse = canActNow && !!onUseShipAction && !isUsed && actionsUsedCount < 3;
+                              const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
+                              const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                              const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
                               return (
                                 <button
                                   key={idx}
                                   disabled={!canUse}
                                   onClick={() => { if (canUse) { onUseShipAction!(selectedTile.id, actionNum); setSelectedTile(null); } }}
-                                  className={`w-full text-[9px] h-12 px-1 rounded border font-bold text-center leading-tight flex items-center justify-center ${isUsed
-                                    ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through opacity-50 cursor-not-allowed'
+                                  className={`relative w-full text-[9px] h-12 px-1 rounded border font-bold text-center leading-tight flex items-center justify-center ${isUsed
+                                    ? 'border-white/5 bg-zinc-900 text-zinc-500 line-through cursor-not-allowed'
                                     : canUse
                                       ? 'border-blue-500/40 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 cursor-pointer'
-                                      : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default opacity-60'}`}
-                                  title={actionLabels[idx] + (isUsed ? ' (사용됨)' : '')}
+                                      : 'border-white/10 bg-zinc-800/40 text-zinc-200 cursor-default'}`}
+                                  title={actionLabels[idx] + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : '')}
                                 >
                                   {actionLabels[idx]}
+                                  {usedByColor && (
+                                    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-black/60 shadow-sm" style={{ backgroundColor: usedByColor }} />
+                                  )}
                                 </button>
                               );
                             })}
@@ -1566,19 +1572,28 @@ export function GameBoard({
                         <p className="text-xs font-semibold text-white">{shipName}</p>
                         {techTileNode}
                         {shipFedNode}
-                        {/* 미탑승이어도 이 우주선의 액션을 미리보기(읽기전용)로 표시 — 게임 시작 전에도 확인 가능 */}
+                        {/* 미탑승/상대턴이어도 액션 사용 현황(사용됨/가능)을 상시 표시 — 전략 미리 파악용 */}
                         <div>
-                          <p className="text-[10px] text-zinc-400 mb-1">우주선 액션 (탑승 시 사용 가능)</p>
+                          <p className="text-[10px] text-zinc-400 mb-1">우주선 액션 ({(ship.usedActionIndices ?? []).length}/3 사용됨)</p>
                           <div className="grid grid-cols-3 gap-1.5">
-                            {(SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—']).map((label, idx) => (
-                              <div
-                                key={idx}
-                                className="w-full text-[9px] h-12 px-1 rounded border border-white/10 bg-zinc-800/40 text-zinc-400 font-bold text-center leading-tight flex items-center justify-center"
-                                title={label}
-                              >
-                                {label}
-                              </div>
-                            ))}
+                            {(SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—']).map((label, idx) => {
+                              const isUsed = (ship.usedActionIndices ?? []).includes(idx + 1);
+                              const usedBy = isUsed ? ship.usedActionBy?.[idx + 1] : undefined;
+                              const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                              const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`relative w-full text-[9px] h-12 px-1 rounded border font-bold text-center leading-tight flex items-center justify-center ${isUsed ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through opacity-60' : 'border-white/10 bg-zinc-800/40 text-zinc-300'}`}
+                                  title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : ' (사용 가능)')}
+                                >
+                                  {label}
+                                  {usedByColor && (
+                                    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-black/60 shadow-sm" style={{ backgroundColor: usedByColor }} />
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                         {/* 미탑승이어도 트왈라잇 인공물을 미리보기(읽기전용)로 표시 — 획득은 탑승 후 파워 6 소모 */}
