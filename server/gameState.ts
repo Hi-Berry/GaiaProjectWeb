@@ -3326,9 +3326,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 다카니안 의회: 잊혀진 행성도 신규 섹터/외각이면 1K 2C. 건물 배치지 변경에는 미적용.
 			const hadStructureInThisSectorLP = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector === tile.sector);
-			const hadStructureInOuterLP = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector >= 20 && t.sector < 30);
+			const hadStructureInOuterLP = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && OUTER_SECTORS.includes(t.sector));
 			const isNewSectorLP = !hadStructureInThisSectorLP;
-			const isNewOuterSectorLP = (tile.sector >= 20 && tile.sector < 30) && !hadStructureInOuterLP;
+			const isNewOuterSectorLP = OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterLP;
 			const darkaniansPiBonusLP = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (isNewSectorLP || isNewOuterSectorLP);
 
 			const geodensTypesBeforeLostPlanet = getPlayerPlanetTypesForGeodens(game, playerId);
@@ -5243,9 +5243,9 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// (이미 위에서 체크함)
 	const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
 	const hadStructureInThisSector = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector === tile.sector);
-	const hadStructureInOuter = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector >= 20 && t.sector < 30);
+	const hadStructureInOuter = game.map.some(t => t.id !== tileId && t.ownerId === playerId && t.structure && t.structure !== 'ship' && OUTER_SECTORS.includes(t.sector));
 	const isNewSector = !hadStructureInThisSector;
-	const isNewOuterSector = (tile.sector >= 20 && tile.sector < 30) && !hadStructureInOuter;
+	const isNewOuterSector = OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuter;
 	const darkaniansPiNewSectorBonus = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (isNewSector || isNewOuterSector);
 	const rm7QualifyMine = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 
