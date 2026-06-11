@@ -77,6 +77,27 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
   // color 헥스코드(ownerColor 우선)로 원래 종족(행성) 이름을 역추적하여 파일명으로 활용
   const targetColorHex = (ownerColor || color || '').toUpperCase();
 
+  // 잊혀진 행성 광산: 전용 이미지(/map/lost_planet.png)를 칸 가운데 출력 + 외곽을 소유자(종족) 색으로 살짝 글로우
+  if (structureType === 'lost_planet_mine') {
+    const sizeL = 9.5;
+    const edgeColor = targetColorHex || '#888';
+    return (
+      <g transform={`translate(${-sizeL / 2}, ${-sizeL / 2})`}>
+        <image
+          href="/map/lost_planet.png"
+          width={sizeL}
+          height={sizeL}
+          preserveAspectRatio="xMidYMid meet"
+          style={{
+            pointerEvents: 'none',
+            // 종족 색 외곽 글로우(누구 것인지 표시) + 어두운 외곽선(어떤 행성색에서도 분리)
+            filter: `drop-shadow(0 0 0.55px ${edgeColor}) drop-shadow(0 0 0.55px ${edgeColor}) drop-shadow(0 0 0.25px rgba(0,0,0,0.9))`,
+          }}
+        />
+      </g>
+    );
+  }
+
   let colorName = 'titanium'; // 기본값 (회색조)
   for (const [key, hex] of Object.entries(PLANET_COLORS)) {
     if (hex.toUpperCase() === targetColorHex) {
@@ -110,15 +131,6 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
 
   return (
     <g transform={`translate(${-scaleW / 2}, ${offsetY})`}>
-      {structureType === 'lost_planet_mine' && (
-        <circle
-          cx={scaleW / 2}
-          cy={scaleH / 2}
-          r={(scaleW / 1.5) * 0.8}
-          fill="gray"
-          opacity="0.9"
-        />
-      )}
       <image
         href={`/image/buildings/${colorName}_${buildingType}.png`}
         width={scaleW}
