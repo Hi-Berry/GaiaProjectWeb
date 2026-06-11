@@ -6296,6 +6296,7 @@ export function executeUseTechAction(
 		else chargePower(player, 4);
 		player.usedTechActions.push(tileId);
 		game.hasDoneMainAction = true;
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power');
 	} else if (tileId === 'adv-act-3k') {
 		player.knowledge += 3;
 		player.usedTechActions.push(tileId);
