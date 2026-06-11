@@ -260,12 +260,15 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                                     {RESEARCH_TRACKS.map((track) => {
                                         const tile = getFirstTrackTile(game.techTilesByTrack, track.id);
-                                        if (!tile) return null;
+                                        // 소진/획득돼도 칸을 당기지 않고 트랙 위치 고정 (빈 자리로 유지)
+                                        if (!tile) return (
+                                            <div key={track.id} className="p-2 rounded-lg border border-dashed border-white/10 bg-zinc-900/40 min-h-[3rem] flex items-center justify-center text-[9px] text-zinc-500">소진</div>
+                                        );
                                         const count = (game.techTilesByTrack[track.id] || []).filter(t => t).length;
                                         const isOwned = currentPlayer?.techTiles?.includes(tile.id);
                                         return (
                                             <button
-                                                key={tile.id}
+                                                key={track.id}
                                                 type="button"
                                                 onClick={() => !isOwned && onSelectTechTile && onSelectTechTile(tile.id, track.id)}
                                                 className={`p-2 rounded-lg border relative group w-full flex flex-col items-center gap-1 ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : 'border-white/20 bg-zinc-900/80 hover:border-yellow-500/50'}`}
@@ -1041,9 +1044,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     {level === 5 && game.advancedTechTilesByTrack?.[track.id as ResearchTrack] && (() => {
                                                         const advTile = game.advancedTechTilesByTrack?.[track.id as ResearchTrack];
 
-                                                        // 이미 누군가 획득했는지 검사 (미니뷰나 보드에서 타일 숨김 처리)
+                                                        // 이미 누군가 획득했으면 빈 자리(획득됨)로 유지 — 칸을 당겨 레이아웃이 밀리지 않도록
                                                         const isTaken = Object.values(game.players).some(p => p.techTiles?.includes(advTile!.id));
-                                                        if (isTaken) return null;
+                                                        if (isTaken) return (
+                                                            <div className={`mt-1 py-1.5 px-2 rounded border border-dashed border-cyan-500/15 bg-cyan-950/20 flex items-center justify-center ${isMini ? 'h-[40px]' : 'h-[72px]'}`}>
+                                                                <span className="text-[8px] text-cyan-600/70 uppercase font-black tracking-wider">획득됨</span>
+                                                            </div>
+                                                        );
 
                                                         const playerLvl = playerId ? (game.players[playerId]?.research?.[track.id as ResearchTrack] ?? 0) : 0;
                                                         const canTakeAdvanced = pendingTech && onSelectAdvancedTechTile && playerId && playerLvl >= 4
