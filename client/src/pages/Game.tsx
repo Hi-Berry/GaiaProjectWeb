@@ -2566,6 +2566,44 @@ export default function Game() {
             }
           }
 
+          // 패스 전 경고: 이번 라운드에 아직 안 쓴 1회용 특수 액션(4pw 기술타일·아카데미 QIC·의회 액션·종족 스페셜 등) 검출.
+          // 라운드 전환 시 서버에서 usedTechActions/usedSpecialActions/usedBonusAction/PI액션이 리셋되므로, 패스하면 이번 라운드분은 영구히 날아간다.
+          const unusedAbilities: string[] = [];
+          if (playerId && currentPlayer) {
+            const used = currentPlayer.usedSpecialActions ?? [];
+            const hasStructure = (s: string) => game.map?.some(t => t.ownerId === playerId && t.structure === s) ?? false;
+            const hasPI = hasStructure('planetary_institute');
+            // 1) 기술 타일 액션 (예: ACT: 4P, ACT: 3K, ACT: 3O, ACT: 1Q+5C)
+            (currentPlayer.techTiles ?? []).forEach(tid => {
+              const tile = ALL_TECH_TILES.find(t => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
+              if (tile?.specialAction && !(currentPlayer.usedTechActions ?? []).includes(tid)) unusedAbilities.push(`기술: ${tile.label}`);
+            });
+            // 2) 보너스 타일 특수 액션 (1테라/가이아/+3거리)
+            if (currentBonusTile?.specialAction && !currentPlayer.usedBonusAction) {
+              const names: Record<string, string> = { terraform_step: '1테라', gaia_project: '가이아', range_3: '+3거리' };
+              unusedAbilities.push(`보너스: ${names[currentBonusTile.specialAction] ?? currentBonusTile.specialAction}`);
+            }
+            // 3) 아카데미(오른쪽) QIC/4C 액션 — 사용자가 말한 "1qic"
+            if (game.map?.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right') && !used.includes('academy-qic')) {
+              unusedAbilities.push(currentPlayer.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(1QIC)');
+            }
+            // 4) 의회(PI) 액션 — 하드쉬 할라: 크레딧으로 자원 전환 (감당 가능한 것만)
+            (currentPlayer.hadschHallasPIActions ?? []).forEach(a => {
+              if (!a.isUsed && (currentPlayer.credits ?? 0) >= a.costCredits) unusedAbilities.push(`의회: ${a.label}`);
+            });
+            // 5) 종족 스페셜 액션 (PI 필요한 것은 PI 보유 시에만)
+            if (currentPlayer.faction === 'bescods' && !used.includes('bescods-advance-lowest')) unusedAbilities.push('매안: 최저트랙+1');
+            if (currentPlayer.faction === 'ivits' && !currentPlayer.usedIvitsSpaceStationThisRound) unusedAbilities.push('하이브: 우주정거장');
+            if (currentPlayer.faction === 'moweyip' && hasPI && !used.includes('moweyip-place-ring')) unusedAbilities.push('모웨이드: 링');
+            if (currentPlayer.faction === 'ambas' && hasPI && !used.includes('ambas-swap-pi-mine')) unusedAbilities.push('엠바스: PI-광산 교체');
+            if (currentPlayer.faction === 'firaks' && hasPI && !used.includes('firaks-downgrade')) unusedAbilities.push('파이락: 다운그레이드');
+            if (currentPlayer.faction === 'gleens' && !used.includes('gleens-2nav')) unusedAbilities.push('글린: +2항해');
+            if (currentPlayer.faction === 'space_giants' && !used.includes('space_giants-2tf')) unusedAbilities.push('거인: 2테라');
+            if (currentPlayer.faction === 'tinkeroids' && currentPlayer.tinkeroidRoundSpecialId && !used.includes('tinkeroid-special')) {
+              unusedAbilities.push(`팅커: ${currentPlayer.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`);
+            }
+          }
+
           return (
             <AlertDialog open={!!confirmPassWithTileId} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
               <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-lg">
@@ -2580,6 +2618,22 @@ export default function Game() {
                       : '라운드를 종료하고 보너스 타일을 교체하시겠습니까?'}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+
+                {unusedAbilities.length > 0 && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                    <p className="text-amber-300 font-bold text-sm flex items-center gap-1.5">
+                      ⚠️ 아직 안 쓴 특수 액션이 {unusedAbilities.length}개 있어요
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {unusedAbilities.map((a, i) => (
+                        <span key={i} className="text-[11px] font-bold text-amber-200 bg-amber-500/15 border border-amber-500/30 rounded px-2 py-0.5">
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-amber-200/70 mt-2">패스하면 이번 라운드에 다시 쓸 수 없습니다. 정말 패스할까요?</p>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-center gap-8 py-6">
                   {currentBonusTile && (
