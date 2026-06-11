@@ -79,7 +79,7 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
 
   // 잊혀진 행성 광산: 전용 이미지(/map/lost_planet.png)를 칸 가운데 출력 + 외곽을 소유자(종족) 색으로 살짝 글로우
   if (structureType === 'lost_planet_mine') {
-    const sizeL = 9.5;
+    const sizeL = 7;
     const edgeColor = targetColorHex || '#888';
     return (
       <g transform={`translate(${-sizeL / 2}, ${-sizeL / 2})`}>
