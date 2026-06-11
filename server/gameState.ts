@@ -2773,6 +2773,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					applyRoundMissionScore(game, playerId, 'build_research_lab');
 					addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
+					// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
+					createPowerOffers(game, target, playerId);
+					addBuildingToFederationIfAdjacent(game, playerId, target.id);
 					game.pendingTechTileSelection = { playerId, tileId: targetTileId, structureType: 'research_lab' };
 					// 연구소 건설 시 6트랙+풀+우주선 기술 타일 모두 선택 가능 (동일 플로우)
 					game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
@@ -2825,6 +2828,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					applyRoundMissionScore(game, playerId, 'build_trading_station');
 					addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
 					createPowerOffers(game, target, playerId);
+					addBuildingToFederationIfAdjacent(game, playerId, target.id);
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -3844,6 +3848,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.research[trackId] = currentLevel + 1;
 			const newLevel = player.research[trackId];
 			addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
+			// 다운그레이드로 생긴 교역소도 일반 교역소 건설과 동일 취급: 인접 상대 파워 제공 + 연방 편입 + 교역소 라운드 점수
+			createPowerOffers(game, tile, playerId);
+			addBuildingToFederationIfAdjacent(game, playerId, tile.id);
+			applyRoundMissionScore(game, playerId, 'build_trading_station');
 			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
 			applyAdvancedTechTileEffect(game, playerId, 'research');
@@ -6518,6 +6526,9 @@ export function executeUseShipAction(
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			applyRoundMissionScore(game, playerId, 'build_research_lab');
 			addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
+			// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
+			createPowerOffers(game, target, playerId);
+			addBuildingToFederationIfAdjacent(game, playerId, target.id);
 			game.pendingTechTileSelection = { playerId, tileId: targetTileId, structureType: 'research_lab' };
 			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 			game.hasDoneMainAction = true;
@@ -6566,6 +6577,7 @@ export function executeUseShipAction(
 			applyRoundMissionScore(game, playerId, 'build_trading_station');
 			addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
 			createPowerOffers(game, target, playerId);
+			addBuildingToFederationIfAdjacent(game, playerId, target.id);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
