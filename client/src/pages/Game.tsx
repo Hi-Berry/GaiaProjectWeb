@@ -397,6 +397,19 @@ export default function Game() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [game, playerId]);
 
+  // 이미지 프리로드(브라우저 캐시 워밍): Research/미니뷰는 닫으면 언마운트돼 <img>가 파괴됐다 다시 그려지면서
+  // 재로딩 깜빡임이 생긴다. 자주 쓰는 이미지를 한 번 로드해 캐시에 올려두면, 재마운트 시 즉시 표시된다.
+  useEffect(() => {
+    const urls: string[] = [];
+    [...ALL_TECH_TILES, ...ALL_ADVANCED_TECH_TILES, ...SHIP_TECH_TILES].forEach(t => { if (t.image) urls.push(t.image); });
+    FEDERATION_REWARDS.forEach((_, i) => urls.push(`/image/Federation_${i + 1}.gif`));
+    SPACESHIP_FEDERATION_REWARDS.forEach((_, i) => urls.push(`/image/Federation_${i + 7}.gif`));
+    ARTIFACTS.forEach((_, i) => urls.push(`/image/Art${i + 1}.png`));
+    ALL_BONUS_TILES.forEach((_, i) => urls.push(`/image/BoostTile_${i + 1}.jpg`));
+    const imgs = Array.from(new Set(urls)).map(u => { const img = new Image(); img.src = u; return img; });
+    (window as any).__gaiaPreloadedImages = imgs; // GC 방지용 참조 유지
+  }, []);
+
   const handleConfirm = () => {
     if (!pendingAction || !gameId) return;
 
