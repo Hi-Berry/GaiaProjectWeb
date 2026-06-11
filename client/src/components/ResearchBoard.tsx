@@ -811,11 +811,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
                                                                 className={`relative flex-1 text-[5px] leading-tight px-0.5 py-1 rounded-[2px] border transition-all font-black text-center ${isUsed
                                                                     ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
-                                                                    : canUse && theme
-                                                                        ? `${theme.border} ${theme.color} ${theme.text} ${theme.hover} cursor-pointer`
-                                                                        : theme
-                                                                            ? `border-white/10 ${theme.color} text-zinc-200 cursor-default`
-                                                                            : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
+                                                                    : theme
+                                                                        ? `${theme.border} ${theme.color} ${theme.text} ${canUse ? `${theme.hover} cursor-pointer` : 'cursor-default'}`
+                                                                        : `border-white/10 bg-zinc-800/40 text-zinc-200 ${canUse ? 'cursor-pointer' : 'cursor-default'}`}`}
                                                                 title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                             >
                                                                 {label}
