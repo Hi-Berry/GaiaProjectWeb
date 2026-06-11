@@ -4845,6 +4845,8 @@ export function executeSelectAdvancedTechTile(
 	if (!player) return false;
 	// 고급 타일 선택은 기술 타일 선택 대기 중에만 허용
 	if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return false;
+	// 초록 연방 1개 필요 (소켓 select_advanced_tech_tile와 동일). 없으면 선택 자체 차단 → 커버 단계 stuck 방지.
+	if (countGreenFederations(player) < 1) return false;
 
 	if (trackId != null) {
 		const advTile = game.advancedTechTilesByTrack?.[trackId];
@@ -4880,11 +4882,14 @@ export function executeCoverAdvancedTechTile(
 	if (!player) return false;
 	const pending = game.pendingAdvancedTechCover;
 	if (!pending || pending.playerId !== playerId) return false;
-	if (!player.techTiles?.includes(coverTileId)) return false;
+	if (!player.techTiles?.includes(coverTileId) || coverTileId.startsWith('adv-')) return false;
 
 	if (!player.coveredTechTiles) player.coveredTechTiles = [];
 	// 이미 커버된 타일이면 실패
 	if (player.coveredTechTiles.includes(coverTileId)) return false;
+	// 고급 기술 타일 획득은 초록 연방 1개 소모 (소켓 confirm_advanced_tech_cover와 동일). 봇 경로에서 누락돼 있던 버그 수정.
+	if (countGreenFederations(player) < 1) return false;
+	spendGreenFederation(player);
 	player.coveredTechTiles.push(coverTileId);
 	if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
 
