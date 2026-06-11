@@ -384,6 +384,14 @@ function getStructurePowerValue(structure: StructureType, hasBigBuildingTechTile
 	}
 }
 
+/** 외곽(C) 섹터 = 11~18. 내 건물이 있는 '서로 다른 섹터' 수 (구조물 수가 아니라 섹터 수). */
+const OUTER_SECTORS = [11, 12, 13, 14, 15, 16, 17, 18];
+function countOuterSectorsOccupied(game: GaiaGameState, playerId: string): number {
+	return OUTER_SECTORS.filter(s =>
+		game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure && t.structure !== 'ship')
+	).length;
+}
+
 function findNearbyPlayersForPower(game: ServerGameState, tile: HexTile, sourcePlayerId: string): Array<{ playerId: string; maxPower: number; tileId: string }> {
 	const result: Array<{ playerId: string; maxPower: number; tileId: string }> = [];
 	const processedPlayers = new Set<string>();
@@ -1315,7 +1323,7 @@ export function applyAdvancedTechTilePassEffect(game: GaiaGameState, playerId: s
 			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (2 per asteroid)`);
 		}
 		else if (tileId === 'adv-pass-2vp-outer') {
-			const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 11 && t.sector < 20).length;
+			const outerCount = countOuterSectorsOccupied(game, playerId);
 			const vp = outerCount * 2;
 			addScore(game, playerId, vp, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (2 per outer sector)`);
@@ -3642,7 +3650,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 			} else if (tileId === 'adv-imm-4vp-outer') {
-				const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
+				const outerCount = countOuterSectorsOccupied(game, playerId);
 				addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
 			} else if (tileId === 'adv-imm-6vp-big') {
@@ -3712,7 +3720,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 			}
 			else if (tileId === 'adv-imm-4vp-outer') {
-				const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
+				const outerCount = countOuterSectorsOccupied(game, playerId);
 				addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
 			}
@@ -4913,7 +4921,7 @@ export function executeCoverAdvancedTechTile(
 			addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 		} else if (tileId === 'adv-imm-4vp-outer') {
-			const outerCount = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
+			const outerCount = countOuterSectorsOccupied(game, playerId);
 			addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
 		} else if (tileId === 'adv-imm-6vp-big') {
