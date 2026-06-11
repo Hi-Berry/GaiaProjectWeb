@@ -1059,6 +1059,26 @@ export function GameBoard({
                         {tile.type === 'ship_tf_mars' && <circle r="4.15" fill="url(#ts-tf-mars)" pointerEvents="none" transform="rotate(-90)" />}
                         {tile.type === 'ship_twilight' && <circle r="4.15" fill="url(#ts-twilight)" pointerEvents="none" transform="rotate(-90)" />}
                         {tile.type === 'ship_eclipse' && <circle r="4.15" fill="url(#ts-eclipse)" pointerEvents="none" transform="rotate(-90)" />}
+                        {/* 우주선 탑승자: 맵에서도 누가 탔는지 진영색 점으로 표시 (어떤 색이든 잘 보이게 흰 테두리) */}
+                        {(() => {
+                          const occ = game.spaceships?.[tile.id]?.occupants ?? [];
+                          if (occ.length === 0) return null;
+                          const gap = 1.7;
+                          const startX = -((occ.length - 1) * gap) / 2;
+                          return (
+                            <g pointerEvents="none" transform="translate(0, 2.7)">
+                              {occ.map((pid, i) => {
+                                const fac = game.players[pid]?.faction ? FACTIONS.find(f => f.id === game.players[pid].faction) : null;
+                                return (
+                                  <circle key={pid} cx={startX + i * gap} cy={0} r={0.75}
+                                    fill={fac?.color || '#888'} stroke="#fff" strokeWidth={0.22}>
+                                    <title>{game.players[pid]?.name ?? pid} 탑승</title>
+                                  </circle>
+                                );
+                              })}
+                            </g>
+                          );
+                        })()}
                       </>
                     )}
 
@@ -1554,6 +1574,28 @@ export function GameBoard({
                             ))}
                           </div>
                         </div>
+                        {/* 미탑승이어도 트왈라잇 인공물을 미리보기(읽기전용)로 표시 — 획득은 탑승 후 파워 6 소모 */}
+                        {selectedTile.type === 'ship_twilight' && (game.twilightArtifactSlots?.filter(Boolean).length ?? 0) > 0 && (
+                          <div>
+                            <p className="text-[10px] text-zinc-400 mb-1">인공물 (탑승 후 파워 6 소모하여 획득)</p>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {(game.twilightArtifactSlots ?? []).map((aid, i) => {
+                                if (!aid) return <div key={i} className="h-12 rounded border border-dashed border-white/5 bg-black/20" />;
+                                const art = ARTIFACTS.find(a => a.id === aid);
+                                if (!art) return <div key={i} />;
+                                const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
+                                const artImg = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
+                                return (
+                                  <div key={i}
+                                    className="h-12 p-0.5 rounded border border-purple-500/30 bg-purple-900/15 opacity-70"
+                                    title={`${art.label}: ${art.description}`}>
+                                    {artImg ? <img src={artImg} alt={art.label} className="h-full w-full object-contain" /> : <span className="text-[8px]">{art.label}</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                         <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>
                         {!isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
                         {isMyTurn && game.currentPhase !== 'main' && <p className="text-[11px] text-zinc-400">우주선 입장은 메인(액션) 단계에서 가능합니다.</p>}
@@ -1632,13 +1674,9 @@ export function GameBoard({
                             기술 레벨: {currentPlayer.research?.gaiaProject || 0}
                           </p>
                           {(() => {
-                            // 거리 체크: Nav + Nav보너스 + 트왈라잇/보너스 +3 (서버 place_gaiaformer와 동일)
-                            const baseRange = getEffectiveBaseRange(currentPlayer);
-                            // 트왈라잇 1K·보너스 타일 +3이 반영되도록 플레이어 객체에서 직접 읽기 (최신 game.players 참조)
+                            // 거리 체크: getEffectiveBaseRange로 통일 (Nav + Nav보너스 + 트왈라잇/보너스 +3 + 글린 +2). 서버 place_gaiaformer와 동일
                             const playerForRange = playerId ? game.players[playerId] : null;
-                            const effectiveBaseRange = playerForRange
-                              ? getRange(playerForRange.research?.navigation ?? 0) + (playerForRange.navigationBonus ?? 0) + (playerForRange.tempRangeBonus ? 3 : 0) + (playerForRange.rangeBonusActive ? 3 : 0)
-                              : baseRange;
+                            const effectiveBaseRange = getEffectiveBaseRange(playerForRange ?? currentPlayer);
                             const rangeTiles = game.map.filter((t: HexTile) =>
                               (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
                             );
@@ -1810,9 +1848,7 @@ export function GameBoard({
                 {currentPlayer?.faction === 'lantids' && selectedTile.structure != null && selectedTile.ownerId !== playerId && selectedTile.ownerId != null && !selectedTile.parasiticMine && onBuildMine && (() => {
                   const playerTiles = game.map.filter((t: HexTile) => (t.ownerId === playerId || t.parasiticMine?.ownerId === playerId) && (t.structure != null || t.parasiticMine));
                   const playerForRange = playerId ? game.players[playerId] : null;
-                  const effectiveBaseRange = playerForRange
-                    ? getRange(playerForRange.research?.navigation ?? 0) + (playerForRange.navigationBonus ?? 0) + (playerForRange.tempRangeBonus ? 3 : 0) + (playerForRange.rangeBonusActive ? 3 : 0)
-                    : 0;
+                  const effectiveBaseRange = getEffectiveBaseRange(playerForRange ?? currentPlayer);
                   const minDist = playerTiles.length > 0 ? Math.min(...playerTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                   const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
                   const canReach = minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);

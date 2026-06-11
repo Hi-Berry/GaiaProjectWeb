@@ -110,21 +110,25 @@ function MiniShipQuadrantFrame({
     children: React.ReactNode;
     className?: string;
 }) {
-    const ringColor = (idx: number) => quadrantFactionColors[idx] ?? MINI_SHIP_RING_INACTIVE;
+    // 탑승: 진영 색(불투명). 미탑승: transparent → 아래 빗금(해치) 패턴이 비쳐서
+    // 회색 진영(티타늄 #424242)이 들어와도 "단색 vs 빗금"으로 빈 칸과 확실히 구분됨.
+    const seg = (idx: number) => quadrantFactionColors[idx] ?? 'transparent';
     // CSS conic-gradient: 0deg = 12시, 시계 방향
-    const c12to3 = ringColor(1);
-    const c3to6 = ringColor(2);
-    const c6to9 = ringColor(3);
-    const c9to12 = ringColor(0);
+    const c12to3 = seg(1);
+    const c3to6 = seg(2);
+    const c6to9 = seg(3);
+    const c9to12 = seg(0);
     const hasAnyOccupant = quadrantFactionColors.some(Boolean);
-    const ringThickness = hasAnyOccupant ? 4 : 2;
+    const ringThickness = hasAnyOccupant ? 4 : 3;
+    // 빈 칸용 대각선 빗금 패턴 (탑승 칸은 단색이 위에 덮여 가려짐)
+    const emptyHatch = `repeating-linear-gradient(45deg, ${MINI_SHIP_RING_INACTIVE} 0px, ${MINI_SHIP_RING_INACTIVE} 2px, rgba(24,24,27,0.7) 2px, rgba(24,24,27,0.7) 5px)`;
 
     return (
         <div
             className={`relative rounded-lg ${className}`}
             style={{
                 padding: ringThickness,
-                background: `conic-gradient(from 0deg, ${c12to3} 0deg 90deg, ${c3to6} 90deg 180deg, ${c6to9} 180deg 270deg, ${c9to12} 270deg 360deg)`,
+                background: `conic-gradient(from 0deg, ${c12to3} 0deg 90deg, ${c3to6} 90deg 180deg, ${c6to9} 180deg 270deg, ${c9to12} 270deg 360deg), ${emptyHatch}`,
             }}
             title={quadrantTitles?.filter(Boolean).join(' · ')}
         >
@@ -446,6 +450,21 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 {pendingEclipseTrack && isMini && (
                     <div className="px-1 py-1 mb-1 rounded border border-violet-500/40 bg-violet-500/10">
                         <p className="text-[7px] font-black text-violet-300 uppercase">Eclipse: 트랙 클릭 (2K+3P 지불됨)</p>
+                    </div>
+                )}
+
+                {/* 미니뷰 전용 요약: 매 게임 랜덤인 테라포밍 L5 연방 + 경제 트랙 변형 (R창 안 열고 확인용) */}
+                {isMini && (
+                    <div className="px-1 py-0.5 mb-0.5 rounded bg-black/25 border border-white/5 text-[7px] leading-tight text-zinc-300 flex flex-wrap items-center gap-x-2 gap-y-0">
+                        <span>
+                            <span className="font-black text-amber-400">테라L5</span>{' '}
+                            {FEDERATION_REWARDS.find(r => r.id === game.federationOnTerraforming5)?.label ?? '—'}
+                        </span>
+                        <span className="text-zinc-600">·</span>
+                        <span>
+                            <span className="font-black text-orange-400">경제3·4</span>{' '}
+                            {game.economyVariant === 'vp' ? '+1승점(점수형)' : '파워(기본형)'}
+                        </span>
                     </div>
                 )}
 
@@ -1256,24 +1275,28 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Main Board Power Actions</h4>
                             <div className="grid grid-cols-7 gap-2">
                                 {game.powerActions.map((action) => (
-                                    <Button
+                                    // disabled Button은 pointer-events:none이라 title이 안 뜸 → wrapper div에 title을 둬서 hover 잡히게 함
+                                    <div
                                         key={action.id}
-                                        variant="outline"
-                                        className={`h-16 flex flex-col items-center justify-center gap-1 border transition-all ${action.isUsed
-                                            ? 'opacity-30 grayscale cursor-not-allowed bg-zinc-900 border-white/5'
-                                            : POWER_ACTION_BTN.panelAvailable
-                                            }`}
-                                        disabled={action.isUsed}
-                                        onClick={() => onUsePowerAction(action.id)}
                                         title={action.isUsed ? `사용됨: ${action.usedByPlayerName ?? '알 수 없음'}` : undefined}
                                     >
-                                        <div className={`text-xs font-black ${action.isUsed ? POWER_ACTION_BTN.labelUsed : POWER_ACTION_BTN.labelAvailable}`}>
-                                            {action.label}
-                                        </div>
-                                        <div className={`text-[8px] uppercase font-bold tracking-tighter ${action.isUsed ? POWER_ACTION_BTN.costUsed : POWER_ACTION_BTN.costAvailable}`}>
-                                            {action.cost} {action.costType.toUpperCase()}
-                                        </div>
-                                    </Button>
+                                        <Button
+                                            variant="outline"
+                                            className={`h-16 w-full flex flex-col items-center justify-center gap-1 border transition-all ${action.isUsed
+                                                ? 'opacity-30 grayscale cursor-not-allowed bg-zinc-900 border-white/5'
+                                                : POWER_ACTION_BTN.panelAvailable
+                                                }`}
+                                            disabled={action.isUsed}
+                                            onClick={() => onUsePowerAction(action.id)}
+                                        >
+                                            <div className={`text-xs font-black ${action.isUsed ? POWER_ACTION_BTN.labelUsed : POWER_ACTION_BTN.labelAvailable}`}>
+                                                {action.label}
+                                            </div>
+                                            <div className={`text-[8px] uppercase font-bold tracking-tighter ${action.isUsed ? POWER_ACTION_BTN.costUsed : POWER_ACTION_BTN.costAvailable}`}>
+                                                {action.cost} {action.costType.toUpperCase()}
+                                            </div>
+                                        </Button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
