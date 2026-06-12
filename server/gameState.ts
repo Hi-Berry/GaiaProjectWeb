@@ -3670,6 +3670,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.coveredTechTiles.push(coverTileId);
 			if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
 
+			// 고급 타일은 각 1개씩만 존재 → 획득 시 슬롯을 비워 다른 플레이어가 중복 획득하지 못하게 함
+			if (pending.trackId != null) {
+				if (game.advancedTechTilesByTrack) delete game.advancedTechTilesByTrack[pending.trackId];
+			} else {
+				game.extraAdvancedTechTile = undefined;
+				game.extraAdvancedTechCondition = undefined;
+			}
+
 			applyAdvancedTileImmediateEffect(game, playerId, pending.advancedTileId);
 
 			addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}`);
@@ -4953,6 +4961,14 @@ export function executeCoverAdvancedTechTile(
 	spendGreenFederation(player);
 	player.coveredTechTiles.push(coverTileId);
 	if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
+
+	// 고급 타일은 각 1개씩만 존재 → 획득 시 슬롯을 비워 다른 플레이어가 중복 획득하지 못하게 함
+	if (pending.trackId != null) {
+		if (game.advancedTechTilesByTrack) delete game.advancedTechTilesByTrack[pending.trackId];
+	} else {
+		game.extraAdvancedTechTile = undefined;
+		game.extraAdvancedTechCondition = undefined;
+	}
 
 	// socket handler 내부의 applyAdvancedTileImmediateEffect를 여기서도 동일하게 적용
 	(() => {
