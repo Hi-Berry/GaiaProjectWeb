@@ -3649,6 +3649,8 @@ export default function Game() {
                             } else {
                               GameClient.useSpecialAction(gameId, actionId);
                             }
+                            // 액션 선택 후 상태창(상세 팝오버) 자동 닫기 — 맵 클릭이 필요한 액션(우주정거장/교환/링/다운그레이드 등)을 위해
+                            setExpandedPlayerId(null);
                           }
                         }}
                         className={`px-1 py-0.5 rounded-[3px] text-[9px] border cursor-pointer active:scale-95 transition-all shadow-sm ${activeClass}`}
