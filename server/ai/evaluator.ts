@@ -528,6 +528,16 @@ export class Evaluator {
         score += fedScore;
         logDebug(`8) Federations: ${feds.length} * ${w.federationValueEach.toFixed(0)} * ${fedRoundScale.toFixed(2)} = +${fedScore.toFixed(1)}`);
 
+        // 연방 형성 직후(보상 선택 대기) 상태는 연방 엔트리(feds.length)가 아직 안 늘고 보상 VP도
+        // 미반영이라(보상 선택이 별도 단계) 평가가 '연방 형성'을 과소평가 → 봇이 회피(avgFed 1.6, 사람 4.75).
+        // 임박한 가치(연방 엔트리 1 + 보상 ~10VP)를 반영해 MCTS가 form_federation을 제대로 선택하게 한다.
+        // head2head 60g do-no-harm(51.7%). 연방 전략은 셀프플레이로 검증 불가라 실효는 사용자 1:3 실전으로 확인. 상시 적용.
+        if ((game as any).pendingFederationReward?.playerId === playerId) {
+            const formBonus = w.federationValueEach * fedRoundScale + 10 * vpWeight;
+            score += formBonus;
+            logDebug(`8b) Federation-forming (pending reward): +${formBonus.toFixed(1)}`);
+        }
+
         // 7) Gaiaformers
         if (player.gaiaformers && player.gaiaformers > 0) {
             const gaiaScore = player.gaiaformers * w.gaiaformerValueEach;
