@@ -157,6 +157,20 @@ export default function Game() {
     const n = saved ? parseFloat(saved) : 1;
     return LOG_TEXT_SCALES.includes(n as (typeof LOG_TEXT_SCALES)[number]) ? n as (typeof LOG_TEXT_SCALES)[number] : 1;
   });
+  // 데스크톱 사이드바 도킹 로그 높이(vh). 줄이면 플레이어 상태(4번째 등)가 더 보임.
+  const LOG_DOCK_MIN_VH = 16;
+  const LOG_DOCK_MAX_VH = 60;
+  const [logDockHeightVh, setLogDockHeightVh] = useState<number>(() => {
+    const saved = parseFloat(localStorage.getItem('game-log-dock-height') ?? '');
+    return Number.isFinite(saved) ? Math.min(60, Math.max(16, saved)) : 36;
+  });
+  const adjustLogDockHeight = (delta: number) => {
+    setLogDockHeightVh((prev) => {
+      const next = Math.min(LOG_DOCK_MAX_VH, Math.max(LOG_DOCK_MIN_VH, prev + delta));
+      localStorage.setItem('game-log-dock-height', String(next));
+      return next;
+    });
+  };
   const SIDEBAR_MIN_WIDTH = 280;
   const SIDEBAR_MAX_WIDTH = 720;
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -4330,7 +4344,7 @@ export default function Game() {
             </div>
 
             {/* Game Log — 상태 영역 아래 항상 표시 (L키 하단시트와 별개, 데스크톱만) */}
-            <div className="border-t border-white/10 flex-none flex-col min-h-[180px] max-h-[42vh] hidden md:flex">
+            <div className="border-t border-white/10 flex-none flex-col hidden md:flex" style={{ height: `${logDockHeightVh}vh` }}>
               <div className="flex items-center justify-between gap-2 shrink-0 px-4 pt-3 pb-2">
                 <h3 className="font-semibold flex items-center gap-2 text-xs md:text-sm">
                   <Clock className="w-3.5 h-3.5 text-blue-400" /> Game Log
@@ -4351,6 +4365,31 @@ export default function Game() {
                       *{scale * 100}
                     </Button>
                   ))}
+                  {/* 로그창 높이 조절 (줄이면 플레이어 상태가 더 보임) */}
+                  <div className="flex items-center ml-1 border-l border-white/10 pl-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="로그창 키우기"
+                      disabled={logDockHeightVh >= LOG_DOCK_MAX_VH}
+                      className="h-6 w-6 border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+                      onClick={() => adjustLogDockHeight(6)}
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="로그창 줄이기 (플레이어 상태 더 보기)"
+                      disabled={logDockHeightVh <= LOG_DOCK_MIN_VH}
+                      className="h-6 w-6 ml-0.5 border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+                      onClick={() => adjustLogDockHeight(-6)}
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
               <div
