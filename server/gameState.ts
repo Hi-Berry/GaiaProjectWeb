@@ -3669,7 +3669,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const player = game.players[playerId];
 			if (!player) return;
 			if (tileId === 'adv-imm-1o-sector') {
-				const sectors = occupiedSectorSet(game, playerId, 1, 10);
+				const sectors = occupiedSectorSet(game, playerId, 0, 9);
 				player.ore += sectors.size;
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
 			} else if (tileId === 'adv-imm-4vp-ts') {
@@ -3681,7 +3681,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
 			} else if (tileId === 'adv-imm-2vp-sector') {
-				const sectors = occupiedSectorSet(game, playerId, 1, 10);
+				const sectors = occupiedSectorSet(game, playerId, 0, 9);
 				addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 			} else if (tileId === 'adv-imm-4vp-outer') {
@@ -3734,7 +3734,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			// 고급 타일: 일시불 자원
 			else if (tileId === 'adv-imm-1o-sector') {
-				const sectors = occupiedSectorSet(game, playerId, 1, 10);
+				const sectors = occupiedSectorSet(game, playerId, 0, 9);
 				player.ore += sectors.size;
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
 			}
@@ -3750,7 +3750,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
 			}
 			else if (tileId === 'adv-imm-2vp-sector') {
-				const sectors = occupiedSectorSet(game, playerId, 1, 10);
+				const sectors = occupiedSectorSet(game, playerId, 0, 9);
 				addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 			}
@@ -4943,7 +4943,7 @@ export function executeCoverAdvancedTechTile(
 	(() => {
 		const tileId = pending.advancedTileId;
 		if (tileId === 'adv-imm-1o-sector') {
-			const sectors = occupiedSectorSet(game, playerId, 1, 10);
+			const sectors = occupiedSectorSet(game, playerId, 0, 9);
 			player.ore = (player.ore ?? 0) + sectors.size;
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
 		} else if (tileId === 'adv-imm-4vp-ts') {
@@ -4955,7 +4955,7 @@ export function executeCoverAdvancedTechTile(
 			addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
 		} else if (tileId === 'adv-imm-2vp-sector') {
-			const sectors = occupiedSectorSet(game, playerId, 1, 10);
+			const sectors = occupiedSectorSet(game, playerId, 0, 9);
 			addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 		} else if (tileId === 'adv-imm-4vp-outer') {
