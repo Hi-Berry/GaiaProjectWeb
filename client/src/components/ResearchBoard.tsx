@@ -776,7 +776,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                         <div 
                                                                             key={idx} 
                                                                             onClick={() => canTake && onTakeTwilightArtifact?.(aid)}
-                                                                            className={`w-[54px] h-[35px] rounded-[2px] bg-purple-900/40 overflow-hidden border shadow-sm transition-all ${canTake ? 'border-purple-500 cursor-pointer hover:bg-purple-800/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]' : 'border-purple-500/20 opacity-50 cursor-default'}`}
+                                                                            className={`w-[54px] h-[35px] rounded-[2px] bg-purple-900/40 overflow-hidden border shadow-sm transition-all ${canTake ? 'border-purple-500 cursor-pointer hover:bg-purple-800/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]' : 'border-purple-500/20 cursor-default'}`}
                                                                             title={art ? `${art.label}: ${art.description}` : ''}
                                                                         >
                                                                             {artImgUrl && <img src={artImgUrl} alt="Art" className="w-full h-full object-contain" />}
@@ -1430,7 +1430,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                                     key={idx}
                                                                                     size="sm"
                                                                                     variant="outline"
-                                                                                    className="h-20 w-20 p-1 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40"
+                                                                                    className="h-20 w-20 p-1 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-100 disabled:cursor-default"
                                                                                     disabled={!canTake}
                                                                                     onClick={() => onTakeTwilightArtifact?.(aid)}
                                                                                     title={`${art.label}: ${art.description}`}
