@@ -576,6 +576,8 @@ export function getPlayerRangeTiles(game: ServerGameState, playerId: string, exc
 		if (t.ownerId === playerId && t.structure !== null && (excludeShip !== true || t.structure !== 'ship'))
 			return true;
 		if (t.spaceStation?.ownerId === playerId) return true;
+		// 기생광산(Lantids)도 내 건물이므로 사거리 기점에 포함
+		if (t.parasiticMine?.ownerId === playerId) return true;
 		return false;
 	});
 }

@@ -383,7 +383,7 @@ export function GameBoard({
   const isEclipseAsteroidMode = game.pendingEclipseAsteroidMine?.playerId === playerId;
   // 이클립스 소행성 광산 기준 사거리(서버와 동일: Nav+navigationBonus, 임시보너스 제외). QIC당 +2로 연장.
   const eclipseBaseRange = (currentPlayer ? getRange(currentPlayer.research?.navigation ?? 0) + (currentPlayer.navigationBonus ?? 0) : 0);
-  const eclipseRangeTiles = useMemo(() => game.map.filter((t: HexTile) => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId), [game.map, playerId]);
+  const eclipseRangeTiles = useMemo(() => game.map.filter((t: HexTile) => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId), [game.map, playerId]);
   const eclipseNeededQic = useCallback((tile: HexTile): number => {
     if (eclipseRangeTiles.length === 0) return 0;
     const minDist = Math.min(...eclipseRangeTiles.map((s: HexTile) => getDistance(s, tile)));
@@ -814,7 +814,7 @@ export function GameBoard({
     const maxRangeWithQIC = baseRange + (playerQIC * 2); // QIC당 +2 거리
 
     const rangeTiles = game.map.filter((t: HexTile) =>
-      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
     );
 
     if (rangeTiles.length === 0) return false;
@@ -1634,7 +1634,7 @@ export function GameBoard({
                     const needToken = isItarsOrNevlas && totalPower < 1;
                     const baseRange = getEffectiveBaseRange(currentPlayer);
                     const rangeTiles = game.map.filter((t: HexTile) =>
-                      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+                      (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
                     );
                     const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                     const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
@@ -1780,7 +1780,7 @@ export function GameBoard({
                             const playerForRange = playerId ? game.players[playerId] : null;
                             const effectiveBaseRange = getEffectiveBaseRange(playerForRange ?? currentPlayer);
                             const rangeTiles = game.map.filter((t: HexTile) =>
-                              (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId
+                              (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
                             );
                             const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                             const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
