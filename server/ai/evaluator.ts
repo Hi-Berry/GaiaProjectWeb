@@ -559,9 +559,17 @@ export class Evaluator {
             const gap = required - clusterPower;
             if (clusterPower > 0 && gap <= 3) {
                 const near = Math.max(0, 4 - Math.max(0, gap)); // gap0→4, 1→3, 2→2, 3→1
-                const clusterScore = near * 22 * fedRoundScale;
+                // [실험·플래그 fedPacePush] 연방 수가 인간 페이스(R3:1, R4:2, R5+:3)보다 뒤지면 "질 신호"인
+                // 클러스터 근접 보상만 증폭(개수 직접 보상은 buildOrderPlanner에서 −3.55로 실패 → 금지).
+                // 봇 연방 1.4 vs 사람 4.5 — 모든 상류(초록→L5·고급타일)의 병목.
+                let paceMul = 1.0;
+                if (getPlayerFlag(playerId, 'fedPacePush', false)) {
+                    const paceTarget = round >= 5 ? 3 : round >= 4 ? 2 : round >= 3 ? 1 : 0;
+                    if (feds.length < paceTarget) paceMul = 1.9;
+                }
+                const clusterScore = near * 22 * fedRoundScale * paceMul;
                 score += clusterScore;
-                logDebug(`8b) ClusterFed: power ${clusterPower}/${required} (gap ${gap}) → +${clusterScore.toFixed(1)}`);
+                logDebug(`8b) ClusterFed: power ${clusterPower}/${required} (gap ${gap})${paceMul > 1 ? ` ×${paceMul}(pace)` : ''} → +${clusterScore.toFixed(1)}`);
             }
         }
 
@@ -798,6 +806,16 @@ export class Evaluator {
             const gpFedTarget = round >= 4 ? 3 : round >= 3 ? 2 : round >= 2 ? 1 : 0;
             if (feds.length < gpFedTarget) gp += (gpFedTarget - feds.length) * 45;
             if (gp !== 0) { score += gp; logDebug(`13) GoalPlanner: +${gp.toFixed(1)}`); }
+        }
+
+        // 14) [실험·플래그 shipEngineBonus] 우주선 "사용 액션" 보상 (핸드오프 #1 표적: 봇 우주선 VP 0, 사람 17~24).
+        // v1(사용액션 + 탑승 잠재가치)은 h2h null(−3.03, 과탑승 의심) → v2: 탑승 잠재가치 제거, "실제 사용한 액션"만 보상.
+        // 실행된 액션에만 보상이라 과탑승 부작용이 없고, MCTS 탐색에서 우주선 액션 후보 점수를 직접 끌어올림.
+        if (getPlayerFlag(playerId, 'shipEngineBonus', false)) {
+            let usedShipActions = 0;
+            for (const sid of (player.spaceshipsEntered || [])) usedShipActions += (game.spaceships?.[sid]?.usedActionIndices?.length || 0);
+            const se = usedShipActions * 35;
+            if (se > 0) { score += se; logDebug(`14) ShipEngine(use-only): +${se.toFixed(1)}`); }
         }
 
         if (debug) {
