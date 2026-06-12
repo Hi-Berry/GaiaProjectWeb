@@ -4018,13 +4018,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 					else arr.push(tileId);
 					game.federationMode.selectedPlanetIds = arr;
 				} else {
-					const component = getPlanetConnectedComponent(game, playerId, tileId);
+					// 이미 다른 연방에 속한 건물은 재사용 불가 → blocked로 제외하고 컴포넌트 계산
+					const blocked = new Set(game.playerFederationHexes?.[playerId] ?? []);
+					const component = getPlanetConnectedComponent(game, playerId, tileId, blocked);
 					const power = getFederationBuildingPower(game, playerId, component);
 					const requiredPower = getFederationRequiredPower(game, playerId);
 					if (power >= requiredPower) {
 						game.federationMode = null;
 						game.federationPreview = null;
-						game.pendingFederationReward = { playerId, selectedHexIds: [], spentTokens: 0 };
+						// 형성된 건물 컴포넌트를 selectedPlanetIds로 기록 → 다음 연방에서 재사용 차단
+						game.pendingFederationReward = { playerId, selectedHexIds: [], selectedPlanetIds: Array.from(component), spentTokens: 0 };
 					}
 				}
 			}
