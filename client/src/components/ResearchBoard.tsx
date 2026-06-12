@@ -929,6 +929,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 track.id === 'terraforming' &&
                                                 !!game.federationOnTerraforming5 &&
                                                 !Object.values(game.players).some((p) => (p.research?.terraforming ?? 0) >= 5);
+                                            // Nav 5 보상 = 잊혀진 행성. 아무도 Nav5에 도달하기 전까지 슬롯에 잊혀진 행성 이미지 표시(선착 1명이 획득).
+                                            const isNav5LostPlanetAvailable =
+                                                level === 5 &&
+                                                track.id === 'navigation' &&
+                                                !Object.values(game.players).some((p) => (p.research?.navigation ?? 0) >= 5);
                                             const getTrackBonus = (trackId: string, lvl: number): string => {
                                                 if (trackId === 'terraforming') {
                                                     if (lvl === 0) return '3 Ore/Step';
@@ -1020,7 +1025,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                         {label}
                                                                     </div>
                                                                 );
-                                                            })() : (
+                                                            })() : isNav5LostPlanetAvailable ? (
+                                                                <img
+                                                                    src="/map/lost_planet.png"
+                                                                    alt="Lost Planet"
+                                                                    className={`${isMini ? 'h-7' : 'h-12'} w-auto object-contain`}
+                                                                    title="Navigation 5 보상: 잊혀진 행성 (선착 1명)"
+                                                                />
+                                                            ) : (
                                                                 <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">
                                                                     {getTrackBonus(track.id, level)}
                                                                 </div>
