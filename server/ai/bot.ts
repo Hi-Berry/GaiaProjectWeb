@@ -511,6 +511,23 @@ export class BotLogic {
                     if (candidates.length >= 2 && r < 0.30) return candidates[1];
                     return candidates[0];
                 }
+                // [flag: buildOrderPlanner] 빌드오더 플래너 — 연방 목표 라운드 스케일링.
+                // 데이터: 봇 연방 1~2 vs 사람 3~4. MCTS는 얕은 시야로 연방 형성(위성+보상=다단계)을
+                // 자주 놓침. getBestFederationAction이 품질 게이트(가치 없으면 null)이므로, 목표 미달이고
+                // 좋은 연방이 가능하면 MCTS를 건너뛰고 즉시 형성한다.
+                if (getPlayerFlag(playerId, 'buildOrderPlanner', false)) {
+                    const myFeds = ((player as any).federations?.length ?? (player as any).federationTokens?.length ?? 0) as number;
+                    const round = (game as any).roundNumber ?? 1;
+                    // 라운드별 목표 연방 수 (사람 수준 3~4). 초반엔 무리하지 않음.
+                    const fedTarget = round <= 2 ? 1 : round === 3 ? 2 : round === 4 ? 3 : 4;
+                    if (myFeds < fedTarget) {
+                        const fed = FederationPlanner.getBestFederationAction(game, playerId);
+                        if (fed) {
+                            log(`Bot ${player.name} buildOrder: form federation (feds=${myFeds}/${fedTarget}, round=${round})`, 'game', game.id);
+                            return { type: 'form_federation', params: fed };
+                        }
+                    }
+                }
                 // [flag: scriptedStrategy] 다턴 실행 우회: MCTS가 얕은 시야로 "지금 연방 형성"을 자주 놓침
                 // (로그: 연방1개 봇의 33%가 파워≥7인데 2번째 미형성). 형성 가능 + 연방<2면 MCTS 건너뛰고 즉시 형성.
                 if (getPlayerFlag(playerId, 'scriptedStrategy', false)) {
