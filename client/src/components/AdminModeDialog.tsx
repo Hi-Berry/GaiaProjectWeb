@@ -223,39 +223,48 @@ function ForceEndGameButton({ gameId, ended }: { gameId: string; ended: boolean 
   );
 }
 
-function RollbackTurnButton({ gameId }: { gameId: string }) {
-  const [busy, setBusy] = useState(false);
+function RollbackTurnPanel({ game }: { game: GameState }) {
+  const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
-  const rollback = async () => {
-    setBusy(true);
+  const rollback = async (targetPlayerId: string) => {
+    setBusy(targetPlayerId);
     setMessage('');
     try {
-      const name = await GameClient.adminRollbackTurn(gameId, ADMIN_PASSWORD);
-      setMessage(`${name ?? '현재 플레이어'}의 턴을 시작 시점으로 되돌렸습니다.`);
+      const name = await GameClient.adminRollbackTurn(game.id, ADMIN_PASSWORD, targetPlayerId);
+      setMessage(`${name ?? '플레이어'}의 마지막 턴 시작으로 되돌렸습니다.`);
     } catch (err: any) {
       setMessage(err?.message || '실패');
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
+  const order = (game.turnOrder && game.turnOrder.length ? game.turnOrder : Object.keys(game.players)).filter((id) => game.players[id]);
+
   return (
     <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-3 space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-black text-cyan-300">턴 롤백</div>
-          <div className="text-[10px] text-zinc-400">현재 턴 플레이어의 턴을 시작 시점으로 되돌립니다 (실수 복구). 이미 끝난 턴은 불가.</div>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs shrink-0 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20"
-          disabled={busy}
-          onClick={rollback}
-        >
-          {busy ? '되돌리는 중…' : '턴 롤백'}
-        </Button>
+      <div className="min-w-0">
+        <div className="text-sm font-black text-cyan-300">턴 롤백</div>
+        <div className="text-[10px] text-zinc-400">선택한 플레이어의 <b>마지막 턴 시작</b>으로 게임 전체를 되감습니다 (그 이후 모든 행동 취소). 실수 복구용.</div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {order.map((id) => {
+          const p = game.players[id];
+          const isCurrent = game.turnOrder?.[game.currentPlayerIndex ?? 0] === id;
+          return (
+            <Button
+              key={id}
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/20"
+              disabled={busy !== null}
+              onClick={() => rollback(id)}
+            >
+              {busy === id ? '되돌리는 중…' : `${p.name}${isCurrent ? ' (현재)' : ''}`}
+            </Button>
+          );
+        })}
       </div>
       {message && <div className="text-[10px] text-zinc-400">{message}</div>}
     </div>
@@ -323,7 +332,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
           <ScrollArea className="max-h-[70vh]">
             <div className="p-5 space-y-3">
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
-              <RollbackTurnButton gameId={game.id} />
+              <RollbackTurnPanel game={game} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />
               ))}

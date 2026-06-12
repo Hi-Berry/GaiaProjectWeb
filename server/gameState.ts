@@ -908,7 +908,9 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
 	game.hasDoneMainAction = false;
 	clearFreeActionUndo(game);
-	if (game.turnStartState) delete game.turnStartState[endedPlayerId];
+	// [턴 롤백] 끝난 플레이어의 '턴 시작 스냅샷'을 삭제하지 않고 유지 → GM이 각 플레이어의
+	// 마지막 턴 시작으로 되돌릴 수 있게 함(플레이어당 1개, 다음 턴 시작 때 갱신). reset_turn은
+	// 현재 플레이어 + 라운드/인덱스 일치 가드가 있어 stale 스냅샷에 영향받지 않음.
 	if (game.players[endedPlayerId]) game.players[endedPlayerId].tempRangeBonus = false;
 	game.pendingTurnEndPlayerId = undefined;
 
@@ -2688,15 +2690,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 		// GM/Admin: 현재 턴 플레이어의 턴을 시작 시점으로 롤백 (실수 복구용).
 		// reset_turn과 동일한 전체 상태 복원이지만 GM이 대신 실행. 끝난 턴은 스냅샷이 삭제돼 불가.
-		socket.on('admin_rollback_turn', ({ gameId, adminCode }: { gameId: string; adminCode: string }, callback?: (r: { ok?: boolean; error?: string; playerName?: string }) => void) => {
+		socket.on('admin_rollback_turn', ({ gameId, adminCode, targetPlayerId }: { gameId: string; adminCode: string; targetPlayerId?: string }, callback?: (r: { ok?: boolean; error?: string; playerName?: string }) => void) => {
 			const game = games.get(gameId);
 			if (!game) { callback?.({ error: 'Game not found' }); return; }
 			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
-			const playerId = game.turnOrder[game.currentPlayerIndex];
-			if (!playerId) { callback?.({ error: '현재 턴 플레이어를 찾을 수 없습니다.' }); return; }
+			// 대상 미지정 시 현재 턴 플레이어. 지정 시 그 플레이어의 마지막 턴 시작으로 전체 되감기.
+			const playerId = targetPlayerId || game.turnOrder[game.currentPlayerIndex];
+			if (!playerId) { callback?.({ error: '대상 플레이어를 찾을 수 없습니다.' }); return; }
 			const startState: any = game.turnStartState?.[playerId];
 			if (!startState?.fullGameState) {
-				callback?.({ error: '롤백 스냅샷이 없습니다 (이미 끝난 턴이거나 턴 시작 직후가 아님).' });
+				callback?.({ error: '이 플레이어의 롤백 스냅샷이 없습니다.' });
 				return;
 			}
 			const restored = deepClone(startState.fullGameState) as ServerGameState;

@@ -290,10 +290,10 @@ export const GameClient = {
     });
   },
 
-  adminRollbackTurn(gameId: string, adminCode: string): Promise<string | undefined> {
+  adminRollbackTurn(gameId: string, adminCode: string, targetPlayerId?: string): Promise<string | undefined> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('admin_rollback_turn', { gameId, adminCode }, (response: any) => {
+      s.emit('admin_rollback_turn', { gameId, adminCode, targetPlayerId }, (response: any) => {
         if (response?.error) reject(new Error(response.error));
         else resolve(response?.playerName);
       });
