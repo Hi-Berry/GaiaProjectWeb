@@ -283,7 +283,7 @@ export function saveFinalGameState(game: ServerGameState) {
 	}
 }
 
-function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; source?: string; missionId?: string; noLog?: boolean }) {
+function addScore(game: GaiaGameState, playerId: string, vp: number, category: keyof ScoreBreakdown, detail?: { round?: number; tileId?: string; shipTileId?: string; shipType?: string; actionIndex?: number; source?: string; missionId?: string; noLog?: boolean }) {
 	const player = game.players[playerId];
 	if (!player) return;
 	ensureScoreBreakdown(player);
@@ -313,7 +313,7 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 		b.powerReceived += -appliedVp;
 		recordedInBreakdown = true;
 	} else if (category === 'spaceships') {
-		b.spaceships.push({ shipTileId: detail?.shipTileId || detail?.tileId || detail?.source || 'spaceship-reward', vp: appliedVp });
+		b.spaceships.push({ shipTileId: detail?.shipTileId || detail?.tileId || detail?.source || 'spaceship-reward', vp: appliedVp, shipType: detail?.shipType, actionIndex: detail?.actionIndex });
 		recordedInBreakdown = true;
 	} else if (category === 'researchTracks') {
 		b.researchTracks += appliedVp;
@@ -2955,7 +2955,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (player.qic < 2) return;
 					player.qic -= 2;
 					const count = player.techTiles?.length ?? 0;
-					addScore(game, playerId, count + 2, 'other', { source: 'TF Mars Action' });
+					addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
@@ -3006,7 +3006,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.qic -= 2;
 					const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
 					const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
-					addScore(game, playerId, types.size + 2, 'other', { source: 'Eclipse Action' });
+					addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
@@ -3248,7 +3248,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			if (normalReward) {
 				addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, pending.shipTileId);
-				addScore(game, playerId, normalReward.vp, 'other', { source: 'Twilight Federation Benefit' });
+				addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 				if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
 				if ('knowledge' in normalReward && normalReward.knowledge) player.knowledge += normalReward.knowledge;
@@ -3263,26 +3263,26 @@ export function setupGameServer(httpServer: HTTPServer) {
 						break;
 					case 'ship-fed-4vp4k':
 						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId });
+						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
 						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId });
+						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
 						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-						addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId });
+						addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-12vp':
 						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-						addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId });
+						addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						break;
 					case 'ship-fed-7vp3p2t':
 						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-						addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId });
+						addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					case 'ship-fed-mine-free':
@@ -4243,16 +4243,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 						game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 						break;
 					case 'ship-fed-4vp4k':
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: spaceshipBreakdownId });
+						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: spaceshipBreakdownId });
+						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' });
 						grantQic(game, playerId, 1);
 						player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
-						addScore(game, playerId, 8, 'spaceships', { shipTileId: spaceshipBreakdownId });
+						addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상' });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-mine-free':
@@ -4263,10 +4263,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 						player.spaceshipFed3TfMineFree = true;
 						break;
 					case 'ship-fed-12vp':
-						addScore(game, playerId, 12, 'spaceships', { shipTileId: spaceshipBreakdownId });
+						addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상' });
 						break;
 					case 'ship-fed-7vp3p2t':
-						addScore(game, playerId, 7, 'spaceships', { shipTileId: spaceshipBreakdownId });
+						addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상' });
 						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					default:
@@ -6758,7 +6758,7 @@ export function executeUseShipAction(
 			if (player.qic < 2) return false;
 			player.qic -= 2;
 			const count = player.techTiles?.length ?? 0;
-			addScore(game, playerId, count + 2, 'other', { source: 'TF Mars Action' });
+			addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
@@ -6805,7 +6805,7 @@ export function executeUseShipAction(
 			player.qic -= 2;
 			const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
 			const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
-			addScore(game, playerId, types.size + 2, 'other', { source: 'Eclipse Action' });
+			addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
@@ -7874,7 +7874,7 @@ export function executeConfirmTwilightFederation(
 
 	if (normalReward) {
 		addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, pending.shipTileId);
-		addScore(game, playerId, normalReward.vp, 'other', { source: 'Twilight Federation Benefit' });
+		addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 		if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 		if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
 		if ('knowledge' in normalReward && normalReward.knowledge) player.knowledge += normalReward.knowledge;
@@ -7889,27 +7889,27 @@ export function executeConfirmTwilightFederation(
 				break;
 			case 'ship-fed-4vp4k':
 				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId });
+				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				player.knowledge = (player.knowledge || 0) + 4;
 				break;
 			case 'ship-fed-4vp1q2o':
 				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId });
+				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				grantQic(game, playerId, 1);
 				player.ore = (player.ore || 0) + 2;
 				break;
 			case 'ship-fed-8vp8c':
 				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-				addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId });
+				addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				player.credits = (player.credits || 0) + 8;
 				break;
 			case 'ship-fed-12vp':
 				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-				addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId });
+				addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				break;
 			case 'ship-fed-7vp3p2t':
 				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, pending.shipTileId);
-				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId });
+				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 				break;
 			case 'ship-fed-mine-free':

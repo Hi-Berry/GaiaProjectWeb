@@ -111,8 +111,8 @@ export interface ScoreBreakdown {
   finalMissionDetails: { missionId: string; vp: number }[];
   /** 파워 수신으로 지불한 VP (표시 시 마이너스) */
   powerReceived: number;
-  /** 우주선별 획득 VP */
-  spaceships: { shipTileId: string; vp: number }[];
+  /** 우주선 액션별 획득 VP (shipType+actionIndex로 액션 이미지 1/3 슬라이스 렌더) */
+  spaceships: { shipTileId: string; vp: number; shipType?: string; actionIndex?: number }[];
   /** 게임 종료 연구 트랙 보너스 (3단계 4점, 4단계 8점, 5단계 12점) */
   researchTracks: number;
   /** 게임 종료 시 남은 자원 (O+C+QIC+K) 합 3당 1 VP */

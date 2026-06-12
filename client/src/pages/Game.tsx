@@ -1126,7 +1126,7 @@ export default function Game() {
                             )}
                             {spaceshipsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Spaceships</span>
+                                <span className="text-xs font-bold text-zinc-400">Spaceship Missions</span>
                                 <span className="text-sm font-black text-cyan-400/90">+{spaceshipsSum} VP</span>
                               </div>
                             )}
@@ -1373,21 +1373,40 @@ export default function Game() {
                                 <Ship className="w-4 h-4 text-cyan-500" />
                                 <h4 className="text-xs font-black text-white uppercase tracking-widest">Spaceship Missions</h4>
                               </div>
-                              <div className="grid grid-cols-1 gap-2">
+                              <div className="flex flex-wrap gap-2">
                                 {(() => {
-                                  const grouped = b.spaceships.reduce((acc, curr) => {
-                                    const existing = acc.find(t => t.shipTileId === curr.shipTileId);
-                                    if (existing) existing.vp += curr.vp;
-                                    else acc.push({ ...curr });
-                                    return acc;
-                                  }, [] as { shipTileId: string; vp: number }[]);
-
-                                  return grouped.map(({ shipTileId, vp }, i) => (
-                                    <div key={i} className="bg-zinc-900/30 border border-white/5 rounded-lg p-2.5 flex justify-between items-center group hover:bg-zinc-900/50 transition-colors">
-                                      <div className="flex items-center gap-2 text-[10px] font-black text-zinc-400">{shipTileId || 'Spaceship Achievement'}</div>
-                                      <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 h-5 px-1.5 font-black">+{vp}</Badge>
-                                    </div>
-                                  ));
+                                  // 우주선별 액션 스트립 이미지(가로 3칸). 액션 1회 사용 = 해당 액션 1/3 슬라이스 + 점수 한 장.
+                                  const SHIP_ACTION_IMG: Record<string, string> = {
+                                    ship_twilight: '/image/ActionTwilight.jpg',
+                                    ship_rebellion: '/image/ActionRebellion.jpg',
+                                    ship_tf_mars: '/image/ActionTFMars.jpg',
+                                    ship_eclipse: '/image/ActionEclipse.jpg',
+                                  };
+                                  return b.spaceships.map((entry, i) => {
+                                    const img = entry.shipType ? SHIP_ACTION_IMG[entry.shipType] : undefined;
+                                    const thirdIdx = Math.min(2, Math.max(0, (entry.actionIndex ?? 1) - 1)); // 0|1|2
+                                    return (
+                                      <div key={i} className="flex flex-col items-center gap-1 group">
+                                        {img ? (
+                                          <div
+                                            className="w-16 h-16 rounded-lg border border-cyan-500/30 overflow-hidden group-hover:border-cyan-400/60 transition-colors"
+                                            style={{
+                                              backgroundImage: `url(${img})`,
+                                              backgroundSize: '300% 100%',
+                                              backgroundPosition: `${thirdIdx * 50}% center`,
+                                              backgroundRepeat: 'no-repeat',
+                                            }}
+                                            title={`${entry.shipTileId || 'Spaceship'} · +${entry.vp} VP`}
+                                          />
+                                        ) : (
+                                          <div className="w-16 h-16 rounded-lg border border-white/5 bg-zinc-900/40 flex items-center justify-center text-[8px] text-zinc-500 text-center px-1">
+                                            {entry.shipTileId || 'Spaceship'}
+                                          </div>
+                                        )}
+                                        <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 h-5 px-1.5 font-black tabular-nums">+{entry.vp}</Badge>
+                                      </div>
+                                    );
+                                  });
                                 })()}
                               </div>
                             </section>
