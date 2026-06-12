@@ -2118,11 +2118,11 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       return buildingCount;
     }
     case 'fm_sectors': {
-      const sectors = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship' && t.sector < 11).map(t => t.sector));
+      const sectors = new Set(map.filter(t => ((t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId) && t.sector >= 0 && t.sector <= 9).map(t => t.sector));
       return sectors.size;
     }
     case 'fm_outer_sectors': {
-      const outer = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship' && t.sector >= 11 && t.sector < 20).map(t => t.sector));
+      const outer = new Set(map.filter(t => ((t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId) && t.sector >= 11 && t.sector <= 18).map(t => t.sector));
       return outer.size;
     }
     case 'fm_gaia_planets':
