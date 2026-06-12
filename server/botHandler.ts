@@ -129,6 +129,7 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         (game.pendingItarsGaiaformerExchange && game.botPlayerIds.includes(game.pendingItarsGaiaformerExchange.playerId)) ||
         (game.pendingTechTileSelection && game.botPlayerIds.includes(game.pendingTechTileSelection.playerId)) ||
         (game.pendingShipTechTrackAdvance && game.botPlayerIds.includes(game.pendingShipTechTrackAdvance.playerId)) ||
+        (game.pendingAdvancedTechCover && game.botPlayerIds.includes(game.pendingAdvancedTechCover.playerId)) ||
         (game.pendingAdvancedTechTrackAdvance && game.botPlayerIds.includes(game.pendingAdvancedTechTrackAdvance.playerId)) ||
         (game.pendingEclipseAsteroidMine && game.botPlayerIds.includes(game.pendingEclipseAsteroidMine.playerId));
 
@@ -215,7 +216,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             const botPlayer = game.players[techPlayerId];
             log(`Bot ${botPlayer?.name} auto-handling tech tile selection (scored pick)`, 'game', game.id);
             const techPick = await BotLogic.getNextMove(game, techPlayerId, false);
-            if (techPick?.type === 'select_tech_tile') {
+            // [버그수정] 기존엔 'select_tech_tile'만 수락해서, MCTS가 고급 기술타일(select_advanced_tech_tile)을
+            // 골라도 fallback(일반 타일)으로 덮어씀 → 봇 고급타일 0개의 직접 원인 (자격 있는 선택 23회 중 채택 0회).
+            if (techPick?.type === 'select_tech_tile' || techPick?.type === 'select_advanced_tech_tile') {
                 const feedbackEntry = recordBotActionForFeedback(game, techPlayerId, techPick, 'pending_tech');
                 const ok = await BotLogic.performAction(io, game, techPick, techPlayerId);
                 if (!ok) {
