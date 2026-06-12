@@ -3970,7 +3970,7 @@ export default function Game() {
                         <PopoverContent
                           side="left"
                           align="start"
-                          className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-50 text-[10px] space-y-2"
+                          className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2"
                           style={{ zoom: playerDetailScale }}
                         >
                           {!hasPlayerDetailContent && (
