@@ -867,6 +867,21 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 		const targetPlayer = game.players[offer.targetPlayerId];
 		if (!targetPlayer) continue;
 
+		// 마지막 라운드(6)에 이미 패스한 플레이어: 파워 제안 창을 띄우지 않는다.
+		// 패스 후엔 파워를 쓸 수 없으므로 무료 1파워만 자동 수령하고, VP를 깎는 추가분은 자동 거절.
+		if (targetPlayer.hasPassed && (game.roundNumber ?? 0) >= 6) {
+			if (offer.amount > 0 && getMaxPowerGain(targetPlayer) > 0) {
+				applyPlayerPowerCharge(game, offer.targetPlayerId, 1);
+				const added = addSubLogToLastAction(game, sourcePlayerId, {
+					playerId: offer.targetPlayerId,
+					playerName: targetPlayer.name,
+					text: `↳ Received Power +1P ${targetPlayer.name}`
+				});
+				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (패스/마지막 라운드 자동)`, offer.tileId);
+			}
+			continue;
+		}
+
 		const autoAcceptOne = offer.vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
 		const autoAcceptBot = !!game.botPlayerIds?.includes(offer.targetPlayerId);
 		if (autoAcceptOne || autoAcceptBot) {
