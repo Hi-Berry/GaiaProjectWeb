@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3 } from 'lucide-react';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import { fireTurnNotification } from '@/lib/turnNotify';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
@@ -261,6 +261,8 @@ export function GameBoard({
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
   const [isUiHelpOpen, setIsUiHelpOpen] = useState(false);
+  // 타일 외곽 테두리 구분선 보기 토글 (각 칸 구분용)
+  const [showTileBorders, setShowTileBorders] = useState(() => localStorage.getItem('show-tile-borders') === 'true');
   const [zoom, setZoomInternal] = useState(zoomValue ?? 1);
   const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
   const isSyncingRef = useRef(false);
@@ -1067,8 +1069,8 @@ export function GameBoard({
                     onClick={() => handleTileClick(tile)}
                     style={{
                       fill: 'transparent', // 배경 이미지가 잘 보이도록 투명하게 설정
-                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FFD700' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
-                      strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : 0.2,
+                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FFD700' : (showTileBorders ? 'rgba(255,255,255,0.6)' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555')),
+                      strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : (showTileBorders ? 0.35 : 0.2),
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       fillOpacity: isHighlighted || isEclipseBuildable || isShipActionSelectable ? 0.9 : 1.0,
@@ -1358,6 +1360,16 @@ export function GameBoard({
               title="맵 보기 초기화"
             >
               <RotateCcw className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => setShowTileBorders((v) => { const n = !v; localStorage.setItem('show-tile-borders', String(n)); return n; })}
+              data-testid="button-toggle-tile-borders"
+              title="타일 외곽 테두리 구분선 보기 (각 칸 구분)"
+              className={showTileBorders ? 'text-amber-300 hover:text-amber-200 ring-1 ring-amber-400/60' : 'text-zinc-300 hover:text-white'}
+            >
+              <Grid3x3 className="w-4 h-4" />
             </Button>
             <Button
               size="icon"
