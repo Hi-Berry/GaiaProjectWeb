@@ -1007,6 +1007,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             backgroundColor: level > 0 ? `${track.color}${level === 5 ? '30' : '15'}` : undefined,
                                                             borderColor: level > 0 ? `${track.color}40` : undefined
                                                         }}
+                                                        title={`L${level}: ${getTrackBonus(track.id, level) || track.name}`}
                                                     >
                                                         <span className={`absolute top-0 left-1 font-bold text-zinc-700 ${isMini ? 'text-[6px]' : 'text-[8px]'}`}>L{level}</span>
                                                         <div className="flex flex-col items-center justify-center p-0.5">
@@ -1094,8 +1095,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     )}
                                                                 </div>
                                                                 {canTakeAdvanced && <div className="text-[7px] text-cyan-400 text-center">클릭 시 고급 획득</div>}
-                                                                {/* Tooltip */}
-                                                                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-56 p-3 bg-zinc-950 border border-cyan-500/40 rounded-xl shadow-2xl backdrop-blur-md">
+                                                                {/* Tooltip — pointer-events-none: 펼쳐진 툴팁이 아래 레벨 셀을 덮어 호버를 가로채던 문제 방지 */}
+                                                                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block pointer-events-none z-[110] w-56 p-3 bg-zinc-950 border border-cyan-500/40 rounded-xl shadow-2xl backdrop-blur-md">
                                                                     <div className="flex items-center gap-2 mb-1.5 border-b border-white/10 pb-1">
                                                                         <div className="w-2 h-2 rounded-full bg-cyan-400" />
                                                                         <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Advanced Tech</span>
