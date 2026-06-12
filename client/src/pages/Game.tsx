@@ -4004,7 +4004,7 @@ export default function Game() {
                                       {imgUrl ? (
                                         <img
                                           src={imgUrl}
-                                          className="h-[32px] w-auto object-contain border border-white/10 rounded transition-all brightness-110 saturate-[1.1]"
+                                          className={`h-[32px] w-auto object-contain border border-white/10 rounded transition-all ${f.isGreen ? 'brightness-110 saturate-[1.1]' : 'grayscale opacity-60 brightness-75'}`}
                                           alt={label}
                                         />
                                       ) : (
@@ -4051,7 +4051,7 @@ export default function Game() {
                                       <img
                                         src={tile.image}
                                         alt={tile.label}
-                                        className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-40 brightness-50' : 'hover:scale-110 shadow-sm shadow-black'}`}
+                                        className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-60 brightness-75' : 'hover:scale-110 shadow-sm shadow-black'}`}
                                       />
                                       {covered && (
                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
