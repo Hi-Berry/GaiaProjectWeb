@@ -2626,8 +2626,12 @@ export class BotLogic {
         if (myStructs.some(t => t.structure === 'lost_planet_mine')) planetTypes.add('lost_planet');
 
         const fedCount = getFederationEntries(player).length;
-        const outerImm = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 20 && t.sector < 30).length;
-        const outerPass = game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 11 && t.sector < 20).length;
+        // 외곽(C) 섹터 = 11~18, '서로 다른 섹터 수'로 카운트(실제 VP 계산과 동일). 기존 20~29는 존재하지 않는 죽은 범위였음.
+        const outerSectorCount = new Set(
+            game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && (t.sector ?? -1) >= 11 && (t.sector ?? -1) <= 18).map(t => t.sector)
+        ).size;
+        const outerImm = outerSectorCount;
+        const outerPass = outerSectorCount;
         const asteroidCount = game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length;
         const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
         const bigCount = myStructs.filter(t => t.structure === 'planetary_institute' || t.structure === 'academy').length;
