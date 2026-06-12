@@ -1,10 +1,32 @@
-import { ServerGameState } from '../gameState';
+import { ServerGameState, getPlanetConnectedComponent, getFederationBuildingPower, getFederationRequiredPower } from '../gameState';
 import { getFederationEntries, getFinalMissionVp, getFinalMissionValue } from '@shared/gameConfig';
 import { getPlayerVariant, getPlayerFlag } from './variant';
 import { ValueNet } from './valueNet';
 import { extractFeatures } from './features';
 import fs from 'fs';
 import path from 'path';
+
+/**
+ * 위성 없이(인접 건물만) 연결된 '미연방' 클러스터 중 최대 건물 파워.
+ * 가까이 모인 집들의 티어를 올려(광산→교역소/연구소→의회/아카데미) 7파워를 채우면
+ * 위성 0~1개로 연방이 되므로, 이 값을 보상해 멀리 잇기보다 밀집/티어업을 유도한다.
+ */
+function bestUnfederatedClusterPower(game: ServerGameState, playerId: string): number {
+    const fedHexes = new Set(game.playerFederationHexes?.[playerId] ?? []);
+    const buildings = game.map.filter(t =>
+        t.ownerId === playerId && t.structure && t.structure !== 'ship' && !fedHexes.has(t.id)
+    );
+    let best = 0;
+    const seen = new Set<string>();
+    for (const b of buildings) {
+        if (seen.has(b.id)) continue;
+        const comp = getPlanetConnectedComponent(game, playerId, b.id, fedHexes);
+        comp.forEach(id => seen.add(id));
+        const power = getFederationBuildingPower(game, playerId, comp);
+        if (power > best) best = power;
+    }
+    return best;
+}
 
 // 학습된 가치망(있으면) 지연 로드. useValueNet 플래그가 켜진 좌석은 휴리스틱 대신 이 망의 예측 최종VP를 리프값으로 사용.
 let _valueNet: ValueNet | null = null;
@@ -527,6 +549,21 @@ export class Evaluator {
         const fedScore = feds.length * w.federationValueEach * fedRoundScale;
         score += fedScore;
         logDebug(`8) Federations: ${feds.length} * ${w.federationValueEach.toFixed(0)} * ${fedRoundScale.toFixed(2)} = +${fedScore.toFixed(1)}`);
+
+        // [flag: clusterFedBonus] 위성 없이 연방 가능한 밀집 클러스터 근접도 보상.
+        // 멀리 떨어진 집을 위성으로 잇는 대신, 가까운 집들의 티어를 올려(파워↑) 7파워를 채우게 유도.
+        // gap(필요파워-클러스터파워)이 작을수록 보상 → 인접 건물 업그레이드가 점수를 올림.
+        if (getPlayerFlag(playerId, 'clusterFedBonus', false)) {
+            const required = getFederationRequiredPower(game, playerId);
+            const clusterPower = bestUnfederatedClusterPower(game, playerId);
+            const gap = required - clusterPower;
+            if (clusterPower > 0 && gap <= 3) {
+                const near = Math.max(0, 4 - Math.max(0, gap)); // gap0→4, 1→3, 2→2, 3→1
+                const clusterScore = near * 22 * fedRoundScale;
+                score += clusterScore;
+                logDebug(`8b) ClusterFed: power ${clusterPower}/${required} (gap ${gap}) → +${clusterScore.toFixed(1)}`);
+            }
+        }
 
         // 연방 형성 직후(보상 선택 대기) 상태는 연방 엔트리(feds.length)가 아직 안 늘고 보상 VP도
         // 미반영이라(보상 선택이 별도 단계) 평가가 '연방 형성'을 과소평가 → 봇이 회피(avgFed 1.6, 사람 4.75).
