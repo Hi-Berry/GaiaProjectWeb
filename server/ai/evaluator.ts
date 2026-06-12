@@ -569,7 +569,7 @@ export class Evaluator {
         // 봇 기술타일 VP가 0인 핵심 원인: 고급타일은 (초록연방 보유 + 트랙 L4 + 덮을 일반타일)이
         // 동시에 맞아야 후보가 생성되는데 봇이 그 정렬을 못 맞춤. 초록연방을 들고 있고 사용가능한
         // 고급타일이 걸린 트랙이 L4에 가까울수록 보상해, 트랙을 L4로 밀고 초록연방을 아껴 정렬을 유도.
-        if (getPlayerFlag(playerId, 'advTileReadyBonus', false)) {
+        if (getPlayerFlag(playerId, 'advTileReadyBonus', true)) {
             const greenAvail = countGreenFederations(player);
             const advByTrack = (game as any).advancedTechTilesByTrack as Record<string, { id?: string } | null> | undefined;
             if (greenAvail >= 1 && advByTrack) {
