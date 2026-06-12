@@ -430,6 +430,13 @@ export function GameBoard({
     ship_tf_mars: ['2Q → (2+기술타일)VP', '2P → Gaia', '3C → 1 TF'],
     ship_eclipse: ['2Q → (2+행성종류)VP', '2K+3P → Research', '6C → 소행성'],
   };
+  // 우주선별 액션 스트립 이미지 (가로 3칸 = 액션 1/2/3). public/image/Action*.jpg
+  const SHIP_ACTION_IMG: Record<string, string> = {
+    ship_twilight: '/image/ActionTwilight.jpg',
+    ship_rebellion: '/image/ActionRebellion.jpg',
+    ship_tf_mars: '/image/ActionTFMars.jpg',
+    ship_eclipse: '/image/ActionEclipse.jpg',
+  };
 
   const renderSpaceship = (type: PlanetType) => {
     let shipColor = "#334155";
@@ -1508,33 +1515,34 @@ export function GameBoard({
                           {techTileNode}
                           {shipFedNode}
                           {!canActNow && <p className="text-[11px] text-amber-400">{!isMyTurn ? '내 턴이 아닙니다' : '이번 턴 메인 액션을 이미 사용했습니다'}</p>}
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {[0, 1, 2].map((idx) => {
-                              const actionNum = idx + 1;
-                              const isUsed = usedIndices.includes(actionNum);
-                              const canUse = canActNow && !!onUseShipAction && !isUsed && actionsUsedCount < 3;
-                              const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
-                              const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
-                              const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
-                              return (
-                                <button
-                                  key={idx}
-                                  disabled={!canUse}
-                                  onClick={() => { if (canUse) { onUseShipAction!(selectedTile.id, actionNum); setSelectedTile(null); } }}
-                                  className={`relative w-full text-[9px] h-12 px-1 rounded border font-bold text-center leading-tight flex items-center justify-center ${isUsed
-                                    ? 'border-white/5 bg-zinc-900 text-zinc-500 line-through cursor-not-allowed'
-                                    : canUse
-                                      ? 'border-blue-500/40 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 cursor-pointer'
-                                      : 'border-white/10 bg-zinc-800/40 text-zinc-200 cursor-default'}`}
-                                  title={actionLabels[idx] + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : '')}
-                                >
-                                  {actionLabels[idx]}
-                                  {usedByColor && (
-                                    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-black/60 shadow-sm" style={{ backgroundColor: usedByColor }} />
-                                  )}
-                                </button>
-                              );
-                            })}
+                          <div className="relative w-full aspect-[3/1] rounded-md overflow-hidden border border-blue-500/30">
+                            {SHIP_ACTION_IMG[selectedTile.type] && (
+                              <img src={SHIP_ACTION_IMG[selectedTile.type]} alt="ship actions" className="absolute inset-0 w-full h-full object-cover" />
+                            )}
+                            <div className="absolute inset-0 grid grid-cols-3">
+                              {[0, 1, 2].map((idx) => {
+                                const actionNum = idx + 1;
+                                const isUsed = usedIndices.includes(actionNum);
+                                const canUse = canActNow && !!onUseShipAction && !isUsed && actionsUsedCount < 3;
+                                const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
+                                const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                                const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
+                                return (
+                                  <button
+                                    key={idx}
+                                    disabled={!canUse}
+                                    onClick={() => { if (canUse) { onUseShipAction!(selectedTile.id, actionNum); setSelectedTile(null); } }}
+                                    className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-blue-400/25' : 'cursor-default'}`}
+                                    title={actionLabels[idx] + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : '')}
+                                  >
+                                    {isUsed && <div className="absolute inset-0 bg-black/65" />}
+                                    {usedByColor && (
+                                      <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-black/60 shadow-sm" style={{ backgroundColor: usedByColor }} />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                           {selectedTile.type === 'ship_twilight' && (game.twilightArtifactSlots?.length ?? 0) > 0 && (
                             <div className="pt-2 border-t border-white/5">
@@ -1587,25 +1595,30 @@ export function GameBoard({
                         {/* 미탑승/상대턴이어도 액션 사용 현황(사용됨/가능)을 상시 표시 — 전략 미리 파악용 */}
                         <div>
                           <p className="text-[10px] text-zinc-400 mb-1">우주선 액션 ({(ship.usedActionIndices ?? []).length}/3 사용됨)</p>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {(SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—']).map((label, idx) => {
-                              const isUsed = (ship.usedActionIndices ?? []).includes(idx + 1);
-                              const usedBy = isUsed ? ship.usedActionBy?.[idx + 1] : undefined;
-                              const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
-                              const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
-                              return (
-                                <div
-                                  key={idx}
-                                  className={`relative w-full text-[9px] h-12 px-1 rounded border font-bold text-center leading-tight flex items-center justify-center ${isUsed ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through opacity-60' : 'border-white/10 bg-zinc-800/40 text-zinc-300'}`}
-                                  title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : ' (사용 가능)')}
-                                >
-                                  {label}
-                                  {usedByColor && (
-                                    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-black/60 shadow-sm" style={{ backgroundColor: usedByColor }} />
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="relative w-full aspect-[3/1] rounded-md overflow-hidden border border-white/10">
+                            {SHIP_ACTION_IMG[selectedTile.type] && (
+                              <img src={SHIP_ACTION_IMG[selectedTile.type]} alt="ship actions" className="absolute inset-0 w-full h-full object-cover" />
+                            )}
+                            <div className="absolute inset-0 grid grid-cols-3">
+                              {(SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—']).map((label, idx) => {
+                                const isUsed = (ship.usedActionIndices ?? []).includes(idx + 1);
+                                const usedBy = isUsed ? ship.usedActionBy?.[idx + 1] : undefined;
+                                const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                                const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="relative h-full border-r last:border-r-0 border-black/30"
+                                    title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : ' (사용 가능)')}
+                                  >
+                                    {isUsed && <div className="absolute inset-0 bg-black/65" />}
+                                    {usedByColor && (
+                                      <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-black/60 shadow-sm" style={{ backgroundColor: usedByColor }} />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                         {/* 미탑승이어도 트왈라잇 인공물을 미리보기(읽기전용)로 표시 — 획득은 탑승 후 파워 6 소모 */}

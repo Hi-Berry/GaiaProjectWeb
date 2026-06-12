@@ -36,6 +36,14 @@ const SHIP_NAMES: Record<string, string> = {
     ship_eclipse: 'Eclipse',
 };
 
+/** 우주선별 액션 스트립 이미지 (가로 3칸 = 액션 1/2/3). public/image/Action*.jpg */
+const SHIP_ACTION_IMG: Record<string, string> = {
+    ship_twilight: '/image/ActionTwilight.jpg',
+    ship_rebellion: '/image/ActionRebellion.jpg',
+    ship_tf_mars: '/image/ActionTFMars.jpg',
+    ship_eclipse: '/image/ActionEclipse.jpg',
+};
+
 /** 우주선별 액션 라벨 (잠긴 우주선에서도 표시용) */
 const SHIP_ACTION_LABELS: Record<string, [string, string, string]> = {
     ship_twilight: ['3Q → Fed', '2O+3P → TS→Lab', '1K → +3 Range'],
@@ -795,37 +803,36 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     </div>
                                                 </div>
 
-                                                {/* Action Labels - Horizontal Buttons (Like Power Actions) */}
-                                                <div className="flex gap-0.5 mt-auto pt-0.5">
-                                                    {actionLabels.map((label, idx) => {
-                                                        const theme = SHIP_ACTION_THEME[tile.type]?.[idx];
-                                                        const isUsed = usedIndices.includes(idx + 1);
-                                                        const actionNum = idx + 1;
-                                                        const isInShip = playerId && ship.occupants.includes(playerId);
-                                                        const canUse = isInShip && onUseShipAction && !isUsed && usedIndices.length < 3;
-                                                        const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
-                                                        const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
-                                                        const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
-
-                                                        return (
-                                                            <button
-                                                                key={idx}
-                                                                disabled={!canUse}
-                                                                onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
-                                                                className={`relative flex-1 text-[5px] leading-tight px-0.5 py-1 rounded-[2px] border transition-all font-black text-center ${isUsed
-                                                                    ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
-                                                                    : theme
-                                                                        ? `${theme.border} ${theme.color} ${theme.text} ${canUse ? `${theme.hover} cursor-pointer` : 'cursor-default'}`
-                                                                        : `border-white/10 bg-zinc-800/40 text-zinc-200 ${canUse ? 'cursor-pointer' : 'cursor-default'}`}`}
-                                                                title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
-                                                            >
-                                                                {label}
-                                                                {usedByColor && (
-                                                                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black/60" style={{ backgroundColor: usedByColor }} />
-                                                                )}
-                                                            </button>
-                                                        );
-                                                    })}
+                                                {/* Action Strip Image (가로 3칸 클릭존) — 텍스트 버튼 대체 */}
+                                                <div className="relative w-full aspect-[3/1] mt-auto rounded-[2px] overflow-hidden border border-white/10">
+                                                    {SHIP_ACTION_IMG[tile.type] && (
+                                                        <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className="absolute inset-0 w-full h-full object-cover" />
+                                                    )}
+                                                    <div className="absolute inset-0 grid grid-cols-3">
+                                                        {actionLabels.map((label, idx) => {
+                                                            const isUsed = usedIndices.includes(idx + 1);
+                                                            const actionNum = idx + 1;
+                                                            const isInShip = playerId && ship.occupants.includes(playerId);
+                                                            const canUse = isInShip && onUseShipAction && !isUsed && usedIndices.length < 3;
+                                                            const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
+                                                            const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                                                            const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    disabled={!canUse}
+                                                                    onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
+                                                                    className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
+                                                                    title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                                >
+                                                                    {isUsed && <div className="absolute inset-0 bg-black/65" />}
+                                                                    {usedByColor && (
+                                                                        <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full border border-black/60" style={{ backgroundColor: usedByColor }} />
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
 
                                                 </div>
