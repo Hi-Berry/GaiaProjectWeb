@@ -1247,7 +1247,7 @@ export default function Game() {
                                   color: FACTIONS.find(f => f.id === game.players[p]?.faction)?.color ?? '#888',
                                 })).sort((a, b) => b.value - a.value || b.vp - a.vp);
                                 return (
-                                  <div key={mid} className="flex items-stretch gap-3 bg-zinc-900/40 rounded-lg border border-white/5 p-2 shadow-lg">
+                                  <div key={mid} className="flex items-center gap-3 bg-zinc-900/40 rounded-lg border border-white/5 p-2 shadow-lg">
                                     {/* 미션 이미지 (작게) + 이름 오버레이 */}
                                     <div className="relative w-24 h-[72px] shrink-0 rounded-md overflow-hidden border border-white/5 bg-black/40">
                                       {img ? (
