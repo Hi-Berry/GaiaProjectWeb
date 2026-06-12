@@ -1441,7 +1441,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     </div>
                                                     <div className="space-y-1.5 pt-2 border-t border-white/5">
                                                         <div className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">Actions ({actionsUsedCount}/3)</div>
-                                                        <div className="relative w-full rounded-md overflow-hidden border border-white/10">
+                                                        <div className="relative w-[70%] rounded-md overflow-hidden border border-white/10">
                                                             {SHIP_ACTION_IMG[tile.type] && (
                                                                 <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className="block w-full h-auto" />
                                                             )}
