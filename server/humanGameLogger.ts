@@ -53,6 +53,8 @@ function summarizePlayer(player?: PlayerState | null) {
     techTiles: [...(player.techTiles ?? [])],
     federations: player.federations ?? [],
     bonusTile: player.bonusTile,
+    // 점수 내역(카테고리별 VP) — 봇 vs 사람 약점 분석에 필수
+    scoreBreakdown: player.scoreBreakdown ?? null,
   };
 }
 
