@@ -553,7 +553,7 @@ export class Evaluator {
         // [flag: clusterFedBonus] 위성 없이 연방 가능한 밀집 클러스터 근접도 보상.
         // 멀리 떨어진 집을 위성으로 잇는 대신, 가까운 집들의 티어를 올려(파워↑) 7파워를 채우게 유도.
         // gap(필요파워-클러스터파워)이 작을수록 보상 → 인접 건물 업그레이드가 점수를 올림.
-        if (getPlayerFlag(playerId, 'clusterFedBonus', false)) {
+        if (getPlayerFlag(playerId, 'clusterFedBonus', true)) {
             const required = getFederationRequiredPower(game, playerId);
             const clusterPower = bestUnfederatedClusterPower(game, playerId);
             const gap = required - clusterPower;
