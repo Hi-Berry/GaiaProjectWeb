@@ -388,10 +388,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             key={id}
                                             type="button"
                                             onClick={() => onConfirmAdvancedTechCover(id)}
-                                            className="p-3 rounded-lg border-2 border-cyan-500/40 bg-zinc-900/80 hover:border-cyan-400 text-left"
+                                            title={tile ? `${tile.label}: ${tile.description}` : id}
+                                            className="p-2 rounded-lg border-2 border-cyan-500/40 bg-zinc-900/80 hover:border-cyan-400 hover:scale-105 transition-all flex flex-col items-center gap-1"
                                         >
-                                            <div className="text-[10px] font-bold text-zinc-100">{tile?.label ?? id}</div>
-                                            <div className="text-[8px] text-zinc-500 truncate">{tile?.description}</div>
+                                            {tile?.image ? (
+                                                <img src={tile.image} alt={tile.label} className="h-[60px] w-auto object-contain rounded" />
+                                            ) : (
+                                                <>
+                                                    <div className="text-[10px] font-bold text-zinc-100">{tile?.label ?? id}</div>
+                                                    <div className="text-[8px] text-zinc-500 truncate">{tile?.description}</div>
+                                                </>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -510,14 +517,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             const cell = (
                                                 <div
                                                     key={`lvl-${level}`}
-                                                    className={`rounded flex items-center justify-center relative border h-6 overflow-hidden cursor-pointer hover:bg-white/5 transition-all flex-shrink-0 ${level === 5 ? 'border-primary/30' : 'border-white/5'}`}
+                                                    className={`rounded flex items-center justify-center relative border overflow-hidden cursor-pointer hover:bg-white/5 transition-all flex-shrink-0 ${level === 5 ? 'h-9 border-primary/30' : 'h-6 border-white/5'}`}
                                                     style={{
                                                         backgroundColor: level > 0 ? `${track.color}${level === 5 ? '25' : '12'}` : 'rgba(0,0,0,0.1)',
                                                     }}
                                                     onClick={() => { if (!navBlocked) handleTrackClick(track.id as ResearchTrack); }}
                                                 >
                                                     <span className="text-[9px] font-black text-zinc-400 absolute left-0.5 top-0 leading-none select-none z-10">{level}</span>
-                                                    {l5Img && <img src={l5Img} alt="L5" className="h-5 w-auto object-contain" title={track.id === 'navigation' ? 'Nav5: 잊혀진 행성 (선착)' : '테라L5 연방 보상'} />}
+                                                    {l5Img && <img src={l5Img} alt="L5" className="w-[35px] h-[35px] object-contain" title={track.id === 'navigation' ? 'Nav5: 잊혀진 행성 (선착)' : '테라L5 연방 보상'} />}
                                                     {ecoLabel && <span className="text-[8px] font-black text-orange-300 absolute right-0.5" title={game.economyVariant === 'vp' ? '점수형(+VP)' : '파워형'}>{ecoLabel}</span>}
                                                     {playersHere.length > 0 && (
                                                         <div className="flex ml-1.5 items-center justify-center">

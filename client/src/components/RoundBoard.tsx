@@ -52,10 +52,10 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                 </CardHeader>
             )}
             <CardContent className={isMini ? 'p-1' : 'p-4'}>
-                <div className={`flex ${isMini ? 'flex-row items-center justify-between gap-1' : 'flex-row gap-4'}`}>
-                    {/* Left Side: Round Scoring Tiles */}
-                    <div className={isMini ? 'w-[65%] shrink-0' : 'w-[60%] min-w-0'}>
-                        <div className={`relative ${isMini ? 'h-[100px]' : 'h-[220px]'} flex justify-center items-end bg-zinc-900/20 rounded-xl border border-white/5 overflow-hidden`}>
+                <div className={`flex ${isMini ? 'flex-col gap-1' : 'flex-row gap-4'}`}>
+                    {/* Round Scoring Tiles — 미니: 상단 전체 폭, 비미니: 좌측 */}
+                    <div className={isMini ? 'w-full' : 'w-[60%] min-w-0'}>
+                        <div className={`relative ${isMini ? 'h-[134px]' : 'h-[220px]'} flex justify-center items-end bg-zinc-900/20 rounded-xl border border-white/5 overflow-hidden`}>
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-primary/10 rounded-full blur-xl" />
 
                             {game.roundScoringTiles.map((tile, index) => {
@@ -63,15 +63,14 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                 const isPast = (index + 1) < game.roundNumber;
                                 const isSelected = tile.id !== '' && tile.condition !== '';
 
-                                // Restore original wide fan angle
+                                // 반원 부채꼴 (미니/비미니 동일 각도)
                                 const totalTiles = 6;
                                 const startAngle = -75;
                                 const endAngle = 75;
                                 const angleStep = (endAngle - startAngle) / (totalTiles - 1);
                                 const angle = startAngle + (index * angleStep);
 
-                                // Restore comfortable radius
-                                const radius = isMini ? 40 : 55;
+                                const radius = isMini ? 44 : 55;
 
                                 const getTileImage = (id: string) => {
                                     if (!id) return null;
@@ -99,7 +98,7 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                                 : 'opacity-90 hover:opacity-100'
                                             }`}
                                     >
-                                        <div className={`relative ${isMini ? 'w-12 h-18' : 'w-24 h-36'} flex items-center justify-center transition-all duration-300`}>
+                                        <div className={`relative ${isMini ? 'w-[58px] h-[86px]' : 'w-24 h-36'} flex items-center justify-center transition-all duration-300`}>
                                             {tileImg ? (
                                                 <div className="w-full h-full relative group">
                                                     <img
@@ -128,9 +127,9 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                     {/* 라운드 미션 ↔ 최종 미션 구분선 (비미니) */}
                     {!isMini && <div className="w-[1px] self-stretch bg-white/10 mx-1" />}
 
-                    {/* Right Side: Final Missions */}
-                    <div className={isMini ? 'flex-1 min-w-0' : 'w-[40%] flex flex-col justify-center'}>
-                        <div className={`grid ${isMini ? 'grid-cols-1 gap-1' : 'grid-cols-1'}`}>
+                    {/* Final Missions — 미니: 하단 가로 2열, 비미니: 우측 세로 */}
+                    <div className={isMini ? 'w-full' : 'w-[40%] flex flex-col justify-center'}>
+                        <div className={`grid ${isMini ? 'grid-cols-2 gap-1' : 'grid-cols-1'}`}>
                             {(game.finalMissionIds ?? []).map((missionId, mIdx) => {
                                 const label = FINAL_MISSION_LABELS[missionId] ?? missionId;
                                 const missionKeys = Object.keys(FINAL_MISSION_LABELS);
@@ -151,9 +150,9 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                     <div key={missionId}>
                                         {/* 최종 미션 2개 사이 구분선 (비미니) */}
                                         {!isMini && mIdx > 0 && <div className="h-[1px] bg-white/10 my-3" />}
-                                        <div className={`group rounded-lg overflow-hidden border border-white/5 bg-zinc-900/40 shadow-sm ${isMini ? 'h-[64px]' : 'h-28'} flex items-stretch`}>
-                                            {/* Left: Mission Image (비미니는 미션명을 이미지 위에 오버레이) */}
-                                            <div className={`relative ${isMini ? 'w-16' : 'w-28'} shrink-0 bg-black/40 flex items-center justify-center p-1 border-r border-white/5`}>
+                                        <div className={`group rounded-lg overflow-hidden border border-white/5 bg-zinc-900/40 shadow-sm ${isMini ? 'h-[44px]' : 'h-28'} flex items-stretch`}>
+                                            {/* Left: Mission Image — 미니: 라운드 타일과 동일 축소 비율(≈0.45배 → 64×40), 비미니는 미션명을 이미지 위에 오버레이 */}
+                                            <div className={`relative ${isMini ? 'w-[64px]' : 'w-28 p-1'} shrink-0 bg-black/40 flex items-center justify-center border-r border-white/5`}>
                                                 {missionImg ? (
                                                     <img
                                                         src={missionImg}
@@ -174,15 +173,15 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                                 )}
                                             </div>
 
-                                            {/* Right: Mission Info */}
-                                            <div className={`flex-1 min-w-0 p-2 flex flex-col justify-center bg-zinc-900/20`}>
+                                            {/* Right: Mission Info — 미니: 숫자만 컴팩트하게 (최대 두자리) */}
+                                            <div className={`flex-1 min-w-0 ${isMini ? 'px-1 py-0.5' : 'p-2'} flex flex-col justify-center bg-zinc-900/20`}>
                                                 {isMini ? (
-                                                    <div className="grid grid-cols-1 gap-0.5 w-full">
+                                                    <div className="flex flex-wrap items-center content-center gap-x-1.5 gap-y-0.5 w-full">
                                                         {playerValues.length === 0 ? (
-                                                            <span className="text-[8px] text-zinc-700 font-bold text-center">—</span>
+                                                            <span className="text-[8px] text-zinc-700 font-bold">—</span>
                                                         ) : (
                                                             playerValues.map(({ playerId, value, color }) => (
-                                                                <div key={playerId} className="flex items-center gap-1 justify-start px-1">
+                                                                <div key={playerId} className="flex items-center gap-0.5">
                                                                     <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                                                                     <span className="text-[9px] font-black tabular-nums leading-none" style={{ color }}>{value}</span>
                                                                 </div>

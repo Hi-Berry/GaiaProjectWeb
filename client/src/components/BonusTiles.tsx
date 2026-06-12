@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@/components/ui/card';
+﻿import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Gift, Zap, Coins, FlaskConical, Gem, Target, Compass, Mountain, Award, Ship } from 'lucide-react';
@@ -83,8 +83,9 @@ function BonusTileCard({
           : 'opacity-70'
         }`}
       style={{
-        width: isMini ? '42px' : '80px',
-        height: isMini ? '68px' : '128px'
+        // 미니: 라운드 타일과 동일 축소 비율(≈0.45배, 원본 78×249 → 35×113)
+        width: isMini ? '35px' : '80px',
+        height: isMini ? '113px' : '128px'
       }}
       onClick={isSelectable && onSelect ? onSelect : undefined}
     >
@@ -186,7 +187,7 @@ export function BonusTiles({
           <div
             className={
               isMini
-                ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-[1px] pb-1'
+                ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide justify-between gap-1.5 px-1 pb-1'
                 : isSelectionMode
                   ? 'grid w-full grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] gap-3 justify-items-center'
                   : 'flex flex-wrap gap-3'
@@ -243,7 +244,7 @@ export function BonusTiles({
             {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
-              const size = isMini ? 32 : 56;
+              const size = isMini ? 35 : 56;
               return (
                 <div key={r.id} className="relative group shrink-0" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
                   {Array.from({ length: Math.min(n, 3) }).map((_, i) => (
@@ -272,7 +273,7 @@ export function BonusTiles({
             {SPACESHIP_FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
-              const size = isMini ? 32 : 56;
+              const size = isMini ? 35 : 56;
               return (
                 <div key={r.id} className="relative group shrink-0" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
                   {Array.from({ length: Math.min(n, 3) }).map((_, i) => (

@@ -4106,7 +4106,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
-		socket.on('federation_complete', ({ gameId }) => {
+		socket.on('federation_complete', ({ gameId, force }: { gameId: string; force?: boolean }) => {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
@@ -4158,6 +4158,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 					log(`Federation complete rejected: building power ${net.power} < ${requiredPower}`, 'game', undefined, { simulation: (game as any).simulation });
 					io.to(gameId).emit('game_error', { message: `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)` });
 					return;
+				}
+				// 불필요한 위성 경고: 위성 하나를 빼도 연결+파워 충족이면 토큰 낭비 → 확인 후 진행 (force=true면 통과)
+				if (!force && selectedHexIds.length > 0) {
+					const redundantCount = selectedHexIds.filter(sid => {
+						const reduced = selectedHexIds.filter(id => id !== sid);
+						const test = computeConnectedFederation(game, playerId, reduced, selectedSpaceStationHexIds, selectedPlanetIds);
+						return test.connected && test.power >= requiredPower;
+					}).length;
+					if (redundantCount > 0) {
+						log(`Federation complete warning: ${redundantCount} redundant satellite(s)`, 'game', undefined, { simulation: (game as any).simulation });
+						socket.emit('federation_redundant_warning', { count: redundantCount });
+						return;
+					}
 				}
 				planetIdsForPower = net.planetIds;
 				power = net.power;

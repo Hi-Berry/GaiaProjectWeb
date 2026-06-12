@@ -480,9 +480,16 @@ export const GameClient = {
     s.emit('federation_toggle_hex', { gameId, tileId });
   },
 
-  federationComplete(gameId: string) {
+  federationComplete(gameId: string, force = false) {
     const s = getSocket();
-    s.emit('federation_complete', { gameId });
+    s.emit('federation_complete', { gameId, force });
+  },
+
+  /** 연방 선언 시 불필요한 위성이 있을 때 서버가 보내는 경고 (force=true로 재요청하면 그대로 진행) */
+  onFederationRedundantWarning(callback: (data: { count: number }) => void) {
+    const s = getSocket();
+    s.on('federation_redundant_warning', callback);
+    return () => s.off('federation_redundant_warning', callback);
   },
 
   federationSelectReward(gameId: string, rewardId: string) {

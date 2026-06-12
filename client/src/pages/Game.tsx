@@ -122,6 +122,14 @@ export default function Game() {
   /** 우주선 기술 타일 2TF+Mine 플로우가 "미니 R패널"에서 시작됐는지 (자동 R창 열고닫기 억제용) */
   const [shipTech2TfMineFromMini, setShipTech2TfMineFromMini] = useState(false);
   const [confirmPassWithTileId, setConfirmPassWithTileId] = useState<string | null>(null);
+  /** 연방 선언 시 불필요한 위성 경고 다이얼로그 (서버 federation_redundant_warning 수신 시) */
+  const [federationRedundantWarning, setFederationRedundantWarning] = useState<{ count: number } | null>(null);
+  /** 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기(1소모+1이동)로 충당할지 확인 다이얼로그 */
+  const [confirmBurnAction, setConfirmBurnAction] = useState<
+    | { kind: 'power'; actionId: string; burns: number; closeResearchOverlay?: boolean }
+    | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; burns: number; label: string; fromOverlay?: boolean }
+    | null
+  >(null);
   /** 하이브 우주정거장 배치 모드: 켜면 안내 모달 표시, 다른 액션 차단, 빈 우주 클릭 후 배치하면 종료 */
   const [ivitsSpaceStationMode, setIvitsSpaceStationMode] = useState(false);
   /** 엠바스(Ambas) Special: 의회↔광산 교체 모드 (광산 클릭 시 교체 실행) */
@@ -302,6 +310,25 @@ export default function Game() {
     const n = saved ? parseInt(saved, 10) : 420;
     return isNaN(n) ? 420 : n;
   });
+
+  /** 리서치 미니뷰 첫 오픈 시 콘텐츠 실제 높이에 맞춰 자동 크기 조정 (하단 잘림 방지). 사용자가 직접 리사이즈해 저장된 높이가 있으면 건드리지 않음 */
+  const researchMiniScrollRef = useRef<HTMLDivElement | null>(null);
+  const researchMiniAutoSizedRef = useRef(false);
+  useEffect(() => {
+    if (!isResearchPinned || researchMiniAutoSizedRef.current) return;
+    const saved = gameId ? localStorage.getItem(`research-mini-height-${gameId}`) : null;
+    if (saved) { researchMiniAutoSizedRef.current = true; return; }
+    const t = setTimeout(() => {
+      const el = researchMiniScrollRef.current;
+      if (!el) return;
+      const headerH = 36; // 타이틀바 높이
+      const desired = el.scrollHeight + headerH + 4;
+      const maxH = Math.min(900, window.innerHeight * 0.95 - researchPos.y);
+      setResearchMiniHeight(Math.max(200, Math.min(desired, maxH)));
+      researchMiniAutoSizedRef.current = true;
+    }, 80);
+    return () => clearTimeout(t);
+  }, [isResearchPinned, gameId, researchPos.y, !!game]);
 
   const researchDragControls = useDragControls();
   const bonusDragControls = useDragControls();
@@ -538,11 +565,16 @@ export default function Game() {
       });
     });
 
+    const unsubFedRedundant = GameClient.onFederationRedundantWarning((data) => {
+      setFederationRedundantWarning({ count: data?.count ?? 1 });
+    });
+
     return () => {
       socket.off('connect', fetchGame);
       unsubGame();
       unsubError();
       unsubGameError();
+      unsubFedRedundant();
     };
   }, [gameId, playerId, toast]);
 
@@ -851,6 +883,121 @@ export default function Game() {
   }
 
   const currentPlayer = playerId ? game.players[playerId] : null;
+
+  /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
+  const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
+    if (!gameId || game.hasDoneMainAction) return;
+    const action = game.powerActions?.find(a => a.id === actionId);
+    const cur = currentPlayer;
+    if (action && cur) {
+      if (action.costType === 'power') {
+        // Nevlas 의회: 3그릇 토큰 1개 = 파워 2 → 필요 토큰 수 절반(올림) (서버 executeUsePowerAction와 일치)
+        const hasNevlasPI = cur.faction === 'nevlas' && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        const needTokens = hasNevlasPI ? Math.ceil((action.cost as number) / 2) : (action.cost as number);
+        if (cur.faction === 'taklons') {
+          // 타클론은 브레인 스톤 선택지가 있어 자동 태우기 제외
+          if (!canSpendTaklonsPower(cur, 3, action.cost as number)) {
+            toast({ title: '파워 부족', description: '3그릇(브레인 스톤 포함)에서 낼 파워가 부족합니다.', variant: 'destructive' });
+            return;
+          }
+        } else if ((cur.power3 ?? 0) < needTokens) {
+          const burns = needTokens - (cur.power3 ?? 0);
+          // 태우기 1회 = 2그릇에서 1개 소모 + 1개를 3그릇으로 이동
+          if ((cur.power2 ?? 0) >= burns * 2) {
+            setConfirmBurnAction({ kind: 'power', actionId, burns, closeResearchOverlay: options?.closeResearchOverlay });
+            return;
+          }
+          toast({ title: '파워 부족', description: '3그릇 파워가 부족하고, 2그릇 태우기로도 충당할 수 없습니다.', variant: 'destructive' });
+          return;
+        }
+      }
+      if (action.costType === 'qic' && (cur.qic ?? 0) < action.cost) {
+        toast({ title: 'QIC 부족', description: 'QIC가 부족합니다.', variant: 'destructive' });
+        return;
+      }
+    }
+    if (options?.closeResearchOverlay && (actionId === 'gain-1-step' || actionId === 'gain-2-steps')) setIsResearchOpen(false);
+    GameClient.usePowerAction(gameId, actionId);
+  };
+
+  /** 우주선 액션 비용 (서버 use_ship_action과 일치) */
+  const SHIP_ACTION_COSTS: Record<string, Record<number, { qic?: number; ore?: number; knowledge?: number; credits?: number; power?: number }>> = {
+    ship_twilight: { 1: { qic: 3 }, 2: { ore: 2, power: 3 }, 3: { knowledge: 1 } },
+    ship_rebellion: { 1: { qic: 3 }, 2: { ore: 1, power: 3 }, 3: { knowledge: 2 } },
+    ship_tf_mars: { 1: { qic: 2 }, 2: { power: 2 }, 3: { credits: 3 } },
+    ship_eclipse: { 1: { qic: 2 }, 2: { knowledge: 2, power: 3 }, 3: { credits: 6 } },
+  };
+  const SHIP_TOAST_NAMES: Record<string, string> = { ship_twilight: 'Twilight', ship_rebellion: 'Rebellion', ship_tf_mars: 'TF Mars', ship_eclipse: 'Eclipse' };
+  const SHIP_TOAST_LABELS: Record<string, [string, string, string]> = {
+    ship_twilight: ['1: 3Q → Fed', '2: 2O+3P → TS→Lab', '3: 1K → +3 Range'],
+    ship_rebellion: ['1: 3Q → Tech', '2: 1O+3P → M→TS', '3: 2K → 1Q 2C'],
+    ship_tf_mars: ['1: 2Q → VP', '2: 2P → Gaia', '3: 3C → 1 TF'],
+    ship_eclipse: ['1: 2Q → VP', '2: 2K+3P → Research', '3: 6C → Ast'],
+  };
+
+  /** 비용 검증 통과 후 실제 진행: 타깃 선택 모드 진입 또는 서버 호출 */
+  const proceedShipAction = (shipTileId: string, actionIndex: number, targetTileId?: string, options?: { fromOverlay?: boolean }) => {
+    if (!gameId) return;
+    const shipTile = game.map.find(t => t.id === shipTileId);
+    if (actionIndex === 2 && targetTileId == null) {
+      if (shipTile?.type === 'ship_twilight') {
+        setPendingTwilightTSUpgrade(shipTileId);
+        if (options?.fromOverlay) setIsResearchOpen(false);
+        return;
+      }
+      if (shipTile?.type === 'ship_rebellion') {
+        setPendingRebellionMineToTS(shipTileId);
+        if (options?.fromOverlay) setIsResearchOpen(false);
+        return;
+      }
+      if (shipTile?.type === 'ship_tf_mars' && options?.fromOverlay) {
+        GameClient.useShipAction(gameId, shipTileId, actionIndex, targetTileId);
+        setIsResearchOpen(false);
+        return;
+      }
+    }
+    GameClient.useShipAction(gameId, shipTileId, actionIndex, targetTileId);
+    setPendingTwilightTSUpgrade(null);
+    setPendingRebellionMineToTS(null);
+    if (options?.fromOverlay) {
+      const name = SHIP_TOAST_NAMES[shipTile?.type || ''] || shipTile?.type;
+      const label = shipTile?.type ? SHIP_TOAST_LABELS[shipTile.type]?.[actionIndex - 1] : '';
+      toast({ title: `${name} 액션`, description: label || `액션 ${actionIndex}`, variant: 'default' });
+      // Eclipse 2번(연구), Rebellion 1번(3Q 타일)은 R창 유지 → 타일/트랙 선택
+      const keepROpen = (shipTile?.type === 'ship_eclipse' && actionIndex === 2) || (shipTile?.type === 'ship_rebellion' && actionIndex === 1);
+      if (!keepROpen) setIsResearchOpen(false);
+    }
+  };
+
+  /** 우주선 액션 공용 핸들러: 비용 사전 검증 (서버는 부족 시 조용히 무시하므로 클라에서 안내) + 파워 부족 시 2그릇 태우기 확인 */
+  const handleUseShipAction = (shipTileId: string, actionIndex: number, targetTileId?: string, options?: { fromOverlay?: boolean }) => {
+    if (!gameId) return;
+    const shipTile = game.map.find(t => t.id === shipTileId);
+    const cur = currentPlayer;
+    const cost = shipTile ? SHIP_ACTION_COSTS[shipTile.type]?.[actionIndex] : undefined;
+    if (shipTile && cur && cost) {
+      if (cost.qic && (cur.qic ?? 0) < cost.qic) { toast({ title: 'QIC 부족', description: `${cost.qic} QIC가 필요합니다.`, variant: 'destructive' }); return; }
+      if (cost.ore && (cur.ore ?? 0) < cost.ore) { toast({ title: '광물 부족', description: `${cost.ore} 광물이 필요합니다.`, variant: 'destructive' }); return; }
+      if (cost.knowledge && (cur.knowledge ?? 0) < cost.knowledge) { toast({ title: '지식 부족', description: `${cost.knowledge} 지식이 필요합니다.`, variant: 'destructive' }); return; }
+      if (cost.credits && (cur.credits ?? 0) < cost.credits) { toast({ title: '크레딧 부족', description: `${cost.credits} 크레딧이 필요합니다.`, variant: 'destructive' }); return; }
+      // 타클론은 브레인 스톤 선택지가 있어 서버 검증에 맡김 (자동 태우기 제외)
+      if (cost.power && cur.faction !== 'taklons') {
+        const hasNevlasPI = cur.faction === 'nevlas' && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        const needTokens = hasNevlasPI ? Math.ceil(cost.power / 2) : cost.power;
+        if ((cur.power3 ?? 0) < needTokens) {
+          const burns = needTokens - (cur.power3 ?? 0);
+          if ((cur.power2 ?? 0) >= burns * 2) {
+            const label = SHIP_TOAST_LABELS[shipTile.type]?.[actionIndex - 1] ?? `${SHIP_TOAST_NAMES[shipTile.type]} 액션 ${actionIndex}`;
+            setConfirmBurnAction({ kind: 'ship', shipTileId, actionIndex, targetTileId, burns, label, fromOverlay: options?.fromOverlay });
+            return;
+          }
+          toast({ title: '파워 부족', description: '3그릇 파워가 부족하고, 2그릇 태우기로도 충당할 수 없습니다.', variant: 'destructive' });
+          return;
+        }
+      }
+    }
+    proceedShipAction(shipTileId, actionIndex, targetTileId, options);
+  };
 
   /** R창·미니 R·맵에서 트랙 클릭 시: Eclipse 2K+3P / 우주선·고급기술 보상 / 일반 4K 연구 구분 */
   const handleResearchAdvanceTech = (trackId: ResearchTrack, options?: { closeResearchOverlay?: boolean }) => {
@@ -2151,17 +2298,7 @@ export default function Game() {
             }}
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
-            onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
-              const shipTile = game.map.find(t => t.id === shipTileId);
-              // 타깃이 필요한 액션2(TS→Lab / M→TS)는 서버 직접 호출 대신 맵 선택 모드를 켠다 (ResearchBoard와 동일).
-              if (actionIndex === 2 && targetTileId == null) {
-                if (shipTile?.type === 'ship_twilight') { setPendingTwilightTSUpgrade(shipTileId); return; }
-                if (shipTile?.type === 'ship_rebellion') { setPendingRebellionMineToTS(shipTileId); return; }
-              }
-              GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
-              setPendingTwilightTSUpgrade(null);
-              setPendingRebellionMineToTS(null);
-            }}
+            onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
             onTakeTwilightArtifact={(artifactId) => GameClient.takeTwilightArtifact(gameId!, artifactId)}
             onEclipseBuildAsteroidMine={(tileId, qicToSpend) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId, qicToSpend)}
             zoomValue={mapZoom}
@@ -2285,10 +2422,7 @@ export default function Game() {
               setPendingAction({ type: 'upgrade', tileId, target });
             }}
             onAdvanceTech={(trackId) => handleResearchAdvanceTech(trackId)}
-            onUsePowerAction={(actionId) => {
-              if (game.hasDoneMainAction) return;
-              GameClient.usePowerAction(gameId!, actionId);
-            }}
+            onUsePowerAction={(actionId) => handleUsePowerAction(actionId)}
             onEndTurn={() => GameClient.endTurn(gameId!)}
             highlightedTileId={highlightedTileId}
             onPlaceGaiaformer={(tileId, qicUsed) => GameClient.placeGaiaformer(gameId!, tileId, qicUsed)}
@@ -2455,38 +2589,7 @@ export default function Game() {
                 <ResearchBoard
                   game={game}
                   playerId={playerId}
-                  onUsePowerAction={(actionId) => {
-                    const action = game.powerActions?.find(a => a.id === actionId);
-                    const cur = currentPlayer;
-                    if (action && cur) {
-                      if (action.costType === 'power') {
-                        // Nevlas 의회: 3그릇 토큰 1개 = 파워 2 → 필요 토큰 수 절반(올림) (서버 executeUsePowerAction와 일치)
-                        const hasNevlasPI = cur.faction === 'nevlas' && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-                        const needTokens = hasNevlasPI ? Math.ceil((action.cost as number) / 2) : action.cost;
-                        const canPay =
-                          cur.faction === 'taklons'
-                            ? canSpendTaklonsPower(cur, 3, action.cost)
-                            : (cur.power3 ?? 0) >= needTokens;
-                        if (!canPay) {
-                          toast({
-                            title: '파워 부족',
-                            description:
-                              cur.faction === 'taklons'
-                                ? '3그릇(브레인 스톤 포함)에서 낼 파워가 부족합니다.'
-                                : '3그릇 파워가 부족합니다.',
-                            variant: 'destructive',
-                          });
-                          return;
-                        }
-                      }
-                      if (action.costType === 'qic' && (cur.qic ?? 0) < action.cost) {
-                        toast({ title: 'QIC 부족', description: 'QIC가 부족합니다.', variant: 'destructive' });
-                        return;
-                      }
-                    }
-                    if (actionId === 'gain-1-step' || actionId === 'gain-2-steps') setIsResearchOpen(false);
-                    GameClient.usePowerAction(gameId!, actionId);
-                  }}
+                  onUsePowerAction={(actionId) => handleUsePowerAction(actionId, { closeResearchOverlay: true })}
                   onUseHadschHallasPIAction={(actionId) => {
                     if (game.hasDoneMainAction) return;
                     GameClient.useHadschHallasPIAction(gameId!, actionId);
@@ -2521,42 +2624,7 @@ export default function Game() {
                   }}
                   onEndTurn={() => { if (gameId) GameClient.endTurn(gameId); setIsResearchOpen(false); }}
                   onResetTurn={() => { if (gameId) GameClient.resetTurn(gameId); }}
-                  onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
-                    const shipTile = game.map.find(t => t.id === shipTileId);
-                    const shipNames: Record<string, string> = { ship_twilight: 'Twilight', ship_rebellion: 'Rebellion', ship_tf_mars: 'TF Mars', ship_eclipse: 'Eclipse' };
-                    const actionLabels: Record<string, [string, string, string]> = {
-                      ship_twilight: ['1: 3Q → Fed', '2: 2O+3P → TS→Lab', '3: 1K → +3 Range'],
-                      ship_rebellion: ['1: 3Q → Tech', '2: 1O+3P → M→TS', '3: 2K → 1Q 2C'],
-                      ship_tf_mars: ['1: 2Q → VP', '2: 5P → Gaia', '3: 3P → 1 TF'],
-                      ship_eclipse: ['1: 2Q → VP', '2: 2K+3P → Research', '3: 6C → Ast'],
-                    };
-                    if (actionIndex === 2 && targetTileId == null) {
-                      if (shipTile?.type === 'ship_twilight') {
-                        setPendingTwilightTSUpgrade(shipTileId);
-                        setIsResearchOpen(false);
-                        return;
-                      }
-                      if (shipTile?.type === 'ship_rebellion') {
-                        setPendingRebellionMineToTS(shipTileId);
-                        setIsResearchOpen(false);
-                        return;
-                      }
-                      if (shipTile?.type === 'ship_tf_mars') {
-                        GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
-                        setIsResearchOpen(false);
-                        return;
-                      }
-                    }
-                    GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
-                    setPendingTwilightTSUpgrade(null);
-                    setPendingRebellionMineToTS(null);
-                    const name = shipNames[shipTile?.type || ''] || shipTile?.type;
-                    const label = shipTile?.type ? actionLabels[shipTile.type]?.[actionIndex - 1] : '';
-                    toast({ title: `${name} 액션`, description: label || `액션 ${actionIndex}`, variant: 'default' });
-                    // Eclipse 2번(연구), Rebellion 1번(3Q 타일)은 R창 유지 → 타일/트랙 선택
-                    const keepROpen = (shipTile?.type === 'ship_eclipse' && actionIndex === 2) || (shipTile?.type === 'ship_rebellion' && actionIndex === 1);
-                    if (!keepROpen) setIsResearchOpen(false);
-                  }}
+                  onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId, { fromOverlay: true })}
                 />
               </div>
             </div>
@@ -2635,6 +2703,26 @@ export default function Game() {
             }
           }
 
+          // 고급 기술 타일 패스 보너스 (서버 applyAdvancedTechTilePassEffect와 동일 계산)
+          const advPassItems: { tile: (typeof ALL_ADVANCED_TECH_TILES)[number]; vp: number }[] = [];
+          if (playerId && currentPlayer) {
+            const myTiles = game.map.filter(t => t.ownerId === playerId);
+            const occupiesSector = (t: (typeof game.map)[number]) =>
+              (t.ownerId === playerId && !!t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId;
+            for (const tid of currentPlayer.techTiles ?? []) {
+              const tile = ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
+              if (!tile) continue;
+              let vp: number;
+              if (tid === 'adv-pass-1vp-type') vp = new Set(myTiles.filter(t => t.structure && t.type !== 'space').map(t => t.type)).size;
+              else if (tid === 'adv-pass-3vp-lab') vp = myTiles.filter(t => t.structure === 'research_lab').length * 3;
+              else if (tid === 'adv-pass-3vp-fed') vp = getFederationEntries(currentPlayer).length * 3;
+              else if (tid === 'adv-pass-2vp-asteroid') vp = myTiles.filter(t => t.type === 'asteroid').length * 2;
+              else if (tid === 'adv-pass-2vp-outer') vp = new Set(game.map.filter(t => typeof t.sector === 'number' && t.sector >= 11 && t.sector <= 18 && occupiesSector(t)).map(t => t.sector)).size * 2;
+              else continue;
+              advPassItems.push({ tile, vp });
+            }
+          }
+
           // 패스 전 경고: 이번 라운드에 아직 안 쓴 1회용 특수 액션(4pw 기술타일·아카데미 QIC·의회 액션·종족 스페셜 등) 검출.
           // 라운드 전환 시 서버에서 usedTechActions/usedSpecialActions/usedBonusAction/PI액션이 리셋되므로, 패스하면 이번 라운드분은 영구히 날아간다.
           const unusedAbilities: string[] = [];
@@ -2704,11 +2792,11 @@ export default function Game() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-center gap-8 py-6">
+                <div className="flex items-start justify-center gap-8 py-6">
                   {currentBonusTile && (
                     <div className="flex flex-col items-center gap-3">
                       <span className="text-[10px] text-orange-400 font-bold uppercase tracking-widest bg-orange-500/10 px-2 py-0.5 rounded">Returning</span>
-                      <div className="relative w-20 h-32 rounded-lg overflow-hidden border border-white/10 shadow-lg grayscale opacity-50">
+                      <div className="relative w-24 h-36 rounded-lg overflow-hidden border border-white/10 shadow-lg grayscale opacity-50">
                         {(() => {
                           const idx = ALL_BONUS_TILES.findIndex(t => t.id === currentBonusTile.id);
                           return idx !== -1 ? <img src={`/image/BoostTile_${idx + 1}.jpg`} className="w-full h-full object-contain" alt="returning" /> : null;
@@ -2722,7 +2810,7 @@ export default function Game() {
                     </div>
                   )}
                   {currentBonusTile && selectedBonusTile && confirmPassWithTileId !== 'dummy' && (
-                    <div className="text-zinc-600 font-black text-3xl">→</div>
+                    <div className="text-zinc-600 font-black text-3xl h-36 flex items-center" style={{ marginTop: '28px' }}>→</div>
                   )}
                   {selectedBonusTile && confirmPassWithTileId !== 'dummy' && (
                     <div className="flex flex-col items-center gap-3">
@@ -2736,6 +2824,26 @@ export default function Game() {
                     </div>
                   )}
                 </div>
+
+                {advPassItems.length > 0 && (
+                  <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
+                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-2">고급 기술 패스 보너스</p>
+                    <div className="flex flex-wrap items-start justify-center gap-4">
+                      {advPassItems.map(({ tile, vp }) => (
+                        <div key={tile.id} className="flex flex-col items-center gap-1.5" title={`${tile.label}: ${tile.description}`}>
+                          {tile.image ? (
+                            <img src={tile.image} alt={tile.label} className="h-14 w-auto object-contain rounded border border-cyan-500/30" />
+                          ) : (
+                            <div className="text-[10px] font-bold text-zinc-100 h-14 flex items-center">{tile.label}</div>
+                          )}
+                          <div className="text-emerald-400 font-black text-xs bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            +{vp} VP
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <AlertDialogFooter>
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
@@ -3023,6 +3131,81 @@ export default function Game() {
           )}
         </AnimatePresence>
 
+        {/* 연방 선언: 불필요한 위성 포함 경고 */}
+        {federationRedundantWarning && gameId && (
+          <AlertDialog open={true} onOpenChange={(open) => !open && setFederationRedundantWarning(null)}>
+            <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
+                  ⚠️ 위성이 필요 이상으로 포함됨
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-zinc-300">
+                  일부 위성을 제외해도 연방이 가능합니다.
+                  <br />그래도 진행하시겠습니까?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
+                  취소 (위성 다시 선택)
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
+                  onClick={() => {
+                    GameClient.federationComplete(gameId, true);
+                    setFederationRedundantWarning(null);
+                  }}
+                >
+                  그래도 진행
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기로 충당할지 확인 */}
+        {confirmBurnAction && gameId && (() => {
+          const { burns } = confirmBurnAction;
+          const label = confirmBurnAction.kind === 'power'
+            ? (game.powerActions?.find(a => a.id === confirmBurnAction.actionId)?.label ?? confirmBurnAction.actionId)
+            : confirmBurnAction.label;
+          return (
+            <AlertDialog open={true} onOpenChange={(open) => !open && setConfirmBurnAction(null)}>
+              <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
+                    파워를 태우고 액션할까요?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    3그릇 파워가 <strong className="text-purple-300">{burns}개</strong> 부족합니다.
+                    2그릇에서 <strong className="text-purple-300">{burns}개</strong>를 태우면(추가로 {burns}개가 3그릇으로 이동, 총 2그릇 {burns * 2}개 사용)
+                    바로 <strong className="text-white">{label}</strong> 액션을 실행할 수 있습니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold"
+                    onClick={() => {
+                      for (let i = 0; i < burns; i++) GameClient.burnPower(gameId);
+                      if (confirmBurnAction.kind === 'power') {
+                        if (confirmBurnAction.closeResearchOverlay && (confirmBurnAction.actionId === 'gain-1-step' || confirmBurnAction.actionId === 'gain-2-steps')) setIsResearchOpen(false);
+                        GameClient.usePowerAction(gameId, confirmBurnAction.actionId);
+                      } else {
+                        proceedShipAction(confirmBurnAction.shipTileId, confirmBurnAction.actionIndex, confirmBurnAction.targetTileId, { fromOverlay: confirmBurnAction.fromOverlay });
+                      }
+                      setConfirmBurnAction(null);
+                    }}
+                  >
+                    OK (태우고 실행)
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
+
         {/* Twilight 액션1: 보유 연방 중 하나 선택해서 해택 재수령 */}
         {game.pendingTwilightFederation && game.pendingTwilightFederation.playerId === playerId && gameId && (() => {
           const myFedIds = getFederationEntries(currentPlayer as PlayerState).map((f) => f.rewardId);
@@ -3038,18 +3221,34 @@ export default function Game() {
                   {myRewards.length === 0 ? (
                     <p className="col-span-2 text-zinc-500 text-sm italic">보유한 연방이 없습니다.</p>
                   ) : (
-                    myRewards.map((reward) => (
-                      reward && (
+                    myRewards.map((reward) => {
+                      if (!reward) return null;
+                      let imgUrl: string | null = null;
+                      if (reward.id === GLEENS_FEDERATION_REWARD.id) imgUrl = '/image/Federation_15.gif';
+                      else {
+                        const fedIdx = FEDERATION_REWARDS.findIndex(r => r.id === reward.id);
+                        if (fedIdx !== -1) imgUrl = `/image/Federation_${fedIdx + 1}.gif`;
+                        else {
+                          const shipIdx = SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === reward.id);
+                          if (shipIdx !== -1) imgUrl = `/image/Federation_${shipIdx + 7}.gif`;
+                        }
+                      }
+                      return (
                         <Button
                           key={reward.id}
                           variant="outline"
-                          className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 text-white transition-all"
+                          title={reward.label}
+                          className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 text-white transition-all h-24 px-4"
                           onClick={() => GameClient.confirmTwilightFederation(gameId, reward.id)}
                         >
-                          {reward.label}
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={reward.label} className="h-[52px] w-auto object-contain" />
+                          ) : (
+                            <span className="font-bold">{reward.label}</span>
+                          )}
                         </Button>
-                      )
-                    ))
+                      );
+                    })
                   )}
                 </div>
                 <AlertDialogFooter>
@@ -4686,6 +4885,7 @@ export default function Game() {
               </Button>
             </div>
             <div
+              ref={researchMiniScrollRef}
               className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-10 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
               style={{ WebkitOverflowScrolling: 'touch' }}
               onWheel={(e) => e.stopPropagation()}
@@ -4695,7 +4895,7 @@ export default function Game() {
                   game={game}
                   playerId={playerId}
                   isMini={true}
-                onUsePowerAction={(actionId) => GameClient.usePowerAction(gameId!, actionId)}
+                onUsePowerAction={(actionId) => handleUsePowerAction(actionId)}
                 onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
                 onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
                 onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
@@ -4721,20 +4921,7 @@ export default function Game() {
                 onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
                 onEndTurn={() => GameClient.endTurn(gameId!)}
                 onResetTurn={() => GameClient.resetTurn(gameId!)}
-                onUseShipAction={(shipTileId, actionIndex, targetTileId) => {
-                    const shipTile = game.map.find(t => t.id === shipTileId);
-                    if (actionIndex === 2 && targetTileId == null) {
-                      if (shipTile?.type === 'ship_twilight') {
-                        setPendingTwilightTSUpgrade(shipTileId);
-                        return;
-                      }
-                      if (shipTile?.type === 'ship_rebellion') {
-                        setPendingRebellionMineToTS(shipTileId);
-                        return;
-                      }
-                    }
-                    GameClient.useShipAction(gameId!, shipTileId, actionIndex, targetTileId);
-                }}
+                onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
                 />
               </MiniScaledContent>
             </div>
