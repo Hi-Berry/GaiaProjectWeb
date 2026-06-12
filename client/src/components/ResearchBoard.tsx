@@ -133,7 +133,7 @@ function MiniShipQuadrantFrame({
 
     return (
         <div
-            className={`relative rounded-lg ${className}`}
+            className={`relative rounded-lg h-full ${className}`}
             style={{
                 padding: ringThickness,
                 background: `conic-gradient(from 0deg, ${c12to3} 0deg 90deg, ${c3to6} 90deg 180deg, ${c6to9} 180deg 270deg, ${c9to12} 270deg 360deg), ${emptyHatch}`,
@@ -713,7 +713,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 quadrantTitles={quadrantTitles}
                                                 className={isInShip ? 'shadow-[0_0_12px_rgba(52,211,153,0.2)]' : ''}
                                             >
-                                                <div className="p-1.5 flex flex-col gap-1 min-h-0">
+                                                <div className="p-1.5 flex flex-col gap-1 min-h-0 h-full">
                                                 <div className="flex justify-between items-center border-b border-white/5 pb-0.5 min-w-0">
                                                     <div className="flex items-center gap-1 min-w-0 overflow-hidden">
                                                         <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate">{SHIP_NAMES[tile.type]}</span>
@@ -1441,7 +1441,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     </div>
                                                     <div className="space-y-1.5 pt-2 border-t border-white/5">
                                                         <div className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">Actions ({actionsUsedCount}/3)</div>
-                                                        <div className="relative w-[70%] rounded-md overflow-hidden border border-white/10">
+                                                        <div className="relative w-[70%] mx-auto rounded-md overflow-hidden border border-white/10">
                                                             {SHIP_ACTION_IMG[tile.type] && (
                                                                 <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className="block w-full h-auto" />
                                                             )}
