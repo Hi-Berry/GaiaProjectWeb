@@ -1,5 +1,5 @@
 import { ServerGameState, getPlanetConnectedComponent, getFederationBuildingPower, getFederationRequiredPower } from '../gameState';
-import { getFederationEntries, getFinalMissionVp, getFinalMissionValue } from '@shared/gameConfig';
+import { getFederationEntries, getFinalMissionVp, getFinalMissionValue, countGreenFederations } from '@shared/gameConfig';
 import { getPlayerVariant, getPlayerFlag } from './variant';
 import { ValueNet } from './valueNet';
 import { extractFeatures } from './features';
@@ -562,6 +562,29 @@ export class Evaluator {
                 const clusterScore = near * 22 * fedRoundScale;
                 score += clusterScore;
                 logDebug(`8b) ClusterFed: power ${clusterPower}/${required} (gap ${gap}) → +${clusterScore.toFixed(1)}`);
+            }
+        }
+
+        // [flag: advTileReadyBonus] 고급 기술타일 '준비 상태' 보상.
+        // 봇 기술타일 VP가 0인 핵심 원인: 고급타일은 (초록연방 보유 + 트랙 L4 + 덮을 일반타일)이
+        // 동시에 맞아야 후보가 생성되는데 봇이 그 정렬을 못 맞춤. 초록연방을 들고 있고 사용가능한
+        // 고급타일이 걸린 트랙이 L4에 가까울수록 보상해, 트랙을 L4로 밀고 초록연방을 아껴 정렬을 유도.
+        if (getPlayerFlag(playerId, 'advTileReadyBonus', false)) {
+            const greenAvail = countGreenFederations(player);
+            const advByTrack = (game as any).advancedTechTilesByTrack as Record<string, { id?: string } | null> | undefined;
+            if (greenAvail >= 1 && advByTrack) {
+                let bestLvl = 0;
+                for (const [tr, adv] of Object.entries(advByTrack)) {
+                    if (!adv?.id || player.techTiles?.includes(adv.id)) continue; // 이미 보유/슬롯 비었으면 제외
+                    const lvl = (player.research as Record<string, number> | undefined)?.[tr] ?? 0;
+                    if (lvl > bestLvl) bestLvl = lvl;
+                }
+                if (bestLvl >= 3) {
+                    const ready = Math.min(bestLvl, 4) - 2; // L3→1, L4→2
+                    const advScore = ready * 30 * fedRoundScale;
+                    score += advScore;
+                    logDebug(`8c) AdvTileReady: green ${greenAvail}, bestTrackLvl ${bestLvl} → +${advScore.toFixed(1)}`);
+                }
             }
         }
 
