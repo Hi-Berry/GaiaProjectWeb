@@ -161,7 +161,7 @@ interface GameBoardProps {
   onEnterSpaceship?: (tileId: string, useRangeBonus: boolean, qicToUse: number) => void;
   onUseShipAction?: (shipTileId: string, actionIndex: number, targetTileId?: string) => void;
   onTakeTwilightArtifact?: (artifactId: string) => void;
-  onEclipseBuildAsteroidMine?: (tileId: string) => void;
+  onEclipseBuildAsteroidMine?: (tileId: string, qicToSpend: number) => void;
   pendingTwilightTSUpgrade?: string | null;
   pendingRebellionMineToTS?: string | null;
   onTwilightTSUpgrade?: (tileId: string) => void;
@@ -379,20 +379,27 @@ export function GameBoard({
   }, [game.map, game.playerFederationHexes, hoveredPlayerId]);
 
   const isEclipseAsteroidMode = game.pendingEclipseAsteroidMine?.playerId === playerId;
+  // 이클립스 소행성 광산 기준 사거리(서버와 동일: Nav+navigationBonus, 임시보너스 제외). QIC당 +2로 연장.
+  const eclipseBaseRange = (currentPlayer ? getRange(currentPlayer.research?.navigation ?? 0) + (currentPlayer.navigationBonus ?? 0) : 0);
+  const eclipseRangeTiles = useMemo(() => game.map.filter((t: HexTile) => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId), [game.map, playerId]);
+  const eclipseNeededQic = useCallback((tile: HexTile): number => {
+    if (eclipseRangeTiles.length === 0) return 0;
+    const minDist = Math.min(...eclipseRangeTiles.map((s: HexTile) => getDistance(s, tile)));
+    return minDist > eclipseBaseRange ? Math.ceil((minDist - eclipseBaseRange) / 2) : 0;
+  }, [eclipseRangeTiles, eclipseBaseRange]);
   const eclipseBuildableTileIds = useMemo(() => {
     if (!isEclipseAsteroidMode || !currentPlayer || !playerId) return new Set<string>();
-    const baseRange = getEffectiveBaseRange(currentPlayer);
-    const rangeTiles = game.map.filter((t: HexTile) => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId);
-    if (rangeTiles.length === 0) return new Set<string>();
+    if (eclipseRangeTiles.length === 0) return new Set<string>();
+    const maxRange = eclipseBaseRange + (currentPlayer.qic ?? 0) * 2; // QIC당 +2 거리
     const ids = new Set<string>();
     game.map.forEach((t: HexTile) => {
       if (t.type === 'asteroid' && t.structure === null) {
-        const minDist = Math.min(...rangeTiles.map((s: HexTile) => getDistance(s, t)));
-        if (minDist <= baseRange) ids.add(t.id);
+        const minDist = Math.min(...eclipseRangeTiles.map((s: HexTile) => getDistance(s, t)));
+        if (minDist <= maxRange) ids.add(t.id);
       }
     });
     return ids;
-  }, [isEclipseAsteroidMode, currentPlayer, game.map, playerId]);
+  }, [isEclipseAsteroidMode, currentPlayer, game.map, playerId, eclipseRangeTiles, eclipseBaseRange]);
 
   const twilightTSSelectableIds = useMemo(() => {
     if (!pendingTwilightTSUpgrade || !playerId) return new Set<string>();
@@ -534,7 +541,7 @@ export function GameBoard({
       }
     }
     if (!hasDragged && onEclipseBuildAsteroidMine && isEclipseAsteroidMode && eclipseBuildableTileIds.has(tile.id)) {
-      onEclipseBuildAsteroidMine(tile.id);
+      onEclipseBuildAsteroidMine(tile.id, eclipseNeededQic(tile));
       return;
     }
     if (!hasDragged && onTwilightTSUpgrade && twilightTSSelectableIds.has(tile.id)) {
@@ -548,7 +555,7 @@ export function GameBoard({
     if (!hasDragged) {
       setSelectedTile(tile);
     }
-  }, [ivitsSpaceStationMode, ambasSwapPiMineMode, onAmbasSwapPiMine, firaksDowngradeMode, onFiraksDowngradeSelectLab, moweyipPlaceRingMode, onMoweyipPlaceRing, hasDragged, isFederationMode, onFederationToggleHex, game.satellites, playerId, onEclipseBuildAsteroidMine, isEclipseAsteroidMode, eclipseBuildableTileIds, onTwilightTSUpgrade, twilightTSSelectableIds, onRebellionMineToTS, rebellionMineSelectableIds]);
+  }, [ivitsSpaceStationMode, ambasSwapPiMineMode, onAmbasSwapPiMine, firaksDowngradeMode, onFiraksDowngradeSelectLab, moweyipPlaceRingMode, onMoweyipPlaceRing, hasDragged, isFederationMode, onFederationToggleHex, game.satellites, playerId, onEclipseBuildAsteroidMine, isEclipseAsteroidMode, eclipseBuildableTileIds, eclipseNeededQic, onTwilightTSUpgrade, twilightTSSelectableIds, onRebellionMineToTS, rebellionMineSelectableIds]);
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
@@ -1874,22 +1881,25 @@ export function GameBoard({
                 )}
 
                 {/* Eclipse 액션3: 6C 지불 후 소행성 선택 시 광산 건설 (가이아포머 없이) */}
-                {isEclipseAsteroidMode && onEclipseBuildAsteroidMine && selectedTile.type === 'asteroid' && !selectedTile.structure && eclipseBuildableTileIds.has(selectedTile.id) && (
+                {isEclipseAsteroidMode && onEclipseBuildAsteroidMine && selectedTile.type === 'asteroid' && !selectedTile.structure && eclipseBuildableTileIds.has(selectedTile.id) && (() => {
+                  const q = eclipseNeededQic(selectedTile);
+                  return (
                   <div className="space-y-2">
-                    <p className="text-xs text-green-400">Eclipse: 소행성 광산 건설 가능</p>
+                    <p className="text-xs text-green-400">Eclipse: 소행성 광산 건설 가능{q > 0 ? ` (사거리 연장 ${q} QIC)` : ''}</p>
                     <Button
                       className="w-full bg-primary/20 border-primary text-primary hover:bg-primary/30"
                       variant="secondary"
                       onClick={() => {
-                        onEclipseBuildAsteroidMine(selectedTile.id);
+                        onEclipseBuildAsteroidMine(selectedTile.id, q);
                         setSelectedTile(null);
                       }}
                       data-testid="button-eclipse-build-asteroid"
                     >
-                      짓기 (6C 지불됨)
+                      짓기 (6C{q > 0 ? ` + ${q} QIC` : ''})
                     </Button>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* 란티다 기생 광산: 버튼만 심플하게 표시 */}
                 {currentPlayer?.faction === 'lantids' && selectedTile.structure != null && selectedTile.ownerId !== playerId && selectedTile.ownerId != null && !selectedTile.parasiticMine && onBuildMine && (() => {

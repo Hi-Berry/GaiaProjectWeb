@@ -3199,11 +3199,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// Eclipse 액션3: 6C 지불 후 소행성 광산 건설 (가이아포머 소모 없음)
-		socket.on('eclipse_build_asteroid_mine', ({ gameId, tileId }) => {
+		socket.on('eclipse_build_asteroid_mine', ({ gameId, tileId, qicToSpend }) => {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			executeEclipseBuildAsteroidMine(io, game, playerId, tileId);
+			executeEclipseBuildAsteroidMine(io, game, playerId, tileId, qicToSpend);
 		});
 
 		// 트왈라잇 액션1: 보유 연방 중 하나 선택 후 해당 해택 재수령 (federation reward id)
@@ -6550,11 +6550,12 @@ export function peekEclipseAsteroidMineTileIds(game: ServerGameState, playerId: 
 	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) return [];
 	const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+	const maxRange = baseRange + (player.qic || 0) * 2; // QIC 1개당 +2 거리 (일반 광산/잊혀진 행성과 동일)
 	const out: string[] = [];
 	for (const tile of game.map) {
 		if (tile.type !== 'asteroid' || tile.structure !== null) continue;
 		const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-		if (minDist <= baseRange) out.push(tile.id);
+		if (minDist <= maxRange) out.push(tile.id);
 	}
 	return out;
 }
@@ -6570,7 +6571,7 @@ export function getLegalEclipseAsteroidMineTileIds(game: ServerGameState, player
 
 /** Bot용: 우주선 액션 실행. 소켓 use_ship_action과 동일 로직 (Twilight/Rebellion/TF Mars/Eclipse 전액션). */
 
-export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string): boolean {
+export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, qicToSpend?: number): boolean {
 	const pending = game.pendingEclipseAsteroidMine;
 	if (!pending || pending.playerId !== playerId) return false;
 	const player = game.players[playerId];
@@ -6581,12 +6582,16 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 	if (rangeTiles.length === 0) return false;
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 	const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-	if (minDist > baseRange) return false;
+	// QIC 1개당 +2 거리로 더 멀리 건설 가능 (일반 광산/잊혀진 행성과 동일). qicToSpend가 오면 일치 검증.
+	const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+	if ((player.qic ?? 0) < neededQIC) return false;
+	if (typeof qicToSpend === 'number' && qicToSpend !== neededQIC) return false;
+	player.qic = (player.qic ?? 0) - neededQIC;
 	const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 	tile.structure = 'mine';
 	tile.ownerId = playerId;
 	game.pendingEclipseAsteroidMine = null;
-	addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', '6C (no Gaiaformer)', tileId);
+	addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', neededQIC > 0 ? `6C, ${neededQIC} QIC (range)` : '6C (no Gaiaformer)', tileId);
 	applyRoundMissionScore(game, playerId, 'build_mine');
 	if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
 	applyAdvancedTechTileEffect(game, playerId, 'build_mine');

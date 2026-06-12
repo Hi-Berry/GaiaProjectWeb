@@ -2107,7 +2107,7 @@ export default function Game() {
               setPendingRebellionMineToTS(null);
             }}
             onTakeTwilightArtifact={(artifactId) => GameClient.takeTwilightArtifact(gameId!, artifactId)}
-            onEclipseBuildAsteroidMine={(tileId) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId)}
+            onEclipseBuildAsteroidMine={(tileId, qicToSpend) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId, qicToSpend)}
             zoomValue={mapZoom}
             panValue={mapPan}
             onZoomChange={setMapZoom}

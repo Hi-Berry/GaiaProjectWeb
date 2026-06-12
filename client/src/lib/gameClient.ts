@@ -445,9 +445,9 @@ export const GameClient = {
     s.emit('eclipse_advance_track', { gameId, trackId });
   },
 
-  eclipseBuildAsteroidMine(gameId: string, tileId: string) {
+  eclipseBuildAsteroidMine(gameId: string, tileId: string, qicToSpend = 0) {
     const s = getSocket();
-    s.emit('eclipse_build_asteroid_mine', { gameId, tileId });
+    s.emit('eclipse_build_asteroid_mine', { gameId, tileId, qicToSpend });
   },
 
   federationToggleMode(gameId: string) {
