@@ -851,7 +851,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             return (
                                 <div
                                     key={track.id}
-                                    className={`flex flex-col gap-2 p-1.5 rounded-xl transition-all duration-300 group border border-transparent z-10 hover:z-[100] ${navBlocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-white/10'}`}
+                                    className={`flex flex-col gap-2 p-1.5 rounded-xl transition-all duration-300 border border-transparent z-10 hover:z-[100] ${navBlocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-white/10'}`}
                                     onClick={() => { if (!navBlocked) handleTrackClick(track.id as ResearchTrack); }}
                                     title={navBlocked ? "발타크: 의회 건설 후 Nav 트랙 진행 가능" : undefined}
                                     style={{
@@ -1007,7 +1007,6 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             backgroundColor: level > 0 ? `${track.color}${level === 5 ? '30' : '15'}` : undefined,
                                                             borderColor: level > 0 ? `${track.color}40` : undefined
                                                         }}
-                                                        title={`L${level}: ${getTrackBonus(track.id, level) || track.name}`}
                                                     >
                                                         <span className={`absolute top-0 left-1 font-bold text-zinc-700 ${isMini ? 'text-[6px]' : 'text-[8px]'}`}>L{level}</span>
                                                         <div className="flex flex-col items-center justify-center p-0.5">
