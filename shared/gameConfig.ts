@@ -1101,7 +1101,9 @@ export function getNextRoundIncomePreview(
     result.ore += 1;
   }
   if (arts.includes('art-income-2p3')) {
-    result.powerCharge += 2;
+    // 3그릇에 토큰 2개를 직접 추가(서버 power3 += 2)하는 효과. '충전(powerCharge)'이 아니라
+    // 새 토큰 2개이므로 powerTokens로 집계 (전엔 powerCharge로 잘못 넣어 +2pw로 표시됐음).
+    result.powerTokens += 2;
   }
   return result;
 }
