@@ -3625,6 +3625,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			const player = game.players[playerId];
 			if (countGreenFederations(player) < 1) return;
+			// 고급 타일은 각 1개씩만 존재 — 이미 누군가 보유 중이면 중복 획득 거부 (UI는 슬롯을 '획득됨/TAKEN'으로 유지)
+			if (Object.values(game.players).some(p => p.techTiles?.includes(advancedTileId))) return;
 			const uncoveredNormal = (player.techTiles || []).filter(
 				(id) => !(player.coveredTechTiles || []).includes(id) && !id.startsWith('adv-')
 			);
@@ -3669,14 +3671,6 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!player.coveredTechTiles) player.coveredTechTiles = [];
 			player.coveredTechTiles.push(coverTileId);
 			if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
-
-			// 고급 타일은 각 1개씩만 존재 → 획득 시 슬롯을 비워 다른 플레이어가 중복 획득하지 못하게 함
-			if (pending.trackId != null) {
-				if (game.advancedTechTilesByTrack) delete game.advancedTechTilesByTrack[pending.trackId];
-			} else {
-				game.extraAdvancedTechTile = undefined;
-				game.extraAdvancedTechCondition = undefined;
-			}
 
 			applyAdvancedTileImmediateEffect(game, playerId, pending.advancedTileId);
 
@@ -4916,6 +4910,8 @@ export function executeSelectAdvancedTechTile(
 	if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return false;
 	// 초록 연방 1개 필요 (소켓 select_advanced_tech_tile와 동일). 없으면 선택 자체 차단 → 커버 단계 stuck 방지.
 	if (countGreenFederations(player) < 1) return false;
+	// 고급 타일은 각 1개씩만 존재 — 이미 누군가 보유 중이면 중복 획득 거부.
+	if (Object.values(game.players).some(p => p.techTiles?.includes(advancedTileId))) return false;
 
 	if (trackId != null) {
 		const advTile = game.advancedTechTilesByTrack?.[trackId];
@@ -4961,14 +4957,6 @@ export function executeCoverAdvancedTechTile(
 	spendGreenFederation(player);
 	player.coveredTechTiles.push(coverTileId);
 	if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
-
-	// 고급 타일은 각 1개씩만 존재 → 획득 시 슬롯을 비워 다른 플레이어가 중복 획득하지 못하게 함
-	if (pending.trackId != null) {
-		if (game.advancedTechTilesByTrack) delete game.advancedTechTilesByTrack[pending.trackId];
-	} else {
-		game.extraAdvancedTechTile = undefined;
-		game.extraAdvancedTechCondition = undefined;
-	}
 
 	// socket handler 내부의 applyAdvancedTileImmediateEffect를 여기서도 동일하게 적용
 	(() => {
