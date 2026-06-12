@@ -803,10 +803,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     </div>
                                                 </div>
 
-                                                {/* Action Strip Image (가로 3칸 클릭존) — 텍스트 버튼 대체 */}
-                                                <div className="relative w-full aspect-[3/1] mt-auto rounded-[2px] overflow-hidden border border-white/10">
+                                                {/* Action Strip Image (가로 3칸 클릭존) — 텍스트 버튼 대체.
+                                                    미니뷰: 위 필요자원 영역 크롭(object-bottom, 좁은 비율). 전체 Research: 자연 비율로 다 표시. */}
+                                                <div className={`relative w-full mt-auto rounded-[2px] overflow-hidden border border-white/10 ${isMini ? 'aspect-[3.4/1]' : ''}`}>
                                                     {SHIP_ACTION_IMG[tile.type] && (
-                                                        <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className="absolute inset-0 w-full h-full object-cover" />
+                                                        <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className={isMini ? 'absolute inset-0 w-full h-full object-cover object-bottom' : 'block w-full h-auto'} />
                                                     )}
                                                     <div className="absolute inset-0 grid grid-cols-3">
                                                         {actionLabels.map((label, idx) => {

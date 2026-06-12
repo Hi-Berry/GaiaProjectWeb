@@ -1515,9 +1515,9 @@ export function GameBoard({
                           {techTileNode}
                           {shipFedNode}
                           {!canActNow && <p className="text-[11px] text-amber-400">{!isMyTurn ? '내 턴이 아닙니다' : '이번 턴 메인 액션을 이미 사용했습니다'}</p>}
-                          <div className="relative w-full aspect-[3/1] rounded-md overflow-hidden border border-blue-500/30">
+                          <div className="relative w-full rounded-md overflow-hidden border border-blue-500/30">
                             {SHIP_ACTION_IMG[selectedTile.type] && (
-                              <img src={SHIP_ACTION_IMG[selectedTile.type]} alt="ship actions" className="absolute inset-0 w-full h-full object-cover" />
+                              <img src={SHIP_ACTION_IMG[selectedTile.type]} alt="ship actions" className="block w-full h-auto" />
                             )}
                             <div className="absolute inset-0 grid grid-cols-3">
                               {[0, 1, 2].map((idx) => {
@@ -1595,9 +1595,9 @@ export function GameBoard({
                         {/* 미탑승/상대턴이어도 액션 사용 현황(사용됨/가능)을 상시 표시 — 전략 미리 파악용 */}
                         <div>
                           <p className="text-[10px] text-zinc-400 mb-1">우주선 액션 ({(ship.usedActionIndices ?? []).length}/3 사용됨)</p>
-                          <div className="relative w-full aspect-[3/1] rounded-md overflow-hidden border border-white/10">
+                          <div className="relative w-full rounded-md overflow-hidden border border-white/10">
                             {SHIP_ACTION_IMG[selectedTile.type] && (
-                              <img src={SHIP_ACTION_IMG[selectedTile.type]} alt="ship actions" className="absolute inset-0 w-full h-full object-cover" />
+                              <img src={SHIP_ACTION_IMG[selectedTile.type]} alt="ship actions" className="block w-full h-auto" />
                             )}
                             <div className="absolute inset-0 grid grid-cols-3">
                               {(SHIP_ACTION_LABELS[selectedTile.type] || ['—', '—', '—']).map((label, idx) => {
