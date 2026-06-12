@@ -939,18 +939,18 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 !Object.values(game.players).some((p) => (p.research?.navigation ?? 0) >= 5);
                                             const getTrackBonus = (trackId: string, lvl: number): string => {
                                                 if (trackId === 'terraforming') {
-                                                    if (lvl === 0) return '3 Ore/Step';
+                                                    if (lvl === 0) return '3O/Step';
                                                     if (lvl === 1) return '+2O';
-                                                    if (lvl === 2) return '2 Ore/Step';
-                                                    if (lvl === 3) return '1 Ore/Step';
+                                                    if (lvl === 2) return '2O/Step';
+                                                    if (lvl === 3) return '1O/Step';
                                                     if (lvl === 4) return '+2O';
                                                     if (lvl === 5) return '';
                                                 }
                                                 if (trackId === 'navigation') {
                                                     if (lvl === 0) return 'Range 1';
-                                                    if (lvl === 1) return 'Range 1 (+1Q)';
+                                                    if (lvl === 1) return '+1QIC';
                                                     if (lvl === 2) return 'Range 2';
-                                                    if (lvl === 3) return 'Range 2 (+1Q)';
+                                                    if (lvl === 3) return '+1QIC';
                                                     if (lvl === 4) return 'Range 3';
                                                     if (lvl === 5) return 'Range 4';
                                                 }
@@ -964,10 +964,10 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 }
                                                 if (trackId === 'gaiaProject') {
                                                     if (lvl === 0) return '';
-                                                    if (lvl === 1) return '+1 Gaiaformer';
-                                                    if (lvl === 2) return '+3 Token';
-                                                    if (lvl === 3) return '+2 Gaiaformer';
-                                                    if (lvl === 4) return '+3 Gaiaformer';
+                                                    if (lvl === 1) return '+1 former : 6T';
+                                                    if (lvl === 2) return '+3 Tokens';
+                                                    if (lvl === 3) return '+1 former : 4T';
+                                                    if (lvl === 4) return '+1 former : 3T';
                                                     if (lvl === 5) return '4VP + Gaia';
                                                 }
                                                 if (trackId === 'economy') {
@@ -976,7 +976,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     if (lvl === 2) return '1O, 2C, 2P';
                                                     if (lvl === 3) return game.economyVariant === 'vp' ? '1O, 3C, 1VP' : '1O, 2C, 3P';
                                                     if (lvl === 4) return game.economyVariant === 'vp' ? '2O, 4C, 1VP' : '2O, 2C, 2P';
-                                                    if (lvl === 5) return '+3O, 6C, 6P';
+                                                    if (lvl === 5) return '+3O, +6C, +6P';
                                                 }
                                                 if (trackId === 'science') {
                                                     if (lvl === 0) return '';
