@@ -1441,32 +1441,35 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     </div>
                                                     <div className="space-y-1.5 pt-2 border-t border-white/5">
                                                         <div className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">Actions ({actionsUsedCount}/3)</div>
-                                                        <div className="grid grid-cols-3 gap-1.5">
-                                                            {[0, 1, 2].map((idx) => {
-                                                                const actionNum = idx + 1;
-                                                                const label = actionLabels[idx];
-                                                                const isUsed = usedIndices.includes(actionNum);
-                                                                const canUse = isInShip && onUseShipAction && !isUsed && actionsUsedCount < 3;
-                                                                const theme = SHIP_ACTION_THEME[tile.type]?.[idx];
-
-                                                                return (
-                                                                    <button
-                                                                        key={idx}
-                                                                        disabled={!canUse}
-                                                                        onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
-                                                                        className={`w-full text-[9px] h-10 px-1 rounded border transition-all font-bold text-center leading-tight flex flex-col items-center justify-center ${isUsed
-                                                                            ? 'border-white/5 bg-zinc-900 text-zinc-600 line-through cursor-not-allowed opacity-50'
-                                                                            : canUse && theme
-                                                                                ? `${theme.border} ${theme.color} ${theme.text} ${theme.hover} cursor-pointer`
-                                                                                : theme
-                                                                                    ? `border-white/5 ${theme.color} text-zinc-500 cursor-default opacity-40`
-                                                                                    : 'border-white/5 bg-zinc-800/40 text-zinc-500 cursor-default'}`}
-                                                                        title={label + (isUsed ? ' (이미 사용됨)' : !isInShip ? ' (우주선 탑승 필요)' : '')}
-                                                                    >
-                                                                        {label}
-                                                                    </button>
-                                                                );
-                                                            })}
+                                                        <div className="relative w-full rounded-md overflow-hidden border border-white/10">
+                                                            {SHIP_ACTION_IMG[tile.type] && (
+                                                                <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className="block w-full h-auto" />
+                                                            )}
+                                                            <div className="absolute inset-0 grid grid-cols-3">
+                                                                {[0, 1, 2].map((idx) => {
+                                                                    const actionNum = idx + 1;
+                                                                    const label = actionLabels[idx];
+                                                                    const isUsed = usedIndices.includes(actionNum);
+                                                                    const canUse = isInShip && onUseShipAction && !isUsed && actionsUsedCount < 3;
+                                                                    const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
+                                                                    const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
+                                                                    const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
+                                                                    return (
+                                                                        <button
+                                                                            key={idx}
+                                                                            disabled={!canUse}
+                                                                            onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
+                                                                            className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
+                                                                            title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                                        >
+                                                                            {isUsed && <div className="absolute inset-0 bg-black/65" />}
+                                                                            {usedByColor && (
+                                                                                <span className="absolute top-1 right-1 w-2 h-2 rounded-full border border-black/60" style={{ backgroundColor: usedByColor }} />
+                                                                            )}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
