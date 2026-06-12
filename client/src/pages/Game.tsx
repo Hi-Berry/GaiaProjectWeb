@@ -2080,11 +2080,11 @@ export default function Game() {
         </div>
       </div>
 
-      <main className="flex-1 flex flex-col overflow-auto bg-zinc-900/20 relative">
+      <main className="flex-1 flex flex-col overflow-hidden bg-zinc-900/20 relative">
         {game.currentPhase === 'factionBidding' && (
           <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
         )}
-        <div className="flex-1 min-h-[600px]">
+        <div className="flex-1 min-h-0">
           <GameBoard
             game={game}
             playerId={playerId}
