@@ -1011,7 +1011,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             borderColor: level > 0 ? `${track.color}40` : undefined
                                                         }}
                                                     >
-                                                        <span className={`absolute top-0 left-1 font-bold text-zinc-700 ${isMini ? 'text-[6px]' : 'text-[8px]'}`}>L{level}</span>
+                                                        <span className={`absolute top-0 left-1 font-black ${isMini ? 'text-[6px] text-zinc-600' : 'text-[8px] text-zinc-300/80'}`}>L{level}</span>
                                                         <div className="flex flex-col items-center justify-center p-0.5">
                                                             {isTerraforming5FederationAvailable ? (() => {
                                                                 const rewardIdx = FEDERATION_REWARDS.findIndex((r) => r.id === game.federationOnTerraforming5);
@@ -1024,7 +1024,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                         title={`Terraforming 5 보상: ${label}`}
                                                                     />
                                                                 ) : (
-                                                                    <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">
+                                                                    <div className={`${isMini ? 'text-[7px] text-zinc-400' : 'text-[10px] text-zinc-50'} font-black uppercase text-center px-1 leading-tight tracking-tight drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]`}>
                                                                         {label}
                                                                     </div>
                                                                 );
@@ -1036,7 +1036,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     title="Navigation 5 보상: 잊혀진 행성 (선착 1명)"
                                                                 />
                                                             ) : (
-                                                                <div className="text-[7px] text-zinc-500 font-bold uppercase text-center px-1 leading-tight">
+                                                                <div className={`${isMini ? 'text-[7px] text-zinc-400' : 'text-[10px] text-zinc-50'} font-black uppercase text-center px-1 leading-tight tracking-tight drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]`}>
                                                                     {getTrackBonus(track.id, level)}
                                                                 </div>
                                                             )}
