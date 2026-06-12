@@ -1069,8 +1069,8 @@ export function GameBoard({
                     onClick={() => handleTileClick(tile)}
                     style={{
                       fill: 'transparent', // 배경 이미지가 잘 보이도록 투명하게 설정
-                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FFD700' : (showTileBorders ? 'rgba(255,255,255,0.6)' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555')),
-                      strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : (showTileBorders ? 0.35 : 0.2),
+                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FFD700' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
+                      strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : 0.2,
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       fillOpacity: isHighlighted || isEclipseBuildable || isShipActionSelectable ? 0.9 : 1.0,
@@ -1270,6 +1270,42 @@ export function GameBoard({
                 );
               })}
             </Layout>
+            {/* 섹터 구분 외곽선: 각 섹터(내부 0-9, 외각 11-18)의 바깥 경계 변만 그림.
+                같은 섹터끼리의 내부 변은 생략 → 타일 10개 + 외각 8개로 구역이 구분돼 보임. */}
+            {showTileBorders && (() => {
+              const secByKey = new Map<string, number>();
+              for (const t of game.map) secByKey.set(`${t.q},${t.r}`, t.sector ?? -999);
+              // pointy-top: 변 i(코너 i→i+1)가 마주보는 이웃 방향 (axial dq,dr)
+              const DIRS: Array<[number, number]> = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+              const corner = (cx: number, cy: number, i: number): [number, number] => {
+                const a = (60 * i - 30) * Math.PI / 180;
+                return [cx + HEX_SIZE * Math.cos(a), cy + HEX_SIZE * Math.sin(a)];
+              };
+              const segs: Array<{ x1: number; y1: number; x2: number; y2: number; k: string }> = [];
+              for (const t of game.map) {
+                const sec = t.sector ?? -999;
+                if (sec === 90) continue; // 전략 단일헥스(우주선/소행성 등)는 구역 외곽선에서 제외
+                const cx = HEX_SIZE * SQRT3 * (t.q + t.r / 2);
+                const cy = HEX_SIZE * 1.5 * t.r;
+                for (let i = 0; i < 6; i++) {
+                  const [dq, dr] = DIRS[i];
+                  const nSec = secByKey.get(`${t.q + dq},${t.r + dr}`);
+                  if (nSec === sec) continue;                       // 같은 섹터 → 내부 변, 생략
+                  if (nSec !== undefined && sec > nSec) continue;   // 인접 섹터 경계는 한 번만 (중복 방지)
+                  const [x1, y1] = corner(cx, cy, i);
+                  const [x2, y2] = corner(cx, cy, (i + 1) % 6);
+                  segs.push({ x1, y1, x2, y2, k: `${t.id}-${i}` });
+                }
+              }
+              return (
+                <g pointerEvents="none">
+                  {segs.map(s => (
+                    <line key={s.k} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+                      stroke="rgba(255,255,255,0.85)" strokeWidth={0.34} strokeLinecap="round" />
+                  ))}
+                </g>
+              );
+            })()}
           </HexGrid>
         </motion.div>
 
