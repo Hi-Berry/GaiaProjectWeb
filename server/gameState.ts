@@ -2686,6 +2686,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// GM/Admin: 현재 턴 플레이어의 턴을 시작 시점으로 롤백 (실수 복구용).
+		// reset_turn과 동일한 전체 상태 복원이지만 GM이 대신 실행. 끝난 턴은 스냅샷이 삭제돼 불가.
+		socket.on('admin_rollback_turn', ({ gameId, adminCode }: { gameId: string; adminCode: string }, callback?: (r: { ok?: boolean; error?: string; playerName?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			const playerId = game.turnOrder[game.currentPlayerIndex];
+			if (!playerId) { callback?.({ error: '현재 턴 플레이어를 찾을 수 없습니다.' }); return; }
+			const startState: any = game.turnStartState?.[playerId];
+			if (!startState?.fullGameState) {
+				callback?.({ error: '롤백 스냅샷이 없습니다 (이미 끝난 턴이거나 턴 시작 직후가 아님).' });
+				return;
+			}
+			const restored = deepClone(startState.fullGameState) as ServerGameState;
+			restored.gameLog = restoreGameLogForReset(game as ServerGameState, startState, playerId);
+			restored.humanActionJournal = startState.humanActionJournalState
+				? deepClone(startState.humanActionJournalState)
+				: (game.humanActionJournal || []).slice(0, startState.humanActionJournalLength || 0);
+			clearFreeActionUndo(restored);
+			restored.turnStartState = { [playerId]: buildTurnStartStateEntryForPlayer(restored, playerId) };
+			games.set(gameId, restored);
+			clampPlayerResources(restored);
+			log(`Admin: rolled back turn for ${restored.players[playerId]?.name ?? playerId}`, 'game', gameId);
+			io.to(gameId).emit('game_updated', restored);
+			callback?.({ ok: true, playerName: restored.players[playerId]?.name });
+		});
+
 		socket.on('select_faction', ({ gameId, factionId, turnOrder }) => {
 			const game = games.get(gameId);
 			if (!game) return;

@@ -223,6 +223,45 @@ function ForceEndGameButton({ gameId, ended }: { gameId: string; ended: boolean 
   );
 }
 
+function RollbackTurnButton({ gameId }: { gameId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const rollback = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const name = await GameClient.adminRollbackTurn(gameId, ADMIN_PASSWORD);
+      setMessage(`${name ?? '현재 플레이어'}의 턴을 시작 시점으로 되돌렸습니다.`);
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-black text-cyan-300">턴 롤백</div>
+          <div className="text-[10px] text-zinc-400">현재 턴 플레이어의 턴을 시작 시점으로 되돌립니다 (실수 복구). 이미 끝난 턴은 불가.</div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs shrink-0 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20"
+          disabled={busy}
+          onClick={rollback}
+        >
+          {busy ? '되돌리는 중…' : '턴 롤백'}
+        </Button>
+      </div>
+      {message && <div className="text-[10px] text-zinc-400">{message}</div>}
+    </div>
+  );
+}
+
 export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogProps) {
   const [password, setPassword] = useState('');
   const [unlocked, setUnlocked] = useState(false);
@@ -284,6 +323,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
           <ScrollArea className="max-h-[70vh]">
             <div className="p-5 space-y-3">
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
+              <RollbackTurnButton gameId={game.id} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />
               ))}
