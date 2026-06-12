@@ -464,21 +464,6 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </div>
                 )}
 
-                {/* 미니뷰 전용 요약: 매 게임 랜덤인 테라포밍 L5 연방 + 경제 트랙 변형 (R창 안 열고 확인용) */}
-                {isMini && (
-                    <div className="px-1 py-0.5 mb-0.5 rounded bg-black/25 border border-white/5 text-[7px] leading-tight text-zinc-300 flex flex-wrap items-center gap-x-2 gap-y-0">
-                        <span>
-                            <span className="font-black text-amber-400">테라L5</span>{' '}
-                            {FEDERATION_REWARDS.find(r => r.id === game.federationOnTerraforming5)?.label ?? '—'}
-                        </span>
-                        <span className="text-zinc-600">·</span>
-                        <span>
-                            <span className="font-black text-orange-400">경제3·4</span>{' '}
-                            {game.economyVariant === 'vp' ? '+1승점(점수형)' : '파워(기본형)'}
-                        </span>
-                    </div>
-                )}
-
                 {/* Research Tracks — Mini View: vertical columns (like real board) */}
                 {isMini ? (
                     <div className="flex flex-col gap-0">
@@ -507,36 +492,33 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             {track.name === 'Terraforming' ? 'Terra' : track.name === 'Navigation' ? 'Nav' : track.name === 'Artificial Intelligence' ? 'AI' : track.name === 'Gaia Project' ? 'Gaia' : track.name === 'Economy' ? 'Eco' : 'Sci'}
                                         </div>
 
-                                        {/* Advanced Tech Tile (top) */}
-                                        <div className="h-[44px] w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border border-cyan-500/10 group relative">
-                                            {advTile && !isAdvTaken && advTile.image ? (
-                                                <>
-                                                    <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
-                                                    <div className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/80 z-20">
-                                                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none z-[130]">
-                                                            <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <span className="text-[6px] text-zinc-700 opacity-30">—</span>
-                                            )}
-                                        </div>
-
-                                        {/* Level slots: L5 → L0 (top to bottom) */}
+                                        {/* Level slots: L5 → L0 (위→아래). 고급 기술 타일은 L5와 L4 사이. */}
                                         {[5, 4, 3, 2, 1, 0].map((level) => {
                                             const playersHere = players.filter(p => p.research && p.research[track.id as ResearchTrack] === level);
-                                            return (
+                                            // L5 특수 이미지: 테라포밍 연방 / Nav 잊혀진 행성 (선착 도달 전까지)
+                                            let l5Img: string | null = null;
+                                            if (level === 5) {
+                                                if (track.id === 'terraforming' && game.federationOnTerraforming5 && !players.some(p => (p.research?.terraforming ?? 0) >= 5)) {
+                                                    const ri = FEDERATION_REWARDS.findIndex(r => r.id === game.federationOnTerraforming5);
+                                                    if (ri !== -1) l5Img = `/image/Federation_${ri + 1}.gif`;
+                                                } else if (track.id === 'navigation' && !players.some(p => (p.research?.navigation ?? 0) >= 5)) {
+                                                    l5Img = '/map/lost_planet.png';
+                                                }
+                                            }
+                                            // 경제 트랙 3·4단계 변형 라벨 (VP면 VP, 파워면 PW)
+                                            const ecoLabel = track.id === 'economy' && (level === 3 || level === 4) ? (game.economyVariant === 'vp' ? 'VP' : 'PW') : null;
+                                            const cell = (
                                                 <div
-                                                    key={level}
+                                                    key={`lvl-${level}`}
                                                     className={`rounded flex items-center justify-center relative border h-6 overflow-hidden cursor-pointer hover:bg-white/5 transition-all flex-shrink-0 ${level === 5 ? 'border-primary/30' : 'border-white/5'}`}
                                                     style={{
                                                         backgroundColor: level > 0 ? `${track.color}${level === 5 ? '25' : '12'}` : 'rgba(0,0,0,0.1)',
                                                     }}
                                                     onClick={() => { if (!navBlocked) handleTrackClick(track.id as ResearchTrack); }}
                                                 >
-                                                    <span className="text-[9px] font-black text-zinc-400 absolute left-0.5 leading-none select-none">{level}</span>
-                                                    {/* player tokens — overlap with negative margin */}
+                                                    <span className="text-[9px] font-black text-zinc-400 absolute left-0.5 top-0 leading-none select-none z-10">{level}</span>
+                                                    {l5Img && <img src={l5Img} alt="L5" className="h-5 w-auto object-contain" title={track.id === 'navigation' ? 'Nav5: 잊혀진 행성 (선착)' : '테라L5 연방 보상'} />}
+                                                    {ecoLabel && <span className="text-[8px] font-black text-orange-300 absolute right-0.5" title={game.economyVariant === 'vp' ? '점수형(+VP)' : '파워형'}>{ecoLabel}</span>}
                                                     {playersHere.length > 0 && (
                                                         <div className="flex ml-1.5 items-center justify-center">
                                                             {playersHere.map((p, i) => {
@@ -554,6 +536,24 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     )}
                                                 </div>
                                             );
+                                            if (level !== 5) return cell;
+                                            const adv = (
+                                                <div key="adv" className="h-[40px] w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border border-cyan-500/10 group relative my-0.5">
+                                                    {advTile && !isAdvTaken && advTile.image ? (
+                                                        <>
+                                                            <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
+                                                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none hidden group-hover:block z-[130]">
+                                                                <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}
+                                                            </div>
+                                                        </>
+                                                    ) : advTile && isAdvTaken ? (
+                                                        <span className="text-[6px] text-cyan-600/60 uppercase font-black tracking-wider">획득</span>
+                                                    ) : (
+                                                        <span className="text-[6px] text-zinc-700 opacity-30">—</span>
+                                                    )}
+                                                </div>
+                                            );
+                                            return [cell, adv];
                                         })}
 
                                         {/* Standard Tech Tile (bottom) */}
