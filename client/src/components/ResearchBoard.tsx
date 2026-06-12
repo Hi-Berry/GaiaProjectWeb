@@ -665,7 +665,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                         {/* Power Actions — 이미지 스트립(7등분 클릭존). 미니: 위 비용부분 크롭(object-bottom) */}
                         <div className="pt-1 border-t border-white/10 mt-1">
-                            <div className="relative w-full aspect-[6.5/1] rounded overflow-hidden border border-amber-500/20">
+                            <div className="relative w-full aspect-[14/1] rounded overflow-hidden border border-amber-500/20">
                                 <img src="/image/powerAction.jpg" alt="power actions" className="absolute inset-0 w-full h-full object-cover object-bottom" />
                                 <div className="absolute inset-0 grid grid-cols-7">
                                     {game.powerActions.map((action) => {
