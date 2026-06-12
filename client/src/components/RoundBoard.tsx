@@ -125,10 +125,13 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                         </div>
                     </div>
 
+                    {/* 라운드 미션 ↔ 최종 미션 구분선 (비미니) */}
+                    {!isMini && <div className="w-[1px] self-stretch bg-white/10 mx-1" />}
+
                     {/* Right Side: Final Missions */}
                     <div className={isMini ? 'flex-1 min-w-0' : 'w-[40%] flex flex-col justify-center'}>
-                        <div className={`grid ${isMini ? 'grid-cols-1 gap-1' : 'grid-cols-1 gap-2'}`}>
-                            {(game.finalMissionIds ?? []).map((missionId) => {
+                        <div className={`grid ${isMini ? 'grid-cols-1 gap-1' : 'grid-cols-1'}`}>
+                            {(game.finalMissionIds ?? []).map((missionId, mIdx) => {
                                 const label = FINAL_MISSION_LABELS[missionId] ?? missionId;
                                 const missionKeys = Object.keys(FINAL_MISSION_LABELS);
                                 const missionIndex = missionKeys.indexOf(missionId);
@@ -145,57 +148,61 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                     .sort((a, b) => b.value - a.value);
 
                                 return (
-                                    <div key={missionId} className={`group rounded-lg overflow-hidden border border-white/5 bg-zinc-900/40 shadow-sm ${isMini ? 'h-[64px]' : 'h-24'} flex items-stretch`}>
-                                        {/* Left: Mission Image */}
-                                        <div className={`${isMini ? 'w-16' : 'w-24'} bg-black/40 flex items-center justify-center p-1 border-r border-white/5`}>
-                                            {missionImg ? (
-                                                <img
-                                                    src={missionImg}
-                                                    alt={missionId}
-                                                    className="w-full h-full object-contain brightness-100 group-hover:brightness-110 transition-all duration-300"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[8px] text-zinc-800 font-black">
-                                                    ?
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Right: Mission Info */}
-                                        <div className={`flex-1 p-2 flex flex-col justify-center bg-zinc-900/20`}>
-                                            {!isMini && (
-                                                <div className="text-[11px] uppercase font-black text-zinc-300 tracking-wider mb-2 border-b border-white/5 pb-1">
-                                                    {label}
-                                                </div>
-                                            )}
-                                            
-                                            <div className={isMini ? "grid grid-cols-1 gap-0.5 w-full" : "flex flex-wrap gap-2"}>
-                                                {playerValues.length === 0 ? (
-                                                    <span className="text-[8px] text-zinc-700 font-bold text-center">—</span>
+                                    <div key={missionId}>
+                                        {/* 최종 미션 2개 사이 구분선 (비미니) */}
+                                        {!isMini && mIdx > 0 && <div className="h-[1px] bg-white/10 my-3" />}
+                                        <div className={`group rounded-lg overflow-hidden border border-white/5 bg-zinc-900/40 shadow-sm ${isMini ? 'h-[64px]' : 'h-28'} flex items-stretch`}>
+                                            {/* Left: Mission Image (비미니는 미션명을 이미지 위에 오버레이) */}
+                                            <div className={`relative ${isMini ? 'w-16' : 'w-28'} shrink-0 bg-black/40 flex items-center justify-center p-1 border-r border-white/5`}>
+                                                {missionImg ? (
+                                                    <img
+                                                        src={missionImg}
+                                                        alt={missionId}
+                                                        className="w-full h-full object-contain brightness-100 group-hover:brightness-110 transition-all duration-300"
+                                                    />
                                                 ) : (
-                                                    playerValues.map(({ playerId, value, color, name }) => (
-                                                        <div
-                                                            key={playerId}
-                                                            className={`flex items-center gap-1 ${isMini ? 'justify-start px-1' : 'bg-black/40 px-2 py-1 rounded border border-white/5'}`}
-                                                            title={name}
-                                                        >
-                                                            <div
-                                                                className="w-1.5 h-1.5 rounded-full shrink-0"
-                                                                style={{ backgroundColor: color }}
-                                                            />
-                                                            {!isMini && (
-                                                                <span className="text-[10px] font-bold text-zinc-400 mr-1">
-                                                                    {name}
-                                                                </span>
-                                                            )}
-                                                            <span
-                                                                className={`${isMini ? 'text-[9px]' : 'text-[11px]'} font-black tabular-nums leading-none`}
-                                                                style={{ color }}
-                                                            >
-                                                                {value}
-                                                            </span>
-                                                        </div>
-                                                    ))
+                                                    <div className="w-full h-full flex items-center justify-center text-[8px] text-zinc-800 font-black">
+                                                        ?
+                                                    </div>
+                                                )}
+                                                {!isMini && (
+                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent px-1 pt-5 pb-1">
+                                                        <span className="block text-center text-[11px] font-black uppercase tracking-wide text-white leading-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                                                            {label}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Right: Mission Info */}
+                                            <div className={`flex-1 min-w-0 p-2 flex flex-col justify-center bg-zinc-900/20`}>
+                                                {isMini ? (
+                                                    <div className="grid grid-cols-1 gap-0.5 w-full">
+                                                        {playerValues.length === 0 ? (
+                                                            <span className="text-[8px] text-zinc-700 font-bold text-center">—</span>
+                                                        ) : (
+                                                            playerValues.map(({ playerId, value, color }) => (
+                                                                <div key={playerId} className="flex items-center gap-1 justify-start px-1">
+                                                                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                                                    <span className="text-[9px] font-black tabular-nums leading-none" style={{ color }}>{value}</span>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {playerValues.length === 0 ? (
+                                                            <span className="text-xs text-zinc-600 font-bold">아직 점수 없음</span>
+                                                        ) : (
+                                                            playerValues.map(({ playerId, value, color, name }) => (
+                                                                <div key={playerId} className="flex items-center gap-2" title={name}>
+                                                                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                                                    <span className="text-sm font-bold text-zinc-200 truncate flex-1 min-w-0">{name}</span>
+                                                                    <span className="text-lg font-black tabular-nums leading-none shrink-0" style={{ color }}>{value}</span>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
