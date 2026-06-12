@@ -1012,7 +1012,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     <img
                                                                         src={`/image/Federation_${rewardIdx + 1}.gif`}
                                                                         alt={label}
-                                                                        className="h-7 w-auto object-contain"
+                                                                        className={`${isMini ? 'h-7' : 'h-12'} w-auto object-contain`}
                                                                         title={`Terraforming 5 보상: ${label}`}
                                                                     />
                                                                 ) : (
