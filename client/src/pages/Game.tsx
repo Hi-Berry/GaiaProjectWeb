@@ -138,8 +138,9 @@ export default function Game() {
   /** L 키: 게임 로그 오버레이 (평소에는 UI 없음) */
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
   /** 플레이어 상세(클릭 시) 팝오버 배율 */
-  const [playerDetailScale, setPlayerDetailScale] = useState<1 | 2>(() => {
-    return localStorage.getItem('player-detail-scale') === '2' ? 2 : 1;
+  const [playerDetailScale, setPlayerDetailScale] = useState<1 | 1.5 | 2>(() => {
+    const v = parseFloat(localStorage.getItem('player-detail-scale') || '1');
+    return v === 2 ? 2 : v === 1.5 ? 1.5 : 1;
   });
   /** 오른쪽 플레이어 요약: 클릭 시 펼쳐서 연방·기술타일·인공물·Special 사용여부 등 표시 */
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
@@ -2256,7 +2257,7 @@ export default function Game() {
             playerDetailScale={playerDetailScale}
             onTogglePlayerDetailScale={() => {
               setPlayerDetailScale((prev) => {
-                const next = prev === 2 ? 1 : 2;
+                const next: 1 | 1.5 | 2 = prev === 1 ? 1.5 : prev === 1.5 ? 2 : 1;
                 localStorage.setItem('player-detail-scale', String(next));
                 return next;
               });

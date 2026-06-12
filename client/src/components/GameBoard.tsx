@@ -203,7 +203,7 @@ interface GameBoardProps {
   /** 상태창 토글 함수 */
   onToggleSidebar?: () => void;
   /** 플레이어 상세 팝오버 배율 (1 | 2) */
-  playerDetailScale?: 1 | 2;
+  playerDetailScale?: 1 | 1.5 | 2;
   /** 플레이어 상세 1배/2배 토글 */
   onTogglePlayerDetailScale?: () => void;
 }
@@ -1328,10 +1328,10 @@ export function GameBoard({
                 variant="secondary"
                 className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2 text-[10px] font-black leading-none px-0"
                 onClick={onTogglePlayerDetailScale}
-                title={playerDetailScale === 2 ? '플레이어 상세 1배 (×1)' : '플레이어 상세 2배 (×2)'}
+                title={`플레이어 상세 배율 (현재 ×${playerDetailScale}) — 클릭 시 ×1 → ×1.5 → ×2 순환`}
                 data-testid="button-toggle-player-detail-scale"
               >
-                {playerDetailScale === 2 ? '×1' : '×2'}
+                ×{playerDetailScale}
               </Button>
             )}
             <Button
