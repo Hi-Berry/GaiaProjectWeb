@@ -6148,7 +6148,11 @@ export function executePassRound(
 			}
 
 			if (currentBonusTile) {
-				addScore(game, playerId, vpGained, 'bonusTilePass', { round: game.roundNumber, tileId: currentBonusTile.id });
+				if (vpGained > 0) {
+						addScore(game, playerId, vpGained, 'bonusTilePass', { round: game.roundNumber, tileId: currentBonusTile.id });
+					} else {
+						ensureScoreBreakdown(player).bonusTilePass.push({ round: game.roundNumber, vp: 0, tileId: currentBonusTile.id });
+					}
 			}
 
 			applyAdvancedTechTilePassEffect(game, playerId);

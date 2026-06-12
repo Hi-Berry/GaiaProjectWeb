@@ -1187,7 +1187,7 @@ export default function Game() {
                                       <span className="text-[10px] font-black text-white">ROUND {idx + 1}</span>
                                     </div>
                                   </div>
-                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30 font-black tabular-nums">+{vp}</Badge>
+                                  {vp > 0 && <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30 font-black tabular-nums">+{vp}</Badge>}
                                 </div>
                               );
                             })}
@@ -1222,7 +1222,7 @@ export default function Game() {
                                         <span className="text-[8px] font-black text-white">{'R' + r}</span>
                                       </div>
                                     </div>
-                                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30 font-black tabular-nums mt-1">+{vp}</Badge>
+                                    {vp > 0 && <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30 font-black tabular-nums mt-1">+{vp}</Badge>}
                                   </div>
                                 );
                               })}
@@ -1235,19 +1235,41 @@ export default function Game() {
                               <Flag className="w-4 h-4 text-blue-500" />
                               <h4 className="text-xs font-black text-white uppercase tracking-widest">Endgame Missions</h4>
                             </div>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-col gap-3">
                               {(game.finalMissionIds ?? []).map((mid) => {
                                 const img = getFinalMissionImage(mid);
-                                const missionVp = b.finalMissionDetails?.find(d => d.missionId === mid)?.vp ?? getFinalMissionVp(game, pid, mid);
+                                const label = FINAL_MISSION_LABELS[mid] ?? mid;
+                                const ranking = game.turnOrder.map((p) => ({
+                                  rid: p,
+                                  value: getFinalMissionValue(game, p, mid),
+                                  vp: getFinalMissionVp(game, p, mid),
+                                  name: game.players[p]?.name ?? p,
+                                  color: FACTIONS.find(f => f.id === game.players[p]?.faction)?.color ?? '#888',
+                                })).sort((a, b) => b.value - a.value || b.vp - a.vp);
                                 return (
-                                  <div key={mid} className="relative w-36 h-[108px] shrink-0 bg-zinc-900/60 rounded-lg border border-white/5 overflow-hidden group shadow-lg">
-                                    {img ? (
-                                      <img src={img} alt={mid} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-600">{mid}</div>
-                                    )}
-                                    <div className="absolute right-1.5 bottom-1.5">
-                                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30 font-black tabular-nums shadow-lg">+{missionVp} VP</Badge>
+                                  <div key={mid} className="flex items-stretch gap-3 bg-zinc-900/40 rounded-lg border border-white/5 p-2 shadow-lg">
+                                    {/* 미션 이미지 (작게) + 이름 오버레이 */}
+                                    <div className="relative w-24 h-[72px] shrink-0 rounded-md overflow-hidden border border-white/5 bg-black/40">
+                                      {img ? (
+                                        <img src={img} alt={mid} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-[9px] text-zinc-600 text-center px-1">{label}</div>
+                                      )}
+                                    </div>
+                                    {/* 순위대로 4명 + 내 행 강조 */}
+                                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                                      {ranking.map((r, ri) => {
+                                        const isMe = r.rid === pid;
+                                        return (
+                                          <div key={r.rid} className={`flex items-center gap-2 px-2 py-0.5 rounded ${isMe ? 'bg-blue-500/10 ring-1 ring-blue-400/60' : ''}`}>
+                                            <span className="text-[10px] font-black text-zinc-500 w-3 shrink-0 tabular-nums">{ri + 1}</span>
+                                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                                            <span className={`text-xs truncate flex-1 min-w-0 ${isMe ? 'font-black text-white' : 'font-bold text-zinc-300'}`}>{r.name}</span>
+                                            <span className="text-[10px] text-zinc-500 tabular-nums shrink-0">{r.value}</span>
+                                            {r.vp > 0 && <span className="text-sm font-black tabular-nums shrink-0 text-blue-400 w-8 text-right">+{r.vp}</span>}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 );
