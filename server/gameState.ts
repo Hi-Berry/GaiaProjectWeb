@@ -386,10 +386,21 @@ function getStructurePowerValue(structure: StructureType, hasBigBuildingTechTile
 
 /** 외곽(C) 섹터 = 11~18. 내 건물이 있는 '서로 다른 섹터' 수 (구조물 수가 아니라 섹터 수). */
 const OUTER_SECTORS = [11, 12, 13, 14, 15, 16, 17, 18];
+/** 이 타일에서 플레이어가 섹터를 '점유'하는가 — 내 건물(우주선/빈칸 제외) 또는 기생광산. */
+function tileOccupiesSector(t: HexTile, playerId: string): boolean {
+	return (t.ownerId === playerId && !!t.structure && t.structure !== 'ship')
+		|| t.parasiticMine?.ownerId === playerId;
+}
+/** 플레이어가 점유한 [lo,hi] 범위의 '서로 다른 섹터' 집합 (기생광산 포함). */
+function occupiedSectorSet(game: GaiaGameState, playerId: string, lo: number, hi: number): Set<number> {
+	const out = new Set<number>();
+	for (const t of game.map) {
+		if (t.sector >= lo && t.sector <= hi && tileOccupiesSector(t, playerId)) out.add(t.sector);
+	}
+	return out;
+}
 function countOuterSectorsOccupied(game: GaiaGameState, playerId: string): number {
-	return OUTER_SECTORS.filter(s =>
-		game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure && t.structure !== 'ship')
-	).length;
+	return occupiedSectorSet(game, playerId, 11, 18).size;
 }
 
 function findNearbyPlayersForPower(game: ServerGameState, tile: HexTile, sourcePlayerId: string): Array<{ playerId: string; maxPower: number; tileId: string }> {
@@ -3108,7 +3119,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addGameLog(game, playerId, 'Artifact: 3K 1Q', '', twilightTile.id);
 			} else if (art.id === 'art-vp-bridge') {
 				const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
-				const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure));
+				const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && tileOccupiesSector(t, playerId)));
 				const vp = withBuilding.length * 3;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
 				addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
@@ -3658,7 +3669,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const player = game.players[playerId];
 			if (!player) return;
 			if (tileId === 'adv-imm-1o-sector') {
-				const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 1 && t.sector <= 10).map(t => t.sector));
+				const sectors = occupiedSectorSet(game, playerId, 1, 10);
 				player.ore += sectors.size;
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
 			} else if (tileId === 'adv-imm-4vp-ts') {
@@ -3670,7 +3681,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
 			} else if (tileId === 'adv-imm-2vp-sector') {
-				const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 1 && t.sector <= 10).map(t => t.sector));
+				const sectors = occupiedSectorSet(game, playerId, 1, 10);
 				addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 			} else if (tileId === 'adv-imm-4vp-outer') {
@@ -3723,7 +3734,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			// 고급 타일: 일시불 자원
 			else if (tileId === 'adv-imm-1o-sector') {
-				const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 1 && t.sector <= 10).map(t => t.sector));
+				const sectors = occupiedSectorSet(game, playerId, 1, 10);
 				player.ore += sectors.size;
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
 			}
@@ -3739,7 +3750,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
 			}
 			else if (tileId === 'adv-imm-2vp-sector') {
-				const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 1 && t.sector <= 10).map(t => t.sector));
+				const sectors = occupiedSectorSet(game, playerId, 1, 10);
 				addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 			}
@@ -4932,7 +4943,7 @@ export function executeCoverAdvancedTechTile(
 	(() => {
 		const tileId = pending.advancedTileId;
 		if (tileId === 'adv-imm-1o-sector') {
-			const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 1 && t.sector <= 10).map(t => t.sector));
+			const sectors = occupiedSectorSet(game, playerId, 1, 10);
 			player.ore = (player.ore ?? 0) + sectors.size;
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
 		} else if (tileId === 'adv-imm-4vp-ts') {
@@ -4944,7 +4955,7 @@ export function executeCoverAdvancedTechTile(
 			addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
 		} else if (tileId === 'adv-imm-2vp-sector') {
-			const sectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.sector >= 1 && t.sector <= 10).map(t => t.sector));
+			const sectors = occupiedSectorSet(game, playerId, 1, 10);
 			addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
 			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
 		} else if (tileId === 'adv-imm-4vp-outer') {
@@ -5967,12 +5978,7 @@ export function executePassRound(
 						count = playerStructures.filter(t => t.type === 'gaia').length;
 						break;
 					case 'bridge_sector':
-						const bridgeSectors = new Set(
-							playerStructures
-								.filter(t => t.sector >= 11 && t.sector <= 18)
-								.map(t => t.sector)
-						);
-						count = bridgeSectors.size;
+						count = occupiedSectorSet(game, playerId, 11, 18).size;
 						break;
 				}
 
@@ -6102,12 +6108,7 @@ export function executePassRound(
 						count = playerStructures.filter(t => t.type === 'gaia').length;
 						break;
 					case 'bridge_sector':
-						const bridgeSectors = new Set(
-							playerStructures
-								.filter(t => t.sector >= 11 && t.sector <= 18)
-								.map(t => t.sector)
-						);
-						count = bridgeSectors.size;
+						count = occupiedSectorSet(game, playerId, 11, 18).size;
 						break;
 				}
 				vpGained = count * currentBonusTile.passBonus.vp;
@@ -7817,7 +7818,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		addGameLog(game, playerId, 'Artifact: 3K 1Q', '', twilightTile.id);
 	} else if (art.id === 'art-vp-bridge') {
 		const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
-		const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure));
+		const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && tileOccupiesSector(t, playerId)));
 		const vp = withBuilding.length * 3;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
 		addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
