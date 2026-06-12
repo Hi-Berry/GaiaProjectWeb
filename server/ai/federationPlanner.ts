@@ -14,6 +14,7 @@ import {
     getPlanetConnectedComponent,
     getFederationPlanetIdsFromSelectedEmpties
 } from '../gameState';
+import { getPlayerFlag } from './variant';
 
 export class FederationPlanner {
     /** extraTokens: 프리 액션으로 얻을 예정인 파워(위성) 수를 가정해 더 좋은 연방(예: 12VP) 탐색 */
@@ -83,7 +84,14 @@ export class FederationPlanner {
             // 예외 상황(우주선 연방/초록 연방 급함/후반)은 위성 사용 비용을 낮춰 후보가 살아남게 함
             if (isShipReward || greenNeeded || round >= 5) satellitePenalty = 8;
 
-            const score = rewardScore - result.spentTokens * satellitePenalty;
+            // 위성(파워 토큰) 비용. [flag: fedSatEscalate] 1~2개는 감수하되 그 이상은 급증 페널티.
+            // (데이터: 봇이 흩뿌린 집을 위성 ~10개로 잇느라 파워를 다 태우고 게임이 터짐.
+            //  사람은 집을 좁게 모으거나 아카/의회로 파워를 채워 위성 1~2개로 연방함.)
+            const sats = result.spentTokens;
+            const satCost = getPlayerFlag(playerId, 'fedSatEscalate', false)
+                ? sats * satellitePenalty + Math.max(0, sats - 2) * 35
+                : sats * satellitePenalty;
+            const score = rewardScore - satCost;
             results.push({ ...result, score });
         }
 
