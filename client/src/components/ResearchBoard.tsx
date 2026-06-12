@@ -972,7 +972,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 }
                                                 if (trackId === 'economy') {
                                                     if (lvl === 0) return '';
-                                                    if (lvl === 1) return '1C, 1P';
+                                                    if (lvl === 1) return '2C, 1P';
                                                     if (lvl === 2) return '1O, 2C, 2P';
                                                     if (lvl === 3) return game.economyVariant === 'vp' ? '1O, 3C, 1VP' : '1O, 2C, 3P';
                                                     if (lvl === 4) return game.economyVariant === 'vp' ? '2O, 4C, 1VP' : '2O, 2C, 2P';
