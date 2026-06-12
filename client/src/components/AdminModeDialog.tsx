@@ -184,6 +184,45 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
   );
 }
 
+function ForceEndGameButton({ gameId, ended }: { gameId: string; ended: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const forceEnd = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      await GameClient.adminForceEndGame(gameId, ADMIN_PASSWORD);
+      setMessage('게임을 종료했습니다. 점수 화면이 표시됩니다.');
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-black text-amber-300">게임 강제 종료</div>
+          <div className="text-[10px] text-zinc-400">즉시 최종 점수를 계산하고 점수 화면을 띄웁니다 (테스트용).</div>
+        </div>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="h-7 text-xs shrink-0"
+          disabled={busy || ended}
+          onClick={forceEnd}
+        >
+          {ended ? '이미 종료됨' : busy ? '종료 중…' : '강제 종료'}
+        </Button>
+      </div>
+      {message && <div className="text-[10px] text-zinc-400">{message}</div>}
+    </div>
+  );
+}
+
 export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogProps) {
   const [password, setPassword] = useState('');
   const [unlocked, setUnlocked] = useState(false);
@@ -244,6 +283,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
         ) : (
           <ScrollArea className="max-h-[70vh]">
             <div className="p-5 space-y-3">
+              <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />
               ))}

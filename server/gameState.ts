@@ -2673,6 +2673,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// GM/Admin: 게임 즉시 종료 → 최종 점수 계산 후 점수 화면 표시 (테스트용)
+		socket.on('admin_force_end_game', ({ gameId, adminCode }: { gameId: string; adminCode: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			if (game.currentPhase === 'gameEnd') { callback?.({ ok: true }); return; }
+			log(`Admin: force end game ${gameId}`, 'game', gameId);
+			forceFinishStalledGame(io, game as ServerGameState, 'admin force end');
+			callback?.({ ok: true });
+		});
+
 		socket.on('select_faction', ({ gameId, factionId, turnOrder }) => {
 			const game = games.get(gameId);
 			if (!game) return;
