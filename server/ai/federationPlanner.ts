@@ -88,7 +88,7 @@ export class FederationPlanner {
             // (데이터: 봇이 흩뿌린 집을 위성 ~10개로 잇느라 파워를 다 태우고 게임이 터짐.
             //  사람은 집을 좁게 모으거나 아카/의회로 파워를 채워 위성 1~2개로 연방함.)
             const sats = result.spentTokens;
-            const satCost = getPlayerFlag(playerId, 'fedSatEscalate', false)
+            const satCost = getPlayerFlag(playerId, 'fedSatEscalate', true)
                 ? sats * satellitePenalty + Math.max(0, sats - 2) * 35
                 : sats * satellitePenalty;
             const score = rewardScore - satCost;
