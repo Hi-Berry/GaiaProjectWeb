@@ -663,24 +663,27 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                         })()}
 
 
-                        {/* Power Actions — Compact square grid */}
+                        {/* Power Actions — 이미지 스트립(7등분 클릭존). 미니: 위 비용부분 크롭(object-bottom) */}
                         <div className="pt-1 border-t border-white/10 mt-1">
-                            <div className="grid grid-cols-7 gap-0.5">
-                                {game.powerActions.map((action) => (
-                                    <button
-                                        key={action.id}
-                                        disabled={action.isUsed}
-                                        onClick={() => !action.isUsed && onUsePowerAction(action.id)}
-                                        className={`aspect-square flex items-center justify-center rounded-[2px] text-[7px] font-black border transition-all ${action.isUsed ? POWER_ACTION_BTN.used : POWER_ACTION_BTN.available}`}
-                                        title={
-                                            action.isUsed
-                                                ? `${action.label} (${action.cost} ${action.costType.toUpperCase()})\n사용됨: ${action.usedByPlayerName ?? '알 수 없음'}`
-                                                : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`
-                                        }
-                                    >
-                                        {action.label}
-                                    </button>
-                                ))}
+                            <div className="relative w-full aspect-[6.5/1] rounded overflow-hidden border border-amber-500/20">
+                                <img src="/image/powerAction.jpg" alt="power actions" className="absolute inset-0 w-full h-full object-cover object-bottom" />
+                                <div className="absolute inset-0 grid grid-cols-7">
+                                    {game.powerActions.map((action) => {
+                                        const usedByColor = action.isUsed && action.usedByPlayerId ? FACTIONS.find(f => f.id === game.players[action.usedByPlayerId!]?.faction)?.color : undefined;
+                                        return (
+                                            <button
+                                                key={action.id}
+                                                disabled={action.isUsed}
+                                                onClick={() => !action.isUsed && onUsePowerAction(action.id)}
+                                                className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
+                                                title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
+                                            >
+                                                {action.isUsed && <div className="absolute inset-0 bg-black/65" />}
+                                                {usedByColor && <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full border border-black/60" style={{ backgroundColor: usedByColor }} />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
 
@@ -1301,34 +1304,28 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             </div>
                         )}
 
-                        {/* Power Actions Section */}
+                        {/* Power Actions Section — 이미지 스트립(7등분 클릭존), 전체뷰: 다 표시 */}
                         <div className="space-y-4 pt-4 border-t border-white/5">
                             <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Main Board Power Actions</h4>
-                            <div className="grid grid-cols-7 gap-2">
-                                {game.powerActions.map((action) => (
-                                    // disabled Button은 pointer-events:none이라 title이 안 뜸 → wrapper div에 title을 둬서 hover 잡히게 함
-                                    <div
-                                        key={action.id}
-                                        title={action.isUsed ? `사용됨: ${action.usedByPlayerName ?? '알 수 없음'}` : undefined}
-                                    >
-                                        <Button
-                                            variant="outline"
-                                            className={`h-16 w-full flex flex-col items-center justify-center gap-1 border transition-all ${action.isUsed
-                                                ? 'opacity-30 grayscale cursor-not-allowed bg-zinc-900 border-white/5'
-                                                : POWER_ACTION_BTN.panelAvailable
-                                                }`}
-                                            disabled={action.isUsed}
-                                            onClick={() => onUsePowerAction(action.id)}
-                                        >
-                                            <div className={`text-xs font-black ${action.isUsed ? POWER_ACTION_BTN.labelUsed : POWER_ACTION_BTN.labelAvailable}`}>
-                                                {action.label}
-                                            </div>
-                                            <div className={`text-[8px] uppercase font-bold tracking-tighter ${action.isUsed ? POWER_ACTION_BTN.costUsed : POWER_ACTION_BTN.costAvailable}`}>
-                                                {action.cost} {action.costType.toUpperCase()}
-                                            </div>
-                                        </Button>
-                                    </div>
-                                ))}
+                            <div className="relative w-full rounded-md overflow-hidden border border-amber-500/20">
+                                <img src="/image/powerAction.jpg" alt="power actions" className="block w-full h-auto" />
+                                <div className="absolute inset-0 grid grid-cols-7">
+                                    {game.powerActions.map((action) => {
+                                        const usedByColor = action.isUsed && action.usedByPlayerId ? FACTIONS.find(f => f.id === game.players[action.usedByPlayerId!]?.faction)?.color : undefined;
+                                        return (
+                                            <button
+                                                key={action.id}
+                                                disabled={action.isUsed}
+                                                onClick={() => !action.isUsed && onUsePowerAction(action.id)}
+                                                className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
+                                                title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
+                                            >
+                                                {action.isUsed && <div className="absolute inset-0 bg-black/65" />}
+                                                {usedByColor && <span className="absolute top-1 right-1 w-2 h-2 rounded-full border border-black/60" style={{ backgroundColor: usedByColor }} />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
 
