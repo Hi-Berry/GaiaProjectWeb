@@ -1434,7 +1434,16 @@ export function GameBoard({
             className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out"
 
           >
-            <h3 className="font-semibold capitalize">
+            {/* 닫기 — 이 패널이 맵 오른쪽을 가려 클릭을 막으므로, 닫아서 맵을 바로 누를 수 있게 함 */}
+            <button
+              type="button"
+              onClick={() => setSelectedTile(null)}
+              title="닫기 (맵 클릭 가능)"
+              className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 text-sm font-bold leading-none"
+            >
+              ✕
+            </button>
+            <h3 className="font-semibold capitalize pr-8">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
             </h3>
             <p className="text-sm text-muted-foreground">
