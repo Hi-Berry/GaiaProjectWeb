@@ -7,3 +7,10 @@ vite.config.ts.*
 logs
 data/selfplay-archive/
 server/ai/aiWeights.flat.json
+# head2head 실험 산출물 (일회성, 레포에 안 올림)
+data/h2h-*.log
+data/h2h-*.json
+data/pace-*.json
+data/valuenet-data.jsonl
+# 로컬 에이전트/IDE 설정
+.claude/
