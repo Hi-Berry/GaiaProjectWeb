@@ -123,3 +123,11 @@
 3. 학습 가치망 → 데이터 기아 (엔진 gradient 0)
 → 사람대등(223)은 **(A) 다라운드 search 엔진 재작성[hang위험·고난도] 또는 (B) 사람데이터 10배+ 수집 후 학습** 중 하나. 둘 다 수일+. 빠른 승리 없음(소진).
 **채택된 실질 개선은 유지**: navBeforeJump, 고급타일 hang수정, ore키스톤, over-7페널티 — 봇은 더 견고·다소 강함. 실검증은 사용자 1:3.
+
+## 2026-06-13 실게임 블런더 사냥 (사람 1:3 로그 18 봇플레이 분석)
+- **18 봇플레이 중 10개 60점 미만**(itars 30, nevlas 39, moweyip 42, ivits 35, ambas/geodens/gleens 46~55...). 실게임서도 종족 무관 systemic 약체 = 60% 엔진 진단 실전 확정.
+- 저득점 봇 공통: 6라운드에 13~18액션뿐(라운드당 2~3, 자원 떨어져 조기 패스), 연구 1트랙만 깊고 나머지 0~1, 연방 1~2. → 스노볼 실패(작은엔진→적은income→적은액션). systemic 천장(포화), 단일버그 아님.
+- **★ 유일한 isolatable correctness 블런더: R6 가이아포머 배치** (itars 게임 관측). findGaiaformerActions가 place에 score 350(극한부스트) 주는데 라운드 가드 없음 → R6에 놓으면 성숙 불가(다음라운드 없음) → 파워6+액션 낭비 + fm_gaia +0.
+  - 수정: finalRound(R6) && !isFreeProject면 가이아포머 후보 제외. flag gfFinalRoundGuard 기본ON. **provable 낭비제거(휴리스틱 아님)라 correctness 수정으로 채택**(ore-terraform·hang과 동급). head2head 검증 run은 인프라 사망(워커 2h 무응답)했으나 부분데이터 이상無 + 논리상 do-no-harm.
+- 다음 구조 실험 후보(미시도, 고위험): real-income deepRollout(helperTriggerIncomePhase로 가짜income 교체) — 단 다중플레이어 income선택 프롬프트 hang 위험.
+- **head2head 인프라 주의**: 긴 run(40판+)에서 워커가 무응답/사망해 결과 미기록되는 사례 반복. 짧게 쪼개거나 타임아웃 늘릴 것.

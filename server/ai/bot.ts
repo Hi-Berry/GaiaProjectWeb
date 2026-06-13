@@ -1960,6 +1960,14 @@ export class BotLogic {
 
         // TF Mars 액션/보너스 타일로 인한 즉포 상황인 경우는 파워 소모가 없음
         const isFreeProject = game.pendingTFMarsGaiaProject?.playerId === playerId;
+
+        // [실게임 블런더 수정 2026-06-13] R6(최종 라운드)에 새 가이아포머를 놓으면 다음 라운드 시작에 성숙해야
+        // gaia로 바뀌는데(gameState round-transition maturation), 다음 라운드가 없어 절대 성숙 못 함 →
+        // 파워(6/4/3) + 메인액션을 통째로 낭비 + fm_gaia_planets +0. (itars 봇 30점 실게임에서 관측)
+        // free project(TF Mars 2P/보너스 즉시 가이아)는 같은 턴에 해소되므로 예외. flag로 끄면 구동작.
+        const finalRound = (game.roundNumber ?? 1) >= 6;
+        if (finalRound && !isFreeProject && getPlayerFlag(playerId, 'gfFinalRoundGuard', true)) return [];
+
         if (!isFreeProject && totalPower < powerRequired) return [];
 
         const myPlanets = game.map.filter(t =>
