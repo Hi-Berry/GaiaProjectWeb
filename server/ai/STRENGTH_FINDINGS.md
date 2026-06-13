@@ -148,3 +148,11 @@
 - → **진짜 병목 = opponent-blindness.** 벽돌1(income)은 필요·불충분. **벽돌 2~3(상대 턴 시뮬 + 진짜 라운드전환)**이 path A 본체(고위험: 상대 income선택/연방/기술 프롬프트 hang). 
 - 벽돌1 인프라(rolloutIncome.ts + realRolloutIncome flag)는 유지(벽돌2~3 합류 시 재사용). 기본 OFF=라이브 봇 무해.
 - **R1 ore-terraform 광산 다수 = 버그 아님(의도)**: 봇이 0스텝 싼땅 먼저→소진+오레≥6일 때만 3오레 테라포밍 확장. ore-terraform 키스톤이 언더확장 푸는 정상동작. 손대면 회귀위험+포화튜닝이라 유지.
+
+## 2026-06-13 ★ Path A 벽돌2(상대-인지 다턴 search) 첫 양성 신호 — 유망!
+- simulateWithOpponents(oppRollout): 상대 턴까지 싼 1-ply 정책으로 굴리는 다턴 greedy 플레이아웃.
+- 초기(6-클론 스코어링) 16판: 46.7%, VP -5.70 → **느려서 반복부족(성능 artifact)**.
+- **fast-rollout(cands[0] 우선순위 직접선택, O(1)) 20판: 승률 65.0%(13:7), VP +2.55, 타임아웃0!** → 양성 전환.
+- 의미: **search 천장을 깬 첫 증거.** eval/연산/income/학습 다 막혔는데 상대-인지 다턴 search는 통함(반복만 충분하면).
+  단 p=0.180(20판). 36판 확인검증 중. 확인되면 채택+증폭(라이브 6s think-time이면 반복 더 많아 효과 ↑ 기대).
+- 주의: greedy는 연산 스케일 안 됐지만(mctsTimeMul null), oppRollout은 깊은 search라 think-time 스케일 기대.
