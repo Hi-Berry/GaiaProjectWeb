@@ -606,6 +606,15 @@ export class Evaluator {
             logDebug(`8b) Federation-forming (pending reward): +${formBonus.toFixed(1)}`);
         }
 
+        // 고급 기술타일 획득 중(pendingAdvancedTechCover) 크레딧 — 연방 형성 중 보너스와 같은 패턴.
+        // select_advanced_tech_tile 직후엔 타일이 아직 techTiles에 없어(커버 후 확정) 평가가 0 →
+        // MCTS가 "즉시 보상 있는 일반 타일"만 선택, 고급타일 채택 0의 두 번째 원인. 입수 직전 가치를 크레딧.
+        if ((game as any).pendingAdvancedTechCover?.playerId === playerId) {
+            const advCredit = 240;
+            score += advCredit;
+            logDebug(`8d) AdvTile-acquiring (pending cover): +${advCredit.toFixed(1)}`);
+        }
+
         // 7) Gaiaformers
         if (player.gaiaformers && player.gaiaformers > 0) {
             const gaiaScore = player.gaiaformers * w.gaiaformerValueEach;

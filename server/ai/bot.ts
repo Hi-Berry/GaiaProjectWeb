@@ -753,15 +753,18 @@ export class BotLogic {
             const trackId = tracks.length > 0 ? tracks[0] : ('economy' as ResearchTrack);
             
             // 트랙 4 이상이고 초록 토큰이 있으면: 트랙 고급 기술 타일도 후보로 제공
+            let advCandCount = 0;
             if (countGreenFederations(player) >= 1 && game.advancedTechTilesByTrack) {
                 for (const [t, adv] of Object.entries(game.advancedTechTilesByTrack)) {
                     const tr = t as ResearchTrack;
                     const lvl = player.research?.[tr] ?? 0;
                     if (lvl >= 4 && adv?.id && !player.techTiles.includes(adv.id)) {
                         candidates.push({ type: 'select_advanced_tech_tile', params: { advancedTileId: adv.id, trackId: tr } });
+                        advCandCount++;
                     }
                 }
             }
+            void advCandCount; // (계측용 카운터 — 실제 결정은 findTechTileAction 경로)
 
             for (const tile of availableTiles) {
                 const resolvedTrackId = this.getTrackForTechTile(game, tile.id) ?? trackId;
@@ -2587,6 +2590,28 @@ export class BotLogic {
                 maxScore = score;
                 bestTile = tile;
             }
+        }
+
+        // [버그수정 — 고급타일 0개의 진짜 원인] 실제 선택은 이 함수가 결정하는데, 기존엔 표준 타일만
+        // 평가하고 항상 select_tech_tile을 반환했음 (바로 아래 scoreAdvancedTechTile이 있는데 미연결).
+        // 자격(초록연방 + 트랙 L4 + 누구도 미보유)이 되면 고급타일을 같은 척도로 경쟁시켜,
+        // 더 좋으면 select_advanced_tech_tile을 반환한다. (botHandler 수락 수정과 한 쌍)
+        let bestAdv: { tileId: string; trackId: ResearchTrack; score: number } | null = null;
+        if (countGreenFederations(player) >= 1 && game.advancedTechTilesByTrack) {
+            const anyOwned = (id: string) => Object.values(game.players).some(p => p.techTiles?.includes(id));
+            for (const [t, adv] of Object.entries(game.advancedTechTilesByTrack)) {
+                const tr = t as ResearchTrack;
+                if (!adv?.id || anyOwned(adv.id)) continue;
+                if ((player.research?.[tr] ?? 0) < 4) continue;
+                const s = this.scoreAdvancedTechTile(game, playerId, adv.id, game.roundNumber, player);
+                if (!bestAdv || s > bestAdv.score) bestAdv = { tileId: adv.id, trackId: tr, score: s };
+            }
+        }
+        if (bestAdv && bestAdv.score > maxScore) {
+            if (!isSimulate) {
+                log(`Bot ${player.name} selected ADVANCED Tech Tile: ${bestAdv.tileId} (adv ${bestAdv.score.toFixed(1)} > std ${maxScore.toFixed(1)})`, 'game', game.id);
+            }
+            return { type: 'select_advanced_tech_tile', params: { advancedTileId: bestAdv.tileId, trackId: bestAdv.trackId } };
         }
 
         // 트랙 선택 (해당 타일이 요구하는 트랙 또는 가장 높은 점수의 트랙)

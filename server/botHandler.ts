@@ -6,6 +6,7 @@ import {
     executeBotIncomeSelection,
     executeBotSelectTechTile,
     executeAdvanceTech,
+    executeCoverAdvancedTechTile,
     executeBotTinkeroidSpecial,
     executeBotTerranCouncilBenefit,
     executeBotItarsGaiaformerExchange,
@@ -288,6 +289,31 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             if (!advanced) {
                 game.pendingShipTechTrackAdvance = null; // 진행 가능한 트랙 없음 → 데드락 방지 위해 해제
                 log(`Bot ${botPlayer?.name} ship tech: no advanceable track, clearing pending to avoid stall`, 'game', game.id);
+            }
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
+            return;
+        }
+        return;
+    }
+
+    // === 고급 기술타일 '커버' 대기: 봇이면 자동 처리 (없으면 게임이 멈춤 → 타임아웃 버그) ===
+    // select_advanced_tech_tile 직후 pendingAdvancedTechCover가 걸리는데 전용 핸들러가 없어
+    // 봇이 일반 메인턴 경로(hasDoneMainAction=true라 무동작)로 빠져 게임이 hang됐었음.
+    if (game.pendingAdvancedTechCover) {
+        const coverPlayerId = game.pendingAdvancedTechCover.playerId;
+        if (botPlayerIds.includes(coverPlayerId)) {
+            await new Promise(resolve => setTimeout(resolve, d(300)));
+            const botPlayer = game.players[coverPlayerId];
+            // 덮을 일반(비고급) 기술타일 중 아직 안 덮인 것 — 가치 낮은 income 타일 우선(여기선 첫 미커버).
+            const covered = new Set(botPlayer?.coveredTechTiles ?? []);
+            const coverTileId = (botPlayer?.techTiles ?? []).find(
+                (tid: string) => !tid.startsWith('adv-') && !covered.has(tid)
+            ) ?? null;
+            if (coverTileId && executeCoverAdvancedTechTile(io, game, coverPlayerId, coverTileId)) {
+                log(`Bot ${botPlayer?.name} auto-cover for advanced tile: ${coverTileId}`, 'game', game.id);
+            } else {
+                game.pendingAdvancedTechCover = null; // 덮을 타일 없음 → 데드락 방지 해제
+                log(`Bot ${botPlayer?.name} adv-tile cover: no coverable tile, clearing pending to avoid stall`, 'game', game.id);
             }
             setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
             return;

@@ -177,6 +177,42 @@ export class FederationPlanner {
         return score;
     }
 
+    /** 시작 타일에서 인접 자기 건물을 파워 높은 순으로 더해 requiredPower를 '딱 넘는' 최소 연결 부분집합 반환.
+     *  component(연결 컴포넌트) 안에서만 확장해 연결성을 보장한다. 못 늘리면 null(폴백). */
+    private static minimalConnectedFedSet(
+        game: ServerGameState, playerId: string, startTileId: string,
+        component: Set<string>, requiredPower: number
+    ): Set<string> | null {
+        const powerRank = (tile: HexTile): number => {
+            let p = 0;
+            if (tile.ownerId === playerId && tile.structure && tile.structure !== 'ship') {
+                if (tile.structure === 'planetary_institute' || tile.structure === 'academy') p = 3;
+                else if (tile.structure === 'trading_station' || tile.structure === 'research_lab') p = 2;
+                else p = 1; // mine / lost_planet_mine
+            }
+            if (tile.parasiticMine?.ownerId === playerId) p += 1;
+            if (tile.spaceStation?.ownerId === playerId) p += 1;
+            return p;
+        };
+        const selected = new Set<string>([startTileId]);
+        let guard = 0;
+        while (getFederationBuildingPower(game, playerId, selected) < requiredPower && guard++ < 60) {
+            let bestId: string | null = null, bestPow = -1;
+            for (const id of Array.from(selected)) {
+                const tile = game.map.find(t => t.id === id);
+                if (!tile) continue;
+                for (const n of getNeighbors(game.map, tile)) {
+                    if (selected.has(n.id) || !component.has(n.id)) continue;
+                    const p = powerRank(n);
+                    if (p > bestPow) { bestPow = p; bestId = n.id; }
+                }
+            }
+            if (!bestId) return null;
+            selected.add(bestId);
+        }
+        return selected;
+    }
+
     private static tryFormFederationFrom(
         game: ServerGameState,
         playerId: string,
@@ -196,6 +232,15 @@ export class FederationPlanner {
 
         let currentPower = getFederationBuildingPower(game, playerId, selectedPlanetIds);
         if (currentPower >= requiredPower) {
+            // [flag: fedMinTrim] 연결 컴포넌트가 이미 7 이상이면 통째로 묶지 말고 "딱 7 넘는 최소 연결 부분집합"만
+            // 연방에 넣어 초과분 건물을 다음 연방 씨앗으로 보존. 강자는 연방을 작게·여러 개 만들어 보상/초록토큰을 늘림.
+            // (봇 최대 병목: 연방 1.4 vs 사람 4.5). Ivits는 누적규칙이라 제외.
+            if (!isIvits && getPlayerFlag(playerId, 'fedMinTrim', false) && currentPower >= requiredPower + 1) {
+                const trimmed = this.minimalConnectedFedSet(game, playerId, startTile.id, initialComponent, requiredPower);
+                if (trimmed && getFederationBuildingPower(game, playerId, trimmed) >= requiredPower) {
+                    return this.finalizeFederation(game, playerId, [], Array.from(trimmed), 0);
+                }
+            }
             return this.finalizeFederation(game, playerId, [], Array.from(selectedPlanetIds), 0);
         }
 
