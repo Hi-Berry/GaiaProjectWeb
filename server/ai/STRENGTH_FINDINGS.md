@@ -156,3 +156,12 @@
 - 의미: **search 천장을 깬 첫 증거.** eval/연산/income/학습 다 막혔는데 상대-인지 다턴 search는 통함(반복만 충분하면).
   단 p=0.180(20판). 36판 확인검증 중. 확인되면 채택+증폭(라이브 6s think-time이면 반복 더 많아 효과 ↑ 기대).
 - 주의: greedy는 연산 스케일 안 됐지만(mctsTimeMul null), oppRollout은 깊은 search라 think-time 스케일 기대.
+
+## 2026-06-13 ★정정★ 벽돌2 oppRollout 확인검증 → 중립(65%는 노이즈)
+- 36판 확인: 48.5%(16:17), VP +0.86, p=0.815 → **null/중립**. 앞선 20판 65%는 소표본 노이즈.
+- 종합(fast 56판): oppRollout은 do-no-harm이나 greedy 대비 우위 없음. **미채택(flag OFF 유지)**.
+- ★결정적 결론★: **상대-인지 다턴 search조차 무효 = eval이 진짜 천장.** playout 끝을 같은 saturated eval로
+  평가하니 search 깊이가 루트 선택을 개선 못 함. search로 saturated eval 보완 불가.
+- **모든 레버 실험 종료**: ①eval튜닝 포화 ②연산 null ③학습 데이터기아 ④income롤아웃 null ⑤상대-인지 search 중립.
+  → 유일한 미해결 경로 = **더 나은 eval(학습)**, 그러나 학습은 사람데이터 10배 필요(데이터 게이트). 사용자 1:3 누적이 유일 진척로.
+- 코드 자산 유지(flag OFF, 라이브 무해): rolloutIncome.ts, simulateWithOpponents(oppRollout/rolloutFatScore), realRolloutIncome. 학습 eval 확보 시 이 search 인프라가 재활용 가치 있음(좋은 eval+search=강함).
