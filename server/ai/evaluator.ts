@@ -42,6 +42,21 @@ function getValueNet(): ValueNet | null {
 }
 export function reloadValueNet(): void { _valueNetTried = false; _valueNet = null; }
 
+// [engineBlend] 봇 자가대국 24만 샘플로 학습한 'score-마스킹 엔진 가치망' 지연 로드.
+// 엔진 피처(gaia/tech/fed)만으로 예상VP를 학습(score계열 2,29,30 마스킹) → greedy 봇을 엔진 빌드업으로 유도.
+// gradient 프로브: gaiaPlanets +13, techTiles +5.2, fed +5.2 (올바른 방향). 1-ply 평가라 OOD 악용 위험 낮음.
+let _engineNet: ValueNet | null = null;
+let _engineNetTried = false;
+function getEngineNet(): ValueNet | null {
+    if (_engineNetTried) return _engineNet;
+    _engineNetTried = true;
+    try {
+        const p = path.join(process.cwd(), 'server', 'ai', 'engineValueNet.json');
+        if (fs.existsSync(p)) _engineNet = ValueNet.fromJSON(JSON.parse(fs.readFileSync(p, 'utf8')));
+    } catch { _engineNet = null; }
+    return _engineNet;
+}
+
 export type EvaluatorWeights = {
     vpWeightEarly: number;
     vpWeightLate: number;
@@ -825,6 +840,21 @@ export class Evaluator {
             for (const sid of (player.spaceshipsEntered || [])) usedShipActions += (game.spaceships?.[sid]?.usedActionIndices?.length || 0);
             const se = usedShipActions * 35;
             if (se > 0) { score += se; logDebug(`14) ShipEngine(use-only): +${se.toFixed(1)}`); }
+        }
+
+        // 15) [flag: engineBlend (숫자 가중치, 0=off)] 학습된 엔진 가치망 블렌드.
+        // 봇 자가대국 데이터로 학습한 score-마스킹 net이 엔진(gaia/tech/fed) 빌드업의 미래VP를 추정 →
+        // greedy 봇이 즉시 점수뿐 아니라 '엔진 성장'을 보게 함. 추론도 학습과 동일하게 score계열 마스킹.
+        const engBlendW = getPlayerFlag(playerId, 'engineBlend', 0);
+        if (engBlendW) {
+            const net = getEngineNet();
+            if (net) {
+                const f = extractFeatures(game, playerId);
+                f[2] = 0; f[29] = 0; f[30] = 0; // score, scoreVsMaxOpp, scoreVsMeanOpp 마스킹 (학습과 일치)
+                const eng = engBlendW * net.predict(f);
+                score += eng;
+                logDebug(`15) EngineBlend(x${engBlendW}): +${eng.toFixed(1)}`);
+            }
         }
 
         if (debug) {
