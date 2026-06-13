@@ -140,3 +140,11 @@
   3. MCTS에 다라운드 롤아웃 조립(하드캡으로 무한루프 불가), flag 뒤에.
   4. head2head는 **짧게(≤20판)** 검증(긴 run 워커 사망 반복).
 - **권고**: Path A는 수일+ 고위험. 병렬로 사용자 1:3 로그 누적(Path B 해금, 무위험)이 합리적. Path A 착수는 사용자 시간투자 승인 필요.
+
+## 2026-06-13 Path A 벽돌1(정확 income) 검증 결과 — null, 병목 좁힘
+- deepRollout + realRolloutIncome(getNextRoundIncomePreview 기반 정확 income) head2head 24판:
+  도전자 54.5%(12:10), VP -1.16±3.55, p=0.744 → **null**. (가짜 income deepRollout도 과거 null이었음)
+- 결론: **다턴 자기-income foresight는 천장 레버 아님.** 이유: (1) 상대 미시뮬(zero-sum 핵심은 상대대비 위치), (2) 양쪽 greedy 대칭매치, (3) eval 이미 보정→깊은 자기시야가 즉시 최선수 불변.
+- → **진짜 병목 = opponent-blindness.** 벽돌1(income)은 필요·불충분. **벽돌 2~3(상대 턴 시뮬 + 진짜 라운드전환)**이 path A 본체(고위험: 상대 income선택/연방/기술 프롬프트 hang). 
+- 벽돌1 인프라(rolloutIncome.ts + realRolloutIncome flag)는 유지(벽돌2~3 합류 시 재사용). 기본 OFF=라이브 봇 무해.
+- **R1 ore-terraform 광산 다수 = 버그 아님(의도)**: 봇이 0스텝 싼땅 먼저→소진+오레≥6일 때만 3오레 테라포밍 확장. ore-terraform 키스톤이 언더확장 푸는 정상동작. 손대면 회귀위험+포화튜닝이라 유지.
