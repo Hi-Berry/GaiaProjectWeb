@@ -180,3 +180,7 @@
 - 도전자=세션이전동작(navBeforeJump:false, gfFinalRoundGuard:false) vs 챔피언=현재봇. 30판.
 - 챔피언 VP +1.57(51.9%, p=0.662) → **채택 3건 합쳐서 회귀 없음 + 약간 긍정.** 라이브 봇 세션 시작보다 개선·안전 확정.
 - 세션 종결: correctness 4건 채택(검증), 천장 5레버 진단, 학습경로 검증(techTiles+22.5), 인계문서(ONBOARDING.md). 사람대등은 데이터(사용자 1:3) 게이트.
+
+## 2026-06-14 engineBlend 검증 + range-보너스-우주선 버그 수정
+- **engineBlend=5**(봇24만 학습 엔진net 블렌드) head2head 24판: 50%(7:7), VP -3.93, **타임아웃 9개**(net.predict 매 eval 호출→느림). null+느림 → 미채택(flag OFF). 학습 신호는 실재(엔진 gradient)하나 modest+성능비용. 캐싱/루트-only 적용으로 재시도 여지.
+- **★ 사용자 관찰 버그 수정**: +3 Range 보너스 활성 판단(bot.ts 884·3756 두 곳)이 findBuildActions만 검사 → 빌드 불가 시 보너스 버리고 패스(우주선 입장 기회 낭비). findSpaceshipEntryActions 추가해 우주선 입장도 유효 용도로 인식. flag rangeBonusShipEntry 기본 ON. (range 보너스 활성 중 서버 허용: 광산/가이아포머/소행성/우주선입장)

@@ -884,9 +884,12 @@ export class BotLogic {
                 } else if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
                     const oldR = player.rangeBonusActive;
                     player.rangeBonusActive = true; // 보너스 타일 +3 range(서버 executeUseBonusAction과 동일)
+                    // [사용자 관찰 2026-06-14] +3 Range 활성 중엔 광산/가이아포머/소행성 외에 '우주선 입장'도 가능.
+                    // 기존엔 빌드 가능성만 검사 → 빌드 못 하면 보너스를 버리고 패스(우주선 입장 기회 낭비). 우주선 입장도 유효 용도로 인정.
+                    const shipFallback = getPlayerFlag(playerId, 'rangeBonusShipEntry', true) && this.findSpaceshipEntryActions(game, playerId).length > 0;
                     const canBuildAfter = this.findBuildActions(game, playerId).length > 0 || this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
                     player.rangeBonusActive = oldR;
-                    if (!canBuildAfter) shouldAdd = false;
+                    if (!canBuildAfter && !shipFallback) shouldAdd = false;
                 }
 
                 if (shouldAdd) {
@@ -3756,7 +3759,9 @@ export class BotLogic {
                 } else if (tile.specialAction === 'range_3' && !player.rangeBonusActive) {
                     const oldR = player.rangeBonusActive;
                     player.rangeBonusActive = true;
-                    if (this.findBuildActions(game, playerId).length === 0 && this.findBuildActionsWithPendingSteps(game, playerId).length === 0) shouldAdd = false;
+                    // [사용자 관찰 2026-06-14] range 보너스 활성 중 '우주선 입장'도 유효 용도 → 빌드 불가 시에도 우주선 입장 가능하면 활성 유지(보너스 낭비 방지)
+                    const shipFallback = getPlayerFlag(playerId, 'rangeBonusShipEntry', true) && this.findSpaceshipEntryActions(game, playerId).length > 0;
+                    if (this.findBuildActions(game, playerId).length === 0 && this.findBuildActionsWithPendingSteps(game, playerId).length === 0 && !shipFallback) shouldAdd = false;
                     player.rangeBonusActive = oldR;
                 }
                 if (shouldAdd) {
