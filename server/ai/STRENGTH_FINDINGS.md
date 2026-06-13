@@ -131,3 +131,12 @@
   - 수정: finalRound(R6) && !isFreeProject면 가이아포머 후보 제외. flag gfFinalRoundGuard 기본ON. **provable 낭비제거(휴리스틱 아님)라 correctness 수정으로 채택**(ore-terraform·hang과 동급). head2head 검증 run은 인프라 사망(워커 2h 무응답)했으나 부분데이터 이상無 + 논리상 do-no-harm.
 - 다음 구조 실험 후보(미시도, 고위험): real-income deepRollout(helperTriggerIncomePhase로 가짜income 교체) — 단 다중플레이어 income선택 프롬프트 hang 위험.
 - **head2head 인프라 주의**: 긴 run(40판+)에서 워커가 무응답/사망해 결과 미기록되는 사례 반복. 짧게 쪼개거나 타임아웃 늘릴 것.
+
+## 2026-06-13 Path A(다라운드 search) 난이도 코드레벨 확정 + scoped 계획
+- helperTriggerIncomePhase(gameState.ts:1501) 직접 확인: ① pendingIncomeOrder 선택 프롬프트 생성, ② executeBotTurnIfNeeded 재귀, ③ 종족 분기(Gleens 등). → 롤아웃에 직접 호출 불가. 정확 income 재구현=수백줄 복제+오류시 롤아웃 garbage→봇 회귀 위험. **무모한 in-session 시도 금지.**
+- **Path A scoped 계획(안전 벽돌, 독립 테스트):**
+  1. `simulatePlayerIncome(game,pid)` 순수함수(io/프롬프트/재귀 X, power-vs-token 고정 휴리스틱 자동해소). helperTriggerIncomePhase 결과와 단위대조.
+  2. `simulateOpponentTurn` = getNextMove+performAction, step캡+try/catch(hang 차단).
+  3. MCTS에 다라운드 롤아웃 조립(하드캡으로 무한루프 불가), flag 뒤에.
+  4. head2head는 **짧게(≤20판)** 검증(긴 run 워커 사망 반복).
+- **권고**: Path A는 수일+ 고위험. 병렬로 사용자 1:3 로그 누적(Path B 해금, 무위험)이 합리적. Path A 착수는 사용자 시간투자 승인 필요.
