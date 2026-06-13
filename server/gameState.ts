@@ -527,6 +527,16 @@ export function getEffectiveGaiaformers(player: PlayerState): number {
 export function hasActiveRangeBonus(player: PlayerState | undefined | null): boolean {
 	return !!(player && (player.tempRangeBonus || player.rangeBonusActive || player.gleensNavBonusActive));
 }
+
+/** 보너스 타일 'Pass: N VP per Gaiaformer'용: 파괴되지 않고 남아있는 포머 수.
+ *  = 개인판 보유(발타크 QIC 잠금분 포함) + 맵에서 가이아포밍 중인 것. (소행성에 쓰여 파괴된 건 제외) */
+function countRemainingGaiaformers(game: GaiaGameState, playerId: string): number {
+	const player = game.players[playerId];
+	if (!player) return 0;
+	const onBoard = player.gaiaformers ?? 0; // 발타크 QIC 잠금분은 gaiaformers에서 차감되지 않으므로 이미 포함됨
+	const onMap = game.map.filter(t => t.hasGaiaformer && t.gaiaformerOwnerId === playerId).length;
+	return onBoard + onMap;
+}
 const RANGE_BONUS_BLOCK_MSG = '거리 보너스 액션 사용 중입니다. 광산 건설 · 가이아포머 배치 · 소행성 광산 · 우주선 입장만 가능합니다.';
 
 /** 플레이어 건물 개수 (맵만, 기생/가상 제외). 아카데미는 academyType 별도. */
@@ -6080,7 +6090,7 @@ export function executePassRound(
 						count = playerStructures.filter(t => t.structure === 'research_lab').length;
 						break;
 					case 'gaiaformer':
-						count = 0;
+						count = countRemainingGaiaformers(game, playerId);
 						break;
 					case 'planet_type': {
 						const planetTypes = new Set(
@@ -6223,7 +6233,7 @@ export function executePassRound(
 						count = playerStructures.filter(t => t.structure === 'research_lab').length;
 						break;
 					case 'gaiaformer':
-						count = 0;
+						count = countRemainingGaiaformers(game, playerId);
 						break;
 					case 'planet_type': {
 						const planetTypes = new Set(
