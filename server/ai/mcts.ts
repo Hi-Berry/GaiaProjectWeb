@@ -310,26 +310,27 @@ export class MCTS {
             const cands = this.getPossibleActions(s, cur);
             if (!cands || cands.length === 0) break;
 
-            // 싼 1-ply: 후보 subset을 각 적용해보고 cur 관점 eval이 최대인 수 선택
-            let best: any = null;
-            let bestScore = -Infinity;
-            const subset = cands.slice(0, Math.min(SUBSET, cands.length));
-            for (const a of subset) {
-                try {
-                    const s2 = StateCloner.cloneGameStateForSimulation(s);
-                    s2.simulation = true;
-                    const act = a as { type: string; params: any; preActions?: any[] };
-                    if (act.preActions?.length) {
-                        for (const pre of act.preActions) {
-                            if (!await BotLogic.performAction(io, s2, pre, cur)) throw new Error('pre');
-                        }
-                    }
-                    if (!await BotLogic.performAction(io, s2, { type: act.type, params: act.params } as any, cur)) throw new Error('main');
-                    const sc = Evaluator.evaluateState(s2, cur);
-                    if (sc > bestScore) { bestScore = sc; best = a; }
-                } catch { /* 무효 전이 무시 */ }
+            // [fast-rollout] getCandidateMoves는 봇이 우선순위로 정렬 반환하므로 playout에선
+            // 후보별 클론-스코어링(비쌈) 대신 1순위(cands[0])를 바로 쓴다. 스텝당 O(1) → 반복 수 ↑.
+            // 약간의 다양성: 후보가 여럿이면 12% 확률로 2순위 선택(결정적 함정 회피).
+            // (rolloutFatScore flag면 옛 6-클론 스코어링 방식으로 — 품질 vs 속도 A/B용)
+            let best: any;
+            if (getPlayerFlag(ourId, 'rolloutFatScore', false)) {
+                best = null; let bestScore = -Infinity;
+                for (const a of cands.slice(0, Math.min(SUBSET, cands.length))) {
+                    try {
+                        const s2 = StateCloner.cloneGameStateForSimulation(s); s2.simulation = true;
+                        const act = a as { type: string; params: any; preActions?: any[] };
+                        if (act.preActions?.length) for (const pre of act.preActions) { if (!await BotLogic.performAction(io, s2, pre, cur)) throw new Error('pre'); }
+                        if (!await BotLogic.performAction(io, s2, { type: act.type, params: act.params } as any, cur)) throw new Error('main');
+                        const sc = Evaluator.evaluateState(s2, cur);
+                        if (sc > bestScore) { bestScore = sc; best = a; }
+                    } catch { /* 무효 전이 무시 */ }
+                }
+                if (!best) best = cands[0];
+            } else {
+                best = (cands.length >= 2 && Math.random() < 0.12) ? cands[1] : cands[0];
             }
-            if (!best) best = cands[0];
 
             // 선택한 수를 실제 상태 s에 적용
             try {
