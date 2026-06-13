@@ -3,6 +3,7 @@ import { BotLogic } from './bot';
 import { StateCloner } from './stateCloner';
 import { Evaluator } from './evaluator';
 import { getPlayerFlag } from './variant';
+import { applyRolloutIncome } from './rolloutIncome';
 import { log } from '../index';
 
 // MCTS 디버그 로깅(후보 상세 리포트 등)은 매우 비싸다(턴당 수백 회 동기 console.log + 중복 전체평가).
@@ -209,6 +210,9 @@ export class MCTS {
         // 셋업(우주선 진입/가이아포머/연구)이 만드는 후속 페이오프를 탐색이 보게 함. 수입/상대턴은 미시뮬(휴리스틱).
         const deepRollout = getPlayerFlag(playerId, 'deepRollout', false);
         const rolloutIncome = getPlayerFlag(playerId, 'rolloutIncome', false);
+        // [flag: realRolloutIncome] 가상 라운드 사이 income을 가짜 모델(applyApproxIncome) 대신
+        // 검증된 getNextRoundIncomePreview 기반 정확 적용(rolloutIncome.ts)으로. deepRollout과 함께 켜야 효과.
+        const realRolloutIncome = getPlayerFlag(playerId, 'realRolloutIncome', false);
         const MAIN_ACTION_CAP = deepRollout ? 5 : 1;
         let mainActionsUsed = 0;
         const ROLLOUT_STEPS = deepRollout ? 14 : 6;
@@ -261,9 +265,10 @@ export class MCTS {
                     && currentState.turnOrder[currentState.currentPlayerIndex] === playerId
                     && currentState.currentPhase === 'main') {
                     currentState.hasDoneMainAction = false; // 가상의 다음 턴(자원 제약 유지)
-                    // [flag: rolloutIncome] 가상 라운드 사이 구조물 기반 수입 근사 → 다라운드 경제 빌드업
+                    // [flag: rolloutIncome/realRolloutIncome] 가상 라운드 사이 income 적용 → 다라운드 경제 빌드업
                     // (지금 경제 깔고 → 다음 자원으로 연방/연구5)을 롤아웃이 보게 함. 수입/상대턴 미반영의 보완.
-                    if (rolloutIncome) this.applyApproxIncome(currentState, playerId);
+                    if (realRolloutIncome) applyRolloutIncome(currentState, playerId); // 정확(검증된 프리뷰 기반)
+                    else if (rolloutIncome) this.applyApproxIncome(currentState, playerId); // 가짜 근사(레거시)
                 } else {
                     break;
                 }
