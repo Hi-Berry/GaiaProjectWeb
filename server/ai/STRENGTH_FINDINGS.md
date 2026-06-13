@@ -165,3 +165,8 @@
 - **모든 레버 실험 종료**: ①eval튜닝 포화 ②연산 null ③학습 데이터기아 ④income롤아웃 null ⑤상대-인지 search 중립.
   → 유일한 미해결 경로 = **더 나은 eval(학습)**, 그러나 학습은 사람데이터 10배 필요(데이터 게이트). 사용자 1:3 누적이 유일 진척로.
 - 코드 자산 유지(flag OFF, 라이브 무해): rolloutIncome.ts, simulateWithOpponents(oppRollout/rolloutFatScore), realRolloutIncome. 학습 eval 확보 시 이 search 인프라가 재활용 가치 있음(좋은 eval+search=강함).
+
+## 2026-06-13 oppRollout 고-think-time(1500ms) → 여전히 null. search 레버 최종 종료
+- 1500ms(라이브 6s 근사) 16판: 53.8%(7:6), VP -2.81, p=0.661 → null. (500ms도 중립이었음)
+- **oppRollout은 연산을 더 줘도 스케일 안 함** = 어떤 compute에서도 greedy 못 이김. greedy도 스케일 안 됨(mctsTimeMul) → 둘 다 eval 천장에 묶임.
+- ★★ 최종: search 레버(income·상대시뮬·고연산) 전부 무효. **eval이 절대 천장.** 사람대등 유일 경로 = 학습된 더 나은 eval(데이터 10배 게이트). 더 이상 양의 기대값 실험 없음 — null 실험으로 사용자 compute 낭비 금지.
