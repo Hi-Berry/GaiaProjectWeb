@@ -197,6 +197,12 @@ export class MCTS {
     }
 
     private static async simulate(state: ServerGameState, playerId: string): Promise<number> {
+        // [flag: oppRollout] Path A 벽돌2: 상대 턴까지 시뮬하는 다턴 greedy 플레이아웃.
+        // greedy 천장의 진짜 병목(opponent-blindness) 교정 시도. MCTS 재귀 없이 싼 1-ply 정책으로
+        // 모든 플레이어를 굴려 "상대가 응수한 뒤" 위치를 평가. income/전환 페이즈서 break(hang-safe).
+        if (getPlayerFlag(playerId, 'oppRollout', false)) {
+            return this.simulateWithOpponents(state, playerId);
+        }
         // Rollout phase. Take a few random pseudo-random moves.
         let currentState = StateCloner.cloneGameStateForSimulation(state);
         currentState.simulation = true;
@@ -276,6 +282,70 @@ export class MCTS {
         }
 
         return Evaluator.evaluateState(currentState, playerId);
+    }
+
+    /**
+     * [Path A 벽돌2] 상대 턴까지 포함한 다턴 greedy 플레이아웃 롤아웃.
+     * - 모든 플레이어를 "싼 1-ply 정책"(getCandidateMoves + 그 플레이어 관점 eval 최대)으로 굴림.
+     *   getNextMove(→MCTS 재귀)는 절대 호출하지 않는다(무한재귀/폭발 방지).
+     * - getCandidateMoves가 메인액션 후 end_turn, 적절 시 pass_round를 반환하므로 턴/라운드가 자연 전진.
+     * - 안전장치: currentPhase!=='main'(income/전환) 또는 pendingIncomeOrder/pendingIncomeItems이면 즉시 break(hang 방지).
+     *   라운드는 시작+2까지만, 총 STEP_CAP 회로 상한.
+     */
+    private static async simulateWithOpponents(state: ServerGameState, ourId: string): Promise<number> {
+        const s = StateCloner.cloneGameStateForSimulation(state);
+        s.simulation = true;
+        const io = { to: () => ({ emit: () => { } }) } as any;
+        const STEP_CAP = 60;
+        const startRound = s.roundNumber ?? 1;
+        const SUBSET = 6;
+
+        for (let step = 0; step < STEP_CAP; step++) {
+            if (s.currentPhase !== 'main') break;                       // income/전환 → 안전 종료
+            if ((s.roundNumber ?? 1) > startRound + 2) break;           // 최대 ~2라운드 앞
+            const cur = s.turnOrder?.[s.currentPlayerIndex];
+            if (!cur || !s.players[cur]) break;
+            if ((s as any).pendingIncomeOrder || (s.players[cur] as any).pendingIncomeItems) break; // 수익선택 = hang 위험 → 종료
+
+            const cands = this.getPossibleActions(s, cur);
+            if (!cands || cands.length === 0) break;
+
+            // 싼 1-ply: 후보 subset을 각 적용해보고 cur 관점 eval이 최대인 수 선택
+            let best: any = null;
+            let bestScore = -Infinity;
+            const subset = cands.slice(0, Math.min(SUBSET, cands.length));
+            for (const a of subset) {
+                try {
+                    const s2 = StateCloner.cloneGameStateForSimulation(s);
+                    s2.simulation = true;
+                    const act = a as { type: string; params: any; preActions?: any[] };
+                    if (act.preActions?.length) {
+                        for (const pre of act.preActions) {
+                            if (!await BotLogic.performAction(io, s2, pre, cur)) throw new Error('pre');
+                        }
+                    }
+                    if (!await BotLogic.performAction(io, s2, { type: act.type, params: act.params } as any, cur)) throw new Error('main');
+                    const sc = Evaluator.evaluateState(s2, cur);
+                    if (sc > bestScore) { bestScore = sc; best = a; }
+                } catch { /* 무효 전이 무시 */ }
+            }
+            if (!best) best = cands[0];
+
+            // 선택한 수를 실제 상태 s에 적용
+            try {
+                const act = best as { type: string; params: any; preActions?: any[] };
+                let okPre = true;
+                if (act.preActions?.length) {
+                    for (const pre of act.preActions) {
+                        if (!await BotLogic.performAction(io, s, pre, cur)) { okPre = false; break; }
+                    }
+                }
+                if (!okPre) break;
+                if (!await BotLogic.performAction(io, s, { type: act.type, params: act.params } as any, cur)) break;
+            } catch { break; }
+        }
+
+        return Evaluator.evaluateState(s, ourId);
     }
 
     /** 롤아웃 가상 라운드 사이 수입 근사(방향만 맞는 단순 모델: 구조물 많을수록 자원↑). 정확한 income은 아님. */
