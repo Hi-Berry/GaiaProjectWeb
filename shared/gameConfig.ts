@@ -452,7 +452,7 @@ export interface GaiaGameState {
     /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3[,bs]) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
     powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 }>;
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
-  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }> }>; // 게임 액션 로그
+  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> } }>; // 게임 액션 로그
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
   turnStartState?: Record<string, {
     playerState: PlayerState;
@@ -2129,8 +2129,12 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
     }
     case 'fm_gaia_planets':
       return map.filter(t => (t.type === 'gaia' || t.type === 'transdim') && t.ownerId === playerId && t.structure != null && t.structure !== 'ship').length;
-    case 'fm_satellites':
-      return Object.values(game.satellites ?? {}).filter(ids => ids.includes(playerId)).length;
+    case 'fm_satellites': {
+      // 하이브(Ivits)는 위성 대신 우주정거장을 놓으므로 우주정거장도 위성으로 카운트
+      const satCount = Object.values(game.satellites ?? {}).filter(ids => ids.includes(playerId)).length;
+      const spaceStationCount = map.filter(t => t.spaceStation?.ownerId === playerId).length;
+      return satCount + spaceStationCount;
+    }
     case 'fm_pi_academy_distance': {
       const pis = map.filter(t => t.ownerId === playerId && t.structure === 'planetary_institute');
       const academies = map.filter(t => t.ownerId === playerId && t.structure === 'academy');

@@ -1194,15 +1194,44 @@ export function GameBoard({
                       );
                     })()}
 
-                    {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
+                    {/* 모웨이드 링 — 건물 밑 레이어(헥스 살짝 넘쳐도 OK). 톱니형 청록 링 + 핑크 점 2개 */}
+                    {tile.moweyipRing && (() => {
+                      const teeth = 15;
+                      // 바깥 크기 유지, 구멍을 키워 띠 두께만 0.7배 (기존 4.84-2.97=1.87 → 약 1.31)
+                      const rOut = 4.84, rTooth = 4.5, hole = 3.53;
+                      // 톱니형 바깥 경계 (큰/작은 반지름 교차)
+                      let cog = '';
+                      for (let i = 0; i < teeth * 2; i++) {
+                        const ang = (Math.PI / teeth) * i - Math.PI / 2;
+                        const r = i % 2 === 0 ? rOut : rTooth;
+                        cog += `${i === 0 ? 'M' : 'L'}${(r * Math.cos(ang)).toFixed(2)} ${(r * Math.sin(ang)).toFixed(2)} `;
+                      }
+                      cog += 'Z';
+                      // 안쪽 구멍 (evenodd로 뚫음 → 가운데 건물이 그대로 보임)
+                      const holePath = `M${hole} 0 A${hole} ${hole} 0 1 0 ${-hole} 0 A${hole} ${hole} 0 1 0 ${hole} 0 Z`;
+                      // 방사형 리지(줄무늬) 라인
+                      const ridges = Array.from({ length: teeth }, (_, i) => {
+                        const ang = (2 * Math.PI / teeth) * i - Math.PI / 2;
+                        const c = Math.cos(ang), s = Math.sin(ang);
+                        return (
+                          <line key={i}
+                            x1={(hole * c).toFixed(2)} y1={(hole * s).toFixed(2)}
+                            x2={(rTooth * c).toFixed(2)} y2={(rTooth * s).toFixed(2)}
+                            stroke="rgba(28,96,96,0.5)" strokeWidth="0.14" />
+                        );
+                      });
+                      return (
+                        <g opacity="0.97">
+                          <path d={`${cog} ${holePath}`} fillRule="evenodd" fill="#5cc2bd" stroke="#2a8f8a" strokeWidth="0.16" />
+                          {ridges}
+                          {/* 하단 핑크 점 2개 (얇아진 띠 중앙에 맞춤) */}
+                          <circle cx="-0.62" cy="4.15" r="0.36" fill="#ff3ea5" stroke="#c01e74" strokeWidth="0.06" />
+                          <circle cx="0.62" cy="4.15" r="0.36" fill="#ff3ea5" stroke="#c01e74" strokeWidth="0.06" />
+                        </g>
+                      );
+                    })()}
 
-                    {/* 모웨이드 링 */}
-                    {tile.moweyipRing && (
-                      <g>
-                        <circle r="2.4" fill="none" stroke="#f59e0b" strokeWidth="0.28" opacity="0.95" />
-                        <circle r="2.15" fill="none" stroke="rgba(245,158,11,0.5)" strokeWidth="0.15" />
-                      </g>
-                    )}
+                    {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
 
                     {/* 란티다 기생 광산 */}
                     {tile.parasiticMine && (() => {
@@ -2013,7 +2042,7 @@ export function GameBoard({
                         <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
                           {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) - +6 VP</>
                       ) : selectedTile.type === 'gaia' && currentPlayer?.faction === 'gleens' ? (
-                        <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits{mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) — Gleens +2 VP</>
+                        <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits{mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`}) — +2 VP</>
                       ) : (
                         <>Build Mine ({mineBuildCost.oreCost} Ore, {mineBuildCost.credits} Credits
                           {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`})</>
@@ -2099,12 +2128,12 @@ export function GameBoard({
                               )}
                               {isBescods && canBuildAcademyLeft && (
                                 <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_left'); setSelectedTile(null); }}>
-                                  Academy (왼쪽) — 수익 2K (6O, 6C) 매안
+                                  Academy (왼쪽) — 수익 2K (6O, 6C)
                                 </Button>
                               )}
                               {isBescods && canBuildAcademyRight && (
                                 <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_right'); setSelectedTile(null); }}>
-                                  Academy (오른쪽) — Special 1QIC (6O, 6C) 매안
+                                  Academy (오른쪽) — 1QIC (6O, 6C)
                                 </Button>
                               )}
                             </>
@@ -2118,7 +2147,7 @@ export function GameBoard({
                             if (!canUpgradeTSToPI) return <p className="text-xs text-amber-400">업그레이드할 건물이 없습니다 (의회 1개 한도)</p>;
                             return (
                               <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'planetary_institute'); setSelectedTile(null); }}>
-                                Upgrade to PI (4O, 6C) 매안
+                                Upgrade to PI (4O, 6C)
                               </Button>
                             );
                           }
@@ -2131,7 +2160,7 @@ export function GameBoard({
                               )}
                               {canBuildAcademyRight && (
                                 <Button className="w-full" variant="secondary" disabled={game.hasDoneMainAction || (game.turnOrder[game.currentPlayerIndex] !== playerId)} onClick={() => { onUpgrade(selectedTile.id, 'academy_right'); setSelectedTile(null); }}>
-                                  Academy (오른쪽) — Special {game.players[playerId]?.faction === 'bal_tak' ? '4C' : '1QIC'} (6O, 6C)
+                                  Academy (오른쪽) — {game.players[playerId]?.faction === 'bal_tak' ? '4C' : '1QIC'} (6O, 6C)
                                 </Button>
                               )}
                             </>

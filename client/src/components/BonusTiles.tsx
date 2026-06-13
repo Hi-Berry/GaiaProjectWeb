@@ -223,7 +223,7 @@ export function BonusTiles({
                     ownerName={playerName}
                     ownerColor={playerColor}
                     isSelectable={false}
-                    isUsed={isCurrentPlayer ? owner?.usedBonusAction : undefined}
+                    isUsed={owner?.usedBonusAction}
                     hasAction={!!tile.specialAction}
                     onUseAction={isCurrentPlayer ? onUseBonusAction : undefined}
                   />
@@ -232,7 +232,8 @@ export function BonusTiles({
           </div>
         </div>
 
-        {/* Federation Tiles */}
+        {/* Federation Tiles — 보너스 타일 선택 모드에서는 숨김 */}
+        {!isSelectionMode && (
         <div className={isMini ? '' : 'space-y-2'}>
           {!isMini && (
             <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5 border-t border-white/5 pt-3">
@@ -301,6 +302,7 @@ export function BonusTiles({
             })}
           </div>
         </div>
+        )}
       </CardContent>
     </Card>
   );

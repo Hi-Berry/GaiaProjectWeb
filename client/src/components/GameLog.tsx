@@ -1,7 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { CSSProperties } from 'react';
-import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS } from '@shared/gameConfig';
+import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
 interface GameLogProps {
@@ -79,9 +79,66 @@ export function GameLog({
     return null;
   };
 
-  const getLogPrimaryImage = (log: { action: string; details?: string; tileId?: string }, playerFactionId?: string | null) => {
+  // 파워액션 보드 스트립(7등분)에서 로그 details → 칸 인덱스 매핑 (순서 = INITIAL_POWER_ACTIONS = powerAction.jpg 좌→우)
+  const POWER_ACTION_STRIP: Array<{ re: RegExp; idx: number }> = [
+    { re: /\+3 Knowledge/, idx: 0 },
+    { re: /\+2 Terraform steps/, idx: 1 },
+    { re: /\+2 Ore/, idx: 2 },
+    { re: /\+7 Credits/, idx: 3 },
+    { re: /\+2 Knowledge/, idx: 4 },
+    { re: /\+1 Terraform step/, idx: 5 },
+    { re: /\+2 Power tokens/, idx: 6 },
+  ];
+  // 우주선 액션 스트립(3등분) — 서버 addGameLog 액션명 → 우주선/칸 매핑
+  const SHIP_ACTION_STRIP_IMG: Record<string, string> = {
+    ship_twilight: '/image/ActionTwilight.jpg',
+    ship_rebellion: '/image/ActionRebellion.jpg',
+    ship_tf_mars: '/image/ActionTFMars.jpg',
+    ship_eclipse: '/image/ActionEclipse.jpg',
+  };
+  const SHIP_ACTION_STRIP: Array<{ re: RegExp; ship: string; idx: number }> = [
+    { re: /^Twilight: Federation benefit/i, ship: 'ship_twilight', idx: 0 },
+    { re: /^Twilight: TS → Research Lab/i, ship: 'ship_twilight', idx: 1 },
+    { re: /^Twilight: \+3 Range/i, ship: 'ship_twilight', idx: 2 },
+    { re: /^Rebellion: Gain tech tile/i, ship: 'ship_rebellion', idx: 0 },
+    { re: /^Rebellion: Mine → TS/i, ship: 'ship_rebellion', idx: 1 },
+    { re: /^Rebellion: 2K → 1Q 2C/i, ship: 'ship_rebellion', idx: 2 },
+    { re: /^TF Mars: Tech tiles \+ 2 VP/i, ship: 'ship_tf_mars', idx: 0 },
+    { re: /^TF Mars: Gaia Project/i, ship: 'ship_tf_mars', idx: 1 },
+    { re: /^TF Mars: 3C → 1 Terraform/i, ship: 'ship_tf_mars', idx: 2 },
+    { re: /^Eclipse: Planet types \+ 2 VP/i, ship: 'ship_eclipse', idx: 0 },
+    { re: /^Eclipse: 2K\+3P → Research/i, ship: 'ship_eclipse', idx: 1 },
+    { re: /^Eclipse: 6C → Build mine/i, ship: 'ship_eclipse', idx: 2 },
+  ];
+
+  type LogPrimaryImage =
+    | { src: string; alt: string }
+    | { strip: string; cols: number; index: number; alt: string }
+    | { swap: { fromSrc: string | null; toSrc: string | null; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; alt: string };
+
+  const getLogPrimaryImage = (log: { action: string; details?: string; tileId?: string }, playerFactionId?: string | null): LogPrimaryImage | null => {
     const actionText = log.action || '';
     const details = log.details || '';
+
+    // Power Action — 미니뷰처럼 보드 스트립에서 해당 칸만 크롭해 표시
+    if (/^Power Action$/i.test(actionText)) {
+      const found = POWER_ACTION_STRIP.find(x => x.re.test(details));
+      if (found) return { strip: '/image/powerAction.jpg', cols: 7, index: found.idx, alt: details || 'Power Action' };
+    }
+    // Ship Action — 우주선 액션 스트립에서 해당 칸 크롭
+    {
+      const found = SHIP_ACTION_STRIP.find(x => x.re.test(actionText));
+      if (found) return { strip: SHIP_ACTION_STRIP_IMG[found.ship], cols: 3, index: found.idx, alt: actionText };
+    }
+
+    // Final Mission — tileId에 담긴 missionId로 EGS 이미지 표시
+    if (/^Final Mission$/i.test(actionText)) {
+      const missionId = log.tileId;
+      if (missionId) {
+        const idx = Object.keys(FINAL_MISSION_LABELS).indexOf(missionId);
+        if (idx !== -1) return { src: `/image/EGS_${idx + 1}.jpg`, alt: FINAL_MISSION_LABELS[missionId] ?? missionId };
+      }
+    }
 
     // Bonus tiles
     if (/^Selected Bonus Tile$/i.test(actionText)) {
@@ -89,15 +146,21 @@ export function GameLog({
       if (img) return { src: img, alt: details || 'Bonus Tile' };
     }
     if (/^Selected Bonus$/i.test(actionText)) {
-      const m = details.match(/\btook\s+(bon-[a-z0-9-]+)\b/i);
-      const img = getBonusTileImgById(m?.[1]);
-      if (img) return { src: img, alt: m?.[1] || 'Bonus Tile' };
+      // 패스 교체: passInfo(있으면) 우선, 없으면 details 파싱 → 반납 타일 → 가져간 타일
+      const info = (log as { passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> } }).passInfo;
+      const tookId = info?.tookTileId ?? details.match(/\btook\s+(bon-[a-z0-9-]+)\b/i)?.[1];
+      const returnedId = info?.returnedTileId ?? details.match(/\bReturned\s+(bon-[a-z0-9-]+)\b/i)?.[1];
+      const toSrc = getBonusTileImgById(tookId);
+      const fromSrc = getBonusTileImgById(returnedId);
+      if (toSrc || fromSrc) return { swap: { fromSrc, toSrc, bonusVp: info?.bonusVp, advTiles: info?.advTiles }, alt: tookId || 'Bonus Tile' };
     }
 
-    // Tech tiles
-    if (/Tech Tile|Gained Tech Tile|Advanced Tech Tile|Ship Tech/i.test(actionText) || /tech-(inc|imm|gaia|big|act)|adv-|ship-tech-/i.test(details)) {
-      let tid = details.match(/\b(tech-[a-z0-9-]+|adv-[a-z0-9-]+|ship-tech-[a-z0-9+-]+)\b/i)?.[1];
-      
+    // Tech tiles (기술 타일 획득 + 기술 타일 액션 사용 로그)
+    if (/Tech Tile|Gained Tech Tile|Advanced Tech Tile|Ship Tech|Tech Action/i.test(actionText) || /tech-(inc|imm|gaia|big|act)|adv-|ship-tech-/i.test(details)) {
+      // 통합 로그는 details에 타일 정보가 없고 log.tileId에 기술 타일 id가 담김
+      let tid = log.tileId && getTechTileImgById(log.tileId) ? log.tileId : undefined;
+      if (!tid) tid = details.match(/\b(tech-[a-z0-9-]+|adv-[a-z0-9-]+|ship-tech-[a-z0-9+-]+)\b/i)?.[1];
+
       if (!tid) {
         const allTiles = [...ALL_TECH_TILES, ...ALL_ADVANCED_TECH_TILES, ...SHIP_TECH_TILES];
         for (const t of allTiles) {
@@ -121,9 +184,10 @@ export function GameLog({
       }
     }
 
-    // Federations
-    if (/Formed Federation|Gained Federation|Federation/i.test(actionText) || /gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+/i.test(details)) {
-      const fedMatch = details.match(/\b(gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+)\b/i);
+    // Federations (트왈라잇 연방 재수령 등은 log.tileId에 연방 보상 id가 담김)
+    if (/Formed Federation|Gained Federation|Federation|Spaceship Fed/i.test(actionText) || /gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+/i.test(details)) {
+      const tidMatch = log.tileId && /^(gleens-fed-|ship-fed-|fed-)/i.test(log.tileId) ? log.tileId : undefined;
+      const fedMatch = tidMatch ? [tidMatch, tidMatch] : details.match(/\b(gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+)\b/i);
       if (fedMatch) {
         const fedId = fedMatch[1];
         if (fedId === GLEENS_FEDERATION_REWARD.id) return { src: '/image/Federation_15.gif', alt: fedId };
@@ -197,6 +261,28 @@ export function GameLog({
     );
   };
 
+  /** details를 여러 줄로 분해: ' · ' 구분자와 끝의 점수 괄호 ' (+NVP ...)'를 각각 줄로 */
+  const splitDetailLines = (details: string): string[] => {
+    let s = details;
+    // 점수 괄호 앞에 줄바꿈 표식 삽입 (+3VP ...), (+7 VP) 등
+    s = s.replace(/\s*(\(\+?\d+\s*VP[^)]*\))/gi, '\n$1');
+    // 명시적 구분자
+    s = s.replace(/\s*·\s*/g, '\n');
+    return s.split('\n').map(x => x.trim()).filter(Boolean);
+  };
+
+  const renderDetailsMultiline = (details: string, fallbackClassName: string) => {
+    const lines = splitDetailLines(details);
+    if (lines.length <= 1) return renderDetailsWithTrackColor(details, fallbackClassName);
+    return (
+      <span className="flex flex-col gap-0 leading-tight">
+        {lines.map((line, i) => (
+          <span key={i}>{renderDetailsWithTrackColor(line, fallbackClassName)}</span>
+        ))}
+      </span>
+    );
+  };
+
   const content = (
     <div className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0 pr-2"}`}>
       {logs.length === 0 ? (
@@ -211,6 +297,8 @@ export function GameLog({
           const isBonusTilePickLog = /^Selected Bonus Tile$/i.test(actionText);
           const isBonusSwapLog = /^Selected Bonus$/i.test(actionText);
           const isBonusTileLog = isBonusTilePickLog || isBonusSwapLog;
+          // 연방 보상/트왈라잇 재수령: 이미지만으로 충분 → 상세 텍스트(점수/보상 라벨) 숨김
+          const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText) || /^Federation Reward$/i.test(actionText);
 
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
@@ -231,7 +319,8 @@ export function GameLog({
                   : 'bg-zinc-900/30 border-y border-r border-y-white/5 border-r-white/5'
                 } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:border-primary/50 hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
               style={{
-                borderLeftColor: isAiFeedbackLog ? '#22d3ee' : factionColor ? factionColor : (isMainAction ? '#3b82f6' : '#52525b')
+                // 좌측 바는 항상 종족색 우선 (AI 피드백 여부는 시안 ring으로 따로 표시)
+                borderLeftColor: factionColor ? factionColor : (isAiFeedbackLog ? '#22d3ee' : isMainAction ? '#3b82f6' : '#52525b')
               }}
             >
               <div className="flex-1 min-w-0">
@@ -241,9 +330,70 @@ export function GameLog({
                 >
                   {primaryImg && (
                     (() => {
+                      // 보너스 패스 교체: 반납 타일(+패스점수) → 가져간 타일, 고급 패스 타일 이미지+점수
+                      if ('swap' in primaryImg) {
+                        const { fromSrc, toSrc, bonusVp, advTiles } = primaryImg.swap;
+                        const boostImg = (src: string, dim: boolean) => (
+                          <div className={`h-9 w-[5rem] sm:h-10 sm:w-[5.5rem] overflow-hidden flex-shrink-0 flex items-center justify-center ${dim ? 'grayscale opacity-50' : ''}`}>
+                            <img src={src} alt={primaryImg.alt} title={log.details || primaryImg.alt} loading="lazy"
+                              className="h-full w-full min-h-0 min-w-0 object-contain object-center -rotate-90 origin-center scale-[2.0]"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                          </div>
+                        );
+                        return (
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <div className="flex items-center gap-1">
+                              {/* 실제 교체(가져간 타일 있음)일 때만 반납 타일을 흐리게. 라운드6은 그대로 유지 */}
+                              {fromSrc && boostImg(fromSrc, !!toSrc)}
+                              {typeof bonusVp === 'number' && bonusVp > 0 && (
+                                <span className="text-emerald-400 font-black text-[10px] shrink-0">+{bonusVp} VP</span>
+                              )}
+                              {fromSrc && toSrc && <span className="text-zinc-500 font-black text-sm shrink-0">→</span>}
+                              {toSrc && boostImg(toSrc, false)}
+                            </div>
+                            {advTiles && advTiles.length > 0 && (
+                              <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5">
+                                {advTiles.map((a, i) => {
+                                  const src = getTechTileImgById(a.tileId);
+                                  return (
+                                    <span key={i} className="flex items-center gap-0.5 shrink-0" title={a.tileId}>
+                                      {src && (
+                                        <span className="h-6 w-10 rounded-sm overflow-hidden inline-block">
+                                          <img src={src} alt={a.tileId} loading="lazy" className="w-full h-full object-contain"
+                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                        </span>
+                                      )}
+                                      <span className="text-emerald-400 font-black text-[10px]">+{a.vp} VP</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      // 파워/우주선 액션: 보드 스트립에서 해당 칸만 크롭 (미니뷰와 동일한 모습)
+                      if ('strip' in primaryImg) {
+                        return (
+                          <div className="relative h-7 w-8 rounded-sm overflow-hidden flex-shrink-0 border border-white/10">
+                            <img
+                              src={primaryImg.strip}
+                              alt={primaryImg.alt}
+                              title={log.details || primaryImg.alt}
+                              loading="lazy"
+                              className="absolute"
+                              style={{ bottom: 0, left: `${-100 * primaryImg.index}%`, width: `${100 * primaryImg.cols}%`, maxWidth: 'none', height: 'auto' }}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        );
+                      }
                       const isBonus = primaryImg.src.startsWith('/image/BoostTile_');
                       const isTech = primaryImg.src.startsWith('/tech/');
                       const isBuilding = primaryImg.src.startsWith('/image/buildings/');
+                      const isMission = primaryImg.src.startsWith('/image/EGS_');
                       const bonusHero = isBonus && isBonusTileLog;
 
                       // 보너스: 높이를 텍스트 한 줄에 맞춤 — 과한 고정 높이 + contain은 위아래 빈 띠만 만듦
@@ -251,17 +401,19 @@ export function GameLog({
                         ? `h-9 w-[5rem] sm:h-10 sm:w-[5.5rem] overflow-hidden flex-shrink-0 flex items-center justify-center ${isPowerAction ? 'opacity-60 grayscale' : ''}`
                         : isBonus
                           ? `h-7 w-12 rounded-sm overflow-visible flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
-                          : isTech
+                          : isTech || isMission
                             ? `h-7 w-12 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
                             : `h-7 w-7 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`;
 
                       const imgClass = bonusHero
                         ? 'h-full w-full min-h-0 min-w-0 object-contain object-center -rotate-90 origin-center scale-[2.0]'
-                        : isBonus || isTech
-                          ? (isBonus ? 'w-full h-full object-contain scale-[2.0] origin-center' : 'w-full h-full object-contain')
-                          : isBuilding
-                            ? 'w-full h-full object-cover'
-                            : 'w-full h-full object-cover';
+                        : isBonus
+                          ? 'w-full h-full object-contain scale-[2.0] origin-center'
+                          : isTech || isMission
+                            ? 'w-full h-full object-contain'
+                            : isBuilding
+                              ? 'w-full h-full object-cover'
+                              : 'w-full h-full object-cover';
 
                       return (
                         <div className={wrapperClass}>
@@ -285,25 +437,17 @@ export function GameLog({
                       {log.action}
                     </span>
                   )}
-                  {isBonusTileLog && log.details && (
+                  {/* 패스 교체 로그는 이미지(반납→가져감)만으로 충분 → 텍스트 생략 */}
+                  {isBonusTilePickLog && log.details && (
                     <div className="min-w-0 flex-1 flex flex-col gap-0 leading-none">
-                      {isBonusTilePickLog ? (
-                        <span className="text-zinc-200 font-bold break-words" style={secondaryTextStyle}>
-                          {log.details}
-                        </span>
-                      ) : (
-                        <span className="min-w-0">
-                          {renderDetailsWithTrackColor(
-                            log.details,
-                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
-                          )}
-                        </span>
-                      )}
+                      <span className="text-zinc-200 font-bold break-words" style={secondaryTextStyle}>
+                        {log.details}
+                      </span>
                     </div>
                   )}
-                  {!isBonusTileLog && log.details && (
+                  {!isBonusTileLog && !hideDetailsText && log.details && (
                     <span className="ml-1.5 min-w-0">
-                      {renderDetailsWithTrackColor(
+                      {renderDetailsMultiline(
                         log.details,
                         `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
                       )}

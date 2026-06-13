@@ -685,7 +685,9 @@ export function getFederationRequiredPower(game: ServerGameState, playerId: stri
 	// 그 외 종족은 매 연방 시도마다 선택된 건물/우주정거장 파워가 7(또는 Xenos면 6) 이상인지로 판정.
 	if (player?.faction !== 'ivits') return powerPerFed;
 
-	const n = getFederationEntries(player).length + 1;
+	// 우주선 연방(삽 꼭대기 등 ship-fed-*)은 위성으로 형성한 연방이 아니므로 누적 요구치 계산에서 제외.
+	const formedFedCount = getFederationEntries(player).filter(e => !e.rewardId.startsWith('ship-fed-')).length;
+	const n = formedFedCount + 1;
 	return powerPerFed * n;
 }
 
@@ -6010,7 +6012,7 @@ export function executeAdvanceTech(
 	player.research[track]++;
 	applyTrackLevelBonus(game, playerId, player, track, newLevel);
 	log(`Player ${player.name} advanced ${track} to Lv.${newLevel}: knowledge ${knowledgeBefore} → ${player.knowledge} (-4)`, 'game', undefined, { simulation: (game as any).simulation });
-	addGameLog(game, playerId, 'Advanced Research', `${track} to level ${newLevel} (4K)`);
+	addGameLog(game, playerId, 'Advanced Research', `${track} to level ${newLevel} (${knowledgeBefore}K→${player.knowledge}K)`);
 	applyRoundMissionScore(game, playerId, 'research_track');
 	applyAdvancedTechTileEffect(game, playerId, 'research');
 	game.hasDoneMainAction = true;
@@ -7492,7 +7494,7 @@ export function executeBalTakGaiaformerToQic(
 
 	player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
 	grantQic(game, playerId, 1);
-	addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", '1 포머 사용 (다음 라운드까지 복귀)', undefined);
+	addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", undefined, undefined);
 	log(`Player ${player.name} (Bal T'aks) used 1 Gaiaformer for 1 QIC (locked until next round)`, 'game', undefined, { simulation: (game as any).simulation });
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);

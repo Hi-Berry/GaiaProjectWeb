@@ -819,7 +819,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     {SHIP_ACTION_IMG[tile.type] && (
                                                         <img src={SHIP_ACTION_IMG[tile.type]} alt="actions" className={isMini ? 'absolute inset-0 w-full h-full object-cover object-bottom' : 'block w-full h-auto'} />
                                                     )}
-                                                    <div className="absolute inset-0 grid grid-cols-3">
+                                                    {/* 좌측 이미지 여백(불필요 픽셀)을 첫 칸이 흡수하도록 1칸을 살짝 넓게 (TF Mars는 여백이 더 커서 1.12) */}
+                                                    <div className={`absolute inset-0 grid ${tile.type === 'ship_tf_mars' ? 'grid-cols-[1.16fr_1fr_1fr]' : 'grid-cols-[1.12fr_1fr_1fr]'}`}>
                                                         {actionLabels.map((label, idx) => {
                                                             const isUsed = usedIndices.includes(idx + 1);
                                                             const actionNum = idx + 1;

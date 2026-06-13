@@ -124,6 +124,10 @@ export default function Game() {
   const [confirmPassWithTileId, setConfirmPassWithTileId] = useState<string | null>(null);
   /** 연방 선언 시 불필요한 위성 경고 다이얼로그 (서버 federation_redundant_warning 수신 시) */
   const [federationRedundantWarning, setFederationRedundantWarning] = useState<{ count: number } | null>(null);
+  /** 프리액션 모드: 내 상태창에서 자원/파워 숫자 클릭으로 즉시 변환 */
+  const [freeActionMode, setFreeActionMode] = useState(false);
+  /** 네뷸라 의회: 직전 O 클릭(2P→1O)을 다음 클릭에서 3P→2O / 2P→1O+1C로 승격하기 위한 체인 추적 */
+  const nevlasOreChainRef = useRef<{ expectP3: number; expectOre: number } | null>(null);
   /** 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기(1소모+1이동)로 충당할지 확인 다이얼로그 */
   const [confirmBurnAction, setConfirmBurnAction] = useState<
     | { kind: 'power'; actionId: string; burns: number; closeResearchOverlay?: boolean }
@@ -590,6 +594,19 @@ export default function Game() {
   // 1) 타일 선택 직후 pendingShipTechMine이면 (오버레이 R창에서 골랐을 때만) R창 자동 닫기
   // 2) 광산 건설 완료 후 pendingShipTechTrackAdvance이면 (오버레이 R창에서 골랐을 때만) R창 자동 열기
   // 3) 트랙까지 올리고 pending이 모두 사라지면 플래그 리셋
+  /** R창에서 선택해야 하는 보류 항목(타일/트랙/덮기)이 내 것으로 남아있는지 */
+  const hasPendingResearchSelection = !!(game && playerId && (
+    game.pendingTechTileSelection?.playerId === playerId ||
+    game.pendingShipTechTrackAdvance?.playerId === playerId ||
+    game.pendingAdvancedTechTrackAdvance?.playerId === playerId ||
+    game.pendingAdvancedTechCover?.playerId === playerId
+  ));
+  /** 선택 대기 중에 사용자가 X로 닫으면 자동 재오픈을 멈추고 '다시 열기' 버튼만 표시 */
+  const [researchAutoOpenSuppressed, setResearchAutoOpenSuppressed] = useState(false);
+  useEffect(() => {
+    if (researchAutoOpenSuppressed && !hasPendingResearchSelection) setResearchAutoOpenSuppressed(false);
+  }, [researchAutoOpenSuppressed, hasPendingResearchSelection]);
+
   useEffect(() => {
     if (!game || !playerId) return;
     const minePending = game.pendingShipTechMine?.playerId === playerId;
@@ -600,8 +617,8 @@ export default function Game() {
       if (isResearchOpen) setIsResearchOpen(false);
     }
 
-    if (trackPending && !shipTech2TfMineFromMini) {
-      // 2단계: 트랙 올리도록 R 오버레이 자동 오픈
+    if (trackPending && !shipTech2TfMineFromMini && !researchAutoOpenSuppressed) {
+      // 2단계: 트랙 올리도록 R 오버레이 자동 오픈 (사용자가 닫았으면 다시 안 엶)
       if (!isResearchOpen) setIsResearchOpen(true);
     }
 
@@ -615,6 +632,7 @@ export default function Game() {
     playerId,
     isResearchOpen,
     shipTech2TfMineFromMini,
+    researchAutoOpenSuppressed,
   ]);
 
   // 방장일 경우 현재 턴 플레이어(봇)로 자동 전환하는 기능이 있었으나,
@@ -704,10 +722,11 @@ export default function Game() {
   useEffect(() => {
     if (!game || !playerId) return;
     if (game.botPlayerIds?.includes(playerId)) return; // 봇의 턴을 관전 중일 때는 자동 오픈 방지
+    if (researchAutoOpenSuppressed) return; // 사용자가 X로 닫고 맵을 보는 중이면 자동 재오픈 안 함
     if (game.pendingTechTileSelection?.playerId === playerId) {
       setIsResearchOpen(true);
     }
-  }, [game?.pendingTechTileSelection?.playerId, playerId, game?.botPlayerIds]);
+  }, [game?.pendingTechTileSelection?.playerId, playerId, game?.botPlayerIds, researchAutoOpenSuppressed]);
 
   // 테란 의회 다이얼로그가 열릴 때 선택 초기화
   useEffect(() => {
@@ -997,6 +1016,82 @@ export default function Game() {
       }
     }
     proceedShipAction(shipTileId, actionIndex, targetTileId, options);
+  };
+
+  /** 프리액션 모드: 내 상태창 자원/파워 클릭 → 즉시 변환. 네뷸라 의회는 O 연속 클릭(3P→2O)·O 후 C(2P→1O+1C) 체인 지원 */
+  const handleFreeActionClick = (kind: 'ore' | 'knowledge' | 'qic' | 'credit' | 'bowl1' | 'bowl2' | 'bowl3' | 'baltak-gf') => {
+    if (!gameId || !currentPlayer) return;
+    const p = currentPlayer;
+    const isTak = p.faction === 'taklons';
+    const hasNevPI = p.faction === 'nevlas' && (game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') ?? false);
+    // 직전 O 클릭 체인 검증 (그 사이 다른 경로로 자원이 바뀌었으면 무효)
+    const chain = nevlasOreChainRef.current;
+    const chainValid = !!chain && hasNevPI && (p.power3 ?? 0) === chain.expectP3 && (p.ore ?? 0) === chain.expectOre;
+    nevlasOreChainRef.current = null;
+
+    const needPower = (cost: number) => {
+      const ok = isTak ? canSpendTaklonsPower(p, 3, cost) : hasNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
+      if (!ok) toast({ title: '파워 부족', description: '3그릇 파워가 부족합니다.', variant: 'destructive' });
+      return ok;
+    };
+
+    switch (kind) {
+      case 'ore':
+        if (chainValid) {
+          // 의회 네뷸라: 직전 2P→1O를 3P→2O로 승격 (토큰 1개만 추가 소모)
+          if ((p.power3 ?? 0) < 1) { toast({ title: '파워 부족', description: '3그릇 파워가 부족합니다.', variant: 'destructive' }); return; }
+          GameClient.undoFreeAction(gameId, 1);
+          GameClient.convertResource(gameId, '3power-to-2ore');
+          return;
+        }
+        if (!needPower(3)) return;
+        GameClient.convertResource(gameId, '3power-to-1ore');
+        if (hasNevPI) nevlasOreChainRef.current = { expectP3: (p.power3 ?? 0) - 2, expectOre: (p.ore ?? 0) + 1 };
+        return;
+      case 'credit':
+        if (chainValid) {
+          // 의회 네뷸라: 직전 2P→1O를 2P→1O+1C로 승격 (추가 소모 없음)
+          GameClient.undoFreeAction(gameId, 1);
+          GameClient.convertResource(gameId, '2power-to-1ore-1credit');
+          return;
+        }
+        if (!needPower(1)) return;
+        GameClient.convertResource(gameId, '1power-to-1credit');
+        return;
+      case 'knowledge':
+        if (!needPower(4)) return;
+        GameClient.convertResource(gameId, '4power-to-1knowledge');
+        return;
+      case 'qic':
+        if (p.faction === 'gleens' && !(game.map?.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right'))) {
+          toast({ title: '사용 불가', description: '글린은 오른쪽 아카데미가 있어야 QIC 변환이 가능합니다.', variant: 'destructive' });
+          return;
+        }
+        if (!needPower(4)) return;
+        GameClient.convertResource(gameId, '4power-to-1qic');
+        return;
+      case 'bowl1':
+        if ((p.ore ?? 0) < 1) { toast({ title: '광물 부족', description: '광물이 1개 필요합니다.', variant: 'destructive' }); return; }
+        GameClient.convertResource(gameId, '1ore-to-1token');
+        return;
+      case 'bowl2': {
+        const brainIn2 = isTak && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia;
+        if ((p.power2 ?? 0) < (brainIn2 ? 1 : 2)) { toast({ title: '파워 부족', description: '2그릇에 태울 파워가 부족합니다.', variant: 'destructive' }); return; }
+        GameClient.burnPower(gameId);
+        return;
+      }
+      case 'bowl3':
+        // 제노스: 1O → 토큰이 3그릇으로 (서버 1ore-to-1token 규칙)
+        if ((p.ore ?? 0) < 1) { toast({ title: '광물 부족', description: '광물이 1개 필요합니다.', variant: 'destructive' }); return; }
+        GameClient.convertResource(gameId, '1ore-to-1token');
+        return;
+      case 'baltak-gf': {
+        const avail = (p.gaiaformers ?? 0) - ((p as any).balTakGaiaformersUsedForQic ?? 0);
+        if (p.faction !== 'bal_tak' || avail < 1) { toast({ title: '사용 불가', description: '사용 가능한 가이아포머가 없습니다.', variant: 'destructive' }); return; }
+        GameClient.useBalTakGaiaformerToQic(gameId);
+        return;
+      }
+    }
   };
 
   /** R창·미니 R·맵에서 트랙 클릭 시: Eclipse 2K+3P / 우주선·고급기술 보상 / 일반 4K 연구 구분 */
@@ -2543,7 +2638,7 @@ export default function Game() {
                 <BonusTiles
                   game={game}
                   playerId={playerId}
-                  onSelectBonusTile={isMyTurn ? ((tileId) => {
+                  onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : isMyTurn ? ((tileId) => {
                     if (game.roundNumber === 6) {
                       setConfirmPassWithTileId('dummy');
                     } else {
@@ -2567,6 +2662,19 @@ export default function Game() {
           </div>
         )}
 
+        {/* 선택 대기 중 R창을 닫고 맵을 보는 동안: 다시 열기 플로팅 버튼 */}
+        {!isResearchOpen && researchAutoOpenSuppressed && hasPendingResearchSelection && (
+          <button
+            type="button"
+            onClick={() => { setResearchAutoOpenSuppressed(false); setIsResearchOpen(true); }}
+            className="fixed top-36 left-1/2 -translate-x-1/2 z-[130] flex items-center gap-2 px-4 py-2 rounded-full bg-blue-900/90 backdrop-blur border border-blue-400/60 text-blue-100 text-xs font-black uppercase tracking-wider shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-800 transition-colors"
+          >
+            <FlaskConical className="w-4 h-4" />
+            Research 창 다시 열기
+            <span className="text-[9px] font-bold text-blue-300/90 normal-case">(타일/트랙 선택 대기 중)</span>
+          </button>
+        )}
+
         {/* Research Board Overlay */}
         {isResearchOpen && (
           <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
@@ -2580,7 +2688,11 @@ export default function Game() {
                   variant="ghost"
                   size="sm"
                   className="rounded-full w-10 h-10 hover:bg-white/10 text-white"
-                  onClick={() => setIsResearchOpen(false)}
+                  onClick={() => {
+                    // 타일/트랙 선택 대기 중에 닫으면: 자동 재오픈 멈추고 '다시 열기' 버튼으로 맵을 볼 수 있게
+                    if (hasPendingResearchSelection) setResearchAutoOpenSuppressed(true);
+                    setIsResearchOpen(false);
+                  }}
                 >
                   ✕
                 </Button>
@@ -2595,7 +2707,7 @@ export default function Game() {
                     GameClient.useHadschHallasPIAction(gameId!, actionId);
                   }}
                   onUseBalTakGaiaformerToQic={() => {
-                    if (game.hasDoneMainAction) return;
+                    // 프리액션: 메인 액션 후에도 사용 가능
                     GameClient.useBalTakGaiaformerToQic(gameId!);
                   }}
                   onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
@@ -3980,7 +4092,7 @@ export default function Game() {
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
                             {/* Score / Name / Bid Row */}
                             <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
-                              <span className="w-6 md:w-8 text-right text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
+                              <span className="w-5 md:w-7 text-left text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
                                 {p.score}
                               </span>
 
@@ -4003,6 +4115,25 @@ export default function Game() {
                               </div>
 
                               <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                                {isYou && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation(); e.preventDefault();
+                                      nevlasOreChainRef.current = null;
+                                      // Off로 전환 시: Undo All과 동일하게 이번 턴 프리액션 전부 되돌림
+                                      if (freeActionMode && gameId) {
+                                        const undoCount = game.freeActionUndoStack?.length ?? ((game as any).freeActionUndoState ? 1 : 0);
+                                        if (undoCount > 0) GameClient.undoFreeAction(gameId, undoCount);
+                                      }
+                                      setFreeActionMode(v => !v);
+                                    }}
+                                    className={`text-[9px] font-black uppercase tracking-tight rounded border px-1.5 py-0.5 leading-none transition-colors ${freeActionMode ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-zinc-800/80 border-zinc-600/60 text-zinc-400 hover:text-zinc-200'}`}
+                                    title="프리액션 모드: 켜면 자원(O/K/Q/C)·파워(1·2그릇) 숫자 클릭으로 즉시 변환. 끄면 이번에 한 프리액션을 모두 되돌립니다 (Undo All)"
+                                  >
+                                    FA {freeActionMode ? 'ON' : 'OFF'}
+                                  </button>
+                                )}
                                 {(p.factionBidVp ?? 0) > 0 && (
                                   <span
                                     className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-none text-rose-300 font-semibold tabular-nums"
@@ -4028,53 +4159,86 @@ export default function Game() {
 
                             {/* Resources & Power / Gaiaformers */}
                             <div className="flex flex-row gap-2 mt-1 border-t border-white/10 pt-1.5">
-                              {/* Left: 2x2 Resource Grid (O C / K Q) */}
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-1/2 tabular-nums">
+                              {/* Left: 2x2 Resource Grid (O C / K Q) — 프리액션 모드 시 가능한 변환만 클릭 박스 표시 */}
+                              {(() => {
+                                const faActive = isYou && freeActionMode;
+                                const faIsTak = p.faction === 'taklons';
+                                const faNevPI = p.faction === 'nevlas' && (game.map?.some(t => t.ownerId === id && t.structure === 'planetary_institute') ?? false);
+                                const faCanPow = (cost: number) =>
+                                  faIsTak ? canSpendTaklonsPower(p as any, 3, cost) : faNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
+                                const faCan: Record<'ore' | 'knowledge' | 'qic' | 'credit', boolean> = {
+                                  ore: faCanPow(3),
+                                  credit: faCanPow(1),
+                                  knowledge: faCanPow(4),
+                                  qic: faCanPow(4) && !(p.faction === 'gleens' && !game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')),
+                                };
+                                // w-fit: 그리드 칸 폭과 무관하게 내용물(라벨+숫자+수입)에 정확히 맞는 박스
+                                const faCellCls = (kind: 'ore' | 'knowledge' | 'qic' | 'credit') =>
+                                  faActive && faCan[kind] ? ' w-fit cursor-pointer rounded ring-1 ring-emerald-400/40 hover:bg-emerald-500/15 px-0.5 -mx-0.5 transition-colors' : '';
+                                const faClick = (kind: 'ore' | 'knowledge' | 'qic' | 'credit') =>
+                                  faActive && faCan[kind] ? (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick(kind); } : undefined;
+                                const faTitle = (kind: 'ore' | 'knowledge' | 'qic' | 'credit', text: string) =>
+                                  faActive && faCan[kind] ? text : undefined;
+                                return (
+                              <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-1/2 tabular-nums">
                                 {/* O: Ore */}
-                                <div className="flex items-baseline justify-start">
+                                <div className={`flex items-center justify-start${faCellCls('ore')}`} onClick={faClick('ore')} title={faTitle('ore', '프리액션: 3P → 1O (네뷸라 의회: 한번 더 누르면 3P→2O)')}>
                                   <span className="text-zinc-300 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">O</span>
-                                  <span style={{ color: '#f5f5f0' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.ore ?? 0}</span>
-                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
-                                    {inc.ore > 0 ? `(+${inc.ore})` : ''}
-                                  </span>
+                                  <span style={{ color: '#f5f5f0' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.ore ?? 0}</span>
+                                  {inc.ore > 0 && (
+                                    <span className="text-[10px] md:text-xs text-zinc-400 font-medium ml-0.5 shrink-0 leading-none">(+{inc.ore})</span>
+                                  )}
                                 </div>
                                 {/* C: Credits */}
-                                <div className="flex items-baseline justify-start">
+                                <div className={`flex items-center justify-start${faCellCls('credit')}`} onClick={faClick('credit')} title={faTitle('credit', '프리액션: 1P → 1C (네뷸라 의회: O 직후 누르면 2P→1O+1C)')}>
                                   <span className="text-yellow-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">C</span>
-                                  <span style={{ color: '#FFE74C' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.credits ?? 0}</span>
-                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
-                                    {inc.credits > 0 ? `(+${inc.credits})` : ''}
-                                  </span>
+                                  <span style={{ color: '#FFE74C' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.credits ?? 0}</span>
+                                  {inc.credits > 0 && (
+                                    <span className="text-[10px] md:text-xs text-zinc-400 font-medium ml-0.5 shrink-0 leading-none">(+{inc.credits})</span>
+                                  )}
                                 </div>
                                 {/* K: Knowledge */}
-                                <div className="flex items-baseline justify-start">
+                                <div className={`flex items-center justify-start${faCellCls('knowledge')}`} onClick={faClick('knowledge')} title={faTitle('knowledge', '프리액션: 4P → 1K')}>
                                   <span className="text-blue-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">K</span>
-                                  <span style={{ color: '#2E5EAA' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.knowledge ?? 0}</span>
-                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
-                                    {inc.knowledge > 0 ? `(+${inc.knowledge})` : ''}
-                                  </span>
+                                  <span style={{ color: '#2E5EAA' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.knowledge ?? 0}</span>
+                                  {inc.knowledge > 0 && (
+                                    <span className="text-[10px] md:text-xs text-zinc-400 font-medium ml-0.5 shrink-0 leading-none">(+{inc.knowledge})</span>
+                                  )}
                                 </div>
                                 {/* Q: QIC */}
-                                <div className="flex items-baseline justify-start">
+                                <div className={`flex items-center justify-start${faCellCls('qic')}`} onClick={faClick('qic')} title={faTitle('qic', '프리액션: 4P → 1Q')}>
                                   <span className="text-green-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">Q</span>
-                                  <span style={{ color: '#38B000' }} className="font-black text-sm md:text-base w-4 md:w-5 text-left ml-0.5 shrink-0">{p.qic ?? 0}</span>
-                                  <span className="text-[10px] md:text-xs text-zinc-400 font-medium w-7 md:w-9 text-left shrink-0">
-                                    {inc.qic > 0 ? `(+${inc.qic})` : ''}
-                                  </span>
+                                  <span style={{ color: '#38B000' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.qic ?? 0}</span>
+                                  {inc.qic > 0 && (
+                                    <span className="text-[10px] md:text-xs text-zinc-400 font-medium ml-0.5 shrink-0 leading-none">(+{inc.qic})</span>
+                                  )}
                                 </div>
                               </div>
+                                );
+                              })()}
 
                               {/* Right: Gaiaformer & Power */}
                               <div className="flex flex-col gap-1 w-1/2 justify-center pl-2 border-l border-white/10">
                                 {/* Gaiaformers Row & Power Income */}
                                 <div className="flex justify-between items-center w-full min-h-[14px]" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
-                                  <div className="flex gap-1.5 items-center">
+                                  {(() => {
+                                    // 발타크: 프리액션 모드에서 사용 가능한(잠기지 않은) 포머 클릭 → 1포머 → 1QIC
+                                    const balTakAvail = (p.gaiaformers ?? 0) - ((p as any).balTakGaiaformersUsedForQic ?? 0);
+                                    const canBalTakGf = isYou && freeActionMode && p.faction === 'bal_tak' && balTakAvail >= 1;
+                                    return (
+                                  <div
+                                    className={`flex gap-1.5 items-center${canBalTakGf ? ' cursor-pointer rounded ring-1 ring-emerald-400/40 hover:bg-emerald-500/15 px-0.5 -mx-0.5 transition-colors' : ''}`}
+                                    onClick={canBalTakGf ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('baltak-gf'); } : undefined}
+                                    title={canBalTakGf ? '프리액션: 가이아포머 1개 → 1QIC (다음 라운드까지 잠김)' : undefined}
+                                  >
                                     {(() => {
                                       const gpLevel = p.research?.gaiaProject ?? 0;
                                       const totalGF = gpLevel >= 4 ? 3 : gpLevel >= 3 ? 2 : gpLevel >= 1 ? 1 : 0;
-                                      const availableGF = p.gaiaformers ?? 0;
+                                      // 발타크: QIC로 보낸 포머는 다음 라운드까지 잠김 → 가이아 보낸 것과 같은 UI(보라 점)로 표시
+                                      const lockedGF = p.faction === 'bal_tak' ? ((p as any).balTakGaiaformersUsedForQic ?? 0) : 0;
+                                      const availableGF = Math.max(0, (p.gaiaformers ?? 0) - lockedGF);
                                       const destroyedGF = p.destroyedGaiaformers ?? 0;
-                                      const onMapGF = Math.max(0, totalGF - availableGF - destroyedGF);
+                                      const onMapGF = Math.max(0, totalGF - availableGF - lockedGF - destroyedGF);
 
                                       if (totalGF === 0) return <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter leading-none">No GF</span>;
 
@@ -4087,14 +4251,16 @@ export default function Game() {
                                       for (let i = 0; i < availableGF; i++) {
                                         dots.push(<div key={`a-${i}`} className="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-[0_0_5px_rgba(45,212,191,0.5)] transition-colors" />);
                                       }
-                                      // 3. On Map (Purple)
-                                      for (let i = 0; i < onMapGF; i++) {
+                                      // 3. Locked (발타크 QIC 사용분) + On Map (Purple)
+                                      for (let i = 0; i < lockedGF + onMapGF; i++) {
                                         dots.push(<div key={`m-${i}`} className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_3px_rgba(168,85,247,0.4)] transition-colors" />);
                                       }
 
                                       return dots.slice(0, totalGF);
                                     })()}
                                   </div>
+                                    );
+                                  })()}
 
                                   <div className="flex items-center gap-1 shrink-0">
                                     {inc.powerTokens > 0 && (
@@ -4123,24 +4289,48 @@ export default function Game() {
                                     </span>
                                     <div className="w-[1px] h-4 bg-white/20 shrink-0" />
                                     <div className="flex gap-2.5 items-center justify-between w-full">
-                                      <span className="flex items-center gap-0.5">
+                                      {(() => {
+                                        const faBoxCls = ' cursor-pointer rounded ring-1 ring-emerald-400/40 hover:bg-emerald-500/15 px-0.5 -mx-0.5 transition-colors';
+                                        const brainIn2 = p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia;
+                                        // 제노스는 1O→토큰이 3그릇으로 가므로 1그릇 대신 3그릇에 클릭 박스
+                                        const canBowl1 = isYou && freeActionMode && p.faction !== 'xenos' && (p.ore ?? 0) >= 1;
+                                        const canBowl2 = isYou && freeActionMode && (p.power2 ?? 0) >= (brainIn2 ? 1 : 2);
+                                        const canBowl3 = isYou && freeActionMode && p.faction === 'xenos' && (p.ore ?? 0) >= 1;
+                                        return (
+                                          <>
+                                      <span
+                                        className={`flex items-center gap-0.5${canBowl1 ? faBoxCls : ''}`}
+                                        onClick={canBowl1 ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('bowl1'); } : undefined}
+                                        title={canBowl1 ? '프리액션: 1O → 토큰 1개 (1그릇)' : undefined}
+                                      >
                                         <span className="text-blue-400 font-black text-sm md:text-base leading-none">{p.power1 ?? 0}</span>
                                         {p.faction === 'taklons' && (p as any).brainStoneBowl === 1 && !(p as any).brainStoneInGaia && (
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
-                                      <span className="flex items-center gap-0.5">
+                                      <span
+                                        className={`flex items-center gap-0.5${canBowl2 ? faBoxCls : ''}`}
+                                        onClick={canBowl2 ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('bowl2'); } : undefined}
+                                        title={canBowl2 ? '프리액션: 태우기 (2그릇 1개 소모 + 1개 3그릇 이동)' : undefined}
+                                      >
                                         <span className="text-cyan-400 font-black text-sm md:text-base leading-none">{p.power2 ?? 0}</span>
                                         {p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia && (
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
-                                      <span className="flex items-center gap-0.5">
+                                      <span
+                                        className={`flex items-center gap-0.5${canBowl3 ? faBoxCls : ''}`}
+                                        onClick={canBowl3 ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('bowl3'); } : undefined}
+                                        title={canBowl3 ? '프리액션: 1O → 토큰 1개 (제노스: 3그릇으로)' : undefined}
+                                      >
                                         <span className="text-amber-400 font-black text-sm md:text-base leading-none">{p.power3 ?? 0}</span>
                                         {p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia && (
                                           <span className="text-[10px] leading-none">🧠</span>
                                         )}
                                       </span>
+                                          </>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 </div>
@@ -4153,12 +4343,23 @@ export default function Game() {
                             {p.bonusTile && (() => {
                               const bonusIndex = ALL_BONUS_TILES.findIndex(t => t.id === p.bonusTile);
                               if (bonusIndex === -1) return null;
+                              const tile = ALL_BONUS_TILES[bonusIndex];
+                              const bonusUsed = !!p.usedBonusAction;
+                              // 내 턴, 메인 액션 전, 스페셜 액션이 있는 보너스 타일이면 클릭으로 바로 액션 실행 (상태창 안 열고)
+                              const canUseBonus = isYou && isCurrentTurn && !game.hasDoneMainAction && !!tile.specialAction && !bonusUsed;
+                              const actionNames: Record<string, string> = { terraform_step: '1테라', gaia_project: '가이아', range_3: '+3거리' };
                               return (
                                 <img
                                   src={`/image/BoostTile_${bonusIndex + 1}.jpg`}
-                                  alt={ALL_BONUS_TILES[bonusIndex].label}
-                                  className="w-10 h-auto object-contain drop-shadow-[0_0_3px_rgba(251,191,36,0.5)] rounded"
-                                  title={`현재 패스 타일: ${ALL_BONUS_TILES[bonusIndex].label}`}
+                                  alt={tile.label}
+                                  onClick={canUseBonus ? (e) => {
+                                    e.stopPropagation(); e.preventDefault();
+                                    if (!gameId) return;
+                                    if (tile.specialAction === 'terraform_step') setIsResearchOpen(false);
+                                    GameClient.useBonusAction(gameId);
+                                  } : undefined}
+                                  className={`w-10 h-auto object-contain rounded ${bonusUsed ? 'grayscale opacity-50 brightness-75' : 'drop-shadow-[0_0_3px_rgba(251,191,36,0.5)]'} ${canUseBonus ? 'cursor-pointer ring-1 ring-emerald-400/50 hover:ring-emerald-300 hover:scale-105 transition-all' : ''}`}
+                                  title={canUseBonus ? `보너스 타일 액션 실행: ${actionNames[tile.specialAction!] ?? tile.specialAction}` : `현재 패스 타일: ${tile.label}${bonusUsed ? ' (액션 사용됨)' : ''}`}
                                 />
                               );
                             })()}
@@ -4740,7 +4941,7 @@ export default function Game() {
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: -50, x: '-50%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-20 z-[70] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+            className="fixed top-20 z-[130] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
             style={{
               left: isSidebarOpen ? `calc((100% - ${sidebarWidth}px) / 2)` : '50%',
             }}
@@ -4754,43 +4955,33 @@ export default function Game() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                {pendingAction ? (
-                  <div className="flex items-center gap-3">
-                    {(cost as any)?.ore && (
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-base font-black leading-none ${(cost as any).needsExtraTerraforming ? 'text-red-500' : 'text-orange-500'}`}>{(cost as any).ore}</span>
-                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Ore</span>
-                        {(cost as any).terraformSteps && (cost as any).terraformSteps > 0 && (
-                          <span className="text-[8px] text-zinc-400">({(cost as any).terraformSteps}st)</span>
-                        )}
-                      </div>
-                    )}
-                    {(cost as any)?.credits && (cost as any).credits > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-base font-black text-yellow-500 leading-none">{(cost as any).credits}</span>
-                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Cr</span>
-                      </div>
-                    )}
-                    {(cost as any)?.gaiaformers && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-base font-black text-cyan-500 leading-none">{(cost as any).gaiaformers}</span>
-                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Gf</span>
-                      </div>
-                    )}
-                    {(cost as any)?.knowledge && (cost as any).knowledge > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-base font-black text-blue-500 leading-none">{(cost as any).knowledge}</span>
-                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Kn</span>
-                      </div>
-                    )}
-                    {(cost as any)?.qic && (cost as any).qic > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-base font-black text-green-500 leading-none">{(cost as any).qic}</span>
-                        <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">QIC</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
+                {pendingAction ? (() => {
+                  const c = cost as any;
+                  const parts: { key: string; val: number; label: string; cls: string; note?: string }[] = [];
+                  if (c?.ore > 0) parts.push({ key: 'ore', val: c.ore, label: 'Ore', cls: c.needsExtraTerraforming ? 'text-red-500' : 'text-orange-500', note: c.terraformSteps > 0 ? `${c.terraformSteps}테라` : undefined });
+                  if (c?.credits > 0) parts.push({ key: 'cr', val: c.credits, label: 'Cr', cls: 'text-yellow-500' });
+                  if (c?.gaiaformers > 0) parts.push({ key: 'gf', val: c.gaiaformers, label: 'GF', cls: 'text-cyan-400' });
+                  if (c?.knowledge > 0) parts.push({ key: 'kn', val: c.knowledge, label: 'Kn', cls: 'text-blue-400' });
+                  if (c?.qic > 0) parts.push({ key: 'qic', val: c.qic, label: 'QIC', cls: 'text-green-400' });
+                  if (parts.length === 0) {
+                    return (
+                      <span className="text-emerald-400 font-black text-sm uppercase tracking-wider">
+                        {pendingAction.type === 'buildMine' ? 'Free Mine' : '무료'}
+                      </span>
+                    );
+                  }
+                  return (
+                    <div className="flex items-center gap-3">
+                      {parts.map((part) => (
+                        <div key={part.key} className="flex items-center gap-1">
+                          <span className={`text-base font-black leading-none ${part.cls}`}>{part.val}</span>
+                          <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">{part.label}</span>
+                          {part.note && <span className="text-[8px] text-zinc-400">({part.note})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })() : (
                   <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
                     {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId ? 'Pending Mine Construction' : game.pendingSpaceshipFedMine && game.pendingSpaceshipFedMine.playerId === playerId ? 'Pending Spaceship Fed Mine' : 'Main Action Done'}
                   </span>
@@ -4993,7 +5184,7 @@ export default function Game() {
                   game={game}
                   playerId={playerId}
                   isMini={true}
-                  onSelectBonusTile={isMyTurn ? ((id) => {
+                  onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {
                     if (game.roundNumber === 6) {
                       setConfirmPassWithTileId('dummy');
                     } else {
