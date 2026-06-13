@@ -35,7 +35,8 @@ import {
     getStructureCount,
     executeBalTakGaiaformerToQic,
     getEffectiveGaiaformers,
-    executeConfirmTwilightFederation
+    executeConfirmTwilightFederation,
+    executePlaceLostPlanet
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -288,37 +289,10 @@ export class BotLogic {
             case 'place_ivits_space_station':
                 return executePlaceIvitsSpaceStation(io, game, playerId, action.params.tileId);
             case 'place_lost_planet': {
-                if (game.currentPhase !== 'main') return false;
-                if (game.pendingLostPlanet?.playerId !== playerId) return false;
-                const player = game.players[playerId];
-                const tile = game.map.find(t => t.id === action.params.tileId);
-                if (!player || !tile) return false;
-                if (tile.type !== 'space' && tile.type !== 'deep_space') return false;
-                if (tile.structure != null || tile.spaceStation) return false;
-                const satellites = game.satellites || {};
-                const raw = (satellites as any)[tile.id] as (string | string[] | undefined);
-                const onTile = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-                if (onTile.length > 0) return false;
-
-                const myPlanets = game.map.filter(t =>
-                    (t.ownerId === playerId && t.structure !== null) ||
-                    (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
-                );
-                if (myPlanets.length === 0) return false;
-
-                const baseRange = getRange(5) + (player.navigationBonus || 0);
-                const minDist = Math.min(...myPlanets.map(t => getDistance(t, tile)));
-                const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                const qicSpent = typeof action.params.qicToSpend === 'number' ? action.params.qicToSpend : 0;
-                if (qicSpent !== neededQIC || (player.qic || 0) < neededQIC) return false;
-
-                player.qic -= neededQIC;
-                tile.structure = 'lost_planet_mine';
-                tile.ownerId = playerId;
-                game.pendingLostPlanet = null;
-                game.hasDoneMainAction = true;
-                io.to(game.id).emit('game_updated', game);
-                return true;
+                // 공용 함수로 위임 (파워 제안/연방/점수 처리 일치 — 봇 인라인 경로의 파워 미지급 버그 수정)
+                const ok = executePlaceLostPlanet(io, game, playerId, action.params.tileId, action.params.qicToSpend);
+                if (ok) game.hasDoneMainAction = true;
+                return ok;
             }
             case 'use_ship_action':
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
@@ -1538,7 +1512,13 @@ export class BotLogic {
         const pendingSteps = player.pendingTerraformSteps || 0;
         const canResearch = (player.knowledge ?? 0) >= 4;
         const plannedTopTrack = canResearch ? (this.pickResearchTracks(game, player, playerId)[0] ?? null) : null;
-        const likelyNavThisTurn = plannedTopTrack === 'navigation';
+        // [flag: navBeforeJump] 기존엔 nav가 '1순위 트랙'일 때만 QIC점프 광산을 억제했음. 그래서 봇이 곧 nav를
+        // 올릴 거면서도 nav가 1순위가 아니면 먼저 QIC로 점프해 광산을 흩뿌림(QIC 낭비 + 클러스터 분산).
+        // → "이번 턴 nav를 올릴 수 있으면(지식≥4, nav<5)" 억제 대상으로 넓힘. willNavResearchSaveQIC가
+        //   'nav 올리면 이 타일 QIC가 실제로 줄어드나'를 검사하므로, 어차피 점프가 필요한 먼 타일은 그대로 허용.
+        const likelyNavThisTurn = getPlayerFlag(playerId, 'navBeforeJump', false)
+            ? (canResearch && (player.research.navigation ?? 0) < 5)
+            : (plannedTopTrack === 'navigation');
 
         // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
         const rangeBonusValue = range >= 2 ? 30 : 0;

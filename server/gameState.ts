@@ -523,6 +523,12 @@ export function getEffectiveGaiaformers(player: PlayerState): number {
 	return Math.max(0, total - locked);
 }
 
+/** 거리 보너스(+3거리/글린 +2항해)가 활성화되어 아직 거리 액션에 쓰이지 않은 상태인지 */
+export function hasActiveRangeBonus(player: PlayerState | undefined | null): boolean {
+	return !!(player && (player.tempRangeBonus || player.rangeBonusActive || player.gleensNavBonusActive));
+}
+const RANGE_BONUS_BLOCK_MSG = '거리 보너스 액션 사용 중입니다. 광산 건설 · 가이아포머 배치 · 소행성 광산 · 우주선 입장만 가능합니다.';
+
 /** 플레이어 건물 개수 (맵만, 기생/가상 제외). 아카데미는 academyType 별도. */
 export function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
 	if (structure === 'mine') {
@@ -1258,7 +1264,7 @@ export function applyFinalMissionScoring(game: GaiaGameState) {
 				const p = game.players[playerId];
 				if (p) {
 					addScore(game, playerId, pointsEach, 'finalMissions', { missionId });
-					addGameLog(game, playerId, 'Final Mission', `+${pointsEach} VP (${missionId})`);
+					addGameLog(game, playerId, 'Final Mission', `+${pointsEach} VP`, missionId);
 				}
 			}
 		}
@@ -1287,7 +1293,14 @@ export function applyAdvancedTechTileEffect(game: GaiaGameState, playerId: strin
 		const lastLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
 		if (lastLog && lastLog.playerId === playerId && !reason.includes('Tech Tile Bonus')) {
 			if (lastLog.details) {
-				lastLog.details += ` (+${vp}VP ${reason})`;
+				// 같은 사유의 VP 세그먼트가 이미 있으면 합산 (예: 테라포밍 3단계 → +2VP가 3번 붙는 대신 +6VP 한 번)
+				const re = new RegExp(`\\(\\+(\\d+)VP ${reason.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`);
+				const m = lastLog.details.match(re);
+				if (m) {
+					lastLog.details = lastLog.details.replace(re, `(+${parseInt(m[1], 10) + vp}VP ${reason})`);
+				} else {
+					lastLog.details += ` (+${vp}VP ${reason})`;
+				}
 			} else {
 				lastLog.details = `+${vp}VP (${reason})`;
 			}
@@ -1323,42 +1336,41 @@ export function applyAdvancedTechTileEffect(game: GaiaGameState, playerId: strin
 	}
 }
 
-export function applyAdvancedTechTilePassEffect(game: GaiaGameState, playerId: string) {
+export function applyAdvancedTechTilePassEffect(game: GaiaGameState, playerId: string, options?: { suppressLog?: boolean }): Array<{ tileId: string; vp: number }> {
 	const player = game.players[playerId];
-	if (!player || !player.techTiles) return;
+	const results: Array<{ tileId: string; vp: number }> = [];
+	if (!player || !player.techTiles) return results;
+	const suppressLog = options?.suppressLog ?? false;
+
+	const apply = (tileId: string, vp: number, reason: string) => {
+		addScore(game, playerId, vp, 'techTiles', { tileId });
+		if (!suppressLog) addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (${reason})`);
+		results.push({ tileId, vp });
+	};
 
 	for (const tileId of player.techTiles) {
 		if (tileId === 'adv-pass-1vp-type') {
 			const planetTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.type !== 'space').map(t => t.type));
-			const vp = planetTypes.size;
-			addScore(game, playerId, vp, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (1 per planet type)`);
+			apply(tileId, planetTypes.size, '1 per planet type');
 		}
 		else if (tileId === 'adv-pass-3vp-lab') {
 			const labCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length;
-			const vp = labCount * 3;
-			addScore(game, playerId, vp, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (3 per lab)`);
+			apply(tileId, labCount * 3, '3 per lab');
 		}
 		else if (tileId === 'adv-pass-3vp-fed') {
 			const fedCount = getFederationEntries(player).length;
-			const vp = fedCount * 3;
-			addScore(game, playerId, vp, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (3 per federation)`);
+			apply(tileId, fedCount * 3, '3 per federation');
 		}
 		else if (tileId === 'adv-pass-2vp-asteroid') {
 			const asteroidCount = game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length;
-			const vp = asteroidCount * 2;
-			addScore(game, playerId, vp, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (2 per asteroid)`);
+			apply(tileId, asteroidCount * 2, '2 per asteroid');
 		}
 		else if (tileId === 'adv-pass-2vp-outer') {
 			const outerCount = countOuterSectorsOccupied(game, playerId);
-			const vp = outerCount * 2;
-			addScore(game, playerId, vp, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Pass Bonus', `+${vp} VP (2 per outer sector)`);
+			apply(tileId, outerCount * 2, '2 per outer sector');
 		}
 	}
+	return results;
 }
 
 // 트랙 레벨 상승 시 즉시 보너스를 주는 공통 함수 (playerId는 grantQic용)
@@ -1460,7 +1472,8 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 				const playerStructures = game.map.filter(t => t.ownerId === playerId);
 				const gaiaPlanets = playerStructures.filter(t => t.type === 'gaia').length;
 				const vpGain = 4 + gaiaPlanets;
-				addScore(game, playerId, vpGain, 'other', { source: 'Gaia Project track reward' });
+				addScore(game, playerId, vpGain, 'other', { source: 'Gaia Project track reward', noLog: true });
+				addGameLog(game, playerId, 'Gaia Project Track Reward', `+${vpGain} VP`);
 				log(`Player ${player.name} gained ${vpGain} VP from Gaia Project level 5 (4 base + ${gaiaPlanets} Gaia planets)`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 		}
@@ -1659,7 +1672,8 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					gainedPowerCharge += ei.power;
 				}
 				if (ei.vp) {
-					addScore(game, pId, ei.vp, 'other', { source: 'Economy track reward' });
+					addScore(game, pId, ei.vp, 'other', { source: 'Economy track reward', noLog: true });
+					addGameLog(game, pId, 'Economy Track Reward', `+${ei.vp} VP`);
 					log(`Player ${player.name} gained ${ei.vp} VP from Economy level ${econLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 			}
@@ -2865,6 +2879,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			saveActionStartState(game, playerId);
 			const player = game.players[playerId];
 			// Nevlas 의회: 3그릇(area III) 토큰 1개 = 파워 2 → 우주선 액션 파워 코스트의 실제 토큰 소모를 절반(올림)으로.
@@ -2889,7 +2904,6 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingTwilightFederation = { playerId, shipTileId };
-					addGameLog(game, playerId, 'Twilight: Federation benefit', '3 QIC (choose reward)', shipTileId);
 					game.hasDoneMainAction = true; // 우주선 액션 = 파워액션과 동일, 한 턴에 하나
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -2998,12 +3012,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (player.qic < 2) return;
 					player.qic -= 2;
 					const count = player.techTiles?.length ?? 0;
-					addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex });
+					addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex, noLog: true });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `(${count}+2) VP`, shipTileId);
+					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -3049,12 +3063,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 					player.qic -= 2;
 					const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
 					const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
-					addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex });
+					addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex, noLog: true });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `(${types.size}+2) VP`, shipTileId);
+					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -3290,7 +3304,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 
 			if (normalReward) {
-				addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, pending.shipTileId);
+				addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, rewardId);
 				addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 				if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
@@ -3395,61 +3409,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// 거리 5 보상 잊혀진 행성: 빈 우주(space/deep_space, 위성 없음)에 특수 광산 1개 배치. O 없음, 광산 보너스/패스/행성유형 포함, 업그레이드 불가.
 		socket.on('place_lost_planet', ({ gameId, tileId, qicToSpend }) => {
 			const game = games.get(gameId); if (!game) return;
-			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (game.pendingLostPlanet?.playerId !== playerId) return;
-
-			const player = game.players[playerId];
-			const tile = game.map.find(t => t.id === tileId);
-			if (!tile) return;
-			if (tile.type !== 'space' && tile.type !== 'deep_space') return;
-			if (tile.structure != null || tile.spaceStation) return;
-			const satellites = game.satellites || {};
-			const onTile = Array.isArray(satellites[tileId]) ? satellites[tileId]! : (satellites[tileId] ? [satellites[tileId] as string] : []);
-			if (onTile.length > 0) return; // 위성 없는 빈공간만
-
-			const rangeTiles = getPlayerRangeTiles(game, playerId);
-			if (rangeTiles.length === 0) return;
-			const baseRange = getRange(5) + (player.navigationBonus ?? 0); // Nav 5 = 거리 4, Nav+1 타일이면 navigationBonus 1
-			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
-			const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-			const qicSpent = typeof qicToSpend === 'number' ? qicToSpend : 0;
-			if (qicSpent !== neededQIC || player.qic < neededQIC) return;
-			if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return;
-
-			// 다카니안 의회: 잊혀진 행성도 신규 섹터/외각이면 1K 2C. 건물 배치지 변경에는 미적용.
-			const hadStructureInThisSectorLP = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
-			const hadStructureInOuterLP = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
-			const isNewSectorLP = !hadStructureInThisSectorLP;
-			const isNewOuterSectorLP = OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterLP;
-			const darkaniansPiBonusLP = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (isNewSectorLP || isNewOuterSectorLP);
-
-			const geodensTypesBeforeLostPlanet = getPlayerPlanetTypesForGeodens(game, playerId);
-			const rm7QualifyLP = qualifiesForNewSectorRoundMission(game, playerId, tileId);
-			player.qic -= neededQIC;
-			tile.structure = 'lost_planet_mine';
-			tile.ownerId = playerId;
-			game.pendingLostPlanet = null;
-			if (darkaniansPiBonusLP) {
-				player.knowledge = (player.knowledge ?? 0) + 1;
-				player.credits = (player.credits ?? 0) + 2;
-				addGameLog(game, playerId, 'Darkanians PI', 'Lost planet in new sector/outer: +1K, +2C', tileId);
-			}
-			addGameLog(game, playerId, 'Lost Planet (Nav 5)', neededQIC ? `${neededQIC} QIC` : 'Placed', tileId);
-			applyRoundMissionScore(game, playerId, 'build_mine');
-			if (rm7QualifyLP) applyRoundMissionScore(game, playerId, 'new_sector');
-
-			// RM8: New Planet Type (RM8)
-			const geodensTypesAfterLostPlanet = getPlayerPlanetTypesForGeodens(game, playerId);
-			if (geodensTypesAfterLostPlanet.size > geodensTypesBeforeLostPlanet.size) {
-				applyRoundMissionScore(game, playerId, 'new_planet_type');
-			}
-
-			applyAdvancedTechTileEffect(game, playerId, 'build_mine');
-			createPowerOffers(game, tile, playerId);
-			addBuildingToFederationIfAdjacent(game, playerId, tileId);
-			applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeLostPlanet);
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executePlaceLostPlanet(io, game as ServerGameState, playerId, tileId, qicToSpend);
 		});
 
 		socket.on('upgrade_structure', ({ gameId, tileId, target }) => {
@@ -3457,6 +3418,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			executeUpgradeStructure(io, game, playerId, tileId, target);
 		});
@@ -3553,6 +3515,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			// 거리 보너스가 진행 중인데 Eclipse/우주선 트랙 보상 진행이 아니면 막음
+			if (hasActiveRangeBonus(game.players[playerId])
+				&& game.pendingEclipseResearch?.playerId !== playerId
+				&& game.pendingShipTechTrackAdvance?.playerId !== playerId
+				&& game.pendingAdvancedTechTrackAdvance?.playerId !== playerId) {
+				socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return;
+			}
 
 			executeAdvanceTech(io, game, playerId, trackId);
 		});
@@ -3561,6 +3530,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_power_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			executeUsePowerAction(io, game, playerId, actionId);
 		});
 
@@ -3842,6 +3812,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			const ok = executeUseTechAction(io, game, playerId, tileId);
 			if (!ok) {
 				socket.emit('game_error', { message: '기술 타일 액션을 사용할 수 없습니다. (내 턴/메인 액션 상태/소유 여부를 확인하세요)' });
@@ -3873,6 +3844,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_special_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			// 이미 거리 보너스가 켜져 있으면 글린 +2항해 포함 모든 스페셜 액션 차단 (중복 활성 방지)
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			executeUseSpecialAction(io, game, playerId, actionId);
 		});
 
@@ -4204,8 +4177,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 				selectedSpaceStationHexIds,
 				spentTokens: numEmpty
 			};
-			const unitLabel = isIvits ? '우주정거장' : '위성';
-			addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel}, ${power} power${isIvits ? ', QIC cost' : ''})`);
+			// 하이브(Ivits): numEmpty는 QIC로 잇는 빈칸 수(위성/우주정거장 개수가 아님) → QIC로 표기
+			const fedDetail = isIvits
+				? `Formed federation (${power} power${numEmpty > 0 ? `, ${numEmpty} QIC` : ''})`
+				: `Formed federation (${numEmpty} satellites, ${power} power)`;
+			addGameLog(game, playerId, 'Federation', fedDetail);
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
@@ -4245,12 +4221,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 				if (!shipReward) return;
 				rewardLabel = shipReward.label;
-				addGameLog(game, playerId, 'Federation', `Took reward: ${rewardLabel}`);
+				addGameLog(game, playerId, 'Federation Reward', rewardLabel, rewardId);
 			} else {
 				const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
 				if (!reward) return;
 				rewardLabel = reward.label;
-				addGameLog(game, playerId, 'Federation', `Took reward: ${rewardLabel}`);
+				addGameLog(game, playerId, 'Federation Reward', rewardLabel, rewardId);
 				addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + rewardLabel });
 				if ('ore' in reward && reward.ore) player.ore += reward.ore;
 				if ('credits' in reward && reward.credits) player.credits += reward.credits;
@@ -4663,6 +4639,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			executePassRound(io, game, playerId, newBonusTileId);
 		});
@@ -4762,7 +4739,8 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		return;
 	}
 
-	let alreadyLogged = false;
+	// 획득 로그는 마지막에 한 번만 (트랙 전진 + 즉시 효과 통합, 타일은 tileId로 이미지 표시)
+	let advanceDetail = '';
 
 	// 이미 해당 종류의 기술 타일을 가지고 있다면 획득 불가
 	if (player.techTiles.includes(techTileId)) {
@@ -4833,22 +4811,13 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				player.research[track]++;
 				const levelNow = player.research[track];
 				const tileLabel = techTile.label || techTileId;
-				if (isRebellionGainTrack) {
-					addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${tileLabel}, ${track} → Lv.${levelNow}`);
-					log(`Player ${player.name} (Rebellion) gained tech tile ${tileLabel} and advanced ${track} to level ${levelNow}`, 'game', undefined, { simulation: (game as any).simulation });
-				} else {
-					addGameLog(game, playerId, 'Gained Tech Tile', `${tileLabel} and advanced ${track} to L${levelNow}`);
-					log(`Player ${player.name} gained tech tile ${tileLabel} and advanced ${track} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
-				}
-				alreadyLogged = true;
+				advanceDetail = `${track} → Lv.${levelNow}`;
+				log(`Player ${player.name}${isRebellionGainTrack ? ' (Rebellion)' : ''} gained tech tile ${tileLabel} and advanced ${track} to level ${levelNow}`, 'game', undefined, { simulation: (game as any).simulation });
 				applyTrackLevelBonus(game, playerId, player, track, levelNow);
 				applyRoundMissionScore(game, playerId, 'research_track');
 			} else if (isLevel5Advance) {
 				const reason = level5Blocked ? 'L5 already occupied' : !canSpendLevel5Fed ? 'no green federation' : 'stayed at L4';
-				addGameLog(game, playerId, 'Gained Tech Tile', `${techTile.label || techTileId} (${track} stays L4: ${reason})`);
-				alreadyLogged = true;
-			} else if (isRebellionGainTrack) {
-				addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
+				advanceDetail = `${track} stays L4 (${reason})`;
 			}
 			if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 			(game.techTilesByTrack[track] as (typeof tiles[0] | null)[])[idx] = null;
@@ -4879,23 +4848,14 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		if (canAdvancePool && selectedTrack) {
 			player.research[selectedTrack]++;
 			const newLevel = player.research[selectedTrack];
-			if (isRebellionGain) {
-				addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', `${techTile.label || techTileId} from pool, ${selectedTrack} → Lv.${newLevel}`);
-				log(`Player ${player.name} (Rebellion) gained tech tile ${techTile.label || techTileId} from pool and advanced ${selectedTrack} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
-			} else {
-				addGameLog(game, playerId, 'Gained Tech Tile', `${techTile.label || techTileId} from pool and advanced ${selectedTrack} to L${newLevel}`);
-				log(`Player ${player.name} gained tech tile ${techTile.label || techTileId} from pool and advanced ${selectedTrack} track to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
-			}
-			alreadyLogged = true;
+			advanceDetail = `${selectedTrack} → Lv.${newLevel}`;
+			log(`Player ${player.name}${isRebellionGain ? ' (Rebellion)' : ''} gained tech tile ${techTile.label || techTileId} from pool and advanced ${selectedTrack} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			applyTrackLevelBonus(game, playerId, player, selectedTrack, newLevel);
 			applyRoundMissionScore(game, playerId, 'research_track');
 			applyAdvancedTechTileEffect(game, playerId, 'research'); // 기술 타일 획득 시 전진에 따른 고급 기술 보너스 누락 해결
 		} else if (isLevel5AdvancePool && selectedTrack) {
 			const reason = level5BlockedPool ? 'L5 already occupied' : !canSpendLevel5FedPool ? 'no green federation' : 'stayed at L4';
-			addGameLog(game, playerId, 'Gained Tech Tile', `${techTile.label || techTileId} from pool (${selectedTrack} stays L4: ${reason})`);
-			alreadyLogged = true;
-		} else if (isRebellionGain && !selectedTrack) {
-			addGameLog(game, playerId, 'Rebellion: Gained Tech Tile', techTileId);
+			advanceDetail = `${selectedTrack} stays L4 (${reason})`;
 		}
 
 		// 풀에서 해당 칸이 존재하는지 확인
@@ -4910,15 +4870,16 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		if (poolIndex !== -1) (game.techTilesPool as (typeof game.techTilesPool[0] | null)[])[poolIndex] = null;
 	}
 
-	// 즉시 효과 처리
+	// 즉시 효과 처리 (로그는 아래에서 트랙 전진과 함께 한 줄로 통합)
+	let immediateDetail = '';
 	if (techTileId === 'tech-imm-7vp') {
 		addScore(game, playerId, 7, 'techTiles', { tileId: techTileId });
-		addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-7vp: +7 VP');
+		immediateDetail = '+7 VP';
 		log(`Player ${player.name} gained 7 VP from tech tile`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1o-1q') {
 		player.ore = (player.ore || 0) + 1;
 		grantQic(game, playerId, 1);
-		addGameLog(game, playerId, 'Gained Tech Tile', 'tech-imm-1o-1q: +1 Ore, +1 QIC');
+		immediateDetail = '+1 Ore, +1 QIC';
 		log(`Player ${player.name} gained 1 Ore and 1 QIC from tech tile (Ore: ${player.ore}, QIC: ${player.qic})`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1k-planet') {
 		const playerStructures = game.map.filter(t => t.ownerId === playerId);
@@ -4928,10 +4889,14 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				.map(t => t.type)
 		);
 		player.knowledge += planetTypes.size;
-		addGameLog(game, playerId, 'Gained Tech Tile', `tech-imm-1k-planet: +${planetTypes.size} Knowledge`);
+		immediateDetail = `+${planetTypes.size} Knowledge`;
 		log(`Player ${player.name} gained ${planetTypes.size} Knowledge from tech tile (${planetTypes.size} planet types)`, 'game', undefined, { simulation: (game as any).simulation });
-	} else if (!alreadyLogged) {
-		addGameLog(game, playerId, 'Gained Tech Tile', techTile.label || techTileId);
+	}
+
+	// 통합 로그: 타일 이미지는 tileId로 표시되므로 라벨/풀 출처 문구 없이 한 줄에 전부
+	{
+		const unified = [advanceDetail, immediateDetail].filter(Boolean).join(' · ');
+		addGameLog(game, playerId, isRebellionGainTrack ? 'Rebellion: Gained Tech Tile' : 'Gained Tech Tile', unified || undefined, techTileId);
 	}
 
 	// 아이타 의회: 기술 타일 선택 후 남은 가이아포머 토큰 처리 (4개 이상이면 다시 묻기, 아니면 1그릇 복귀 후 진행)
@@ -4987,6 +4952,10 @@ export function executeSelectAdvancedTechTile(
 		}
 		game.pendingAdvancedTechCover = { playerId, advancedTileId };
 	}
+		// [hang 수정] 고급타일 선택 확정 시 표준 기술타일 선택 대기를 비워 커버 단계로 전환.
+		// 안 비우면 botHandler가 pendingTechTileSelection을 계속 감지해 무한 재선택(게임 hang).
+		game.pendingTechTileSelection = null;
+		game.availableShipTechTileIds = undefined;
 	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 	return true;
 }
@@ -5061,6 +5030,64 @@ export function executeCoverAdvancedTechTile(
 }
 
 
+
+/** Nav5 잊혀진 행성 광산 배치 (소켓·봇 공용). 일반 광산처럼 파워 제안/연방/점수 모두 처리. */
+export function executePlaceLostPlanet(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, qicToSpend?: number): boolean {
+	if (game.currentPhase !== 'main') return false;
+	if (game.pendingLostPlanet?.playerId !== playerId) return false;
+
+	const player = game.players[playerId];
+	const tile = game.map.find(t => t.id === tileId);
+	if (!player || !tile) return false;
+	if (tile.type !== 'space' && tile.type !== 'deep_space') return false;
+	if (tile.structure != null || tile.spaceStation) return false;
+	const satellites = game.satellites || {};
+	const onTile = Array.isArray(satellites[tileId]) ? satellites[tileId]! : (satellites[tileId] ? [satellites[tileId] as string] : []);
+	if (onTile.length > 0) return false;
+
+	const rangeTiles = getPlayerRangeTiles(game, playerId);
+	if (rangeTiles.length === 0) return false;
+	const baseRange = getRange(5) + (player.navigationBonus ?? 0);
+	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+	const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+	const qicSpent = typeof qicToSpend === 'number' ? qicToSpend : 0;
+	if (qicSpent !== neededQIC || player.qic < neededQIC) return false;
+	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+
+	// 다카니안 의회: 잊혀진 행성도 신규 섹터/외각이면 1K 2C.
+	const hadStructureInThisSectorLP = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
+	const hadStructureInOuterLP = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
+	const isNewSectorLP = !hadStructureInThisSectorLP;
+	const isNewOuterSectorLP = OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterLP;
+	const darkaniansPiBonusLP = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (isNewSectorLP || isNewOuterSectorLP);
+
+	const geodensTypesBeforeLostPlanet = getPlayerPlanetTypesForGeodens(game, playerId);
+	const rm7QualifyLP = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+	player.qic -= neededQIC;
+	tile.structure = 'lost_planet_mine';
+	tile.ownerId = playerId;
+	game.pendingLostPlanet = null;
+	if (darkaniansPiBonusLP) {
+		player.knowledge = (player.knowledge ?? 0) + 1;
+		player.credits = (player.credits ?? 0) + 2;
+		addGameLog(game, playerId, 'Darkanians PI', 'Lost planet in new sector/outer: +1K, +2C', tileId);
+	}
+	addGameLog(game, playerId, 'Lost Planet (Nav 5)', neededQIC ? `${neededQIC} QIC` : 'Placed', tileId);
+	applyRoundMissionScore(game, playerId, 'build_mine');
+	if (rm7QualifyLP) applyRoundMissionScore(game, playerId, 'new_sector');
+
+	const geodensTypesAfterLostPlanet = getPlayerPlanetTypesForGeodens(game, playerId);
+	if (geodensTypesAfterLostPlanet.size > geodensTypesBeforeLostPlanet.size) {
+		applyRoundMissionScore(game, playerId, 'new_planet_type');
+	}
+
+	applyAdvancedTechTileEffect(game, playerId, 'build_mine');
+	createPowerOffers(game, tile, playerId);
+	addBuildingToFederationIfAdjacent(game, playerId, tileId);
+	applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeLostPlanet);
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	return true;
+}
 
 export function executeBuildMine(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, useGaiaformer?: boolean): boolean {
 	if (!game) {
@@ -6011,8 +6038,24 @@ export function executePassRound(
 	const player = game.players[playerId];
 	if (!player) return false;
 
+	// 발타크: 패스 시 남은(잠기지 않은) 가이아포머를 자동으로 QIC로 변환.
+	// 패스 후엔 이번 라운드에 포머를 쓸 기회가 없고, 잠긴 포머는 어차피 라운드 전환 시 복귀하므로 항상 이득.
+	if (player.faction === 'bal_tak') {
+		let converted = 0;
+		while (getEffectiveGaiaformers(player) >= 1) {
+			player.balTakGaiaformersUsedForQic = (player.balTakGaiaformersUsedForQic ?? 0) + 1;
+			grantQic(game, playerId, 1);
+			converted++;
+		}
+		if (converted > 0) {
+			addGameLog(game, playerId, "Bal T'aks: Pass auto-convert", `${converted} Gaiaformer → ${converted} QIC (패스 시 자동 변환)`);
+			log(`Player ${player.name} (Bal T'aks) auto-converted ${converted} gaiaformer(s) to QIC on pass`, 'game', undefined, { simulation: (game as any).simulation });
+		}
+	}
+
 	// 6라운드 처리
 	if (game.roundNumber === 6) {
+		let passBonusVp6 = 0;
 		if (player.bonusTile) {
 			const currentBonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
 			if (currentBonusTile?.passBonus) {
@@ -6058,14 +6101,25 @@ export function executePassRound(
 				}
 
 				const vpGained = count * currentBonusTile.passBonus.vp;
+				passBonusVp6 = vpGained;
 				addScore(game, playerId, vpGained, 'bonusTilePass', { round: 6 });
-				const logMsg = `Gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`;
-				addGameLog(game, playerId, 'Pass (Round 6)', logMsg);
-				log(`Player ${player.name} ${logMsg}`, 'game', undefined, { simulation: (game as any).simulation });
+				log(`Player ${player.name} gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 		}
 
-		applyAdvancedTechTilePassEffect(game, playerId);
+		const advTiles6 = applyAdvancedTechTilePassEffect(game, playerId, { suppressLog: true });
+		// 통합 패스 로그: 보너스 타일(+패스점수) + 고급 패스 타일 이미지 (라운드6은 새 타일 없음)
+		addGameLog(game, playerId, 'Selected Bonus', undefined, undefined);
+		{
+			const lastLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
+			if (lastLog && lastLog.action === 'Selected Bonus') {
+				lastLog.passInfo = {
+					returnedTileId: player.bonusTile ?? undefined,
+					bonusVp: passBonusVp6 > 0 ? passBonusVp6 : undefined,
+					advTiles: advTiles6.length > 0 ? advTiles6 : undefined,
+				};
+			}
+		}
 
 		player.hasPassed = true;
 		if (!game.passingOrder.includes(playerId)) {
@@ -6141,7 +6195,9 @@ export function executePassRound(
 		const newTileIndex = game.availableBonusTiles.findIndex(t => t.id === newBonusTileId);
 		if (newTileIndex === -1) return false;
 
-		// Calculate pass bonus
+		// Calculate pass bonus (통합 Selected Bonus 로그용으로 모음)
+		let passBonusVpForLog = 0;
+		let passAdvTiles: Array<{ tileId: string; vp: number }> = [];
 		if (player.bonusTile) {
 			const currentBonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
 			let vpGained = 0;
@@ -6187,9 +6243,8 @@ export function executePassRound(
 						break;
 				}
 				vpGained = count * currentBonusTile.passBonus.vp;
-				const logMsg = `Gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`;
-				addGameLog(game, playerId, 'Pass Round', logMsg);
-				log(`Player ${player.name} ${logMsg}`, 'game', undefined, { simulation: (game as any).simulation });
+				passBonusVpForLog = vpGained;
+				log(`Player ${player.name} gained ${vpGained} VP from pass bonus (${count} x ${currentBonusTile.passBonus.vp} for ${currentBonusTile.passBonus.type})`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 
 			if (currentBonusTile) {
@@ -6200,7 +6255,7 @@ export function executePassRound(
 					}
 			}
 
-			applyAdvancedTechTilePassEffect(game, playerId);
+			passAdvTiles = applyAdvancedTechTilePassEffect(game, playerId, { suppressLog: true });
 
 			const oldTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
 			if (oldTile) {
@@ -6214,6 +6269,17 @@ export function executePassRound(
 		player.usedBonusAction = false;
 
 		addGameLog(game, playerId, 'Selected Bonus', `Returned ${oldBonusId}, took ${newBonusTileId}`);
+		{
+			const lastLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
+			if (lastLog && lastLog.action === 'Selected Bonus') {
+				lastLog.passInfo = {
+					returnedTileId: oldBonusId ?? undefined,
+					tookTileId: newBonusTileId,
+					bonusVp: passBonusVpForLog > 0 ? passBonusVpForLog : undefined,
+					advTiles: passAdvTiles.length > 0 ? passAdvTiles : undefined,
+				};
+			}
+		}
 		log(`Player ${player.name} returned ${oldBonusId} and took ${newBonusTileId}`, 'game', undefined, { simulation: (game as any).simulation });
 
 		player.hasPassed = true;
@@ -6417,23 +6483,23 @@ export function executeUseTechAction(
 		else chargePower(player, 4);
 		player.usedTechActions.push(tileId);
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power');
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power', tileId);
 	} else if (tileId === 'adv-act-3k') {
 		player.knowledge += 3;
 		player.usedTechActions.push(tileId);
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Knowledge');
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Knowledge', tileId);
 	} else if (tileId === 'adv-act-3o') {
 		player.ore += 3;
 		player.usedTechActions.push(tileId);
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Ore');
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 3 Ore', tileId);
 	} else if (tileId === 'adv-act-1q-5c') {
 		grantQic(game, playerId, 1);
 		player.credits += 5;
 		player.usedTechActions.push(tileId);
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Used Tech Action', 'Gained 1 QIC and 5 Credits');
+		addGameLog(game, playerId, 'Used Tech Action', 'Gained 1 QIC and 5 Credits', tileId);
 	} else {
 		return false;
 	}
@@ -6527,7 +6593,7 @@ export function executeUseSpecialAction(
 			else chargePower(player, 4);
 			player.usedTechActions.push(actionId);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power (via Special Action)');
+			addGameLog(game, playerId, 'Used Tech Action', 'Gained 4 Power (via Special Action)', actionId);
 			applied = true;
 		}
 	}
@@ -6713,7 +6779,6 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingTwilightFederation = { playerId, shipTileId };
-			addGameLog(game, playerId, 'Twilight: Federation benefit', '3 QIC (choose reward)', shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -6818,12 +6883,12 @@ export function executeUseShipAction(
 			if (player.qic < 2) return false;
 			player.qic -= 2;
 			const count = player.techTiles?.length ?? 0;
-			addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex });
+			addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex, noLog: true });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
-			addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `(${count}+2) VP`, shipTileId);
+			addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -6865,12 +6930,12 @@ export function executeUseShipAction(
 			player.qic -= 2;
 			const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
 			const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
-			addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex });
+			addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex, noLog: true });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
-			addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `(${types.size}+2) VP`, shipTileId);
+			addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -7933,7 +7998,7 @@ export function executeConfirmTwilightFederation(
 	const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 
 	if (normalReward) {
-		addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, pending.shipTileId);
+		addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, rewardId);
 		addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 		if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 		if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
