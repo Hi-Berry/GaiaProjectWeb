@@ -1881,7 +1881,11 @@ export class BotLogic {
                 if (costPerStep >= 3) {
                     // [버그 수정] 다카니안이거나 광물이 6개 이상 남아돈다면 예외 (1단계 테라포밍만 허용)
                     if (remainingSteps === 1 && (player.faction === 'darkanians' || ore >= 6)) {
-                        stepPenalty = 50; 
+                        // [사용자 관찰 2026-06-14] 강한 사람은 R1(~R2)에 3오레 1스텝 테라포밍을 절대 안 함 —
+                        // 연구(TF/Nav)·0스텝 확장·업글이 우선. 초반엔 이 예외를 강한 후순위로 눌러 그쪽이 선택되게.
+                        // (후반 R3+는 사거리 소진 후 정체 방지용 저페널티 유지 = ore-terraform 재활성화 본래 목적, 회귀 X)
+                        const earlyGuard = getPlayerFlag(playerId, 'earlyTerraformGuard', true) && round <= 2 && player.faction !== 'darkanians';
+                        stepPenalty = earlyGuard ? 260 : 50;
                     } else {
                         // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
                         stepPenalty = (terraformCost / 3) * 1000;
