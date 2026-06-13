@@ -1069,6 +1069,14 @@ export class BotLogic {
                         score -= isFirstTS ? (isDiscounted ? 0 : 20) : (isDiscounted ? 60 : 240);
                     }
 
+                    // [데이터 실패분석 2026-06-14] 봇 참사게임(y<40)은 광산 3.55 vs 좋은게임(y>90) 5.87인데
+                    // TS는 오히려 더 많음(1.29 vs 1.11) = "새 광산 확장 대신 있는 광산 업글 → 작은 엔진"이 점수 박살 #1 패턴.
+                    // 엔진이 작을 때(광산<5) 중반(R≤4)까지 비-첫-TS·비할인 업글을 억제해 새 광산 건설을 우선시킨다.
+                    // (할인 TS·첫 TS(연구소 발판)는 예외. 광산 후보 없으면 TS는 그대로 후보로 남아 정체 없음)
+                    if (getPlayerFlag(playerId, 'mineFirstExpansion', false) && !isFirstTS && !isDiscounted && mineCount < 5 && round <= 4) {
+                        score -= 120;
+                    }
+
                     // [전략 개선] 1라운드 교역소 남발 방지: 연구소/아카데미가 없는 상태에서의 단순 교역소는 감점
                     if (round === 1 && !isFirstTS) {
                         if (labCountNow === 0 && academyCount === 0) {
