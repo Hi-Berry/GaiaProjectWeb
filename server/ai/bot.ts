@@ -1318,8 +1318,9 @@ export class BotLogic {
     }
 
     private static willNavResearchSaveQIC(game: ServerGameState, playerId: string, action: BotAction): boolean {
-        const player = JSON.parse(JSON.stringify(game.players[playerId]));
-        player.research.navigation = (player.research.navigation || 0) + 1;
+        const realPlayer = game.players[playerId];
+        const curNav = realPlayer.research.navigation || 0;
+        if (curNav >= 5) return false;
         const tile = game.map.find(t => t.id === action.params.tileId);
         if (!tile) return false;
 
@@ -1327,9 +1328,17 @@ export class BotLogic {
             (t.ownerId === playerId && t.structure) ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
-        const oldRange = getRange(game.players[playerId].research.navigation || 0) + (game.players[playerId].navigationBonus || 0);
-        const newRange = getRange(player.research.navigation) + (player.navigationBonus || 0);
-        if (newRange <= oldRange) return false; // 레벨업으로 거리가 안 늘어나는 구간이면 무의미
+        const navBonus = realPlayer.navigationBonus || 0;
+        const oldRange = getRange(curNav) + navBonus;
+
+        // [사용자 관찰 2026-06-14] getRange는 nav 0·1 모두 range1, 2·3 모두 range2 → nav 0에서 +1(→1)은
+        // range가 안 늘어 기존 로직이 "절약 없음"으로 오판, QIC로 먼저 짓게 됨. 실제로는 nav를 2까지 올리면
+        // (range2) 무료가 됨. → '실제 range가 증가하는 다음 nav 레벨'(tier상 최대 +2)까지 보고 판단.
+        let nextNav = curNav + 1;
+        while (nextNav <= 5 && getRange(nextNav) <= getRange(curNav)) nextNav++;
+        if (nextNav > 5) return false;
+        const newRange = getRange(nextNav) + navBonus;
+        if (newRange <= oldRange) return false;
 
         const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
         const oldQic = Math.max(0, Math.ceil((dist - oldRange) / 2));
