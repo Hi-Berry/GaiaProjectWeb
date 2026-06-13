@@ -1516,7 +1516,9 @@ export class BotLogic {
         // 올릴 거면서도 nav가 1순위가 아니면 먼저 QIC로 점프해 광산을 흩뿌림(QIC 낭비 + 클러스터 분산).
         // → "이번 턴 nav를 올릴 수 있으면(지식≥4, nav<5)" 억제 대상으로 넓힘. willNavResearchSaveQIC가
         //   'nav 올리면 이 타일 QIC가 실제로 줄어드나'를 검사하므로, 어차피 점프가 필요한 먼 타일은 그대로 허용.
-        const likelyNavThisTurn = getPlayerFlag(playerId, 'navBeforeJump', false)
+        // [채택 2026-06-13] head2head 50판: 도전자 승률 64.3%(27:15, p=0.064), VP +2.27(무해) → 기본 ON 승격.
+        //   사용자 관찰("nav 올릴 거면서 QIC로 점프부터 광산 뿌림")을 직접 교정. flag로 끄면 구(舊) 동작 복원.
+        const likelyNavThisTurn = getPlayerFlag(playerId, 'navBeforeJump', true)
             ? (canResearch && (player.research.navigation ?? 0) < 5)
             : (plannedTopTrack === 'navigation');
 
