@@ -658,6 +658,10 @@ export class Evaluator {
                 else if (trigger === 'build_gaia') roundBonus += gaiaCount * mission.vp * 1.4;
                 else if (trigger === 'research_track') roundBonus += researchLevels * mission.vp * 1.3;
                 else if (trigger === 'federation') roundBonus += feds.length * mission.vp * 1.5;
+                // [라운드미션 커버리지 2026-06-15] 평가기에 누락됐던 new_planet_type/new_sector 추가
+                // (이 라운드 점수일 때 봇이 새 타입/섹터 확장을 정렬하도록).
+                else if (trigger === 'new_planet_type') roundBonus += new Set(myStructures.map(t => t.type).filter(Boolean)).size * mission.vp * 1.4;
+                else if (trigger === 'new_sector') roundBonus += new Set(myStructures.map(t => t.sector)).size * mission.vp * 1.4;
             }
         }
         if (roundBonus > 0) {
