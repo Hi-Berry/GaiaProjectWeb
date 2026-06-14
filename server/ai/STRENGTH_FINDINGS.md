@@ -209,3 +209,10 @@
 - smartPowerAccept 30판: VP +4.50(긍정) but 승률 44.4%(음), 둘 다 null. 점수↑/승리↓ 패턴 → 미채택(flag OFF). (네 실전관찰로 원하면 켤 수 있음)
 - 능동 블런더 스캔(8게임 봇 플레이): 늦은가이아포머 3게임(moweyip/ambas/itars) → gfFinalRoundGuard가 반복패턴 교정 확증. 그 외 새 isolatable 버그 없음 — 남은 건 전부 '총액션 9-13개'(조기패스/엔진정체) = systemic greedy 천장(크레딧 쟁여두기와 일치).
 - 결론: 현 로그에서 뽑을 isolatable 오플레이는 소진. 격차(58→218)는 단일버그 아닌 아키텍처. correctness 7건 채택으로 견고화 완료, 추가 도약은 아키텍처 재작성/대규모 학습(다주~데이터게이트).
+
+## 2026-06-14 모방학습 viability probe (사용자 "100게임?" 질문에 데이터 답)
+- scripts/imitationProbe.mjs: 사람 actionJournal 616 주요결정, (round/자원/연구/techTiles/feds 피처)→(주요 액션타입) kNN leave-one-game-out.
+- 결과: 정확도 21.3% vs base-rate 17.4% = **+3.9%p (약한 but 0 아닌 신호)**. value-net(null)과 대조.
+- 약한 이유: ① 616샘플 데이터기아 ② 피처에 맵 없음(어떤 액션할지는 buildable 타일 의존인데 누락).
+- **결론(데이터 가치 판정)**: value-net 경로는 데이터 더 줘도 null. **모방 경로만 미약한 맥박** → 여기서만 데이터(100게임)+맵피처 replay 파이프라인이 의미. 단 보장 아닌 불확실 투자. 현 8게임으론 부족.
+- 즉 사용자 데이터 수집의 유일한 활용처 = 모방정책(replay 파이프라인 빌드 전제). 자동학습/value-net으론 무의미.
