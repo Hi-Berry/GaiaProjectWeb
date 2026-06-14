@@ -1589,7 +1589,7 @@ export class BotLogic {
                 if (neededQicForRange > 1 && round <= 4) continue;
 
                 let score = 260 - neededQicForRange * (round <= 3 ? 220 : 120);
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
                 score += rangeBonusValue;
@@ -1696,8 +1696,8 @@ export class BotLogic {
 
                 let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
                 if (alreadyFormed) score += 400; // 성숙한 가이아포머는 반드시 건설(투자 낭비 방지) — 최우선 처리
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia');
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
 
                 score += earlyRushBonus;
@@ -1724,7 +1724,7 @@ export class BotLogic {
                 const homeSteps = getTerraformStepsForFaction(game, player.faction!, tile.type);
                 if (homeSteps <= 0) {
                     let score = (neededQicForRange === 0 ? 350 : 300) - qicPenalty + bridgeheadBonus; // 모행성 확장은 최상위 가치
-                    score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                    score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                     score += this.calculateFinalMissionBonus(game, playerId, tile);
 
                     score += earlyRushBonus;
@@ -1764,7 +1764,7 @@ export class BotLogic {
             if (remainingSteps === 0) {
                 // 이미 pendingSteps로 완전 커버 → 무료 테라포밍
                 let score = 250 - (qicPenalty * 0.8) + bridgeheadBonus; // 상향
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += earlyRushBonus;
@@ -1904,7 +1904,7 @@ export class BotLogic {
 
                 let score = tfScore - stepPenalty - (qicPenalty * 0.6) + bridgeheadBonus;
 
-                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateAdjacencyBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
@@ -2169,7 +2169,7 @@ export class BotLogic {
                 - (dist * 15) // 거리 페널티 대폭 증가
             );
             
-            score += this.calculateRoundScoringBonus(game, playerId, 'build_mine');
+            score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
             score += this.calculateFinalMissionBonus(game, playerId, tile);
 
             const balPres = this.balTakGaiaformerPreActionsForQicShortfall(player, walletQic, neededQic);
@@ -3615,13 +3615,26 @@ export class BotLogic {
         return score;
     }
 
-    private static calculateRoundScoringBonus(game: ServerGameState, playerId: string, triggerType: string): number {
+    private static calculateRoundScoringBonus(game: ServerGameState, playerId: string, triggerType: string, buildTile?: HexTile): number {
         const round = game.roundNumber;
         const currentRoundIndex = round - 1;
         if (currentRoundIndex < 0 || currentRoundIndex >= game.roundScoringTiles.length) return 0;
 
         const tile = game.roundScoringTiles[currentRoundIndex];
         if (tile.triggerType === triggerType) return tile.vp * 5;
+
+        // [라운드미션 커버리지 2026-06-15] build류가 'new_planet_type'/'new_sector' 라운드점수를 트리거하는데
+        // 기존엔 triggerType('build_mine' 등)만 비교해 누락. buildTile 주어지면 새 행성타입/새 섹터도 정렬.
+        if (buildTile && triggerType.startsWith('build_')) {
+            if (tile.triggerType === 'new_planet_type') {
+                const myTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.type).map(t => t.type));
+                if (buildTile.type && !myTypes.has(buildTile.type)) return tile.vp * 5;
+            }
+            if (tile.triggerType === 'new_sector') {
+                const mySectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
+                if (buildTile.sector != null && !mySectors.has(buildTile.sector)) return tile.vp * 5;
+            }
+        }
 
         let futureBonus = 0;
         for (let i = currentRoundIndex + 1; i < game.roundScoringTiles.length; i++) {
