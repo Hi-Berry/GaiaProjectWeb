@@ -4,6 +4,7 @@ import { StateCloner } from './stateCloner';
 import { Evaluator } from './evaluator';
 import { getPlayerFlag } from './variant';
 import { applyRolloutIncome } from './rolloutIncome';
+import { scoreTerminalStateForRollout } from '../gameState';
 import { log } from '../index';
 
 // MCTS 디버그 로깅(후보 상세 리포트 등)은 매우 비싸다(턴당 수백 회 동기 console.log + 중복 전체평가).
@@ -203,6 +204,11 @@ export class MCTS {
         if (getPlayerFlag(playerId, 'oppRollout', false)) {
             return this.simulateWithOpponents(state, playerId);
         }
+        // [flag: terminalRollout] Path A 벽돌1b: 게임 끝(R6)까지 빠른 그리디로 굴린 뒤 '진짜 최종 VP'로 평가.
+        // 기존 search들이 null이었던 건 leaf를 포화된 eval로 봤기 때문 → terminal 점수로 평가해 eval 천장 우회.
+        if (getPlayerFlag(playerId, 'terminalRollout', false)) {
+            return this.simulateToTerminal(state, playerId);
+        }
         // Rollout phase. Take a few random pseudo-random moves.
         let currentState = StateCloner.cloneGameStateForSimulation(state);
         currentState.simulation = true;
@@ -347,6 +353,79 @@ export class MCTS {
         }
 
         return Evaluator.evaluateState(s, ourId);
+    }
+
+    /**
+     * [Path A 벽돌1b] 클론 상태를 게임 끝(R6 전원패스)까지 빠른 그리디로 진행 후 진짜 최종 VP로 평가.
+     * - 모든 플레이어를 fast 정책(cands[0])으로 굴림. 메인액션 1회=턴종료. pass/end_turn은 performAction 대신 수동 패스표시
+     *   (executePassRound가 async 봇루프를 타므로 회피). 전원 패스 시 라운드 전환: rolloutIncome 적용 + round++.
+     * - 종료 시 scoreTerminalStateForRollout로 최종미션/연구/잔여자원 점수 확정 → 내 VP - 최고 상대 VP 반환(상대적).
+     * - 하드 스텝캡 + try/catch로 hang/예외 차단. 간소화(패스보너스·가이아포머 성숙·정확income 생략)는 후속 정밀화.
+     */
+    private static async simulateToTerminal(state: ServerGameState, playerId: string): Promise<number> {
+        const dummyIo = { to: () => ({ emit: () => { } }) } as any;
+        let s: ServerGameState;
+        try {
+            s = StateCloner.cloneGameStateForSimulation(state);
+            s.simulation = true;
+        } catch { return Evaluator.evaluateState(state, playerId); }
+
+        const order: string[] = s.turnOrder ?? Object.keys(s.players);
+        const MAX_STEPS = 600;
+        let steps = 0;
+        try {
+            while (steps++ < MAX_STEPS) {
+                if ((s as any).currentPhase === 'gameEnd' || (s.roundNumber ?? 1) > 6) break;
+                const allPassed = order.every(pid => s.players[pid]?.hasPassed);
+                if (allPassed) {
+                    if ((s.roundNumber ?? 1) >= 6) break; // 게임 종료
+                    // 라운드 전환(간소): 패스 해제 + 수입 적용 + 라운드 증가
+                    s.roundNumber = (s.roundNumber ?? 1) + 1;
+                    for (const pid of order) {
+                        if (!s.players[pid]) continue;
+                        s.players[pid].hasPassed = false;
+                        applyRolloutIncome(s, pid);
+                    }
+                    s.currentPlayerIndex = 0;
+                    s.hasDoneMainAction = false;
+                    continue;
+                }
+                const cur = order[s.currentPlayerIndex ?? 0];
+                if (!cur || s.players[cur]?.hasPassed) {
+                    s.currentPlayerIndex = ((s.currentPlayerIndex ?? 0) + 1) % order.length;
+                    continue;
+                }
+                // 현재 플레이어 한 수
+                const cands = this.getPossibleActions(s, cur);
+                let action: any = (cands && cands.length) ? cands[0] : await BotLogic.getNextMove(s, cur, true);
+                if (!action || action.type === 'end_turn' || action.type === 'pass_round') {
+                    // 패스: performAction(async 봇루프) 회피, 수동 표시 (패스보너스 생략=간소화)
+                    s.players[cur].hasPassed = true;
+                    s.currentPlayerIndex = ((s.currentPlayerIndex ?? 0) + 1) % order.length;
+                    s.hasDoneMainAction = false;
+                    continue;
+                }
+                const a = action as { type: string; params: any; preActions?: any[] };
+                let ok = true;
+                try {
+                    if (a.preActions?.length) for (const pre of a.preActions) { if (!await BotLogic.performAction(dummyIo, s, pre, cur)) { ok = false; break; } }
+                    if (ok) ok = await BotLogic.performAction(dummyIo, s, { type: a.type, params: a.params } as any, cur);
+                } catch { ok = false; }
+                if (!ok) { s.players[cur].hasPassed = true; s.currentPlayerIndex = ((s.currentPlayerIndex ?? 0) + 1) % order.length; s.hasDoneMainAction = false; continue; }
+                if (s.hasDoneMainAction) { // 메인액션 1회 → 턴 종료
+                    s.currentPlayerIndex = ((s.currentPlayerIndex ?? 0) + 1) % order.length;
+                    s.hasDoneMainAction = false;
+                }
+            }
+            scoreTerminalStateForRollout(s);
+        } catch {
+            // 시뮬 중 예외 → 현 상태 eval로 폴백
+            return Evaluator.evaluateState(s, playerId);
+        }
+        const myVp = s.players[playerId]?.score ?? 0;
+        const oppVps = order.filter(p => p !== playerId).map(p => s.players[p]?.score ?? 0);
+        const bestOpp = oppVps.length ? Math.max(...oppVps) : 0;
+        return myVp - bestOpp; // 상대적 최종 VP (eval과 스케일 다르지만 MCTS는 후보 간 상대비교라 OK)
     }
 
     /** 롤아웃 가상 라운드 사이 수입 근사(방향만 맞는 단순 모델: 구조물 많을수록 자원↑). 정확한 income은 아님. */
