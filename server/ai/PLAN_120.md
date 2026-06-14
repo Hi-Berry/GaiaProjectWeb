@@ -16,7 +16,8 @@
 
 ## 진행
 - [day1] **techTiles** (봇 0!): techVpReweight 채택 — 즉발VP 타일(7vp 등) R3-4 균형/R5+ 우선. 커밋 cb6a76b. (검증: 사용자 비플레이 시 head2head, 또는 1:3 관찰)
-- [next] roundMissions: 현재 라운드 점수타일 정렬 강화(현 vp*5 → 상향 검토) + 액션수 늘리기
+- [day1] roundMissions(부분): new_planet_type/new_sector 커버리지 추가(커밋). 남음: federation/terraform_step 라운드 정렬
+- [day1] 자원밸런싱: shipResourceBalance 채택(돈없음→충전, 남음→확장)
 - [next] researchTracks: L5 완주 유인
 - [next] spaceships: 우주선 액션 실사용
 - [next] finalMissions: 종료미션 정렬(현 보너스 상향)
