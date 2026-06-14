@@ -2845,10 +2845,21 @@ export class BotLogic {
             }
 
             const nearbyPlanets = game.map.filter(t => t.id !== tile.id && !t.ownerId && t.type !== 'space' && t.type !== 'deep_space');
+            const weightByTf = getPlayerFlag(playerId, 'startPlacementExpansion', false);
             for (const p of nearbyPlanets) {
                 const dist = getDistance(tile, p);
-                if (dist <= 2) score += 2; // 주변에 개척 가능한 행성이 많으면 가점
-                else if (dist <= 3) score += 1;
+                if (dist > 3) continue;
+                if (!weightByTf) {
+                    // (구) 종류 무관 단순 카운트
+                    score += dist <= 2 ? 2 : 1;
+                    continue;
+                }
+                // [데이터 실패분석 2026-06-14] 참사봇은 R1-2 광산 부족(2.0 vs 좋음 3.1)+크레딧 쟁여둠 = 비싼 땅 옆 시작→확장 못함.
+                // 초기 배치를 '싸고(테라포밍 적음) 가까운(즉시 건설) 확장 타겟 군집'으로 가중 → R1-2 저비용 확장 유도.
+                const steps = p.type ? getTerraformStepsForFaction(game, player.faction!, p.type) : 3;
+                let w = steps === 0 ? 4 : steps === 1 ? 2 : steps === 2 ? 0.7 : 0.2; // 홈/가이아 > 1스텝 > 비쌈
+                if (dist >= 3) w *= 0.4; else if (dist === 2) w *= 0.7; // 멀면(QIC/Nav 필요) 가치 절감, dist1=즉시
+                score += w;
             }
 
             // 두 번째 광산을 첫 번째 광산 근처(거리 3 이하)에 배치하는 것을 매우 강하게 기피 (선택지가 정말 없을 때만 어쩔 수 없이 짓도록)
