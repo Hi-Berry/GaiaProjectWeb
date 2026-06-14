@@ -2916,6 +2916,11 @@ export class BotLogic {
         const availableActions = game.powerActions.filter(a => !a.isUsed);
         if (availableActions.length === 0) return [];
 
+        // [버그 수정 2026-06-15] 네뷸라 의회: 파워액션 비용 절반(서버 executeUsePowerAction line 6526와 일치).
+        // 기존엔 full cost로 p3<cost 체크 → 네뷸라가 살 수 있는 파워액션을 '못산다'고 오판 → 후보 0 → 조기패스(네뷸라 R2패스 원인).
+        const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        const effPowerCost = (c: number) => hasNevlasPI ? Math.ceil(c / 2) : c;
+
         const scored: { id: string, score: number }[] = [];
 
         // 광산/교역소 수: 스텝 vs 자원(2O/7C) 우선순위 판단용 (서버 executeBuildMine과 동일하게 getStructureCount 사용)
@@ -2933,7 +2938,7 @@ export class BotLogic {
             if (isQic) {
                 if (qic < cost) continue;
             } else {
-                if (p3 < cost) continue;
+                if (p3 < effPowerCost(cost)) continue; // 네뷸라 의회 반값 반영
             }
 
             const ore = player.ore || 0;
