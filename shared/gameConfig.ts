@@ -884,7 +884,7 @@ export const FACTIONS: Faction[] = [
     startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
     startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
     baseIncome: { ore: 1, knowledge: 0 },
-    piIncome: { power: 4, tokens: 1 }
+    piIncome: { power: 4, tokens: 2 }
   },
   {
     id: 'firaks', name: 'Firaks', homePlanet: 'titanium', color: PLANET_COLORS.titanium,

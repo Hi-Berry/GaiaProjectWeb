@@ -368,6 +368,51 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         </div>
                                     </>
                                 )}
+                                {/* 획득 가능한 고급 기술 타일 (트랙 L4+ · 연방 1 · 덮을 일반타일 1개) */}
+                                {onSelectAdvancedTechTile && playerId && (() => {
+                                    const p = game.players[playerId];
+                                    if (!p) return null;
+                                    const greenOk = countGreenFederations(p) >= 1;
+                                    const hasCoverable = (p.techTiles || []).filter((id: string) => !isTechTileCovered(p, id) && !id.startsWith('adv-')).length >= 1;
+                                    if (!greenOk || !hasCoverable) return null;
+                                    const eligible: { id: string; label: string; description: string; image?: string; trackId?: ResearchTrack }[] = [];
+                                    RESEARCH_TRACKS.forEach((tr) => {
+                                        const adv = game.advancedTechTilesByTrack?.[tr.id as ResearchTrack];
+                                        if (!adv) return;
+                                        const taken = Object.values(game.players).some((pl) => pl.techTiles?.includes(adv.id));
+                                        const lvl = p.research?.[tr.id as ResearchTrack] ?? 0;
+                                        if (!taken && lvl >= 4) eligible.push({ ...adv, trackId: tr.id as ResearchTrack });
+                                    });
+                                    const extra = game.extraAdvancedTechTile;
+                                    if (extra) {
+                                        const taken = Object.values(game.players).some((pl) => pl.techTiles?.includes(extra.id));
+                                        const condOk = game.extraAdvancedTechCondition === '25vp' ? (p.score ?? 0) >= 25 : (p.spaceshipsEntered?.length ?? 0) >= 3;
+                                        if (!taken && condOk) eligible.push({ ...extra });
+                                    }
+                                    if (eligible.length === 0) return null;
+                                    return (
+                                        <>
+                                            <div className="text-[9px] text-cyan-400 mt-3">고급 기술 타일 (연방 1 + 일반타일 1개 덮기):</div>
+                                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                                {eligible.map((adv) => (
+                                                    <button
+                                                        key={adv.id}
+                                                        type="button"
+                                                        title={`${adv.label}: ${adv.description}`}
+                                                        onClick={() => onSelectAdvancedTechTile(adv.id, adv.trackId)}
+                                                        className="p-2 rounded-lg border-2 border-cyan-500/40 bg-zinc-900/80 hover:border-cyan-400 flex flex-col items-center gap-1"
+                                                    >
+                                                        {adv.image ? (
+                                                            <img src={adv.image} alt={adv.label} className="h-[60px] w-auto object-contain" />
+                                                        ) : (
+                                                            <div className="text-[9px] font-bold text-zinc-100">{adv.label}</div>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </>
                         )}
                     </div>
@@ -544,13 +589,22 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 </div>
                                             );
                                             if (level !== 5) return cell;
+                                            // 기술타일 선택 중(pendingTech)이고 트랙 L4+·연방 1개·덮을 일반타일이 있으면 고급 타일도 선택지로 클릭 가능
+                                            const myLvlForAdv = playerId ? (game.players[playerId]?.research?.[track.id as ResearchTrack] ?? 0) : 0;
+                                            const canTakeAdvMini = !!(pendingTech && onSelectAdvancedTechTile && advTile && !isAdvTaken && playerId && myLvlForAdv >= 4
+                                                && countGreenFederations(game.players[playerId]) >= 1
+                                                && (game.players[playerId]?.techTiles || []).filter((id: string) => !isTechTileCovered(game.players[playerId], id) && !id.startsWith('adv-')).length >= 1);
                                             const adv = (
-                                                <div key="adv" className="h-[40px] w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border border-cyan-500/10 group relative my-0.5">
+                                                <div
+                                                    key="adv"
+                                                    onClick={(e) => { if (canTakeAdvMini && advTile?.id) { e.stopPropagation(); onSelectAdvancedTechTile!(advTile.id, track.id as ResearchTrack); } }}
+                                                    className={`h-[40px] w-full rounded overflow-hidden flex items-center justify-center bg-cyan-950/20 border group relative my-0.5 ${canTakeAdvMini ? 'border-cyan-400 cursor-pointer ring-1 ring-cyan-400/40 hover:bg-cyan-500/15' : 'border-cyan-500/10'}`}
+                                                >
                                                     {advTile && !isAdvTaken && advTile.image ? (
                                                         <>
                                                             <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
                                                             <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none hidden group-hover:block z-[130]">
-                                                                <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}
+                                                                <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}{canTakeAdvMini && <span className="text-cyan-400 block mt-0.5">클릭 시 획득 (일반 1개 덮기+연방 1)</span>}
                                                             </div>
                                                         </>
                                                     ) : advTile && isAdvTaken ? (
