@@ -23,6 +23,11 @@ import { recordDecisionFeatures } from './ai/valueData';
 
 const botExecutingGames = new Set<string>();
 
+/** 어드민 롤백 등으로 게임 객체가 교체될 때, 진행 중이던 봇 루프 락을 해제해 새 게임에서 봇이 다시 시작될 수 있게 한다. */
+export function cancelBotExecution(gameId: string): void {
+    botExecutingGames.delete(gameId);
+}
+
 // 봇 턴 사이 지연(ms). 기본은 데모/디버깅 가시성용. 자기대국/head-to-head 하니스에서는
 // admin_set_bot_delay_ms 로 0에 가깝게 낮춰 게임을 빠르게 돌린다(로직 변화 없음).
 let BOT_DELAY_MS: number | null = (typeof process !== 'undefined' && process.env?.BOT_DELAY_MS != null && process.env.BOT_DELAY_MS !== '')
@@ -95,6 +100,8 @@ function addBotFeedbackLog(game: ServerGameState, playerId: string, entry: NonNu
  */
 export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGameState): Promise<void> {
     if (game.currentPhase === 'lobby') return;
+    // 어드민 롤백 등으로 무효화된(교체 전) 게임 객체를 붙든 옛 봇 루프는 더 진행하지 않음
+    if ((game as any).botCanceled) return;
     if (!game.botPlayerIds || game.botPlayerIds.length === 0) return;
 
     // Module level lock to prevent concurrent executions for the same game

@@ -3208,6 +3208,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (actionIndex === 3) {
 					// 6C 지불 후 소행성 선택 시 광산 건설 (선택 완료 시점에 hasDoneMainAction 설정)
 					if (player.credits < 6) return;
+					// 건설 가능한 빈 소행성(사거리 내)이 없으면 6C 지불 후 스터을 방지하기 위해 액션 자체를 막음
+					if (peekEclipseAsteroidMineTileIds(game, playerId).length === 0) {
+						socket.emit('game_error', { message: '건설 가능한 소행성(빈 소행성, 사거리 내)이 없어 이 액션을 쓸 수 없습니다.' });
+						return;
+					}
 					player.credits -= 6;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -3357,6 +3362,26 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 메인 액션 사용 취소
 			game.hasDoneMainAction = false;
 			game.pendingEclipseResearch = null;
+			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		});
+
+		// Eclipse 액션3(6C 소행성) 취소: 6C 환불 + 액션 사용 롤백 (건설 가능 소행성이 없을 때 진행 불가 해소)
+		socket.on('cancel_eclipse_asteroid_mine', ({ gameId }) => {
+			const game = games.get(gameId); if (!game) return;
+			if (game.currentPhase !== 'main') return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			const pending = game.pendingEclipseAsteroidMine;
+			if (!pending || pending.playerId !== playerId) return;
+			const player = game.players[playerId];
+			player.credits = (player.credits || 0) + 6; // 6C 환불
+			const shipState = game.spaceships?.[pending.shipTileId];
+			if (shipState && shipState.usedActionIndices) {
+				shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 3);
+				shipState.actionsUsed = shipState.usedActionIndices.length;
+				if (shipState.usedActionBy) delete shipState.usedActionBy[3];
+			}
+			game.pendingEclipseAsteroidMine = null;
+			addGameLog(game, playerId, 'Eclipse: 6C 액션 취소', '6C 환불', pending.shipTileId);
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 

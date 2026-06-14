@@ -460,6 +460,11 @@ export const GameClient = {
     s.emit('cancel_eclipse_research', { gameId });
   },
 
+  cancelEclipseAsteroidMine(gameId: string) {
+    const s = getSocket();
+    s.emit('cancel_eclipse_asteroid_mine', { gameId });
+  },
+
   eclipseAdvanceTrack(gameId: string, trackId: ResearchTrack) {
     const s = getSocket();
     s.emit('eclipse_advance_track', { gameId, trackId });

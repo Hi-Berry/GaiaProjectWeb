@@ -1772,7 +1772,7 @@ export default function Game() {
         const tile = game.map.find(t => t.id === action.tileId);
         if (!tile) return null;
         const baseRange = getEffectiveBaseRange(player);
-        const rangeTiles = game.map.filter(t => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId);
+        const rangeTiles = game.map.filter(t => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId);
         const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map(t => getDistance(t, tile))) : 0;
         const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
         const freeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
@@ -2424,7 +2424,8 @@ export default function Game() {
               const baseRange = getEffectiveBaseRange(player);
               const rangeTiles = game.map.filter(t =>
                 (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
-                (t.spaceStation?.ownerId === playerId)
+                (t.spaceStation?.ownerId === playerId) ||
+                (t.parasiticMine?.ownerId === playerId)
               );
               if (rangeTiles.length === 0) return;
 
@@ -3623,8 +3624,9 @@ export default function Game() {
 
         {/* Eclipse 액션3: 소행성 광산 — 맵에서 초록 테두리 소행성 클릭으로 건설 (모달 없음) */}
         {game.pendingEclipseAsteroidMine && game.pendingEclipseAsteroidMine.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-green-500/50 text-green-400 text-sm font-medium shadow-lg">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-green-500/50 text-green-400 text-sm font-medium shadow-lg flex items-center gap-2">
             Eclipse: 맵에서 <span className="font-bold text-green-300">초록 테두리</span> 소행성을 클릭하여 광산 건설 (6C)
+            <Button variant="ghost" size="sm" className="text-green-400 hover:text-white shrink-0" onClick={() => gameId && GameClient.cancelEclipseAsteroidMine(gameId)}>취소 (6C 환불)</Button>
           </div>
         )}
         {/* 우주선 기술(2TF+Mine): 맵에서 행성 클릭으로 건설 */}
@@ -4029,14 +4031,15 @@ export default function Game() {
                 const ownedPlanetTypeCount = allDisplayedPlanetTypes
                   .filter((type) => (ownedPlanetCounts[type] ?? 0) > 0)
                   .length;
-                const playerStructureTiles = game.map?.filter((t) => t.ownerId === id && t.structure && t.structure !== 'ship') ?? [];
+                // 섹터 점유: 내 건물 + 란티다 기생 광산 (서버 tileOccupiesSector·fm_sectors와 동일하게 기생 포함)
+                const sectorOccupyingTiles = game.map?.filter((t) => (t.ownerId === id && t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === id) ?? [];
                 const occupiedSectorCount = new Set(
-                  playerStructureTiles
+                  sectorOccupyingTiles
                     .filter((t) => typeof t.sector === 'number' && t.sector < 11)
                     .map((t) => t.sector)
                 ).size;
                 const occupiedOuterSectorCount = new Set(
-                  playerStructureTiles
+                  sectorOccupyingTiles
                     .filter((t) => typeof t.sector === 'number' && t.sector >= 11 && t.sector < 20)
                     .map((t) => t.sector)
                 ).size;

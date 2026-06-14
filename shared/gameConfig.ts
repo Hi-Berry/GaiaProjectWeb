@@ -2149,7 +2149,8 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       return max;
     }
     case 'fm_planet_types': {
-      const types = new Set(map.filter(t => (t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId).map(t => t.type));
+      // 행성 유형은 란티다 기생 광산 제외 (1K/Type·패스보너스 등 다른 유형 점수와 일관)
+      const types = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship').map(t => t.type));
       return types.size;
     }
     case 'fm_asteroid_buildings':
