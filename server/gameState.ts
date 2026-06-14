@@ -887,7 +887,7 @@ function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string
 	let perPowerValue = usefulRounds >= 4 ? 0.8 : usefulRounds >= 2 ? 0.5 : 0.25;
 	// [사용자 관찰 2026-06-14] 후반에 무작정 거절 말 것 — 받은 파워를 '쓸 곳'(미사용 파워액션)이 있고
 	// 아직 패스 안 했으면 실질 전환 가치가 있으므로 파워 가치를 상향해 수락 쪽으로 (전환처 없으면 기존대로 보수적).
-	if (getPlayerFlag(targetPlayerId, 'smartPowerAccept', false) && !player.hasPassed) {
+	if (getPlayerFlag(targetPlayerId, 'smartPowerAccept', true) && !player.hasPassed) {
 		const hasUnusedPowerAction = (game.powerActions ?? []).some(a => !a.isUsed);
 		if (hasUnusedPowerAction) perPowerValue += usefulRounds < 2 ? 0.35 : 0.2; // 후반일수록 '전환처 있음' 가중을 더 크게
 	}
