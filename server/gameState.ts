@@ -1332,6 +1332,39 @@ export function applyFinalMissionScoring(game: GaiaGameState) {
 	game.finalMissionScoresApplied = true;
 }
 
+/**
+ * [Path A 벽돌1a] 롤아웃 terminal 평가용 순수 종료 점수 적용.
+ * forceFinishStalledGame의 점수 시퀀스(최종미션+연구트랙+잔여자원+비딩)와 동일하되 io/저장/emit/flush 없음.
+ * 클론된 시뮬 상태에 적용해 각 플레이어 최종 VP(player.score)를 확정한다. (eval 천장 우회 = 진짜 최종점수로 리프 평가)
+ * 주의: addScore가 호출되므로 시뮬 클론에만 사용(실게임 상태에 쓰지 말 것).
+ */
+export function scoreTerminalStateForRollout(game: ServerGameState): void {
+	applyFinalMissionScoring(game);
+	for (const pid of game.turnOrder) {
+		const p = game.players[pid];
+		if (!p?.research) continue;
+		let researchBonus = 0;
+		for (const track of RESEARCH_TRACKS) {
+			const level = p.research[track.id] ?? 0;
+			if (level >= 5) researchBonus += RESEARCH_TRACK_END_BONUS[5] ?? 12;
+			else if (level >= 4) researchBonus += RESEARCH_TRACK_END_BONUS[4] ?? 8;
+			else if (level >= 3) researchBonus += RESEARCH_TRACK_END_BONUS[3] ?? 4;
+		}
+		if (researchBonus > 0) addScore(game, pid, researchBonus, 'researchTracks');
+	}
+	for (const pid of Object.keys(game.players)) {
+		const p = game.players[pid];
+		if (!p) continue;
+		const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+		const vp = Math.floor(sum / 3);
+		if (vp > 0) addScore(game, pid, vp, 'remainingResources');
+	}
+	for (const pid of Object.keys(game.players)) {
+		const bid = game.players[pid]?.factionBidVp ?? 0;
+		if (bid > 0) addScore(game, pid, -bid, 'other', { source: '종족 비딩' });
+	}
+}
+
 export function qualifiesForNewSectorRoundMission(game: GaiaGameState, playerId: string, tileId: string, sector?: number): boolean {
 	const tile = game.map.find(t => t.id === tileId || String(t.id) === tileId);
 	if (!tile) return false;
