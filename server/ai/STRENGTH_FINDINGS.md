@@ -199,3 +199,8 @@
 - α=2: 46.2%(12:14), VP -3.37, 깨끗한 run(타임아웃 2). α=5(-3.93)와 동일 → α 낮춰도 중립 안 됨 = net이 신호보다 노이즈.
 - 원인: valMAE 12.4 >> gradient(5-13) → per-state 예측 부정확. gradient 평균방향은 맞으나 개별 수 선택 개선 못 함.
 - **봇-데이터 학습 eval 블렌드 종결.** (인프라/net은 보존 — 더 큰 데이터/더 나은 피처 시 재시도). 직접 휴리스틱(mineFirstExpansion)으로 전환.
+
+## 2026-06-14 startPlacementExpansion null + smartPowerAccept 검증
+- startPlacementExpansion 합산 47판: 51.1%(24:23), VP +0.69, z=0.15 → **null**(미채택, flag OFF). 초기배치 가중은 이론상 맞으나 self-play 대칭맵서 효과 없음.
+- 패턴 확정: navBeforeJump 외 모든 휴리스틱 실험(engineBlend·mineFirst·startPlace) null = 지역최적 포화. correctness 오플레이 수정만 실효.
+- smartPowerAccept(사용자 파워-수락 관찰): self-play 승률보다 do-no-harm + 사용자 실전관찰이 적합한 검증.
