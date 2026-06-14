@@ -3306,6 +3306,21 @@ export class BotLogic {
                     }
                 }
 
+                // [사용자 전략 2026-06-15] 자원 밸런싱: 돈 부족하면 자원생성 액션 우선, 돈 남으면 소비(확장) 액션 우선.
+                // 네뷸라 등 자원말림→조기패스 + 크레딧 쟁여두기(참사봇 12-13크레딧 방치)를 동시 교정.
+                if (score > 0 && getPlayerFlag(playerId, 'shipResourceBalance', true)) {
+                    const credits = player.credits || 0;
+                    const broke = credits < 4, rich = credits > 10;
+                    const t = shipTile.type;
+                    // 자원 생성형: 리벨 2k→1qic+2c(i3)·광산→교역소(i2), 트왈 2o3p→연구소(i2)
+                    const isGen = (t === 'ship_rebellion' && (i === 2 || i === 3)) || (t === 'ship_twilight' && i === 2);
+                    // 소비-확장형: TF마스 3c→1step(i3), 이클립스 6c→소행성(i3)
+                    const isSpend = (t === 'ship_tf_mars' && i === 3) || (t === 'ship_eclipse' && i === 3);
+                    if (broke && isGen) score += 130;   // 돈 없을 때 자원 생성 강력 우선(패스 대신 충전)
+                    else if (rich && isSpend) score += 90; // 돈 남을 때 소비-확장 우선(쟁여두기 방지)
+                    else if (broke && isSpend) score -= 70; // 돈 없는데 소비는 후순위
+                }
+
                 // 라운드 후반일수록 우주선 액션 가치 증가 (남은 기회가 적으므로)
                 if (score > 0) score += round * 5;
 
