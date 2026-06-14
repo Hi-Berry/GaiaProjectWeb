@@ -101,6 +101,23 @@ export class MCTS {
         }
         const bestNode = this.bestChild(root);
 
+        // [flag: hybridSearch] 그리디(잘 튜닝된 eval)가 상위 후보를 먼저 거르고, 그 좋은 수들 사이에서만
+        // 경량 다턴 search(simRollout)로 최종 선택. fastSearch 단독이 -30 참사난 건 부정확 모델을 100% 신뢰해
+        // 나쁜 수까지 골라서였음 → 여기선 그리디-승인된 top-K 안에서만 고르므로 참사 불가 + 다턴 전망만 추가.
+        if (getPlayerFlag(playerId, 'hybridSearch', false) && root.children.length > 1) {
+            try {
+                const ranked = root.children.filter(c => c.visits > 0)
+                    .sort((a, b) => (b.score / b.visits) - (a.score / a.visits));
+                const K = Math.min(3, ranked.length);
+                let pick = ranked[0]; let bestV = -Infinity;
+                for (let i = 0; i < K; i++) {
+                    const v = simRollout(extractSimState(ranked[i].state, playerId));
+                    if (v > bestV) { bestV = v; pick = ranked[i]; }
+                }
+                return pick.action;
+            } catch { return bestNode.action; }
+        }
+
         // --- PRINT DETAILED BREAKDOWN OF ALL CANDIDATES (디버그 전용: 매우 비싸므로 기본 OFF) ---
         if (MCTS_DEBUG) {
             console.log(`\n=== MCTS DETAILED SCORE REPORT ===`);
