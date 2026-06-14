@@ -67,8 +67,8 @@ import {
 	RESEARCH_TRACKS,
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
-import { executeBotTurnIfNeeded, setBotDelayMs } from './botHandler';
-import { setPlayerVariant, clearAllPlayerVariants, type PlayerVariant } from './ai/variant';
+import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
+import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVariant } from './ai/variant';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { exportHumanGameDataset, recordHumanActionFromLog, type HumanActionJournalEntry } from './humanGameLogger';
@@ -89,7 +89,8 @@ export interface ServerGameState extends GaiaGameState {
 	botPlayerIds?: string[];
 	/** 관전자 ID 목록 (플레이어 슬롯 없음, 턴 없음) */
 	spectatorIds?: string[];
-	turnStartState?: Record<string, any>; // [playerId]: PlayerTurnState
+	turnStartState?: Record<string, any>; // [playerId]: PlayerTurnState (현재(또는 가장 최근) 턴 시작 스냅샷)
+	prevTurnStartState?: Record<string, any>; // [playerId]: 직전 턴 시작 스냅샷 (현재 턴이 비었을 때 어드민 롤백이 한 턴 더 되감기용)
 	isBotExecuting?: boolean; // 봇 로직이 실행 중인지 확인하는 락
 	simulation?: boolean; // MCTS 시뮬레이션 중인지 여부 (로그 억제용)
 	freeActionUndoStack?: string[]; // Free Action 단계별 Undo 스냅샷 스택(최신이 끝)
@@ -164,10 +165,11 @@ function pushFreeActionUndoSnapshot(game: ServerGameState): void {
  * 중첩으로 인한 기하급수적 용량 증가와 RangeError: Invalid string length 방지.
  */
 function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
-	const { turnStartState: _ts, freeActionUndoState: _fa, gameLog: _gl, humanActionJournal: _haj, ...rest } = game as any;
+	const { turnStartState: _ts, prevTurnStartState: _pts, freeActionUndoState: _fa, gameLog: _gl, humanActionJournal: _haj, ...rest } = game as any;
 	// Reset 복원에는 gameLog 본문/Undo 원본 문자열이 필수 아님(길이만 사용) → 스냅샷 용량 대폭 절감
 	const cloned = deepClone(rest) as ServerGameState;
 	cloned.turnStartState = undefined;
+	cloned.prevTurnStartState = undefined;
 	(cloned as any).freeActionUndoState = undefined;
 	cloned.freeActionUndoStack = undefined;
 	cloned.freeActionUndoContext = undefined;
@@ -479,7 +481,8 @@ function getMineCountForPassAndBonuses(game: GaiaGameState, playerId: string): n
 	return n;
 }
 
-/** 기오덴 의회 보너스(새 행성 유형당 3K)용: 플레이어가 보유한 행성 유형 집합 (맵 건물·기생·잊혀진 행성·가상 광산 포함) */
+/** 기오덴 의회 보너스(새 행성 유형당 3K)용: 플레이어가 보유한 행성 유형 집합.
+ *  란티다 기생 광산은 행성 유형 점수 산정에서 제외(다른 점수 경로와 일관). 가상 광산(인공물)은 포함. */
 function getPlayerPlanetTypesForGeodens(game: GaiaGameState, playerId: string): Set<string> {
 	const types = new Set<string>();
 	for (const t of game.map) {
@@ -487,7 +490,6 @@ function getPlayerPlanetTypesForGeodens(game: GaiaGameState, playerId: string): 
 			if (t.structure === 'lost_planet_mine') types.add('lost_planet');
 			else if (t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
 		}
-		if (t.parasiticMine?.ownerId === playerId && t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
 	}
 	const player = game.players[playerId];
 	if (player?.virtualMineAsteroid) types.add('asteroid');
@@ -539,13 +541,12 @@ function countRemainingGaiaformers(game: GaiaGameState, playerId: string): numbe
 }
 const RANGE_BONUS_BLOCK_MSG = '거리 보너스 액션 사용 중입니다. 광산 건설 · 가이아포머 배치 · 소행성 광산 · 우주선 입장만 가능합니다.';
 
-/** 플레이어 건물 개수 (맵만, 기생/가상 제외). 아카데미는 academyType 별도. */
+/** 광산 공급(8개) 한도 계산용 물리 광산 수: 일반 + 잊혀진행성 + 기생(란티다). 가상 광산(인공물)은 실제 토큰이 아니므로 제외. */
 export function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
 	if (structure === 'mine') {
+		// 가상 광산(virtualMineAsteroid/Proto)은 점수·행성종류 계산용일 뿐 실제 광산 토큰을 쓰지 않으므로 한도에 넣지 않는다.
 		return game.map.filter(t => t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')).length
-			+ game.map.filter(t => t.parasiticMine?.ownerId === playerId).length
-			+ (game.players[playerId]?.virtualMineAsteroid ? 1 : 0)
-			+ (game.players[playerId]?.virtualMineProto ? 1 : 0);
+			+ game.map.filter(t => t.parasiticMine?.ownerId === playerId).length;
 	}
 	return game.map.filter(t => t.ownerId === playerId && t.structure === structure).length;
 }
@@ -872,6 +873,27 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 	}
 }
 
+/** 봇의 파워 누출(leech) 수락 판단: 무료면 무조건, 유료(VP 차감)면 라운드·충전여력·패스여부로 전략적 평가. */
+function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string, amount: number, vpCost: number): boolean {
+	if (vpCost <= 0) return true; // 무료 충전은 항상 수락
+	const player = game.players[targetPlayerId];
+	if (!player) return false;
+	const effective = Math.min(amount, getMaxPowerGain(player)); // 실제 충전 가능한 양
+	if (effective <= 0) return false; // 못 받으면 VP 낭비 → 거절
+	const round = game.roundNumber ?? 1;
+	// 파워를 활용할 수 있는 라운드 수 (패스했으면 이번 라운드엔 못 쓰고 다음 라운드 충전분만)
+	const usefulRounds = Math.max(0, 6 - round) + (player.hasPassed ? 0 : 1);
+	// 파워 1개의 대략 가치(VP 환산): 게임이 많이 남을수록 높게. 받는 파워×가치 ≥ 깎이는 VP 면 수락.
+	let perPowerValue = usefulRounds >= 4 ? 0.8 : usefulRounds >= 2 ? 0.5 : 0.25;
+	// [사용자 관찰 2026-06-14] 후반에 무작정 거절 말 것 — 받은 파워를 '쓸 곳'(미사용 파워액션)이 있고
+	// 아직 패스 안 했으면 실질 전환 가치가 있으므로 파워 가치를 상향해 수락 쪽으로 (전환처 없으면 기존대로 보수적).
+	if (getPlayerFlag(targetPlayerId, 'smartPowerAccept', false) && !player.hasPassed) {
+		const hasUnusedPowerAction = (game.powerActions ?? []).some(a => !a.isUsed);
+		if (hasUnusedPowerAction) perPowerValue += usefulRounds < 2 ? 0.35 : 0.2; // 후반일수록 '전환처 있음' 가중을 더 크게
+	}
+	return effective * perPowerValue >= vpCost;
+}
+
 function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerId: string): number {
 	const queued = game.queuedPowerOffers ?? [];
 	if (!queued.length) return 0;
@@ -902,9 +924,30 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 			continue;
 		}
 
+		const isBot = !!game.botPlayerIds?.includes(offer.targetPlayerId);
+		// 봇: 전략적 판단. 사람: 무료(VP 0)만 자동 수락, 유료는 직접 결정(아래 pending).
 		const autoAcceptOne = offer.vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
-		const autoAcceptBot = !!game.botPlayerIds?.includes(offer.targetPlayerId);
-		if (autoAcceptOne || autoAcceptBot) {
+		if (isBot) {
+			if (shouldBotAcceptPowerOffer(game, offer.targetPlayerId, offer.amount, offer.vpCost)) {
+				addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
+				applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount);
+				const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
+				const added = addSubLogToLastAction(game, sourcePlayerId, {
+					playerId: offer.targetPlayerId,
+					playerName: targetPlayer.name,
+					text: `↳ Received Power ${text} ${targetPlayer.name}`
+				});
+				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
+			} else {
+				addSubLogToLastAction(game, sourcePlayerId, {
+					playerId: offer.targetPlayerId,
+					playerName: targetPlayer.name,
+					text: `↳ Declined Power (-${offer.vpCost}VP 회피) ${targetPlayer.name}`
+				});
+			}
+			continue;
+		}
+		if (autoAcceptOne) {
 			addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
 			applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount);
 			const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
@@ -943,6 +986,11 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 	const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
 	if (newCurrentPlayerId) {
 		if (!game.turnStartState) game.turnStartState = {};
+		// 새 턴 시작으로 덮어쓰기 전, 기존(직전 턴) 스냅샷을 prev로 보관 → 어드민이 현재 빈 턴에서 직전 턴까지 되감기 가능
+		if (game.turnStartState[newCurrentPlayerId]?.fullGameState) {
+			if (!game.prevTurnStartState) game.prevTurnStartState = {};
+			game.prevTurnStartState[newCurrentPlayerId] = game.turnStartState[newCurrentPlayerId];
+		}
 		game.turnStartState[newCurrentPlayerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, newCurrentPlayerId);
 	}
 
@@ -1485,7 +1533,9 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 				const gaiaPlanets = playerStructures.filter(t => t.type === 'gaia').length;
 				const vpGain = 4 + gaiaPlanets;
 				addScore(game, playerId, vpGain, 'other', { source: 'Gaia Project track reward', noLog: true });
-				addGameLog(game, playerId, 'Gaia Project Track Reward', `+${vpGain} VP`);
+				// 직전 메인 액션(예: Advanced Research) 로그의 하위줄로 붙임. 없으면 단독 로그.
+				const sub = addSubLogToLastAction(game, playerId, { playerId, playerName: player.name, text: `Gaia Project Track Reward +${vpGain} VP` });
+				if (!sub) addGameLog(game, playerId, 'Gaia Project Track Reward', `+${vpGain} VP`);
 				log(`Player ${player.name} gained ${vpGain} VP from Gaia Project level 5 (4 base + ${gaiaPlanets} Gaia planets)`, 'game', undefined, { simulation: (game as any).simulation });
 			}
 		}
@@ -2723,7 +2773,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 대상 미지정 시 현재 턴 플레이어. 지정 시 그 플레이어의 마지막 턴 시작으로 전체 되감기.
 			const playerId = targetPlayerId || game.turnOrder[game.currentPlayerIndex];
 			if (!playerId) { callback?.({ error: '대상 플레이어를 찾을 수 없습니다.' }); return; }
-			const startState: any = game.turnStartState?.[playerId];
+			// 현재 차례 플레이어이고 이번 턴에 아직 메인 액션을 안 했으면(빈 턴), 직전 턴 시작으로 한 단계 더 되감기
+			// (아니면 '직전 턴 종료=새 턴 시작' 상태로 되감겨 방금 한 행동이 안 지워지는 문제)
+			const isCurrentPlayer = game.turnOrder[game.currentPlayerIndex] === playerId;
+			const currentTurnEmpty = isCurrentPlayer && !game.hasDoneMainAction;
+			const prevState: any = game.prevTurnStartState?.[playerId];
+			const startState: any = (currentTurnEmpty && prevState?.fullGameState) ? prevState : game.turnStartState?.[playerId];
 			if (!startState?.fullGameState) {
 				callback?.({ error: '이 플레이어의 롤백 스냅샷이 없습니다.' });
 				return;
@@ -2735,11 +2790,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 				: (game.humanActionJournal || []).slice(0, startState.humanActionJournalLength || 0);
 			clearFreeActionUndo(restored);
 			restored.turnStartState = { [playerId]: buildTurnStartStateEntryForPlayer(restored, playerId) };
+			restored.prevTurnStartState = undefined;
+			// 진행 중이던 봇 루프 무효화: 옛 game 객체에 취소 플래그 + 락 해제 → 옛 루프 정지, 새 게임에서 재시작
+			(game as any).botCanceled = true;
+			cancelBotExecution(gameId);
 			games.set(gameId, restored);
 			clampPlayerResources(restored);
 			log(`Admin: rolled back turn for ${restored.players[playerId]?.name ?? playerId}`, 'game', gameId);
 			io.to(gameId).emit('game_updated', restored);
 			callback?.({ ok: true, playerName: restored.players[playerId]?.name });
+			executeBotTurnIfNeeded(io, restored).catch(err => {
+				log(`Bot turn execution error (admin_rollback_turn): ${err}`, 'error');
+			});
 		});
 
 		socket.on('select_faction', ({ gameId, factionId, turnOrder }) => {
@@ -6020,9 +6082,10 @@ export function executeAdvanceTech(
 	player.knowledge = (player.knowledge ?? 0) - 4;
 	if (newLevel === 5) spendGreenFederation(player);
 	player.research[track]++;
+	// 트랙 레벨 보너스(가이아/경제 5단계 보상 등)가 이 로그의 하위줄로 붙도록 Advanced Research 로그를 먼저 찍는다
+	addGameLog(game, playerId, 'Advanced Research', `${track} to level ${newLevel} (${knowledgeBefore}K→${player.knowledge}K)`);
 	applyTrackLevelBonus(game, playerId, player, track, newLevel);
 	log(`Player ${player.name} advanced ${track} to Lv.${newLevel}: knowledge ${knowledgeBefore} → ${player.knowledge} (-4)`, 'game', undefined, { simulation: (game as any).simulation });
-	addGameLog(game, playerId, 'Advanced Research', `${track} to level ${newLevel} (${knowledgeBefore}K→${player.knowledge}K)`);
 	applyRoundMissionScore(game, playerId, 'research_track');
 	applyAdvancedTechTileEffect(game, playerId, 'research');
 	game.hasDoneMainAction = true;
@@ -7441,7 +7504,7 @@ export function executeBotFederation(
 
 	const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
 	if (reward) {
-		addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + reward.label });
+		addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + reward.label, noLog: true });
 		const anyReward = reward as any;
 		if (anyReward.ore) player.ore += anyReward.ore;
 		if (anyReward.credits) player.credits += anyReward.credits;
@@ -7482,7 +7545,8 @@ export function executeBotFederation(
 	]));
 
 	const unitLabel = isIvits ? '우주정거장' : '위성';
-	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel}, reward: ${reward?.label})`);
+	// 한 줄 통합: 위성 수 텍스트 + 연방 보상 이미지(tileId=rewardId). 'reward: 라벨'·'+VP' 텍스트는 생략
+	addGameLog(game, playerId, 'Federation', `연방 형성 (${numEmpty} ${unitLabel})`, rewardId);
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
