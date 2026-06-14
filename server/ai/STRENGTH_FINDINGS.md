@@ -204,3 +204,8 @@
 - startPlacementExpansion 합산 47판: 51.1%(24:23), VP +0.69, z=0.15 → **null**(미채택, flag OFF). 초기배치 가중은 이론상 맞으나 self-play 대칭맵서 효과 없음.
 - 패턴 확정: navBeforeJump 외 모든 휴리스틱 실험(engineBlend·mineFirst·startPlace) null = 지역최적 포화. correctness 오플레이 수정만 실효.
 - smartPowerAccept(사용자 파워-수락 관찰): self-play 승률보다 do-no-harm + 사용자 실전관찰이 적합한 검증.
+
+## 2026-06-14 smartPowerAccept 미채택 + 능동 블런더 스캔
+- smartPowerAccept 30판: VP +4.50(긍정) but 승률 44.4%(음), 둘 다 null. 점수↑/승리↓ 패턴 → 미채택(flag OFF). (네 실전관찰로 원하면 켤 수 있음)
+- 능동 블런더 스캔(8게임 봇 플레이): 늦은가이아포머 3게임(moweyip/ambas/itars) → gfFinalRoundGuard가 반복패턴 교정 확증. 그 외 새 isolatable 버그 없음 — 남은 건 전부 '총액션 9-13개'(조기패스/엔진정체) = systemic greedy 천장(크레딧 쟁여두기와 일치).
+- 결론: 현 로그에서 뽑을 isolatable 오플레이는 소진. 격차(58→218)는 단일버그 아닌 아키텍처. correctness 7건 채택으로 견고화 완료, 추가 도약은 아키텍처 재작성/대규모 학습(다주~데이터게이트).
