@@ -2938,7 +2938,12 @@ export class BotLogic {
             if (isQic) {
                 if (qic < cost) continue;
             } else {
-                if (p3 < effPowerCost(cost)) continue; // 네뷸라 의회 반값 반영
+                const need = effPowerCost(cost); // 네뷸라 의회 반값 반영
+                // 타클론: 브레인스톤(추가 파워)도 지출 가능 → 서버와 동일 헬퍼로 판정(p3만 보면 과소평가→조기패스)
+                const affordable = player.faction === 'taklons'
+                    ? (canSpendTaklonsPowerWithoutBrain(player, 3, need) || canTaklonsSpendUsingBrain(player, 3, need))
+                    : p3 >= need;
+                if (!affordable) continue;
             }
 
             const ore = player.ore || 0;
