@@ -2781,27 +2781,52 @@ export class BotLogic {
             }
         }
 
-        // 2. 라운드별 가중치 (초반 수익, 후반 점수)
-        if (round <= 3) {
-            // 초반: 수익 타일 대폭 우대 (엔진 빌딩)
-            if (tileId.startsWith('tech-inc-')) score += 120; // 스노우볼을 굴려야 하므로 수입 타일을 최우선 고려하도록 대폭 상향
+        // 2. 라운드별 가중치 (초반 수익 → 중반 균형 → 후반 점수)
+        // [데이터 2026-06-14] 사람 techTiles VP 32.8 vs 봇 0.0 — 봇이 즉발VP 타일을 너무 광범위(R≤3 -300)하게
+        // 회피 + R4 미처리로 techTiles 점수가 0이 됨. 3구간으로 재조정: R1-2 엔진(income), R3-4 균형(7VP도 적극),
+        // R5+ VP우선. (초반 7VP 회피는 사용자 우려대로 유지하되 R3부터는 7VP=큰 가치로 인정.)
+        const techVpReweight = getPlayerFlag(playerId, 'techVpReweight', true);
+        if (!techVpReweight) {
+            // [구버전 A/B용] 기존 2구간 로직 (R≤3 즉발VP -300, R≥5 7vp+80)
+            if (round <= 3) {
+                if (tileId.startsWith('tech-inc-')) score += 120;
+                if (tileId === 'tech-act-4p') score += 100;
+                if (tileId === 'tech-imm-1o-1q') score += 50;
+                if (tileId === 'tech-imm-7vp' || tileId === 'tech-gaia-3vp' || tileId === 'tech-imm-1k-planet' || tileId === 'tech-big-4str') score -= 300;
+            } else if (round >= 5) {
+                if (tileId === 'tech-imm-7vp') score += 80;
+                if (tileId === 'tech-imm-1k-planet') { const t = new Set(game.map.filter(x => x.ownerId === playerId && x.structure).map(x => x.type).filter(Boolean)).size; score += 40 + t * 15; }
+                if (tileId.startsWith('tech-inc-')) score -= 40;
+            }
+        } else if (round <= 2) {
+            // 초반: 수익 타일 대폭 우대 (엔진 빌딩). 즉발VP는 회피하되 절대차단(-300)→완화(-180).
+            if (tileId.startsWith('tech-inc-')) score += 120;
             if (tileId === 'tech-act-4p') score += 100;
             if (tileId === 'tech-imm-1o-1q') score += 50;
-
-            // 극단적 기피 (즉발 점수, 패스 점수 등 스노우볼에 무의미한 타일)
-            // [사용자 피드백] 초반에 7VP나 큰큰이(4STR) 타일을 집으면 자원 생산이 안돼서 망하므로 강제 차단
             if (tileId === 'tech-imm-7vp' || tileId === 'tech-gaia-3vp' || tileId === 'tech-imm-1k-planet' || tileId === 'tech-big-4str') {
-                score -= 300;
+                score -= 180;
             }
-        } else if (round >= 5) {
-            // 후반: 즉시 점수 및 행성 유형당 지식 타일 우대
-            if (tileId === 'tech-imm-7vp') score += 80;
+        } else if (round <= 4) {
+            // 중반(R3-4): 균형 — income 약간 우대 + 즉발VP도 충분히 가치(엔진 어느정도 섰고 7VP는 7점=큼).
+            if (tileId.startsWith('tech-inc-')) score += 70;
+            if (tileId === 'tech-act-4p') score += 60;
+            if (tileId === 'tech-imm-1o-1q') score += 40;
+            if (tileId === 'tech-imm-7vp') score += 70;     // 7 즉시 VP — 엔진 약한 봇엔 큰 이득
+            if (tileId === 'tech-gaia-3vp') score += 35;
+            if (tileId === 'tech-imm-1k-planet') {
+                const types = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.type).filter(t => t)).size;
+                score += 30 + (types * 12);
+            }
+        } else { // round >= 5
+            // 후반: 즉시 점수 우선. income은 굴릴 라운드가 없어 가치 급감.
+            if (tileId === 'tech-imm-7vp') score += 95;
+            if (tileId === 'tech-gaia-3vp') score += 55;
             if (tileId === 'tech-imm-1k-planet') {
                 const myPlanets = game.map.filter(t => t.ownerId === playerId && t.structure);
                 const types = new Set(myPlanets.map(t => t.type).filter(t => t)).size;
                 score += 40 + (types * 15);
             }
-            if (tileId.startsWith('tech-inc-')) score -= 40; // 수입 타일은 후반에 가치 극감
+            if (tileId.startsWith('tech-inc-')) score -= 40;
         }
 
         // 2-1. 고급 기술 타일 (adv-*): 건물·라운드·즉시 VP·자원 기반 세부 점수
