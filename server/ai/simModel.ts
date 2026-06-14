@@ -9,7 +9,10 @@
  */
 import type { ServerGameState } from '../gameState';
 import { getPlanetConnectedComponent, getFederationBuildingPower } from '../gameState';
-import { getRange, getTerraformStepsForFaction, getDistance, FACTIONS } from '@shared/gameConfig';
+import { getRange, getTerraformStepsForFaction, getDistance, FACTIONS, getNextRoundIncomePreview } from '@shared/gameConfig';
+
+/** 1라운드 income 델타 (B1: 롤아웃 라운드 경계에 적용, 빌드/연구 시 증분 갱신). */
+export interface SimIncome { ore: number; credits: number; knowledge: number; qic: number; powerCharge: number; powerTokens: number; }
 
 /** 연구 트랙 고정 순서 (features.ts와 동일). research[] 인덱스. */
 export const SIM_TRACKS = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const;
@@ -34,6 +37,8 @@ export interface SimPlayer {
     passed: boolean;
     // 종족 income 등에 필요한 원본 참조용 최소치
     artifacts: string[];
+    // B1: 추출 시점의 검증된 1라운드 income(getNextRoundIncomePreview). 롤아웃 중 빌드/연구로 증분 갱신.
+    income: SimIncome;
 }
 
 export interface SimState {
@@ -119,6 +124,7 @@ function extractSimPlayer(game: ServerGameState, p: any): SimPlayer {
         clusterPowers: extractClusterPowers(game, p.id),
         passed: !!p.hasPassed,
         artifacts: p.artifacts ?? [],
+        income: getNextRoundIncomePreview(p.id, game as any),
     };
 }
 
