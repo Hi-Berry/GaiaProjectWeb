@@ -2458,7 +2458,10 @@ export class BotLogic {
                     // [확장 사슬·사용자 전략] 지금 닿는 빈 행성이 거의 없어(확장 병목) 항해가 새 땅을 열면,
                     // 경제/과학보다 우선해 항해를 올리도록 강한 가점 — "땅 없으면 Nav 올려 새 땅 연다".
                     // (데이터: 정체봇 nav0-1/struct≤6 vs 확장봇 nav2-5/struct9-13)
-                    if (reachableNow.size <= 1 && round <= 5) {
+                    // [사용자 관찰 2026-06-14] 단 이 패닉-보너스가 nav4→5(range3→4, 새 땅 거의 안 열림 + L5는 지식 大)까지
+                    // 밀어 itars 봇이 경제 방치하고 nav L5 몰빵(39점). flag면 고레벨(level>=4) rush엔 보너스 미적용.
+                    const navPanicOk = level < 4 || !getPlayerFlag(playerId, 'noNavRushL5', false);
+                    if (reachableNow.size <= 1 && round <= 5 && navPanicOk) {
                         score += 90 + newPlanets.length * 20;
                     }
                 } else if (reachableNext.size === 0 && round <= 4) {
