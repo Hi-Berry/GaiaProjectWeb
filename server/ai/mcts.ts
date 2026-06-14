@@ -5,6 +5,8 @@ import { Evaluator } from './evaluator';
 import { getPlayerFlag } from './variant';
 import { applyRolloutIncome } from './rolloutIncome';
 import { scoreTerminalStateForRollout } from '../gameState';
+import { extractSimState } from './simModel';
+import { simRollout } from './simRollout';
 import { log } from '../index';
 
 // MCTS 디버그 로깅(후보 상세 리포트 등)은 매우 비싸다(턴당 수백 회 동기 console.log + 중복 전체평가).
@@ -198,6 +200,16 @@ export class MCTS {
     }
 
     private static async simulate(state: ServerGameState, playerId: string): Promise<number> {
+        // [flag: fastSearch] Path A 벽돌B5: 경량 forward model(simModel/simRollout)로 R6까지 굴려 평가.
+        // terminalRollout(진짜엔진 풀시뮬)이 비용으로 죽은 것 교정 — SimState 추출 1회 후 simRollout은 ~수만배 빠름.
+        // 리프를 '진짜 최종VP 근사(내-최고상대)'로 평가해 eval 천장 우회 + 대량 반복 가능. 롤아웃 결정적이라 1회.
+        if (getPlayerFlag(playerId, 'fastSearch', false)) {
+            try {
+                return simRollout(extractSimState(state, playerId));
+            } catch {
+                return Evaluator.evaluateState(state, playerId);
+            }
+        }
         // [flag: oppRollout] Path A 벽돌2: 상대 턴까지 시뮬하는 다턴 greedy 플레이아웃.
         // greedy 천장의 진짜 병목(opponent-blindness) 교정 시도. MCTS 재귀 없이 싼 1-ply 정책으로
         // 모든 플레이어를 굴려 "상대가 응수한 뒤" 위치를 평가. income/전환 페이즈서 break(hang-safe).
