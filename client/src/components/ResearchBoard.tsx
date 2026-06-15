@@ -781,18 +781,21 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 <div className="flex justify-between items-center border-b border-white/5 pb-0.5 min-w-0">
                                                     <div className="flex items-center gap-1 min-w-0 overflow-hidden">
                                                         <span className="text-[7px] font-black text-zinc-200 uppercase leading-none truncate">{SHIP_NAMES[tile.type]}</span>
-                                                        {/* Entered Players (Color Circles) */}
-                                                        <div className="flex gap-0.5 shrink-0">
+                                                        {/* 탑승자: 종족색 배경 칩 + 플레이어 이름 → 한눈에 누가 탔는지 식별 (기존엔 1.5px 점이라 안 보였음) */}
+                                                        <div className="flex flex-wrap items-center gap-0.5 shrink min-w-0">
                                                             {ship.occupants.map((pid) => {
                                                                 const p = game.players[pid];
                                                                 const faction = p?.faction ? FACTIONS.find(f => f.id === p.faction) : null;
+                                                                const nm = p?.name || pid;
                                                                 return (
-                                                                    <div 
-                                                                        key={pid} 
-                                                                        className="w-1.5 h-1.5 rounded-full border border-black/40 shadow-sm"
-                                                                        style={{ backgroundColor: faction?.color || '#888' }}
-                                                                        title={p?.name || pid}
-                                                                    />
+                                                                    <span
+                                                                        key={pid}
+                                                                        className="px-1 rounded-[2px] text-[7px] font-black uppercase leading-[1.5] border border-black/50 shadow-sm truncate max-w-[52px]"
+                                                                        style={{ backgroundColor: faction?.color || '#888', color: '#fff', textShadow: '0 1px 1px rgba(0,0,0,0.85)' }}
+                                                                        title={`${nm}${faction?.name ? ` · ${faction.name}` : ''}`}
+                                                                    >
+                                                                        {nm}
+                                                                    </span>
                                                                 );
                                                             })}
                                                         </div>
