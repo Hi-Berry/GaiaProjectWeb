@@ -573,12 +573,16 @@ export class BotLogic {
 
         // 최소 운영자금 확보(다음 라운드에 광산/교역소를 올릴 수 있게): O/C가 너무 바닥일 때만
         if (hasIncoming) {
+            // 네뷸라 의회: 오레 변환에 bowl-3 토큰 2개를 쓰는데, '3power-to-1ore'는 1O만 주고 1파워어치가 버려짐.
+            // 같은 2토큰으로 1O+1C를 주는 '2power-to-1ore-1credit'을 써서 1C 낭비 방지 (사용자 관찰).
+            const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
             const can3pOre = isTaklons
                 ? canSpendTaklonsPowerWithoutBrain(player, 3, 3) || canTaklonsSpendUsingBrain(player, 3, 3)
-                : currentP3 >= 3;
+                : (hasNevlasPI ? currentP3 >= 2 : currentP3 >= 3);
             if (can3pOre && (player.ore ?? 0) < 1) {
                 const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
-                return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } };
+                const oreType = hasNevlasPI ? '2power-to-1ore-1credit' : '3power-to-1ore';
+                return { type: 'convert_resource', params: { type: oreType, useBrain } };
             }
             if (currentP3 >= 1 && (player.credits ?? 0) < 2) {
                 return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } };
@@ -3123,12 +3127,15 @@ export class BotLogic {
         const isTaklons = player.faction === 'taklons';
 
         // 자원 상황이 정말 좋지 않을 때만 후보에 추가 (MCTS 탐색 공간 낭비 방지). 타클론은 브레인 스톤 우선 사용.
+        // 네뷸라 의회: 같은 2토큰으로 1O+1C를 주는 변환을 써서 1C 낭비 방지 (사용자 관찰)
+        const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
         const can3pOre = isTaklons
             ? canSpendTaklonsPowerWithoutBrain(player, 3, 3) || canTaklonsSpendUsingBrain(player, 3, 3)
-            : p3 >= 3;
+            : (hasNevlasPI ? p3 >= 2 : p3 >= 3);
         if (can3pOre && (player.ore ?? 0) < 2) {
             const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
-            res.push({ type: 'convert_resource', params: { type: '3power-to-1ore', useBrain } });
+            const oreType = hasNevlasPI ? '2power-to-1ore-1credit' : '3power-to-1ore';
+            res.push({ type: 'convert_resource', params: { type: oreType, useBrain } });
         }
         if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } });
         const can4pQic = isTaklons
