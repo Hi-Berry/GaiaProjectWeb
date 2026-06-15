@@ -6558,8 +6558,9 @@ export function executeUsePowerAction(
 		}
 	} else {
 		player.qic = (player.qic ?? 0) - action.cost;
-		// QIC 파워 액션 사용 시 고급 기술 타일(qic_action) 보상 적용
-		applyAdvancedTechTileEffect(game, playerId, 'qic_action');
+		// NOTE: 이 변형의 INITIAL_POWER_ACTIONS엔 QIC비용 보드 액션이 없어 이 분기는 현재 도달 불가(unreachable).
+		// adv-vp-qic-action(+4VP/QIC액션)의 실제 QIC 액션은 우주선 첫 칸에서 처리한다
+		// (executeUseShipAction / 소켓 우주선 핸들러). 보드에 QIC 액션을 추가하면 여기서 트리거를 다시 붙일 것.
 	}
 
 	if (actionId === 'gain-3-knowledge') player.knowledge += 3;
