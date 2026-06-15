@@ -5586,9 +5586,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		}
 	}
 	applyAdvancedTechTileEffect(game, playerId, 'build_mine');
-	if (neededQIC > 0) {
-		applyAdvancedTechTileEffect(game, playerId, 'qic_action');
-	}
+	// 사거리 연장에 QIC를 쓴 것은 'QIC 액션'(PAC 보라색 액션)이 아니라 단순 비용 지불이므로
+	// adv-vp-qic-action(+4VP)을 주지 않는다. (과다점수 버그 수정 — 사용자 관찰)
 
 	createPowerOffers(game, tile, playerId);
 	addBuildingToFederationIfAdjacent(game, playerId, tileId);
