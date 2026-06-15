@@ -3013,6 +3013,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingTwilightFederation = { playerId, shipTileId };
+					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true; // 우주선 액션 = 파워액션과 동일, 한 턴에 하나
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -3072,6 +3073,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 					game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 					addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
+					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -3127,6 +3129,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
+					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -3178,6 +3181,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
+					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 					return;
@@ -6917,6 +6921,8 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingTwilightFederation = { playerId, shipTileId };
+			// 우주선 첫 칸은 QIC 소모 액션 → adv-vp-qic-action(+4VP/QIC액션) 트리거 (누락 버그 수정, 사용자 관찰)
+			applyAdvancedTechTileEffect(game, playerId, 'qic_action');
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -6972,6 +6978,7 @@ export function executeUseShipAction(
 			game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 			addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
+			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -7027,6 +7034,7 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
+			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
@@ -7074,6 +7082,7 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
+			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 			return true;
