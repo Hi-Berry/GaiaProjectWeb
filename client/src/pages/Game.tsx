@@ -4853,6 +4853,24 @@ export default function Game() {
         />
       )}
 
+      {/* 모바일 전용 로그 버튼 — 도킹 로그는 md미만에서 hidden이고 하단시트는 L키로만 열려서
+          터치 기기에선 로그 접근 경로가 없던 문제 수정(우하단 플로팅, 시트 열리면 숨김). 데스크톱은 기존 L키/도킹 유지. */}
+      {game && !isLogPanelOpen && (
+        <button
+          type="button"
+          aria-label="게임 로그 열기"
+          title="게임 로그"
+          onClick={() => setIsLogPanelOpen(true)}
+          className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+            right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
+          }}
+        >
+          <Clock className="w-5 h-5" />
+        </button>
+      )}
+
       {/* L 키: 게임 로그 — 평소 UI 없음, 하단 시트로 절반 정도 올라옴 */}
       <AnimatePresence>
         {isLogPanelOpen && game && (
