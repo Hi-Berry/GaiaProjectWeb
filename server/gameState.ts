@@ -5408,7 +5408,10 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		if (effectiveGaiaformers <= 0) {
 			const errorMsg = '소행성에 광산을 건설하려면 사용 가능한 가이아 포머가 1개 이상 필요합니다.';
 			debugLog(game, `executeBuildMine failed (Asteroid): No available gaiaformers (total=${player.gaiaformers ?? 0}, locked=${player.balTakGaiaformersUsedForQic ?? 0})`, 'error');
-			io.to(game.id).emit('game_error', errorMsg);
+			// 봇/시뮬의 잘못된 시도는 방 전체에 브로드캐스트하지 않는다(사람 화면에 봇 에러가 새던 문제). 봇은 실패 시 재스케줄됨.
+			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
+				io.to(game.id).emit('game_error', errorMsg);
+			}
 			return false;
 		}
 		const geodensTypesBeforeAsteroid = getPlayerPlanetTypesForGeodens(game, playerId);
