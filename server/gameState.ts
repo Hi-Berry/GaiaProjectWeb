@@ -71,7 +71,7 @@ import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './bot
 import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVariant } from './ai/variant';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
-import { exportHumanGameDataset, recordHumanActionFromLog, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -1194,6 +1194,8 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	}
 
 	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId);
+	// 사람 게임 한정 전체 로그(봇 포함, 전 라운드) — 라이브 gameLog는 아래에서 100캡되므로 별도 보관.
+	recordFullGameLog(game as ServerGameState, playerId, action, details, tileId);
 
 	if (game.gameLog.length > 100) {
 		game.gameLog.shift();

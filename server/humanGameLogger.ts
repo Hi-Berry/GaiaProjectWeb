@@ -22,6 +22,27 @@ export type HumanActionJournalEntry = {
   playerAfter?: ReturnType<typeof summarizePlayer>;
 };
 
+/**
+ * 전체 게임 로그(사람+봇 모든 액션, 전 라운드). `game.gameLog`는 라이브 브로드캐스트 페이로드라
+ * 100줄로 캡되어 엔드게임만 남는다 → 봇의 초·중반 액션이 유실된다. 분석(사람 vs 봇 라운드별 대조)을
+ * 위해 사람이 낀 게임에 한해 여기 모듈 레벨 저장소에 캡 없이 모아두고, export 때만 꺼내 쓴다.
+ * (게임 객체에 붙이지 않으므로 브로드캐스트/UI에는 0 영향.)
+ */
+export type FullGameLogEntry = {
+  timestamp: number;
+  round: number;
+  phase: string;
+  playerId: string;
+  playerName: string;
+  isBot: boolean;
+  action: string;
+  details?: string;
+  tileId?: string;
+};
+
+const fullGameLogs = new Map<string, FullGameLogEntry[]>();
+const FULL_LOG_CAP = 4000; // 비정상 성장(버려진 게임 등) 방지용 상한. 6R 4인플은 보통 600~1000.
+
 type HumanGamePayload = {
   version: 1;
   gameId: string;
@@ -32,6 +53,7 @@ type HumanGamePayload = {
   turnOrder: string[];
   gameLog: NonNullable<GaiaGameState['gameLog']>;
   actionJournal: HumanActionJournalEntry[];
+  fullGameLog: FullGameLogEntry[];
 };
 
 function summarizePlayer(player?: PlayerState | null) {
@@ -98,6 +120,49 @@ export function recordHumanActionFromLog(game: GaiaGameState & {
   recordDecisionFeatures(game as any, playerId, action);
 }
 
+/**
+ * 사람+봇 모든 액션을 전 라운드 캡 없이 기록(사람이 낀 게임 한정). `recordHumanActionFromLog`와 달리
+ * 봇 액션도 남긴다 → export 시 봇의 라운드별 행동을 사람과 같은 보드에서 대조할 수 있다.
+ * self-play / head2head(전원 봇)는 기록하지 않는다.
+ */
+export function recordFullGameLog(game: GaiaGameState & {
+  id?: string;
+  botPlayerIds?: string[];
+  simulation?: boolean;
+}, playerId: string, action: string, details?: string, tileId?: string) {
+  if (game.simulation) return;
+  if (!game.id) return;
+  const botIds = game.botPlayerIds ?? [];
+  const playerIds = Object.keys(game.players ?? {});
+  const hasRealHuman = playerIds.some(id => !botIds.includes(id));
+  if (!hasRealHuman) return; // 전원 봇(self-play/h2h) 제외
+  const player = game.players[playerId];
+  if (!player) return;
+
+  let arr = fullGameLogs.get(game.id);
+  if (!arr) { arr = []; fullGameLogs.set(game.id, arr); }
+  if (arr.length >= FULL_LOG_CAP) return;
+  arr.push({
+    timestamp: Date.now(),
+    round: game.roundNumber ?? 0,
+    phase: String(game.currentPhase ?? ''),
+    playerId,
+    playerName: player.name,
+    isBot: botIds.includes(playerId),
+    action,
+    details,
+    tileId,
+  });
+}
+
+/** export 시점에 풀 로그를 꺼내고 메모리에서 비운다(게임당 1회). */
+function takeFullGameLog(gameId?: string): FullGameLogEntry[] {
+  if (!gameId) return [];
+  const arr = fullGameLogs.get(gameId) ?? [];
+  fullGameLogs.delete(gameId);
+  return arr;
+}
+
 function buildPayload(game: GaiaGameState & {
   id?: string;
   createdAt?: number;
@@ -122,6 +187,7 @@ function buildPayload(game: GaiaGameState & {
     turnOrder: [...(game.turnOrder ?? [])],
     gameLog: game.gameLog ?? [],
     actionJournal: game.humanActionJournal ?? [],
+    fullGameLog: takeFullGameLog(game.id),
   };
 }
 
