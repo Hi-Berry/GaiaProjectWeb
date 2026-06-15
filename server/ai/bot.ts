@@ -3821,7 +3821,25 @@ export class BotLogic {
         // 1. 기술 타일 액션
         for (const tid of player.techTiles || []) {
             if (player.usedTechActions?.includes(tid)) continue;
-            if (tid === 'tech-act-4p') res.push({ type: 'use_tech_action', params: { tileId: tid } });
+            if (tid === 'tech-act-4p') {
+                // [사용자 관찰] 4파워 충전 전에 bowl이 차 있으면(수용량 2*p1+p2 < 4) 충전이 버려진다.
+                // 충전 낭비가 2 이상이고 비울 bowl-3가 있으면, 먼저 1P→1C 프리액션으로 bowl-3을 비워
+                // 수용량을 확보한다(가치 추출 + 낭비 방지). 연방의 'bowl-3 먼저' 원리와 동일.
+                // 드레인 수는 p3로 캡(프리액션 실패→리스케줄 루프 방지). 타클론은 브레인스톤 복잡성으로 제외.
+                const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+                const waste = Math.max(0, 4 - (2 * p1 + p2));
+                const preActions: BotAction[] = [];
+                // [flag: chargeDrainBowl3 기본 ON] head2head로 do-no-harm 검증/되돌리기 가능.
+                if (getPlayerFlag(playerId, 'chargeDrainBowl3', true) && player.faction !== 'taklons' && waste >= 2 && p3 >= 1) {
+                    const drains = Math.min(p3, Math.ceil(waste / 2));
+                    for (let i = 0; i < drains; i++) {
+                        preActions.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: false } });
+                    }
+                }
+                res.push(preActions.length
+                    ? { type: 'use_tech_action', params: { tileId: tid }, preActions }
+                    : { type: 'use_tech_action', params: { tileId: tid } });
+            }
             if (tid === 'adv-act-3k') res.push({ type: 'use_tech_action', params: { tileId: tid } });
             if (tid === 'adv-act-3o') res.push({ type: 'use_tech_action', params: { tileId: tid } });
             if (tid === 'adv-act-1q-5c') res.push({ type: 'use_tech_action', params: { tileId: tid } });
