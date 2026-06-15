@@ -541,6 +541,9 @@ export function GameBoard({
         onFederationToggleHex(tile.id);
         return;
       }
+      // 연방 모드에선 유효 대상이 아닌 타일을 클릭해도 디테일 패널을 열지 않는다
+      // (타일 클릭 = 연방 대상 선택 전용). 패널이 떠서 연방 파워체크 팝업을 가리던 문제 방지.
+      return;
     }
     if (!hasDragged && onEclipseBuildAsteroidMine && isEclipseAsteroidMode && eclipseBuildableTileIds.has(tile.id)) {
       onEclipseBuildAsteroidMine(tile.id, eclipseNeededQic(tile));
@@ -1458,9 +1461,10 @@ export function GameBoard({
 
       </div>
 
-      {/* 행성/타일 선택 패널: 절대 위치 오버레이로 맵 영역 크기에 영향 없음 */}
+      {/* 행성/타일 선택 패널: 절대 위치 오버레이로 맵 영역 크기에 영향 없음.
+          연방 모드에선 렌더하지 않음 — 타일 클릭은 연방 선택 전용이고, 패널이 연방 파워체크 팝업을 가렸음. */}
       {
-        selectedTile && (
+        selectedTile && !isFederationMode && (
           <div
             className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out"
 
