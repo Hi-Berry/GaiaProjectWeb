@@ -5023,7 +5023,7 @@ export default function Game() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
+        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
           <motion.div
             initial={{ y: -50, x: '-50%', opacity: 0 }}
             animate={{ y: 0, x: '-50%', opacity: 1 }}
@@ -5101,7 +5101,7 @@ export default function Game() {
               )}
 
               {/* Reset/End Turn (Integrated inside bar) */}
-              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"

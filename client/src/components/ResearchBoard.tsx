@@ -200,7 +200,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
             )}
             <CardContent className={`${isMini ? 'p-0 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
-                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && !pendingEclipseTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
+                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && !pendingEclipseTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
                     <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10 mb-4">
                         <p className="text-[10px] text-zinc-400 mb-2 font-medium">메인 액션을 완료했습니다. 행동을 확정(Turn End)하거나 취소(Reset)할 수 있습니다.</p>
                         <div className="flex gap-2">
