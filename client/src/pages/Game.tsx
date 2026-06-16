@@ -1753,16 +1753,18 @@ export default function Game() {
   /** 플레이어별 맵에서 건물 개수 (다른 플레이어 UI용, 광산은 잊혀진 행성·기생·가상 포함) */
   const getStructureCountsForPlayer = (g: GameState, pid: string) => {
     const owned = (g.map ?? []).filter((t: { ownerId: string | null }) => t.ownerId === pid);
-    const mineCount = owned.filter((t: { structure: string | null }) => t.structure === 'mine' || t.structure === 'lost_planet_mine').length
-      + (g.map ?? []).filter((t: { parasiticMine?: { ownerId: string } }) => t.parasiticMine?.ownerId === pid).length
-      + (g.players[pid]?.virtualMineAsteroid ? 1 : 0)
-      + (g.players[pid]?.virtualMineProto ? 1 : 0);
+    // 실제 광산 토큰을 쓰는 것만(보드 광산 + 잊혀진행성 광산 + 란티다 기생광산). 광산 보유 한도(M x/8) 표시용.
+    const physicalMineCount = owned.filter((t: { structure: string | null }) => t.structure === 'mine' || t.structure === 'lost_planet_mine').length
+      + (g.map ?? []).filter((t: { parasiticMine?: { ownerId: string } }) => t.parasiticMine?.ownerId === pid).length;
+    // 인공물 가상광산은 토큰을 쓰지 않으므로 한도엔 안 들어가고, 점수/패스 보너스(유형당·광산당 VP) 계산에만 포함.
+    const virtualMineCount = (g.players[pid]?.virtualMineAsteroid ? 1 : 0) + (g.players[pid]?.virtualMineProto ? 1 : 0);
+    const mineCount = physicalMineCount + virtualMineCount;
     const tsCount = owned.filter((t: { structure: string | null }) => t.structure === 'trading_station').length;
     const labCount = owned.filter((t: { structure: string | null }) => t.structure === 'research_lab').length;
     const piCount = owned.filter((t: { structure: string | null }) => t.structure === 'planetary_institute').length;
     const academyLeft = owned.filter((t: { structure: string | null; academyType?: string }) => t.structure === 'academy' && (t.academyType === 'left' || t.academyType == null)).length;
     const academyRight = owned.filter((t: { structure: string | null; academyType?: string }) => t.structure === 'academy' && t.academyType === 'right').length;
-    return { mineCount, tsCount, labCount, piCount, academyLeft, academyRight };
+    return { mineCount, physicalMineCount, tsCount, labCount, piCount, academyLeft, academyRight };
   };
 
   const getActionCost = (action: PotentialAction) => {
@@ -3928,6 +3930,36 @@ export default function Game() {
                 const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
                 const hasPassed = p.hasPassed;
 
+                // 연방 건물 파워: (연방 헥스에 포함된 내 건물 파워 / 전체 내 건물 파워).
+                // 연방 파워 산정과 동일하게 내 구조물(우주선 제외) + 란티다 기생광산 + 우주정거장을 합산.
+                // 파워값: PI/Academy=3(big타일 시 4) / TS·Lab=2 / 광산=1 / 기생광산·우주정거장=1.
+                const { fedBuildingPower, totalBuildingPower } = (() => {
+                  const hasBig = p.techTiles?.includes('tech-big-4str') ?? false;
+                  const structPower = (s: StructureType | null | undefined): number => {
+                    switch (s) {
+                      case 'planetary_institute':
+                      case 'academy': return hasBig ? 4 : 3;
+                      case 'trading_station':
+                      case 'research_lab': return 2;
+                      case 'mine':
+                      case 'lost_planet_mine': return 1;
+                      default: return 0;
+                    }
+                  };
+                  const fedHexes = new Set(game.playerFederationHexes?.[id] ?? []);
+                  let total = 0, fed = 0;
+                  for (const t of game.map) {
+                    let tp = 0;
+                    if (t.ownerId === id && t.structure && t.structure !== 'ship') tp += structPower(t.structure);
+                    if (t.parasiticMine?.ownerId === id) tp += 1;
+                    if (t.spaceStation?.ownerId === id) tp += 1;
+                    if (tp === 0) continue;
+                    total += tp;
+                    if (fedHexes.has(t.id)) fed += tp;
+                  }
+                  return { fedBuildingPower: fed, totalBuildingPower: total };
+                })();
+
                 const renderActionBtn = (
                   isUsed: boolean,
                   canUse: boolean,
@@ -4157,7 +4189,7 @@ export default function Game() {
 
                             {/* Buildings */}
                             <div className="flex justify-between items-baseline mb-0.5 md:mb-1 text-[10px] md:text-xs text-zinc-500 font-mono tracking-tighter md:tracking-normal w-full">
-                              M<span className="text-amber-300/90">{counts.mineCount}</span>/{BUILDING_LIMITS.mine}
+                              M<span className="text-amber-300/90">{counts.physicalMineCount}</span>/{BUILDING_LIMITS.mine}
                               <span className="mx-0.5 md:mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
                               <span className="mx-0.5 md:mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
                               <span className="mx-0.5 md:mx-1">PI</span><span className="text-purple-400/90">{counts.piCount}</span>/{BUILDING_LIMITS.planetary_institute}
@@ -4435,8 +4467,14 @@ export default function Game() {
                           )}
                           {fedEntries.length > 0 && (
                             <div className="flex gap-0 items-stretch">
-                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                              <div className="w-[3rem] shrink-0 flex flex-col items-center justify-center px-0.5 gap-0.5">
                                 <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">연방</span>
+                                <span
+                                  className="text-muted-foreground/80 font-bold text-[8px] leading-none tabular-nums text-center"
+                                  title="연방에 포함된 건물 파워 / 전체 건물 파워"
+                                >
+                                  {fedBuildingPower}/{totalBuildingPower}
+                                </span>
                               </div>
                               <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
                               <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 flex-1 min-w-0 pl-2 content-center py-0.5">
