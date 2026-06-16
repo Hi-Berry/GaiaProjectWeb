@@ -3864,7 +3864,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			applyAdvancedTileImmediateEffect(game, playerId, pending.advancedTileId);
 
-			addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}`);
+			// tileId에 획득한 고급 타일 id를 담아 로그가 '덮은 일반 타일'이 아니라 '획득한 고급 타일' 이미지를 표시하도록
+			addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}`, pending.advancedTileId);
 			game.pendingTechTileSelection = null;
 			game.pendingAdvancedTechCover = null;
 			game.availableShipTechTileIds = undefined;
