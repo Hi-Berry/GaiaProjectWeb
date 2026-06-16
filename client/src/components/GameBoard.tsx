@@ -32,6 +32,10 @@ import {
   getFederationEntries
 } from '@shared/gameConfig';
 
+// [테스트용] true면 모든 보드 칸에 위성 1개씩을, 종족색을 순환해서 깔아 색별 가시성을 확인.
+// 확인 끝나면 false로 되돌릴 것.
+const FORCE_TEST_SATELLITES = false;
+
 const HEX_SIZE = 4.8;
 const SQRT3 = Math.sqrt(3);
 
@@ -66,6 +70,15 @@ function shadeColor(hex: string, amt: number): string {
   return `#${to2(r)}${to2(g)}${to2(b)}`;
 }
 
+/** hex의 지각 밝기(0~255). 어두운 종족색 위성이 우주 배경에 안 보이는 문제 판정용 */
+function colorLuminance(hex: string): number {
+  let h = (hex || '#888888').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const num = parseInt(h, 16);
+  const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 /** 같은 칸에 위성이 여러 개일 때 보기 좋은 배치 좌표(hex 로컬 좌표계).
  *  1개짜리 크기(scale=1)를 그대로 유지하면서 겹치지 않게 간격만 벌림.
  *  1=가운데, 2=세로 1/3·2/3, 3=삼각형, 4=2×2, 5+=원형 */
@@ -83,22 +96,27 @@ function satelliteLayout(count: number): Array<{ x: number; y: number }> {
 
 /** 위성: 각진 입체 정육면체(아이소메트릭 큐브). scale=1이면 기존 사각형의 약 2배 크기 */
 function SatelliteCube({ color, scale = 1 }: { color: string; scale?: number }) {
-  const topFace = shadeColor(color, 0.42);
-  const rightFace = color;
-  const leftFace = shadeColor(color, -0.34);
-  const edge = shadeColor(color, -0.62);
+  // 어두운/탁한 종족색(검정·갈색)은 그대로 두면 어두운 우주 배경과 대비가 약해 안 보임.
+  // 매우 어두우면 면 자체를 살짝 띄워 식별성 확보.
+  const lum = colorLuminance(color); // 0~255
+  const lift = lum < 70 ? 0.30 : lum < 110 ? 0.15 : 0;
+  const base = lift > 0 ? shadeColor(color, lift) : color;
+  const topFace = shadeColor(base, 0.42);
+  const rightFace = base;
+  const leftFace = shadeColor(base, -0.34);
+  const edge = shadeColor(base, -0.62);
   const w = 1.0, ht = 0.55, hv = 1.1; // 반너비 / 윗면 반높이 / 꼭짓점 반높이
   const T = `0,${-hv}`, UR = `${w},${-ht}`, LR = `${w},${ht}`, B = `0,${hv}`, LL = `${-w},${ht}`, UL = `${-w},${-ht}`, C = '0,0';
   return (
     <g transform={`scale(${scale})`} strokeLinejoin="miter" strokeLinecap="butt">
       {/* 바닥 그림자 → 떠 있는 입체감 */}
       <ellipse cx="0" cy={hv * 1.05} rx={w * 0.8} ry={ht * 0.45} fill="#000" opacity="0.3" />
+      {/* 밝은 외곽 림(occupant 점과 동일하게 흰 테두리) — 어떤 종족색이든 어두운 배경에서 또렷하게 보이도록 */}
+      <polygon points={`${T} ${UR} ${LR} ${B} ${LL} ${UL}`} fill="none" stroke="rgba(255,255,255,0.92)" strokeWidth="0.34" />
       {/* 세 면 — 모서리를 날카롭게(miter) */}
       <polygon points={`${UL} ${T} ${UR} ${C}`} fill={topFace} stroke={edge} strokeWidth="0.1" />
       <polygon points={`${UL} ${C} ${B} ${LL}`} fill={leftFace} stroke={edge} strokeWidth="0.1" />
       <polygon points={`${UR} ${LR} ${B} ${C}`} fill={rightFace} stroke={edge} strokeWidth="0.1" />
-      {/* 각진 외곽선 */}
-      <polygon points={`${T} ${UR} ${LR} ${B} ${LL} ${UL}`} fill="none" stroke={edge} strokeWidth="0.16" />
     </g>
   );
 }
@@ -1096,7 +1114,7 @@ export function GameBoard({
               })}
             </g>
             <Layout size={{ x: HEX_SIZE, y: HEX_SIZE }} flat={false} spacing={1.0} origin={{ x: 0, y: 0 }}>
-              {game.map.map((tile: HexTile) => {
+              {game.map.map((tile: HexTile, tileIdx: number) => {
                 const isSelected = selectedTile?.id === tile.id;
                 const isEclipseBuildable = eclipseBuildableTileIds.has(tile.id);
                 const isTwilightTSSelectable = twilightTSSelectableIds.has(tile.id);
@@ -1304,12 +1322,15 @@ export function GameBoard({
 
                     {/* 위성 표시 — 각진 입체 정육면체. 같은 칸에 여러 개면 배치 정리 */}
                     {(() => {
-                      const sats: Array<{ key: string; color: string }> = satelliteOwnerIds
-                        .map(ownerId => {
-                          const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
-                          return fac ? { key: ownerId, color: fac.color } : null;
-                        })
-                        .filter((x): x is { key: string; color: string } => x !== null);
+                      // [테스트] 모든 보드 칸에 종족색 순환으로 위성 1개씩 → 색별 가시성 확인용
+                      const sats: Array<{ key: string; color: string }> = (FORCE_TEST_SATELLITES && tile.sector !== 90)
+                        ? [{ key: 'test', color: FACTIONS[tileIdx % FACTIONS.length].color }]
+                        : satelliteOwnerIds
+                          .map(ownerId => {
+                            const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
+                            return fac ? { key: ownerId, color: fac.color } : null;
+                          })
+                          .filter((x): x is { key: string; color: string } => x !== null);
                       if (sats.length === 0) return null;
                       const pos = satelliteLayout(sats.length);
                       const scale = sats.length <= 4 ? 1 : 0.7; // 1개짜리 크기 그대로 유지(4개까지)

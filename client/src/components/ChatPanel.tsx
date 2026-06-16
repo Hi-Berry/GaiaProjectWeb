@@ -33,7 +33,9 @@ export function ChatPanel({ gameId, game, canChat }: ChatPanelProps) {
         if (!canChat) return;
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== 'Enter' || e.isComposing) return;
-            const el = document.activeElement as HTMLElement | null;
+            // activeElement는 입력창 blur 직후 body로 바뀌어, 빈 Enter로 닫자마자 다시 열리는 문제가 있었음.
+            // 이벤트가 발생한 요소(e.target)로 판정하면 blur 여부와 무관하게 입력창에서의 Enter를 정확히 무시.
+            const el = (e.target as HTMLElement | null) ?? (document.activeElement as HTMLElement | null);
             const tag = el?.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
             if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
