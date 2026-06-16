@@ -14,12 +14,10 @@ REM Move to repo root (this script lives in scripts\)
 cd /d "%~dp0.."
 
 REM 1) Use existing env var if present
-if not defined SUPABASE_SERVICE_ROLE_KEY (
-  REM 2) Read from key file next to this script if present
-  if exist "%~dp0supabase-key.txt" (
-    set /p SUPABASE_SERVICE_ROLE_KEY=<"%~dp0supabase-key.txt"
-  )
-)
+REM 2) Read from key file next to this script (also tolerate the
+REM    accidental .txt.txt name Windows creates when extensions are hidden)
+if not defined SUPABASE_SERVICE_ROLE_KEY if exist "%~dp0supabase-key.txt" set /p SUPABASE_SERVICE_ROLE_KEY=<"%~dp0supabase-key.txt"
+if not defined SUPABASE_SERVICE_ROLE_KEY if exist "%~dp0supabase-key.txt.txt" set /p SUPABASE_SERVICE_ROLE_KEY=<"%~dp0supabase-key.txt.txt"
 
 REM 3) Otherwise prompt for it
 if not defined SUPABASE_SERVICE_ROLE_KEY (
