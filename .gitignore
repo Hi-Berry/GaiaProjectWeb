@@ -14,3 +14,5 @@ data/pace-*.json
 data/valuenet-data.jsonl
 # 로컬 에이전트/IDE 설정
 .claude/
+# Supabase 서비스 키 (fetch-supabase-games.bat용) — 절대 커밋 금지
+scripts/supabase-key.txt
