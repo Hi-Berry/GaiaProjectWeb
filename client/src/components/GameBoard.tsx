@@ -1412,7 +1412,8 @@ export function GameBoard({
             if (!isMyTurn || game.currentPhase !== 'main' || game.hasDoneMainAction || game.pendingFederationReward) return null;
 
             return isFederationMode ? (
-              <div className="p-2 bg-black/80 backdrop-blur-md border border-sky-500/40 rounded-xl flex flex-col gap-1.5 w-56 shadow-2xl mt-0">
+              // 맵 우측 hex 클릭을 가리지 않도록 우상단 in-flow → 화면 하단 중앙 고정으로 이동 (fixed라 컨트롤 레이아웃에도 영향 없음)
+              <div className="fixed left-1/2 -translate-x-1/2 bottom-4 z-[60] p-2 bg-black/85 backdrop-blur-md border border-sky-500/40 rounded-xl flex flex-col gap-1.5 w-64 shadow-2xl pointer-events-auto">
                 <p className="text-[9px] text-sky-300 font-bold leading-tight">
                   위성·건물을 클릭해 연방에 포함할 대상을 선택.
                 </p>
