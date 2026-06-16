@@ -3,6 +3,8 @@ import type { GaiaGameState as GameState, PlayerState, StructureType, ResearchTr
 
 export type { GameState, PlayerState, StructureType, ResearchTrack };
 
+export type ChatMessage = NonNullable<GameState['chatMessages']>[number];
+
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
@@ -540,5 +542,16 @@ export const GameClient = {
     const s = getSocket();
     s.on('error', callback);
     return () => s.off('error', callback);
+  },
+
+  sendChat(gameId: string, text: string) {
+    const s = getSocket();
+    s.emit('send_chat', { gameId, text });
+  },
+
+  onChatMessage(callback: (msg: ChatMessage) => void) {
+    const s = getSocket();
+    s.on('chat_message', callback);
+    return () => s.off('chat_message', callback);
   },
 };

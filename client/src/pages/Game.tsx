@@ -11,6 +11,7 @@ import { GameBoard } from '@/components/GameBoard';
 import { BonusTiles } from '@/components/BonusTiles';
 import { BonusSelectionModal } from '@/components/BonusSelectionModal';
 import { FreeActionsDialog } from '@/components/FreeActionsDialog';
+import { ChatPanel } from '@/components/ChatPanel';
 
 import { PlayerPanel } from '@/components/PlayerPanel';
 import { GameLog } from '@/components/GameLog';
@@ -5282,6 +5283,11 @@ export default function Game() {
         )}
       </AnimatePresence>
       <GameEndScoreModal />
+
+      {/* 인게임 채팅 — 하단 좌측, 최상위 레이어. 참가자/관전자만 노출 */}
+      {game && gameId && (isSpectator || (!!playerId && !!game.players[playerId])) && (
+        <ChatPanel gameId={gameId} game={game} canChat={true} />
+      )}
     </div>
   );
 }

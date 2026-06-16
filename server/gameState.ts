@@ -3733,6 +3733,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 		});
 
+		// 인게임 채팅: 플레이어/관전자 모두 전송 가능. 가벼운 'chat_message' 이벤트로 즉시 전파하고,
+		// 재접속/관전자 히스토리 복원을 위해 게임 상태에 최근 100개만 보관(전체 game_updated는 보내지 않음).
+		socket.on('send_chat', ({ gameId, text }: { gameId: string; text: string }) => {
+			const game = games.get(gameId); if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			const spectatorId = socketToSpectatorMap.get(socket.id);
+			const senderId = playerId || spectatorId;
+			if (!senderId) return; // 이 게임에 속하지 않은 소켓은 무시
+			if (typeof text !== 'string') return;
+			const clean = text.replace(/\s+/g, ' ').trim().slice(0, 300);
+			if (!clean) return;
+			const player = playerId ? game.players[playerId] : undefined;
+			const msg = {
+				id: generatePlayerId(),
+				senderId,
+				name: player?.name ?? '관전자',
+				faction: player?.faction ?? null,
+				isSpectator: !player,
+				text: clean,
+				ts: Date.now(),
+			};
+			if (!game.chatMessages) game.chatMessages = [];
+			game.chatMessages.push(msg);
+			if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
+			io.to(gameId).emit('chat_message', msg);
+		});
+
 		socket.on('undo_free_action', ({ gameId, steps }: { gameId: string; steps?: number }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
