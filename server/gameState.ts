@@ -1271,6 +1271,30 @@ export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: strin
 	return false;
 }
 
+/** 마지막 로그가 같은 플레이어 것이면 details에 `(+NVP reason)` 세그먼트를 붙인다.
+ *  같은 reason 세그먼트가 이미 있으면 VP를 합산(예: 테라포밍 3단계 → +2VP 3번 대신 +6VP 1번).
+ *  직전 로그가 내 것이 아니면 새 로그로 남기되, 이후 병합이 가능하도록 동일한 `(+NVP reason)` 포맷을 쓴다. */
+function appendVpSegmentToLastLog(game: GaiaGameState, playerId: string, vp: number, reason: string) {
+	if (!game.gameLog) game.gameLog = [];
+	const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
+	const segment = `(+${vp}VP ${reason})`;
+	if (lastLog && lastLog.playerId === playerId) {
+		if (lastLog.details) {
+			const re = new RegExp(`\\(\\+(\\d+)VP ${reason.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`);
+			const m = lastLog.details.match(re);
+			if (m) {
+				lastLog.details = lastLog.details.replace(re, `(+${parseInt(m[1], 10) + vp}VP ${reason})`);
+			} else {
+				lastLog.details += ` ${segment}`;
+			}
+		} else {
+			lastLog.details = segment;
+		}
+	} else {
+		addGameLog(game, playerId, '', segment);
+	}
+}
+
 export function applyRoundMissionScore(game: GaiaGameState, playerId: string, triggerType: string) {
 	const currentRoundIndex = game.roundNumber - 1;
 	if (currentRoundIndex < 0 || currentRoundIndex >= game.roundScoringTiles.length) return;
@@ -1285,20 +1309,8 @@ export function applyRoundMissionScore(game: GaiaGameState, playerId: string, tr
 	addScore(game, playerId, vpGain, 'roundMissions', { round: game.roundNumber });
 	log(`Player ${player.name} gained ${vpGain} VP from Round ${game.roundNumber} mission: ${currentRoundMission.condition}`, 'game', undefined, { simulation: (game as any).simulation });
 
-	// 메인 액션 로그 병합: 가장 마지막 로그가 내 로그라면 details에 추가, 아니면 subLogs에 추가
-	if (!game.gameLog) game.gameLog = [];
-	const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
-
-	if (lastLog && lastLog.playerId === playerId) {
-		if (lastLog.details) {
-			lastLog.details += ` (+${vpGain}VP ${currentRoundMission.condition})`;
-		} else {
-			lastLog.details = `+${vpGain}VP (${currentRoundMission.condition})`;
-		}
-	} else {
-		// 만약 직전 로그가 내 것이 아니라면(드문 경우) 기존처럼 개별 로그로 남기되 서브 로그 형태로 처리
-		addGameLog(game, playerId, '', `+${vpGain}VP (${currentRoundMission.condition})`);
-	}
+	// 메인 액션 로그에 병합. '라운드' 접두로 고급기술 보너스와 구분(둘 다 동시에 떠도 식별 가능).
+	appendVpSegmentToLastLog(game, playerId, vpGain, `라운드 ${currentRoundMission.condition}`);
 }
 
 export function applyFinalMissionScoring(game: GaiaGameState) {
@@ -1384,25 +1396,8 @@ export function applyAdvancedTechTileEffect(game: GaiaGameState, playerId: strin
 
 	if (!game.gameLog) game.gameLog = [];
 
-	const appendToLastLog = (vp: number, reason: string) => {
-		const lastLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
-		if (lastLog && lastLog.playerId === playerId && !reason.includes('Tech Tile Bonus')) {
-			if (lastLog.details) {
-				// 같은 사유의 VP 세그먼트가 이미 있으면 합산 (예: 테라포밍 3단계 → +2VP가 3번 붙는 대신 +6VP 한 번)
-				const re = new RegExp(`\\(\\+(\\d+)VP ${reason.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`);
-				const m = lastLog.details.match(re);
-				if (m) {
-					lastLog.details = lastLog.details.replace(re, `(+${parseInt(m[1], 10) + vp}VP ${reason})`);
-				} else {
-					lastLog.details += ` (+${vp}VP ${reason})`;
-				}
-			} else {
-				lastLog.details = `+${vp}VP (${reason})`;
-			}
-		} else {
-			addGameLog(game, playerId, '', `+${vp}VP (${reason})`);
-		}
-	};
+	// '고급' 접두로 라운드 미션 보너스와 구분(둘 다 동시에 떠도 식별 가능). 같은 사유는 자동 합산됨.
+	const appendToLastLog = (vp: number, reason: string) => appendVpSegmentToLastLog(game, playerId, vp, `고급 ${reason}`);
 
 	for (const tileId of player.techTiles) {
 		// 덮인 기술 타일이면 적용하지 않음
