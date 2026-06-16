@@ -261,6 +261,9 @@ export default function Game() {
   const [isBonusPinned, setIsBonusPinned] = useState(
     gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
   );
+  // 미니뷰(Tactical Overview)는 한 번 열면 언마운트하지 않고 CSS로만 숨긴다 → 재오픈 시 이미지 재로딩 깜빡임 방지.
+  const [bonusMiniMounted, setBonusMiniMounted] = useState(isBonusPinned);
+  useEffect(() => { if (isBonusPinned) setBonusMiniMounted(true); }, [isBonusPinned]);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
   // 미니뷰가 뷰포트 밖으로 못 나가게 클램프
   // 좌상단 좌표 기준이므로 (0, 0)이 최소값. 우/하단은 일부만 보여도 다시 드래그 가능하게 마진
@@ -5203,7 +5206,7 @@ export default function Game() {
           </motion.div>
         )}
 
-        {isBonusPinned && (
+        {bonusMiniMounted && (
           <motion.div
             key="bonus-mini"
             drag
@@ -5212,13 +5215,13 @@ export default function Game() {
             dragMomentum={false}
             initial={bonusPos}
             animate={bonusPos}
-            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
             onDragEnd={(_, info) => {
               const newPos = clampMiniPos({ x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y });
               setBonusPos(newPos);
               if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
             }}
-            className="fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
+            // 닫아도 언마운트하지 않고 display:none으로만 숨김 → RoundBoard 이미지 DOM 유지(재오픈 즉시 표시)
+            className={`fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0 ${isBonusPinned ? '' : 'hidden'}`}
             style={{ width: bonusMiniWidth, height: bonusMiniHeight, maxHeight: '95vh' }}
           >
             <div

@@ -1447,11 +1447,27 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     </div>
                                                                 );
                                                             })()}
-                                                            <div className="text-[11px] text-zinc-400 leading-tight">
-                                                                <span className="text-zinc-500 font-semibold mr-1">탑승:</span>
-                                                                {ship.occupants.length > 0
-                                                                    ? ship.occupants.map((pid) => game.players[pid]?.name ?? pid).join(', ')
-                                                                    : '—'}
+                                                            <div className="flex items-center flex-wrap gap-1 text-[11px] leading-tight">
+                                                                <span className="text-zinc-500 font-semibold mr-0.5">탑승:</span>
+                                                                {ship.occupants.length > 0 ? (
+                                                                    ship.occupants.map((pid) => {
+                                                                        const p = game.players[pid];
+                                                                        const faction = p?.faction ? FACTIONS.find(f => f.id === p.faction) : null;
+                                                                        const nm = p?.name || pid;
+                                                                        return (
+                                                                            <span
+                                                                                key={pid}
+                                                                                className="px-1.5 rounded text-[10px] font-black uppercase leading-[1.6] border border-black/50 shadow-sm"
+                                                                                style={{ backgroundColor: faction?.color || '#888', color: '#fff', textShadow: '0 1px 1px rgba(0,0,0,0.85)' }}
+                                                                                title={`${nm}${faction?.name ? ` · ${faction.name}` : ''}`}
+                                                                            >
+                                                                                {nm}
+                                                                            </span>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <span className="text-zinc-500">—</span>
+                                                                )}
                                                             </div>
                                                         </div>
 

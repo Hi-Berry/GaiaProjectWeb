@@ -104,6 +104,8 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                                     <img
                                                         src={tileImg}
                                                         alt={tile.condition}
+                                                        loading="eager"
+                                                        decoding="sync"
                                                         className={`w-full h-full object-contain ${isCurrent ? 'brightness-110 saturate-[1.1]' : isPast ? 'brightness-50' : 'opacity-90'
                                                             }`}
                                                     />
@@ -157,6 +159,8 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                                     <img
                                                         src={missionImg}
                                                         alt={missionId}
+                                                        loading="eager"
+                                                        decoding="sync"
                                                         className="w-full h-full object-contain brightness-100 group-hover:brightness-110 transition-all duration-300"
                                                     />
                                                 ) : (
