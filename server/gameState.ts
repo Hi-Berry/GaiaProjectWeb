@@ -3705,12 +3705,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_bal_tak_gaiaformer_to_qic', ({ gameId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
+			if (game.currentPhase !== 'main') return;
+			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
 
 		socket.on('convert_resource', ({ gameId, type, useBrain }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증 (클라 버튼 비활성과 별개로 막음)
+			if (game.currentPhase !== 'main') return;
+			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (game.pendingTurnEndPlayerId) return;
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
@@ -3724,6 +3730,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('burn_power', ({ gameId, moveBrainToBowl3 }: { gameId: string; moveBrainToBowl3?: boolean }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
+			if (game.currentPhase !== 'main') return;
+			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (game.pendingTurnEndPlayerId) return;
 
 			pushFreeActionUndoSnapshot(game);

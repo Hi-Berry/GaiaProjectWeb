@@ -164,6 +164,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
 
     const currentPlayer = playerId ? game.players[playerId] : null;
+    // 프리액션은 자기 턴(메인 단계)에만 — 서버 검증과 동일하게 클라 버튼도 막아 혼선 방지
+    const canFreeAction = !!playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.currentPhase === 'main';
     const balTakCanAdvanceNav = !currentPlayer || currentPlayer.faction !== 'bal_tak' || game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
     const effectiveGaiaformers = currentPlayer?.faction === 'bal_tak'
         ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
@@ -1295,7 +1297,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        disabled={effectiveGaiaformers < 1}
+                                        disabled={effectiveGaiaformers < 1 || !canFreeAction}
                                         className="border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40"
                                         onClick={() => onUseBalTakGaiaformerToQic()}
                                     >
@@ -1350,12 +1352,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 <div className="grid grid-cols-3 gap-2">
                                     {game.players[playerId].hadschHallasPIActions!.map((action) => {
                                         const canAfford = (game.players[playerId]?.credits ?? 0) >= action.costCredits;
+                                        const canUse = canAfford && canFreeAction;
                                         return (
                                             <Button
                                                 key={action.id}
                                                 variant="outline"
-                                                className={`h-12 flex flex-col items-center justify-center gap-0.5 border-amber-500/30 transition-all ${!canAfford ? 'opacity-50 cursor-not-allowed bg-zinc-900' : 'bg-amber-950/30 hover:bg-amber-900/40 hover:border-amber-500/50'}`}
-                                                disabled={!canAfford}
+                                                className={`h-12 flex flex-col items-center justify-center gap-0.5 border-amber-500/30 transition-all ${!canUse ? 'opacity-50 cursor-not-allowed bg-zinc-900' : 'bg-amber-950/30 hover:bg-amber-900/40 hover:border-amber-500/50'}`}
+                                                disabled={!canUse}
                                                 onClick={() => onUseHadschHallasPIAction(action.id)}
                                             >
                                                 <div className={`text-[10px] font-bold ${canAfford ? 'text-amber-200' : 'text-zinc-500'}`}>
