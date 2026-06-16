@@ -122,15 +122,34 @@ function deepClone<T>(value: T): T {
 }
 
 function buildFreeActionUndoSnapshot(game: ServerGameState): string {
-	const cloned = StateCloner.cloneGameState(game) as ServerGameState;
-	// Undo 스냅샷 내부에 다시 Undo 스택이 들어가면 중첩/용량이 급격히 커질 수 있어 제거
-	(cloned as any).freeActionUndoState = undefined;
-	cloned.freeActionUndoStack = undefined;
-	cloned.freeActionUndoContext = undefined;
-	cloned.turnStartState = undefined;
-	cloned.queuedPowerOffers = undefined;
-	cloned.pendingTurnEndPlayerId = undefined;
-	return JSON.stringify(cloned);
+	// [메모리] 클론 전에 무거운 서버 전용 필드를 잠시 떼어낸다.
+	// turnStartState/prevTurnStartState엔 플레이어별 fullGameState 클론이 들어 있어,
+	// 그대로 cloneGameState하면 자유액션 1회마다 게임 전체+스냅샷 6벌을 복제해 메모리가 폭증한다.
+	// 이 필드들은 스냅샷에 불필요(undo 복원 시 라이브 게임에서 다시 붙임).
+	const detached = {
+		turnStartState: game.turnStartState,
+		prevTurnStartState: game.prevTurnStartState,
+		freeActionUndoStack: game.freeActionUndoStack,
+		freeActionUndoState: (game as any).freeActionUndoState,
+		freeActionUndoContext: game.freeActionUndoContext,
+	};
+	game.turnStartState = undefined;
+	game.prevTurnStartState = undefined;
+	game.freeActionUndoStack = undefined;
+	(game as any).freeActionUndoState = undefined;
+	game.freeActionUndoContext = undefined;
+	try {
+		const cloned = StateCloner.cloneGameState(game) as ServerGameState;
+		cloned.queuedPowerOffers = undefined;
+		cloned.pendingTurnEndPlayerId = undefined;
+		return JSON.stringify(cloned);
+	} finally {
+		game.turnStartState = detached.turnStartState;
+		game.prevTurnStartState = detached.prevTurnStartState;
+		game.freeActionUndoStack = detached.freeActionUndoStack;
+		(game as any).freeActionUndoState = detached.freeActionUndoState;
+		game.freeActionUndoContext = detached.freeActionUndoContext;
+	}
 }
 
 function clearFreeActionUndo(game: ServerGameState): void {
@@ -191,19 +210,18 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
 		spaceshipsState: game.spaceships ? deepClone(game.spaceships) : undefined,
 		twilightArtifactSlots: game.twilightArtifactSlots ? deepClone(game.twilightArtifactSlots) : undefined,
 		gameLogLength: game.gameLog?.length || 0,
-		gameLogState: deepClone(game.gameLog ?? []),
+		// [메모리] gameLog/journal 전체 복제(gameLogState·humanActionJournalState)는 제거.
+		// 후반 게임에서 턴마다·플레이어마다 큰 로그를 6벌씩 복제해 게임 객체가 비대해지고 OOM의 주원인이었음.
+		// 리셋은 길이(gameLogLength·humanActionJournalLength)로 라이브 로그를 잘라 복원한다(restoreGameLogForReset).
 		gameLogSnapshotAt: Date.now(),
 		humanActionJournalLength: game.humanActionJournal?.length ?? 0,
-		humanActionJournalState: deepClone(game.humanActionJournal ?? []),
 		fullGameState: cloneGameForTurnStartSnapshot(game),
 	};
 }
 
 function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
-	if (startState.gameLogState) return deepClone(startState.gameLogState);
-
-	// 하위 호환: 이미 진행 중인 게임은 과거 스냅샷에 gameLogState가 없다.
-	// 길이 기준 복원 후, 해당 플레이어가 이번 턴에 남긴 액션 로그가 꼬리에 남아 있으면 제거한다.
+	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
+	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
 	const logs = ((game.gameLog || []).slice(0, startState.gameLogLength || 0)) as NonNullable<GaiaGameState['gameLog']>;
 	const resettable = new Set([
 		'Power Action',
@@ -3786,6 +3804,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			try {
 				const currentTurnStartState = game.turnStartState ? deepClone(game.turnStartState) : undefined;
+				const currentPrevTurnStartState = game.prevTurnStartState ? deepClone(game.prevTurnStartState) : undefined;
 				const currentUndoContext = game.freeActionUndoContext ? { ...game.freeActionUndoContext } : undefined;
 				const requestedSteps = typeof steps === 'number' && Number.isFinite(steps) ? Math.floor(steps) : 1;
 				const popCount = Math.max(1, requestedSteps);
@@ -3797,6 +3816,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				restoredGame.freeActionUndoStack = stack;
 				restoredGame.freeActionUndoContext = currentUndoContext;
 				restoredGame.turnStartState = currentTurnStartState;
+				restoredGame.prevTurnStartState = currentPrevTurnStartState; // 스냅샷엔 안 담으므로 라이브에서 복원
 				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
