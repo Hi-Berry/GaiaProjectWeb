@@ -97,7 +97,7 @@ export function GameLog({
     ship_eclipse: '/image/ActionEclipse.jpg',
   };
   const SHIP_ACTION_STRIP: Array<{ re: RegExp; ship: string; idx: number }> = [
-    { re: /^Twilight: Federation benefit/i, ship: 'ship_twilight', idx: 0 },
+    // 'Twilight: Federation benefit'는 여기서 처리하지 않음 — 받은 연방 보상 gif를 보여주도록 아래 Federation 분기로 떨어뜨린다.
     { re: /^Twilight: TS → Research Lab/i, ship: 'ship_twilight', idx: 1 },
     { re: /^Twilight: \+3 Range/i, ship: 'ship_twilight', idx: 2 },
     { re: /^Rebellion: Gain tech tile/i, ship: 'ship_rebellion', idx: 0 },
@@ -113,7 +113,7 @@ export function GameLog({
 
   type LogPrimaryImage =
     | { src: string; alt: string }
-    | { strip: string; cols: number; index: number; alt: string }
+    | { strip: string; cols: number; index: number; alt: string; extraSrc?: string }
     | { swap: { fromSrc: string | null; toSrc: string | null; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; alt: string };
 
   const getLogPrimaryImage = (log: { action: string; details?: string; tileId?: string }, playerFactionId?: string | null): LogPrimaryImage | null => {
@@ -124,6 +124,22 @@ export function GameLog({
     if (/^Power Action$/i.test(actionText)) {
       const found = POWER_ACTION_STRIP.find(x => x.re.test(details));
       if (found) return { strip: '/image/powerAction.jpg', cols: 7, index: found.idx, alt: details || 'Power Action' };
+    }
+    // 트왈라잇 액션1(3QIC): 연방 해택 재수령 — 트왈라잇 액션 스트립(idx0=3정큐 칸) + 받은 연방 보상 gif를 함께 표시
+    if (/^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText)) {
+      const rid = log.tileId && /^(gleens-fed-|ship-fed-|fed-)/i.test(log.tileId) ? log.tileId : undefined;
+      let fedSrc: string | undefined;
+      if (rid === GLEENS_FEDERATION_REWARD.id) {
+        fedSrc = '/image/Federation_15.gif';
+      } else if (rid) {
+        const fi = FEDERATION_REWARDS.findIndex(f => f.id === rid);
+        if (fi !== -1) fedSrc = `/image/Federation_${fi + 1}.gif`;
+        else {
+          const si = SPACESHIP_FEDERATION_REWARDS.findIndex(f => f.id === rid);
+          if (si !== -1) fedSrc = `/image/Federation_${si + 7}.gif`;
+        }
+      }
+      return { strip: SHIP_ACTION_STRIP_IMG['ship_twilight'], cols: 3, index: 0, alt: actionText, extraSrc: fedSrc };
     }
     // Ship Action — 우주선 액션 스트립에서 해당 칸 크롭
     {
@@ -374,7 +390,7 @@ export function GameLog({
                       }
                       // 파워/우주선 액션: 보드 스트립에서 해당 칸만 크롭 (미니뷰와 동일한 모습)
                       if ('strip' in primaryImg) {
-                        return (
+                        const stripBox = (
                           <div className="relative h-7 w-8 rounded-sm overflow-hidden flex-shrink-0 border border-white/10">
                             <img
                               src={primaryImg.strip}
@@ -389,6 +405,23 @@ export function GameLog({
                             />
                           </div>
                         );
+                        // 트왈라잇 연방 재수령: 액션 스트립 옆에 받은 연방 보상 gif도 함께 표시
+                        if (primaryImg.extraSrc) {
+                          return (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {stripBox}
+                              <img
+                                src={primaryImg.extraSrc}
+                                alt={primaryImg.alt}
+                                title={log.details || primaryImg.alt}
+                                loading="lazy"
+                                className="h-7 w-7 rounded-sm object-cover flex-shrink-0 border border-white/10"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            </div>
+                          );
+                        }
+                        return stripBox;
                       }
                       const isBonus = primaryImg.src.startsWith('/image/BoostTile_');
                       const isTech = primaryImg.src.startsWith('/tech/');
