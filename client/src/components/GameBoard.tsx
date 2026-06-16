@@ -48,6 +48,61 @@ function getHexOffset(q: number, r: number, sectorIdx: number) {
   return { x, y };
 }
 
+/** hex 색을 밝게(amt>0, 흰색쪽) 또는 어둡게(amt<0, 검정쪽) 보정 */
+function shadeColor(hex: string, amt: number): string {
+  let h = (hex || '#888888').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const num = parseInt(h, 16);
+  let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  if (amt >= 0) {
+    r = Math.round(r + (255 - r) * amt);
+    g = Math.round(g + (255 - g) * amt);
+    b = Math.round(b + (255 - b) * amt);
+  } else {
+    const k = 1 + amt;
+    r = Math.round(r * k); g = Math.round(g * k); b = Math.round(b * k);
+  }
+  const to2 = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0');
+  return `#${to2(r)}${to2(g)}${to2(b)}`;
+}
+
+/** 같은 칸에 위성이 여러 개일 때 보기 좋은 배치 좌표(hex 로컬 좌표계).
+ *  1개짜리 크기(scale=1)를 그대로 유지하면서 겹치지 않게 간격만 벌림.
+ *  1=가운데, 2=세로 1/3·2/3, 3=삼각형, 4=2×2, 5+=원형 */
+function satelliteLayout(count: number): Array<{ x: number; y: number }> {
+  if (count <= 1) return [{ x: 0, y: 0 }];
+  if (count === 2) return [{ x: 0, y: -1.35 }, { x: 0, y: 1.35 }];
+  if (count === 3) return [{ x: 0, y: -1.45 }, { x: -1.3, y: 1.15 }, { x: 1.3, y: 1.15 }];
+  if (count === 4) return [{ x: -1.35, y: -1.35 }, { x: 1.35, y: -1.35 }, { x: -1.35, y: 1.35 }, { x: 1.35, y: 1.35 }];
+  const R = 2.2;
+  return Array.from({ length: count }, (_, i) => {
+    const a = -Math.PI / 2 + i * (2 * Math.PI / count);
+    return { x: R * Math.cos(a), y: R * Math.sin(a) };
+  });
+}
+
+/** 위성: 각진 입체 정육면체(아이소메트릭 큐브). scale=1이면 기존 사각형의 약 2배 크기 */
+function SatelliteCube({ color, scale = 1 }: { color: string; scale?: number }) {
+  const topFace = shadeColor(color, 0.42);
+  const rightFace = color;
+  const leftFace = shadeColor(color, -0.34);
+  const edge = shadeColor(color, -0.62);
+  const w = 1.0, ht = 0.55, hv = 1.1; // 반너비 / 윗면 반높이 / 꼭짓점 반높이
+  const T = `0,${-hv}`, UR = `${w},${-ht}`, LR = `${w},${ht}`, B = `0,${hv}`, LL = `${-w},${ht}`, UL = `${-w},${-ht}`, C = '0,0';
+  return (
+    <g transform={`scale(${scale})`} strokeLinejoin="miter" strokeLinecap="butt">
+      {/* 바닥 그림자 → 떠 있는 입체감 */}
+      <ellipse cx="0" cy={hv * 1.05} rx={w * 0.8} ry={ht * 0.45} fill="#000" opacity="0.3" />
+      {/* 세 면 — 모서리를 날카롭게(miter) */}
+      <polygon points={`${UL} ${T} ${UR} ${C}`} fill={topFace} stroke={edge} strokeWidth="0.1" />
+      <polygon points={`${UL} ${C} ${B} ${LL}`} fill={leftFace} stroke={edge} strokeWidth="0.1" />
+      <polygon points={`${UR} ${LR} ${B} ${C}`} fill={rightFace} stroke={edge} strokeWidth="0.1" />
+      {/* 각진 외곽선 */}
+      <polygon points={`${T} ${UR} ${LR} ${B} ${LL} ${UL}`} fill="none" stroke={edge} strokeWidth="0.16" />
+    </g>
+  );
+}
+
 /** 플레이어 건물 개수 (맵 기준, 아카데미는 left/right 구분) */
 function getStructureCounts(game: GaiaGameState, playerId: string) {
   const owned = game.map.filter((t: HexTile) => t.ownerId === playerId);
@@ -1247,20 +1302,27 @@ export function GameBoard({
                       );
                     })()}
 
-                    {/* 위성 표시 */}
-                    {satelliteOwnerIds.length > 0 && satelliteOwnerIds.map((ownerId, idx) => {
-                      const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
-                      if (!fac) return null;
-                      const r = 0.55;
-                      const count = satelliteOwnerIds.length;
-                      const x = count === 1 ? 0 : idx === 0 ? 0 : r * Math.cos((idx - 1) * (2 * Math.PI / Math.max(1, count - 1)));
-                      const y = count === 1 ? 0 : idx === 0 ? 0 : r * Math.sin((idx - 1) * (2 * Math.PI / Math.max(1, count - 1)));
+                    {/* 위성 표시 — 각진 입체 정육면체. 같은 칸에 여러 개면 배치 정리 */}
+                    {(() => {
+                      const sats: Array<{ key: string; color: string }> = satelliteOwnerIds
+                        .map(ownerId => {
+                          const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
+                          return fac ? { key: ownerId, color: fac.color } : null;
+                        })
+                        .filter((x): x is { key: string; color: string } => x !== null);
+                      if (sats.length === 0) return null;
+                      const pos = satelliteLayout(sats.length);
+                      const scale = sats.length <= 4 ? 1 : 0.7; // 1개짜리 크기 그대로 유지(4개까지)
                       return (
-                        <g key={ownerId} transform={`translate(${x}, ${y})`}>
-                          <rect x="-0.5" y="-0.5" width="1" height="1" fill={fac.color} stroke="#000" strokeWidth="0.1" opacity="0.95" />
+                        <g pointerEvents="none">
+                          {sats.map((s, idx) => (
+                            <g key={s.key} transform={`translate(${pos[idx].x}, ${pos[idx].y})`}>
+                              <SatelliteCube color={s.color} scale={scale} />
+                            </g>
+                          ))}
                         </g>
                       );
-                    })}
+                    })()}
 
                     {/* 하이브 우주정거장: 위성(사각형)과 구분되도록 톱니(기어) 모양 */}
                     {tile.spaceStation && (() => {
