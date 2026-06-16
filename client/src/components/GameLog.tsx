@@ -345,7 +345,9 @@ export function GameLog({
                   style={mainTextStyle}
                 >
                   {primaryImg && (
-                    (() => {
+                    // 로그 배율(textScale)에 맞춰 이미지도 함께 확대 (zoom은 레이아웃 흐름 유지하며 스케일 — 미니뷰와 동일 방식)
+                    <span className="inline-flex items-center shrink-0" style={textScale !== 1 ? ({ zoom: textScale } as CSSProperties) : undefined}>
+                    {(() => {
                       // 보너스 패스 교체: 반납 타일(+패스점수) → 가져간 타일, 고급 패스 타일 이미지+점수
                       if ('swap' in primaryImg) {
                         const { fromSrc, toSrc, bonusVp, advTiles } = primaryImg.swap;
@@ -463,7 +465,8 @@ export function GameLog({
                           />
                         </div>
                       );
-                    })()
+                    })()}
+                    </span>
                   )}
                   {!isBonusTileLog && (
                     <span className={`font-black uppercase tracking-tight truncate`} style={factionColor ? { color: factionColor } : (isMainAction ? { color: factionColor || '#3b82f6' } : isPowerAction ? { color: '#a1a1aa', fontSize: `${10 * textScale}px` } : { color: '#d4d4d8' })}>
