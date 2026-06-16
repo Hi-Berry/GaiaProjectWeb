@@ -1589,7 +1589,7 @@ export function GameBoard({
                   const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
                   if (mySatellite) return null;
                   const rangeTiles = game.map.filter((t: HexTile) =>
-                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
+                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
                   );
                   if (rangeTiles.length === 0) return <p className="text-xs text-amber-400">내 건물/우주정거장이 없으면 배치할 수 없습니다.</p>;
                   const baseRange = getRange(currentPlayer!.research?.navigation ?? 0) + (currentPlayer!.navigationBonus ?? 0);
@@ -1947,7 +1947,7 @@ export function GameBoard({
                   const mySatellite = Array.isArray(satList) ? satList.includes(playerId!) : satList === playerId;
                   if (mySatellite) return null;
                   const rangeTiles = game.map.filter((t: HexTile) =>
-                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
+                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
                   );
                   if (rangeTiles.length === 0) return null;
                   const baseRange = getRange(currentPlayer.research?.navigation ?? 0) + (currentPlayer.navigationBonus ?? 0);
@@ -1982,7 +1982,7 @@ export function GameBoard({
                   const hasSatellite = Array.isArray(satList) ? satList.length > 0 : !!satList;
                   if (hasSatellite) return null;
                   const rangeTiles = game.map.filter((t: HexTile) =>
-                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId
+                    (t.ownerId === playerId && t.structure != null) || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
                   );
                   if (rangeTiles.length === 0) return <p className="text-xs text-amber-400">내 건물/우주정거장이 없으면 배치할 수 없습니다.</p>;
                   const baseRange = getRange(5) + (currentPlayer.navigationBonus ?? 0);

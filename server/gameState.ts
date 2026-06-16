@@ -544,8 +544,9 @@ const RANGE_BONUS_BLOCK_MSG = '거리 보너스 액션 사용 중입니다. 광�
 /** 광산 공급(8개) 한도 계산용 물리 광산 수: 일반 + 잊혀진행성 + 기생(란티다). 가상 광산(인공물)은 실제 토큰이 아니므로 제외. */
 export function getStructureCount(game: GaiaGameState, playerId: string, structure: 'planetary_institute' | 'trading_station' | 'research_lab' | 'mine'): number {
 	if (structure === 'mine') {
-		// 가상 광산(virtualMineAsteroid/Proto)은 점수·행성종류 계산용일 뿐 실제 광산 토큰을 쓰지 않으므로 한도에 넣지 않는다.
-		return game.map.filter(t => t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')).length
+		// 광산 보유 한도(8개)용 카운트: 실제 '광산 토큰'을 쓰는 것만.
+		// 잊혀진 행성(Nav5 별도 토큰)·가상 광산(인공물)은 토큰을 쓰지 않으므로 한도에서 제외. 란티다 기생광산은 토큰 사용이라 포함.
+		return game.map.filter(t => t.ownerId === playerId && t.structure === 'mine').length
 			+ game.map.filter(t => t.parasiticMine?.ownerId === playerId).length;
 	}
 	return game.map.filter(t => t.ownerId === playerId && t.structure === structure).length;
@@ -3551,7 +3552,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('place_lost_planet', ({ gameId, tileId, qicToSpend }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			executePlaceLostPlanet(io, game as ServerGameState, playerId, tileId, qicToSpend);
+			const ok = executePlaceLostPlanet(io, game as ServerGameState, playerId, tileId, qicToSpend);
+			// 실패 시 침묵하지 않고 사유 안내 (기존엔 확인을 눌러도 아무 반응이 없던 문제)
+			if (!ok) socket.emit('game_error', { message: '잊혀진 행성을 배치할 수 없습니다 — 사거리/QIC 부족, 광산 한도(8개) 초과, 또는 위성·건물이 있는 칸인지 확인하세요.' });
 		});
 
 		socket.on('upgrade_structure', ({ gameId, tileId, target }) => {
@@ -5224,9 +5227,10 @@ export function executePlaceLostPlanet(io: SocketIOServer, game: ServerGameState
 	const baseRange = getRange(5) + (player.navigationBonus ?? 0);
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 	const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-	const qicSpent = typeof qicToSpend === 'number' ? qicToSpend : 0;
-	if (qicSpent !== neededQIC || player.qic < neededQIC) return false;
-	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
+	// 클라가 보낸 qicToSpend는 참고만 — 서버 산정 neededQIC를 권위로 사용(클라/서버 사거리 계산 차로 인한 무반응 방지).
+	void qicToSpend;
+	if (player.qic < neededQIC) return false;
+	// 잊혀진 행성은 일반 광산 토큰(8개)과 무관한 별도 토큰 → 광산 한도로 막지 않는다(배치는 pendingLostPlanet로 1회만 허용).
 
 	// 다카니안 의회: 잊혀진 행성도 신규 섹터/외각이면 1K 2C.
 	const hadStructureInThisSectorLP = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));

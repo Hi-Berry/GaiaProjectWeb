@@ -1757,12 +1757,14 @@ export default function Game() {
   /** 플레이어별 맵에서 건물 개수 (다른 플레이어 UI용, 광산은 잊혀진 행성·기생·가상 포함) */
   const getStructureCountsForPlayer = (g: GameState, pid: string) => {
     const owned = (g.map ?? []).filter((t: { ownerId: string | null }) => t.ownerId === pid);
-    // 실제 광산 토큰을 쓰는 것만(보드 광산 + 잊혀진행성 광산 + 란티다 기생광산). 광산 보유 한도(M x/8) 표시용.
-    const physicalMineCount = owned.filter((t: { structure: string | null }) => t.structure === 'mine' || t.structure === 'lost_planet_mine').length
+    // M x/8 표시용: 실제 '광산 토큰'을 쓰는 것만(보드 광산 + 란티다 기생광산).
+    // 잊혀진 행성(Nav5)·가상 광산(인공물)은 별도 토큰이라 한도/표시에서 제외.
+    const physicalMineCount = owned.filter((t: { structure: string | null }) => t.structure === 'mine').length
       + (g.map ?? []).filter((t: { parasiticMine?: { ownerId: string } }) => t.parasiticMine?.ownerId === pid).length;
-    // 인공물 가상광산은 토큰을 쓰지 않으므로 한도엔 안 들어가고, 점수/패스 보너스(유형당·광산당 VP) 계산에만 포함.
+    const lostPlanetCount = owned.filter((t: { structure: string | null }) => t.structure === 'lost_planet_mine').length;
     const virtualMineCount = (g.players[pid]?.virtualMineAsteroid ? 1 : 0) + (g.players[pid]?.virtualMineProto ? 1 : 0);
-    const mineCount = physicalMineCount + virtualMineCount;
+    // 점수/패스 보너스(광산당 VP)용: 잊혀진 행성·가상 광산 포함(서버 getMineCountForPassAndBonuses와 일치).
+    const mineCount = physicalMineCount + lostPlanetCount + virtualMineCount;
     const tsCount = owned.filter((t: { structure: string | null }) => t.structure === 'trading_station').length;
     const labCount = owned.filter((t: { structure: string | null }) => t.structure === 'research_lab').length;
     const piCount = owned.filter((t: { structure: string | null }) => t.structure === 'planetary_institute').length;
@@ -3152,9 +3154,9 @@ export default function Game() {
           </AlertDialog>
         )}
 
-        {/* 거리 5 잊혀진 행성 배치 안내 */}
+        {/* 거리 5 잊혀진 행성 배치 안내 — 상단은 다른 UI를 가려서 하단 중앙(테라포밍 안내 등과 동일 위치)으로 이동 */}
         {game.pendingLostPlanet?.playerId === playerId && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg bg-indigo-900/90 border border-indigo-400/50 text-indigo-200 text-sm font-medium shadow-lg">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-indigo-900/90 border border-indigo-400/50 text-indigo-200 text-sm font-medium shadow-lg">
             잊혀진 행성 배치: 맵에서 <span className="text-white">위성 없는 빈 우주 타일</span>을 클릭한 뒤 오른쪽 패널에서 배치하세요.
           </div>
         )}
