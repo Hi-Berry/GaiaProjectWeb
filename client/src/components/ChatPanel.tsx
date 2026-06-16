@@ -136,13 +136,19 @@ export function ChatPanel({ gameId, game, canChat }: ChatPanelProps) {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                                     e.preventDefault();
-                                    send();
+                                    // 빈 상태에서 Enter면 채팅창 닫기 (열고 닫기 편하게)
+                                    if (!draft.trim()) {
+                                        e.currentTarget.blur();
+                                        setOpen(false);
+                                    } else {
+                                        send();
+                                    }
                                 } else if (e.key === 'Escape') {
                                     e.currentTarget.blur();
                                 }
                             }}
                             maxLength={300}
-                            placeholder="메시지 입력 후 Enter (Esc로 입력 해제)"
+                            placeholder="메시지 입력 후 Enter (빈 채로 Enter면 닫힘)"
                             className="flex-1 min-w-0 bg-zinc-900/70 border border-white/10 rounded-md px-2 py-1.5 text-[12px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-primary/50"
                         />
                         <button

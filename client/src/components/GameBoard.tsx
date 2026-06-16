@@ -1528,7 +1528,7 @@ export function GameBoard({
       {
         selectedTile && !isFederationMode && (
           <div
-            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-20 overflow-y-auto transition-all duration-300 ease-in-out"
+            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-40 overflow-y-auto transition-all duration-300 ease-in-out"
 
           >
             {/* 닫기 — 이 패널이 맵 오른쪽을 가려 클릭을 막으므로, 닫아서 맵을 바로 누를 수 있게 함 */}
