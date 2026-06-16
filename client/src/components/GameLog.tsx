@@ -175,12 +175,12 @@ export function GameLog({
       if (img) return { src: img, alt: tid || 'Tech Tile' };
     }
 
-    // Artifacts
-    if (/Took Artifact|Used Artifact/i.test(actionText) || /art-[a-z0-9-]+/i.test(details)) {
-      const artMatch = details.match(/\b(art-[a-z0-9-]+)\b/i);
-      if (artMatch) {
-         const artIndex = ARTIFACTS.findIndex(a => a.id === artMatch[1]);
-         if (artIndex !== -1) return { src: `/image/Art${artIndex + 1}.png`, alt: artMatch[1] };
+    // Artifacts — 서버는 인공물 획득/사용 로그의 tileId에 art id를 담아 보냄(기술/연방 로그와 동일 패턴)
+    if (/Artifact/i.test(actionText) || (log.tileId && /^art-[a-z0-9-]+$/i.test(log.tileId)) || /art-[a-z0-9-]+/i.test(details)) {
+      const artId = (log.tileId && /^art-[a-z0-9-]+$/i.test(log.tileId)) ? log.tileId : details.match(/\b(art-[a-z0-9-]+)\b/i)?.[1];
+      if (artId) {
+         const artIndex = ARTIFACTS.findIndex(a => a.id === artId);
+         if (artIndex !== -1) return { src: `/image/Art${artIndex + 1}.png`, alt: artId };
       }
     }
 

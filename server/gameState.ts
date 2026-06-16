@@ -3259,22 +3259,22 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const art = ARTIFACTS.find(a => a.id === artifactId)!;
 			if (art.id === 'art-fed-once') {
 				game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id };
-				addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
 			} else if (art.id === 'art-vp-gaia') {
 				const lvl = player.research.gaiaProject ?? 0;
 				const vp = lvl * 3;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Gaia x 3' });
-				addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, art.id);
 			} else if (art.id === 'art-vp-science') {
 				const lvl = player.research.science ?? 0;
 				const vp = lvl * 3;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Science x 3' });
-				addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, art.id);
 			} else if (art.id === 'art-vp-tracks3') {
 				const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[]).filter(t => (player.research[t] ?? 0) >= 3).length;
 				const vp = tracks * 3;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
-				addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, art.id);
 			} else if (art.id === 'art-vp-planet-types') {
 				const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
 				const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
@@ -3282,39 +3282,39 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (player.virtualMineProto) types.add('proto');
 				const vp = 3 + types.size;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
-				addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);
 			} else if (art.id === 'art-7vp-virtual-asteroid') {
 				const geodensTypesBeforeArt = getPlayerPlanetTypesForGeodens(game, playerId);
 				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
 				player.virtualMineAsteroid = true;
-				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
 				applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArt);
 			} else if (art.id === 'art-7vp-virtual-proto') {
 				const geodensTypesBeforeArtProto = getPlayerPlanetTypesForGeodens(game, playerId);
 				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
 				player.virtualMineProto = true;
-				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
 				applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArtProto);
 			} else if (art.id === 'art-imm-3o3c') {
 				player.ore = (player.ore || 0) + 3;
 				player.credits = (player.credits || 0) + 3;
-				addGameLog(game, playerId, 'Artifact: 3O 3C', '', twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: 3O 3C', '', art.id);
 			} else if (art.id === 'art-imm-2o5c') {
 				player.ore = (player.ore || 0) + 2;
 				player.credits = (player.credits || 0) + 5;
-				addGameLog(game, playerId, 'Artifact: 2O 5C', '', twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: 2O 5C', '', art.id);
 			} else if (art.id === 'art-imm-3k1q') {
 				player.knowledge = (player.knowledge || 0) + 3;
 				grantQic(game, playerId, 1);
-				addGameLog(game, playerId, 'Artifact: 3K 1Q', '', twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: 3K 1Q', '', art.id);
 			} else if (art.id === 'art-vp-bridge') {
 				const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
 				const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && tileOccupiesSector(t, playerId)));
 				const vp = withBuilding.length * 3;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
-				addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
+				addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, art.id);
 			} else {
-				addGameLog(game, playerId, 'Artifact', art.label, twilightTile.id);
+				addGameLog(game, playerId, 'Artifact', art.label, art.id);
 			}
 
 			game.hasDoneMainAction = true;
@@ -8064,22 +8064,22 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 	const art = ARTIFACTS.find(a => a.id === artifactId)!;
 	if (art.id === 'art-fed-once') {
 		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id };
-		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
 	} else if (art.id === 'art-vp-gaia') {
 		const lvl = player.research.gaiaProject ?? 0;
 		const vp = lvl * 3;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Gaia x 3' });
-		addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: Gaia×3 VP', `${lvl}×3 = ${vp} VP`, art.id);
 	} else if (art.id === 'art-vp-science') {
 		const lvl = player.research.science ?? 0;
 		const vp = lvl * 3;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Science x 3' });
-		addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: Science×3 VP', `${lvl}×3 = ${vp} VP`, art.id);
 	} else if (art.id === 'art-vp-tracks3') {
 		const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[]).filter(t => (player.research[t] ?? 0) >= 3).length;
 		const vp = tracks * 3;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
-		addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, art.id);
 	} else if (art.id === 'art-vp-planet-types') {
 		const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
 		const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
@@ -8087,35 +8087,35 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		if (player.virtualMineProto) types.add('proto');
 		const vp = 3 + types.size;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
-		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);
 	} else if (art.id === 'art-7vp-virtual-asteroid') {
 		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
 		player.virtualMineAsteroid = true;
-		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
 	} else if (art.id === 'art-7vp-virtual-proto') {
 		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
 		player.virtualMineProto = true;
-		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
 	} else if (art.id === 'art-imm-3o3c') {
 		player.ore = (player.ore || 0) + 3;
 		player.credits = (player.credits || 0) + 3;
-		addGameLog(game, playerId, 'Artifact: 3O 3C', '', twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: 3O 3C', '', art.id);
 	} else if (art.id === 'art-imm-2o5c') {
 		player.ore = (player.ore || 0) + 2;
 		player.credits = (player.credits || 0) + 5;
-		addGameLog(game, playerId, 'Artifact: 2O 5C', '', twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: 2O 5C', '', art.id);
 	} else if (art.id === 'art-imm-3k1q') {
 		player.knowledge = (player.knowledge || 0) + 3;
 		player.qic = (player.qic || 0) + 1; // grantQic shortcut
-		addGameLog(game, playerId, 'Artifact: 3K 1Q', '', twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: 3K 1Q', '', art.id);
 	} else if (art.id === 'art-vp-bridge') {
 		const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
 		const withBuilding = bridgeSectors.filter(s => game.map.some(t => t.sector === s && tileOccupiesSector(t, playerId)));
 		const vp = withBuilding.length * 3;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Bridge VP' });
-		addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, twilightTile.id);
+		addGameLog(game, playerId, 'Artifact: Bridge sections×3 VP', `${withBuilding.length}×3 = ${vp} VP`, art.id);
 	} else {
-		addGameLog(game, playerId, 'Artifact', art.label, twilightTile.id);
+		addGameLog(game, playerId, 'Artifact', art.label, art.id);
 	}
 
 	game.hasDoneMainAction = true;
