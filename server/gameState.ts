@@ -1445,7 +1445,8 @@ export function applyAdvancedTechTilePassEffect(game: GaiaGameState, playerId: s
 
 	for (const tileId of player.techTiles) {
 		if (tileId === 'adv-pass-1vp-type') {
-			const planetTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.type !== 'space').map(t => t.type));
+			// 보유 행성 유형 수(가상 광산·잊혀진 행성 포함, 패스/최종 점수와 일관)
+			const planetTypes = getPlayerPlanetTypesForGeodens(game, playerId);
 			apply(tileId, planetTypes.size, '1 per planet type');
 		}
 		else if (tileId === 'adv-pass-3vp-lab') {
@@ -3288,12 +3289,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
 				player.virtualMineAsteroid = true;
 				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
+				// 가상 광산도 새 행성 유형으로 취급 → 라운드 미션(유형당) + Geodens 의회 보너스 (실제 광산 건설과 동일)
+				if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeArt.size) {
+					applyRoundMissionScore(game, playerId, 'new_planet_type');
+				}
 				applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArt);
 			} else if (art.id === 'art-7vp-virtual-proto') {
 				const geodensTypesBeforeArtProto = getPlayerPlanetTypesForGeodens(game, playerId);
 				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
 				player.virtualMineProto = true;
 				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
+				if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeArtProto.size) {
+					applyRoundMissionScore(game, playerId, 'new_planet_type');
+				}
 				applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArtProto);
 			} else if (art.id === 'art-imm-3o3c') {
 				player.ore = (player.ore || 0) + 3;
@@ -3894,8 +3902,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (tileId === 'tech-imm-7vp') {
 				addScore(game, playerId, 7, 'techTiles', { tileId });
 			} else if (tileId === 'tech-imm-1k-planet') {
-				const planetTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.type !== 'space').map(t => t.type));
-				player.knowledge += planetTypes.size;
+				// 보유 행성 유형 수(가상 광산 포함). 단, 기술타일 획득 시점의 1회성 효과
+				player.knowledge += getPlayerPlanetTypesForGeodens(game, playerId).size;
 			} else if (tileId === 'tech-imm-1o-1q') {
 				player.ore += 1;
 				grantQic(game, playerId, 1);
@@ -5020,15 +5028,11 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		immediateDetail = '+1 Ore, +1 QIC';
 		log(`Player ${player.name} gained 1 Ore and 1 QIC from tech tile (Ore: ${player.ore}, QIC: ${player.qic})`, 'game', undefined, { simulation: (game as any).simulation });
 	} else if (techTileId === 'tech-imm-1k-planet') {
-		const playerStructures = game.map.filter(t => t.ownerId === playerId);
-		const planetTypes = new Set(
-			playerStructures
-				.filter(t => t.type !== 'space' && t.type !== 'deep_space')
-				.map(t => t.type)
-		);
-		player.knowledge += planetTypes.size;
-		immediateDetail = `+${planetTypes.size} Knowledge`;
-		log(`Player ${player.name} gained ${planetTypes.size} Knowledge from tech tile (${planetTypes.size} planet types)`, 'game', undefined, { simulation: (game as any).simulation });
+		// 보유 행성 유형 수(가상 광산 포함, 다른 점수 경로와 일관)
+		const planetTypeCount = getPlayerPlanetTypesForGeodens(game, playerId).size;
+		player.knowledge += planetTypeCount;
+		immediateDetail = `+${planetTypeCount} Knowledge`;
+		log(`Player ${player.name} gained ${planetTypeCount} Knowledge from tech tile (${planetTypeCount} planet types)`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
 	// 통합 로그: 타일 이미지는 tileId로 표시되므로 라벨/풀 출처 문구 없이 한 줄에 전부
@@ -5462,8 +5466,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 	let neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
 
+	// 가이아포머로 미리 포밍해 둔(즉시포밍) 행성에 광산을 짓는지 여부.
+	// 아래에서 가이아포머 회수 시 pendingGaiaformerTiles가 비워지므로 로그 계산 전에 미리 잡아둔다.
+	const isGaiaformerReclaim = (tile.type === 'transdim' || tile.type === 'gaia') && !!player.pendingGaiaformerTiles?.includes(tileId);
+
 	// 가이아포머가 이미 설치된 행성에 광산을 지을 때는 거리 비용(QIC) 차감 안함 (배치 시 지불 완료)
-	if ((tile.type === 'transdim' || tile.type === 'gaia') && player.pendingGaiaformerTiles?.includes(tileId)) {
+	if (isGaiaformerReclaim) {
 		neededQIC = 0;
 	}
 
@@ -5561,8 +5569,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	}
 
 	let totalQicLog = neededQIC;
-	if (tile.type === 'gaia' && player.faction !== 'gleens' && !player.pendingGaiaformerTiles?.includes(tileId)) {
-		// 가이아 행성 기본 비용 반영 (글린스는 광석 소모). 단, 가이아포머로 포밍한 경우는 비용 면제됨.
+	if (tile.type === 'gaia' && player.faction !== 'gleens' && !isGaiaformerReclaim) {
+		// 가이아 행성 기본 비용 반영 (글린스는 광석 소모). 단, 가이아포머로 포밍(즉시포밍)한 경우는 비용 면제됨.
 		totalQicLog += getGaiaBaseQic(player.faction || '');
 	}
 	const costDetails = `1O, 2C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
@@ -8089,13 +8097,24 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
 		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);
 	} else if (art.id === 'art-7vp-virtual-asteroid') {
+		const geodensTypesBeforeArt = getPlayerPlanetTypesForGeodens(game, playerId);
 		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
 		player.virtualMineAsteroid = true;
 		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
+		// 가상 광산도 새 행성 유형으로 취급 → 라운드 미션(유형당) + Geodens 의회 보너스 (사람 경로와 동일)
+		if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeArt.size) {
+			applyRoundMissionScore(game, playerId, 'new_planet_type');
+		}
+		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArt);
 	} else if (art.id === 'art-7vp-virtual-proto') {
+		const geodensTypesBeforeProto = getPlayerPlanetTypesForGeodens(game, playerId);
 		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
 		player.virtualMineProto = true;
 		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
+		if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeProto.size) {
+			applyRoundMissionScore(game, playerId, 'new_planet_type');
+		}
+		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeProto);
 	} else if (art.id === 'art-imm-3o3c') {
 		player.ore = (player.ore || 0) + 3;
 		player.credits = (player.credits || 0) + 3;
