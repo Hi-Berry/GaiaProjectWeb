@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import type { GameState } from '@/lib/gameClient';
-import { Users, Play, ArrowLeft, UserPlus, Gamepad2 } from 'lucide-react';
+import { Users, Play, ArrowLeft, UserPlus, Gamepad2, Trash2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { GameClient } from '@/lib/gameClient';
@@ -20,9 +20,11 @@ interface GameLobbyProps {
   onAddBot?: (botName?: string) => Promise<void>;
   onSwitchPlayer?: (targetPlayerId: string) => Promise<void>;
   onAutoSetupTest?: () => void;
+  /** 방장 전용: 시작 전 방 삭제 후 로비로 나가기 */
+  onDeleteRoom?: () => void;
 }
 
-export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer, onAutoSetupTest }: GameLobbyProps) {
+export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer, onAutoSetupTest, onDeleteRoom }: GameLobbyProps) {
   const playerEntries = Object.entries(game.players);
   const playerCount = playerEntries.length;
   const maxPlayers = game.maxPlayers || 4;
@@ -166,15 +168,28 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
             </div>
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row justify-between gap-4">
-            <Button
-              variant="outline"
-              onClick={onLeave}
-              data-testid="button-leave-lobby"
-              className="w-full sm:w-auto"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Leave
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={onLeave}
+                data-testid="button-leave-lobby"
+                className="w-full sm:w-auto"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Leave
+              </Button>
+              {isHost && onDeleteRoom && (
+                <Button
+                  variant="outline"
+                  onClick={() => { if (window.confirm('이 방을 삭제하고 로비로 나갈까요?')) onDeleteRoom(); }}
+                  data-testid="button-delete-room"
+                  className="w-full sm:w-auto border-red-500/40 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  방 삭제
+                </Button>
+              )}
+            </div>
 
             {isHost && (
               <div className="flex flex-col gap-3 w-full sm:w-auto">

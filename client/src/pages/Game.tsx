@@ -581,12 +581,21 @@ export default function Game() {
       setFederationRedundantWarning({ count: data?.count ?? 1 });
     });
 
+    // 방장이 방을 삭제하면 방 안의 모두를 로비로 내보낸다
+    const unsubDeleted = GameClient.onGameDeleted((payload) => {
+      if (payload?.gameId && payload.gameId !== gameId) return;
+      if (gameId) localStorage.removeItem(`gaia-${gameId}-spectatorId`);
+      toast({ title: '방이 삭제되었습니다', description: '방장이 방을 삭제했습니다.' });
+      setLocation('/');
+    });
+
     return () => {
       socket.off('connect', fetchGame);
       unsubGame();
       unsubError();
       unsubGameError();
       unsubFedRedundant();
+      unsubDeleted();
     };
   }, [gameId, playerId, toast]);
 
@@ -1203,6 +1212,16 @@ export default function Game() {
         onAutoSetupTest={() => {
           if (gameId) GameClient.autoSetupTest(gameId);
         }}
+        onDeleteRoom={playerId === game.hostId ? async () => {
+          if (!gameId) return;
+          try {
+            await GameClient.deleteGame(gameId);
+          } catch (e) {
+            toast({ title: '삭제 실패', description: (e as Error).message, variant: 'destructive' });
+            return;
+          }
+          setLocation('/');
+        } : undefined}
       />
     );
   }

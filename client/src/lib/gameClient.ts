@@ -128,6 +128,17 @@ export const GameClient = {
     });
   },
 
+  /** 방장 전용: 시작 전 로비에서 방 삭제. 성공 시 모두 로비로 나가게 됨 */
+  deleteGame(gameId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('delete_game', { gameId }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
   hostAddBot(gameId: string, botName?: string): Promise<{ botId: string; name: string; game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
@@ -553,5 +564,11 @@ export const GameClient = {
     const s = getSocket();
     s.on('chat_message', callback);
     return () => s.off('chat_message', callback);
+  },
+
+  onGameDeleted(callback: (payload: { gameId: string }) => void) {
+    const s = getSocket();
+    s.on('game_deleted', callback);
+    return () => s.off('game_deleted', callback);
   },
 };

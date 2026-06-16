@@ -2513,6 +2513,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// 방 삭제: 시작 전(로비) 상태에서 방장만. 방 안의 모두를 로비로 내보내고 게임을 메모리에서 제거.
+		socket.on('delete_game', ({ gameId }: { gameId: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ ok: true }); return; } // 이미 없음
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId || game.hostId !== playerId) { callback?.({ error: '방장만 방을 삭제할 수 있습니다.' }); return; }
+			if (game.currentPhase !== 'lobby') { callback?.({ error: '게임이 시작된 후에는 삭제할 수 없습니다.' }); return; }
+			io.to(gameId).emit('game_deleted', { gameId });
+			games.delete(gameId);
+			log(`Game ${gameId} deleted by host ${playerId}`, 'game', gameId);
+			callback?.({ ok: true });
+		});
+
 		socket.on('start_game', ({ gameId }) => {
 			const game = games.get(gameId);
 			if (!game) return;
