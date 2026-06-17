@@ -3791,8 +3791,16 @@ export class BotLogic {
             for (const s of myStructures) {
                 if (getDistance(tile, s) <= 4) potentialPower += this.getBuildingValue(s.structure!, faction);
             }
-            if (potentialPower >= 7) score += 60;
-            else if (potentialPower >= 4) score += 25;
+            // [연방플래너 최소brick 2026-06-15] greedy가 클러스터를 미완성으로 흩뿌리는 문제 →
+            // '거의 다 된(5-6파워) 클러스터를 마저 완성'하는 데 강한 commit 보너스. 봇 연방 1.4→ 끌어올리기.
+            if (getPlayerFlag(playerId, 'fedCompletionDrive', true)) {
+                if (potentialPower >= 7) score += 110;        // 이 건물로 연방 완성 가능 → 강하게 우선(완성=초록토큰·연구5 연쇄)
+                else if (potentialPower >= 5) score += 60;    // 5-6: 거의 완성, 한두 채 더 지어 끝내도록
+                else if (potentialPower >= 4) score += 25;
+            } else {
+                if (potentialPower >= 7) score += 60;
+                else if (potentialPower >= 4) score += 25;
+            }
         }
         return score;
     }
