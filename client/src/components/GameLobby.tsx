@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import type { GameState } from '@/lib/gameClient';
-import { Users, Play, ArrowLeft, UserPlus, Gamepad2, Trash2 } from 'lucide-react';
+import { Users, Play, ArrowLeft, UserPlus, Trash2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { GameClient } from '@/lib/gameClient';
@@ -18,13 +18,14 @@ interface GameLobbyProps {
   onLeave: () => void;
   onAddPlayer?: (playerName?: string) => Promise<void>;
   onAddBot?: (botName?: string) => Promise<void>;
-  onSwitchPlayer?: (targetPlayerId: string) => Promise<void>;
+  /** 방장 전용: 추가한 플레이어/봇 제거 (잘못 추가 시) */
+  onRemovePlayer?: (targetPlayerId: string) => void | Promise<void>;
   onAutoSetupTest?: () => void;
   /** 방장 전용: 시작 전 방 삭제 후 로비로 나가기 */
   onDeleteRoom?: () => void;
 }
 
-export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, onLeave, onAddPlayer, onAddBot, onSwitchPlayer, onAutoSetupTest, onDeleteRoom }: GameLobbyProps) {
+export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, onLeave, onAddPlayer, onAddBot, onRemovePlayer, onAutoSetupTest, onDeleteRoom }: GameLobbyProps) {
   const playerEntries = Object.entries(game.players);
   const playerCount = playerEntries.length;
   const maxPlayers = game.maxPlayers || 4;
@@ -101,17 +102,16 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
                   </div>
                   <div className="flex items-center gap-2">
                     {id === game.hostId && <Badge>Host</Badge>}
-                    {onSwitchPlayer && (
+                    {onRemovePlayer && id !== game.hostId && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8"
-                        disabled={id === playerId}
-                        onClick={() => onSwitchPlayer(id)}
-                        title="이 플레이어로 조작 전환"
+                        className="h-8 text-red-400 hover:text-red-300 hover:bg-red-950/40"
+                        onClick={() => onRemovePlayer(id)}
+                        title="이 플레이어/봇 제거"
                       >
-                        <Gamepad2 className="w-4 h-4 mr-1" />
-                        {id === playerId ? '현재' : '조작'}
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        삭제
                       </Button>
                     )}
                   </div>
@@ -245,7 +245,7 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
 
         <div className="text-center text-sm text-muted-foreground">
           {isHost && onAddPlayer
-            ? '한 컴퓨터에서 "플레이어 추가" 후 "조작"으로 교대하며 4인플 가능'
+            ? '"플레이어 추가" / "AI 봇 추가"로 자리를 채우고, 잘못 추가했으면 "삭제"로 제거하세요'
             : 'Share the game ID with friends to let them join'}
         </div>
       </div>

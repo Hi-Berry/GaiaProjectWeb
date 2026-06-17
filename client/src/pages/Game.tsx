@@ -1202,12 +1202,14 @@ export default function Game() {
           const res = await GameClient.hostAddBot(gameId, botName);
           setGame(res.game);
         } : undefined}
-        onSwitchPlayer={playerId === game.hostId ? async (targetPlayerId) => {
+        onRemovePlayer={playerId === game.hostId ? async (targetPlayerId) => {
           if (!gameId) return;
-          const { game: updated } = await GameClient.switchPlayer(gameId, targetPlayerId);
-          setGame(updated);
-          setPlayerId(targetPlayerId);
-          storePlayerId(gameId, targetPlayerId);
+          try {
+            const { game: updated } = await GameClient.removePlayer(gameId, targetPlayerId);
+            setGame(updated);
+          } catch (e) {
+            toast({ title: '삭제 실패', description: (e as Error).message, variant: 'destructive' });
+          }
         } : undefined}
         onAutoSetupTest={() => {
           if (gameId) GameClient.autoSetupTest(gameId);

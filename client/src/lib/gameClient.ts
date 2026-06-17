@@ -160,6 +160,17 @@ export const GameClient = {
     });
   },
 
+  /** 방장 전용: 로비에서 추가한 플레이어/봇 제거 */
+  removePlayer(gameId: string, targetPlayerId: string): Promise<{ game: GameState }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('host_remove_player', { gameId, targetPlayerId }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve({ game: response.game });
+      });
+    });
+  },
+
   startGame(gameId: string) {
     const s = getSocket();
     s.emit('start_game', { gameId });

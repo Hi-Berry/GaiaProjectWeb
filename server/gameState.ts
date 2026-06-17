@@ -2416,6 +2416,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback({ botId, name, game });
 		});
 
+		/** 방장 전용: 로비에서 추가한 플레이어/봇 제거 (잘못 추가 시). 방장 본인은 제거 불가. */
+		socket.on('host_remove_player', ({ gameId, targetPlayerId }, callback) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const callerId = socketToPlayerMap.get(socket.id);
+			if (callerId !== game.hostId) { callback?.({ error: 'Only host can remove players' }); return; }
+			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Can only remove in lobby' }); return; }
+			if (!targetPlayerId || targetPlayerId === game.hostId) { callback?.({ error: '방장은 제거할 수 없습니다.' }); return; }
+			if (!game.players[targetPlayerId]) { callback?.({ ok: true, game }); return; }
+			delete game.players[targetPlayerId];
+			game.turnOrder = (game.turnOrder || []).filter(id => id !== targetPlayerId);
+			game.botPlayerIds = (game.botPlayerIds || []).filter(id => id !== targetPlayerId);
+			game.hostAddedPlayerIds = (game.hostAddedPlayerIds || []).filter(id => id !== targetPlayerId);
+			log(`Player removed: ${targetPlayerId} from game ${gameId} by host`, 'game', undefined, { simulation: (game as any).simulation });
+			io.to(gameId).emit('game_updated', game);
+			callback?.({ ok: true, game });
+		});
+
 		socket.on('rejoin_game', ({ gameId, playerId }, callback) => {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
