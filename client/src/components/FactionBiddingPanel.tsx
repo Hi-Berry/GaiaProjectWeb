@@ -117,7 +117,7 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
   const panelPlayerOrder = playerIdsForFactionBiddingUi(game, fb);
 
   return (
-    <div className="absolute inset-0 z-[140] flex flex-col bg-zinc-950/97 backdrop-blur-sm border-l border-amber-500/40">
+    <div className="absolute inset-0 z-[140] flex flex-col bg-zinc-950 border-l border-amber-500/40">
       {/* 헤더(고정) */}
       <div className="shrink-0 px-4 py-3 border-b border-amber-500/30 bg-zinc-950/80">
         <div className="flex items-center justify-center gap-2">
