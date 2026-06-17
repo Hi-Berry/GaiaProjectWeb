@@ -100,6 +100,14 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
   const n = Object.keys(game.players).length;
   const availOrders = Array.from({ length: n }, (_, i) => i + 1).filter((o) => !takenTurnOrders.has(o));
 
+  // 표시용: 아직 아무도 안 고른(미할당) 턴 순서 (모든 플레이어 기준)
+  const allTakenTurnOrders = new Set(
+    Object.values(game.players)
+      .map((p) => (p as { selectedTurnOrder?: number }).selectedTurnOrder)
+      .filter((x): x is number => typeof x === 'number')
+  );
+  const remainingTurnOrders = Array.from({ length: n }, (_, i) => i + 1).filter((o) => !allTakenTurnOrders.has(o));
+
   const needsAttention =
     (fb.phase === 'bidding' && isMyBidTurn) || (fb.phase === 'pick' && isMyPick);
 
@@ -107,7 +115,7 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
 
   if (collapsed) {
     return (
-      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[60] w-[min(96vw,520px)] pointer-events-none flex justify-center">
+      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[130] w-[min(96vw,520px)] pointer-events-none flex justify-center">
         <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950/95 border border-amber-500/50 shadow-xl shadow-black/40">
           <span className="text-xs font-orbitron font-bold text-amber-200">종족 비딩</span>
           {fb.phase === 'bidding' && (
@@ -142,7 +150,7 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
   }
 
   return (
-    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[min(96vw,520px)] max-h-[85vh] overflow-y-auto bg-zinc-950/95 border border-amber-500/40 rounded-xl p-4 shadow-2xl">
+    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[130] w-[min(96vw,520px)] max-h-[85vh] overflow-y-auto bg-zinc-950/95 border border-amber-500/40 rounded-xl p-4 shadow-2xl">
       <div className="relative mb-2 pr-1">
         <h2 className="text-lg font-orbitron font-bold text-amber-200 text-center">종족 비딩</h2>
         <Button
@@ -207,9 +215,25 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
         </div>
       </div>
 
+      {remainingTurnOrders.length > 0 && (
+        <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/60 p-2">
+          <p className="text-[10px] uppercase text-zinc-500 mb-1.5">아직 안 고른 턴 순서</p>
+          <div className="flex flex-wrap gap-1.5">
+            {remainingTurnOrders.map((ord) => (
+              <span
+                key={ord}
+                className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-xs font-mono tabular-nums text-amber-200"
+              >
+                턴 {ord}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {isPick && isMyPick && pickFactionId && availOrders.length > 1 && (
         <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/60 p-2 space-y-2">
-          <p className="text-[10px] uppercase text-zinc-500 text-center">턴 순서</p>
+          <p className="text-[10px] uppercase text-zinc-500 text-center">내 턴 순서 고르기</p>
           <div className="flex flex-wrap gap-2 justify-center">
             {availOrders.map((ord) => (
               <Button
