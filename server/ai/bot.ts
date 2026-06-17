@@ -886,14 +886,11 @@ export class BotLogic {
                         }
                     }
                 } else if (bonusTileObj.specialAction === 'range_3' && !player.rangeBonusActive) {
-                    const oldR = player.rangeBonusActive;
-                    player.rangeBonusActive = true; // 보너스 타일 +3 range(서버 executeUseBonusAction과 동일)
-                    // [사용자 관찰 2026-06-14] +3 Range 활성 중엔 광산/가이아포머/소행성 외에 '우주선 입장'도 가능.
-                    // 기존엔 빌드 가능성만 검사 → 빌드 못 하면 보너스를 버리고 패스(우주선 입장 기회 낭비). 우주선 입장도 유효 용도로 인정.
-                    const shipFallback = getPlayerFlag(playerId, 'rangeBonusShipEntry', true) && this.findSpaceshipEntryActions(game, playerId).length > 0;
-                    const canBuildAfter = this.findBuildActions(game, playerId).length > 0 || this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
-                    player.rangeBonusActive = oldR;
-                    if (!canBuildAfter && !shipFallback) shouldAdd = false;
+                    // +3 사거리는 '그 사거리가 있어야 닿는' 대상(광산/가이아포머/우주선입장)이 있을 때만 후보로.
+                    // 기존엔 '빌드가 하나라도 가능하면' 켰는데, 가까운 빌드/업그레이드까지 통과시켜 보너스를 낭비했다(사용자 관찰).
+                    // 글린+2나 트왈라잇 임시 부스터가 이미 켜져 있으면 중첩하지 않음(각각 별개 액션).
+                    if (player.gleensNavBonusActive || player.tempRangeBonus) shouldAdd = false;
+                    else if (!this.rangeBoosterUnlocksTarget(game, playerId, 'rangeBonusActive')) shouldAdd = false;
                 }
 
                 if (shouldAdd) {
@@ -3527,7 +3524,47 @@ export class BotLogic {
         let r = getRange(player.research?.navigation ?? 0) + (player.navigationBonus ?? 0);
         if (player.tempRangeBonus) r += 3;
         if (player.rangeBonusActive) r += 3;
+        if (player.gleensNavBonusActive) r += 2; // 글린 +2 Nav도 우주선 입장 사거리에 반영(서버 executeEnterSpaceship과 동일)
         return r;
+    }
+
+    /**
+     * 사거리 부스터(글린 +2 / 보너스 +3)가 '실제로 새 대상을 열어주는지' 검사.
+     * 부스터를 켰을 때만 닿는(=끄면 후보에 없는) 광산/가이아포머/우주선입장 대상이 하나라도 있어야 true.
+     * 끄든 켜든 후보가 같으면(가까운 곳만 짓거나 업그레이드만 할 상황) 부스터는 낭비이므로 false.
+     * → 봇이 +3거리/글린+2를 켜 놓고 정작 사거리 필요 없는 교역소 업그레이드를 해 보너스를 버리던 버그 교정(사용자 관찰).
+     */
+    private static rangeBoosterUnlocksTarget(
+        game: ServerGameState,
+        playerId: string,
+        flag: 'rangeBonusActive' | 'gleensNavBonusActive'
+    ): boolean {
+        const player = game.players[playerId];
+        if (!player) return false;
+        const allowShip = getPlayerFlag(playerId, 'rangeBonusShipEntry', true);
+
+        const targetIds = (): Set<string> => {
+            const ids = new Set<string>();
+            for (const a of this.findBuildActions(game, playerId)) {
+                const t = (a as any).params?.tileId; if (t) ids.add(`b:${t}`);
+            }
+            for (const a of this.findBuildActionsWithPendingSteps(game, playerId)) {
+                const t = (a as any).params?.tileId; if (t) ids.add(`b:${t}`);
+            }
+            if (allowShip) for (const a of this.findSpaceshipEntryActions(game, playerId)) {
+                const t = (a as any).params?.shipTileId ?? (a as any).params?.tileId; if (t) ids.add(`s:${t}`);
+            }
+            return ids;
+        };
+
+        const prev = (player as any)[flag];
+        (player as any)[flag] = false;
+        const without = targetIds();
+        (player as any)[flag] = true;
+        const withBoost = targetIds();
+        (player as any)[flag] = prev;
+
+        return Array.from(withBoost).some((id) => !without.has(id));
     }
 
     private static isPlanetHex(tile: HexTile): boolean {
@@ -3846,7 +3883,14 @@ export class BotLogic {
         }
 
         // 2. 종족 특수 액션 (use_special_action)
-        if (player.faction === 'gleens' && !player.usedSpecialActions?.includes('gleens-2nav')) {
+        // 글린 +2 Nav(게임당 1회)는 '그 사거리가 있어야 닿는 대상'이 있을 때만 후보로 — 안 그러면 켜 놓고
+        // 가까운 곳/업그레이드를 해 보너스를 버린다(사용자 관찰).
+        // 또한 이번 턴에 이미 다른 사거리 부스터(+3 보너스/트왈라잇 임시)가 켜져 있으면 추가로 켜지 않는다
+        //   — 부스터끼리 한 턴에 중첩하지 않음(각각 별개 액션, 사용자 관찰).
+        const anyRangeBoostActive = player.rangeBonusActive || player.tempRangeBonus;
+        if (player.faction === 'gleens' && !player.usedSpecialActions?.includes('gleens-2nav')
+            && !anyRangeBoostActive
+            && this.rangeBoosterUnlocksTarget(game, playerId, 'gleensNavBonusActive')) {
             res.push({ type: 'use_special_action', params: { actionId: 'gleens-2nav' } });
         }
         if (player.faction === 'space_giants' && !player.usedSpecialActions?.includes('space_giants-2tf')) {
@@ -3884,12 +3928,11 @@ export class BotLogic {
                         }
                     }
                 } else if (tile.specialAction === 'range_3' && !player.rangeBonusActive) {
-                    const oldR = player.rangeBonusActive;
-                    player.rangeBonusActive = true;
-                    // [사용자 관찰 2026-06-14] range 보너스 활성 중 '우주선 입장'도 유효 용도 → 빌드 불가 시에도 우주선 입장 가능하면 활성 유지(보너스 낭비 방지)
-                    const shipFallback = getPlayerFlag(playerId, 'rangeBonusShipEntry', true) && this.findSpaceshipEntryActions(game, playerId).length > 0;
-                    if (this.findBuildActions(game, playerId).length === 0 && this.findBuildActionsWithPendingSteps(game, playerId).length === 0 && !shipFallback) shouldAdd = false;
-                    player.rangeBonusActive = oldR;
+                    // +3 사거리는 '그 사거리가 있어야 닿는' 광산/가이아포머/우주선입장이 있을 때만 — 사거리 필요 없는
+                    // 가까운 빌드/업그레이드만 할 거면 켜지 않는다(보너스 낭비 방지, 사용자 관찰).
+                    // 글린+2나 트왈라잇 임시 부스터가 이미 켜져 있으면 중첩하지 않음(각각 별개 액션).
+                    if (player.gleensNavBonusActive || player.tempRangeBonus) shouldAdd = false;
+                    else if (!this.rangeBoosterUnlocksTarget(game, playerId, 'rangeBonusActive')) shouldAdd = false;
                 }
                 if (shouldAdd) {
                     res.push({ type: 'use_bonus_action', params: { actionId: tile.specialAction } });
