@@ -5756,7 +5756,10 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		// 가이아 행성 기본 비용 반영 (글린스는 광석 소모). 단, 가이아포머로 포밍(즉시포밍)한 경우는 비용 면제됨.
 		totalQicLog += getGaiaBaseQic(player.faction || '');
 	}
-	const costDetails = `1O, 2C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
+	// 비용 표기는 실제 청구액(freeMine이면 0) 기준 — 기존엔 '1O, 2C'를 하드코딩해 무료 광산(우주선 연방 보상 등)에도 비용이 찍히던 버그(사용자 관찰)
+	const costDetails = freeMine
+		? `무료${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
+		: `${standardMineOre}O, ${standardMineCredits}C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
 
 	applyRoundMissionScore(game, playerId, 'build_mine');
