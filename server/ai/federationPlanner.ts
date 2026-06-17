@@ -391,28 +391,29 @@ export class FederationPlanner {
         selectedPlanetIds: string[],
         spentTokens: number
     ) {
-        // Pick a reward ID randomly from available
+        // [버그수정 2026-06-18] 우주선 연방(ship-fed-*)이 보상 후보에서 누락됐었음 — 일반보다 월등(12VP/기술타일 등).
+        // 서버 federation_select_reward 규칙과 동일: 내가 입장한 우주선의 ship-fed가 아직 안 뺏겼으면 선택 가능(풀 무관).
         const pool = game.federationPool || {};
-        const available = FEDERATION_REWARDS.filter(r => pool[r.id] > 0);
-        if (available.length === 0) return null; // No tokens left
+        const player = game.players[playerId];
+        const availableIds: string[] = FEDERATION_REWARDS.filter(r => pool[r.id] > 0).map(r => r.id);
+        const byShip = game.spaceshipFederationByShip || {};
+        const enteredTileIds = player.spaceshipsEntered ?? [];
+        for (const [shipType, shipRewardId] of Object.entries(byShip)) {
+            const enteredThisShip = game.map.some(t => t.type === shipType && enteredTileIds.includes(t.id));
+            if (!enteredThisShip) continue;
+            const taken = Object.values(game.players).some(p => getFederationEntries(p).some(e => e.rewardId === shipRewardId));
+            if (!taken) availableIds.push(shipRewardId);
+        }
+        if (availableIds.length === 0) return null; // No reward available
 
-        // Best reward logic: VP or resources based on round
-        // For now, prioritize tech scaling or VP
-        let bestReward = available[0].id;
-        let maxScore = -1;
-
-        for (const r of available) {
-            let score = r.vp;
-            const anyR = r as any;
-            if (anyR.qic) score += anyR.qic * 5;
-            if (anyR.knowledge) score += anyR.knowledge * 3;
-            if (anyR.ore) score += anyR.ore * 2;
-            if (anyR.credits) score += anyR.credits * 1;
-            if (anyR.powerTokens) score += anyR.powerTokens * 1;
-
+        // getRewardScore로 평가 (ship-fed를 일반보상보다 정확히 높게 — 클래스의 메인 스코어러)
+        let bestReward = availableIds[0];
+        let maxScore = -Infinity;
+        for (const id of availableIds) {
+            const score = this.getRewardScore(game, playerId, id);
             if (score > maxScore) {
                 maxScore = score;
-                bestReward = r.id;
+                bestReward = id;
             }
         }
 

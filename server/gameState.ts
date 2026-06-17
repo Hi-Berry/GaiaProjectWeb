@@ -1096,6 +1096,8 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	log(`forceFinishStalledGame: ending game ${game.id} (${reason})`, 'error', game.id);
 	for (const p of Object.values(game.players)) p.hasPassed = true;
 
+	if (!game.gameLog) game.gameLog = [];
+	game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Game Finished', details: '최종 점수 정산', round: game.roundNumber });
 	applyFinalMissionScoring(game);
 	for (const pid of game.turnOrder) {
 		const p = game.players[pid];
@@ -6467,6 +6469,9 @@ export function executePassRound(
 
 		// Check if all passed
 		if (Object.values(game.players).every(p => p.hasPassed)) {
+			// 게임 종료 마커 — 최종 점수 정산 로그들보다 먼저 (시스템 로그, 특정 플레이어 없음)
+			if (!game.gameLog) game.gameLog = [];
+			game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Game Finished', details: '최종 점수 정산', round: game.roundNumber });
 			applyFinalMissionScoring(game);
 			// Research Track End Bonus
 			for (const pid of game.turnOrder) {
@@ -7771,16 +7776,41 @@ export function executeBotFederation(
 		FEDERATION_REWARDS.forEach(r => { game.federationPool![r.id] = 3; });
 	}
 
-	const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
-	if (reward) {
-		addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + reward.label, noLog: true });
-		const anyReward = reward as any;
-		if (anyReward.ore) player.ore += anyReward.ore;
-		if (anyReward.credits) player.credits += anyReward.credits;
-		if (anyReward.knowledge) player.knowledge += anyReward.knowledge;
-		if (anyReward.qic) grantQic(game, playerId, anyReward.qic);
-		if (anyReward.powerTokens) player.power1 = (player.power1 || 0) + anyReward.powerTokens;
-		game.federationPool![rewardId] -= 1;
+	if (rewardId.startsWith('ship-fed-')) {
+		// [버그수정 2026-06-18] 봇이 우주선 연방 보상을 적용 못하던 것 — federation_select_reward(4591~)와 동일 효과.
+		// (사용자 관찰: 우주선 연방이 일반보다 월등한데 봇 후보/적용에 없었음.) ship-fed는 federationPool 차감 없음.
+		switch (rewardId) {
+			case 'ship-fed-tech':
+				game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' } as any;
+				(game as any).availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
+				break;
+			case 'ship-fed-4vp4k':
+				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' }); player.knowledge = (player.knowledge || 0) + 4; break;
+			case 'ship-fed-4vp1q2o':
+				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' }); grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2; break;
+			case 'ship-fed-8vp8c':
+				addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상' }); player.credits = (player.credits || 0) + 8; break;
+			case 'ship-fed-mine-free':
+				game.pendingSpaceshipFedMine = { playerId }; break;
+			case 'ship-fed-3tf-mine':
+				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3; player.spaceshipFed3TfMineFree = true; break;
+			case 'ship-fed-12vp':
+				addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상' }); break;
+			case 'ship-fed-7vp3p2t':
+				addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상' }); player.power3 = (player.power3 || 0) + 2; break;
+		}
+	} else {
+		const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
+		if (reward) {
+			addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + reward.label, noLog: true });
+			const anyReward = reward as any;
+			if (anyReward.ore) player.ore += anyReward.ore;
+			if (anyReward.credits) player.credits += anyReward.credits;
+			if (anyReward.knowledge) player.knowledge += anyReward.knowledge;
+			if (anyReward.qic) grantQic(game, playerId, anyReward.qic);
+			if (anyReward.powerTokens) player.power1 = (player.power1 || 0) + anyReward.powerTokens;
+			game.federationPool![rewardId] -= 1;
+		}
 	}
 
 	if (!Array.isArray(player.federations) || (player.federations.length > 0 && typeof (player.federations as any)[0] === 'string')) {
