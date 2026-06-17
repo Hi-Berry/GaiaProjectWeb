@@ -1,0 +1,370 @@
+{
+  "gameId": "qw4nxjpl",
+  "gameLog": [
+    {
+      "action": "Selected Faction",
+      "details": "Ambas",
+      "playerId": "bot-p_k4auf3ku8l",
+      "timestamp": 1781598201367,
+      "playerName": "AI Bot 2"
+    },
+    {
+      "action": "Selected Faction",
+      "details": "Darkanians",
+      "playerId": "bot-p_hs755m9nie",
+      "timestamp": 1781598201368,
+      "playerName": "AI Bot 3"
+    },
+    {
+      "action": "Selected Faction",
+      "details": "Xenos",
+      "playerId": "p_5l1i8idpto",
+      "timestamp": 1781598280748,
+      "playerName": "디애박"
+    },
+    {
+      "action": "Selected Faction",
+      "details": "Lantids",
+      "playerId": "p_b5a5nicy6q",
+      "timestamp": 1781598280749,
+      "playerName": "Hi"
+    },
+    {
+      "action": "Placed Starting Mine",
+      "tileId": "tile-53",
+      "details": "Position: tile-53",
+      "playerId": "bot-p_k4auf3ku8l",
+      "timestamp": 1781598281253,
+      "playerName": "AI Bot 2",
+      "aiFeedbackActionId": "1781598281253-bot-p_k4auf3ku8l-teggw3"
+    },
+    {
+      "action": "Final Mission",
+      "tileId": "fm_planet_types",
+      "details": "+18 VP",
+      "playerId": "bot-p_k4auf3ku8l",
+      "timestamp": 1781598348314,
+      "playerName": "AI Bot 2"
+    }
+  ],
+  "players": {
+    "p_5l1i8idpto": {
+      "name": "디애박",
+      "rank": 4,
+      "score": 10,
+      "faction": "xenos",
+      "research": {
+        "economy": 0,
+        "science": 0,
+        "navigation": 0,
+        "gaiaProject": 0,
+        "terraforming": 0,
+        "artificialIntelligence": 1
+      },
+      "bonusTile": null,
+      "resources": {
+        "ore": 4,
+        "qic": 2,
+        "power1": 2,
+        "power2": 4,
+        "power3": 0,
+        "credits": 15,
+        "knowledge": 3
+      },
+      "techTiles": [],
+      "federations": [],
+      "scoreBreakdown": {
+        "other": [
+          {
+            "vp": -8,
+            "source": "종족 비딩"
+          }
+        ],
+        "techTiles": [],
+        "spaceships": [],
+        "bonusTilePass": [],
+        "finalMissions": 0,
+        "powerReceived": 0,
+        "roundMissions": [],
+        "researchTracks": 0,
+        "remainingResources": 8,
+        "finalMissionDetails": []
+      }
+    },
+    "p_b5a5nicy6q": {
+      "name": "Hi",
+      "rank": 3,
+      "score": 17,
+      "faction": "lantids",
+      "research": {
+        "economy": 0,
+        "science": 0,
+        "navigation": 0,
+        "gaiaProject": 0,
+        "terraforming": 0,
+        "artificialIntelligence": 0
+      },
+      "bonusTile": null,
+      "resources": {
+        "ore": 4,
+        "qic": 1,
+        "power1": 4,
+        "power2": 0,
+        "power3": 0,
+        "credits": 13,
+        "knowledge": 3
+      },
+      "techTiles": [],
+      "federations": [],
+      "scoreBreakdown": {
+        "other": [],
+        "techTiles": [],
+        "spaceships": [],
+        "bonusTilePass": [],
+        "finalMissions": 0,
+        "powerReceived": 0,
+        "roundMissions": [],
+        "researchTracks": 0,
+        "remainingResources": 7,
+        "finalMissionDetails": []
+      }
+    },
+    "bot-p_hs755m9nie": {
+      "name": "AI Bot 3",
+      "rank": 2,
+      "score": 19,
+      "faction": "darkanians",
+      "research": {
+        "economy": 1,
+        "science": 0,
+        "navigation": 1,
+        "gaiaProject": 0,
+        "terraforming": 0,
+        "artificialIntelligence": 0
+      },
+      "bonusTile": null,
+      "resources": {
+        "ore": 7,
+        "qic": 2,
+        "power1": 2,
+        "power2": 4,
+        "power3": 0,
+        "credits": 15,
+        "knowledge": 3
+      },
+      "techTiles": [],
+      "federations": [],
+      "scoreBreakdown": {
+        "other": [],
+        "techTiles": [],
+        "spaceships": [],
+        "bonusTilePass": [],
+        "finalMissions": 0,
+        "powerReceived": 0,
+        "roundMissions": [],
+        "researchTracks": 0,
+        "remainingResources": 9,
+        "finalMissionDetails": []
+      }
+    },
+    "bot-p_k4auf3ku8l": {
+      "name": "AI Bot 2",
+      "rank": 1,
+      "score": 36,
+      "faction": "ambas",
+      "research": {
+        "economy": 0,
+        "science": 0,
+        "navigation": 1,
+        "gaiaProject": 0,
+        "terraforming": 0,
+        "artificialIntelligence": 0
+      },
+      "bonusTile": null,
+      "resources": {
+        "ore": 4,
+        "qic": 2,
+        "power1": 2,
+        "power2": 4,
+        "power3": 0,
+        "credits": 15,
+        "knowledge": 3
+      },
+      "techTiles": [],
+      "federations": [],
+      "scoreBreakdown": {
+        "other": [],
+        "techTiles": [],
+        "spaceships": [],
+        "bonusTilePass": [],
+        "finalMissions": 18,
+        "powerReceived": 0,
+        "roundMissions": [],
+        "researchTracks": 0,
+        "remainingResources": 8,
+        "finalMissionDetails": [
+          {
+            "vp": 18,
+            "missionId": "fm_planet_types"
+          }
+        ]
+      }
+    }
+  },
+  "version": 1,
+  "createdAt": 1781598188707,
+  "turnOrder": [
+    "bot-p_k4auf3ku8l",
+    "p_b5a5nicy6q",
+    "bot-p_hs755m9nie",
+    "p_5l1i8idpto"
+  ],
+  "completedAt": "2026-06-16T08:25:48.315Z",
+  "fullGameLog": [
+    {
+      "isBot": true,
+      "phase": "factionBidding",
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Ambas",
+      "playerId": "bot-p_k4auf3ku8l",
+      "timestamp": 1781598201367,
+      "playerName": "AI Bot 2"
+    },
+    {
+      "isBot": true,
+      "phase": "factionBidding",
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Darkanians",
+      "playerId": "bot-p_hs755m9nie",
+      "timestamp": 1781598201368,
+      "playerName": "AI Bot 3"
+    },
+    {
+      "isBot": false,
+      "phase": "factionBidding",
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Xenos",
+      "playerId": "p_5l1i8idpto",
+      "timestamp": 1781598280748,
+      "playerName": "디애박"
+    },
+    {
+      "isBot": false,
+      "phase": "factionBidding",
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Lantids",
+      "playerId": "p_b5a5nicy6q",
+      "timestamp": 1781598280749,
+      "playerName": "Hi"
+    },
+    {
+      "isBot": true,
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-53",
+      "details": "Position: tile-53",
+      "playerId": "bot-p_k4auf3ku8l",
+      "timestamp": 1781598281253,
+      "playerName": "AI Bot 2"
+    },
+    {
+      "isBot": true,
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Final Mission",
+      "tileId": "fm_planet_types",
+      "details": "+18 VP",
+      "playerId": "bot-p_k4auf3ku8l",
+      "timestamp": 1781598348314,
+      "playerName": "AI Bot 2"
+    }
+  ],
+  "roundNumber": 0,
+  "actionJournal": [
+    {
+      "id": "qw4nxjpl-1781598280748-0",
+      "phase": "factionBidding",
+      "round": 0,
+      "action": "Selected Faction",
+      "gameId": "qw4nxjpl",
+      "details": "Xenos",
+      "faction": "xenos",
+      "playerId": "p_5l1i8idpto",
+      "timestamp": 1781598280748,
+      "playerName": "디애박",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "디애박",
+        "score": 10,
+        "faction": "xenos",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 2
+        },
+        "techTiles": [],
+        "federations": [],
+        "scoreBreakdown": null
+      },
+      "playerBefore": null
+    },
+    {
+      "id": "qw4nxjpl-1781598280749-1",
+      "phase": "factionBidding",
+      "round": 0,
+      "action": "Selected Faction",
+      "gameId": "qw4nxjpl",
+      "details": "Lantids",
+      "faction": "lantids",
+      "playerId": "p_b5a5nicy6q",
+      "timestamp": 1781598280749,
+      "playerName": "Hi",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "Hi",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 2
+        },
+        "techTiles": [],
+        "federations": [],
+        "scoreBreakdown": null
+      },
+      "playerBefore": null
+    }
+  ]
+}
