@@ -20,7 +20,7 @@
  */
 
 import { io as ioClient, type Socket } from 'socket.io-client';
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -90,6 +90,30 @@ async function waitForServer(port: number, maxAttempts = 60): Promise<Socket> {
     throw new Error(`Failed to connect head2head server on port ${port}`);
 }
 
+// [좀비 워커 수정 2026-06-18] Windows에선 워커가 cmd.exe→npx→tsx→node 트리로 스폰돼서
+// proc.kill()은 맨 위 cmd.exe만 죽이고 실제 게임서버 node(~140MB)는 살아남아 좀비가 됐다(세션마다 누적→RSS급증).
+// → taskkill /T 로 트리 전체를 죽인다. 또 정상종료 외 크래시/SIGINT/중단에도 반드시 정리되도록 전역 핸들러 등록.
+const ACTIVE_WORKERS = new Set<ChildProcess>();
+function killWorkerTree(proc: ChildProcess) {
+    if (!proc?.pid) { try { proc?.kill(); } catch { } ACTIVE_WORKERS.delete(proc); return; }
+    if (process.platform === 'win32') {
+        try { spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { }
+    } else {
+        try { proc.kill('SIGKILL'); } catch { }
+    }
+    ACTIVE_WORKERS.delete(proc);
+}
+let cleanupRegistered = false;
+function registerWorkerCleanup() {
+    if (cleanupRegistered) return;
+    cleanupRegistered = true;
+    const cleanup = () => { for (const p of [...ACTIVE_WORKERS]) killWorkerTree(p); };
+    process.on('exit', cleanup);
+    process.on('SIGINT', () => { cleanup(); process.exit(130); });
+    process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+    process.on('uncaughtException', (e) => { console.error('[head2head] uncaught:', e); cleanup(); process.exit(1); });
+}
+
 function startServerProcess(port: number): ChildProcess {
     const isWin = process.platform === 'win32';
     const cmd = isWin ? 'cmd.exe' : 'npx';
@@ -103,10 +127,12 @@ function startServerProcess(port: number): ChildProcess {
 }
 
 async function bootWorkers(): Promise<Worker[]> {
+    registerWorkerCleanup();
     const workers: Worker[] = [];
     for (let i = 0; i < WORKERS; i++) {
         const port = BASE_PORT + i;
         const proc = startServerProcess(port);
+        ACTIVE_WORKERS.add(proc);
         const socket = await waitForServer(port);
         const token = process.env.AI_TUNING_TOKEN;
         await emitAsync(socket, 'admin_set_mcts_time_ms', { timeMs: MCTS_MS, token });
@@ -123,7 +149,7 @@ async function shutdownWorkers(workers: Worker[]) {
         try { await emitAsync(w.socket, 'admin_set_mcts_time_ms', { timeMs: null, token }); } catch { }
         try { await emitAsync(w.socket, 'admin_set_bot_delay_ms', { delayMs: null, token }); } catch { }
         try { w.socket.disconnect(); } catch { }
-        try { w.proc.kill(); } catch { }
+        killWorkerTree(w.proc);   // proc.kill()은 cmd.exe만 죽임 → 트리 전체 kill
     }));
 }
 
