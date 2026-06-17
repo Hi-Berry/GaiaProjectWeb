@@ -3085,8 +3085,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					applyRoundMissionScore(game, playerId, 'build_research_lab');
-					addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
+					/* build_research_lab 라운드 미션은 건물 로그 직후에 처리(로그 같은 줄에 +VP 병합) */
+					addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId); applyRoundMissionScore(game, playerId, 'build_research_lab');
 					// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
 					createPowerOffers(game, target, playerId);
 					addBuildingToFederationIfAdjacent(game, playerId, target.id);
@@ -5738,8 +5738,8 @@ export function executeUpgradeStructure(
 		if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return false;
 		if ((player.ore ?? 0) < 3 || (player.credits ?? 0) < 5) return false;
 		player.ore = (player.ore ?? 0) - 3; player.credits = (player.credits ?? 0) - 5; tile.structure = 'research_lab'; game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Upgraded to Research Lab', '3O, 5C', tileId);
-		applyRoundMissionScore(game, playerId, 'build_research_lab');
+		addGameLog(game, playerId, 'Upgraded to Research Lab', '3O, 5C', tileId); applyRoundMissionScore(game, playerId, 'build_research_lab');
+		/* build_research_lab 라운드 미션은 건물 로그 직후에 처리(로그 같은 줄에 +VP 병합) */
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'research_lab' };
@@ -7044,8 +7044,8 @@ export function executeUseShipAction(
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
-			applyRoundMissionScore(game, playerId, 'build_research_lab');
-			addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId);
+			/* build_research_lab 라운드 미션은 건물 로그 직후에 처리(로그 같은 줄에 +VP 병합) */
+			addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId); applyRoundMissionScore(game, playerId, 'build_research_lab');
 			// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
 			createPowerOffers(game, target, playerId);
 			addBuildingToFederationIfAdjacent(game, playerId, target.id);
