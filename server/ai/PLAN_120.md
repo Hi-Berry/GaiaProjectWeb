@@ -38,3 +38,14 @@
 - 수정2 **타클론 브레인스톤**: canSpendTaklonsPowerWithoutBrain/UsingBrain로 판정. 커밋 5d5ada6.
 - 성격: 명확한 correctness 버그(엔진 무관). 참사게임 줄여 평균 상승 — 검증된 day1 레버보다 체감 클 수 있음(특정 종족).
 - 다음: 다른 종족(아이타 등) 유사 파워/자원 오판 점검 + "0후보시 변환으로 버티기" 일반 안전망.
+
+## day1 재검증 (큰 표본) 2026-06-15
+- techVp+shipBalance 묶음 재검: 신 63.0 vs 구 64.6 = **-1.63 (앞 +2.83은 노이즈). 합산 ~0 = do-no-harm, self-play선 유의 +아님.**
+- 해석: self-play(봇끼리 ~60 수렴)는 이 변경들의 보수적 측정. techTiles/우주선 효과는 1:3 실전(긴게임)서 드러날 것. → **실전 검증 필수.**
+- ★ 더 신뢰: 네뷸라/타클론 파워 오판 fix(참사게임 직접 감소)가 self-play 평균에도 더 잡힐 가능성. 다음 세션 별도 검증.
+
+## 사람로그 14게임 재분석 (2026-06-18) — "other" 카테고리 분해
+- other 갭(사람24 vs 봇3.6)의 정체: **Proto Planet(사람108 vs 봇12)** + **ship-fed 연방보상(사람107 vs 봇0!)** + Artifact VP.
+- ship-fed 0 = 봇이 우주선연방 못 고르던 버그(수정 9a43c2f). proto = +6VP 미반영(수정).
+- remainingResources: 봇이 사람보다 높음(4.8 vs 3.4) = 잔여자원 쟁여둠(전환 못함, 참사신호 일치).
+- 우선순위 일관: techTiles(+29.8)>roundMissions(+21)>other(+20.5,위 2건이 주범)>research(+20.4)>finalMissions(+17)>spaceships(+17).
