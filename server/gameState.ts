@@ -8008,7 +8008,8 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	if (idx === 2 || idx === 3) chargePower(player, 2);
 	else if (idx === 4) chargePower(player, 3);
 
-	addGameLog(game, playerId, 'Entered Ship', `(#${idx}) · 점수 ${scoreBefore} → ${player.score ?? 0} (-${entryCost})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
+	const shipNm = (({ ship_twilight: 'Twilight', ship_rebellion: 'Rebellion', ship_tf_mars: 'TF Mars', ship_eclipse: 'Eclipse' } as Record<string, string>)[tile.type ?? ''] ?? '우주선');
+	addGameLog(game, playerId, 'Entered Ship', `${shipNm} · ${scoreBefore}VP → ${player.score ?? 0}VP (-${entryCost})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
 
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);

@@ -112,7 +112,7 @@ export function GameLog({
   ];
 
   type LogPrimaryImage =
-    | { src: string; alt: string }
+    | { src: string; alt: string; rotateDeg?: number }
     | { strip: string; cols: number; index: number; alt: string; extraSrc?: string }
     | { swap: { fromSrc: string | null; toSrc: string | null; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; alt: string };
 
@@ -136,7 +136,8 @@ export function GameLog({
       const shipType = (log.tileId ? game.map?.find(t => t.id === log.tileId)?.type : undefined)
         ?? details.match(/ship_(?:eclipse|twilight|rebellion|tf_mars)/i)?.[0];
       const src = shipType ? SHIP_MAP_IMG[shipType] : undefined;
-      if (src) return { src, alt: shipType ?? 'ship' };
+      // 맵에 보이는 각도와 동일하게 -90° 회전 (맵 우주선 타일도 rotate(-90))
+      if (src) return { src, alt: shipType ?? 'ship', rotateDeg: -90 };
     }
     // 트왈라잇 액션1(3QIC): 연방 해택 재수령 — 트왈라잇 액션 스트립(idx0=3정큐 칸) + 받은 연방 보상 gif를 함께 표시
     if (/^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText)) {
@@ -470,6 +471,7 @@ export function GameLog({
                             alt={primaryImg.alt}
                             title={log.details || primaryImg.alt}
                             className={imgClass}
+                            style={primaryImg.rotateDeg ? { transform: `rotate(${primaryImg.rotateDeg}deg)` } : undefined}
                             loading="lazy"
                             onError={(e) => {
                               // 에셋이 없는 경우(예: 일부 행성 타입/구조 조합) 깨진 이미지 표시를 숨김
