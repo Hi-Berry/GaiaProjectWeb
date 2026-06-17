@@ -125,6 +125,19 @@ export function GameLog({
       const found = POWER_ACTION_STRIP.find(x => x.re.test(details));
       if (found) return { strip: '/image/powerAction.jpg', cols: 7, index: found.idx, alt: details || 'Power Action' };
     }
+    // 우주선 입장: 글자 대신 맵 타일 이미지(/map/ts_*)로 표시. 우주선 종류는 tileId로 맵에서 조회.
+    if (/^Entered Ship$/i.test(actionText)) {
+      const SHIP_MAP_IMG: Record<string, string> = {
+        ship_rebellion: '/map/ts_112.png',
+        ship_tf_mars: '/map/ts_113.png',
+        ship_eclipse: '/map/ts_114.png',
+        ship_twilight: '/map/ts_115.png',
+      };
+      const shipType = (log.tileId ? game.map?.find(t => t.id === log.tileId)?.type : undefined)
+        ?? details.match(/ship_(?:eclipse|twilight|rebellion|tf_mars)/i)?.[0];
+      const src = shipType ? SHIP_MAP_IMG[shipType] : undefined;
+      if (src) return { src, alt: shipType ?? 'ship' };
+    }
     // 트왈라잇 액션1(3QIC): 연방 해택 재수령 — 트왈라잇 액션 스트립(idx0=3정큐 칸) + 받은 연방 보상 gif를 함께 표시
     if (/^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText)) {
       const rid = log.tileId && /^(gleens-fed-|ship-fed-|fed-)/i.test(log.tileId) ? log.tileId : undefined;

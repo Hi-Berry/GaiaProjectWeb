@@ -7971,7 +7971,7 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 		return '타클론: 브레인 스톤이 가이아 영역에 있어 이번 라운드에는 우주선에 입장할 수 없습니다.';
 	}
 
-	player.qic = (player.qic || 0) - useQic;
+	player.qic = (player.qic || 0) - useQic; const scoreBefore = player.score ?? 0;
 	addScore(game, playerId, -entryCost, 'other', { source: '우주선 입장' });
 
 	if (player.faction === 'itars' || player.faction === 'nevlas') {
@@ -8001,7 +8001,7 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	if (idx === 2 || idx === 3) chargePower(player, 2);
 	else if (idx === 4) chargePower(player, 3);
 
-	addGameLog(game, playerId, 'Entered Ship', `${tile.type} (#${idx}), -${entryCost}VP${useQic ? `, ${useQic}QIC` : ''}`, tileId);
+	addGameLog(game, playerId, 'Entered Ship', `(#${idx}) · 점수 ${scoreBefore} → ${player.score ?? 0} (-${entryCost})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
 
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
