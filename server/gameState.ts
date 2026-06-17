@@ -234,6 +234,14 @@ function restoreGameLogForReset(game: ServerGameState, startState: any, playerId
 		'Upgraded to Planetary Institute',
 		'Advanced Research',
 		'Federation',
+		// 기술 타일/고급 타일 선택 로그도 되돌릴 수 있는 액션 — 안 넣으면 트레일링 트림이 'Gained Tech Tile'에서
+		// 멈춰 그 앞 'Upgraded to Research Lab'까지 통째로 남는다(취소 후 둘 다 로그에 남던 버그).
+		'Gained Tech Tile',
+		'Rebellion: Gained Tech Tile',
+		'Advanced Tech Tile',
+		'Advanced Tech: Advanced track',
+		'Ship Tech: Advanced track',
+		'Twilight: TS → Research Lab',
 	]);
 	while (logs.length > 0) {
 		const last = logs[logs.length - 1];
