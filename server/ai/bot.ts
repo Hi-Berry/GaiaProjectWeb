@@ -1924,6 +1924,13 @@ export class BotLogic {
                     stepPenalty = remainingSteps * 20; // 1~2광석으로 저렴해진 경우엔 약하게 페널티
                 }
 
+                // [사용자 관찰 2026-06-18] 크레딧 과잉+오레 부족(예: 30C/4O, QIC 안 씀)인데 희소한 오레로 직접 삽질하면 손해.
+                // 크레딧/파워 삽(TF Mars 3C→1삽, 파워 3P→1삽)이나 더 싼 확장이 있으면 그쪽이 오레를 아껴 더 좋음.
+                // 이 상태에선 오레직접삽을 강억제해 오레를 보존(파워액션으로 오레 수급 + 크레딧삽 우선).
+                if (getPlayerFlag(playerId, 'oreCreditBalance', true) && credits >= 15 && credits >= ore * 4) {
+                    stepPenalty += 200;
+                }
+
                 let score = tfScore - stepPenalty - (qicPenalty * 0.6) + bridgeheadBonus;
 
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
