@@ -6,7 +6,6 @@ import { FACTIONS } from '@shared/gameConfig';
 import { GameClient } from '@/lib/gameClient';
 import { racePortraitSrc } from '@/lib/racePortrait';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 
 /** 종족 카드: 2열 그리드용, 이미지 비율 유지(contain), 박스는 이미지에 맞춤(불필요한 세로 여백 최소화) */
 function RaceCardFrame({
@@ -45,8 +44,12 @@ type Props = {
   playerId: string | null;
 };
 
+/**
+ * 종족 비딩 패널 — 우측 사이드바(상태창+로그) 영역을 통째로 덮는 오버레이.
+ * 비딩 중엔 상태창을 볼 필요가 없고, 가운데를 비워 맵/미니뷰를 보며 비딩할 수 있게 함(사용자 요청).
+ * 접기 기능은 제거(상시 표시).
+ */
 export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
   const [draftBid, setDraftBid] = useState<number | null>(null);
   const [pickFactionId, setPickFactionId] = useState<string | null>(null);
 
@@ -113,261 +116,248 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
 
   const panelPlayerOrder = playerIdsForFactionBiddingUi(game, fb);
 
-  if (collapsed) {
-    return (
-      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[130] w-[min(96vw,520px)] pointer-events-none flex justify-center">
-        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950/95 border border-amber-500/50 shadow-xl shadow-black/40">
-          <span className="text-xs font-orbitron font-bold text-amber-200">종족 비딩</span>
-          {fb.phase === 'bidding' && (
-            <span className="text-[11px] text-zinc-400">
-              최고 {fb.currentHighBid} · 차례{' '}
-              <span className="text-zinc-200">
-                {fb.currentBidderId ? game.players[fb.currentBidderId]?.name : '—'}
-              </span>
-            </span>
-          )}
-          {fb.phase === 'pick' && fb.pickPlayerId && (
-            <span className="text-[11px] text-emerald-400/90">
-              낙찰: {game.players[fb.pickPlayerId]?.name}
-            </span>
-          )}
+  return (
+    <div className="absolute inset-0 z-[140] flex flex-col bg-zinc-950/97 backdrop-blur-sm border-l border-amber-500/40">
+      {/* 헤더(고정) */}
+      <div className="shrink-0 px-4 py-3 border-b border-amber-500/30 bg-zinc-950/80">
+        <div className="flex items-center justify-center gap-2">
+          <h2 className="text-base font-orbitron font-bold text-amber-200 text-center">종족 비딩</h2>
           {needsAttention && (
             <Badge className="bg-amber-600 hover:bg-amber-600 text-[10px] px-1.5 py-0">내 차례</Badge>
           )}
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-7 text-[11px] gap-1 px-2"
-            onClick={() => setCollapsed(false)}
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-            펼치기
-          </Button>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[130] w-[min(96vw,520px)] max-h-[85vh] overflow-y-auto bg-zinc-950/95 border border-amber-500/40 rounded-xl p-4 shadow-2xl">
-      <div className="relative mb-2 pr-1">
-        <h2 className="text-lg font-orbitron font-bold text-amber-200 text-center">종족 비딩</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="absolute right-0 top-1/2 -translate-y-1/2 h-8 text-zinc-400 hover:text-amber-200 hover:bg-amber-950/50 gap-1"
-          onClick={() => setCollapsed(true)}
-          title="접기 (맵 보기)"
-        >
-          <ChevronUp className="w-4 h-4" />
-          <span className="text-[11px]">접기</span>
-        </Button>
-      </div>
-
-      {isPick && isMyPick && (
-        <p className="text-center text-sm text-emerald-300 mb-3">
-          낙찰! 낙찰가 {fb.pendingWinningBid} VP — 아래 종족을 누른 뒤 턴 순서를 고르세요.
-        </p>
-      )}
-
-      <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/80 p-2">
-        <p className="text-[10px] uppercase text-zinc-500 mb-2">이번에 고를 수 있는 종족</p>
-        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          {fb.remainingFactionIds.map((fid) => {
-            const f = FACTIONS.find((x) => x.id === fid);
-            const src = racePortraitSrc(fid);
-            const name = f?.name ?? fid;
-            if (isPick && isMyPick) {
-              const selected = pickFactionId === fid;
-              return (
-                <button
-                  key={fid}
-                  type="button"
-                  className={`rounded-lg border-2 overflow-hidden text-left transition-all hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 min-w-0 ${
-                    selected ? 'border-amber-400 ring-1 ring-amber-400/40' : 'border-zinc-700'
-                  }`}
-                  onClick={() => {
-                    if (availOrders.length === 1) {
-                      GameClient.factionBidPick(gameId, fid, availOrders[0]!);
-                      return;
-                    }
-                    setPickFactionId(fid);
-                  }}
-                  aria-label={`${name} 선택`}
-                  title={availOrders.length === 1 ? `${name} — 즉시 선택` : name}
-                >
-                  <RaceCardFrame src={src} name={name} color={f?.color} />
-                </button>
-              );
-            }
-            return (
-              <div
-                key={fid}
-                className="rounded-lg border border-zinc-700 bg-zinc-950/60 overflow-hidden shadow-sm min-w-0"
-                title={name}
-              >
-                <RaceCardFrame src={src} name={name} color={f?.color} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {remainingTurnOrders.length > 0 && (
-        <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/60 p-2">
-          <p className="text-[10px] uppercase text-zinc-500 mb-1.5">아직 안 고른 턴 순서</p>
-          <div className="flex flex-wrap gap-1.5">
-            {remainingTurnOrders.map((ord) => (
-              <span
-                key={ord}
-                className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-xs font-mono tabular-nums text-amber-200"
-              >
-                턴 {ord}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {isPick && isMyPick && pickFactionId && availOrders.length > 1 && (
-        <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900/60 p-2 space-y-2">
-          <p className="text-[10px] uppercase text-zinc-500 text-center">내 턴 순서 고르기</p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {availOrders.map((ord) => (
-              <Button
-                key={ord}
-                size="sm"
-                variant="secondary"
-                className="min-w-[4.5rem] text-xs"
-                onClick={() => GameClient.factionBidPick(gameId, pickFactionId, ord)}
-              >
-                턴 {ord}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {fb.phase === 'bidding' && (
-        <div className="text-center text-sm text-zinc-300 mb-3 space-y-1">
-          <p>
-            현재 최고가: <span className="text-amber-400 font-bold">{fb.currentHighBid}</span>
+        {fb.phase === 'bidding' && (
+          <p className="mt-1 text-center text-[11px] text-zinc-400">
+            최고가 <span className="text-amber-400 font-bold tabular-nums">{fb.currentHighBid}</span>
             {fb.leaderId && game.players[fb.leaderId] && (
               <span className="text-zinc-500"> ({game.players[fb.leaderId].name})</span>
             )}
-          </p>
-          <p>
-            차례:{' '}
+            <span className="mx-1 text-zinc-700">·</span>
+            차례{' '}
             <span className="text-white font-semibold">
               {fb.currentBidderId ? game.players[fb.currentBidderId]?.name : '—'}
             </span>
           </p>
-        </div>
-      )}
+        )}
+        {fb.phase === 'pick' && fb.pickPlayerId && (
+          <p className="mt-1 text-center text-[11px] text-emerald-400/90">
+            낙찰: {game.players[fb.pickPlayerId]?.name} ({fb.pendingWinningBid} VP)
+          </p>
+        )}
+      </div>
 
-      {fb.phase === 'bidding' && isMyBidTurn && (
-        <div className="mb-3 space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-xs text-zinc-400">입찰</span>
-            <span className="text-sm font-bold text-amber-300 tabular-nums">{effectiveDraftBid ?? minRaise}</span>
-          </div>
+      {/* 본문(스크롤) */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
+        {isPick && isMyPick && (
+          <p className="text-center text-sm text-emerald-300">
+            낙찰! 낙찰가 {fb.pendingWinningBid} VP — 아래 종족을 누른 뒤 턴 순서를 고르세요.
+          </p>
+        )}
 
-          <div className="flex flex-wrap gap-1.5 justify-center">
-            {[-10, -5, -1].map((d) => (
-              <Button
-                key={d}
-                size="sm"
-                variant="outline"
-                className="h-8 px-2 text-xs tabular-nums"
-                disabled={effectiveDraftBid == null || (effectiveDraftBid + d) < minRaise}
-                onClick={() => setDraftBid((prev) => (prev ?? minRaise) + d)}
-                title="되돌리기"
-              >
-                {d}
-              </Button>
-            ))}
-            {[1, 5, 10].map((d) => (
-              <Button
-                key={d}
-                size="sm"
-                variant="secondary"
-                className="h-8 px-2 text-xs tabular-nums"
-                disabled={effectiveDraftBid == null}
-                onClick={() => setDraftBid((prev) => (prev ?? minRaise) + d)}
-                title="더 올리기"
-              >
-                +{d}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2 justify-center">
-            <Button
-              className="bg-amber-600 hover:bg-amber-500"
-              disabled={effectiveDraftBid == null || effectiveDraftBid < minRaise}
-              onClick={() => effectiveDraftBid != null && GameClient.factionBidRaise(gameId, effectiveDraftBid)}
-            >
-              입찰
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => GameClient.factionBidPass(gameId)}
-              title="이번 경매에서 빠집니다"
-            >
-              Pass
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 border-t border-zinc-800 pt-2">
-        <p className="text-zinc-500 uppercase text-[9px] tracking-wider mb-1.5">플레이어</p>
-        <p className="text-[9px] text-zinc-600 mb-1.5 leading-snug">
-          확정: 턴 순 · 진행 중: 입찰 순서
-        </p>
-        <div className="space-y-1">
-          {panelPlayerOrder.map((id) => {
-            const p = game.players[id];
-            if (!p) return null;
-            const bid = p.factionBidVp ?? 0;
-            const isBot = game.botPlayerIds?.includes(id);
-            const hasF = !!p.faction;
-            const lastAuctionBid = p.factionAuctionLastBid;
-            let label = '';
-            let titleExtra = '';
-            if (hasF) label = `${bid}VP`;
-            else if (isBot) label = 'AI';
-            else if (fb.phase === 'bidding' && fb.inAuction.includes(id)) {
-              if (lastAuctionBid != null && lastAuctionBid > 0) {
-                label = `입찰중 ${lastAuctionBid}`;
-                titleExtra = `마지막 입찰 ${lastAuctionBid}VP`;
-              } else {
-                label = '입찰중';
-                titleExtra = '아직 입찰 전';
+        <div className="rounded-lg border border-zinc-700 bg-zinc-900/80 p-2">
+          <p className="text-[10px] uppercase text-zinc-500 mb-2">이번에 고를 수 있는 종족</p>
+          <div className="grid grid-cols-2 gap-2">
+            {fb.remainingFactionIds.map((fid) => {
+              const f = FACTIONS.find((x) => x.id === fid);
+              const src = racePortraitSrc(fid);
+              const name = f?.name ?? fid;
+              if (isPick && isMyPick) {
+                const selected = pickFactionId === fid;
+                return (
+                  <button
+                    key={fid}
+                    type="button"
+                    className={`rounded-lg border-2 overflow-hidden text-left transition-all hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 min-w-0 ${
+                      selected ? 'border-amber-400 ring-1 ring-amber-400/40' : 'border-zinc-700'
+                    }`}
+                    onClick={() => {
+                      if (availOrders.length === 1) {
+                        GameClient.factionBidPick(gameId, fid, availOrders[0]!);
+                        return;
+                      }
+                      setPickFactionId(fid);
+                    }}
+                    aria-label={`${name} 선택`}
+                    title={availOrders.length === 1 ? `${name} — 즉시 선택` : name}
+                  >
+                    <RaceCardFrame src={src} name={name} color={f?.color} />
+                  </button>
+                );
               }
-            } else if (fb.phase === 'bidding') label = '패스';
-            else if (fb.phase === 'pick' && fb.pickPlayerId === id) label = '선택';
-            else label = '대기';
-            return (
-              <div key={id} className="flex items-center justify-between gap-2 min-h-[28px]">
-                <span className="truncate text-[11px] text-zinc-200 min-w-0 flex-1">
-                  {hasF && p.selectedTurnOrder != null && (
-                    <span className="text-zinc-500 font-mono tabular-nums mr-1">[{p.selectedTurnOrder}]</span>
-                  )}
-                  {p.name}
-                  {isBot && <span className="text-zinc-500"> · BOT</span>}
-                </span>
-                <span
-                  className="shrink-0 inline-flex min-w-[3.25rem] max-w-[7rem] items-center justify-center rounded border border-zinc-600/70 bg-zinc-900/80 px-1.5 py-1 text-[10px] leading-tight text-zinc-400 tabular-nums text-center shadow-sm"
-                  title={titleExtra || label}
+              return (
+                <div
+                  key={fid}
+                  className="rounded-lg border border-zinc-700 bg-zinc-950/60 overflow-hidden shadow-sm min-w-0"
+                  title={name}
                 >
-                  {label}
+                  <RaceCardFrame src={src} name={name} color={f?.color} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {remainingTurnOrders.length > 0 && (
+          <div className="rounded-lg border border-zinc-700 bg-zinc-900/60 p-2">
+            <p className="text-[10px] uppercase text-zinc-500 mb-1.5">아직 안 고른 턴 순서</p>
+            <div className="flex flex-wrap gap-1.5">
+              {remainingTurnOrders.map((ord) => (
+                <span
+                  key={ord}
+                  className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-xs font-mono tabular-nums text-amber-200"
+                >
+                  턴 {ord}
                 </span>
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isPick && isMyPick && pickFactionId && availOrders.length > 1 && (
+          <div className="rounded-lg border border-zinc-700 bg-zinc-900/60 p-2 space-y-2">
+            <p className="text-[10px] uppercase text-zinc-500 text-center">내 턴 순서 고르기</p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {availOrders.map((ord) => (
+                <Button
+                  key={ord}
+                  size="sm"
+                  variant="secondary"
+                  className="min-w-[4.5rem] text-xs"
+                  onClick={() => GameClient.factionBidPick(gameId, pickFactionId, ord)}
+                >
+                  턴 {ord}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {fb.phase === 'bidding' && isMyBidTurn && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-950/20 p-2 space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-xs text-zinc-400">입찰</span>
+              <span className="text-sm font-bold text-amber-300 tabular-nums">{effectiveDraftBid ?? minRaise}</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {[-10, -5, -1].map((d) => (
+                <Button
+                  key={d}
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2 text-xs tabular-nums"
+                  disabled={effectiveDraftBid == null || (effectiveDraftBid + d) < minRaise}
+                  onClick={() => setDraftBid((prev) => (prev ?? minRaise) + d)}
+                  title="되돌리기"
+                >
+                  {d}
+                </Button>
+              ))}
+              {[1, 5, 10].map((d) => (
+                <Button
+                  key={d}
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 px-2 text-xs tabular-nums"
+                  disabled={effectiveDraftBid == null}
+                  onClick={() => setDraftBid((prev) => (prev ?? minRaise) + d)}
+                  title="더 올리기"
+                >
+                  +{d}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                className="bg-amber-600 hover:bg-amber-500"
+                disabled={effectiveDraftBid == null || effectiveDraftBid < minRaise}
+                onClick={() => effectiveDraftBid != null && GameClient.factionBidRaise(gameId, effectiveDraftBid)}
+              >
+                입찰
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => GameClient.factionBidPass(gameId)}
+                title="이번 경매에서 빠집니다"
+              >
+                Pass
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 플레이어 = 턴 순서판(1..N 슬롯 순). 확정자(봇 포함)는 종족색·종족명·턴번호로 표시 */}
+        <div className="border-t border-zinc-800 pt-2">
+          <p className="text-zinc-500 uppercase text-[9px] tracking-wider mb-1.5">플레이어 (턴 순서)</p>
+          <div className="space-y-1">
+            {panelPlayerOrder.map((id, idx) => {
+              const p = game.players[id];
+              if (!p) return null;
+              const bid = p.factionBidVp ?? 0;
+              const isBot = game.botPlayerIds?.includes(id);
+              const hasF = !!p.faction;
+              const fac = hasF ? FACTIONS.find((x) => x.id === p.faction) : undefined;
+              const facColor = fac?.color ?? '#71717a';
+              const slotNo = hasF && p.selectedTurnOrder != null ? p.selectedTurnOrder : idx + 1;
+              const lastAuctionBid = p.factionAuctionLastBid;
+
+              let label = '';
+              let titleExtra = '';
+              if (hasF) label = `${bid}VP`;
+              else if (fb.phase === 'bidding' && fb.inAuction.includes(id)) {
+                if (lastAuctionBid != null && lastAuctionBid > 0) {
+                  label = `입찰중 ${lastAuctionBid}`;
+                  titleExtra = `마지막 입찰 ${lastAuctionBid}VP`;
+                } else {
+                  label = '입찰중';
+                  titleExtra = '아직 입찰 전';
+                }
+              } else if (fb.phase === 'bidding') label = '패스';
+              else if (fb.phase === 'pick' && fb.pickPlayerId === id) label = '선택';
+              else label = '대기';
+
+              const isCurrentBidder = fb.phase === 'bidding' && fb.currentBidderId === id;
+
+              return (
+                <div
+                  key={id}
+                  className={`flex items-center gap-2 min-h-[30px] rounded px-1.5 py-1 border ${
+                    isCurrentBidder ? 'border-amber-500/50 bg-amber-950/25' : 'border-transparent'
+                  }`}
+                  style={hasF ? { borderLeft: `3px solid ${facColor}` } : undefined}
+                >
+                  {/* 턴 슬롯 번호 */}
+                  <span
+                    className="shrink-0 inline-flex w-5 h-5 items-center justify-center rounded text-[10px] font-bold tabular-nums"
+                    style={{ backgroundColor: hasF ? facColor : '#3f3f46', color: hasF ? '#000' : '#a1a1aa' }}
+                    title={`턴 ${slotNo}`}
+                  >
+                    {slotNo}
+                  </span>
+
+                  <span className="flex-1 min-w-0 leading-tight">
+                    <span className="block truncate text-[11px] text-zinc-100">
+                      {p.name}
+                      {isBot && <span className="text-zinc-500"> · BOT</span>}
+                    </span>
+                    {hasF && (
+                      <span className="block truncate text-[10px] font-semibold" style={{ color: facColor }}>
+                        {fac?.name ?? p.faction}
+                      </span>
+                    )}
+                  </span>
+
+                  <span
+                    className="shrink-0 inline-flex min-w-[3.25rem] max-w-[7rem] items-center justify-center rounded border border-zinc-600/70 bg-zinc-900/80 px-1.5 py-1 text-[10px] leading-tight text-zinc-300 tabular-nums text-center shadow-sm"
+                    title={titleExtra || label}
+                  >
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

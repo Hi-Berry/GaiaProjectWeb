@@ -237,6 +237,12 @@ export default function Game() {
     }
   }, [gameId, mapZoom, mapPan, isSidebarOpen, isZoomInitialized]);
 
+  // 종족 비딩 단계에선 사이드바를 강제로 펼침 — 비딩 패널이 상태창 영역을 덮어 표시되므로
+  // 사이드바가 접혀 있으면(너비 0) 패널도 안 보인다.
+  useEffect(() => {
+    if (game?.currentPhase === 'factionBidding') setIsSidebarOpen(true);
+  }, [game?.currentPhase]);
+
   // 패스 시 보너스 타일 선택 대기 상태 확인
   const isPendingBonusSelection = game?.pendingBonusSelection === playerId;
   const [highlightedTileId, setHighlightedTileId] = useState<string | null>(null);
@@ -2371,9 +2377,6 @@ export default function Game() {
       </div>
 
       <main className="flex-1 flex flex-col overflow-hidden bg-zinc-900/20 relative">
-        {game.currentPhase === 'factionBidding' && (
-          <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
-        )}
         <div className="flex-1 min-h-0">
           <GameBoard
             game={game}
@@ -3926,6 +3929,10 @@ export default function Game() {
             title="드래그하여 너비 조절"
             onMouseDown={startSidebarResize}
           />
+        )}
+        {/* 종족 비딩 패널: 상태창+로그 영역을 통째로 덮는 오버레이(가운데 맵/미니뷰는 그대로 보임) */}
+        {game.currentPhase === 'factionBidding' && (
+          <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
         )}
         {isSidebarOpen && (
           <div className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden">
