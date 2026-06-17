@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useState, useRef, type CSSProperties } from 'react';
+import { useState, useRef, Fragment, type CSSProperties } from 'react';
 import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
@@ -14,6 +14,8 @@ interface GameLogProps {
   className?: string;
   maxHeight?: string;
   textScale?: number;
+  /** 최신/라운드 점프 툴바 표시 여부 (기본 true). 도크에서는 'Game Log' 타이틀 클릭으로 토글. */
+  showToolbar?: boolean;
 }
 
 export function GameLog({
@@ -24,7 +26,8 @@ export function GameLog({
   hideHeader = false,
   className = "",
   maxHeight = "400px",
-  textScale = 1
+  textScale = 1,
+  showToolbar = true
 }: GameLogProps) {
   const logs = game.gameLog || [];
   // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)
@@ -43,18 +46,30 @@ export function GameLog({
   // 라운드 점프: 각 라운드의 '첫(시간순) 로그' origIndex와 DOM 노드 ref
   const [showRounds, setShowRounds] = useState(false);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const roundRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const roundFirstOrigIdx = new Map<number, number>(); // round -> 첫 등장 origIndex
   const roundsPresent: number[] = [];
   for (let i = 0; i < logs.length; i++) {
     const r = logs[i]?.round;
-    if (typeof r === 'number' && !roundFirstOrigIdx.has(r)) {
-      roundFirstOrigIdx.set(r, i);
-      roundsPresent.push(r);
-    }
+    if (typeof r === 'number' && !roundsPresent.includes(r)) roundsPresent.push(r);
   }
   roundsPresent.sort((a, b) => a - b);
-  const scrollToTop = () => topRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  // 스크롤 가능한 조상 컨테이너 찾기 (sticky 툴바를 타깃하면 스크롤이 안 움직이는 버그 방지)
+  const getScrollParent = (): HTMLElement | null => {
+    let el: HTMLElement | null = rootRef.current?.parentElement ?? null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+  // 최신순(역순) 표시 → 최신 로그는 맨 위. 스크롤 컨테이너를 맨 위로.
+  const scrollToTop = () => {
+    const sp = getScrollParent();
+    if (sp) sp.scrollTo({ top: 0, behavior: 'smooth' });
+    else rootRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
   const scrollToRound = (r: number) => {
     roundRefs.current[r]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     setShowRounds(false);
@@ -347,8 +362,9 @@ export function GameLog({
   };
 
   const content = (
-    <div className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0 pr-2"}`}>
-      {/* 라운드 점프 + 최신으로 — 상단 고정 툴바 */}
+    <div ref={rootRef} className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0 pr-2"}`}>
+      {/* 라운드 점프 + 최신으로 — 상단 고정 툴바 (showToolbar일 때만) */}
+      {showToolbar && (
       <div ref={topRef} className="sticky top-0 z-20 -mx-0.5 px-0.5 py-1 bg-zinc-950/95 backdrop-blur flex flex-col gap-1 border-b border-white/10">
         <div className="flex items-center gap-1.5">
           <button
@@ -382,12 +398,17 @@ export function GameLog({
           ))}
         </div>
       </div>
+      )}
       {logs.length === 0 ? (
         <div className="text-center text-zinc-500 text-sm py-8 uppercase tracking-widest font-black opacity-30">
           No actions yet
         </div>
       ) : (
-        [...logs].reverse().map((log, index) => {
+        [...logs].reverse().map((log, index, reversedLogs) => {
+          // 최신순 표시 유지. 라운드 라벨은 블록 '하단'(그 라운드의 가장 오래된 로그 아래)에:
+          // 화면에서 바로 아래(더 오래된) 항목과 라운드가 다르거나 마지막이면 이 항목이 해당 라운드의 첫(시간상) 로그.
+          const nextOlder = index < reversedLogs.length - 1 ? reversedLogs[index + 1] : null;
+          const isRoundFooter = typeof log.round === 'number' && (!nextOlder || nextOlder.round !== log.round);
           const actionText = log.action || '';
           const isPowerAction = /power|income|energy|bowl/i.test(actionText) || /Accepted|Declined/i.test(actionText);
           const isMainAction = /AI Move|Built|Upgraded|Advanced|Pass|Pass Round|Gaia Project|Federation|Chosen/i.test(actionText) && !isPowerAction;
@@ -401,13 +422,10 @@ export function GameLog({
           const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
           const primaryImg = getLogPrimaryImage(log, player?.faction);
           const isAiFeedbackLog = !!log.aiFeedbackActionId;
-          const origIdx = logs.length - 1 - index;
-          const isRoundFirst = typeof log.round === 'number' && roundFirstOrigIdx.get(log.round) === origIdx;
 
           return (
+            <Fragment key={index}>
             <div
-              key={index}
-              ref={isRoundFirst && typeof log.round === 'number' ? (el) => { roundRefs.current[log.round as number] = el; } : undefined}
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
@@ -612,7 +630,7 @@ export function GameLog({
                       </div>
                     );
                   }
-                  const origIdx = logs.length - 1 - index;
+                  const origIdx = logs.length - 1 - index; // 최신순(역순) 표시 → 원본 시간순 인덱스로 환산
                   // base(이 액션 직전 스냅샷)가 있으면 '이 액션만'의 변동. 없으면(구 로그) 같은 플레이어 직전 로그로 폴백.
                   const prev = log.base ?? prevSnapFor(origIdx, log.playerId);
                   return (
@@ -657,6 +675,18 @@ export function GameLog({
                 )}
               </div>
             </div>
+            {isRoundFooter && typeof log.round === 'number' && (
+              <div
+                ref={(el) => { roundRefs.current[log.round as number] = el; }}
+                style={{ scrollMarginTop: '2.75rem' }}
+                className="flex items-center gap-2 px-1 pt-1 pb-2 select-none"
+              >
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-blue-500/60" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300 shrink-0">Round {log.round}</span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-blue-500/60" />
+              </div>
+            )}
+            </Fragment>
           );
         })
       )}

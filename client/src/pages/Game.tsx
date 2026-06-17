@@ -177,6 +177,8 @@ export default function Game() {
     const saved = parseFloat(localStorage.getItem('game-log-dock-height') ?? '');
     return Number.isFinite(saved) ? Math.min(60, Math.max(16, saved)) : 36;
   });
+  /** 도크 로그의 최신/라운드 점프 툴바 표시 (Game Log 타이틀 클릭으로 토글, 기본 숨김) */
+  const [logToolsOpen, setLogToolsOpen] = useState(false);
   const adjustLogDockHeight = (delta: number) => {
     setLogDockHeightVh((prev) => {
       const next = Math.min(LOG_DOCK_MAX_VH, Math.max(LOG_DOCK_MIN_VH, prev + delta));
@@ -4838,9 +4840,15 @@ export default function Game() {
             {/* Game Log — 상태 영역 아래 항상 표시 (L키 하단시트와 별개, 데스크톱만) */}
             <div className="border-t border-white/10 flex-none flex-col hidden md:flex" style={{ height: `${logDockHeightVh}vh` }}>
               <div className="flex items-center justify-between gap-2 shrink-0 px-4 pt-3 pb-2">
-                <h3 className="font-semibold flex items-center gap-2 text-xs md:text-sm">
+                <button
+                  type="button"
+                  onClick={() => setLogToolsOpen(v => !v)}
+                  className={`font-semibold flex items-center gap-2 text-xs md:text-sm rounded px-1 -mx-1 transition-colors hover:text-white ${logToolsOpen ? 'text-blue-300' : ''}`}
+                  title="클릭: 최신/라운드 점프 표시"
+                >
                   <Clock className="w-3.5 h-3.5 text-blue-400" /> Game Log
-                </h3>
+                  {logToolsOpen ? <ChevronUp className="w-3 h-3 opacity-60" /> : <ChevronDown className="w-3 h-3 opacity-60" />}
+                </button>
                 <div className="flex items-center gap-1">
                   {LOG_TEXT_SCALES.map((scale) => (
                     <Button
@@ -4899,6 +4907,7 @@ export default function Game() {
                     className="w-full"
                     maxHeight="none"
                     textScale={logTextScale}
+                    showToolbar={logToolsOpen}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}
                     onAiFeedbackClick={openAiFeedbackForAction}
