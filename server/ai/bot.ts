@@ -1024,6 +1024,18 @@ export class BotLogic {
         const round = game.roundNumber;
         const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
 
+        // [사용자 규칙 2026-06-18] 다음 라운드 오레:크레딧 수입이 1:3.5보다 벗어나면(크레딧 과잉/오레 기아) 나쁜 케이스.
+        // 교역소 죽음의 나선: 2오레 모이면 mine→TS 업글 → 크레딧수입↑·오레수입 그대로 → 또 반복 → 돈만 30 쌓이고
+        // 오레 없어 패스. TS는 오레를 먹고 크레딧수입을 더 올려 비율을 *악화*시키므로, 이 상태에선 mine→TS를 강하게
+        // 억제해 광산건설·오레 파워액션이 선택되게 한다(엔진의 오레 다리를 키움).
+        let oreStarved = false;
+        if (getPlayerFlag(playerId, 'oreCreditBalance', true)) {
+            const balExp = this.calculateExpectedRoundIncome(game, playerId);
+            const oreInc = Math.max(0.5, balExp.ore ?? 0);
+            const creditInc = balExp.credits ?? 0;
+            oreStarved = (creditInc / oreInc) > 3.5;
+        }
+
         interface ScoredUpgrade {
             id: string;
             score: number;
@@ -1089,6 +1101,10 @@ export class BotLogic {
                     if (isFirstTS && score <= 0) {
                         score = 10;
                     }
+
+                    // [오레기아 가드] 다음 라운드 크레딧:오레 수입>3.5면 추가 TS는 오레를 먹고 크레딧수입만 더 올려
+                    // 비율을 악화(=교역소 죽음의 나선). 첫 TS(연구소 발판) 외엔 강하게 억제 → 광산/오레 파워액션 우선.
+                    if (oreStarved && !isFirstTS) score -= 220;
 
                     score -= fedPenalty(mine.id);
                     score += this.calculateRoundScoringBonus(game, playerId, 'build_trading_station');
@@ -2937,6 +2953,14 @@ export class BotLogic {
         const minesToUpgrade = mineCount - tsCount; // 교역소로 올릴 광산이 몇 개 있는지
         const needStepsFirst = mineCount <= 2 || minesToUpgrade <= 0; // 광산이 적거나, 올릴 광산이 없으면 스텝 우선
 
+        // [사용자 규칙 2026-06-18] 다음 라운드 크레딧:오레 수입>3.5면(오레 기아) 파워액션으로 오레를 먹게 유도,
+        // 크레딧 파워액션은 억제(이미 돈만 쌓임). 교역소 죽음의 나선 탈출.
+        let oreStarvedPow = false;
+        if (getPlayerFlag(playerId, 'oreCreditBalance', true)) {
+            const exp = this.calculateExpectedRoundIncome(game, playerId);
+            oreStarvedPow = (exp.credits ?? 0) / Math.max(0.5, exp.ore ?? 0) > 3.5;
+        }
+
         for (const action of availableActions) {
             let score = 0;
             const cost = action.cost;
@@ -2982,6 +3006,8 @@ export class BotLogic {
                     if (oreAfter >= 1 && credits >= 2) score += 40;  // 광산 1채 가능
                     // 교역소 지을 광산이 없으면 자원만 쌓이므로 감점 → 스텝 우선
                     if (needStepsFirst) score -= 100;
+                    // [오레기아] 크레딧 수입 과잉 상태면 오레 확보가 탈출구 → 강하게 선호(needStepsFirst 감점 상쇄+).
+                    if (oreStarvedPow) score += 180;
                     break;
                 }
                 case 'gain-7-credits': {
@@ -2991,6 +3017,8 @@ export class BotLogic {
                     if (ore >= 3 && credAfter >= 5) score += 120; // 연구소(TS→Lab) 가능
                     if (ore >= 1 && credAfter >= 2) score += 50;   // 광산 가능
                     if (needStepsFirst) score -= 100;
+                    // [오레기아] 이미 돈만 쌓이는데 또 크레딧 파워액션은 비율 악화 → 억제.
+                    if (oreStarvedPow) score -= 150;
                     break;
                 }
                 case 'gain-1-step': {
