@@ -92,3 +92,8 @@
 - 의심: calculateFederationScore(bot.ts:3794) potentialPower가 **거리≤4 합산**(실제 연결성 아님) → 봇이 dist2-3 떨어뜨려 지어도 "연방가능" 가점 → 실제 인접클러스터 4.3 정체.
 - 다음 실험(우선순위 높음, 미실행): 연결성-인지 fed점수 flag → self-play 후 mapFeatures로 클러스터지표 직접측정(VP는 노이즈). 단 흩어짐이 행성위치 강제면 fedCompletionStrong(null)처럼 무효 위험 → 측정으로 판별.
 - 주의: 사람 14게임은 g.map 없어 사람 클러스터 지표 직접비교 불가(새 게임 필요).
+
+## 클러스터링 실험 결과 + ore-credit 수정 (2026-06-18)
+- tightCluster(인접 빌드 강제) control vs treatment(12+12판): 클러스터수 7.83→8.92(오히려↑), 최대파워 3.85→3.92(무변), 7+클러스터 0.06→0.04. → **봇 흩어짐은 위치 강제(닿는 빈 행성이 인접 안 함)지 인센티브 부족 아님. tightCluster=dead-end**(fedCompletionStrong류). 기본 OFF 유지.
+- ★ 사용자 관찰 수정: (1)R1~2 3오레 테라포밍 광산 차단(earlyTerraformGuard 260→1000) (2)교역소 죽음의나선=오레기아(다음라운드 크레딧:오레>3.5)면 mine→TS 억제+오레파워액션 부스트(flag oreCreditBalance 기본ON) (3)맵생성 우주선 거리>3 규칙 위반 수정 (4)head2head 워커 좀비 정리(taskkill /T).
+- head2head 좀비정리 수정 검증됨: 실험 후 h2h 워커 0개 잔존(사용자 dev서버만 남음).
