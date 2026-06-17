@@ -4857,7 +4857,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 파워 수령 로직 통일: 타클론 브레인/PI 보너스 포함
 				applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount, { brainFirst: true });
 				const sourcePlayer = game.players[offer.sourcePlayerId];
-				addGameLog(game, offer.targetPlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
+				const subTxt = `↳ Received Power +${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''} ${targetPlayer.name}`;
+				const subAdded = addSubLogToLastAction(game, offer.sourcePlayerId, { playerId: offer.targetPlayerId, playerName: targetPlayer.name, text: subTxt });
+				if (!subAdded) addGameLog(game, offer.targetPlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
 			}
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
@@ -7616,7 +7618,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 			addGameLog(game, actualTargetId, 'Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
 		} else {
 			// 중첩되었더라도 최소한 개별 플레이어 입장에서 무엇인가 일어났음을 알 수 있도록 개별 로그도 남김 (상수 필터링 고려)
-			addGameLog(game, actualTargetId, 'Power Gained', `${text} (via ${sourcePlayer?.name})`, offer.tileId);
+			/* 서브로그(건물 아래 ↳)와 중복이라 개별 'Power Gained' 로그는 생략 */
 		}
 		log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game', undefined, { simulation: (game as any).simulation });
 	} else {
