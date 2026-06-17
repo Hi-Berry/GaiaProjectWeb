@@ -1240,6 +1240,21 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 		});
 	}
 
+	// 로그 클릭 시 '직전 대비 변동량' 표시용: 이 로그 시점의 행위자 점수/자원 스냅샷을 마지막 엔트리에 부착(합치기/신규 공통)
+	const _snapLast = game.gameLog[game.gameLog.length - 1];
+	if (_snapLast) {
+		_snapLast.snap = {
+			vp: player.score ?? 0,
+			c: player.credits ?? 0,
+			o: player.ore ?? 0,
+			k: player.knowledge ?? 0,
+			q: player.qic ?? 0,
+			p1: player.power1 ?? 0,
+			p2: player.power2 ?? 0,
+			p3: player.power3 ?? 0,
+		};
+	}
+
 	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId);
 	// 사람 게임 한정 전체 로그(봇 포함, 전 라운드) — 라이브 gameLog는 아래에서 100캡되므로 별도 보관.
 	recordFullGameLog(game as ServerGameState, playerId, action, details, tileId);

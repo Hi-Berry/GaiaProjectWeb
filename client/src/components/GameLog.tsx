@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
@@ -26,6 +26,18 @@ export function GameLog({
   textScale = 1
 }: GameLogProps) {
   const logs = game.gameLog || [];
+  // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  type Snap = NonNullable<NonNullable<GameState['gameLog']>[number]['snap']>;
+  const STAT_DEFS: Array<[keyof Snap, string]> = [['vp', 'VP'], ['c', 'C'], ['o', 'O'], ['k', 'K'], ['q', 'Q'], ['p1', 'P1'], ['p2', 'P2'], ['p3', 'P3']];
+  /** origIdx(시간순 인덱스) 기준 같은 플레이어의 직전 스냅샷 */
+  const prevSnapFor = (origIdx: number, playerId: string): Snap | null => {
+    for (let j = origIdx - 1; j >= 0; j--) {
+      const e = logs[j];
+      if (e?.playerId === playerId && e.snap) return e.snap;
+    }
+    return null;
+  };
   const mainTextStyle: CSSProperties = {
     fontSize: `${11 * textScale}px`,
     lineHeight: `${13 * textScale}px`,
@@ -340,8 +352,11 @@ export function GameLog({
               key={index}
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
-              onClick={() => log.aiFeedbackActionId && onAiFeedbackClick?.(log.aiFeedbackActionId)}
-              title={isAiFeedbackLog ? '클릭해서 이 AI 수 평가하기' : undefined}
+              onClick={() => {
+                setOpenIdx((prev) => (prev === index ? null : index));
+                if (log.aiFeedbackActionId) onAiFeedbackClick?.(log.aiFeedbackActionId);
+              }}
+              title={isAiFeedbackLog ? '클릭해서 이 AI 수 평가하기 / 점수·자원 변동 보기' : '클릭해서 점수·자원 변동 보기'}
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
@@ -530,6 +545,45 @@ export function GameLog({
                     })}
                   </div>
                 )}
+                {/* 클릭 시: 이 액션 후 점수/자원 + 같은 플레이어 직전 대비 변동량 */}
+                {openIdx === index && (() => {
+                  const snap = log.snap;
+                  if (!snap) {
+                    return (
+                      <div className="mt-1 border-t border-white/10 pt-1 text-zinc-500" style={secondaryTextStyle}>
+                        이 로그에는 스냅샷이 없습니다 (수정 이전 기록).
+                      </div>
+                    );
+                  }
+                  const origIdx = logs.length - 1 - index;
+                  const prev = prevSnapFor(origIdx, log.playerId);
+                  return (
+                    <div className="mt-1 border-t border-white/10 pt-1 flex flex-col gap-0.5" style={secondaryTextStyle}>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-zinc-300">
+                        <span className="text-zinc-500 font-bold">결과</span>
+                        {STAT_DEFS.map(([k, label]) => (
+                          <span key={k} className="tabular-nums">{label} <span className="font-bold text-zinc-100">{snap[k]}</span></span>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-zinc-500 font-bold">변동</span>
+                        {prev ? (() => {
+                          const diffs = STAT_DEFS
+                            .map(([k, label]) => [label, snap[k] - prev[k]] as [string, number])
+                            .filter(([, d]) => d !== 0);
+                          if (diffs.length === 0) return <span className="text-zinc-500">변화 없음</span>;
+                          return diffs.map(([label, d]) => (
+                            <span key={label} className={`font-bold tabular-nums ${d > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {d > 0 ? '+' : ''}{d} {label}
+                            </span>
+                          ));
+                        })() : (
+                          <span className="text-zinc-500">직전 기록 없음 (이 플레이어 첫 로그)</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
