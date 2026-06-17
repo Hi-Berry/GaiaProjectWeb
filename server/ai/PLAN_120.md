@@ -67,3 +67,15 @@
 - fedCompletionDrive(+1.78)·Strong(+1.66)·기타 fed튜닝 ~null → **연방 완성 1-ply 휴리스틱 천장 도달.**
 - 결론: 연방(11x 압도적 갭)은 다턴 클러스터 계획=search 필요인데 search 닫힘. fed-휴리스틱으론 더 못 짬.
 - 남은 길(둘): (1) 네 1:3 관찰로 새 구조적 누락 사냥(ship-fed식, 입증된 최고 ROI) (2) 전용 연방 다턴 플래너 본격 재작성(수일, 불확실). 무검증 휴리스틱 튜닝은 중단(saturated 반복 확인).
+
+## scoreBreakdown gap map — 봇 vs 사람 정량 (2026-06-18, 봇 5720명 logs/ vs 사람 36명)
+봇 평균VP 65 vs 사람 114. 카테고리별(사람|봇|갭):
+- techTiles 14.6 | 2.2 | -12.4  ← 최대. **분해결과 엔진게이트**: 봇 기술타일 ~3개 보유하나 *경제타일(0VP)* 위주, VP타일 0.3개분만. adv-* 전부 0(초록연방 게이트). 작은엔진엔 per-X 스케일VP타일이 저가치라 경제선택이 맞음.
+- other 12.7 | 3.2 | -9.5  (연방보상+가이아트랙+아티팩트 — 연방/엔진 파생)
+- researchTracks 21.7 | 12.3 | -9.4  (L5=초록연방 게이트)
+- roundMissions 19.5 | 11.2 | -8.3  ← 사용자 우선순위. **정렬로직은 견고**(calculateRoundScoringBonus: 현라운드 vp×5/미래 vp×2/new_type·sector 커버). 갭=엔진(액션수)이지 정렬버그 아님.
+- spaceships 11.0 | 3.2 | -7.8  (ship-fed수정 반영전 logs일수 있음 + 우주선VP 엔진파생)
+- bonusTilePass 11.7 | 9.0 | -2.7 / powerReceived 8.3|6.4 / remainingResources 4.2|4.5✓
+- ★★ **finalMissions 16.0 | 15.9 | -0.1 = 사람과 동률! proto+순위eval 수정이 -10VP갭을 닫은 정량증거.** 구조적-갭-수정 채널 작동 확증.
+- 결론: 클린 구조적 갭(finalMissions/proto·ship-fed·techVp) 전부 수확. 남은 큰 갭은 전부 엔진크기(eval천장) 또는 초록연방 게이트. autonomous 로그분석도 클린 갭 소진.
+- 데이터주의: human 로그는 맵/구조물 0으로 저장(랩/PI 비교 불가). techTiles 분포는 비교가능(사람 7~12 꼬리 두꺼움).
