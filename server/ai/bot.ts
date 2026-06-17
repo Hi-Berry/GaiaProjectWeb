@@ -3729,6 +3729,9 @@ export class BotLogic {
         if (!player.techTiles?.includes('tech-imm-1k-planet') && isPlanetTechAvailable) {
             if (tile.type && !myTypes.has(tile.type)) totalBonus += 25;
         }
+        // [데이터 2026-06-18] proto 행성에 광산 = 즉시 +6VP(서버 gameState 5746). 봇이 이 보상을 안 쳐줘
+        // 비싼 테라포밍 광산으로만 보고 회피 → 사람 108VP vs 봇 12VP. 가이드: 6VP 즉시값을 점수로 반영(테라포밍비용 일부 상쇄).
+        if (tile.type === 'proto' && getPlayerFlag(playerId, 'protoVpBonus', true)) totalBonus += 90;
         return totalBonus;
     }
 
