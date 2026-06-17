@@ -1552,30 +1552,36 @@ export function generateMap(): HexTile[] {
     { q: 2, r: 11 }, { q: 7, r: 10 }                 // Bottom row lower junctions
   ];
 
-  // Strategy: Place Ships first with distance constraint > 3
+  // Strategy: 우주선끼리는 서로 거리 > 3으로 배치한다(규칙). 10개 정션 중 4개를 *모두* 페어와이즈 거리>3인
+  // 집합으로 선택한다. (이 좌표들엔 그런 4-조합이 21개 존재 → 항상 가능.)
+  // [버그수정 2026-06-18] 기존엔 우주선별 greedy로 놓다가 자리가 없으면 minDist를 3→2→1로 *완화*해서,
+  // 앞 배치가 코너로 몰리면 4.5% 확률로 우주선이 거리<=3에 붙어 규칙을 위반했다. → 전역 집합 선택으로 교체.
   const availableCoords = [...internalCoords];
-  const shipPlacements: { q: number, r: number, type: PlanetType }[] = [];
   const remainingOthers = others.sort(() => Math.random() - 0.5);
 
-  ships.forEach(shipType => {
-    let placed = false;
-    for (let minDist = 3; minDist >= 1; minDist--) {
-      const shuffledCoords = [...availableCoords].sort(() => Math.random() - 0.5);
-      for (let i = 0; i < shuffledCoords.length; i++) {
-        const coord = shuffledCoords[i];
-        const isFarEnough = shipPlacements.every(p => getDistance(p, coord) > minDist);
-        if (isFarEnough) {
-          shipPlacements.push({ ...coord, type: shipType });
-          // Find the index in the original availableCoords and remove it
-          const originalIdx = availableCoords.findIndex(c => c.q === coord.q && c.r === coord.r);
-          availableCoords.splice(originalIdx, 1);
-          placed = true;
-          break;
-        }
-      }
-      if (placed) break;
+  let chosenShipCoords: { q: number, r: number }[] | null = null;
+  for (let attempt = 0; attempt < 300 && !chosenShipCoords; attempt++) {
+    const shuffled = [...internalCoords].sort(() => Math.random() - 0.5);
+    const chosen: { q: number, r: number }[] = [];
+    for (const c of shuffled) {
+      if (chosen.every(p => getDistance(p, c) > 3)) chosen.push(c);
+      if (chosen.length === ships.length) break;
     }
-  });
+    if (chosen.length === ships.length) chosenShipCoords = chosen;
+  }
+  // 안전장치: 이론상 거의 없지만 못 찾으면 임의 배치(맵 생성 실패 방지). 이때만 규칙이 완화될 수 있다.
+  if (!chosenShipCoords) {
+    chosenShipCoords = [...internalCoords].sort(() => Math.random() - 0.5).slice(0, ships.length);
+  }
+  // 선택된 좌표에 우주선 타입을 랜덤 매칭
+  const shuffledShipTypes = [...ships].sort(() => Math.random() - 0.5);
+  const shipPlacements: { q: number, r: number, type: PlanetType }[] =
+    chosenShipCoords.map((coord, i) => ({ ...coord, type: shuffledShipTypes[i] }));
+  // 선택된 좌표를 availableCoords에서 제거(나머지는 asteroid/space/proto로 채워짐)
+  for (const coord of chosenShipCoords) {
+    const idx = availableCoords.findIndex(c => c.q === coord.q && c.r === coord.r);
+    if (idx >= 0) availableCoords.splice(idx, 1);
+  }
 
   // Combine placements
   const finalInternalPlacements = [
