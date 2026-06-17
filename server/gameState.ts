@@ -4001,10 +4001,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.coveredTechTiles.push(coverTileId);
 			if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
 
-			applyAdvancedTileImmediateEffect(game, playerId, pending.advancedTileId);
+			const immDesc = applyAdvancedTileImmediateEffect(game, playerId, pending.advancedTileId);
 
-			// tileId에 획득한 고급 타일 id를 담아 로그가 '덮은 일반 타일'이 아니라 '획득한 고급 타일' 이미지를 표시하도록
-			addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}`, pending.advancedTileId);
+			// tileId에 획득한 고급 타일 id를 담아 로그가 '덮은 일반 타일'이 아니라 '획득한 고급 타일' 이미지를 표시하도록. 즉발 효과는 같은 줄에 병합.
+			addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}${immDesc ? ` · ${immDesc}` : ''}`, pending.advancedTileId);
 			game.pendingTechTileSelection = null;
 			game.pendingAdvancedTechCover = null;
 			game.availableShipTechTileIds = undefined;
@@ -4012,42 +4012,44 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
-		function applyAdvancedTileImmediateEffect(game: GaiaGameState, playerId: string, tileId: string) {
+		// 즉발 효과를 적용하고 '한 줄에 합칠' 설명 문자열을 반환(별도 'Tech Tile Effect' 로그 제거 — 사용자 요청)
+		function applyAdvancedTileImmediateEffect(game: GaiaGameState, playerId: string, tileId: string): string {
 			const player = game.players[playerId];
-			if (!player) return;
+			if (!player) return '';
 			if (tileId === 'adv-imm-1o-sector') {
 				const sectors = occupiedSectorSet(game, playerId, 0, 9);
 				player.ore += sectors.size;
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
+				return `+${sectors.size}O (1/sector)`;
 			} else if (tileId === 'adv-imm-4vp-ts') {
 				const tsCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
 				addScore(game, playerId, tsCount * 4, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${tsCount * 4} VP (4 per TS)`);
+				return `+${tsCount * 4}VP (4/TS)`;
 			} else if (tileId === 'adv-imm-2vp-mine') {
 				const mineCount = getMineCountForPassAndBonuses(game, playerId);
 				addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
+				return `+${mineCount * 2}VP (2/mine)`;
 			} else if (tileId === 'adv-imm-2vp-sector') {
 				const sectors = occupiedSectorSet(game, playerId, 0, 9);
 				addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
+				return `+${sectors.size * 2}VP (2/sector)`;
 			} else if (tileId === 'adv-imm-4vp-outer') {
 				const outerCount = countOuterSectorsOccupied(game, playerId);
 				addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
+				return `+${outerCount * 4}VP (4/outer sector)`;
 			} else if (tileId === 'adv-imm-6vp-big') {
 				const bigCount = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
 				addScore(game, playerId, bigCount * 6, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${bigCount * 6} VP (6 per big building)`);
+				return `+${bigCount * 6}VP (6/big building)`;
 			} else if (tileId === 'adv-imm-2vp-gaia') {
 				const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
 				addScore(game, playerId, gaiaCount * 2, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${gaiaCount * 2} VP (2 per Gaia)`);
+				return `+${gaiaCount * 2}VP (2/Gaia)`;
 			} else if (tileId === 'adv-imm-5vp-fed') {
 				const fedCount = getFederationEntries(player).length;
 				addScore(game, playerId, fedCount * 5, 'techTiles', { tileId });
-				addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${fedCount * 5} VP (5 per federation)`);
+				return `+${fedCount * 5}VP (5/federation)`;
 			}
+			return '';
 		}
 
 		socket.on('gain_tech_tile', ({ gameId, tileId }) => {
@@ -5298,44 +5300,45 @@ export function executeCoverAdvancedTechTile(
 	player.coveredTechTiles.push(coverTileId);
 	if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
 
-	// socket handler 내부의 applyAdvancedTileImmediateEffect를 여기서도 동일하게 적용
-	(() => {
+	// 즉발 효과 → 설명 문자열 반환(별도 'Tech Tile Effect' 로그 없이 아래 'Advanced Tech Tile' 한 줄에 병합)
+	const immDesc = (() => {
 		const tileId = pending.advancedTileId;
 		if (tileId === 'adv-imm-1o-sector') {
 			const sectors = occupiedSectorSet(game, playerId, 0, 9);
 			player.ore = (player.ore ?? 0) + sectors.size;
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size} Ore (1 per sector)`);
+			return `+${sectors.size}O (1/sector)`;
 		} else if (tileId === 'adv-imm-4vp-ts') {
 			const tsCount = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
 			addScore(game, playerId, tsCount * 4, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${tsCount * 4} VP (4 per TS)`);
+			return `+${tsCount * 4}VP (4/TS)`;
 		} else if (tileId === 'adv-imm-2vp-mine') {
 			const mineCount = getMineCountForPassAndBonuses(game, playerId);
 			addScore(game, playerId, mineCount * 2, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${mineCount * 2} VP (2 per mine)`);
+			return `+${mineCount * 2}VP (2/mine)`;
 		} else if (tileId === 'adv-imm-2vp-sector') {
 			const sectors = occupiedSectorSet(game, playerId, 0, 9);
 			addScore(game, playerId, sectors.size * 2, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${sectors.size * 2} VP (2 per sector)`);
+			return `+${sectors.size * 2}VP (2/sector)`;
 		} else if (tileId === 'adv-imm-4vp-outer') {
 			const outerCount = countOuterSectorsOccupied(game, playerId);
 			addScore(game, playerId, outerCount * 4, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${outerCount * 4} VP (4 per outer sector)`);
+			return `+${outerCount * 4}VP (4/outer sector)`;
 		} else if (tileId === 'adv-imm-6vp-big') {
 			const bigCount = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
 			addScore(game, playerId, bigCount * 6, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${bigCount * 6} VP (6 per big building)`);
+			return `+${bigCount * 6}VP (6/big building)`;
 		} else if (tileId === 'adv-imm-2vp-gaia') {
 			const gaiaCount = game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length;
 			addScore(game, playerId, gaiaCount * 2, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${gaiaCount * 2} VP (2 per Gaia)`);
+			return `+${gaiaCount * 2}VP (2/Gaia)`;
 		} else if (tileId === 'adv-imm-5vp-fed') {
 			const fedCount = getFederationEntries(player).length;
 			addScore(game, playerId, fedCount * 5, 'techTiles', { tileId });
-			addGameLog(game, playerId, 'Tech Tile Effect', `Gained ${fedCount * 5} VP (5 per federation)`);
+			return `+${fedCount * 5}VP (5/federation)`;
 		}
+		return '';
 	})();
-	addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}`);
+	addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}${immDesc ? ` · ${immDesc}` : ''}`);
 	game.pendingTechTileSelection = null;
 	game.pendingAdvancedTechCover = null;
 	game.availableShipTechTileIds = undefined;
