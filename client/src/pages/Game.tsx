@@ -4056,10 +4056,16 @@ export default function Game() {
                   game.map
                     ?.filter((t) => t.ownerId === id && t.structure && t.structure !== 'ship')
                     .forEach((t) => {
+                      // 잊혀진 행성(검은 행성)은 우주(space) 칸에 lost_planet_mine으로 놓이므로 tile.type이 아닌 구조물로 카운트
+                      if (t.structure === 'lost_planet_mine') { counts['lost_planet'] = (counts['lost_planet'] ?? 0) + 1; return; }
                       const type = t.type as PlanetType;
                       if (type === 'space' || type === 'deep_space' || type.startsWith('ship_') || type === 'lost_fleet_ship') return;
                       counts[type] = (counts[type] ?? 0) + 1;
                     });
+                  // 인공물 가상 광산(소행성/원시행성)도 보유 행성 유형으로 표시 (점수 계산과 일관)
+                  const pl = game.players[id];
+                  if (pl?.virtualMineAsteroid) counts['asteroid'] = (counts['asteroid'] ?? 0) + 1;
+                  if (pl?.virtualMineProto) counts['proto'] = (counts['proto'] ?? 0) + 1;
                   return counts;
                 })();
                 const planetLabel = (type: PlanetType) => {
