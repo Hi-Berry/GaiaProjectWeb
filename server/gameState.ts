@@ -3311,7 +3311,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			const art = ARTIFACTS.find(a => a.id === artifactId)!;
 			if (art.id === 'art-fed-once') {
-				game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id };
+				game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
 				addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
 			} else if (art.id === 'art-vp-gaia') {
 				const lvl = player.research.gaiaProject ?? 0;
@@ -3502,7 +3502,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 
 			if (normalReward) {
-				addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Federation benefit' : 'Twilight: Federation benefit', normalReward.label, rewardId);
 				addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 				if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
@@ -3514,35 +3514,35 @@ export function setupGameServer(httpServer: HTTPServer) {
 					case 'ship-fed-tech':
 						game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 						game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						break;
 					case 'ship-fed-4vp4k':
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-12vp':
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						break;
 					case 'ship-fed-7vp3p2t':
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					case 'ship-fed-mine-free':
 					case 'ship-fed-3tf-mine':
-						addGameLog(game, playerId, 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, rewardId);
 						if (shipReward.id === 'ship-fed-3tf-mine') {
 							player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 							player.spaceshipFed3TfMineFree = true;
@@ -8166,7 +8166,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 
 	const art = ARTIFACTS.find(a => a.id === artifactId)!;
 	if (art.id === 'art-fed-once') {
-		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id };
+		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
 		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
 	} else if (art.id === 'art-vp-gaia') {
 		const lvl = player.research.gaiaProject ?? 0;
@@ -8260,7 +8260,7 @@ export function executeConfirmTwilightFederation(
 	const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 
 	if (normalReward) {
-		addGameLog(game, playerId, 'Twilight: Federation benefit', normalReward.label, rewardId);
+		addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Federation benefit' : 'Twilight: Federation benefit', normalReward.label, rewardId);
 		addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 		if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 		if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
@@ -8272,36 +8272,36 @@ export function executeConfirmTwilightFederation(
 			case 'ship-fed-tech':
 				game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 				game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				break;
 			case 'ship-fed-4vp4k':
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				player.knowledge = (player.knowledge || 0) + 4;
 				break;
 			case 'ship-fed-4vp1q2o':
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				grantQic(game, playerId, 1);
 				player.ore = (player.ore || 0) + 2;
 				break;
 			case 'ship-fed-8vp8c':
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				player.credits = (player.credits || 0) + 8;
 				break;
 			case 'ship-fed-12vp':
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				break;
 			case 'ship-fed-7vp3p2t':
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
 				player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 				break;
 			case 'ship-fed-mine-free':
 			case 'ship-fed-3tf-mine':
-				addGameLog(game, playerId, 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, rewardId);
 				if (shipReward.id === 'ship-fed-3tf-mine') {
 					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 					player.spaceshipFed3TfMineFree = true;

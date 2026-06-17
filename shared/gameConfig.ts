@@ -482,7 +482,7 @@ export interface GaiaGameState {
   /** 우주선: 맵 타일 ID -> { 잠금해제 여부, 입장한 플레이어 ID 순서, 이번 라운드 사용한 액션 번호(1,2,3) 목록 } */
   spaceships?: Record<string, { unlocked: boolean; occupants: string[]; actionsUsed?: number; usedActionIndices?: number[]; usedActionBy?: Record<number, string> }>;
   /** 트왈라잇 액션1: 연방 해택 재수령 선택 대기 (보유 연방 중 하나 선택 = federation reward id) */
-  pendingTwilightFederation?: { playerId: string; shipTileId: string } | null;
+  pendingTwilightFederation?: { playerId: string; shipTileId: string; fromArtifact?: boolean } | null;
   /** 트왈라잇 액션2: 2O+3P로 TS→연구소 업그레이드 시 기술 타일 선택은 기존 pendingTechTileSelection 사용 */
   /** TF Mars 액션2: 포밍 보너스 타일과 동일 = 가이아 프로젝트 액션 1회 (Transdim에 가이아포머 배치) */
   pendingTFMarsGaiaProject?: { playerId: string; shipTileId: string } | null;
