@@ -135,7 +135,12 @@ export class FederationPlanner {
         // 사용자 지정 핵심 레버이므로 전반적으로 매력 유지하되, 가치 차등화해 좋은 우주선 연방을 선택하게 함.
         switch (rewardId) {
             case 'ship-fed-tech': return 360;      // 기술 타일 — 고급 기술타일 잠재가치 大 (최우선)
-            case 'ship-fed-12vp': return 320;      // 12 VP 플랫
+            case 'ship-fed-12vp': {
+                // [사용자 관찰 2026-06-18] 초반(R≤3) 첫 연방을 12플랫VP로 먹으면 손해 — 자원 주는 연방(7VP+2O/6C=250,
+                // 8VP8C=290)이 엔진을 키워 복리로 더 큼. 12VP는 엔진 다 큰 후반에 최상위. → 초반엔 자원연방 밑으로 낮춤.
+                const early = (game.roundNumber ?? 1) <= 3 && getPlayerFlag(playerId, 'earlyFedResourcePref', true);
+                return early ? 200 : 320;
+            }
             case 'ship-fed-8vp8c': return 290;     // 8 VP + 8C
             case 'ship-fed-7vp3p2t': return 285;   // 7 VP + 2토큰 (다음 연방용)
             case 'ship-fed-4vp1q2o': return 250;   // 4 VP + 1Q + 2O
