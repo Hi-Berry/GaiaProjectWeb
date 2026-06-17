@@ -991,7 +991,14 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 	// [턴 롤백] 끝난 플레이어의 '턴 시작 스냅샷'을 삭제하지 않고 유지 → GM이 각 플레이어의
 	// 마지막 턴 시작으로 되돌릴 수 있게 함(플레이어당 1개, 다음 턴 시작 때 갱신). reset_turn은
 	// 현재 플레이어 + 라운드/인덱스 일치 가드가 있어 stale 스냅샷에 영향받지 않음.
-	if (game.players[endedPlayerId]) game.players[endedPlayerId].tempRangeBonus = false;
+	// '이번 턴' 한정 거리 보너스(+3 Range 보너스 액션 등)는 미사용 시 턴 종료에 소멸시킨다.
+	// 안 그러면 다음 턴으로 새서 먼 곳에 포머/건물을 QIC 없이 무료 배치하는 버그가 생김.
+	if (game.players[endedPlayerId]) {
+		const ep = game.players[endedPlayerId];
+		ep.tempRangeBonus = false;
+		ep.rangeBonusActive = false;
+		ep.gleensNavBonusActive = false;
+	}
 	game.pendingTurnEndPlayerId = undefined;
 
 	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
