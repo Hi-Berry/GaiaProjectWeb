@@ -3962,7 +3962,11 @@ export default function Game() {
                 const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
                 const expanded = expandedPlayerId === id;
                 const counts = getStructureCountsForPlayer(game, id);
-                const inc = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
+                const incRaw = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
+                // 마지막 라운드(6)엔 받을 다음 수익이 없으므로 상태창 수익 표시(+N)를 숨긴다(사용자 요청)
+                const inc = game.roundNumber >= 6
+                  ? { ...incRaw, ore: 0, credits: 0, knowledge: 0, qic: 0, powerTokens: 0, powerCharge: 0 }
+                  : incRaw;
                 const hasPassed = p.hasPassed;
 
                 // 연방 건물 파워: (연방 헥스에 포함된 내 건물 파워 / 전체 내 건물 파워).
