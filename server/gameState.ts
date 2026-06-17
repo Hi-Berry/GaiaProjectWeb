@@ -210,6 +210,8 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
 		spaceshipsState: game.spaceships ? deepClone(game.spaceships) : undefined,
 		twilightArtifactSlots: game.twilightArtifactSlots ? deepClone(game.twilightArtifactSlots) : undefined,
 		gameLogLength: game.gameLog?.length || 0,
+		// gameLog는 100개 초과 시 앞에서 shift되어 '길이'가 절대 인덱스로 못 쓰임 → 단조 카운터로 턴 시작 시점 기록.
+		gameLogSeqAt: (game as any).gameLogSeq ?? 0,
 		// [메모리] gameLog/journal 전체 복제(gameLogState·humanActionJournalState)는 제거.
 		// 후반 게임에서 턴마다·플레이어마다 큰 로그를 6벌씩 복제해 게임 객체가 비대해지고 OOM의 주원인이었음.
 		// 리셋은 길이(gameLogLength·humanActionJournalLength)로 라이브 로그를 잘라 복원한다(restoreGameLogForReset).
@@ -222,7 +224,17 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
 function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
 	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
 	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
-	const logs = ((game.gameLog || []).slice(0, startState.gameLogLength || 0)) as NonNullable<GaiaGameState['gameLog']>;
+	const live = (game.gameLog || []) as NonNullable<GaiaGameState['gameLog']>;
+	// [100캡 버그수정] gameLog는 100개 초과 시 앞에서 shift되어 '길이'가 턴 시작 인덱스로 못 쓰인다
+	// (후반전에 reset해도 포머/이클립스 등 비-화이트리스트 로그가 안 지워지던 근본 원인 — slice(0,길이)가 통째 보존).
+	// 단조 증가 카운터(gameLogSeq)로 '턴 시작 이후 추가된 엔트리 수'를 구해 꼬리에서 그만큼 잘라낸다(shift 무관·정확).
+	const liveSeq = (game as any).gameLogSeq;
+	if (typeof liveSeq === 'number' && typeof startState.gameLogSeqAt === 'number') {
+		const added = Math.max(0, Math.min(live.length, liveSeq - startState.gameLogSeqAt));
+		return live.slice(0, live.length - added);
+	}
+	// 레거시(seq 없는 구 스냅샷) 폴백: 기존 길이 슬라이스 + 꼬리 트림
+	const logs = live.slice(0, startState.gameLogLength || 0) as NonNullable<GaiaGameState['gameLog']>;
 	const resettable = new Set([
 		'Power Action',
 		'Used Tech Action',
@@ -1217,7 +1229,8 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 		}
 		lastLog.timestamp = Date.now(); // Update timestamp to keep it at the top if sorted
 	} else {
-		game.gameLog.push({
+		(game as any).gameLogSeq = ((game as any).gameLogSeq ?? 0) + 1;
+			game.gameLog.push({
 			timestamp: Date.now(),
 			playerId,
 			playerName: player.name,
