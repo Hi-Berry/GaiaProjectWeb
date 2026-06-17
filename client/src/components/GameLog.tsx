@@ -410,11 +410,8 @@ export function GameLog({
               ref={isRoundFirst && typeof log.round === 'number' ? (el) => { roundRefs.current[log.round as number] = el; } : undefined}
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
-              onClick={() => {
-                setOpenIdx((prev) => (prev === index ? null : index));
-                if (log.aiFeedbackActionId) onAiFeedbackClick?.(log.aiFeedbackActionId);
-              }}
-              title={isAiFeedbackLog ? '클릭해서 이 AI 수 평가하기 / 점수·자원 변동 보기' : '클릭해서 점수·자원 변동 보기'}
+              onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
+              title="클릭해서 점수·자원 변동 보기"
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
@@ -644,6 +641,19 @@ export function GameLog({
                     </div>
                   );
                 })()}
+                {/* AI 평가는 더 이상 행 클릭으로 자동 안 뜸 → 펼친 패널 안 버튼으로만(원할 때만) */}
+                {openIdx === index && log.aiFeedbackActionId && (
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onAiFeedbackClick?.(log.aiFeedbackActionId!); }}
+                      className="px-2 py-0.5 rounded bg-cyan-700/70 hover:bg-cyan-600 text-white text-[10px] font-bold border border-cyan-400/30"
+                      title="이 AI 수를 좋은수/나쁜수로 평가"
+                    >
+                      🧠 이 수 평가
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );
