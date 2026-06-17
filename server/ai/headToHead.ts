@@ -107,7 +107,7 @@ let cleanupRegistered = false;
 function registerWorkerCleanup() {
     if (cleanupRegistered) return;
     cleanupRegistered = true;
-    const cleanup = () => { for (const p of [...ACTIVE_WORKERS]) killWorkerTree(p); };
+    const cleanup = () => { for (const p of Array.from(ACTIVE_WORKERS)) killWorkerTree(p); };
     process.on('exit', cleanup);
     process.on('SIGINT', () => { cleanup(); process.exit(130); });
     process.on('SIGTERM', () => { cleanup(); process.exit(143); });
