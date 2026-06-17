@@ -5313,7 +5313,7 @@ export default function Game() {
 
       {/* 인게임 채팅 — 하단 좌측, 최상위 레이어. 참가자/관전자만 노출 */}
       {game && gameId && (isSpectator || (!!playerId && !!game.players[playerId])) && (
-        <ChatPanel gameId={gameId} game={game} canChat={true} />
+        <ChatPanel gameId={gameId} game={game} canChat={true} selfId={playerId} />
       )}
     </div>
   );

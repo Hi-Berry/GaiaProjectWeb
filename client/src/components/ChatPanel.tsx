@@ -2,16 +2,19 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { GameClient, type GameState, type ChatMessage } from '@/lib/gameClient';
 import { FACTIONS } from '@shared/gameConfig';
+import { playChatSound } from '@/lib/audio';
 
 interface ChatPanelProps {
     gameId: string;
     game: GameState;
     /** 채팅 가능 여부 (게임 참가자 또는 관전자) */
     canChat: boolean;
+    /** 내 식별자 (내가 보낸 메시지엔 효과음 안 울리도록) */
+    selfId?: string | null;
 }
 
 /** 인게임 채팅 — 하단 왼쪽, 최상위 레이어. 접으면 작은 버튼(안 읽음 배지), 펼치면 메시지+입력창. */
-export function ChatPanel({ gameId, game, canChat }: ChatPanelProps) {
+export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
     // 열림 상태를 localStorage에 보존 → 새로고침/턴 넘어가도 상시 떠 있게
     const [open, setOpen] = useState(() => {
         try { return localStorage.getItem('gaia-chat-open') === '1'; } catch { return false; }
@@ -23,6 +26,8 @@ export function ChatPanel({ gameId, game, canChat }: ChatPanelProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const openRef = useRef(open);
     openRef.current = open;
+    const selfIdRef = useRef(selfId);
+    selfIdRef.current = selfId;
 
     useEffect(() => {
         try { localStorage.setItem('gaia-chat-open', open ? '1' : '0'); } catch { /* noop */ }
@@ -69,6 +74,7 @@ export function ChatPanel({ gameId, game, canChat }: ChatPanelProps) {
         const unsub = GameClient.onChatMessage((m) => {
             merge([m]);
             if (!openRef.current) setUnread((u) => u + 1);
+            if (m.senderId !== selfIdRef.current) playChatSound(); // 내가 보낸 건 제외
         });
         return () => { unsub(); }; // cleanup은 void 반환이어야 함(unsub은 Socket을 반환하므로 감쌈)
     }, [merge]);

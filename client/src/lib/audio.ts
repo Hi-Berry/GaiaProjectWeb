@@ -61,6 +61,14 @@ export function playOtherTurnSound() {
 }
 
 /**
+ * Sound for an incoming chat message. Gentle, short rising two-note blip.
+ */
+export function playChatSound() {
+    playBeep(587.33, 0.05, 0.08); // D5
+    setTimeout(() => playBeep(783.99, 0.07, 0.08), 70); // G5
+}
+
+/**
  * Sound for when receiving power (passive income or charging).
  * Pleasant: a high pitch triple beep.
  */
