@@ -49,3 +49,9 @@
 - ship-fed 0 = 봇이 우주선연방 못 고르던 버그(수정 9a43c2f). proto = +6VP 미반영(수정).
 - remainingResources: 봇이 사람보다 높음(4.8 vs 3.4) = 잔여자원 쟁여둠(전환 못함, 참사신호 일치).
 - 우선순위 일관: techTiles(+29.8)>roundMissions(+21)>other(+20.5,위 2건이 주범)>research(+20.4)>finalMissions(+17)>spaceships(+17).
+
+## tree+greedy 결합(사용자 아이디어) 최종 — null (2026-06-18)
+- hybridShallow(현재+2R 얕은 lookahead로 그리디 top-3 재선택): 28판 46.4%, VP -2.02 → null.
+- 풀게임 hybridSearch(-1.88)와 동일 → **어떤 깊이로도 search 결합은 그리디 못 이김.** SimState 정확도가 근본한계.
+- 결론: "tree+greedy+async 결합" 경로 확정 종결. 점수 상승은 (A) 사람로그 구조적 VP갭 수정만 작동(누적 ~+3 + ship-fed/proto).
+- 남은 (A) 경로: 큰 갭(research L5·고급타일·아티팩트)은 엔진(연방·가이아) 게이트 → fedCompletionDrive류로 엔진 키우기가 간접 정공법.
