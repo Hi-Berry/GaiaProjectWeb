@@ -54,6 +54,11 @@ type HumanGamePayload = {
   gameLog: NonNullable<GaiaGameState['gameLog']>;
   actionJournal: HumanActionJournalEntry[];
   fullGameLog: FullGameLogEntry[];
+  // [2026-06-18] 최종 보드맵. 모방학습 맵-피처의 전제조건: 불투명 journal tileId('internal-N')를
+  // 타일 메타(type/sector/위치/인접)로 해석 + 저널 재생으로 결정시점 보드 복원을 가능케 한다.
+  // 봇 self-play 로그(final_state)는 이미 map을 저장하는데 human export만 누락이던 비대칭 수정.
+  // export 페이로드 전용(게임객체/브로드캐스트/UI 무영향).
+  map: GaiaGameState['map'];
 };
 
 function summarizePlayer(player?: PlayerState | null) {
@@ -188,6 +193,7 @@ function buildPayload(game: GaiaGameState & {
     gameLog: game.gameLog ?? [],
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: takeFullGameLog(game.id),
+    map: game.map ?? [],
   };
 }
 
