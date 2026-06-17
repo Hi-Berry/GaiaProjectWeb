@@ -70,7 +70,7 @@ export function ChatPanel({ gameId, game, canChat }: ChatPanelProps) {
             merge([m]);
             if (!openRef.current) setUnread((u) => u + 1);
         });
-        return unsub;
+        return () => { unsub(); }; // cleanup은 void 반환이어야 함(unsub은 Socket을 반환하므로 감쌈)
     }, [merge]);
 
     // 열려 있으면 안 읽음 초기화 + 맨 아래로 스크롤

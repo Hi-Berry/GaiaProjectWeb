@@ -1946,8 +1946,7 @@ export default function Game() {
   };
 
   return (
-    {/* h-screen(100vh)은 삼성/폴드 등 모바일에서 실제 보이는 높이보다 커서(주소창 등 동적 UI 미반영)
-        하단 버튼이 화면 밖으로 밀리고 페이지 전체가 스크롤되던 문제 → 동적 뷰포트 높이(100dvh)로 고정 */}
+    // h-screen(100vh)은 모바일에서 실제 가시 높이보다 커서 하단 버튼이 밀리고 페이지가 스크롤됨 → 100dvh로 고정
     <div className="flex h-[100dvh] overflow-hidden bg-background font-sans text-foreground relative">
       {/* 관전자 표시: 전체 상단을 덮지 않도록 작은 플로팅 배지로만 표시 */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
