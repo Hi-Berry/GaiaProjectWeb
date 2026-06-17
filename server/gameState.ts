@@ -5474,7 +5474,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			tile.gaiaformerOwnerId = undefined;
 			player.gaiaformers = (player.gaiaformers ?? 0) + 1;
 			player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
-			addGameLog(game, playerId, 'Gaiaformer Returned', 'Moved back to faction board', tileId);
+			/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 		}
 
 		addGameLog(game, playerId, 'Spaceship Fed', 'Mine 1 free (no Nav)', tileId);
@@ -5728,7 +5728,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		tile.gaiaformerOwnerId = undefined;
 		player.gaiaformers = (player.gaiaformers ?? 0) + 1;
 		player.pendingGaiaformerTiles = player.pendingGaiaformerTiles.filter(id => id !== tileId);
-		addGameLog(game, playerId, 'Gaiaformer Returned', 'Moved back to faction board', tileId);
+		/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 	}
 
 	if (darkaniansPiNewSectorBonus) {
