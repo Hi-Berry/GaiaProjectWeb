@@ -1893,11 +1893,13 @@ export class BotLogic {
                 if (costPerStep >= 3) {
                     // [버그 수정] 다카니안이거나 광물이 6개 이상 남아돈다면 예외 (1단계 테라포밍만 허용)
                     if (remainingSteps === 1 && (player.faction === 'darkanians' || ore >= 6)) {
-                        // [사용자 관찰 2026-06-14] 강한 사람은 R1(~R2)에 3오레 1스텝 테라포밍을 절대 안 함 —
-                        // 연구(TF/Nav)·0스텝 확장·업글이 우선. 초반엔 이 예외를 강한 후순위로 눌러 그쪽이 선택되게.
+                        // [사용자 관찰 2026-06-14, 재확인 2026-06-18] 강한 사람은 R1(~R2)에 3오레 1스텝 테라포밍을 절대 안 함
+                        // (사람 R1 광산 31건 중 3오레=0건). 연구(TF/Nav)·0스텝 확장·업글이 우선.
+                        // 기존 페널티 260은 너무 약해 proto(+90)/연방(+110)/라운드미션 보너스가 쌓이면 넘겨서 봇이 강행했음
+                        // → R1~2엔 차단 수준(1000, ore<6 경로와 동일)으로 올려 오레가 남아돌아도 안 하게.
                         // (후반 R3+는 사거리 소진 후 정체 방지용 저페널티 유지 = ore-terraform 재활성화 본래 목적, 회귀 X)
                         const earlyGuard = getPlayerFlag(playerId, 'earlyTerraformGuard', true) && round <= 2 && player.faction !== 'darkanians';
-                        stepPenalty = earlyGuard ? 260 : 50;
+                        stepPenalty = earlyGuard ? 1000 : 50;
                     } else {
                         // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
                         stepPenalty = (terraformCost / 3) * 1000;
@@ -3789,7 +3791,17 @@ export class BotLogic {
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && !fedHexes.includes(t.id));
         if (myStructures.length > 0) {
             const minDist = Math.min(...myStructures.map(s => getDistance(tile, s)));
-            if (minDist <= 3) score += (4 - minDist) * 15;
+            // [실험 tightCluster] 봇이 구조물을 연결클러스터 7.7개로 흩뿌려(최대파워4.3<7) 연방 못 함(맵-피처 발견).
+            // 거리합산 대신 인접(dist1=위성없이 연결)을 강하게 우대해 '실제 연결 클러스터'를 키우게 유도.
+            // FORCE_TIGHT=1로 측정 시 전체 봇에 적용(클러스터 지표 비교용).
+            const tightOn = getPlayerFlag(playerId, 'tightCluster', (typeof process !== 'undefined' && process.env?.FORCE_TIGHT === '1'));
+            if (tightOn) {
+                if (minDist <= 1) score += 100;        // 인접 = 위성 없이 연결되는 진짜 클러스터 성장
+                else if (minDist === 2) score += 30;   // 위성 1개로 연결 가능
+                // dist 3+ 보너스 제거: 흩뿌리기 억제
+            } else {
+                if (minDist <= 3) score += (4 - minDist) * 15;
+            }
             let potentialPower = 1;
             for (const s of myStructures) {
                 if (getDistance(tile, s) <= 4) potentialPower += this.getBuildingValue(s.structure!, faction);
