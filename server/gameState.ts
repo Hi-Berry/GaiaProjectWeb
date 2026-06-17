@@ -1243,6 +1243,7 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	// 로그 클릭 시 '직전 대비 변동량' 표시용: 이 로그 시점의 행위자 점수/자원 스냅샷을 마지막 엔트리에 부착(합치기/신규 공통)
 	const _snapLast = game.gameLog[game.gameLog.length - 1];
 	if (_snapLast) {
+		_snapLast.round = game.roundNumber;
 		_snapLast.snap = {
 			vp: player.score ?? 0,
 			c: player.credits ?? 0,
@@ -1259,7 +1260,10 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	// 사람 게임 한정 전체 로그(봇 포함, 전 라운드) — 라이브 gameLog는 아래에서 100캡되므로 별도 보관.
 	recordFullGameLog(game as ServerGameState, playerId, action, details, tileId);
 
-	if (game.gameLog.length > 100) {
+	// 라이브 로그 상한: 전체 로그 보기(처음부터 라운드 점프) 지원 위해 100→2000으로 상향.
+	// 정상 게임(4인 6라운드 ~460엔트리)은 절대 안 닿으므로 shift가 안 일어나 reset도 더 안전.
+	// 메모리 영향 미미(엔트리 ~250B, 460개 ≈ 115KB/게임). 2000은 폭주 방지용 안전상한.
+	if (game.gameLog.length > 2000) {
 		game.gameLog.shift();
 	}
 }

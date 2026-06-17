@@ -1,6 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useState, type CSSProperties } from 'react';
+import { useState, useRef, type CSSProperties } from 'react';
+import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
@@ -37,6 +38,26 @@ export function GameLog({
       if (e?.playerId === playerId && e.snap) return e.snap;
     }
     return null;
+  };
+
+  // 라운드 점프: 각 라운드의 '첫(시간순) 로그' origIndex와 DOM 노드 ref
+  const [showRounds, setShowRounds] = useState(false);
+  const topRef = useRef<HTMLDivElement | null>(null);
+  const roundRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const roundFirstOrigIdx = new Map<number, number>(); // round -> 첫 등장 origIndex
+  const roundsPresent: number[] = [];
+  for (let i = 0; i < logs.length; i++) {
+    const r = logs[i]?.round;
+    if (typeof r === 'number' && !roundFirstOrigIdx.has(r)) {
+      roundFirstOrigIdx.set(r, i);
+      roundsPresent.push(r);
+    }
+  }
+  roundsPresent.sort((a, b) => a - b);
+  const scrollToTop = () => topRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const scrollToRound = (r: number) => {
+    roundRefs.current[r]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setShowRounds(false);
   };
   const mainTextStyle: CSSProperties = {
     fontSize: `${11 * textScale}px`,
@@ -327,6 +348,40 @@ export function GameLog({
 
   const content = (
     <div className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0 pr-2"}`}>
+      {/* 라운드 점프 + 최신으로 — 상단 고정 툴바 */}
+      <div ref={topRef} className="sticky top-0 z-20 -mx-0.5 px-0.5 py-1 bg-zinc-950/95 backdrop-blur flex flex-col gap-1 border-b border-white/10">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-[10px] font-bold border border-white/10"
+            title="최신 로그로(맨 위)"
+          >
+            <ChevronsUp className="w-3 h-3" /> 최신
+          </button>
+          {roundsPresent.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowRounds((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${showRounds ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-800/80 border-white/10 text-zinc-200 hover:bg-zinc-700'}`}
+              title="라운드로 점프"
+            >
+              <Layers className="w-3 h-3" /> 라운드
+            </button>
+          )}
+          {showRounds && roundsPresent.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => scrollToRound(r)}
+              className="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-blue-600 text-zinc-200 hover:text-white text-[10px] font-black border border-white/10 tabular-nums"
+              title={`${r}라운드 시작으로`}
+            >
+              {r}R
+            </button>
+          ))}
+        </div>
+      </div>
       {logs.length === 0 ? (
         <div className="text-center text-zinc-500 text-sm py-8 uppercase tracking-widest font-black opacity-30">
           No actions yet
@@ -346,10 +401,13 @@ export function GameLog({
           const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
           const primaryImg = getLogPrimaryImage(log, player?.faction);
           const isAiFeedbackLog = !!log.aiFeedbackActionId;
+          const origIdx = logs.length - 1 - index;
+          const isRoundFirst = typeof log.round === 'number' && roundFirstOrigIdx.get(log.round) === origIdx;
 
           return (
             <div
               key={index}
+              ref={isRoundFirst && typeof log.round === 'number' ? (el) => { roundRefs.current[log.round as number] = el; } : undefined}
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
               onClick={() => {
@@ -365,7 +423,9 @@ export function GameLog({
                 } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:border-primary/50 hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
               style={{
                 // 좌측 바는 항상 종족색 우선 (AI 피드백 여부는 시안 ring으로 따로 표시)
-                borderLeftColor: factionColor ? factionColor : (isAiFeedbackLog ? '#22d3ee' : isMainAction ? '#3b82f6' : '#52525b')
+                borderLeftColor: factionColor ? factionColor : (isAiFeedbackLog ? '#22d3ee' : isMainAction ? '#3b82f6' : '#52525b'),
+                // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
+                scrollMarginTop: '2.75rem',
               }}
             >
               <div className="flex-1 min-w-0">
