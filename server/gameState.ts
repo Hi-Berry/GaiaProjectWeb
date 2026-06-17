@@ -5530,6 +5530,10 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		}
 		const geodensTypesBeforeAsteroid = getPlayerPlanetTypesForGeodens(game, playerId);
 		const rm7QualifyAsteroid = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+		// 다카니안 의회: 소행성 무료 건설(포머 파괴)도 신규 섹터/외각이면 1K 2C — 이 분기는 표준 경로(아래)를 안 타서 누락됐었음(사용자 관찰).
+		const hadStructureInThisSectorAst = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
+		const hadStructureInOuterAst = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
+		const darkaniansPiBonusAst = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (!hadStructureInThisSectorAst || (OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterAst));
 		tile.structure = 'mine';
 		tile.ownerId = playerId;
 		tile.destroyedGaiaformer = true; // 가이아포머 파괴 상태 저장
@@ -5537,6 +5541,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		player.gaiaformers = Math.max(0, (player.gaiaformers ?? 0) - 1);
 		player.destroyedGaiaformers = (player.destroyedGaiaformers ?? 0) + 1;
 		addGameLog(game, playerId, 'Built Mine on Asteroid', `Free (Used 1 Gaiaformer, ${player.gaiaformers} remaining)`, tileId);
+		if (darkaniansPiBonusAst) {
+			player.knowledge = (player.knowledge ?? 0) + 1;
+			player.credits = (player.credits ?? 0) + 2;
+			addGameLog(game, playerId, 'Darkanians PI', 'New sector / new outer sector: +1K, +2C', tileId);
+		}
 		applyRoundMissionScore(game, playerId, 'build_mine');
 		if (rm7QualifyAsteroid) applyRoundMissionScore(game, playerId, 'new_sector');
 
