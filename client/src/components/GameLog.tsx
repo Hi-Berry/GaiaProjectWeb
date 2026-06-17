@@ -602,7 +602,7 @@ export function GameLog({
                     })}
                   </div>
                 )}
-                {/* 클릭 시: 이 액션 후 점수/자원 + 같은 플레이어 직전 대비 변동량 */}
+                {/* 클릭 시: 이 액션 후 점수/자원(결과) + 이 액션으로 인한 변동(base=액션 직전 대비) */}
                 {openIdx === index && (() => {
                   const snap = log.snap;
                   if (!snap) {
@@ -613,7 +613,8 @@ export function GameLog({
                     );
                   }
                   const origIdx = logs.length - 1 - index;
-                  const prev = prevSnapFor(origIdx, log.playerId);
+                  // base(이 액션 직전 스냅샷)가 있으면 '이 액션만'의 변동. 없으면(구 로그) 같은 플레이어 직전 로그로 폴백.
+                  const prev = log.base ?? prevSnapFor(origIdx, log.playerId);
                   return (
                     <div className="mt-1 border-t border-white/10 pt-1 flex flex-col gap-0.5" style={secondaryTextStyle}>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-zinc-300">

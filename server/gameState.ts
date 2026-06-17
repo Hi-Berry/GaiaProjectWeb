@@ -201,6 +201,8 @@ function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
 /** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
 function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: string) {
 	clearFreeActionUndo(game);
+	// 턴 시작(또는 리셋) 시점 = 이 플레이어 액션 변동량의 기준선. 인컴/지난 턴/누수가 '이 턴 액션'에 안 섞이게 한다.
+	resetLogSnapBase(game, playerId);
 	return {
 		playerId,
 		roundNumber: game.roundNumber,
@@ -1006,6 +1008,8 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 }
 
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
+	// 끝난 플레이어의 마지막 로그에 로그 이후 적용된 효과까지 끌어올림(변동량 정확도 보강)
+	finalizeLogSnap(game, endedPlayerId);
 	game.hasDoneMainAction = false;
 	clearFreeActionUndo(game);
 	// [턴 롤백] 끝난 플레이어의 '턴 시작 스냅샷'을 삭제하지 않고 유지 → GM이 각 플레이어의
@@ -1203,6 +1207,35 @@ function buildStartingMineSequence(game: GaiaGameState): string[] {
 }
 
 // Helper functions moved to top level
+/** 로그 변동량 표시용: 플레이어의 점수/자원 스냅샷 한 컷 */
+function snapOfPlayer(p: PlayerState) {
+	return {
+		vp: p.score ?? 0, c: p.credits ?? 0, o: p.ore ?? 0, k: p.knowledge ?? 0,
+		q: p.qic ?? 0, p1: p.power1 ?? 0, p2: p.power2 ?? 0, p3: p.power3 ?? 0,
+	};
+}
+
+/** 액션 직전 기준선(_snapBase) 갱신: 인컴 적용 직후 전원, 턴 종료 시 등 — 변동량이 '이 액션만' 보이도록 */
+export function resetLogSnapBase(game: GaiaGameState, playerId: string) {
+	const p = game.players[playerId];
+	if (!p) return;
+	if (!(game as any)._snapBase) (game as any)._snapBase = {};
+	(game as any)._snapBase[playerId] = snapOfPlayer(p);
+}
+
+/** 로그 '후'에 적용된 효과(예: 트랙 보너스 QIC는 addGameLog가 아니라 console log로만 처리)를
+ *  그 플레이어의 마지막 로그 엔트리 snap에 끌어올리고 기준선도 동기화 → 다음 로그에 안 묻어나게 한다. */
+export function finalizeLogSnap(game: GaiaGameState, playerId: string) {
+	const p = game.players[playerId];
+	if (!p || !game.gameLog) return;
+	const s = snapOfPlayer(p);
+	for (let i = game.gameLog.length - 1; i >= 0; i--) {
+		if (game.gameLog[i].playerId === playerId) { game.gameLog[i].snap = s; break; }
+	}
+	if (!(game as any)._snapBase) (game as any)._snapBase = {};
+	(game as any)._snapBase[playerId] = s;
+}
+
 export function addGameLog(game: GaiaGameState, playerId: string, action: string, details?: string, tileId?: string) {
 	if ((game as any).simulation) return;
 	if (!game.gameLog) {
@@ -1240,21 +1273,19 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 		});
 	}
 
-	// 로그 클릭 시 '직전 대비 변동량' 표시용: 이 로그 시점의 행위자 점수/자원 스냅샷을 마지막 엔트리에 부착(합치기/신규 공통)
+	// 로그 클릭 시 '이 액션의 변동량' 표시용 — base(액션 직전) → snap(액션 후).
+	// base는 _snapBase(직전 로그 시점 갱신 + 인컴 직후 리셋)에서 가져와, 인컴/지난 턴까지 섞이는 '전턴 대비' 혼동을 없앤다.
+	// 트랙 보너스 QIC처럼 로그 '후'에 적용되는 효과는 다음 갱신/턴 종료(finalizeLogSnap)에서 snap이 끌어올려져 반영된다.
+	if (!(game as any)._snapBase) (game as any)._snapBase = {};
 	const _snapLast = game.gameLog[game.gameLog.length - 1];
+	const _curSnap = snapOfPlayer(player);
 	if (_snapLast) {
 		_snapLast.round = game.roundNumber;
-		_snapLast.snap = {
-			vp: player.score ?? 0,
-			c: player.credits ?? 0,
-			o: player.ore ?? 0,
-			k: player.knowledge ?? 0,
-			q: player.qic ?? 0,
-			p1: player.power1 ?? 0,
-			p2: player.power2 ?? 0,
-			p3: player.power3 ?? 0,
-		};
+		// 신규 엔트리에만 base 설정(합치기 엔트리는 처음 base 유지). 합치기 여부 = 직전과 동일 객체.
+		if (!_snapLast.base) _snapLast.base = (game as any)._snapBase[playerId] ?? _curSnap;
+		_snapLast.snap = _curSnap;
 	}
+	(game as any)._snapBase[playerId] = _curSnap; // 다음 로그의 base 기준선 = 이 액션 결과
 
 	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId);
 	// 사람 게임 한정 전체 로그(봇 포함, 전 라운드) — 라이브 gameLog는 아래에서 100캡되므로 별도 보관.
@@ -1652,6 +1683,11 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 		player.knowledge += 9;
 		log(`Player ${player.name} gained 9 Knowledge from Science level 5`, 'game', undefined, { simulation: (game as any).simulation });
 	}
+
+	// 트랙 보너스(QIC/오레/지식 등)는 직전 액션 로그 '이후' console log로만 적용된다 → 그 액션 로그의 변동량에
+	// 반영되도록 snap을 끌어올리고 기준선 동기화(다음 로그에 안 묻어나게). 사용자 관찰: AI트랙 +1Q가 다음 로그에 뜨던 문제.
+	const _btId = Object.keys(game.players).find(id => game.players[id] === player);
+	if (_btId) finalizeLogSnap(game, _btId);
 }
 
 
