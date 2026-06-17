@@ -155,10 +155,12 @@ export function terminalScore(p: SimPlayer): number {
 }
 
 // ---------- B4: 다턴 롤아웃 ----------
-/** SimState를 R6까지 fast정책으로 굴려 (내 종료점수 - 최고 상대 종료점수) 반환. */
-export function simRollout(state: SimState): number {
+/** SimState를 R6까지(또는 maxAhead 라운드만) fast정책으로 굴려 (내 종료점수 - 최고 상대 종료점수) 반환.
+ *  maxAhead: 현재 라운드부터 몇 라운드만 앞을 볼지(얕은 lookahead). 미지정=R6까지. 얕으면 오차 누적 적어 더 정확. */
+export function simRollout(state: SimState, maxAhead?: number): number {
     const s = cloneSimState(state);
-    for (let round = s.round; round <= 6; round++) {
+    const lastRound = maxAhead != null ? Math.min(6, s.round + maxAhead) : 6;
+    for (let round = s.round; round <= lastRound; round++) {
         for (const p of s.players) p.passed = false;
         let steps = 0;
         while (steps < 80) {
@@ -172,7 +174,7 @@ export function simRollout(state: SimState): number {
             if (!acted) break;
             if (s.players.every(p => p.passed)) break;
         }
-        if (round < 6) for (const p of s.players) applyIncome(p);
+        if (round < lastRound) for (const p of s.players) applyIncome(p);
     }
     const scores = s.players.map(terminalScore);
     const meIdx = s.players.findIndex(p => p.id === s.meId);

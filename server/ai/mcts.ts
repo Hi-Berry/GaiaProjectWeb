@@ -106,12 +106,15 @@ export class MCTS {
         // 나쁜 수까지 골라서였음 → 여기선 그리디-승인된 top-K 안에서만 고르므로 참사 불가 + 다턴 전망만 추가.
         if (getPlayerFlag(playerId, 'hybridSearch', false) && root.children.length > 1) {
             try {
+                // [hybridShallow] 풀게임 롤아웃(ρ0.35, null)과 달리 얕게(기본 2라운드) 보면 오차 누적이 적어 더 정확.
+                // 그리디 top-K를 얕은 다턴 전망으로만 재선택 → '이 수가 1~2턴 뒤 연방/엔진으로 이어지나'를 봄.
+                const ahead = getPlayerFlag(playerId, 'hybridShallow', 2);
                 const ranked = root.children.filter(c => c.visits > 0)
                     .sort((a, b) => (b.score / b.visits) - (a.score / a.visits));
                 const K = Math.min(3, ranked.length);
                 let pick = ranked[0]; let bestV = -Infinity;
                 for (let i = 0; i < K; i++) {
-                    const v = simRollout(extractSimState(ranked[i].state, playerId));
+                    const v = simRollout(extractSimState(ranked[i].state, playerId), ahead > 0 ? ahead : undefined);
                     if (v > bestV) { bestV = v; pick = ranked[i]; }
                 }
                 return pick.action;
