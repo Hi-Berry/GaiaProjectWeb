@@ -5130,7 +5130,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				player.research[track]++;
 				const levelNow = player.research[track];
 				const tileLabel = techTile.label || techTileId;
-				advanceDetail = `${track} → Lv.${levelNow}`;
+				advanceDetail = `${track} → Lv.${levelNow}`; applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 — 트랙 타일 선택(3QIC/기술연방 포함) */
 				log(`Player ${player.name}${isRebellionGainTrack ? ' (Rebellion)' : ''} gained tech tile ${tileLabel} and advanced ${track} to level ${levelNow}`, 'game', undefined, { simulation: (game as any).simulation });
 				applyTrackLevelBonus(game, playerId, player, track, levelNow);
 				applyRoundMissionScore(game, playerId, 'research_track');
@@ -6297,7 +6297,7 @@ export function executeAdvanceTech(
 		game.pendingShipTechTrackAdvance = null;
 		if (newLevel === 5) spendGreenFederation(player);
 		player.research[track]++;
-		addGameLog(game, playerId, 'Ship Tech: Advanced track', `${track} → Lv.${newLevel}`);
+		addGameLog(game, playerId, 'Ship Tech: Advanced track', `${track} → Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
 		game.hasDoneMainAction = true;
@@ -6318,7 +6318,7 @@ export function executeAdvanceTech(
 		game.pendingAdvancedTechTrackAdvance = null;
 		if (newLevel === 5) spendGreenFederation(player);
 		player.research[track]++;
-		addGameLog(game, playerId, 'Advanced Tech: Advanced track', `${track} → Lv.${newLevel}`);
+		addGameLog(game, playerId, 'Advanced Tech: Advanced track', `${track} → Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
 		game.hasDoneMainAction = true;
@@ -7591,7 +7591,7 @@ export function executeBotBescodsAdvanceLowestTrack(
 	player.usedSpecialActions.push('bescods-advance-lowest');
 	player.research[chosen as ResearchTrack] = (player.research[chosen as ResearchTrack] ?? 0) + 1;
 	const newLevel = player.research[chosen as ResearchTrack];
-	addGameLog(game, playerId, 'Bot: Bescods Special', `가장 낮은 트랙 +1 → ${chosen} Lv.${newLevel}`);
+	addGameLog(game, playerId, 'Bot: Bescods Special', `가장 낮은 트랙 +1 → ${chosen} Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 	applyTrackLevelBonus(game, playerId, player, chosen as ResearchTrack, newLevel);
 	applyRoundMissionScore(game, playerId, 'research_track');
 	log(`Bot ${player.name} (Bescods) advanced lowest track ${chosen} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
