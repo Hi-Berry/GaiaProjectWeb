@@ -46,7 +46,19 @@
 81.8 ambas  84.0 hadsch_hallas  87.7 gleens ← 최상위
 ```
 
+## ★ 최대 발견 (2026-06-18): 봇 전반의 확장 연구 과소투자
+
+저장 게임들에서 **확장 연구 트랙 합(terraforming+navigation+gaiaProject)**을 봇 vs 사람으로 비교:
+- **봇: 4~7** (nevlas 1, firaks/ivits 4, ambas 4.8, itars/geodens 5~6.7) → 점수 40~70
+- **사람: 9~14** (ambas 12, firaks 12.5, ivits 12.3, geodens 12, tinkeroids 14) → 점수 180~270
+
+**모든 종족에서 봇이 확장 연구를 사람의 ~절반만** 올린다 → 테라포밍/사거리/가이아 못 풀어 행성 못 늘림 → 작은 엔진 → 저득점. **nevlas(exp 1.0)는 극단 사례, 진짜 문제는 전 종족 공통.** 종족별 미세튜닝보다 **글로벌 확장연구 우선순위 상향**(calculateResearchScore의 terra/nav/gaia 가중치)이 1순위 레버. → 가설로 측정 예정(flag).
+주의: 단 연구만 올리고 빌드(새 행성 건설)가 안 따라오면 효과 없음 — 연구↑ + 그 트랙으로 열린 행성 건설↑이 같이 가야. 측정으로 확인.
+
+추가 버그(수정함): 이클립스 액션1(행성유형+2VP)이 **잊혀진 행성·가상광산을 미카운트**(naive types가 space타일의 lost_planet_mine 누락) → getPlayerPlanetTypesForGeodens 사용으로 수정. (봇 qicVpGate 추정치 eclipse i1도 같은 naive — qicVpGate 측정/채택 시 같이 정리.)
+
 ## 큐 (다음에 할 것)
+- [ ] **글로벌 확장연구 우선순위 상향** (terra/nav/gaia) — 위 최대 발견. flag로 측정. (최우선)
 
 - [ ] `fedZoneStrategy` 버그픽스 후 재검증 (유일 채택 변경).
 - [ ] `qicVpGate` 측정 — 2QIC 우주선 VP액션(Eclipse1=행성유형+2, TFMars1=기술타일+2)을 실제 VP로 평가, ≥6 또는 R6만.
