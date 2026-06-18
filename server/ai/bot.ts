@@ -2559,6 +2559,14 @@ export class BotLogic {
                 break;
         }
 
+        // [flag: expansionResearch] 봇 전종족이 확장연구(terra/nav/gaia)를 사람의 절반(합 4~7 vs 9~14)만 올려
+        // 행성을 못 늘리는 게 최대 약점(데이터). 확장 3트랙을 과학(×22)·경제(×20)와 경쟁되게 상향 — 낮은 레벨일수록
+        // 더 우선해 초반부터 확장 인프라(싼 테라포밍·사거리·가이아)를 깔게 한다. 측정으로 자성 확인.
+        if (getPlayerFlag(playerId, 'expansionResearch', false)
+            && (track === 'terraforming' || track === 'navigation' || track === 'gaiaProject')) {
+            score += (5 - level) * 14;
+        }
+
         // 2. 고급 기술 타일 시너지 분석
         const advTiles = game.advancedTechTilesByTrack || {};
         const myAdvTracks = Object.keys(advTiles).filter(t => player.research[t as ResearchTrack] >= 4);
