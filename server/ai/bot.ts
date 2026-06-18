@@ -3319,7 +3319,7 @@ export class BotLogic {
             // → 연방/연구 미달성의 한 원인이었다. head2head에서 낮출수록 +방향(우주선 입장의 66%가 미사용).
             // 과보정을 정상화(200→80). shipLowPriority 플래그로 더 공격적(40) 실험 가능.
             let score: number;
-            if (getPlayerFlag(playerId, 'shipEntryByAction', false)) {
+            if (getPlayerFlag(playerId, 'shipEntryByAction', true)) {
                 // [사용자] 우주선 액션은 본판 파워액션보다 효율↑ → 입장 가치를 '그 우주선에서 쓸 최고 액션'으로 산정.
                 // 좋은 액션 있으면 적극 입장(본판 파워액션 이김), 없으면 낮게(타고 안 쓰는 -5VP 낭비 방지).
                 if (round >= 6) continue; // 막판 입장은 액션 쓸 턴이 없어 순손실
