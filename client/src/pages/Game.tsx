@@ -249,6 +249,8 @@ export default function Game() {
   const isPendingBonusSelection = game?.pendingBonusSelection === playerId;
   const [highlightedTileId, setHighlightedTileId] = useState<string | null>(null);
   const [advanceTechDialog, setAdvanceTechDialog] = useState<{ open: boolean; trackId: ResearchTrack | null }>({ open: false, trackId: null });
+  // 팅커로이드 라운드 Special 팝업 접기(맵·라운드 보며 고르기)
+  const [tinkeroidSpecialCollapsed, setTinkeroidSpecialCollapsed] = useState(false);
   const [isFactionSelectOpen, setIsFactionSelectOpen] = useState(false);
   /** 트왈라잇 액션2: TS→연구소 업그레이드 시 선택할 교역소 타일 (shipTileId) */
   const [pendingTwilightTSUpgrade, setPendingTwilightTSUpgrade] = useState<string | null>(null);
@@ -3115,11 +3117,37 @@ export default function Game() {
           const targetHuman = !game.botPlayerIds?.includes(pending.playerId);
           if (!(isTargetMe || (viewingBot && targetHuman))) return null;
 
+          const labelOf = (actionId: string) => TINKEROID_SPECIAL_LABELS[actionId as keyof typeof TINKEROID_SPECIAL_LABELS] ?? actionId;
+
+          // 접힌 상태: 모달 배경 없이 하단 작은 바 → 맵·라운드 보면서 바로 선택 가능
+          if (tinkeroidSpecialCollapsed) {
+            return (
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 shadow-2xl max-w-[92vw]">
+                <span className="text-amber-300 text-xs font-bold shrink-0">팅커로이드 R{pending.round} Special:</span>
+                {pending.options.map((actionId: string) => (
+                  <Button
+                    key={actionId}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
+                    onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
+                  >
+                    {labelOf(actionId)}
+                  </Button>
+                ))}
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-amber-400 hover:text-white shrink-0" onClick={() => setTinkeroidSpecialCollapsed(false)}>펼치기</Button>
+              </div>
+            );
+          }
+
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
               <AlertDialogContent className="bg-zinc-900 border-amber-500/40 max-w-sm">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-amber-300 font-black uppercase tracking-wider">팅커로이드: 라운드 Special 선택</AlertDialogTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <AlertDialogTitle className="text-amber-300 font-black uppercase tracking-wider">팅커로이드: 라운드 Special 선택</AlertDialogTitle>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-zinc-400 hover:text-amber-200 shrink-0" onClick={() => setTinkeroidSpecialCollapsed(true)} title="접기 (맵·라운드 보기)">접기</Button>
+                  </div>
                   <AlertDialogDescription className="text-zinc-300">
                     라운드 {pending.round}에 사용할 Special을 하나 고르세요. (게임 중 각 액션은 1회만 선택 가능)
                   </AlertDialogDescription>
@@ -3132,7 +3160,7 @@ export default function Game() {
                       className="w-full justify-start bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
                       onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
                     >
-                      {TINKEROID_SPECIAL_LABELS[actionId as keyof typeof TINKEROID_SPECIAL_LABELS] ?? actionId}
+                      {labelOf(actionId)}
                     </Button>
                   ))}
                 </div>
