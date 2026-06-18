@@ -36,7 +36,8 @@ import {
     executeBalTakGaiaformerToQic,
     getEffectiveGaiaformers,
     executeConfirmTwilightFederation,
-    executePlaceLostPlanet
+    executePlaceLostPlanet,
+    getPlayerPlanetTypesForGeodens
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -803,9 +804,12 @@ export class BotLogic {
         }
 
         // 2. pendingTerraformSteps가 있으면 바로 광산 건설 (다른 메인 액션 차단)
+        //    단, 지을 데가 없으면(사거리밖/자원부족/광산한도) 빈 배열을 그대로 반환하면 후보 0개 → 봇 강제 패스 +
+        //    연구 블록(아래)에 도달 못 해 4지식이 묶이는 버그(사용자 관찰). 못 지을 땐 강제 반환하지 말고 일반 후보로 폴백.
         if ((player.pendingTerraformSteps || 0) > 0) {
             const builds = this.findBuildActionsWithPendingSteps(game, playerId);
-            return builds; // 건설이 강제되므로 여기서 바로 반환 (업그레이드 등 다른 액션 배제)
+            if (builds.length > 0) return builds; // 지을 수 있으면 그것만(다른 액션 배제)
+            // 못 지으면 폴백: 아래에서 연구/업그레이드/파워 등 일반 후보를 계속 생성
         }
 
         // 3. Ivits 우주정거장 전략
@@ -992,10 +996,20 @@ export class BotLogic {
             }
         }
 
+        // 사거리 부스터(트왈라잇 +3 / 보너스 +3 / 글린 +2)가 활성이면, 그 사거리를 쓰는 배치 액션만 허용한다(서버 룰과 동일).
+        // 봇은 execute*를 직접 호출해 소켓의 hasActiveRangeBonus 가드를 우회하므로, 후보 단계에서 제한 → 부스터 켜고
+        // 업그레이드/연구/파워액션 등 엉뚱한 짓 + 1K 낭비 금지(사용자 관찰). 사거리 액션이 없으면(낭비 상황) 폴백 유지.
+        let candidatePool = candidates;
+        if (player.tempRangeBonus || player.rangeBonusActive || player.gleensNavBonusActive) {
+            const RANGE_USING = new Set(['build_mine', 'place_gaiaformer', 'enter_spaceship', 'place_ivits_space_station', 'place_lost_planet']);
+            const rangeOnly = candidates.filter(c => RANGE_USING.has(c.type));
+            if (rangeOnly.length > 0) candidatePool = rangeOnly;
+        }
+
         // 중복 제거 (예: 동일한 타일에 대한 건설 명령이 두 번 들어간 경우)
         const uniqueCandidates: BotAction[] = [];
         const seen = new Set<string>();
-        for (const c of candidates) {
+        for (const c of candidatePool) {
             const key = JSON.stringify(c);
             if (!seen.has(key)) {
                 seen.add(key);
@@ -1215,6 +1229,14 @@ export class BotLogic {
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
                 score -= fedPenalty(ts.id);
+                // [flag: fedZoneStrategy] 의회(파워값 3)로 올려 구역 연방을 '닫거나' 위성을 줄일 수 있으면 강하게 우대
+                // — 먼 집까지 위성으로 잇지 말고 구역 내부 티어업으로 7파워 채우라는 전략(사용자 모델).
+                if (getPlayerFlag(playerId, 'fedZoneStrategy', true) && round >= 4 && !game.simulation) {
+                    const before = BotLogic.getBestFederationSpentTokens(game, playerId);
+                    const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, ts.id, 'planetary_institute');
+                    if (before == null && after != null) score += 480;
+                    else if (before != null && after != null && after < before) score += Math.min(280, (before - after) * 90);
+                }
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, ts, 'planetary_institute');
 
@@ -1243,15 +1265,17 @@ export class BotLogic {
                 if (round >= 2 && round <= 4 && academyCount === 0) score += 100; // 첫 아카데미는 중반까지 매우 강력 권장
                 if (round >= 5) score += 50;
 
-                // 6라: 연구소→아카데미로 연방이 열리거나(혹은 더 싸지면) 매우 강력
-                if (round === 6) {
+                // 연구소→아카데미(파워값 3)로 구역 연방이 열리거나 더 싸지면 매우 강력.
+                // 기존엔 6라에서만 평가 → [flag: fedZoneStrategy] R4+로 확장해 중반에도 '구역 내부 티어업으로 연방 닫기' 유도(사용자 모델).
+                const evalAcademyFed = round === 6 || (getPlayerFlag(playerId, 'fedZoneStrategy', true) && round >= 4 && !game.simulation);
+                if (evalAcademyFed) {
                     const before = BotLogic.getBestFederationSpentTokens(game, playerId);
                     const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, lab.id, 'academy');
                     if (before == null && after != null) {
                         score += 520;
                     } else if (before != null && after != null && after < before) {
                         score += Math.min(300, (before - after) * 100);
-                    } else {
+                    } else if (round === 6) {
                         score += 140;
                     }
                 }
@@ -1314,7 +1338,7 @@ export class BotLogic {
         game: ServerGameState,
         playerId: string,
         tileId: string,
-        upgradedStructure: 'trading_station' | 'academy'
+        upgradedStructure: 'trading_station' | 'academy' | 'planetary_institute'
     ): number | null {
         // lightweight clone: only what FederationPlanner reads (map + players + satellites/fed state)
         const clone: ServerGameState = JSON.parse(JSON.stringify(game));
@@ -1631,6 +1655,16 @@ export class BotLogic {
             let qicPenalty = neededQicForRange * 60; // 사용자 피드백: 거리(QIC) 페널티 2배 상향
             let bridgeheadBonus = 0;
 
+            // [flag: geodensNewType] 기오덴이 PI 보유 시 '아직 안 먹은 행성유형'에 지으면 즉시 +3K + 후반 이클립스2Q 연료(유형 다양성).
+            // 빌드 타깃을 미보유 유형으로 유도 → 종족 엔진을 실제 점수로 변환(연구만 올리고 빌드 안 따라오던 문제의 종족판 해결).
+            let geodensNewTypeBonus = 0;
+            if (player.faction === 'geodens' && tile.type && getPlayerFlag(playerId, 'geodensNewType', true)) {
+                const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                if (hasPI && !getPlayerPlanetTypesForGeodens(game, playerId).has(tile.type)) {
+                    geodensNewTypeBonus = 100;
+                }
+            }
+
             if (neededQicForRange > 0) {
                 // [사용자 피드백] 장거리(QIC) 확장의 가치를 주변 꿀행성 군집도로 평가하는 교두보(Bridgehead) 확보 전략
                 let easyTargetsDist1 = 0;
@@ -1698,6 +1732,9 @@ export class BotLogic {
             if (neededQicForRange === 1) {
                 qicPenalty += (round <= 4 ? 220 : 160);
             }
+
+            // 새-유형 가점은 allowBigQicJump 게이트(bridgeheadBonus>=180) 판정 이후에 더해 게이트 오염 방지
+            bridgeheadBonus += geodensNewTypeBonus;
 
             if (tile.type === 'gaia') {
                 // [수정 #1] 내 가이아포머가 성숙한 타일(pendingGaiaformerTiles)은 이미 포밍 완료 → 추가 QIC/오레 비용 없음.
@@ -2538,6 +2575,14 @@ export class BotLogic {
                 break;
         }
 
+        // [flag: expansionResearch] 봇 전종족이 확장연구(terra/nav/gaia)를 사람의 절반(합 4~7 vs 9~14)만 올려
+        // 행성을 못 늘리는 게 최대 약점(데이터). 확장 3트랙을 과학(×22)·경제(×20)와 경쟁되게 상향 — 낮은 레벨일수록
+        // 더 우선해 초반부터 확장 인프라(싼 테라포밍·사거리·가이아)를 깔게 한다. 측정으로 자성 확인.
+        if (getPlayerFlag(playerId, 'expansionResearch', false)
+            && (track === 'terraforming' || track === 'navigation' || track === 'gaiaProject')) {
+            score += (5 - level) * 14;
+        }
+
         // 2. 고급 기술 타일 시너지 분석
         const advTiles = game.advancedTechTilesByTrack || {};
         const myAdvTracks = Object.keys(advTiles).filter(t => player.research[t as ResearchTrack] >= 4);
@@ -3014,8 +3059,15 @@ export class BotLogic {
                     if (oreAfter >= 3 && credits >= 5) score += 120; // 다음 턴 TS→Lab 가능
                     if (oreAfter >= 2 && p3 >= 3 && game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) score += 100; // 트왈라잇 2O+3P→연구소 가능
                     if (oreAfter >= 1 && credits >= 2) score += 40;  // 광산 1채 가능
-                    // 교역소 지을 광산이 없으면 자원만 쌓이므로 감점 → 스텝 우선
-                    if (needStepsFirst) score -= 100;
+                    // [flag: powerActionValue] 자원 셋업: 2O로 의회(4O6C)·아카데미(6O6C) 건설이 다음 턴 가능해지면 가점(사용자 모델)
+                    if (getPlayerFlag(playerId, 'resourceActionSetup', false)) {
+                        const hasTSp = game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station');
+                        const hasLabp = game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab');
+                        if (oreAfter >= 4 && credits >= 6 && hasTSp) score += 90;   // 다음 턴 TS→의회 가능
+                        if (oreAfter >= 6 && credits >= 6 && hasLabp) score += 110;  // 다음 턴 연구소→아카데미 가능
+                    }
+                    // 교역소 지을 광산이 없으면 자원만 쌓이므로 감점 → 스텝 우선 (powerActionValue 시 억제 완화: 자원액션도 경쟁되게)
+                    if (needStepsFirst) score -= getPlayerFlag(playerId, 'resourceActionSetup', false) ? 50 : 100;
                     // [오레기아] 크레딧 수입 과잉 상태면 오레 확보가 탈출구 → 강하게 선호(needStepsFirst 감점 상쇄+).
                     if (oreStarvedPow) score += 180;
                     break;
@@ -3026,7 +3078,14 @@ export class BotLogic {
                     const credAfter = credits + 7;
                     if (ore >= 3 && credAfter >= 5) score += 120; // 연구소(TS→Lab) 가능
                     if (ore >= 1 && credAfter >= 2) score += 50;   // 광산 가능
-                    if (needStepsFirst) score -= 100;
+                    // [flag: powerActionValue] 자원 셋업: 7C로 의회(4O6C)·아카데미(6O6C)가 다음 턴 가능해지면 가점(사용자 모델)
+                    if (getPlayerFlag(playerId, 'resourceActionSetup', false)) {
+                        const hasTSc = game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station');
+                        const hasLabc = game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab');
+                        if (ore >= 4 && credAfter >= 6 && hasTSc) score += 90;    // 다음 턴 TS→의회 가능
+                        if (ore >= 6 && credAfter >= 6 && hasLabc) score += 110;   // 다음 턴 연구소→아카데미 가능
+                    }
+                    if (needStepsFirst) score -= getPlayerFlag(playerId, 'resourceActionSetup', false) ? 50 : 100;
                     // [오레기아] 이미 돈만 쌓이는데 또 크레딧 파워액션은 비율 악화 → 억제.
                     if (oreStarvedPow) score -= 150;
                     break;
@@ -3186,6 +3245,31 @@ export class BotLogic {
         return res;
     }
 
+    /** [flag: powerActionValue] 아직 입장 안 한 우주선에서 '지금 자원으로 쓸 수 있는 최고 액션' 추정 가치.
+     *  입장 가치를 이 값으로 산정해, 효율 좋은 우주선은 적극 입장하되 쓸 액션 없는 우주선은 안 타게(−5VP 낭비 방지). */
+    private static estimateBestShipActionValue(player: PlayerState, shipType: string, hasTS: boolean, hasMine: boolean): number {
+        const q = player.qic || 0, o = player.ore || 0, c = player.credits || 0, k = player.knowledge || 0, p3 = player.power3 || 0, gf = player.gaiaformers || 0;
+        let best = 0;
+        if (shipType === 'ship_twilight') {
+            best = 230;
+            if (q >= 3) best = Math.max(best, 350);
+            if (o >= 2 && p3 >= 3 && hasTS) best = Math.max(best, 420);
+            if (k >= 1) best = Math.max(best, 450);
+        } else if (shipType === 'ship_rebellion') {
+            best = q >= 3 ? 380 : 250;
+            if (o >= 1 && p3 >= 3 && hasMine) best = Math.max(best, 300);
+        } else if (shipType === 'ship_tf_mars') {
+            best = q >= 2 ? 320 : 200;
+            if (p3 >= 2 && gf > 0) best = Math.max(best, 340);
+            if (c >= 3) best = Math.max(best, 380);
+        } else if (shipType === 'ship_eclipse') {
+            best = q >= 2 ? 300 : 200;
+            if (k >= 2 && p3 >= 3) best = Math.max(best, 330);
+            if (c >= 6) best = Math.max(best, 450);
+        }
+        return best;
+    }
+
     private static findSpaceshipEntryActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const round = game.roundNumber;
@@ -3237,20 +3321,32 @@ export class BotLogic {
             // 기존 200(의회급)은 명시적 과보정이라 봇이 우주선에 과탑승 → 확장(광산) 메인액션 잠식
             // → 연방/연구 미달성의 한 원인이었다. head2head에서 낮출수록 +방향(우주선 입장의 66%가 미사용).
             // 과보정을 정상화(200→80). shipLowPriority 플래그로 더 공격적(40) 실험 가능.
-            let score = getPlayerFlag(playerId, 'shipLowPriority', false) ? 40 : 80;
-
-            // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
-            const occupants = shipState?.occupants?.length || 0;
-            if (occupants === 1 || occupants === 2) score += 20;
-            else if (occupants === 3) score += 30;
-
-            // 라운드별 가점 (초반에는 강력한 기술 타일이나 자원 확보를 위해)
-            if (round <= 3) score += 50;
-
-            // Rebellion은 기술 타일을 주기 때문에 더 높게 평가
-            if (tile.type === 'ship_rebellion') score += 40;
-            if (tile.type === 'ship_eclipse') score += 60; // 후반 소행성 건설/연구용
-            if (tile.type === 'ship_tf_mars') score += 50;
+            let score: number;
+            if (getPlayerFlag(playerId, 'shipEntryByAction', false)) {
+                // [사용자] 우주선 액션은 본판 파워액션보다 효율↑ → 입장 가치를 '그 우주선에서 쓸 최고 액션'으로 산정.
+                // 좋은 액션 있으면 적극 입장(본판 파워액션 이김), 없으면 낮게(타고 안 쓰는 -5VP 낭비 방지).
+                if (round >= 6) continue; // 막판 입장은 액션 쓸 턴이 없어 순손실
+                const hasUnusedShip = entered.some(id => ((game.spaceships?.[id]?.usedActionIndices?.length ?? 0) < 1));
+                if (hasUnusedShip) continue; // 이미 안 쓴 우주선 있으면 추가 입장 금지(적재 방지)
+                const hasTS = game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station');
+                const hasMine = game.map.some(t => t.ownerId === playerId && t.structure === 'mine');
+                const best = this.estimateBestShipActionValue(player, tile.type || '', hasTS, hasMine);
+                score = 50 + best * 0.5; // 입장은 다음 턴 사용 + -5VP라 액션가치의 절반 반영
+                const occupantsP = shipState?.occupants?.length || 0;
+                if (occupantsP >= 1) score += 20; // 동반 입장 파워 충전 가산
+            } else {
+                score = getPlayerFlag(playerId, 'shipLowPriority', false) ? 40 : 80;
+                // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
+                const occupants = shipState?.occupants?.length || 0;
+                if (occupants === 1 || occupants === 2) score += 20;
+                else if (occupants === 3) score += 30;
+                // 라운드별 가점 (초반에는 강력한 기술 타일이나 자원 확보를 위해)
+                if (round <= 3) score += 50;
+                // Rebellion은 기술 타일을 주기 때문에 더 높게 평가
+                if (tile.type === 'ship_rebellion') score += 40;
+                if (tile.type === 'ship_eclipse') score += 60; // 후반 소행성 건설/연구용
+                if (tile.type === 'ship_tf_mars') score += 50;
+            }
 
             const act: BotAction = { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } };
             // 서버 규칙 기준으로 실제 성공하는 후보만 남김 (점수/토큰/사거리 등 누락 방지)
@@ -3303,8 +3399,11 @@ export class BotLogic {
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
                         }
                     } else if (i === 3) {
-                        // [사용자 피드백] 생으로 QIC 여러 개를 써서 멀리 가는 대신, 트왈라잇 1지식 3거리 부스터를 먼저 켜고 가도록 점수 극대화
-                        score = (player.knowledge || 0) >= 1 && !player.tempRangeBonus ? 450 : 50;
+                        // 트왈라잇 1지식 → +3 Range(tempRangeBonus). 단, 그 사거리가 '실제로 새 대상을 여는' 경우만 켠다.
+                        // 아니면 1K만 버리고 엉뚱한 액션을 하는 낭비(사용자 관찰) → 낮은 점수로 사실상 비활성.
+                        const rangeHelps = (player.knowledge || 0) >= 1 && !player.tempRangeBonus
+                            && this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus');
+                        score = rangeHelps ? 450 : 0;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
@@ -3329,7 +3428,14 @@ export class BotLogic {
                     }
                 } else if (shipTile.type === 'ship_tf_mars') {
                     if (i === 1 && (player.qic || 0) >= 2) {
-                        score = 320; // QIC 기술 타일: 매우 강력
+                        // TF Mars 1 = (기술타일수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
+                        // 아니면 거의 비활성(초반 ~4VP짜리 일찍 하지 말고 QIC를 확장에 쓰게). 사용자 규칙.
+                        if (getPlayerFlag(playerId, 'qicVpGate', false)) {
+                            const vp = (player.techTiles?.length ?? 0) + 2;
+                            score = (vp >= 6 || round === 6) ? 240 + vp * 10 : 25;
+                        } else {
+                            score = 320; // QIC 기술 타일: 매우 강력
+                        }
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
                         score = 200;
@@ -3343,7 +3449,16 @@ export class BotLogic {
                     }
                 } else if (shipTile.type === 'ship_eclipse') {
                     if (i === 1 && (player.qic || 0) >= 2) {
-                        score = 300; // QIC 기술/연방
+                        // Eclipse 1 = (행성유형수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
+                        // 아니면 거의 비활성(초반 QIC는 확장에). 사용자 규칙.
+                        if (getPlayerFlag(playerId, 'qicVpGate', false)) {
+                            const structs = game.map.filter(t => t.ownerId === playerId && t.structure);
+                            const types = new Set(structs.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
+                            const vp = types.size + 2;
+                            score = (vp >= 6 || round === 6) ? 220 + vp * 10 : 25;
+                        } else {
+                            score = 300; // QIC 기술/연방
+                        }
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
                         score = 200;
@@ -3577,7 +3692,7 @@ export class BotLogic {
     private static rangeBoosterUnlocksTarget(
         game: ServerGameState,
         playerId: string,
-        flag: 'rangeBonusActive' | 'gleensNavBonusActive'
+        flag: 'rangeBonusActive' | 'gleensNavBonusActive' | 'tempRangeBonus'
     ): boolean {
         const player = game.players[playerId];
         if (!player) return false;

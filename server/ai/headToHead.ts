@@ -44,6 +44,14 @@ const GAMES = Math.max(6, Number(process.env.H2H_GAMES) || 60);
 const MCTS_MS = Math.max(50, Number(process.env.H2H_MCTS_MS) || 500);
 const BOT_DELAY_MS = Math.max(0, Number(process.env.H2H_BOT_DELAY_MS) || 0);
 const GAME_TIMEOUT_MS = (Number(process.env.H2H_GAME_TIMEOUT_MIN) || 35) * 60 * 1000;
+// [faction-forcing] 종족별 측정: 이 종족을 고정 좌석(FORCE_FACTION_POS, 기본 0)에 강제 배정.
+// 그 좌석은 B_PATTERNS 회전으로 절반은 B(플래그ON)/절반은 A(OFF)가 되어 동일 종족 paired 비교가 된다.
+const FORCE_FACTION = process.env.H2H_FORCE_FACTION || '';
+// 위치 고정 override: H2H_FORCE_FACTION_POS를 명시하면 그 위치 고정(선플만 측정),
+// 안 주면 게임마다 위치를 회전(0→1→2→3)해 모든 좌석의 종족을 측정(선플 confound 제거).
+const FORCE_FACTION_POS_FIXED = process.env.H2H_FORCE_FACTION_POS != null && process.env.H2H_FORCE_FACTION_POS !== ''
+    ? Math.max(0, Math.min(3, Number(process.env.H2H_FORCE_FACTION_POS)))
+    : null;
 
 // 4좌석 중 2좌석을 B(도전자)로: choose(4,2)=6 패턴. 순환하면 6의 배수마다 각 위치가 정확히 3번 B가 되어
 // 선플레이어/위치 편향이 완전히 상쇄된다.
@@ -153,7 +161,7 @@ async function shutdownWorkers(workers: Worker[]) {
     }));
 }
 
-function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Variant; B: Variant }): Promise<GameResult> {
+function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Variant; B: Variant; forceFaction?: string; forceFactionPos?: number }): Promise<GameResult> {
     return new Promise((resolve, reject) => {
         let gameId = '';
         const timer = setTimeout(() => { cleanup(); reject(new Error('Game timeout')); }, GAME_TIMEOUT_MS);
@@ -209,9 +217,20 @@ function wilson(wins: number, n: number): [number, number] {
 async function evalWorker(worker: Worker, headToHead: { A: Variant; B: Variant }, gameIndices: number[]): Promise<GameResult[]> {
     const results: GameResult[] = [];
     for (const gi of gameIndices) {
-        const bPositions = B_PATTERNS[gi % B_PATTERNS.length];
+        let bPositions = B_PATTERNS[gi % B_PATTERNS.length];
+        let forcePos = FORCE_FACTION_POS_FIXED ?? 0;
+        if (FORCE_FACTION) {
+            // 위치 회전(고정 override 없으면): 강제 종족을 게임마다 다른 좌석에 앉혀 선플 confound 제거.
+            forcePos = FORCE_FACTION_POS_FIXED ?? (gi % 4);
+            // ON/OFF는 B_PATTERNS에 맡기지 않고 직접 구성(4와 6이 안 맞아 비율/위치가 깨짐).
+            // 4게임 블록마다 ON/OFF 교대 → 위치별로도 전체로도 ON·OFF 균형. 나머지 B석은 비대상 종족(플래그 no-op).
+            const forcedOn = Math.floor(gi / 4) % 2 === 0;
+            bPositions = forcedOn
+                ? [forcePos, (forcePos + 1) % 4]
+                : [(forcePos + 1) % 4, (forcePos + 2) % 4];
+        }
         try {
-            const r = await runOneGame(worker.socket, { bPositions, A: headToHead.A, B: headToHead.B });
+            const r = await runOneGame(worker.socket, { bPositions, A: headToHead.A, B: headToHead.B, forceFaction: FORCE_FACTION || undefined, forceFactionPos: forcePos });
             results.push(r);
             const line = r.seats
                 .sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0))
@@ -287,6 +306,21 @@ async function main() {
         const marginT = marginSE > 0 ? marginMean / marginSE : 0;
         const marginPValue = perGameMargin.length ? 2 * (1 - normCdf(Math.abs(marginT))) : 1;
 
+        // [faction-forcing] 강제 종족이 있으면 그 종족의 B(플래그ON) vs A(OFF) 점수를 직접 비교(paired, 동일 좌석).
+        // 이게 종족별 측정의 핵심 지표 — 전체 승률/마진은 비대상 좌석 때문에 희석되므로 이 줄을 봐야 함.
+        let factionSplit: { faction: string; bScores: number[]; aScores: number[] } | null = null;
+        if (FORCE_FACTION) {
+            const bs: number[] = [], as: number[] = [];
+            for (const g of results) {
+                for (const s of g.seats) {
+                    if (s.faction !== FORCE_FACTION) continue;
+                    if (s.group === 'B') bs.push(s.score);
+                    else if (s.group === 'A') as.push(s.score);
+                }
+            }
+            factionSplit = { faction: FORCE_FACTION, bScores: bs, aScores: as };
+        }
+
         const verdict = (() => {
             if (decisive < 10) return '판수 부족 — 더 많은 게임 필요 (권장 60+)';
             const sigWin = winPValue < 0.05;
@@ -317,6 +351,15 @@ async function main() {
             vpMarginSE: marginSE,
             vpMarginPValue: marginPValue,
             verdict,
+            forceFaction: FORCE_FACTION || null,
+            factionSplit: factionSplit ? {
+                faction: factionSplit.faction,
+                onN: factionSplit.bScores.length,
+                offN: factionSplit.aScores.length,
+                onAvg: mean(factionSplit.bScores),
+                offAvg: mean(factionSplit.aScores),
+                delta: mean(factionSplit.bScores) - mean(factionSplit.aScores),
+            } : null,
         };
         writeJson(REPORT_PATH, report);
 
@@ -326,6 +369,15 @@ async function main() {
         console.log(`  평균 VP: 챔피언 ${mean(aScores).toFixed(1)} vs 도전자 ${mean(bScores).toFixed(1)}`);
         console.log(`  VP 마진(도전자-챔피언): ${marginMean >= 0 ? '+' : ''}${marginMean.toFixed(2)} ± ${marginSE.toFixed(2)} (p=${marginPValue.toFixed(3)})`);
         console.log(`  판정: ${verdict}`);
+        if (factionSplit) {
+            const onAvg = mean(factionSplit.bScores), offAvg = mean(factionSplit.aScores);
+            const d = onAvg - offAvg;
+            // paired는 아니지만 동일 종족·동일 고정좌석이라 분산이 작다. 2표본 t 근사로 유의성 참고치 제공.
+            const sePooled = Math.sqrt((std(factionSplit.bScores) ** 2) / Math.max(1, factionSplit.bScores.length) + (std(factionSplit.aScores) ** 2) / Math.max(1, factionSplit.aScores.length));
+            const tFac = sePooled > 0 ? d / sePooled : 0;
+            const pFac = 2 * (1 - normCdf(Math.abs(tFac)));
+            console.log(`\n  ★ [${factionSplit.faction}] 플래그ON ${onAvg.toFixed(1)} (n=${factionSplit.bScores.length}) vs OFF ${offAvg.toFixed(1)} (n=${factionSplit.aScores.length}) → Δ${d >= 0 ? '+' : ''}${d.toFixed(2)} (p≈${pFac.toFixed(3)})`);
+        }
         console.log(`  리포트: ${REPORT_PATH}`);
     } finally {
         await shutdownWorkers(workers);
