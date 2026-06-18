@@ -26,6 +26,7 @@
 - 결과 = **같은 종족·같은 고정좌석을 ON vs OFF로 paired 비교**(좌석/위치 편향 통제). 콘솔 `★ [faction] 플래그ON .. vs OFF .. → Δ.. (p≈..)` 줄과 리포트 `factionSplit`이 핵심 지표 — 전체 승률/마진은 비대상 좌석 때문에 희석되니 **이 줄을 봐야** 함.
 - 래퍼: `bash run-h2h.sh '{"flag":true}' 120 400 6 geodens` (5번째 인자 = 강제 종족).
 - 무편향 검증됨: flags `{}`+forceFaction이면 ON/OFF Δ≈0(p≈0.97).
+- **★중요: forcing 모드에선 전체 승률/VP마진을 보지 마라 — `★ factionSplit`만 유효.** bPositions가 강제종족 좌석만 ON/OFF 균형이고 비대상 좌석의 B/A는 표준 6패턴 균형이 아니라, 전체 마진은 비대상 종족 노이즈/편향 아티팩트다. (실측 2026-06-18 taklonsPowerPos: ★split −2.33인데 전체마진 +3.32로 상충 → split이 정답.)
 
 ### ⚠️ 래퍼 JSON 버그(수정함, 2026-06-18)
 `FLAGS="${1:-{}}"`가 bash에서 `{"x":true}}`로 깨져 `challenger.flags.json` 파싱 실패 → `readJson(...) ?? {}`로 조용히 폴백(플래그 미적용). **리포트 `flagsDiffer:true` 매번 확인**(false면 챔피언끼리 무효 측정). 수정: `FLAGS="$1"; [ -z "$FLAGS" ] && FLAGS='{}'`.
