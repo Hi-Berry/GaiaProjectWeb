@@ -1638,6 +1638,16 @@ export class BotLogic {
                 score += this.calculateFederationScore(game, playerId, tile);
                 score += rangeBonusValue;
 
+                // [flag: lantidsParasiticPush] 상대 밀집 지역(주변 dist≤2에 상대 건물 多)에 기생 우대 →
+                // 점프 한 번으로 이후 기생 타깃 다수 확보(사용자 모델: 밀집지역 의회+점프+기생4가 최상 스타트).
+                if (getPlayerFlag(playerId, 'lantidsParasiticPush', false)) {
+                    const nearbyEnemies = game.map.filter(t =>
+                        t.ownerId && t.ownerId !== playerId && t.structure &&
+                        t.id !== tile.id && getDistance(t, tile) <= 2
+                    ).length;
+                    score += Math.min(120, nearbyEnemies * 30);
+                }
+
                 scored.push({
                     tile,
                     score,
@@ -3427,7 +3437,7 @@ export class BotLogic {
                     if (i === 1 && (player.qic || 0) >= 2) {
                         // TF Mars 1 = (기술타일수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
                         // 아니면 거의 비활성(초반 ~4VP짜리 일찍 하지 말고 QIC를 확장에 쓰게). 사용자 규칙.
-                        if (getPlayerFlag(playerId, 'qicVpGate', false)) {
+                        if (getPlayerFlag(playerId, 'qicVpGate', true)) {
                             const vp = (player.techTiles?.length ?? 0) + 2;
                             score = (vp >= 6 || round === 6) ? 240 + vp * 10 : 25;
                         } else {
@@ -3448,7 +3458,7 @@ export class BotLogic {
                     if (i === 1 && (player.qic || 0) >= 2) {
                         // Eclipse 1 = (행성유형수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
                         // 아니면 거의 비활성(초반 QIC는 확장에). 사용자 규칙.
-                        if (getPlayerFlag(playerId, 'qicVpGate', false)) {
+                        if (getPlayerFlag(playerId, 'qicVpGate', true)) {
                             // 정식 행성유형 집합(lost_planet·가상광산 포함) — naive 계산은 누락해 과소평가했음(서버 Eclipse 수정과 동일).
                             const vp = getPlayerPlanetTypesForGeodens(game, playerId).size + 2;
                             score = (vp >= 6 || round === 6) ? 220 + vp * 10 : 25;
