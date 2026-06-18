@@ -71,6 +71,24 @@ export class FederationPlanner {
             const result = this.tryFormFederationFrom(game, playerId, startTile, requiredPower, availableTokens);
             if (!result) continue;
 
+            // [flag: fedEndgameVp] 마지막 라운드: 보상 선택지를 펼쳐 후보로 내보낸다 → MCTS가 각 보상의
+            // '다운스트림 총 VP'(자원으로 연구5단계 보상/고급타일/라운드·최종미션 점수까지)를 시뮬해서 고름.
+            // 토큰은 sunk cost라 위성 페널티 거의 0. (사용자 모델: 끝엔 12VP 강제도, 자원연방이 더 크면 그걸도.)
+            if (round >= 6 && getPlayerFlag(playerId, 'fedEndgameVp', true)) {
+                const availIds = this.getAvailableRewardIds(game, playerId);
+                const endgameSat = result.spentTokens * 2; // 동률일 때만 위성 적은 쪽 선호
+                for (const id of availIds) {
+                    results.push({
+                        selectedHexIds: result.selectedHexIds,
+                        selectedPlanetIds: result.selectedPlanetIds,
+                        rewardId: id,
+                        spentTokens: result.spentTokens,
+                        score: this.endgameVpScore(id) - endgameSat,
+                    });
+                }
+                continue;
+            }
+
             const rewardScore = this.getRewardScore(game, playerId, result.rewardId);
 
             // 위성(소모 파워 토큰) 절약을 유도하되,
@@ -89,7 +107,7 @@ export class FederationPlanner {
             //  사람은 집을 좁게 모으거나 아카/의회로 파워를 채워 위성 1~2개로 연방함.)
             const sats = result.spentTokens;
             let satCost: number;
-            if (getPlayerFlag(playerId, 'fedZoneStrategy', true)) {
+            if (getPlayerFlag(playerId, 'fedZoneStrategy', false)) {
                 // [사용자 모델] 초반 연방 위성 ≤4 선호(토큰 바닥내지 말고 후반 파워액션 여력 유지).
                 // 4까지는 기본 페널티만, 5부터 급증해 '먼 집까지 위성으로 잇는 sprawl' 비선호. 하드캡 아닌 넛지(보상 크면 형성됨). R5+엔 완화.
                 const escalate = round <= 4 ? 60 : 25;
@@ -136,8 +154,27 @@ export class FederationPlanner {
         return false;
     }
 
+    /** [flag: fedEndgameVp] 마지막 라운드 연방의 '순수 즉시 VP' 가치(×30). 엔진가치 없음 → 큰 VP 연방 우선(12>8>7).
+     *  자원/토큰 보상은 쓸 시간이 없어 VP만 계산. 사용자 모델: "끝엔 12VP면 위성 무시하고라도 연방". */
+    private static endgameVpScore(rewardId: string): number {
+        const vp =
+            (rewardId === 'fed-12vp' || rewardId === 'ship-fed-12vp') ? 12 :
+            (rewardId === 'fed-8vp-1q' || rewardId === 'fed-8vp-2t' || rewardId === 'ship-fed-8vp8c') ? 8 :
+            (rewardId === 'ship-fed-tech') ? 8 :   // 기술타일 후반 즉가치 근사
+            (rewardId === 'fed-7vp-2o' || rewardId === 'fed-7vp-6c' || rewardId === 'ship-fed-7vp3p2t') ? 7 :
+            (rewardId === 'fed-6vp-2k') ? 6 :
+            (rewardId === 'ship-fed-4vp1q2o' || rewardId === 'ship-fed-4vp4k') ? 4 :
+            (rewardId === 'ship-fed-3tf-mine') ? 2 :   // 광산 1개 즉가치 근사
+            rewardId.startsWith('ship-fed-') ? 3 : 5;  // 미분류 보수적
+        return vp * 30;
+    }
+
     private static getRewardScore(game: ServerGameState, playerId: string, rewardId: string): number {
         let score = 0;
+        // [flag: fedEndgameVp] 마지막 라운드: 순수 VP로 평가(12VP 연방을 7VP 자원연방보다 위로). 엔진/자원가치 무의미.
+        if ((game.roundNumber ?? 1) >= 6 && getPlayerFlag(playerId, 'fedEndgameVp', true)) {
+            return this.endgameVpScore(rewardId);
+        }
 
         // 우선순위 1: 우주선 연방 — [개선] 기존엔 모두 300 고정이라 12VP/기술타일과 약한 보상을 동일 취급했음.
         // 사용자 지정 핵심 레버이므로 전반적으로 매력 유지하되, 가치 차등화해 좋은 우주선 연방을 선택하게 함.
@@ -397,15 +434,8 @@ export class FederationPlanner {
         return null;
     }
 
-    private static finalizeFederation(
-        game: ServerGameState,
-        playerId: string,
-        selectedHexIds: string[],
-        selectedPlanetIds: string[],
-        spentTokens: number
-    ) {
-        // [버그수정 2026-06-18] 우주선 연방(ship-fed-*)이 보상 후보에서 누락됐었음 — 일반보다 월등(12VP/기술타일 등).
-        // 서버 federation_select_reward 규칙과 동일: 내가 입장한 우주선의 ship-fed가 아직 안 뺏겼으면 선택 가능(풀 무관).
+    /** 지금 형성하면 받을 수 있는 연방 보상 ID 목록(일반 풀 + 내가 입장한 우주선 ship-fed 중 미취득). */
+    private static getAvailableRewardIds(game: ServerGameState, playerId: string): string[] {
         const pool = game.federationPool || {};
         const player = game.players[playerId];
         const availableIds: string[] = FEDERATION_REWARDS.filter(r => pool[r.id] > 0).map(r => r.id);
@@ -417,6 +447,19 @@ export class FederationPlanner {
             const taken = Object.values(game.players).some(p => getFederationEntries(p).some(e => e.rewardId === shipRewardId));
             if (!taken) availableIds.push(shipRewardId);
         }
+        return availableIds;
+    }
+
+    private static finalizeFederation(
+        game: ServerGameState,
+        playerId: string,
+        selectedHexIds: string[],
+        selectedPlanetIds: string[],
+        spentTokens: number
+    ) {
+        // [버그수정 2026-06-18] 우주선 연방(ship-fed-*)이 보상 후보에서 누락됐었음 — 일반보다 월등(12VP/기술타일 등).
+        // 서버 federation_select_reward 규칙과 동일: 내가 입장한 우주선의 ship-fed가 아직 안 뺏겼으면 선택 가능(풀 무관).
+        const availableIds = this.getAvailableRewardIds(game, playerId);
         if (availableIds.length === 0) return null; // No reward available
 
         // getRewardScore로 평가 (ship-fed를 일반보상보다 정확히 높게 — 클래스의 메인 스코어러)

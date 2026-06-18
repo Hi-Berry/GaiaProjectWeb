@@ -1229,7 +1229,7 @@ export class BotLogic {
                 score -= fedPenalty(ts.id);
                 // [flag: fedZoneStrategy] 의회(파워값 3)로 올려 구역 연방을 '닫거나' 위성을 줄일 수 있으면 강하게 우대
                 // — 먼 집까지 위성으로 잇지 말고 구역 내부 티어업으로 7파워 채우라는 전략(사용자 모델).
-                if (getPlayerFlag(playerId, 'fedZoneStrategy', true) && round >= 4 && !game.simulation) {
+                if (getPlayerFlag(playerId, 'fedZoneUpgrade', false) && round >= 4 && !game.simulation) {
                     const before = BotLogic.getBestFederationSpentTokens(game, playerId);
                     const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, ts.id, 'planetary_institute');
                     if (before == null && after != null) score += 480;
@@ -1265,7 +1265,7 @@ export class BotLogic {
 
                 // 연구소→아카데미(파워값 3)로 구역 연방이 열리거나 더 싸지면 매우 강력.
                 // 기존엔 6라에서만 평가 → [flag: fedZoneStrategy] R4+로 확장해 중반에도 '구역 내부 티어업으로 연방 닫기' 유도(사용자 모델).
-                const evalAcademyFed = round === 6 || (getPlayerFlag(playerId, 'fedZoneStrategy', true) && round >= 4 && !game.simulation);
+                const evalAcademyFed = round === 6 || (getPlayerFlag(playerId, 'fedZoneUpgrade', false) && round >= 4 && !game.simulation);
                 if (evalAcademyFed) {
                     const before = BotLogic.getBestFederationSpentTokens(game, playerId);
                     const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, lab.id, 'academy');
@@ -3449,9 +3449,8 @@ export class BotLogic {
                         // Eclipse 1 = (행성유형수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
                         // 아니면 거의 비활성(초반 QIC는 확장에). 사용자 규칙.
                         if (getPlayerFlag(playerId, 'qicVpGate', false)) {
-                            const structs = game.map.filter(t => t.ownerId === playerId && t.structure);
-                            const types = new Set(structs.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
-                            const vp = types.size + 2;
+                            // 정식 행성유형 집합(lost_planet·가상광산 포함) — naive 계산은 누락해 과소평가했음(서버 Eclipse 수정과 동일).
+                            const vp = getPlayerPlanetTypesForGeodens(game, playerId).size + 2;
                             score = (vp >= 6 || round === 6) ? 220 + vp * 10 : 25;
                         } else {
                             score = 300; // QIC 기술/연방
@@ -3891,11 +3890,15 @@ export class BotLogic {
         let bonus = 0;
         const neighbors = game.map.filter(t => getDistance(t, tile) === 1);
 
+        // [flag: taklonsPowerPos] 타클론은 파워가 생명(브레인스톤 증폭) → 상대 건물(특히 광산: 업글확률↑=리치 더 받음) 옆 포지셔닝을 크게 우대.
+        // 사용자 모델: "상대 있는 곳/중앙으로 가서 파워 받을 준비". 봇은 보통 자기영역만 안전 확장해 이 핵심을 놓침.
+        const taklonsLeech = game.players[playerId]?.faction === 'taklons' && getPlayerFlag(playerId, 'taklonsPowerPos', false);
+
         for (const neighbor of neighbors) {
             // 다른 플레이어 건물 인접 (파워 수신용)
             if (neighbor.ownerId && neighbor.ownerId !== playerId) {
-                if (neighbor.structure === 'mine' || neighbor.structure === 'trading_station') bonus += 20;
-                else if (neighbor.structure) bonus += 10;
+                if (neighbor.structure === 'mine' || neighbor.structure === 'trading_station') bonus += taklonsLeech ? 55 : 20;
+                else if (neighbor.structure) bonus += taklonsLeech ? 28 : 10;
             }
 
             // 내 건물 인접 (군집화 및 위성 절약) - 대폭 상향
