@@ -3305,7 +3305,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (player.qic < 2) return;
 					player.qic -= 2;
 					const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
-					const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
+					void structures; const types = getPlayerPlanetTypesForGeodens(game, playerId); /* 잊혀진 행성(lost_planet)·가상광산 포함 정식 행성유형 집합 — 기존 naive 계산은 space타일의 lost_planet_mine을 놓쳐 미카운트(사용자 관찰) */
 					addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex, noLog: true });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -7277,7 +7277,7 @@ export function executeUseShipAction(
 			if (player.qic < 2) return false;
 			player.qic -= 2;
 			const structures = game.map.filter(t => t.ownerId === playerId && t.structure);
-			const types = new Set(structures.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
+			void structures; const types = getPlayerPlanetTypesForGeodens(game, playerId); /* 잊혀진 행성(lost_planet)·가상광산 포함 정식 행성유형 집합 — 기존 naive 계산은 space타일의 lost_planet_mine을 놓쳐 미카운트(사용자 관찰) */
 			addScore(game, playerId, types.size + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_eclipse', actionIndex, noLog: true });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
