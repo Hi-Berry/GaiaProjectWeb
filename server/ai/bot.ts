@@ -36,7 +36,8 @@ import {
     executeBalTakGaiaformerToQic,
     getEffectiveGaiaformers,
     executeConfirmTwilightFederation,
-    executePlaceLostPlanet
+    executePlaceLostPlanet,
+    getPlayerPlanetTypesForGeodens
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -1652,6 +1653,16 @@ export class BotLogic {
             let qicPenalty = neededQicForRange * 60; // 사용자 피드백: 거리(QIC) 페널티 2배 상향
             let bridgeheadBonus = 0;
 
+            // [flag: geodensNewType] 기오덴이 PI 보유 시 '아직 안 먹은 행성유형'에 지으면 즉시 +3K + 후반 이클립스2Q 연료(유형 다양성).
+            // 빌드 타깃을 미보유 유형으로 유도 → 종족 엔진을 실제 점수로 변환(연구만 올리고 빌드 안 따라오던 문제의 종족판 해결).
+            let geodensNewTypeBonus = 0;
+            if (player.faction === 'geodens' && tile.type && getPlayerFlag(playerId, 'geodensNewType', true)) {
+                const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                if (hasPI && !getPlayerPlanetTypesForGeodens(game, playerId).has(tile.type)) {
+                    geodensNewTypeBonus = 100;
+                }
+            }
+
             if (neededQicForRange > 0) {
                 // [사용자 피드백] 장거리(QIC) 확장의 가치를 주변 꿀행성 군집도로 평가하는 교두보(Bridgehead) 확보 전략
                 let easyTargetsDist1 = 0;
@@ -1719,6 +1730,9 @@ export class BotLogic {
             if (neededQicForRange === 1) {
                 qicPenalty += (round <= 4 ? 220 : 160);
             }
+
+            // 새-유형 가점은 allowBigQicJump 게이트(bridgeheadBonus>=180) 판정 이후에 더해 게이트 오염 방지
+            bridgeheadBonus += geodensNewTypeBonus;
 
             if (tile.type === 'gaia') {
                 // [수정 #1] 내 가이아포머가 성숙한 타일(pendingGaiaformerTiles)은 이미 포밍 완료 → 추가 QIC/오레 비용 없음.

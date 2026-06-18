@@ -523,7 +523,7 @@ function getMineCountForPassAndBonuses(game: GaiaGameState, playerId: string): n
 
 /** 기오덴 의회 보너스(새 행성 유형당 3K)용: 플레이어가 보유한 행성 유형 집합.
  *  란티다 기생 광산은 행성 유형 점수 산정에서 제외(다른 점수 경로와 일관). 가상 광산(인공물)은 포함. */
-function getPlayerPlanetTypesForGeodens(game: GaiaGameState, playerId: string): Set<string> {
+export function getPlayerPlanetTypesForGeodens(game: GaiaGameState, playerId: string): Set<string> {
 	const types = new Set<string>();
 	for (const t of game.map) {
 		if (t.ownerId === playerId && t.structure && t.structure !== 'ship') {
@@ -2716,7 +2716,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('auto_setup_test', ({ gameId, selfPlay, headToHead }: {
 			gameId: string;
 			selfPlay?: boolean;
-			headToHead?: { bPositions: number[]; A: PlayerVariant; B: PlayerVariant };
+			headToHead?: { bPositions: number[]; A: PlayerVariant; B: PlayerVariant; forceFaction?: string; forceFactionPos?: number };
 		}) => {
 			const game = games.get(gameId);
 			if (!game) return;
@@ -2764,6 +2764,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 					}
 				});
 
+				// [faction-forcing] head2head 종족별 측정: 목표 종족을 고정 위치(기본 0)에 강제 배정.
+				// 그 종족의 색/ID를 미리 선점해 랜덤 배정이 같은 색을 가져가지 않게 하고(중복 방지),
+				// 목표 위치 좌석엔 명시적으로 그 종족을 앉힌다. B_PATTERNS 회전이 그 좌석을 절반은 B(플래그ON)/절반은 A(OFF)로
+				// 만들어 → 같은 종족·같은 좌석을 ON/OFF로 paired 비교(좌석/위치 편향 통제).
+				const forceFaction = headToHead?.forceFaction;
+				const forcePos = headToHead?.forceFactionPos ?? 0;
+				if (forceFaction) {
+					const ff = FACTIONS.find(fac => fac.id === forceFaction);
+					if (ff) { usedColors.add(ff.color); usedFactionIds.add(ff.id); }
+				}
+
 				let factionIdx = 0;
 				shuffledPlayerIds.forEach((pid, idx) => {
 					const player = game.players[pid];
@@ -2772,6 +2783,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (player.faction) {
 						executeSelectFaction(io, game, pid, player.faction, idx + 1, { skipBotTrigger: true });
 						return;
+					}
+
+					// [faction-forcing] 목표 위치 좌석엔 강제 종족 배정 (위에서 색/ID 선점했으므로 랜덤과 충돌 없음)
+					if (forceFaction && idx === forcePos) {
+						const ff = FACTIONS.find(fac => fac.id === forceFaction);
+						if (ff) {
+							executeSelectFaction(io, game, pid, ff.id, idx + 1, { skipBotTrigger: true });
+							return;
+						}
 					}
 
 					// 중복되지 않는 컬러/팩션을 가진 팩션 찾기

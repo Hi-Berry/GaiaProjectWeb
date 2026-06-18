@@ -13,8 +13,22 @@
 | `H2H_BASE_PORT` | 5300 | 동시 2런이면 다른 포트(예 5400)로 분리. |
 | `H2H_REPORT` | data/h2h-report.json | 동시 2런이면 다른 경로로 분리. |
 | `AI_CHALLENGER_FLAGS` | server/ai/challenger.flags.json | 챌린저 플래그 파일. run-h2h.sh가 이 기본 파일에 써넣음. |
+| `H2H_FORCE_FACTION` | (없음) | **종족별 측정용.** 주면 그 종족을 고정좌석(`H2H_FORCE_FACTION_POS`, 기본 0)에 강제 배정. |
+| `H2H_FORCE_FACTION_POS` | 0 | 강제 종족의 turn-order 위치(0~3). |
 
 챔피언 플래그는 기본 `{}`(없음). 챌린저만 `challenger.flags.json`의 플래그가 켜진 상태로 비교됨.
+
+## ★ 종족별 측정 (faction-forcing) — 2026-06-18 추가
+
+종족 전용 변경(예 geodens 전략)은 **랜덤 배정이면 신호가 ~1/4로 희석**돼 120판으로도 유의차가 안 뜬다(expansionResearch가 전 종족 공통이라 측정됐던 것). 해결:
+
+- `H2H_FORCE_FACTION=geodens` → 그 종족을 **고정좌석(pos 0)** 에 앉힌다. B_PATTERNS 6패턴 중 pos 0은 B 3회/A 3회 → **그 좌석이 절반은 B(플래그ON)/절반은 A(OFF)**.
+- 결과 = **같은 종족·같은 고정좌석을 ON vs OFF로 paired 비교**(좌석/위치 편향 통제). 콘솔 `★ [faction] 플래그ON .. vs OFF .. → Δ.. (p≈..)` 줄과 리포트 `factionSplit`이 핵심 지표 — 전체 승률/마진은 비대상 좌석 때문에 희석되니 **이 줄을 봐야** 함.
+- 래퍼: `bash run-h2h.sh '{"flag":true}' 120 400 6 geodens` (5번째 인자 = 강제 종족).
+- 무편향 검증됨: flags `{}`+forceFaction이면 ON/OFF Δ≈0(p≈0.97).
+
+### ⚠️ 래퍼 JSON 버그(수정함, 2026-06-18)
+`FLAGS="${1:-{}}"`가 bash에서 `{"x":true}}`로 깨져 `challenger.flags.json` 파싱 실패 → `readJson(...) ?? {}`로 조용히 폴백(플래그 미적용). **리포트 `flagsDiffer:true` 매번 확인**(false면 챔피언끼리 무효 측정). 수정: `FLAGS="$1"; [ -z "$FLAGS" ] && FLAGS='{}'`.
 
 ## 리포트(data/h2h-report.json) 읽기
 

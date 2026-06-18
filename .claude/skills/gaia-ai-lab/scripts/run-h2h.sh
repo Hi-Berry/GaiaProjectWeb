@@ -11,13 +11,18 @@
 set -e
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 
-FLAGS="${1:-{}}"
+# 주의: ${1:-{}} 로 쓰면 bash가 첫 '}'에서 확장을 끊고 마지막 '}'를 리터럴로 붙여
+# challenger.flags.json이 '{"x":true}}' 로 깨져 JSON.parse 실패 → {}로 폴백(플래그 미적용).
+FLAGS="$1"
+[ -z "$FLAGS" ] && FLAGS='{}'
 GAMES="${2:-120}"
 MCTS="${3:-400}"
 WORKERS="${4:-6}"
+# 5번째 인자 = 강제 종족(예: geodens). 주면 그 종족을 고정좌석에 앉혀 절반 B(플래그ON)/절반 A(OFF)로 paired 비교.
+FORCE_FACTION="${5:-}"
 
 echo "$FLAGS" > server/ai/challenger.flags.json
-echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS"
+echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS${FORCE_FACTION:+ | forceFaction=$FORCE_FACTION}"
 
 # 좀비(이전에 중단된 head2head 워커) 정리 — 개발서버(watch)/Cursor는 보존
 if command -v powershell.exe >/dev/null 2>&1; then
@@ -27,4 +32,5 @@ fi
 # 가중치 격리: 챌린저도 챔피언 가중치 사용 → 플래그만 비교 (weightsDiffer=false 확인할 것)
 AI_CHALLENGER_WEIGHTS=server/ai/aiWeights.json \
 H2H_GAMES="$GAMES" H2H_MCTS_MS="$MCTS" H2H_WORKERS="$WORKERS" \
+H2H_FORCE_FACTION="$FORCE_FACTION" \
   npm run head2head
