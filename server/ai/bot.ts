@@ -803,9 +803,12 @@ export class BotLogic {
         }
 
         // 2. pendingTerraformSteps가 있으면 바로 광산 건설 (다른 메인 액션 차단)
+        //    단, 지을 데가 없으면(사거리밖/자원부족/광산한도) 빈 배열을 그대로 반환하면 후보 0개 → 봇 강제 패스 +
+        //    연구 블록(아래)에 도달 못 해 4지식이 묶이는 버그(사용자 관찰). 못 지을 땐 강제 반환하지 말고 일반 후보로 폴백.
         if ((player.pendingTerraformSteps || 0) > 0) {
             const builds = this.findBuildActionsWithPendingSteps(game, playerId);
-            return builds; // 건설이 강제되므로 여기서 바로 반환 (업그레이드 등 다른 액션 배제)
+            if (builds.length > 0) return builds; // 지을 수 있으면 그것만(다른 액션 배제)
+            // 못 지으면 폴백: 아래에서 연구/업그레이드/파워 등 일반 후보를 계속 생성
         }
 
         // 3. Ivits 우주정거장 전략
