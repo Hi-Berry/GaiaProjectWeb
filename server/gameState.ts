@@ -1022,6 +1022,11 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 		ep.tempRangeBonus = false;
 		ep.rangeBonusActive = false;
 		ep.gleensNavBonusActive = false;
+		// 무료광산/테라폼 스텝도 '이 턴 한정' — 안 지우면 다음 턴으로 새서 ship-tech 2TF/ship-fed 3TF의
+		// 무료 터라폼·무료 광산이 엉뚱한 빌드(예: 3TF 땅)를 통째로 무료로 만든다(사용자 관찰).
+		ep.nextMineFreeFromShipTech = false;
+		ep.spaceshipFed3TfMineFree = false;
+		ep.pendingTerraformSteps = 0;
 	}
 	game.pendingTurnEndPlayerId = undefined;
 
