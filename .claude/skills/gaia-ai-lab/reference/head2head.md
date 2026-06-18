@@ -1,0 +1,47 @@
+# head2head 검증 가이드
+
+`npm run head2head` = `tsx server/ai/headToHead.ts`. 챔피언(현행) 2석 + 도전자(변경) 2석을 같은 테이블에 앉히고, 좌석 6패턴 순환으로 위치 편향을 상쇄한 뒤 도전자 승률·VP마진을 유의성 검정과 함께 보고. 워커가 서버 프로세스를 직접 spawn해 병렬 진행.
+
+## 핵심 환경변수
+
+| 변수 | 기본 | 비고 |
+|---|---|---|
+| `AI_CHALLENGER_WEIGHTS` | candidate.json | **항상 `server/ai/aiWeights.json`(=챔피언)로 고정**해 가중치 격리. 안 하면 candidate 가중치가 섞여 오염. |
+| `H2H_GAMES` | 60 | 경계 결과는 120+로 굳힘. |
+| `H2H_MCTS_MS` | 500 | 보통 400. 낮추면 빠르지만 봇 약해짐(대칭이라 비교는 유효). |
+| `H2H_WORKERS` | 3 | 24코어면 6 권장(처리량↑, 품질 유지). |
+| `H2H_BASE_PORT` | 5300 | 동시 2런이면 다른 포트(예 5400)로 분리. |
+| `H2H_REPORT` | data/h2h-report.json | 동시 2런이면 다른 경로로 분리. |
+| `AI_CHALLENGER_FLAGS` | server/ai/challenger.flags.json | 챌린저 플래그 파일. run-h2h.sh가 이 기본 파일에 써넣음. |
+
+챔피언 플래그는 기본 `{}`(없음). 챌린저만 `challenger.flags.json`의 플래그가 켜진 상태로 비교됨.
+
+## 리포트(data/h2h-report.json) 읽기
+
+- `config.weightsDiffer` — **반드시 false** 확인(격리 됐는지). true면 결과 무효(가중치 오염).
+- `bWins/aWins/draws`, `bWinRate`, `winPValue` — B=도전자(챌린저).
+- `avgChampionVp / avgChallengerVp`, `vpMarginMean`(도전자−챔피언), `vpMarginPValue`.
+- `verdict` — 자동 판정 문구.
+
+판정 기준: 승률 p<0.05 + VP마진 양수 = **유의 향상**(채택). |마진|≈0·p≫0.05 = **무해**. VP 음수 방향 + 유의 = **약화**(기각). 경계(p≈0.05~0.2)는 판수 늘려 재확인.
+
+## 종족 평균 같이 뽑기
+
+head2head stdout의 게임별 라인(`A:faction=score | B:faction=score | ...`)을 보존하면 `scripts/faction-scores.mjs`로 종족 평균 집계 가능. **`tail`로 자르면 데이터 손실** — 전체 출력을 파일로 받을 것(run-h2h.sh는 자름 없음). 챔피언끼리(`{}`) 돌리면 가장 깨끗한 종족 자가대국.
+
+## 좀비 정리 (TaskStop 후)
+
+head2head를 중단하면 Windows에서 워커(`npx tsx server/index.ts`)가 고아로 남음. 정리(개발서버 watch·Cursor는 보존):
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*GaiaProjectWeb*' -and $_.CommandLine -like '*server/index.ts*' -and $_.CommandLine -notlike '*watch*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+`run-h2h.sh`가 시작 전 자동으로 이걸 한다. 가능하면 중단 말고 완주시킬 것.
+
+## 시간 감
+
+- 봇 정상(버그 없음)이면 6라운드 풀게임 → 게임당 길다. 워커6·120판 ≈ 30~40분. 너무 빠르면 봇이 일찍 패스하는 버그 의심.
+- `tail -8 | ...` 파이프로 받으면 진행 중엔 출력이 안 보임(끝나야 flush). 진행률 보려면 파이프 없이 받거나 `grep "game N/"`.

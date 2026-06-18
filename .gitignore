@@ -12,7 +12,10 @@ data/h2h-*.log
 data/h2h-*.json
 data/pace-*.json
 data/valuenet-data.jsonl
-# 로컬 에이전트/IDE 설정
-.claude/
+# 로컬 에이전트/IDE 설정 (개인 설정은 무시하되, 공유 스킬 gaia-ai-lab은 추적)
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/gaia-ai-lab/
 # Supabase 서비스 키 (fetch-supabase-games.bat용) — 절대 커밋 금지
 scripts/supabase-key.txt
