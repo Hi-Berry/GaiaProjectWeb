@@ -88,9 +88,17 @@ export class FederationPlanner {
             // (데이터: 봇이 흩뿌린 집을 위성 ~10개로 잇느라 파워를 다 태우고 게임이 터짐.
             //  사람은 집을 좁게 모으거나 아카/의회로 파워를 채워 위성 1~2개로 연방함.)
             const sats = result.spentTokens;
-            const satCost = getPlayerFlag(playerId, 'fedSatEscalate', true)
-                ? sats * satellitePenalty + Math.max(0, sats - 2) * 35
-                : sats * satellitePenalty;
+            let satCost: number;
+            if (getPlayerFlag(playerId, 'fedZoneStrategy', true)) {
+                // [사용자 모델] 초반 연방 위성 ≤4 선호(토큰 바닥내지 말고 후반 파워액션 여력 유지).
+                // 4까지는 기본 페널티만, 5부터 급증해 '먼 집까지 위성으로 잇는 sprawl' 비선호. 하드캡 아닌 넛지(보상 크면 형성됨). R5+엔 완화.
+                const escalate = round <= 4 ? 60 : 25;
+                satCost = sats * satellitePenalty + Math.max(0, sats - 4) * escalate;
+            } else if (getPlayerFlag(playerId, 'fedSatEscalate', true)) {
+                satCost = sats * satellitePenalty + Math.max(0, sats - 2) * 35;
+            } else {
+                satCost = sats * satellitePenalty;
+            }
             const score = rewardScore - satCost;
             results.push({ ...result, score });
         }

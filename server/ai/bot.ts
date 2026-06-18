@@ -1213,6 +1213,14 @@ export class BotLogic {
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
                 score -= fedPenalty(ts.id);
+                // [flag: fedZoneStrategy] 의회(파워값 3)로 올려 구역 연방을 '닫거나' 위성을 줄일 수 있으면 강하게 우대
+                // — 먼 집까지 위성으로 잇지 말고 구역 내부 티어업으로 7파워 채우라는 전략(사용자 모델).
+                if (getPlayerFlag(playerId, 'fedZoneStrategy', true) && round >= 4 && !game.simulation) {
+                    const before = BotLogic.getBestFederationSpentTokens(game, playerId);
+                    const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, ts.id, 'planetary_institute');
+                    if (before == null && after != null) score += 480;
+                    else if (before != null && after != null && after < before) score += Math.min(280, (before - after) * 90);
+                }
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_big_building');
                 score += this.calculateFinalMissionBonus(game, playerId, ts, 'planetary_institute');
 
@@ -1241,15 +1249,17 @@ export class BotLogic {
                 if (round >= 2 && round <= 4 && academyCount === 0) score += 100; // 첫 아카데미는 중반까지 매우 강력 권장
                 if (round >= 5) score += 50;
 
-                // 6라: 연구소→아카데미로 연방이 열리거나(혹은 더 싸지면) 매우 강력
-                if (round === 6) {
+                // 연구소→아카데미(파워값 3)로 구역 연방이 열리거나 더 싸지면 매우 강력.
+                // 기존엔 6라에서만 평가 → [flag: fedZoneStrategy] R4+로 확장해 중반에도 '구역 내부 티어업으로 연방 닫기' 유도(사용자 모델).
+                const evalAcademyFed = round === 6 || (getPlayerFlag(playerId, 'fedZoneStrategy', true) && round >= 4 && !game.simulation);
+                if (evalAcademyFed) {
                     const before = BotLogic.getBestFederationSpentTokens(game, playerId);
                     const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, lab.id, 'academy');
                     if (before == null && after != null) {
                         score += 520;
                     } else if (before != null && after != null && after < before) {
                         score += Math.min(300, (before - after) * 100);
-                    } else {
+                    } else if (round === 6) {
                         score += 140;
                     }
                 }
@@ -1312,7 +1322,7 @@ export class BotLogic {
         game: ServerGameState,
         playerId: string,
         tileId: string,
-        upgradedStructure: 'trading_station' | 'academy'
+        upgradedStructure: 'trading_station' | 'academy' | 'planetary_institute'
     ): number | null {
         // lightweight clone: only what FederationPlanner reads (map + players + satellites/fed state)
         const clone: ServerGameState = JSON.parse(JSON.stringify(game));
