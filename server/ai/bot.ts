@@ -3403,7 +3403,14 @@ export class BotLogic {
                     }
                 } else if (shipTile.type === 'ship_tf_mars') {
                     if (i === 1 && (player.qic || 0) >= 2) {
-                        score = 320; // QIC 기술 타일: 매우 강력
+                        // TF Mars 1 = (기술타일수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
+                        // 아니면 거의 비활성(초반 ~4VP짜리 일찍 하지 말고 QIC를 확장에 쓰게). 사용자 규칙.
+                        if (getPlayerFlag(playerId, 'qicVpGate', false)) {
+                            const vp = (player.techTiles?.length ?? 0) + 2;
+                            score = (vp >= 6 || round === 6) ? 240 + vp * 10 : 25;
+                        } else {
+                            score = 320; // QIC 기술 타일: 매우 강력
+                        }
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
                         score = 200;
@@ -3417,7 +3424,16 @@ export class BotLogic {
                     }
                 } else if (shipTile.type === 'ship_eclipse') {
                     if (i === 1 && (player.qic || 0) >= 2) {
-                        score = 300; // QIC 기술/연방
+                        // Eclipse 1 = (행성유형수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
+                        // 아니면 거의 비활성(초반 QIC는 확장에). 사용자 규칙.
+                        if (getPlayerFlag(playerId, 'qicVpGate', false)) {
+                            const structs = game.map.filter(t => t.ownerId === playerId && t.structure);
+                            const types = new Set(structs.map(t => t.type).filter(t => t && t !== 'space' && t !== 'deep_space'));
+                            const vp = types.size + 2;
+                            score = (vp >= 6 || round === 6) ? 220 + vp * 10 : 25;
+                        } else {
+                            score = 300; // QIC 기술/연방
+                        }
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 1) {
                         score = 200;
