@@ -11,6 +11,7 @@ server/ai/aiWeights.flat.json
 data/h2h-*.log
 data/h2h-*.json
 data/pace-*.json
+data/diag-*.log
 data/valuenet-data.jsonl
 # 로컬 에이전트/IDE 설정 (개인 설정은 무시하되, 공유 스킬 gaia-ai-lab은 추적)
 .claude/*
