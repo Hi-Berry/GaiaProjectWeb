@@ -1965,12 +1965,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			player.usedSpecialActions = [];
 			player.usedBonusAction = false;
 			player.gleensNavBonusActive = false;
-			// 타클론: 가이아에 있던 브레인 스톤을 그릇1으로 복귀
-			if (player.faction === 'taklons' && player.brainStoneInGaia) {
-				player.brainStoneInGaia = false;
-				player.brainStoneBowl = 1;
-				log(`[Income] ${player.name} (Taklons): Brain Stone returned to Bowl 1`, 'game', undefined, { simulation: (game as any).simulation });
-			}
+			// [버그수정 2026-06-19] 타클론 브레인 스톤(가이아 영역) 복귀는 여기(income loop, 충전 적용 전)서 하면
+			// 그릇1으로 돌아온 직후 이 라운드 income 충전이 브레인스톤을 끌어올려버린다(사용자 관찰).
+			// 표준 순서(income 충전 → 가이아 단계 토큰 복귀)대로, 가이아포머 토큰 복귀와 같은 위치(income 이후)로 옮김.
 			// 아이타: 2그릇 태울 때 보관해 둔 토큰을 1그릇으로 복귀 (이제 gaiaformerPower로 통합 관리되므로 이 부분은 삭제 가능하거나 gaiaformerPower 로직으로 대체됨)
 			// 기존 itarsPendingBowl1Tokens 로직 삭제 (아래 가이아 포머 복귀 로직에서 통합 처리됨)
 
@@ -2016,6 +2013,16 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 	}
 
 	// 수익 단계 모두 완료 (재진입에서 대기자 없음, 또는 첫 진입에서 선택 필요자 없음)
+
+	// 타클론: 가이아 영역의 브레인 스톤을 그릇1로 복귀 (income 충전 이후 = 표준 가이아 단계 타이밍).
+	// brainStoneInGaia로 멱등 처리(재진입 시 이미 false면 스킵).
+	Object.values(game.players).forEach((p) => {
+		if (p.faction === 'taklons' && p.brainStoneInGaia) {
+			p.brainStoneInGaia = false;
+			p.brainStoneBowl = 1;
+			log(`[Gaia] ${p.name} (Taklons): Brain Stone returned to Bowl 1 (after income)`, 'game', undefined, { simulation: (game as any).simulation });
+		}
+	});
 
 	// 수익 단계가 모두 끝난 후 가이아 포머 파워 토큰 복귀
 	// 테란: 기본 능력으로 2그릇으로 복귀. 의회 있으면 추가로 토큰 수만큼 해택 선택.
