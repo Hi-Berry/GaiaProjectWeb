@@ -4091,7 +4091,19 @@ export class BotLogic {
             res.push({ type: 'use_special_action', params: { actionId: 'gleens-2nav' } });
         }
         if (player.faction === 'space_giants' && !player.usedSpecialActions?.includes('space_giants-2tf')) {
-            res.push({ type: 'use_special_action', params: { actionId: 'space_giants-2tf' } });
+            // 2-step 스페셜은 '그 2스텝으로 실제 광산을 지을 수 있을 때만' 후보로 — 안 그러면 스텝 받고
+            // 지을 데가 없어 폴백으로 연구를 올려 스텝을 통째로 버린다(사용자 관찰). gleens +2Nav 가드와 동일 취지.
+            const prevSteps = player.pendingTerraformSteps || 0;
+            let canBuildWith2 = false;
+            try {
+                player.pendingTerraformSteps = prevSteps + 2;
+                canBuildWith2 = this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
+            } finally {
+                player.pendingTerraformSteps = prevSteps;
+            }
+            if (canBuildWith2) {
+                res.push({ type: 'use_special_action', params: { actionId: 'space_giants-2tf' } });
+            }
         }
         if (player.faction === 'tinkeroids' && player.tinkeroidRoundSpecialId && !player.usedSpecialActions?.includes('tinkeroid-special')) {
             res.push({ type: 'use_special_action', params: { actionId: player.tinkeroidRoundSpecialId } });
