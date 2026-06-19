@@ -1426,7 +1426,7 @@ export function GameBoard({
 
         {/* z-30: 우측 디테일 패널(selectedTile, z-20)이 이 연방 팝업 위를 덮어 아랫부분(취소/완료) 클릭을
             가로채던 문제 수정 — 패널보다 위로 올림. (사용자 관찰: 연방 파워체크 팝업 아랫부분 클릭 안 됨) */}
-        <div className="absolute top-4 right-4 flex items-start gap-2 z-30">
+        <div className="absolute top-4 right-4 flex items-start gap-2 z-30 pointer-events-none [&>*]:pointer-events-auto">
           {/* 연방 구현 영역 (컴팩트 버전) */}
           {(() => {
             const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;

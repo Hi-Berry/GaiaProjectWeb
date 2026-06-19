@@ -15,7 +15,6 @@ import { ChatPanel } from '@/components/ChatPanel';
 
 import { PlayerPanel } from '@/components/PlayerPanel';
 import { GameLog } from '@/components/GameLog';
-import { ClickDebugOverlay } from '@/components/ClickDebugOverlay'; // [임시] 클릭 진단
 import { FactionSelect } from '@/components/FactionSelect';
 import { FactionBiddingPanel } from '@/components/FactionBiddingPanel';
 import { GameLobby } from '@/components/GameLobby';
@@ -1969,8 +1968,6 @@ export default function Game() {
   return (
     // h-screen(100vh)은 모바일에서 실제 가시 높이보다 커서 하단 버튼이 밀리고 페이지가 스크롤됨 → 100dvh로 고정
     <div className="flex h-[100dvh] overflow-hidden bg-background font-sans text-foreground relative">
-      {/* [임시] 클릭 지점 요소 진단 오버레이 — 우측 맵 클릭 안 되는 원인 파악용. 진단 후 제거. */}
-      <ClickDebugOverlay />
       {/* 관전자 표시: 전체 상단을 덮지 않도록 작은 플로팅 배지로만 표시 */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
         <div className="fixed left-3 bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
