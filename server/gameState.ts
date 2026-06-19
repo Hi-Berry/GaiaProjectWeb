@@ -2094,6 +2094,10 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 }
 
 export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState) {
+	// [버그수정 2026-06-19] 라운드당 액션단계는 한 번만 시작. 여러 경로(수익선택완료·Itars교환·Terran의회·tinkeroid)가
+	// 라운드시작을 중복 호출하면 index가 0으로 재리셋돼 시작 플레이어가 연속 2턴 하던 문제(사용자 관찰, Itars게임 4회).
+	if ((game as any).actionPhaseStartedRound === game.roundNumber) return;
+	(game as any).actionPhaseStartedRound = game.roundNumber;
 	// 수익 단계 종료 → 액션 단계는 항상 턴 순서 1번(선 플레이어)부터
 	game.currentPlayerIndex = 0;
 	// 첫 플레이어가 패스한 상태면 다음 플레이어로 (실제로는 라운드 초기에는 없을 수 있지만 방어적 코드)
@@ -2168,6 +2172,9 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 		});
 		return;
 	}
+	// [버그수정 2026-06-19] 라운드당 액션단계 1회만 시작(helperStartNewRoundTurn과 동일 가드) — 중복 시작 시 시작플레이어 더블턴 방지.
+	if ((game as any).actionPhaseStartedRound === game.roundNumber) return;
+	(game as any).actionPhaseStartedRound = game.roundNumber;
 	game.currentPlayerIndex = 0;
 	// 첫 플레이어가 패스한 상태면 다음 플레이어로
 	while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed && Object.values(game.players).some(p => !p.hasPassed)) {
