@@ -52,15 +52,12 @@ const SHIP_ACTION_LABELS: Record<string, [string, string, string]> = {
     ship_eclipse: ['2Q → (2 + Planet Types)VP', '2K+3P → Research', '6C → Ast'],
 };
 
-/** 연구트랙 플레이어 마커 외곽선: 종족색 명도에 맞춰 최소한만.
- *  어두운 색 → 얇은 흰 링(어두운 배경에서 보이게), 밝은 색 → 얇은 다크 엣지(과한 흰색 방지). */
-function markerOutline(hex?: string): string {
-  const m = (hex || '#888888').replace('#', '');
-  const r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
-  const lum = Number.isFinite(r + g + b) ? (0.299 * r + 0.587 * g + 0.114 * b) / 255 : 0.5;
-  return lum < 0.45
-    ? '0 0 0 1.5px rgba(255,255,255,0.85)'
-    : '0 0 0 1px rgba(0,0,0,0.5)';
+/** 연구트랙 플레이어 마커 외곽선: 모든 마커 동일하게.
+ *  1px 다크 엣지(원 경계를 또렷하게) + 부드러운 화이트 글로우(어두운 배경에서 떠 보이게).
+ *  색별로 다른 하드 링을 주면 어두운 종족만 원이 커 보이고 밝은 종족은 외곽선이 묻혀 일관성이 깨짐 →
+ *  글로우는 확산형이라 크기 차이 없이 모든 마커를 동일하게 살짝 띄움(흰색 과다 산만함도 적음). */
+function markerOutline(): string {
+  return '0 0 0 1px rgba(0,0,0,0.6), 0 0 3px 1px rgba(255,255,255,0.4)';
 }
 
 /** 우주선별 액션 테마 색상 (QIC, Power, Knowledge, Terraform, Credit, Asteroid 등 자원/액션 성격에 맞춤) */
@@ -592,7 +589,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     <div
                                                                         key={p.id}
                                                                         className="w-3 h-3 rounded-full flex-shrink-0"
-                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-3px' : '0', boxShadow: markerOutline(faction?.color) }}
+                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-3px' : '0', boxShadow: markerOutline() }}
                                                                         title={p.name}
                                                                     />
                                                                 );
@@ -1128,7 +1125,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                         <div
                                                                             key={p.id}
                                                                             className="w-4 h-4 rounded-full shadow-lg cursor-help group relative"
-                                                                            style={{ backgroundColor: faction?.color || '#fff', boxShadow: markerOutline(faction?.color) }}
+                                                                            style={{ backgroundColor: faction?.color || '#fff', boxShadow: markerOutline() }}
                                                                         >
                                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110]">
                                                                                 <Badge variant="outline" className="bg-zinc-950 text-[8px] whitespace-nowrap border-white/20">
