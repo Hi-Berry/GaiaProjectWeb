@@ -3870,7 +3870,29 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return;
 			}
 
-			executeAdvanceTech(io, game, playerId, trackId);
+			// 보상 트랙 전진(고급기술/우주선기술)이 거부되면 무반응 대신 사유를 안내 (사용자 관찰: 가이아5 클릭 무반응)
+			const player = game.players[playerId];
+			const wasPendingAdvance = game.pendingAdvancedTechTrackAdvance?.playerId === playerId
+				|| game.pendingShipTechTrackAdvance?.playerId === playerId;
+			const lvlBefore = (player?.research as any)?.[trackId] ?? -1;
+			const ok = executeAdvanceTech(io, game, playerId, trackId);
+			if (!ok && wasPendingAdvance) {
+				if (lvlBefore >= 5) {
+					socket.emit('game_error', { message: '이미 5단계라 더 올릴 수 없습니다.' });
+				} else if (lvlBefore === 4) {
+					if (countGreenFederations(player) < 1) {
+						socket.emit('game_error', { message: '5단계 진입에는 녹색 연방 토큰이 필요합니다. (고급 타일 획득에 이미 1개 사용했거나, 12점 연방은 녹색이 아닙니다)' });
+					} else if (isTrackLevel5Taken(game, trackId as ResearchTrack, playerId)) {
+						socket.emit('game_error', { message: '다른 플레이어가 이미 이 트랙 5단계에 있어 진입할 수 없습니다.' });
+					} else {
+						socket.emit('game_error', { message: '이 트랙을 5단계로 올릴 수 없습니다.' });
+					}
+				} else if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) {
+					socket.emit('game_error', { message: '발타크는 의회(PI)가 있어야 항해 트랙을 올릴 수 있습니다.' });
+				} else {
+					socket.emit('game_error', { message: '이 트랙을 전진할 수 없습니다.' });
+				}
+			}
 		});
 
 
