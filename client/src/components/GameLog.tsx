@@ -6,6 +6,14 @@ import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_A
 import { Clock } from 'lucide-react';
 import { raceFaceSrc } from '@/lib/racePortrait';
 
+/** #rrggbb → rgba 문자열 (연한 테두리용). */
+function hexToRgba(hex: string | undefined, alpha: number): string {
+  const h = (hex || '').replace('#', '');
+  if (h.length < 6) return `rgba(255,255,255,${alpha})`;
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 interface GameLogProps {
   game: GameState;
   onEntryMouseEnter?: (tileId: string) => void;
@@ -433,15 +441,15 @@ export function GameLog({
               onMouseLeave={() => onEntryMouseLeave?.()}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
               title="클릭해서 점수·자원 변동 보기"
-              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
-                ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
+              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-stretch gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction
+                ? 'bg-zinc-800/40 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
-                  ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-90'
-                  : 'bg-zinc-900/30 border-y border-r border-y-white/5 border-r-white/5'
-                } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:border-primary/50 hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
+                  ? 'bg-zinc-950/20 opacity-90'
+                  : 'bg-zinc-900/30'
+                } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
               style={{
-                // 좌측 바는 항상 종족색 우선 (AI 피드백 여부는 시안 ring으로 따로 표시)
-                borderLeftColor: factionColor ? factionColor : (isAiFeedbackLog ? '#22d3ee' : isMainAction ? '#3b82f6' : '#52525b'),
+                // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
+                borderColor: factionColor ? hexToRgba(factionColor, 0.45) : (isAiFeedbackLog ? 'rgba(34,211,238,0.4)' : isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'),
                 // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
                 scrollMarginTop: '2.75rem',
               }}
@@ -453,11 +461,10 @@ export function GameLog({
                   alt={factionObj?.name}
                   title={player?.name}
                   loading="lazy"
-                  className="shrink-0 self-start rounded-md object-cover select-none"
+                  className="shrink-0 self-stretch rounded-md object-cover object-center select-none"
                   style={{
-                    width: `${26 * (textScale ?? 1)}px`,
-                    height: `${22 * (textScale ?? 1)}px`,
-                    boxShadow: factionColor ? `0 0 0 1.5px ${factionColor}, 0 0 2px 1px rgba(0,0,0,0.5)` : undefined,
+                    width: `${32 * (textScale ?? 1)}px`,
+                    minHeight: `${24 * (textScale ?? 1)}px`,
                   }}
                 />
               )}
