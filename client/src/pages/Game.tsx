@@ -1082,6 +1082,11 @@ export default function Game() {
           GameClient.convertResource(gameId, '2power-to-1ore-1credit');
           return;
         }
+        // 타클론 브레인 우선 + 브레인스톤이 3그릇: 1파워(=1C) 대신 브레인스톤(3파워)을 3C로 바꿔 그릇1로 (사용자 요청)
+        if (isTak && (p.taklonsBrainPriority ?? true) && !p.brainStoneInGaia && p.brainStoneBowl === 3) {
+          GameClient.convertResource(gameId, '1brain-to-3credit');
+          return;
+        }
         if (!needPower(1)) return;
         GameClient.convertResource(gameId, '1power-to-1credit');
         return;
