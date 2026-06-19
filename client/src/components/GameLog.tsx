@@ -371,7 +371,7 @@ export function GameLog({
   };
 
   const content = (
-    <div ref={rootRef} className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0 pr-2"}`}>
+    <div ref={rootRef} className={`space-y-1 flex flex-col ${!hideHeader ? "px-3 py-2" : "p-0"}`}>
       {/* 라운드 점프 + 최신으로 — 상단 고정 툴바 (showToolbar일 때만) */}
       {showToolbar && (
       <div ref={topRef} className="sticky top-0 z-20 -mx-0.5 px-0.5 py-1 bg-zinc-950/95 backdrop-blur flex flex-col gap-1 border-b border-white/10">
