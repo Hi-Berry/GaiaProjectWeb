@@ -18,6 +18,8 @@ import {
   setNotifyBody,
   fireTestNotification,
 } from '@/lib/turnNotify';
+import { VolumeControl } from '@/components/VolumeControl';
+import { GameClient } from '@/lib/gameClient';
 
 interface HelpItem {
   label: string;
@@ -276,9 +278,12 @@ function NotifyToggle() {
 interface GameUiHelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  gameId?: string;
+  showTaklonsBrain?: boolean;
+  taklonsBrainPriority?: boolean;
 }
 
-export function GameUiHelpDialog({ open, onOpenChange }: GameUiHelpDialogProps) {
+export function GameUiHelpDialog({ open, onOpenChange, gameId, showTaklonsBrain, taklonsBrainPriority }: GameUiHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100">
@@ -293,6 +298,22 @@ export function GameUiHelpDialog({ open, onOpenChange }: GameUiHelpDialogProps) 
           style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
         >
           <NotifyToggle />
+          <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+            <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 / 종족</h3>
+            <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+              <div className="text-[10px] font-semibold text-zinc-200">알림음 크기 (0=음소거)</div>
+              <VolumeControl />
+            </div>
+            {showTaklonsBrain && gameId && (
+              <div className="flex items-center justify-between gap-3 border-t border-white/8 px-2 py-1.5">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-semibold text-zinc-200">🧠 타클론 파워 소비</div>
+                  <div className="text-[9px] leading-snug text-zinc-500">켜짐=큰 파워에 브레인 스톤 먼저 / 꺼짐=일반 토큰 먼저 써 브레인 보존</div>
+                </div>
+                <button type="button" onClick={() => GameClient.setTaklonsBrainPriority(gameId, !(taklonsBrainPriority ?? true))} className="shrink-0 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:text-white">{(taklonsBrainPriority ?? true) ? '브레인 우선' : '브레인 보존'}</button>
+              </div>
+            )}
+          </section>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {HELP_COLUMNS.map((column, colIdx) => (
               <div key={colIdx} className="flex min-w-0 flex-col gap-2">

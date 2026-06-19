@@ -15,7 +15,6 @@ import { ChatPanel } from '@/components/ChatPanel';
 
 import { PlayerPanel } from '@/components/PlayerPanel';
 import { GameLog } from '@/components/GameLog';
-import { VolumeControl } from '@/components/VolumeControl';
 import { FactionSelect } from '@/components/FactionSelect';
 import { FactionBiddingPanel } from '@/components/FactionBiddingPanel';
 import { GameLobby } from '@/components/GameLobby';
@@ -4946,21 +4945,6 @@ export default function Game() {
                   />
                 )}
               </div>
-            </div>
-
-            {/* 상태창 하단: 알림음 볼륨 + (타클론) 브레인 우선 토글 */}
-            <div className="flex items-center justify-end gap-3 border-t border-white/10 px-4 py-1.5 shrink-0">
-              {currentPlayer?.faction === 'taklons' && gameId && (
-                <button
-                  type="button"
-                  onClick={() => GameClient.setTaklonsBrainPriority(gameId, !(currentPlayer.taklonsBrainPriority ?? true))}
-                  title="파워 소비 시 브레인 스톤 우선(켜짐) / 일반 토큰 우선·브레인 보존(꺼짐)"
-                  className="flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] font-bold text-amber-300 hover:text-white"
-                >
-                  🧠 {(currentPlayer.taklonsBrainPriority ?? true) ? '브레인 우선' : '브레인 보존'}
-                </button>
-              )}
-              <VolumeControl />
             </div>
 
             {/* Free Actions Modal */}
