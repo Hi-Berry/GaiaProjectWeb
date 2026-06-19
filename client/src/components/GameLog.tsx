@@ -441,7 +441,7 @@ export function GameLog({
               onMouseLeave={() => onEntryMouseLeave?.()}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
               title="클릭해서 점수·자원 변동 보기"
-              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-stretch gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction
+              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
@@ -461,10 +461,10 @@ export function GameLog({
                   alt={factionObj?.name}
                   title={player?.name}
                   loading="lazy"
-                  className="shrink-0 self-stretch rounded-md object-cover object-center select-none"
+                  className="shrink-0 self-start rounded-md object-cover object-center select-none"
                   style={{
                     width: `${32 * (textScale ?? 1)}px`,
-                    minHeight: `${24 * (textScale ?? 1)}px`,
+                    height: `${27 * (textScale ?? 1)}px`,
                   }}
                 />
               )}
