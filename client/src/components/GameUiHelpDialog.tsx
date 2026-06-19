@@ -93,6 +93,7 @@ const HELP_COLUMNS: HelpSection[][] = [
       title: '오른쪽 상태창',
       items: [
         { label: '클릭', description: '연방·기술·스페셜' },
+        { label: '우클릭', description: '프리액션 자원 변환 O→C·K→C·Q→O' },
         { label: 'hover', description: '맵 강조' },
         { label: '드래그', description: '너비 조절' },
         { label: 'AI', description: '봇 피드백 (L 로그)' },
