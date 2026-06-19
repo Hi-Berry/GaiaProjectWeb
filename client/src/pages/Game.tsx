@@ -425,6 +425,9 @@ export default function Game() {
   const lastWasMyBonusRef = useRef(false);
   const lastPendingTechSelectionRef = useRef<string | null>(null);
   const lastWasMyTechRef = useRef(false);
+  const lastBidderRef = useRef<string | null>(null);
+  const lastWasMyBidRef = useRef(false);
+  const lastMyOfferCountRef = useRef(0);
   const lastPowerStateRef = useRef({ p1: 0, p2: 0, p3: 0, bs: 0 });
   const prevPhaseRef = useRef<string | undefined>(undefined);
 
@@ -808,7 +811,22 @@ export default function Game() {
       lastPendingTechSelectionRef.current = pendingTechPlayer || null;
       lastWasMyTechRef.current = isMyTech;
     }
-  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, playerId]);
+
+    // 4. Special cases: Faction bidding (별도 상태 — turnOrder로 안 돌아감)
+    //    입찰 차례(currentBidderId) 또는 낙찰 후 종족 픽 차례(pickPlayerId)가 내게 오면 알림.
+    const fb = game.factionBidding;
+    const bidderId = fb ? (fb.phase === 'pick' ? fb.pickPlayerId : fb.currentBidderId) : null;
+    const isMyBid = !!bidderId && bidderId === playerId;
+    if (bidderId !== lastBidderRef.current || isMyBid !== lastWasMyBidRef.current) {
+      if (isMyBid && !lastWasMyBidRef.current) {
+        playMyTurnSound();
+      } else if (!isMyBid && bidderId && bidderId !== lastBidderRef.current) {
+        playOtherTurnSound();
+      }
+      lastBidderRef.current = bidderId || null;
+      lastWasMyBidRef.current = isMyBid;
+    }
+  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId]);
 
   // Power Receive sound notification
   useEffect(() => {
@@ -843,7 +861,18 @@ export default function Game() {
     const myPendingOffers = (game.pendingPowerOffers ?? []).filter(
       (o) => o && !o.responded && o.targetPlayerId === playerId,
     );
-    if (myPendingOffers.length === 0) return;
+    if (myPendingOffers.length === 0) {
+      lastMyOfferCountRef.current = 0;
+      return;
+    }
+
+    // 새 파워 제안(누수)이 도착하면 즉시 1회 알림 — "내 차례" 신호. (이후엔 5초마다 리마인드)
+    if (myPendingOffers.length > lastMyOfferCountRef.current) {
+      const el = document.activeElement;
+      const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+      if (!isTyping) playPowerReceiveSound();
+    }
+    lastMyOfferCountRef.current = myPendingOffers.length;
 
     const interval = window.setInterval(() => {
       // 입력 중에는 방해하지 않기
