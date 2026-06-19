@@ -31,7 +31,7 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
 
     // 크기 조절(가로=패널 폭, 세로=메시지 영역 높이) — localStorage 보존. 좌하단 앵커라 우측↑폭/상단↑높이.
     const [width, setWidth] = useState(() => { try { const v = Number(localStorage.getItem('gaia-chat-w')); return v >= 220 ? v : 320; } catch { return 320; } });
-    const [listHeight, setListHeight] = useState(() => { try { const v = Number(localStorage.getItem('gaia-chat-h')); return v >= 120 ? v : 224; } catch { return 224; } });
+    const [listHeight, setListHeight] = useState(() => { try { const v = Number(localStorage.getItem('gaia-chat-h')); return v >= 60 ? v : 224; } catch { return 224; } });
     const widthRef = useRef(width); widthRef.current = width;
     const listHeightRef = useRef(listHeight); listHeightRef.current = listHeight;
     useEffect(() => { try { localStorage.setItem('gaia-chat-w', String(width)); } catch { /* noop */ } }, [width]);
@@ -42,7 +42,7 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
         const sx = e.clientX, sy = e.clientY, sw = widthRef.current, sh = listHeightRef.current;
         const onMove = (ev: PointerEvent) => {
             if (axis !== 'h') setWidth(Math.max(220, Math.min(window.innerWidth * 0.9, sw + (ev.clientX - sx))));
-            if (axis !== 'w') setListHeight(Math.max(120, Math.min(window.innerHeight * 0.7, sh - (ev.clientY - sy))));
+            if (axis !== 'w') setListHeight(Math.max(60, Math.min(window.innerHeight * 0.85, sh - (ev.clientY - sy))));
         };
         const onUp = () => {
             window.removeEventListener('pointermove', onMove);
