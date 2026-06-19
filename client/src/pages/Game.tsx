@@ -1065,6 +1065,19 @@ export default function Game() {
       return ok;
     };
 
+    // 낙관적 UI: 변환 결과를 로컬에 즉시 반영(클릭 대기 제거), 서버 game_updated가 권위값으로 덮어씀.
+    // 타클론은 브레인스톤 그릇 이동이 복잡해 낙관 생략(서버 대기). 그릇 변동 없는 단순 자원만.
+    const applyOptimistic = (delta: Record<string, number>) => {
+      if (isTak) return;
+      setGame(prev => {
+        if (!prev || !playerId) return prev;
+        const pl = prev.players[playerId]; if (!pl) return prev;
+        const np: Record<string, unknown> = { ...pl };
+        for (const k in delta) np[k] = Math.max(0, (Number(np[k]) || 0) + delta[k]);
+        return { ...prev, players: { ...prev.players, [playerId]: np } } as typeof prev;
+      });
+    };
+
     switch (kind) {
       case 'ore':
         if (chainValid) {
@@ -1075,7 +1088,7 @@ export default function Game() {
           return;
         }
         if (!needPower(3)) return;
-        GameClient.convertResource(gameId, '3power-to-1ore');
+        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, ore: 1 } : { power3: -3, power1: 3, ore: 1 }); GameClient.convertResource(gameId, '3power-to-1ore');
         if (hasNevPI) nevlasOreChainRef.current = { expectP3: (p.power3 ?? 0) - 2, expectOre: (p.ore ?? 0) + 1 };
         return;
       case 'credit':
@@ -1091,11 +1104,11 @@ export default function Game() {
           return;
         }
         if (!needPower(1)) return;
-        GameClient.convertResource(gameId, '1power-to-1credit');
+        applyOptimistic(hasNevPI ? { power3: -1, power1: 1, credits: 2 } : { power3: -1, power1: 1, credits: 1 }); GameClient.convertResource(gameId, '1power-to-1credit');
         return;
       case 'knowledge':
         if (!needPower(4)) return;
-        GameClient.convertResource(gameId, '4power-to-1knowledge');
+        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, knowledge: 1 } : { power3: -4, power1: 4, knowledge: 1 }); GameClient.convertResource(gameId, '4power-to-1knowledge');
         return;
       case 'qic':
         if (p.faction === 'gleens' && !(game.map?.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right'))) {
@@ -1103,7 +1116,7 @@ export default function Game() {
           return;
         }
         if (!needPower(4)) return;
-        GameClient.convertResource(gameId, '4power-to-1qic');
+        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, qic: 1 } : { power3: -4, power1: 4, qic: 1 }); GameClient.convertResource(gameId, '4power-to-1qic');
         return;
       case 'bowl1':
         if ((p.ore ?? 0) < 1) { toast({ title: '광물 부족', description: '광물이 1개 필요합니다.', variant: 'destructive' }); return; }
