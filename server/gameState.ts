@@ -823,7 +823,8 @@ function computeIvitsFederationConnected(
 	const comp = new Set<string>([startId]);
 	const queue = [startId];
 	while (queue.length) {
-		const cur = game.map.find(t => t.id === queue.shift()!);
+		const cid = queue.shift()!; // [버그수정] 예전엔 game.map.find(t => t.id === queue.shift())로 써서 shift가 find 술어 안에서 맵 원소마다 호출돼 큐가 잘못 비워졌음(BFS가 첫 노드에서 끝나 연방이 거의 항상 '연결 안 됨'으로 거부됨). shift를 먼저 꺼낸다.
+		const cur = game.map.find(t => t.id === cid);
 		if (!cur) continue;
 		for (const n of getNeighbors(game.map, cur)) {
 			if (!comp.has(n.id) && passable(n)) { comp.add(n.id); queue.push(n.id); }
