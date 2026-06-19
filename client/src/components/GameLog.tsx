@@ -5,6 +5,14 @@ import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 
+/** 배경색 명도에 따라 읽기 좋은 글씨색(밝은 배경=검정, 어두운 배경=흰색). */
+function readableTextColor(hex: string | undefined): string {
+  const h = (hex || '').replace('#', '');
+  if (h.length < 6) return '#fff';
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#000' : '#fff';
+}
+
 interface GameLogProps {
   game: GameState;
   onEntryMouseEnter?: (tileId: string) => void;
@@ -419,7 +427,9 @@ export function GameLog({
           const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText) || /^Federation Reward$/i.test(actionText);
 
           const player = log.playerId ? game.players[log.playerId] : undefined;
-          const factionColor = player?.faction ? FACTIONS.find(f => f.id === player.faction)?.color : undefined;
+          const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
+          const factionColor = factionObj?.color;
+          const factionInit = (factionObj?.name?.trim()?.[0] || '').toUpperCase();
           const primaryImg = getLogPrimaryImage(log, player?.faction);
           const isAiFeedbackLog = !!log.aiFeedbackActionId;
 
@@ -443,6 +453,14 @@ export function GameLog({
                 scrollMarginTop: '2.75rem',
               }}
             >
+              {factionInit && (
+                // 색깔바 왼쪽 위 종족 이니셜 — 색만으로 헷갈리는 종족(빨강/주황 등) 구분용
+                <span
+                  className="shrink-0 self-start mt-0.5 font-black leading-none rounded px-[3px] py-[1px] select-none"
+                  style={{ backgroundColor: factionColor, color: readableTextColor(factionColor), fontSize: `${8 * (textScale ?? 1)}px` }}
+                  title={player?.name}
+                >{factionInit}</span>
+              )}
               <div className="flex-1 min-w-0">
                 <div
                   className={`flex items-center min-w-0 ${isBonusTileLog ? 'gap-1.5' : 'gap-2'}`}

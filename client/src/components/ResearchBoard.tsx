@@ -60,6 +60,19 @@ function markerOutline(): string {
   return '0 0 0 1px rgba(0,0,0,0.6), 0 0 3px 1px rgba(255,255,255,0.4)';
 }
 
+/** 종족명 첫 글자(대문자). 색만으로 헷갈리는 종족 구분용. */
+function factionInitial(faction: { name?: string } | null | undefined): string {
+  return (faction?.name?.trim()?.[0] || '?').toUpperCase();
+}
+
+/** 배경색 명도에 따라 읽기 좋은 글씨색(밝은 배경=검정, 어두운 배경=흰색). */
+function readableTextColor(hex: string): string {
+  const h = (hex || '').replace('#', '');
+  if (h.length < 6) return '#fff';
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#000' : '#fff';
+}
+
 /** 우주선별 액션 테마 색상 (QIC, Power, Knowledge, Terraform, Credit, Asteroid 등 자원/액션 성격에 맞춤) */
 const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: string; text: string }[]> = {
     ship_twilight: [
@@ -585,13 +598,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         <div className="flex ml-1.5 items-center justify-center">
                                                             {playersHere.map((p, i) => {
                                                                 const faction = FACTIONS.find(f => f.id === p.faction);
+                                                                const mColor = faction?.color || '#fff';
                                                                 return (
                                                                     <div
                                                                         key={p.id}
-                                                                        className="w-3 h-3 rounded-full flex-shrink-0"
-                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-3px' : '0', boxShadow: markerOutline() }}
+                                                                        className="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center font-black"
+                                                                        style={{ backgroundColor: mColor, marginLeft: i > 0 ? '-3px' : '0', boxShadow: markerOutline(), color: readableTextColor(mColor), fontSize: '7px', lineHeight: 1 }}
                                                                         title={p.name}
-                                                                    />
+                                                                    >{factionInitial(faction)}</div>
                                                                 );
                                                             })}
                                                         </div>
@@ -1121,12 +1135,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 .filter(p => p.research && p.research[track.id as ResearchTrack] === level)
                                                                 .map(p => {
                                                                     const faction = FACTIONS.find(f => f.id === p.faction);
+                                                                    const mColor = faction?.color || '#fff';
                                                                     return (
                                                                         <div
                                                                             key={p.id}
-                                                                            className="w-4 h-4 rounded-full shadow-lg cursor-help group relative"
-                                                                            style={{ backgroundColor: faction?.color || '#fff', boxShadow: markerOutline() }}
+                                                                            className="w-4 h-4 rounded-full shadow-lg cursor-help group relative flex items-center justify-center font-black"
+                                                                            style={{ backgroundColor: mColor, boxShadow: markerOutline(), color: readableTextColor(mColor), fontSize: '9px', lineHeight: 1 }}
                                                                         >
+                                                                            <span className="pointer-events-none">{factionInitial(faction)}</span>
                                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110]">
                                                                                 <Badge variant="outline" className="bg-zinc-950 text-[8px] whitespace-nowrap border-white/20">
                                                                                     {p.name}
