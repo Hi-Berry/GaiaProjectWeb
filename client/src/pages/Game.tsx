@@ -1049,6 +1049,30 @@ export default function Game() {
   };
 
   /** 프리액션 모드: 내 상태창 자원/파워 클릭 → 즉시 변환. 네뷸라 의회는 O 연속 클릭(3P→2O)·O 후 C(2P→1O+1C) 체인 지원 */
+  // 프리액션 우클릭: K 우클릭 → 1K→1C, Q 우클릭 → 1Q→1O (표준 프리액션). 좌클릭(파워변환)과 별개.
+  const handleFreeActionRightClick = (kind: 'knowledge' | 'qic') => {
+    if (!gameId || !currentPlayer || !playerId) return;
+    const p = currentPlayer;
+    let type: string;
+    let delta: Record<string, number>;
+    if (kind === 'knowledge') {
+      if ((p.knowledge ?? 0) < 1) { toast({ title: '지식 부족', description: '변환할 K가 1 이상 필요합니다.', variant: 'destructive' }); return; }
+      type = '1knowledge-to-1credit'; delta = { knowledge: -1, credits: 1 };
+    } else {
+      if ((p.qic ?? 0) < 1) { toast({ title: 'QIC 부족', description: '변환할 Q가 1 이상 필요합니다.', variant: 'destructive' }); return; }
+      type = '1qic-to-1ore'; delta = { qic: -1, ore: 1 };
+    }
+    // 낙관적 UI (단순 자원 교환, 종족 무관)
+    setGame(prev => {
+      if (!prev) return prev;
+      const pl = prev.players[playerId]; if (!pl) return prev;
+      const np: Record<string, unknown> = { ...pl };
+      for (const k in delta) np[k] = Math.max(0, (Number(np[k]) || 0) + delta[k]);
+      return { ...prev, players: { ...prev.players, [playerId]: np } } as typeof prev;
+    });
+    GameClient.convertResource(gameId, type);
+  };
+
   const handleFreeActionClick = (kind: 'ore' | 'knowledge' | 'qic' | 'credit' | 'bowl1' | 'bowl2' | 'bowl3' | 'baltak-gf') => {
     if (!gameId || !currentPlayer) return;
     const p = currentPlayer;
@@ -4317,6 +4341,9 @@ export default function Game() {
                                   faActive && faCan[kind] ? (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick(kind); } : undefined;
                                 const faTitle = (kind: 'ore' | 'knowledge' | 'qic' | 'credit', text: string) =>
                                   faActive && faCan[kind] ? text : undefined;
+                                // 우클릭: K→1C / Q→1O (좌클릭 파워변환과 별개, faCan과 무관하게 자원만 있으면 가능)
+                                const faRight = (kind: 'knowledge' | 'qic') =>
+                                  faActive ? (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); handleFreeActionRightClick(kind); } : undefined;
                                 return (
                               <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-1/2 tabular-nums">
                                 {/* O: Ore */}
@@ -4336,7 +4363,7 @@ export default function Game() {
                                   )}
                                 </div>
                                 {/* K: Knowledge */}
-                                <div className={`flex items-center justify-start${faCellCls('knowledge')}`} onClick={faClick('knowledge')} title={faTitle('knowledge', '프리액션: 4P → 1K')}>
+                                <div className={`flex items-center justify-start${faCellCls('knowledge')}${faActive && !faCan.knowledge ? ' cursor-pointer' : ''}`} onClick={faClick('knowledge')} onContextMenu={faRight('knowledge')} title={faActive ? '프리액션: 좌클릭 4P→1K · 우클릭 1K→1C' : undefined}>
                                   <span className="text-blue-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">K</span>
                                   <span style={{ color: '#2E5EAA' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.knowledge ?? 0}</span>
                                   {inc.knowledge > 0 && (
@@ -4344,7 +4371,7 @@ export default function Game() {
                                   )}
                                 </div>
                                 {/* Q: QIC */}
-                                <div className={`flex items-center justify-start${faCellCls('qic')}`} onClick={faClick('qic')} title={faTitle('qic', '프리액션: 4P → 1Q')}>
+                                <div className={`flex items-center justify-start${faCellCls('qic')}${faActive && !faCan.qic ? ' cursor-pointer' : ''}`} onClick={faClick('qic')} onContextMenu={faRight('qic')} title={faActive ? '프리액션: 좌클릭 4P→1Q · 우클릭 1Q→1O' : undefined}>
                                   <span className="text-green-400 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">Q</span>
                                   <span style={{ color: '#38B000' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.qic ?? 0}</span>
                                   {inc.qic > 0 && (
