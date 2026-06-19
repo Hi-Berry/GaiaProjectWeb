@@ -258,9 +258,9 @@ export default function Game() {
   const [pendingRebellionMineToTS, setPendingRebellionMineToTS] = useState<string | null>(null);
   /** 테란 의회: 가이아포머 토큰 해택 선택 (4→QIC/K, 3→O, 1→C) */
   const [terranCouncilChoice, setTerranCouncilChoice] = useState({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
-  /** 타클론 파워 수신 선택: 브레인 스톤 우선(기본), 의회 시 1그릇 추가 순서 */
+  /** 타클론 파워 수신 선택: Brain First(기본) ↔ PI 1st 둘 중 하나만 켜짐(라디오). 기본은 브레인 스톤 우선 */
   const [powerOfferBrainFirst, setPowerOfferBrainFirst] = useState(true);
-  const [powerOfferPiAddFirst, setPowerOfferPiAddFirst] = useState(true);
+  const [powerOfferPiAddFirst, setPowerOfferPiAddFirst] = useState(false);
   /** 한 컴퓨터 4인플: 방장 브라우저인지 (턴 바뀔 때 조작 플레이어 자동 전환용) */
   const isHostSessionRef = useRef(
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
@@ -3265,8 +3265,8 @@ export default function Game() {
                           size="sm"
                           variant="ghost"
                           className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferBrainFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
-                          onClick={() => setPowerOfferBrainFirst(!powerOfferBrainFirst)}
-                          title="브레인 스톤 우선 수령 여부 토글"
+                          onClick={() => { setPowerOfferBrainFirst(true); setPowerOfferPiAddFirst(false); }}
+                          title="브레인 스톤 우선 수령 (켜면 PI 1st는 꺼짐)"
                         >
                           Brain First
                         </Button>
@@ -3275,8 +3275,8 @@ export default function Game() {
                             size="sm"
                             variant="ghost"
                             className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferPiAddFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
-                            onClick={() => setPowerOfferPiAddFirst(!powerOfferPiAddFirst)}
-                            title="의회 효과(1그릇 추가) 우선 적용 여부 토글"
+                            onClick={() => { setPowerOfferPiAddFirst(true); setPowerOfferBrainFirst(false); }}
+                            title="의회 효과(1그릇 추가) 우선 적용 (켜면 Brain First는 꺼짐)"
                           >
                             PI 1st
                           </Button>
