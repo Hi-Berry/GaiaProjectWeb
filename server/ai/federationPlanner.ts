@@ -6,7 +6,8 @@ import {
     getNeighbors,
     isEmptyHex,
     isPlanetHex,
-    FEDERATION_REWARDS
+    FEDERATION_REWARDS,
+    getNextRoundIncomePreview
 } from '@shared/gameConfig';
 import {
     getFederationRequiredPower,
@@ -201,6 +202,22 @@ export class FederationPlanner {
         // 우선순위 2: 자원 연방 (7VP 2Ore, 7VP 6C 등)
         if (rewardId === 'fed-7vp-2o' || rewardId === 'fed-7vp-6c') {
             score = 250;
+            // [flag: fedRewardResourceAware] 돈/광물 동급(250) → 돈이 남아도(또는 돈 수익이 많아도) 돈연방을 집는 문제(사용자 관찰).
+            // 핵심: 현재 잔고만 보면 교역소 잔뜩 짓고 패스한 플레이어는 지금 0원이어도 다음 라운드 돈 수익이 커서 6C가 여전히 낭비.
+            // → '현재 잔고 + 향후 몇 라운드치 돈 수익'을 합친 '돈 여유'로 평가. 광물은 건설 직결이라 동률 시 약간 우선.
+            if (getPlayerFlag(playerId, 'fedRewardResourceAware', true)) {
+                if (rewardId === 'fed-7vp-6c') {
+                    const player = game.players[playerId];
+                    const credits = player?.credits ?? 0;
+                    const creditIncome = getNextRoundIncomePreview(playerId, game as any).credits;
+                    const remaining = Math.max(1, 7 - (game.roundNumber ?? 1)); // 남은 라운드(이번 포함) 근사
+                    const horizon = Math.min(3, remaining); // 최대 3라운드치만 반영(과대평가 방지)
+                    const creditSupply = credits + creditIncome * horizon;
+                    score -= creditSupply >= 45 ? 50 : creditSupply >= 25 ? 25 : 0;
+                } else {
+                    score += 2;
+                }
+            }
         }
         // 우선순위 3: 8VP 1QIC
         else if (rewardId === 'fed-8vp-1q') {
