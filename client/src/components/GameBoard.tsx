@@ -573,7 +573,15 @@ export function GameBoard({
   };
 
   const isFederationMode = game.federationMode?.playerId === playerId;
-  const federationSelectedIds = useMemo(() => new Set(game.federationMode?.selectedHexIds ?? []), [game.federationMode?.selectedHexIds]);
+  // 낙관적 하이라이트: 칸 클릭 시 즉시 로컬 반영(랙 제거), 서버 game_updated 도착 시 권위 상태로 재동기화.
+  // (파워/완료버튼 미리보기는 서버 계산이라 잠깐 뒤 따라옴 — 하이라이트만 선반영)
+  const [federationSelectedIds, setFederationSelectedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const fm = game.federationMode;
+    setFederationSelectedIds(fm?.playerId === playerId
+      ? new Set<string>([...(fm.selectedHexIds ?? []), ...(fm.selectedPlanetIds ?? []), ...(fm.selectedSpaceStationHexIds ?? [])])
+      : new Set<string>());
+  }, [game.federationMode?.playerId, game.federationMode?.selectedHexIds, game.federationMode?.selectedPlanetIds, game.federationMode?.selectedSpaceStationHexIds, playerId]);
 
   const handleTileClick = useCallback((tile: HexTile) => {
     if (ivitsSpaceStationMode && !hasDragged) {
@@ -601,16 +609,19 @@ export function GameBoard({
       const isSpaceHex = tile.type === 'space' || tile.type === 'deep_space';
       // 내 우주정거장 칸: 연결 건물로 토글 (파워 +1)
       if (isSpaceHex && tile.spaceStation?.ownerId === playerId) {
+        setFederationSelectedIds(prev => { const s = new Set(prev); s.has(tile.id) ? s.delete(tile.id) : s.add(tile.id); return s; });
         onFederationToggleHex(tile.id);
         return;
       }
       // 빈 우주칸, 또는 "상대 우주정거장만 있는" 우주칸 → 내 위성 배치 가능 (내 위성이 이미 있으면 제외).
       // isEmptyHex는 spaceStation이 있으면 false라, 상대 하이브 우주정거장 칸이 막히던 버그 수정.
       if (isSpaceHex && tile.structure == null && tile.spaceStation?.ownerId !== playerId && !mySatellite) {
+        setFederationSelectedIds(prev => { const s = new Set(prev); s.has(tile.id) ? s.delete(tile.id) : s.add(tile.id); return s; });
         onFederationToggleHex(tile.id);
         return;
       }
       if (isPlanetHex(tile)) {
+        setFederationSelectedIds(prev => { const s = new Set(prev); s.has(tile.id) ? s.delete(tile.id) : s.add(tile.id); return s; });
         onFederationToggleHex(tile.id);
         return;
       }
