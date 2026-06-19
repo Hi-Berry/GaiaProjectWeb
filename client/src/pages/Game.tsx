@@ -3228,6 +3228,9 @@ export default function Game() {
                 // 오직 본인에게 온 제안만 표시 (봇이 대신 결정하는 경우 화면에 띄우지 않음)
                 return offer.targetPlayerId === playerId;
               })
+              // 빌드 순서(FIFO)대로 한 번에 하나씩만 표시. 여러 개를 동시 렌더하면 모두 같은 고정 위치에
+              // 겹쳐 쌓여 마지막(나중에 지은 건물)이 위로 와 역순으로 처리되던 문제 수정(사용자 관찰).
+              .slice(0, 1)
               .map(offer => {
                 if (!offer) return null;
                 const sourcePlayer = game.players[offer.sourcePlayerId];
