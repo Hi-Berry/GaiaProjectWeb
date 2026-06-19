@@ -1446,8 +1446,8 @@ export function applyRoundMissionScore(game: GaiaGameState, playerId: string, tr
 	addScore(game, playerId, vpGain, 'roundMissions', { round: game.roundNumber });
 	log(`Player ${player.name} gained ${vpGain} VP from Round ${game.roundNumber} mission: ${currentRoundMission.condition}`, 'game', undefined, { simulation: (game as any).simulation });
 
-	// 메인 액션 로그에 병합. '라운드' 접두로 고급기술 보너스와 구분(둘 다 동시에 떠도 식별 가능).
-	appendVpSegmentToLastLog(game, playerId, vpGain, `라운드 ${currentRoundMission.condition}`);
+	// 메인 액션 로그에 병합. 'Round' 접두로 고급기술 보너스와 구분(둘 다 동시에 떠도 식별 가능).
+	appendVpSegmentToLastLog(game, playerId, vpGain, `Round ${currentRoundMission.condition}`);
 }
 
 export function applyFinalMissionScoring(game: GaiaGameState) {
