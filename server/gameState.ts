@@ -5232,7 +5232,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			const newLevel = canAdvance ? targetLevel : 0;
 			const isAdvancedTile = techTileId.startsWith('adv-') || Object.values(game.advancedTechTilesByTrack || {}).some((t: { id?: string } | null) => t?.id === techTileId);
 			const greenNeeded = (isAdvancedTile ? 1 : 0) + (newLevel === 5 ? 1 : 0);
-			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) return;
+			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) { io.to(game.id).emit('game_error', { message: '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.' }); return; }
 			for (let i = 0; i < greenNeeded; i++) spendGreenFederation(player);
 			if (canAdvance) {
 				player.research[track]++;
@@ -5252,7 +5252,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	} else {
 		const isRebellionGain = game.pendingTechTileSelection.structureType === 'rebellion_gain';
 		const hasTrackId = trackId != null && String(trackId).trim() !== '';
-		if (!hasTrackId && !isRebellionGain) {
+		if (!hasTrackId && !isRebellionGain) { io.to(game.id).emit('game_error', { message: '기술 타일을 받을 연구 트랙을 먼저 선택하세요.' });
 			log(`Player ${player.name} selected pool tile but no trackId provided (trackId=${JSON.stringify(trackId)})`, 'game', undefined, { simulation: (game as any).simulation });
 			return;
 		}
@@ -5270,7 +5270,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const newLevelPool = canAdvancePool ? targetLevelPool : 0;
 		const isAdvancedPool = techTileId.startsWith('adv-');
 		const greenNeededPool = (isAdvancedPool ? 1 : 0) + (newLevelPool === 5 ? 1 : 0);
-		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) return;
+		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) { io.to(game.id).emit('game_error', { message: '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.' }); return; }
 		for (let i = 0; i < greenNeededPool; i++) spendGreenFederation(player);
 		if (canAdvancePool && selectedTrack) {
 			player.research[selectedTrack]++;
