@@ -15,6 +15,7 @@ import { ChatPanel } from '@/components/ChatPanel';
 
 import { PlayerPanel } from '@/components/PlayerPanel';
 import { GameLog } from '@/components/GameLog';
+import { ClickDebugOverlay } from '@/components/ClickDebugOverlay'; // [임시] 클릭 진단
 import { FactionSelect } from '@/components/FactionSelect';
 import { FactionBiddingPanel } from '@/components/FactionBiddingPanel';
 import { GameLobby } from '@/components/GameLobby';
@@ -746,14 +747,17 @@ export default function Game() {
   }, [game?.currentPhase, game?.isTestMode, game?.players, gameId, playerId]);
 
   // 연구소/아카데미 건설 시 기술 타일 선택이 R창 안에만 있으므로, 필요 시 R창 자동 오픈
+  // [버그수정] 새 강제 타일선택(pendingTechTileSelection)이 생기면 이전에 X로 닫아 억제됐더라도 다시 연다.
+  //   (이전엔 researchAutoOpenSuppressed 때문에 트왈라잇 연구소 등 두 번째 타일선택 창이 안 떠 소프트락 — 사용자 관찰)
+  //   tileId도 의존성에 넣어 같은 플레이어가 연속으로 새 타일선택을 받는 경우(playerId 불변)도 감지.
   useEffect(() => {
     if (!game || !playerId) return;
     if (game.botPlayerIds?.includes(playerId)) return; // 봇의 턴을 관전 중일 때는 자동 오픈 방지
-    if (researchAutoOpenSuppressed) return; // 사용자가 X로 닫고 맵을 보는 중이면 자동 재오픈 안 함
     if (game.pendingTechTileSelection?.playerId === playerId) {
+      setResearchAutoOpenSuppressed(false); // 강제 선택이 생기면 억제 해제(닫아둔 상태여도 다시 연다)
       setIsResearchOpen(true);
     }
-  }, [game?.pendingTechTileSelection?.playerId, playerId, game?.botPlayerIds, researchAutoOpenSuppressed]);
+  }, [game?.pendingTechTileSelection?.playerId, game?.pendingTechTileSelection?.tileId, playerId, game?.botPlayerIds]);
 
   // 테란 의회 다이얼로그가 열릴 때 선택 초기화
   useEffect(() => {
@@ -1965,6 +1969,8 @@ export default function Game() {
   return (
     // h-screen(100vh)은 모바일에서 실제 가시 높이보다 커서 하단 버튼이 밀리고 페이지가 스크롤됨 → 100dvh로 고정
     <div className="flex h-[100dvh] overflow-hidden bg-background font-sans text-foreground relative">
+      {/* [임시] 클릭 지점 요소 진단 오버레이 — 우측 맵 클릭 안 되는 원인 파악용. 진단 후 제거. */}
+      <ClickDebugOverlay />
       {/* 관전자 표시: 전체 상단을 덮지 않도록 작은 플로팅 배지로만 표시 */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
         <div className="fixed left-3 bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
