@@ -4957,17 +4957,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_error', { message: 'Terran council: invalid benefit total (4=QIC/K, 3=O, 1=C).' });
 				return;
 			}
-			const p2 = player.power2 ?? 0;
-			if (p2 < totalCost) {
-				io.to(gameId).emit('game_error', { message: 'Not enough tokens in bowl 2.' });
-				return;
-			}
-			player.power2 = p2 - totalCost;
+			// [버그수정] 테란 의회 보너스는 '추가 자원'만 준다 — 가이아포머 토큰은 종족 능력대로 이미 2그릇으로
+			// 복귀했고(위), 여기서 차감하면 토큰이 사라짐(사용자 관찰). totalCost는 '받을 자원량 한도(토큰 수)'일 뿐.
 			grantQic(game, playerId, qic);
 			player.knowledge = (player.knowledge ?? 0) + knowledge;
 			player.ore = (player.ore ?? 0) + ore;
 			player.credits = (player.credits ?? 0) + credits;
-			addGameLog(game, playerId, 'Terran Council', `${pending.tokenCount} tokens → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
+			addGameLog(game, playerId, 'Terran Council', `${pending.tokenCount} tokens (2그릇 유지) → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
 			game.pendingTerranCouncilBenefit = null;
 			const queue = game.terranCouncilQueue ?? [];
 			if (queue.length > 0) {
@@ -7680,23 +7676,18 @@ export function executeBotTerranCouncilBenefit(
 	let qic = 0, knowledge = 0, ore = 0, credits = 0;
 
 	// QIC(4) > Knowledge(4) > Ore(3) > Credits(1) 순서로 자동 배분 시뮬레이션
-	const p2 = player.power2 ?? 0;
-	const maxSpend = Math.min(tokens, p2);
-
-	let remaining = maxSpend;
-	// 지식 우선 (4점)
+	// [버그수정] 보너스 한도 = 복귀한 토큰 수(tokenCount). 토큰은 이미 2그릇으로 복귀했으므로 차감하지 않음(사용자 관찰).
+	let remaining = tokens;
 	while (remaining >= 4) { knowledge++; remaining -= 4; }
-	// 남은걸로 크레딧 (1점)
 	while (remaining >= 1) { credits++; remaining -= 1; }
 
-	player.power2 = p2 - maxSpend;
 	grantQic(game, playerId, qic);
 	player.knowledge = (player.knowledge ?? 0) + knowledge;
 	player.ore = (player.ore ?? 0) + ore;
 	player.credits = (player.credits || 0) + credits;
 
-	addGameLog(game, playerId, 'Bot: Terran Council', `Auto: ${maxSpend} tokens → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
-	log(`Bot ${player.name} (Terran) auto-selected council benefits: ${maxSpend} tokens used`, 'game', undefined, { simulation: (game as any).simulation });
+	addGameLog(game, playerId, 'Bot: Terran Council', `Auto: ${tokens} tokens (2그릇 유지) → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
+	log(`Bot ${player.name} (Terran) auto-selected council benefits: ${tokens} tokens (kept in bowl 2)`, 'game', undefined, { simulation: (game as any).simulation });
 
 	game.pendingTerranCouncilBenefit = null;
 	const queue = game.terranCouncilQueue ?? [];
