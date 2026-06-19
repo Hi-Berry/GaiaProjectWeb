@@ -1047,7 +1047,9 @@ export class BotLogic {
             const balExp = this.calculateExpectedRoundIncome(game, playerId);
             const oreInc = Math.max(0.5, balExp.ore ?? 0);
             const creditInc = balExp.credits ?? 0;
-            oreStarved = (creditInc / oreInc) > 3.5;
+            // [재튜닝 2026-06-18] 검증서 트리거가 너무 넓어 정상 TS→연구소 발판까지 막아 점수 -3.5 → 좁힘.
+            // "수입 비율 악화" + "현재 크레딧 실제로 쟁여둠(≥12)" 둘 다일 때만 = 진짜 죽음의 나선만 잡음.
+            oreStarved = (creditInc / oreInc) > 3.5 && credits >= 12;
         }
 
         interface ScoredUpgrade {
@@ -3020,7 +3022,8 @@ export class BotLogic {
         let oreStarvedPow = false;
         if (getPlayerFlag(playerId, 'oreCreditBalance', true)) {
             const exp = this.calculateExpectedRoundIncome(game, playerId);
-            oreStarvedPow = (exp.credits ?? 0) / Math.max(0.5, exp.ore ?? 0) > 3.5;
+            // [재튜닝 2026-06-18] 수입 비율 악화 + 현재 크레딧 실제 쟁여둠(≥12) 둘 다일 때만 = 진짜 죽음의 나선.
+            oreStarvedPow = (exp.credits ?? 0) / Math.max(0.5, exp.ore ?? 0) > 3.5 && (player.credits ?? 0) >= 12;
         }
 
         for (const action of availableActions) {
