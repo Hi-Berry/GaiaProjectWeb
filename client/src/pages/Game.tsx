@@ -1050,7 +1050,7 @@ export default function Game() {
 
   /** 프리액션 모드: 내 상태창 자원/파워 클릭 → 즉시 변환. 네뷸라 의회는 O 연속 클릭(3P→2O)·O 후 C(2P→1O+1C) 체인 지원 */
   // 프리액션 우클릭: K 우클릭 → 1K→1C, Q 우클릭 → 1Q→1O (표준 프리액션). 좌클릭(파워변환)과 별개.
-  const handleFreeActionRightClick = (kind: 'knowledge' | 'qic') => {
+  const handleFreeActionRightClick = (kind: 'ore' | 'knowledge' | 'qic') => {
     if (!gameId || !currentPlayer || !playerId) return;
     const p = currentPlayer;
     let type: string;
@@ -1058,9 +1058,12 @@ export default function Game() {
     if (kind === 'knowledge') {
       if ((p.knowledge ?? 0) < 1) { toast({ title: '지식 부족', description: '변환할 K가 1 이상 필요합니다.', variant: 'destructive' }); return; }
       type = '1knowledge-to-1credit'; delta = { knowledge: -1, credits: 1 };
-    } else {
+    } else if (kind === 'qic') {
       if ((p.qic ?? 0) < 1) { toast({ title: 'QIC 부족', description: '변환할 Q가 1 이상 필요합니다.', variant: 'destructive' }); return; }
       type = '1qic-to-1ore'; delta = { qic: -1, ore: 1 };
+    } else {
+      if ((p.ore ?? 0) < 1) { toast({ title: '광물 부족', description: '변환할 O가 1 이상 필요합니다.', variant: 'destructive' }); return; }
+      type = '1ore-to-1credit'; delta = { ore: -1, credits: 1 };
     }
     // 낙관적 UI (단순 자원 교환, 종족 무관)
     setGame(prev => {
@@ -4342,12 +4345,12 @@ export default function Game() {
                                 const faTitle = (kind: 'ore' | 'knowledge' | 'qic' | 'credit', text: string) =>
                                   faActive && faCan[kind] ? text : undefined;
                                 // 우클릭: K→1C / Q→1O (좌클릭 파워변환과 별개, faCan과 무관하게 자원만 있으면 가능)
-                                const faRight = (kind: 'knowledge' | 'qic') =>
+                                const faRight = (kind: 'ore' | 'knowledge' | 'qic') =>
                                   faActive ? (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); handleFreeActionRightClick(kind); } : undefined;
                                 return (
                               <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-1/2 tabular-nums">
                                 {/* O: Ore */}
-                                <div className={`flex items-center justify-start${faCellCls('ore')}`} onClick={faClick('ore')} title={faTitle('ore', '프리액션: 3P → 1O (네뷸라 의회: 한번 더 누르면 3P→2O)')}>
+                                <div className={`flex items-center justify-start${faCellCls('ore')}${faActive && !faCan.ore ? ' cursor-pointer' : ''}`} onClick={faClick('ore')} onContextMenu={faRight('ore')} title={faActive ? '프리액션: 좌클릭 3P→1O (네뷸라: 연속 3P→2O) · 우클릭 1O→1C' : undefined}>
                                   <span className="text-zinc-300 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">O</span>
                                   <span style={{ color: '#f5f5f0' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.ore ?? 0}</span>
                                   {inc.ore > 0 && (
