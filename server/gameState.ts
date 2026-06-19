@@ -3004,6 +3004,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// GM/Admin: 연방 토큰의 초록/빨강 상태 토글 (이미 사용해 뒤집힌 연방을 다시 초록으로 되돌리는 등 실수 복구용).
+		socket.on('admin_toggle_federation_green', ({ gameId, targetPlayerId, federationIndex, adminCode }: { gameId: string; targetPlayerId: string; federationIndex: number; adminCode: string }, callback?: (r: { ok?: boolean; error?: string; isGreen?: boolean }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			const target = game.players[targetPlayerId];
+			if (!target) { callback?.({ error: 'Player not found' }); return; }
+			// 레거시 string[] → FederationEntry[] 정규화 후 인덱스 토글
+			const entries = getFederationEntries(target);
+			if (federationIndex < 0 || federationIndex >= entries.length) { callback?.({ error: `연방 인덱스 범위 초과 (0~${entries.length - 1})` }); return; }
+			entries[federationIndex] = { ...entries[federationIndex], isGreen: !entries[federationIndex].isGreen };
+			target.federations = entries;
+			const nowGreen = entries[federationIndex].isGreen;
+			log(`Admin: toggled federation #${federationIndex} (${entries[federationIndex].rewardId}) of ${target.name} → ${nowGreen ? 'GREEN(사용가능)' : 'RED(사용됨)'}`, 'game', gameId);
+			io.to(gameId).emit('game_updated', game);
+			callback?.({ ok: true, isGreen: nowGreen });
+		});
+
 		// GM/Admin: 현재 턴 플레이어의 턴을 시작 시점으로 롤백 (실수 복구용).
 		// reset_turn과 동일한 전체 상태 복원이지만 GM이 대신 실행. 끝난 턴은 스냅샷이 삭제돼 불가.
 		socket.on('admin_rollback_turn', ({ gameId, adminCode, targetPlayerId }: { gameId: string; adminCode: string; targetPlayerId?: string }, callback?: (r: { ok?: boolean; error?: string; playerName?: string }) => void) => {

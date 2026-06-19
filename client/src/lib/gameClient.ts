@@ -341,6 +341,17 @@ export const GameClient = {
     });
   },
 
+  /** GM/Admin: 연방 토큰의 초록/빨강 상태 토글 (이미 뒤집힌 연방을 다시 초록으로 되돌리기 등) */
+  adminToggleFederationGreen(gameId: string, targetPlayerId: string, federationIndex: number, adminCode: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('admin_toggle_federation_green', { gameId, targetPlayerId, federationIndex, adminCode }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve(!!response?.isGreen);
+      });
+    });
+  },
+
   upgradeStructure(gameId: string, tileId: string, target: StructureType | 'academy_left' | 'academy_right') {
     const s = getSocket();
     s.emit('upgrade_structure', { gameId, tileId, target });

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { getFederationEntries } from '@shared/gameConfig';
 
 const ADMIN_PASSWORD = '0011';
 
@@ -320,6 +321,69 @@ function SetCurrentTurnPanel({ game }: { game: GameState }) {
   );
 }
 
+function FederationTogglePanel({ game }: { game: GameState }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  const toggle = async (targetPlayerId: string, index: number) => {
+    const key = `${targetPlayerId}:${index}`;
+    setBusy(key);
+    setMessage('');
+    try {
+      const nowGreen = await GameClient.adminToggleFederationGreen(game.id, targetPlayerId, index, ADMIN_PASSWORD);
+      setMessage(`${game.players[targetPlayerId]?.name ?? '플레이어'} 연방 #${index + 1} → ${nowGreen ? '초록(사용가능)' : '빨강(사용됨)'}`);
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const order = (game.turnOrder && game.turnOrder.length ? game.turnOrder : Object.keys(game.players)).filter((id) => game.players[id]);
+  const anyFed = order.some((id) => getFederationEntries(game.players[id] as any).length > 0);
+
+  return (
+    <div className="rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/20 p-3 space-y-2">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-fuchsia-300">연방 토큰 초록/빨강 토글</div>
+        <div className="text-[10px] text-zinc-400">이미 사용해 <b>빨강</b>으로 뒤집힌 연방을 다시 <b>초록(사용가능)</b>으로 되돌립니다 (또는 반대). 클릭할 때마다 토글.</div>
+      </div>
+      {!anyFed && <div className="text-[10px] text-zinc-500">아직 연방을 형성한 플레이어가 없습니다.</div>}
+      <div className="space-y-2">
+        {order.map((id) => {
+          const p = game.players[id];
+          const entries = getFederationEntries(p as any);
+          if (entries.length === 0) return null;
+          return (
+            <div key={id} className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-zinc-300 w-24 truncate shrink-0">{p.name}</span>
+              {entries.map((e, i) => {
+                const key = `${id}:${i}`;
+                return (
+                  <Button
+                    key={i}
+                    size="sm"
+                    variant="outline"
+                    title={e.rewardId}
+                    className={`h-7 text-xs disabled:opacity-40 ${e.isGreen
+                      ? 'border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/20'
+                      : 'border-red-500/50 text-red-300 hover:bg-red-500/20'}`}
+                    disabled={busy !== null}
+                    onClick={() => toggle(id, i)}
+                  >
+                    {busy === key ? '…' : `#${i + 1} ${e.isGreen ? '초록' : '빨강'}`}
+                  </Button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      {message && <div className="text-[10px] text-zinc-400">{message}</div>}
+    </div>
+  );
+}
+
 export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogProps) {
   const [password, setPassword] = useState('');
   const [unlocked, setUnlocked] = useState(false);
@@ -383,6 +447,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
               <SetCurrentTurnPanel game={game} />
               <RollbackTurnPanel game={game} />
+              <FederationTogglePanel game={game} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />
               ))}
