@@ -15,6 +15,7 @@ import { ChatPanel } from '@/components/ChatPanel';
 
 import { PlayerPanel } from '@/components/PlayerPanel';
 import { GameLog } from '@/components/GameLog';
+import { VolumeControl } from '@/components/VolumeControl';
 import { FactionSelect } from '@/components/FactionSelect';
 import { FactionBiddingPanel } from '@/components/FactionBiddingPanel';
 import { GameLobby } from '@/components/GameLobby';
@@ -1960,6 +1961,8 @@ export default function Game() {
   return (
     // h-screen(100vh)은 모바일에서 실제 가시 높이보다 커서 하단 버튼이 밀리고 페이지가 스크롤됨 → 100dvh로 고정
     <div className="flex h-[100dvh] overflow-hidden bg-background font-sans text-foreground relative">
+      {/* 알림음 볼륨 조절 (우상단 고정) */}
+      <VolumeControl />
       {/* 관전자 표시: 전체 상단을 덮지 않도록 작은 플로팅 배지로만 표시 */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
         <div className="fixed left-3 bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
