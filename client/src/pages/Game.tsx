@@ -1961,18 +1961,6 @@ export default function Game() {
   return (
     // h-screen(100vh)은 모바일에서 실제 가시 높이보다 커서 하단 버튼이 밀리고 페이지가 스크롤됨 → 100dvh로 고정
     <div className="flex h-[100dvh] overflow-hidden bg-background font-sans text-foreground relative">
-      {/* 알림음 볼륨 조절 (우상단 고정) */}
-      <VolumeControl />
-      {currentPlayer?.faction === 'taklons' && gameId && (
-        <button
-          type="button"
-          onClick={() => GameClient.setTaklonsBrainPriority(gameId, !(currentPlayer.taklonsBrainPriority ?? true))}
-          title="파워 소비 시 브레인 스톤 우선 (켜짐=큰 파워에 브레인 먼저 / 꺼짐=일반 토큰 먼저 써 브레인 보존)"
-          className="fixed top-14 right-3 z-[130] flex items-center gap-1 rounded-full border border-white/10 bg-zinc-950/85 px-3 py-1.5 text-xs font-bold shadow-lg backdrop-blur-md text-amber-300 hover:text-white"
-        >
-          🧠 {(currentPlayer.taklonsBrainPriority ?? true) ? '브레인 우선' : '브레인 보존'}
-        </button>
-      )}
       {/* 관전자 표시: 전체 상단을 덮지 않도록 작은 플로팅 배지로만 표시 */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
         <div className="fixed left-3 bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
@@ -4958,6 +4946,21 @@ export default function Game() {
                   />
                 )}
               </div>
+            </div>
+
+            {/* 상태창 하단: 알림음 볼륨 + (타클론) 브레인 우선 토글 */}
+            <div className="flex items-center justify-end gap-3 border-t border-white/10 px-4 py-1.5 shrink-0">
+              {currentPlayer?.faction === 'taklons' && gameId && (
+                <button
+                  type="button"
+                  onClick={() => GameClient.setTaklonsBrainPriority(gameId, !(currentPlayer.taklonsBrainPriority ?? true))}
+                  title="파워 소비 시 브레인 스톤 우선(켜짐) / 일반 토큰 우선·브레인 보존(꺼짐)"
+                  className="flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[11px] font-bold text-amber-300 hover:text-white"
+                >
+                  🧠 {(currentPlayer.taklonsBrainPriority ?? true) ? '브레인 우선' : '브레인 보존'}
+                </button>
+              )}
+              <VolumeControl />
             </div>
 
             {/* Free Actions Modal */}
