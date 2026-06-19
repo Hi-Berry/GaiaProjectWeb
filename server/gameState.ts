@@ -7104,12 +7104,18 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 	if (typeof qicToSpend === 'number' && qicToSpend !== neededQIC) return false;
 	player.qic = (player.qic ?? 0) - neededQIC;
 	const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+	const geodensTypesBeforeEclipse = getPlayerPlanetTypesForGeodens(game, playerId);
 	tile.structure = 'mine';
 	tile.ownerId = playerId;
 	game.pendingEclipseAsteroidMine = null;
 	addGameLog(game, playerId, 'Eclipse: Built mine on asteroid', neededQIC > 0 ? `6C, ${neededQIC} QIC (range)` : '6C (no Gaiaformer)', tileId);
 	applyRoundMissionScore(game, playerId, 'build_mine');
 	if (rm7QualifyEclipse) applyRoundMissionScore(game, playerId, 'new_sector');
+	// RM8(새 행성유형) + 기오덴 의회 +3K — 소행성 포머파괴 경로(executeBuildMine)와 동일하게 누락됐던 것 보강(사용자 관찰)
+	if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeEclipse.size) {
+		applyRoundMissionScore(game, playerId, 'new_planet_type');
+	}
+	applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeEclipse);
 	applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 	createPowerOffers(game, tile, playerId);
 	addBuildingToFederationIfAdjacent(game, playerId, tileId);
