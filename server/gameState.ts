@@ -2960,6 +2960,43 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// GM/Admin: 현재 턴을 특정 플레이어로 강제 지정 (디버그용).
+		// 가드: main 단계만 · 패스한 플레이어 제외 · 진행중인 선택/액션(pending*)이 있으면 거부(고아 상태 방지).
+		// 전환 시 hasDoneMainAction 리셋·undo컨텍스트 정리·turnStartState 재생성·봇이면 트리거.
+		socket.on('admin_set_current_turn', ({ gameId, targetPlayerId, adminCode }: { gameId: string; targetPlayerId: string; adminCode: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			if (game.currentPhase !== 'main') { callback?.({ error: `현재 턴 지정은 액션(main) 단계에서만 가능합니다 (현재: ${game.currentPhase})` }); return; }
+			const idx = game.turnOrder.indexOf(targetPlayerId);
+			if (idx < 0) { callback?.({ error: 'Player not in turn order' }); return; }
+			const target = game.players[targetPlayerId];
+			if (!target) { callback?.({ error: 'Player not found' }); return; }
+			if (target.hasPassed) { callback?.({ error: `${target.name}은(는) 이미 이 라운드에 패스했습니다` }); return; }
+			// 진행 중인 선택/액션이 있으면 거부 — 턴을 바꾸면 그 대기 상태가 고아가 됨
+			const pendingKeys = [
+				'pendingTurnEndPlayerId', 'pendingLostPlanet', 'pendingIncomeOrder', 'pendingItarsGaiaformerExchange',
+				'pendingTerranCouncilBenefit', 'pendingTinkeroidSpecialChoice', 'pendingBonusSelection', 'pendingTwilightFederation',
+				'pendingTechTileSelection', 'pendingTFMarsGaiaProject', 'pendingEclipseResearch', 'pendingEclipseAsteroidMine',
+				'pendingShipTechTrackAdvance', 'pendingAdvancedTechTrackAdvance', 'pendingAdvancedTechCover', 'pendingFederationReward',
+				'pendingSpaceshipFedMine',
+			];
+			const active = pendingKeys.filter(k => (game as any)[k] != null);
+			if (active.length > 0) { callback?.({ error: `대기 중인 액션이 있어 턴을 변경할 수 없습니다: ${active.join(', ')}. 먼저 처리(완료/취소)하세요.` }); return; }
+
+			game.currentPlayerIndex = idx;
+			game.hasDoneMainAction = false;
+			(game as any).freeActionUndoContext = undefined;
+			if (!game.turnStartState) game.turnStartState = {};
+			game.turnStartState[targetPlayerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, targetPlayerId);
+			log(`Admin: set current turn to ${target.name} (index ${idx})`, 'game', gameId);
+			clampPlayerResources(game);
+			io.to(gameId).emit('game_updated', game);
+			// 새 현재 플레이어가 봇이면 자동 진행
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => log(`Bot turn execution error (admin_set_current_turn): ${err}`, 'error'));
+			callback?.({ ok: true });
+		});
+
 		// GM/Admin: 현재 턴 플레이어의 턴을 시작 시점으로 롤백 (실수 복구용).
 		// reset_turn과 동일한 전체 상태 복원이지만 GM이 대신 실행. 끝난 턴은 스냅샷이 삭제돼 불가.
 		socket.on('admin_rollback_turn', ({ gameId, adminCode, targetPlayerId }: { gameId: string; adminCode: string; targetPlayerId?: string }, callback?: (r: { ok?: boolean; error?: string; playerName?: string }) => void) => {

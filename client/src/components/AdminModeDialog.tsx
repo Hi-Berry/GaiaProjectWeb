@@ -271,6 +271,55 @@ function RollbackTurnPanel({ game }: { game: GameState }) {
   );
 }
 
+function SetCurrentTurnPanel({ game }: { game: GameState }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  const setTurn = async (targetPlayerId: string) => {
+    setBusy(targetPlayerId);
+    setMessage('');
+    try {
+      await GameClient.adminSetCurrentTurn(game.id, targetPlayerId, ADMIN_PASSWORD);
+      setMessage(`${game.players[targetPlayerId]?.name ?? '플레이어'}(으)로 현재 턴을 지정했습니다.`);
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const order = (game.turnOrder && game.turnOrder.length ? game.turnOrder : Object.keys(game.players)).filter((id) => game.players[id]);
+
+  return (
+    <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 space-y-2">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-emerald-300">현재 턴 지정</div>
+        <div className="text-[10px] text-zinc-400">현재 행동할 플레이어를 강제로 바꿉니다 (액션 단계만). 대기 중인 선택/이미 패스한 플레이어는 거부됩니다.</div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {order.map((id) => {
+          const p = game.players[id];
+          const isCurrent = game.turnOrder?.[game.currentPlayerIndex ?? 0] === id;
+          const passed = Boolean((p as any).hasPassed);
+          return (
+            <Button
+              key={id}
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-40"
+              disabled={busy !== null || isCurrent || passed}
+              onClick={() => setTurn(id)}
+            >
+              {busy === id ? '지정 중…' : `${p.name}${isCurrent ? ' (현재)' : ''}${passed ? ' (패스)' : ''}`}
+            </Button>
+          );
+        })}
+      </div>
+      {message && <div className="text-[10px] text-zinc-400">{message}</div>}
+    </div>
+  );
+}
+
 export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogProps) {
   const [password, setPassword] = useState('');
   const [unlocked, setUnlocked] = useState(false);
@@ -332,6 +381,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
           <ScrollArea className="max-h-[70vh]">
             <div className="p-5 space-y-3">
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
+              <SetCurrentTurnPanel game={game} />
               <RollbackTurnPanel game={game} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />

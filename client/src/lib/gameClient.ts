@@ -314,6 +314,17 @@ export const GameClient = {
     });
   },
 
+  /** GM/Admin: 현재 턴을 특정 플레이어로 강제 지정 (디버그용, 서버 가드 있음) */
+  adminSetCurrentTurn(gameId: string, targetPlayerId: string, adminCode: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('admin_set_current_turn', { gameId, targetPlayerId, adminCode }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
   adminRollbackTurn(gameId: string, adminCode: string, targetPlayerId?: string): Promise<string | undefined> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
