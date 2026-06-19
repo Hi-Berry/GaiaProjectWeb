@@ -29,6 +29,31 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
     const selfIdRef = useRef(selfId);
     selfIdRef.current = selfId;
 
+    // 크기 조절(가로=패널 폭, 세로=메시지 영역 높이) — localStorage 보존. 좌하단 앵커라 우측↑폭/상단↑높이.
+    const [width, setWidth] = useState(() => { try { const v = Number(localStorage.getItem('gaia-chat-w')); return v >= 220 ? v : 320; } catch { return 320; } });
+    const [listHeight, setListHeight] = useState(() => { try { const v = Number(localStorage.getItem('gaia-chat-h')); return v >= 120 ? v : 224; } catch { return 224; } });
+    const widthRef = useRef(width); widthRef.current = width;
+    const listHeightRef = useRef(listHeight); listHeightRef.current = listHeight;
+    useEffect(() => { try { localStorage.setItem('gaia-chat-w', String(width)); } catch { /* noop */ } }, [width]);
+    useEffect(() => { try { localStorage.setItem('gaia-chat-h', String(listHeight)); } catch { /* noop */ } }, [listHeight]);
+
+    const startResize = useCallback((e: React.PointerEvent, axis: 'w' | 'h' | 'both') => {
+        e.preventDefault(); e.stopPropagation();
+        const sx = e.clientX, sy = e.clientY, sw = widthRef.current, sh = listHeightRef.current;
+        const onMove = (ev: PointerEvent) => {
+            if (axis !== 'h') setWidth(Math.max(220, Math.min(window.innerWidth * 0.9, sw + (ev.clientX - sx))));
+            if (axis !== 'w') setListHeight(Math.max(120, Math.min(window.innerHeight * 0.7, sh - (ev.clientY - sy))));
+        };
+        const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            document.body.style.userSelect = '';
+        };
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+    }, []);
+
     useEffect(() => {
         try { localStorage.setItem('gaia-chat-open', open ? '1' : '0'); } catch { /* noop */ }
     }, [open]);
@@ -106,9 +131,13 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
         <div className="fixed left-[264px] md:left-[336px] bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none' }}>
             {open ? (
                 <div
-                    className="w-[320px] max-w-[85vw] bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl flex flex-col overflow-hidden"
-                    style={{ pointerEvents: 'auto' }}
+                    className="relative bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+                    style={{ pointerEvents: 'auto', width: `${width}px`, maxWidth: '90vw' }}
                 >
+                    {/* 크기 조절 핸들: 상단=세로, 우측=가로, 우상단 코너=동시 (좌하단 앵커 기준) */}
+                    <div onPointerDown={(e) => startResize(e, 'h')} className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-primary/40 z-20" title="드래그: 높이 조절" />
+                    <div onPointerDown={(e) => startResize(e, 'w')} className="absolute top-0 bottom-0 right-0 w-1.5 cursor-ew-resize hover:bg-primary/40 z-20" title="드래그: 너비 조절" />
+                    <div onPointerDown={(e) => startResize(e, 'both')} className="absolute top-0 right-0 w-3 h-3 cursor-nesw-resize z-30" title="드래그: 크기 조절" />
                     <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/60">
                         <span className="text-xs font-black uppercase tracking-widest text-zinc-200">채팅</span>
                         <button
@@ -121,7 +150,7 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
                         </button>
                     </div>
 
-                    <div ref={listRef} className="h-56 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
+                    <div ref={listRef} className="overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar" style={{ height: `${listHeight}px` }}>
                         {messages.length === 0 ? (
                             <div className="text-[11px] text-zinc-500 text-center py-8">아직 메시지가 없습니다</div>
                         ) : (
