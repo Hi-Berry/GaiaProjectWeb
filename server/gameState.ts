@@ -4491,13 +4491,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (idx >= 0) {
 					game.federationMode.selectedHexIds.splice(idx, 1);
 				} else {
-					// 하이브 2회째 이후: 새 빈칸은 기존 연방 또는 현재 선택과 인접해야 함
+					// 하이브 2회째 이후: 새 빈칸은 '내 네트워크(건물/우주정거장/기생광산) · 기존 연방 · 현재 선택' 중
+					// 하나와 인접해야 함. [버그수정] 기존엔 앵커에 '내 건물'이 빠져, 아직 연방에 안 든 새 건물 옆
+					// 빈칸을 먼저 클릭하면 거부 → 2칸 이상 떨어진 연결에서 클릭 순서를 강제하거나 아예 막던 문제.
+					// (최종 연결성은 federation_complete에서 검증하므로 클릭 단계 앵커는 넉넉히 허용)
 					const player = game.players[playerId];
 					const fedHexes = game.playerFederationHexes?.[playerId] ?? [];
 					if (player.faction === 'ivits' && fedHexes.length > 0) {
 						const neighbors = getNeighbors(game.map, tile).map(n => n.id);
-						const allowed = [...game.federationMode.selectedHexIds, ...(game.federationMode.selectedPlanetIds ?? []), ...(game.federationMode.selectedSpaceStationHexIds ?? []), ...fedHexes];
-						if (!neighbors.some(id => allowed.includes(id))) return;
+						const ownNodes = game.map.filter(t =>
+							(t.ownerId === playerId && t.structure && t.structure !== 'ship') ||
+							t.spaceStation?.ownerId === playerId ||
+							t.parasiticMine?.ownerId === playerId
+						).map(t => t.id);
+						const allowed = new Set([...game.federationMode.selectedHexIds, ...(game.federationMode.selectedPlanetIds ?? []), ...(game.federationMode.selectedSpaceStationHexIds ?? []), ...fedHexes, ...ownNodes]);
+						if (!neighbors.some(id => allowed.has(id))) return;
 					}
 					game.federationMode.selectedHexIds.push(tileId);
 				}
