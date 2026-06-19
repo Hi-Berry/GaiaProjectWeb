@@ -455,8 +455,8 @@ export function GameLog({
                   loading="lazy"
                   className="shrink-0 self-start rounded-md object-cover select-none"
                   style={{
-                    width: `${17 * (textScale ?? 1)}px`,
-                    height: `${24 * (textScale ?? 1)}px`,
+                    width: `${26 * (textScale ?? 1)}px`,
+                    height: `${22 * (textScale ?? 1)}px`,
                     boxShadow: factionColor ? `0 0 0 1.5px ${factionColor}, 0 0 2px 1px rgba(0,0,0,0.5)` : undefined,
                   }}
                 />
