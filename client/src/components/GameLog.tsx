@@ -4,14 +4,7 @@ import { useState, useRef, Fragment, type CSSProperties } from 'react';
 import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
-
-/** 배경색 명도에 따라 읽기 좋은 글씨색(밝은 배경=검정, 어두운 배경=흰색). */
-function readableTextColor(hex: string | undefined): string {
-  const h = (hex || '').replace('#', '');
-  if (h.length < 6) return '#fff';
-  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
-  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#000' : '#fff';
-}
+import { racePortraitSrc } from '@/lib/racePortrait';
 
 interface GameLogProps {
   game: GameState;
@@ -429,7 +422,7 @@ export function GameLog({
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
           const factionColor = factionObj?.color;
-          const factionInit = (factionObj?.name?.trim()?.[0] || '').toUpperCase();
+          const portraitSrc = player?.faction ? racePortraitSrc(player.faction) : null;
           const primaryImg = getLogPrimaryImage(log, player?.faction);
           const isAiFeedbackLog = !!log.aiFeedbackActionId;
 
@@ -440,7 +433,7 @@ export function GameLog({
               onMouseLeave={() => onEntryMouseLeave?.()}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
               title="클릭해서 점수·자원 변동 보기"
-              className={`relative flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
+              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-90'
@@ -453,14 +446,20 @@ export function GameLog({
                 scrollMarginTop: '2.75rem',
               }}
             >
-              {factionInit && (
-                // 왼쪽 색깔바 중앙에 종족 이니셜 — 색만으로 헷갈리는 종족(빨강/주황 등) 구분용.
-                // 바(4px)+좌측 패딩 영역에 얹어 본문은 가리지 않음.
-                <span
-                  className="absolute left-0 top-1/2 -translate-y-1/2 font-black leading-none select-none pointer-events-none z-[1]"
-                  style={{ color: readableTextColor(factionColor), fontSize: `${8 * (textScale ?? 1)}px`, textShadow: '0 0 2px rgba(0,0,0,0.7)' }}
+              {portraitSrc && (
+                // 왼쪽에 종족 얼굴 초상(비딩 화면과 동일 이미지) — 색만으로 헷갈리는 종족 구분용.
+                <img
+                  src={portraitSrc}
+                  alt={factionObj?.name}
                   title={player?.name}
-                >{factionInit}</span>
+                  loading="lazy"
+                  className="shrink-0 self-start rounded-full object-cover object-top select-none"
+                  style={{
+                    width: `${20 * (textScale ?? 1)}px`,
+                    height: `${20 * (textScale ?? 1)}px`,
+                    boxShadow: factionColor ? `0 0 0 1.5px ${factionColor}, 0 0 2px 1px rgba(0,0,0,0.5)` : undefined,
+                  }}
+                />
               )}
               <div className="flex-1 min-w-0">
                 <div
