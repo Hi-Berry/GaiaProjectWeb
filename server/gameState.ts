@@ -6378,7 +6378,14 @@ export function executeAdvanceTech(
 ): boolean {
 	if (!game || game.currentPhase !== 'main') return false;
 
-	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	// [버그수정 2026-06-19] 보상 트랙 전진(우주선/고급기술 pending)은 Itars PI 가이아포머 교환처럼
+	// '내 액션 턴이 아닐 때' 생길 수 있다 → 그 pending 소유자는 현재 턴이 아니어도 해소 가능.
+	// (그동안 본인 턴이 와야만 트랙이 올라가던 버그: 고급타일 Gaia당2점 먹고 가이아5가 한 바퀴 뒤에야 올라감 — 사용자 관찰)
+	// 일반 4K 연구는 종전대로 내 턴에만 가능.
+	const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+	const ownsPendingAdvance = game.pendingShipTechTrackAdvance?.playerId === playerId
+		|| game.pendingAdvancedTechTrackAdvance?.playerId === playerId;
+	if (!isMyTurn && !ownsPendingAdvance) return false;
 
 	const player = game.players[playerId];
 	const track = trackId as ResearchTrack;
@@ -6397,7 +6404,7 @@ export function executeAdvanceTech(
 		addGameLog(game, playerId, 'Ship Tech: Advanced track', `${track} → Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
-		game.hasDoneMainAction = true;
+		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
 
 		// 2TF+Mine 관련 순서 조정을 위해 기존 로직 제거 (이제 광산 건설 완료 시 트랙 전진이 트리거됨)
 
@@ -6418,7 +6425,7 @@ export function executeAdvanceTech(
 		addGameLog(game, playerId, 'Advanced Tech: Advanced track', `${track} → Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
-		game.hasDoneMainAction = true;
+		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
 	}
