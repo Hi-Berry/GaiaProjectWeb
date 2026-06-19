@@ -1070,12 +1070,12 @@ export function getNextRoundIncomePreview(
   const sciLevel = player.research?.science ?? 0;
   if (sciLevel < 5) result.knowledge += sciLevel;
 
-  if (player.techTiles?.includes('tech-inc-1o-1p')) {
+  if (player.techTiles?.includes('tech-inc-1o-1p') && !isTechTileCovered(player, 'tech-inc-1o-1p')) {
     result.ore += 1;
     result.powerCharge += 1;
   }
-  if (player.techTiles?.includes('tech-inc-4c')) result.credits += 4;
-  if (player.techTiles?.includes('tech-inc-1k-1c')) {
+  if (player.techTiles?.includes('tech-inc-4c') && !isTechTileCovered(player, 'tech-inc-4c')) result.credits += 4;
+  if (player.techTiles?.includes('tech-inc-1k-1c') && !isTechTileCovered(player, 'tech-inc-1k-1c')) {
     result.knowledge += 1;
     result.credits += 1;
   }

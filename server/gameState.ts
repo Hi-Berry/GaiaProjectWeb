@@ -460,7 +460,7 @@ function findNearbyPlayersForPower(game: ServerGameState, tile: HexTile, sourceP
 		const targetPlayerId = otherTile.ownerId;
 
 		// 이미 처리한 플레이어는 최대값만 업데이트
-		const hasBigBuildingTechTile = game.players[targetPlayerId]?.techTiles?.includes('tech-big-4str') || false;
+		const hasBigBuildingTechTile = (game.players[targetPlayerId]?.techTiles?.includes('tech-big-4str') && !isTechTileCovered(game.players[targetPlayerId], 'tech-big-4str')) || false;
 		let powerValue = getStructurePowerValue(otherTile.structure, hasBigBuildingTechTile);
 		// 매안(Bescods) 의회 보유 시 모행성(titanium) 건물은 파워 +1
 		const targetPlayer = game.players[targetPlayerId];
@@ -647,7 +647,7 @@ export function getFederationBuildingPower(
 	planetTileIds: Set<string>,
 	selectedEmptyHexIds?: string[]
 ): number {
-	const hasBig = game.players[playerId]?.techTiles?.includes('tech-big-4str') ?? false;
+	const hasBig = (game.players[playerId]?.techTiles?.includes('tech-big-4str') && !isTechTileCovered(game.players[playerId], 'tech-big-4str')) ?? false;
 	let sum = 0;
 	const player = game.players[playerId];
 	const bescodsHasPI = player?.faction === 'bescods' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
@@ -838,7 +838,7 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 		connected = net.connected || (selectedHexIds.length + selectedSpaceStationHexIds.length + selectedPlanetIds.length === 0);
 	}
 	const requiredPower = getFederationRequiredPower(game, playerId);
-	const hasBig = game.players[playerId]?.techTiles?.includes('tech-big-4str') ?? false;
+	const hasBig = (game.players[playerId]?.techTiles?.includes('tech-big-4str') && !isTechTileCovered(game.players[playerId], 'tech-big-4str')) ?? false;
 	const items: Array<{ tileId: string; label: string; power: number }> = [];
 	planetIds.forEach(tileId => {
 		const t = game.map.find(x => x.id === tileId);
@@ -5851,7 +5851,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		addGameLog(game, playerId, 'Built Mine on Proto', `+6 VP (3 terraforming required)`, tileId);
 	}
 
-	if (tile.type === 'gaia' && player.techTiles.includes('tech-gaia-3vp')) {
+	if (tile.type === 'gaia' && player.techTiles.includes('tech-gaia-3vp') && !isTechTileCovered(player, 'tech-gaia-3vp')) {
 		addScore(game, playerId, 3, 'techTiles', { tileId: 'tech-gaia-3vp' });
 		addGameLog(game, playerId, 'Tech Tile Bonus', `Gaia Planet: +3 VP`, tileId);
 	}

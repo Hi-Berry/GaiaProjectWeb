@@ -4054,7 +4054,7 @@ export default function Game() {
                 // 연방 파워 산정과 동일하게 내 구조물(우주선 제외) + 란티다 기생광산 + 우주정거장을 합산.
                 // 파워값: PI/Academy=3(big타일 시 4) / TS·Lab=2 / 광산=1 / 기생광산·우주정거장=1.
                 const { fedBuildingPower, totalBuildingPower } = (() => {
-                  const hasBig = p.techTiles?.includes('tech-big-4str') ?? false;
+                  const hasBig = (p.techTiles?.includes('tech-big-4str') && !p.coveredTechTiles?.includes('tech-big-4str')) ?? false;
                   const structPower = (s: StructureType | null | undefined): number => {
                     switch (s) {
                       case 'planetary_institute':

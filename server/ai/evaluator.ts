@@ -700,6 +700,7 @@ export class Evaluator {
         let projectedTechIncomeScore = 0;
         if (incomeRounds > 0 && player.techTiles) {
             for (const techId of player.techTiles) {
+                if (player.coveredTechTiles?.includes(techId)) continue; // 고급타일에 덮인 기본타일은 수입 없음
                 if (techId === 'tech-inc-1o-1p') {
                     // 앞으로 incomeRounds 번 1광물, 1파워
                     const totalOre = incomeRounds * 1;
