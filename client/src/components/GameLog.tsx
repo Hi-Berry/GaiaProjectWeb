@@ -440,7 +440,7 @@ export function GameLog({
               onMouseLeave={() => onEntryMouseLeave?.()}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
               title="클릭해서 점수·자원 변동 보기"
-              className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
+              className={`relative flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-start gap-2 py-1 px-2'} rounded-lg border-l-4 transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 border-y border-r border-y-white/10 border-r-white/10 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 border-y border-r border-y-white/5 border-r-white/5 opacity-90'
@@ -454,10 +454,11 @@ export function GameLog({
               }}
             >
               {factionInit && (
-                // 색깔바 왼쪽 위 종족 이니셜 — 색만으로 헷갈리는 종족(빨강/주황 등) 구분용
+                // 왼쪽 색깔바 중앙에 종족 이니셜 — 색만으로 헷갈리는 종족(빨강/주황 등) 구분용.
+                // 바(4px)+좌측 패딩 영역에 얹어 본문은 가리지 않음.
                 <span
-                  className="shrink-0 self-start mt-0.5 font-black leading-none rounded px-[3px] py-[1px] select-none"
-                  style={{ backgroundColor: factionColor, color: readableTextColor(factionColor), fontSize: `${8 * (textScale ?? 1)}px` }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 font-black leading-none select-none pointer-events-none z-[1]"
+                  style={{ color: readableTextColor(factionColor), fontSize: `${8 * (textScale ?? 1)}px`, textShadow: '0 0 2px rgba(0,0,0,0.7)' }}
                   title={player?.name}
                 >{factionInit}</span>
               )}
