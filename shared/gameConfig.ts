@@ -71,6 +71,8 @@ export interface PlayerState {
   brainStoneBowl?: 1 | 2 | 3;
   /** 타클론: 우주선 입장 시 브레인 스톤이 가이아 영역으로 가 다음 라운드까지 사용 불가 */
   brainStoneInGaia?: boolean;
+  /** 타클론: 파워 소비 시 브레인 스톤 우선 사용 선호(전역 토글, 기본 true=큰 파워는 브레인 우선). false면 일반토큰 우선(브레인 보존). */
+  taklonsBrainPriority?: boolean;
   /** 아이타: 2그릇 태울 때 "사라지는" 1토큰을 가이아포머 공간처럼 보관, 다음 라운드에 1그릇으로 복귀 */
   /** 팅커로이드: 게임 중 이미 선택한 Special 액션 ID (각 1회만 선택 가능) */
   tinkeroidsChosenSpecialIds?: string[];
@@ -1338,27 +1340,34 @@ export function canTaklonsSpendUsingBrain(player: PlayerState, fromBowl: 1 | 2 |
   return canSpendTaklonsPower(player, fromBowl, powerValue);
 }
 
-/** 타클론: 그릇에서 powerValue 파워 소비. useBrain이면 브레인 포함해서 소비 (토큰 수 최소화). 사용한 토큰은 그릇1으로. */
+/** 타클론: 그릇에서 powerValue 파워 소비. 사용한 토큰은 그릇1으로.
+ * useBrain=true → 브레인 스톤(3그릇값=3) 우선 사용(초과분만 일반토큰), 일반토큰 보존.
+ * useBrain=false → 일반토큰만으로 지불(브레인 보존). 단 일반토큰이 부족하면 브레인으로 폴백(액션 가능하게).
+ * (브레인은 powerValue가 3 미만이어도 사용 가능 — 2파워에 브레인 쓰면 1 낭비하지만 토큰 2개 보존) */
 export function spendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, powerValue: number, useBrain: boolean): boolean {
   const count = fromBowl === 1 ? (player.power1 ?? 0) : fromBowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);
   const hasBrain = !player.brainStoneInGaia && player.brainStoneBowl === fromBowl;
-  // 타클론 규칙: 3그릇에서 3파워 이상 지불 시 브레인 스톤을 우선 사용
-  const effectiveUseBrain = useBrain || (hasBrain && fromBowl === 3 && powerValue >= 3);
-  const toRemove = (effectiveUseBrain && hasBrain && powerValue >= 3)
-    ? Math.max(0, powerValue - 3) // ONLY regular tokens to remove; brainstone is handled via boolean flag
-    : powerValue;                     // otherwise all spent power comes from regular tokens
-  if (count < toRemove) return false;
+  const regularEnough = count >= powerValue;
+  // 브레인 사용: 명시 선호(useBrain) OR 일반토큰만으론 부족할 때
+  const willUseBrain = hasBrain && (useBrain || !regularEnough);
 
-  // Subtract regular tokens from current bowl
-  if (fromBowl === 1) player.power1 = count - toRemove;
-  else if (fromBowl === 2) player.power2 = count - toRemove;
-  else player.power3 = count - toRemove;
+  if (willUseBrain) {
+    const fromRegular = Math.max(0, powerValue - 3); // 브레인(3) 초과분만 일반토큰으로
+    if (count < fromRegular) return false;
+    if (fromBowl === 1) player.power1 = count - fromRegular;
+    else if (fromBowl === 2) player.power2 = count - fromRegular;
+    else player.power3 = count - fromRegular;
+    player.power1 = (player.power1 ?? 0) + fromRegular; // 쓴 일반토큰 → 그릇1
+    player.brainStoneBowl = 1;                          // 쓴 브레인 → 그릇1
+    return true;
+  }
 
-  // Move spent regular tokens to Bowl 1
-  player.power1 = (player.power1 ?? 0) + toRemove;
-
-  // Move spent brainstone to Bowl 1
-  if (effectiveUseBrain && hasBrain && powerValue >= 1) player.brainStoneBowl = 1;
+  // 일반토큰만
+  if (count < powerValue) return false;
+  if (fromBowl === 1) player.power1 = count - powerValue;
+  else if (fromBowl === 2) player.power2 = count - powerValue;
+  else player.power3 = count - powerValue;
+  player.power1 = (player.power1 ?? 0) + powerValue;
   return true;
 }
 

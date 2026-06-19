@@ -3228,10 +3228,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					const target = game.map.find(t => t.id === targetTileId);
 					if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return;
 					{ const tok = shipPowerTokens(3);
-					if (player.ore < 2 || player.power3 < tok) return;
+					if (player.ore < 2) return;
+					if (player.faction === 'taklons') { if (!canSpendTaklonsPower(player, 3, 3)) return; } else if (player.power3 < tok) return;
 					player.ore -= 2;
-					player.power3 -= tok;
-					player.power1 += tok; }
+					if (player.faction === 'taklons') { spendTaklonsPower(player, 3, 3, player.taklonsBrainPriority ?? true); }
+					else { player.power3 -= tok; player.power1 += tok; } }
 					target.structure = 'research_lab';
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -3289,10 +3290,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					const target = game.map.find(t => t.id === tid || String(t.id) === tid);
 					if (!target || target.ownerId !== playerId || target.structure !== 'mine') return;
 					{ const tok = shipPowerTokens(3);
-					if (player.ore < 1 || player.power3 < tok) return;
+					if (player.ore < 1) return;
+					if (player.faction === 'taklons') { if (!canSpendTaklonsPower(player, 3, 3)) return; } else if (player.power3 < tok) return;
 					player.ore -= 1;
-					player.power3 -= tok;
-					player.power1 += tok; }
+					if (player.faction === 'taklons') { spendTaklonsPower(player, 3, 3, player.taklonsBrainPriority ?? true); }
+					else { player.power3 -= tok; player.power1 += tok; } }
 					target.structure = 'trading_station';
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -3340,13 +3342,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 					return;
 				}
 				if (actionIndex === 2) {
-					if (player.power3 < shipPowerTokens(2)) return; // Nevlas 의회: 2pw=1토큰
+					if (player.faction === 'taklons') { if (!canSpendTaklonsPower(player, 3, 2)) return; } else if (player.power3 < shipPowerTokens(2)) return; // Nevlas 의회: 2pw=1토큰
 					if (getEffectiveGaiaformers(player) < 1) {
 						socket.emit('game_error', { message: '사용 가능한 가이아포머가 없습니다.' });
 						return;
 					}
-					player.power3 -= shipPowerTokens(2);
-					player.power1 += shipPowerTokens(2);
+					if (player.faction === 'taklons') { spendTaklonsPower(player, 3, 2, player.taklonsBrainPriority ?? true); }
+					else { player.power3 -= shipPowerTokens(2); player.power1 += shipPowerTokens(2); }
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
@@ -3902,6 +3904,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 		});
 
+
+		socket.on('set_taklons_brain_priority', ({ gameId, value }) => {
+			const game = games.get(gameId); if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			const player = game.players[playerId];
+			if (!player || player.faction !== 'taklons') return;
+			// 전역 토글: 파워 소비 시 브레인 스톤 우선 여부
+			player.taklonsBrainPriority = !!value;
+			io.to(game.id).emit('game_updated', game);
+		});
 
 		socket.on('use_power_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
@@ -6856,7 +6868,7 @@ export function executeUsePowerAction(
 
 	if (action.costType === 'power') {
 		if (player.faction === 'taklons') {
-			spendTaklonsPower(player, 3, powerCost, useBrain ?? true);
+			spendTaklonsPower(player, 3, powerCost, player.taklonsBrainPriority ?? (useBrain ?? true));
 		} else {
 			player.power3 = (player.power3 ?? 0) - powerCost;
 			player.power1 = (player.power1 ?? 0) + powerCost;

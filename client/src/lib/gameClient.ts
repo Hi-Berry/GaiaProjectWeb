@@ -314,6 +314,12 @@ export const GameClient = {
     });
   },
 
+  /** 타클론: 파워 소비 시 브레인 스톤 우선 사용 전역 토글 */
+  setTaklonsBrainPriority(gameId: string, value: boolean) {
+    const s = getSocket();
+    s.emit('set_taklons_brain_priority', { gameId, value });
+  },
+
   /** GM/Admin: 현재 턴을 특정 플레이어로 강제 지정 (디버그용, 서버 가드 있음) */
   adminSetCurrentTurn(gameId: string, targetPlayerId: string, adminCode: string): Promise<void> {
     return new Promise((resolve, reject) => {
