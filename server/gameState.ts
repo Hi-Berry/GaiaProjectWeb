@@ -7242,10 +7242,20 @@ export function executeUseShipAction(
 			if (targetTileId == null) return false;
 			const target = game.map.find(t => t.id === targetTileId);
 			if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return false;
-			if (player.ore < 2 || player.power3 < 3) return false;
+			if (player.ore < 2) return false;
+			// 타클론: 브레인스톤 포함 소비(3그릇 3파워는 브레인 우선). 직접 power3 차감하면 브레인 무시 버그(사용자 관찰).
+			if (player.faction === 'taklons') {
+				if (!canSpendTaklonsPower(player, 3, 3)) return false;
+			} else if ((player.power3 ?? 0) < 3) {
+				return false;
+			}
 			player.ore -= 2;
-			player.power3 -= 3;
-			player.power1 = (player.power1 || 0) + 3;
+			if (player.faction === 'taklons') {
+				spendTaklonsPower(player, 3, 3, true);
+			} else {
+				player.power3 -= 3;
+				player.power1 = (player.power1 || 0) + 3;
+			}
 			target.structure = 'research_lab';
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -7299,10 +7309,20 @@ export function executeUseShipAction(
 			if (!tid) return false;
 			const target = game.map.find(t => t.id === tid || String(t.id) === tid);
 			if (!target || target.ownerId !== playerId || target.structure !== 'mine') return false;
-			if (player.ore < 1 || player.power3 < 3) return false;
+			if (player.ore < 1) return false;
+			// 타클론: 브레인스톤 포함 소비(3그릇 3파워는 브레인 우선). 직접 power3 차감하면 브레인 무시 버그(사용자 관찰).
+			if (player.faction === 'taklons') {
+				if (!canSpendTaklonsPower(player, 3, 3)) return false;
+			} else if ((player.power3 ?? 0) < 3) {
+				return false;
+			}
 			player.ore -= 1;
-			player.power3 -= 3;
-			player.power1 = (player.power1 || 0) + 3;
+			if (player.faction === 'taklons') {
+				spendTaklonsPower(player, 3, 3, true);
+			} else {
+				player.power3 -= 3;
+				player.power1 = (player.power1 || 0) + 3;
+			}
 			target.structure = 'trading_station';
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
