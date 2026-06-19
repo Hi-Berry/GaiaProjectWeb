@@ -302,7 +302,7 @@ export class FederationPlanner {
             // [flag: fedMinTrim] 연결 컴포넌트가 이미 7 이상이면 통째로 묶지 말고 "딱 7 넘는 최소 연결 부분집합"만
             // 연방에 넣어 초과분 건물을 다음 연방 씨앗으로 보존. 강자는 연방을 작게·여러 개 만들어 보상/초록토큰을 늘림.
             // (봇 최대 병목: 연방 1.4 vs 사람 4.5). Ivits는 누적규칙이라 제외.
-            if (!isIvits && getPlayerFlag(playerId, 'fedMinTrim', false) && currentPower >= requiredPower + 1) {
+            if (!isIvits && getPlayerFlag(playerId, 'fedMinTrim', true) && currentPower >= requiredPower + 1) {
                 const trimmed = this.minimalConnectedFedSet(game, playerId, startTile.id, initialComponent, requiredPower);
                 if (trimmed && getFederationBuildingPower(game, playerId, trimmed) >= requiredPower) {
                     return this.finalizeFederation(game, playerId, [], Array.from(trimmed), 0);
