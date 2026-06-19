@@ -4,7 +4,7 @@ import { useState, useRef, Fragment, type CSSProperties } from 'react';
 import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
-import { racePortraitSrc } from '@/lib/racePortrait';
+import { raceFaceSrc } from '@/lib/racePortrait';
 
 interface GameLogProps {
   game: GameState;
@@ -422,7 +422,7 @@ export function GameLog({
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
           const factionColor = factionObj?.color;
-          const portraitSrc = player?.faction ? racePortraitSrc(player.faction) : null;
+          const portraitSrc = player?.faction ? raceFaceSrc(player.faction) : null;
           const primaryImg = getLogPrimaryImage(log, player?.faction);
           const isAiFeedbackLog = !!log.aiFeedbackActionId;
 
@@ -453,10 +453,10 @@ export function GameLog({
                   alt={factionObj?.name}
                   title={player?.name}
                   loading="lazy"
-                  className="shrink-0 self-start rounded-full object-cover object-top select-none"
+                  className="shrink-0 self-start rounded-md object-cover select-none"
                   style={{
-                    width: `${20 * (textScale ?? 1)}px`,
-                    height: `${20 * (textScale ?? 1)}px`,
+                    width: `${17 * (textScale ?? 1)}px`,
+                    height: `${24 * (textScale ?? 1)}px`,
                     boxShadow: factionColor ? `0 0 0 1.5px ${factionColor}, 0 0 2px 1px rgba(0,0,0,0.5)` : undefined,
                   }}
                 />

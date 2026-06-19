@@ -25,3 +25,10 @@ export function racePortraitSrc(factionId: string): string | null {
   const slug = RACE_IMAGE_SLUG[factionId];
   return slug ? `/race/race_${slug}.png` : null;
 }
+
+/** 종족 얼굴(왼쪽 타원 초상만 잘라낸) 썸네일 URL — 로그 등 작은 아바타용.
+ *  race_face_*.png는 비딩 배너에서 왼쪽 타원 영역만 크롭한 세로형(약 116x160). 없으면 null. */
+export function raceFaceSrc(factionId: string): string | null {
+  const slug = RACE_IMAGE_SLUG[factionId];
+  return slug ? `/race/race_face_${slug}.png` : null;
+}
