@@ -580,8 +580,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 return (
                                                                     <div
                                                                         key={p.id}
-                                                                        className="w-3 h-3 rounded-full border border-black/50 shadow-md flex-shrink-0"
-                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-3px' : '0' }}
+                                                                        className="w-3 h-3 rounded-full border-2 border-white shadow-md flex-shrink-0"
+                                                                        style={{ backgroundColor: faction?.color || '#fff', marginLeft: i > 0 ? '-3px' : '0', boxShadow: '0 0 0 1px rgba(0,0,0,0.6)' }}
                                                                         title={p.name}
                                                                     />
                                                                 );
@@ -1116,8 +1116,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     return (
                                                                         <div
                                                                             key={p.id}
-                                                                            className="w-4 h-4 rounded-full border border-white/20 shadow-lg cursor-help group relative"
-                                                                            style={{ backgroundColor: faction?.color || '#fff' }}
+                                                                            className="w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-help group relative"
+                                                                            style={{ backgroundColor: faction?.color || '#fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.6)' }}
                                                                         >
                                                                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110]">
                                                                                 <Badge variant="outline" className="bg-zinc-950 text-[8px] whitespace-nowrap border-white/20">
