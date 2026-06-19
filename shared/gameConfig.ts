@@ -2157,12 +2157,22 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       return max;
     }
     case 'fm_planet_types': {
-      // 행성 유형은 란티다 기생 광산 제외 (1K/Type·패스보너스 등 다른 유형 점수와 일관)
-      const types = new Set(map.filter(t => t.ownerId === playerId && t.structure != null && t.structure !== 'ship').map(t => t.type));
+      // 행성 유형은 란티다 기생 광산 제외 (1K/Type·패스보너스 등 다른 유형 점수와 일관).
+      // 상태창/getPlayerPlanetTypesForGeodens와 동일하게: space/deep_space 제외, lost_planet·가상광산(소행성/원시) 포함.
+      const types = new Set<string>();
+      for (const t of map) {
+        if (t.ownerId === playerId && t.structure != null && t.structure !== 'ship') {
+          if (t.structure === 'lost_planet_mine') types.add('lost_planet');
+          else if (t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
+        }
+      }
+      if (player.virtualMineAsteroid) types.add('asteroid');
+      if (player.virtualMineProto) types.add('proto');
       return types.size;
     }
     case 'fm_asteroid_buildings':
-      return map.filter(t => t.type === 'asteroid' && ((t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId)).length;
+      return map.filter(t => t.type === 'asteroid' && ((t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId)).length
+        + (player.virtualMineAsteroid ? 1 : 0);
     default:
       return 0;
   }
