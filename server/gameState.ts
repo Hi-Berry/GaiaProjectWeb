@@ -1533,8 +1533,8 @@ export function applyAdvancedTechTileEffect(game: GaiaGameState, playerId: strin
 
 	if (!game.gameLog) game.gameLog = [];
 
-	// '고급' 접두로 라운드 미션 보너스와 구분(둘 다 동시에 떠도 식별 가능). 같은 사유는 자동 합산됨.
-	const appendToLastLog = (vp: number, reason: string) => appendVpSegmentToLastLog(game, playerId, vp, `고급 ${reason}`);
+	// 'Advanced' 접두로 라운드 미션 보너스와 구분(둘 다 동시에 떠도 식별 가능). 같은 사유는 자동 합산됨.
+	const appendToLastLog = (vp: number, reason: string) => appendVpSegmentToLastLog(game, playerId, vp, `Advanced ${reason}`);
 
 	for (const tileId of player.techTiles) {
 		// 덮인 기술 타일이면 적용하지 않음
