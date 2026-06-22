@@ -2538,6 +2538,10 @@ export default function Game() {
               const faction = FACTIONS.find(f => f.id === player.faction);
               if (!faction) return;
 
+              // 란티다 기생광산: 이미 정착된 땅에 기생 → 소행성이어도 가이아포머 불필요(서버도 동일).
+              const isLantidaParasitic = player.faction === 'lantids' &&
+                tile.structure != null && tile.ownerId !== playerId && tile.ownerId != null && !tile.parasiticMine;
+
               // Check distance and reachability (+3 거리 보너스 반영)
               const baseRange = getEffectiveBaseRange(player);
               const rangeTiles = game.map.filter(t =>
@@ -2566,8 +2570,8 @@ export default function Game() {
               const potentialCost = getActionCost({ type: 'buildMine', tileId });
               if (!potentialCost) return;
 
-              // 소행성은 가이아 포머 체크만 필요
-              if (tile.type === 'asteroid') {
+              // 소행성은 가이아 포머 체크만 필요 — 단 기생광산은 포머 불필요(이미 정착된 땅에 기생)
+              if (tile.type === 'asteroid' && !isLantidaParasitic) {
                 if (!player.gaiaformers || player.gaiaformers <= 0) {
                   toast({
                     title: 'Cannot Build',
