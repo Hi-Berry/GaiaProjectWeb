@@ -1630,11 +1630,10 @@ export default function Game() {
                                     </div>
                                     {/* 순위대로 4명 + 내 행 강조 */}
                                     <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-                                      {ranking.map((r, ri) => {
+                                      {ranking.map((r) => {
                                         const isMe = r.rid === pid;
                                         return (
                                           <div key={r.rid} className={`flex items-center gap-2 px-2 py-0.5 rounded ${isMe ? 'bg-blue-500/10 ring-1 ring-blue-400/60' : ''}`}>
-                                            <span className="text-[10px] font-black text-zinc-500 w-3 shrink-0 tabular-nums">{ri + 1}</span>
                                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
                                             <span className={`text-xs truncate flex-1 min-w-0 ${isMe ? 'font-black text-white' : 'font-bold text-zinc-300'}`}>{r.name}</span>
                                             <span className="text-sm font-black text-white tabular-nums shrink-0 w-7 text-right" title="미션 달성 수치">{r.value}</span>
