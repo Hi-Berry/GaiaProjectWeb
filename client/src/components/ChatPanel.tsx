@@ -204,10 +204,13 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
                     type="button"
                     onClick={() => setOpen(true)}
                     style={{ pointerEvents: 'auto' }}
-                    className="relative flex items-center gap-1.5 bg-black/80 backdrop-blur-md border border-white/15 rounded-full pl-3 pr-4 py-2 shadow-2xl hover:bg-zinc-800/90 transition-colors"
+                    aria-label="채팅 열기"
+                    title="채팅"
+                    /* 모바일: 다른 버튼(Info·로그·Menu)과 동일한 동그란 아이콘 버튼. 데스크톱: '채팅' 알약 */
+                    className="relative flex items-center justify-center md:justify-start gap-0 md:gap-1.5 h-12 w-12 md:h-auto md:w-auto rounded-full md:pl-3 md:pr-4 md:py-2 border border-white/15 bg-zinc-900/90 md:bg-black/80 backdrop-blur shadow-[0_4px_20px_rgba(0,0,0,0.5)] md:shadow-2xl hover:bg-zinc-800/90 active:scale-95 transition-transform md:transition-colors"
                 >
-                    <MessageCircle className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-bold text-zinc-200">채팅</span>
+                    <MessageCircle className="w-5 h-5 md:w-4 md:h-4 text-primary" />
+                    <span className="hidden md:inline text-xs font-bold text-zinc-200">채팅</span>
                     {unread > 0 && (
                         <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                             {unread > 99 ? '99+' : unread}
