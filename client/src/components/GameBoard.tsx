@@ -494,6 +494,16 @@ export function GameBoard({
     );
   }, [pendingRebellionMineToTS, playerId, game.map]);
 
+  // 파이락 다운그레이드: 대상 = 내 연구소들. (트왈라잇/리벨리온처럼 맵에 하이라이트)
+  const firaksDowngradeSelectableIds = useMemo(() => {
+    if (!firaksDowngradeMode || !playerId) return new Set<string>();
+    return new Set(
+      game.map
+        .filter((t: HexTile) => t.ownerId === playerId && t.structure === 'research_lab')
+        .map((t: HexTile) => t.id)
+    );
+  }, [firaksDowngradeMode, playerId, game.map]);
+
   const SHIP_ABBR: Record<string, string> = {
     ship_twilight: 'TW',
     ship_rebellion: 'RB',
@@ -1130,7 +1140,8 @@ export function GameBoard({
                 const isEclipseBuildable = eclipseBuildableTileIds.has(tile.id);
                 const isTwilightTSSelectable = twilightTSSelectableIds.has(tile.id);
                 const isRebellionMineSelectable = rebellionMineSelectableIds.has(tile.id);
-                const isShipActionSelectable = isTwilightTSSelectable || isRebellionMineSelectable;
+                const isFiraksDowngradeSelectable = firaksDowngradeSelectableIds.has(tile.id);
+                const isShipActionSelectable = isTwilightTSSelectable || isRebellionMineSelectable || isFiraksDowngradeSelectable;
                 const isFederationSelected = federationSelectedIds.has(tile.id);
                 const satelliteOwnerIds = (() => {
                   const v = game.satellites?.[tile.id];
