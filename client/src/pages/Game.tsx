@@ -154,6 +154,8 @@ export default function Game() {
   /** 모바일 Info 오버레이: 3페이지(0=기술타일, 1=우주선, 2=라운드/보너스) 스와이프 */
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [infoPage, setInfoPage] = useState(0);
+  /** 모바일: 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글, 기본 숨김 */
+  const [isMapControlsOpen, setIsMapControlsOpen] = useState(false);
   /** 플레이어 상세(클릭 시) 팝오버 배율 */
   const [playerDetailScale, setPlayerDetailScale] = useState<1 | 1.5 | 2>(() => {
     const v = parseFloat(localStorage.getItem('player-detail-scale') || '1');
@@ -2725,6 +2727,7 @@ export default function Game() {
                 return next;
               });
             }}
+            mobileControlsOpen={isMapControlsOpen}
           />
         </div>
 
@@ -5153,6 +5156,22 @@ export default function Game() {
           }}
         >
           {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+        </button>
+      )}
+      {/* 모바일 Menu 버튼 — 로그 버튼 왼쪽. 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 보였다 안 보이게 토글 */}
+      {game && (
+        <button
+          type="button"
+          aria-label={isMapControlsOpen ? '맵 컨트롤 숨기기' : '맵 컨트롤 보기'}
+          title="맵 컨트롤 (상태창·배율·줌)"
+          onClick={() => setIsMapControlsOpen((prev) => !prev)}
+          className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-amber-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+            right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem + 3.5rem)',
+          }}
+        >
+          {isMapControlsOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       )}
 

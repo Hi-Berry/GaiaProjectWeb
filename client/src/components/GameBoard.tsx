@@ -294,6 +294,8 @@ interface GameBoardProps {
   playerDetailScale?: 1 | 1.5 | 2;
   /** 플레이어 상세 1배/2배 토글 */
   onTogglePlayerDetailScale?: () => void;
+  /** 모바일: 맵 우측 세로 컨트롤 컬럼 표시 여부 (Menu 버튼 토글). 데스크톱은 항상 표시 */
+  mobileControlsOpen?: boolean;
 }
 
 
@@ -345,6 +347,7 @@ export function GameBoard({
   onToggleSidebar,
   playerDetailScale = 1,
   onTogglePlayerDetailScale,
+  mobileControlsOpen = false,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
@@ -1518,8 +1521,8 @@ export function GameBoard({
             );
           })()}
 
-          {/* 기존 상태창 토글 / 줌 컨트롤 */}
-          <div className="flex flex-col gap-2 relative">
+          {/* 기존 상태창 토글 / 줌 컨트롤 — 모바일에선 Menu 버튼으로 토글(기본 숨김), 데스크톱은 항상 표시 */}
+          <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>
             {onToggleSidebar && (
               <Button
                 size="icon"
