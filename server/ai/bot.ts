@@ -1010,6 +1010,26 @@ export class BotLogic {
             const RANGE_USING = new Set(['build_mine', 'place_gaiaformer', 'enter_spaceship', 'place_ivits_space_station', 'place_lost_planet']);
             const rangeOnly = candidates.filter(c => RANGE_USING.has(c.type));
             if (rangeOnly.length > 0) candidatePool = rangeOnly;
+            else {
+                // [진단 RANGE-WASTE] 사거리 부스터가 활성인데 쓸 사거리 액션이 0개 = 보너스 낭비 확정 순간.
+                // 게이트(rangeBoosterUnlocksTarget)는 "쓸 수 있다"고 켰는데 막상 후보엔 없는 모순을 현장 포착.
+                try {
+                    const counts = candidates.reduce((m, c) => { m[c.type] = (m[c.type] || 0) + 1; return m; }, {} as Record<string, number>);
+                    const nb = this.findBuildActions(game, playerId).length;
+                    const nbp = this.findBuildActionsWithPendingSteps(game, playerId).length;
+                    const ns = this.findSpaceshipEntryActions(game, playerId).length;
+                    const unlocks = {
+                        range: this.rangeBoosterUnlocksTarget(game, playerId, 'rangeBonusActive'),
+                        gleens: this.rangeBoosterUnlocksTarget(game, playerId, 'gleensNavBonusActive'),
+                        temp: this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus'),
+                    };
+                    const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+                    log(`[RANGE-WASTE] ${player.name} R${(game as any).roundNumber} active(range/gleens/temp=${!!player.rangeBonusActive}/${!!player.gleensNavBonusActive}/${!!player.tempRangeBonus}) but 0 range-actions. ` +
+                        `baseRange=${baseRange} ore=${player.ore} credits=${player.credits} qic=${player.qic} gaiaformers=${player.gaiaformers} | ` +
+                        `findBuild=${nb} findBuildPending=${nbp} findShipEntry=${ns} | unlocks=${JSON.stringify(unlocks)} | candidates=${JSON.stringify(counts)}`,
+                        'game', game.id);
+                } catch (e) { log(`[RANGE-WASTE] diag error: ${e}`, 'game', game.id); }
+            }
         }
 
         // 중복 제거 (예: 동일한 타일에 대한 건설 명령이 두 번 들어간 경우)
