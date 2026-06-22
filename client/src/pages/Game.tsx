@@ -208,6 +208,9 @@ export default function Game() {
   const effectiveSidebarWidth = isMobileViewport
     ? Math.min(sidebarWidth, Math.max(75, Math.round(winW * 0.22)))
     : sidebarWidth;
+  // 모바일: 내용을 디자인폭(308px)으로 렌더 후 zoom으로 축소 → 영역과 함께 글자도 줄어 안 겹침.
+  const MOBILE_PANEL_DESIGN_WIDTH = 308;
+  const mobilePanelZoom = isMobileViewport ? effectiveSidebarWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
 
   const startSidebarResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -4063,7 +4066,10 @@ export default function Game() {
           <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
         )}
         {isSidebarOpen && (
-          <div className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden">
+          <div
+            className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden"
+            style={isMobileViewport ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties) : undefined}
+          >
             <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
               {/* 연방 구현: GameBoard의 줌 컨트롤 좌측으로 이동됨 */}
 
