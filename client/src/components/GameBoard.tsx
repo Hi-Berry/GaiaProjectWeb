@@ -1272,15 +1272,16 @@ export function GameBoard({
                     {/* Player Building / Federation / Satellite Highlight (Hover from sidebar) - 연방 포함=금색, 미포함=파란색(우주정거장 포함) */}
                     {hoveredPlayerId && (() => {
                       const isOwnBuilding = tile.ownerId === hoveredPlayerId && tile.structure && tile.structure !== 'ship';
+                      const isParasiticMine = tile.parasiticMine?.ownerId === hoveredPlayerId; // 란티다 기생광산(ownerId는 상대라 isOwnBuilding에 안 잡힘)
                       const isSatellite = satelliteOwnerIds.includes(hoveredPlayerId);
                       const isSpaceStation = tile.spaceStation?.ownerId === hoveredPlayerId;
-                      if (!isOwnBuilding && !isSatellite && !isSpaceStation) return null;
+                      if (!isOwnBuilding && !isParasiticMine && !isSatellite && !isSpaceStation) return null;
 
                       const isFederated = hoveredFederationHexIds.has(tile.id);
-                      // 건물: 연방 포함→금색, 미포함→시안. 위성 칸→금색. 우주정거장: 연방 포함→금색, 미포함→파란색
+                      // 건물/기생광산: 연방 포함→금색, 미포함→시안. 위성 칸→금색. 우주정거장: 연방 포함→금색, 미포함→파란색
                       const highlightColor = isSpaceStation
                         ? (isFederated ? '#FFD700' : '#3b82f6')
-                        : (isFederated && isOwnBuilding) || isSatellite
+                        : (isFederated && (isOwnBuilding || isParasiticMine)) || isSatellite
                           ? '#FFD700'
                           : '#00F2FF';
 
