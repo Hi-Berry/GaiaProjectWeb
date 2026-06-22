@@ -235,8 +235,14 @@ export class BotLogic {
                 // 3C→1스텝 후 광산: 연계 체인이므로 Nav+영구만(임시 네비 미포함, findBuildActionsWithPendingSteps와 동일)
                 const oldSteps = player.pendingTerraformSteps || 0;
                 player.pendingTerraformSteps = oldSteps + 1;
+                // [flag: tfStepBuildSameTurn] 3C 차감까지 시뮬 → 3C 쓰고도 그 턴에 실제로 광산을 지을 수 있을 때만 TF-3C 허용.
+                //   (안 그러면 3C 쓰고 자원이 모자라 그 턴엔 못 짓고, 스텝만 들고 다른 메인 액션 → 나중 턴에 건설. 사용자 관찰)
+                const simSpend = getPlayerFlag(playerId, 'tfStepBuildSameTurn', true);
+                const oldCredits = player.credits ?? 0;
+                if (simSpend) player.credits = oldCredits - 3;
                 const canFinish = this.findBuildActionsWithPendingSteps(game, playerId).length > 0;
                 player.pendingTerraformSteps = oldSteps;
+                if (simSpend) player.credits = oldCredits;
                 return canFinish;
             }
             return false;
