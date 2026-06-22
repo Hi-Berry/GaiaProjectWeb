@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, type CSSProperties } from 'react';
 import { HexGrid, Layout, Hexagon, Text } from 'react-hexgrid';
 import { motion } from 'framer-motion';
 
@@ -296,6 +296,10 @@ interface GameBoardProps {
   onTogglePlayerDetailScale?: () => void;
   /** 모바일: 맵 우측 세로 컨트롤 컬럼 표시 여부 (Menu 버튼 토글). 데스크톱은 항상 표시 */
   mobileControlsOpen?: boolean;
+  /** 모바일 뷰포트 여부 — 타일/우주선 디테일 패널을 상태창과 같은 크기로 축소 */
+  isMobileViewport?: boolean;
+  /** 모바일에서 디테일 패널 폭(=상태창 폭). 내용은 256px 디자인폭을 zoom으로 축소 */
+  mobilePanelWidth?: number;
 }
 
 
@@ -348,6 +352,8 @@ export function GameBoard({
   playerDetailScale = 1,
   onTogglePlayerDetailScale,
   mobileControlsOpen = false,
+  isMobileViewport = false,
+  mobilePanelWidth = 0,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
@@ -1606,8 +1612,8 @@ export function GameBoard({
       {
         selectedTile && !isFederationMode && (
           <div
-            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border p-4 space-y-4 shadow-xl z-40 overflow-y-auto transition-all duration-300 ease-in-out"
-
+            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out"
+            style={isMobileViewport && mobilePanelWidth ? { width: mobilePanelWidth } : undefined}
           >
             {/* 닫기 — 이 패널이 맵 오른쪽을 가려 클릭을 막으므로, 닫아서 맵을 바로 누를 수 있게 함 */}
             <button
@@ -1618,6 +1624,11 @@ export function GameBoard({
             >
               ✕
             </button>
+            {/* 내용 래퍼: 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
+            <div
+              className="h-full overflow-y-auto p-4 space-y-4"
+              style={isMobileViewport && mobilePanelWidth ? ({ width: 256, height: `${(25600 / mobilePanelWidth)}%`, zoom: mobilePanelWidth / 256 } as CSSProperties) : undefined}
+            >
             <h3 className="font-semibold capitalize pr-8">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
             </h3>
@@ -2330,6 +2341,7 @@ export function GameBoard({
             >
               Close
             </Button>
+            </div>
           </div>
         )
       }

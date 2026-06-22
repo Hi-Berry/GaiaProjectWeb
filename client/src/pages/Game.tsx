@@ -2728,6 +2728,8 @@ export default function Game() {
               });
             }}
             mobileControlsOpen={isMapControlsOpen}
+            isMobileViewport={isMobileViewport}
+            mobilePanelWidth={effectiveSidebarWidth}
           />
         </div>
 
