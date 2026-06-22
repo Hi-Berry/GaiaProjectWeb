@@ -2822,12 +2822,15 @@ export default function Game() {
               </button>
               {isBonusSelectionPanelExpanded && (
                 <div className="px-4 sm:px-6 pb-6 pt-2 max-h-[45vh] overflow-y-auto border-t border-white/5 custom-scrollbar bg-black/20 w-full min-w-0">
-                  <BonusTiles
-                    game={game}
-                    playerId={playerId}
-                    isSelectionMode={isMyTurnBonusSelection}
-                    onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
-                  />
+                  {/* 모바일: 다른 패널처럼 비율 축소(zoom-fill: 내부 폭 보정 후 zoom → 빈 공간 없이 타일만 작아짐) */}
+                  <div style={isMobileViewport ? ({ width: `${100 / 0.62}%`, zoom: 0.62 } as CSSProperties) : undefined}>
+                    <BonusTiles
+                      game={game}
+                      playerId={playerId}
+                      isSelectionMode={isMyTurnBonusSelection}
+                      onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
+                    />
+                  </div>
                 </div>
               )}
             </motion.div>
