@@ -79,6 +79,20 @@ function colorLuminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/** 어두운 색을 '흰색 섞기' 없이 밝히기 — 가장 밝은 채널을 targetMax까지 비례 확대해 색상·채도 유지.
+ *  (shadeColor 라이트닝은 채도를 빼서 빨강이 주황/살몬처럼 보이는 문제 해결용.) */
+function brightenKeepHue(hex: string, targetMax: number): string {
+  let h = (hex || '#888888').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const num = parseInt(h, 16);
+  let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  const mx = Math.max(r, g, b, 1);
+  if (mx >= targetMax) return '#' + h;
+  const f = targetMax / mx;
+  r = Math.min(255, Math.round(r * f)); g = Math.min(255, Math.round(g * f)); b = Math.min(255, Math.round(b * f));
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
 /** 같은 칸에 위성이 여러 개일 때 보기 좋은 배치 좌표(hex 로컬 좌표계).
  *  1개짜리 크기(scale=1)를 그대로 유지하면서 겹치지 않게 간격만 벌림.
  *  1=가운데, 2=세로 1/3·2/3, 3=삼각형, 4=2×2, 5+=원형 */
@@ -99,8 +113,9 @@ function SatelliteCube({ color, scale = 1 }: { color: string; scale?: number }) 
   // 어두운/탁한 종족색(검정·갈색)은 그대로 두면 어두운 우주 배경과 대비가 약해 안 보임.
   // 매우 어두우면 면 자체를 살짝 띄워 식별성 확보.
   const lum = colorLuminance(color); // 0~255
-  const lift = lum < 70 ? 0.30 : lum < 110 ? 0.15 : 0;
-  const base = lift > 0 ? shadeColor(color, lift) : color;
+  // 어두운 색은 흰색을 섞어 밝히면(shadeColor) 채도가 빠져 빨강(#B71C1C)이 주황/살몬처럼 보임 →
+  // 색상·채도 유지하며 밝히기(가장 밝은 채널을 215까지 비례 확대). 이미 밝은 색(주황 등)은 그대로.
+  const base = lum < 125 ? brightenKeepHue(color, 215) : color;
   const topFace = shadeColor(base, 0.42);
   const rightFace = base;
   const leftFace = shadeColor(base, -0.34);
