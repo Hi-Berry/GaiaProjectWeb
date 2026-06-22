@@ -1367,8 +1367,11 @@ export function GameBoard({
                       if (sats.length === 0) return null;
                       const pos = satelliteLayout(sats.length);
                       const scale = sats.length <= 4 ? 1 : 0.7; // 1개짜리 크기 그대로 유지(4개까지)
+                      // [버그수정] 같은 칸에 우주정거장(중앙 기어)이 있으면 위성이 그 밑에 가려 안 보였음.
+                      //   위성 그룹을 우하단 모서리로 비키고 살짝 축소해 기어·위성 둘 다 보이게.
+                      const coexistStation = !!tile.spaceStation;
                       return (
-                        <g pointerEvents="none">
+                        <g pointerEvents="none" transform={coexistStation ? 'translate(1.7 1.7) scale(0.62)' : undefined}>
                           {sats.map((s, idx) => (
                             <g key={s.key} transform={`translate(${pos[idx].x}, ${pos[idx].y})`}>
                               <SatelliteCube color={s.color} scale={scale} />
