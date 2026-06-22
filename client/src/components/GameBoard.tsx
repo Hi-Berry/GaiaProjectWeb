@@ -1030,8 +1030,9 @@ export function GameBoard({
 
         {/* Turn Status Overlay */}
         {/* fixed로 올려서 우측 패널 열림 시에도 중앙 유지(좌측 미니뷰와 겹침 방지) */}
+        {/* 모바일: 화면을 많이 가려서 숨김. 단 종족선택 버튼이 필요한 단계에선 유지(게임 진행 막힘 방지). */}
         <div
-          className="fixed top-4 z-[35] flex flex-col items-center pointer-events-none -translate-x-1/2"
+          className={`fixed top-4 z-[35] flex-col items-center pointer-events-none -translate-x-1/2 ${showFactionSelectButton ? 'flex' : 'hidden md:flex'}`}
           style={{
             left: isSidebarOpen && sidebarWidth > 0
               ? `calc((100% - ${sidebarWidth}px) / 2)`
