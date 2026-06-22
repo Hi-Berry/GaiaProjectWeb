@@ -504,6 +504,16 @@ export function GameBoard({
     );
   }, [firaksDowngradeMode, playerId, game.map]);
 
+  // 엠바스 PI↔광산 교체: 클릭 대상 = 내 광산들(lost_planet_mine 포함). 의회와 위치 교환.
+  const ambasSwapSelectableIds = useMemo(() => {
+    if (!ambasSwapPiMineMode || !playerId) return new Set<string>();
+    return new Set(
+      game.map
+        .filter((t: HexTile) => t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine'))
+        .map((t: HexTile) => t.id)
+    );
+  }, [ambasSwapPiMineMode, playerId, game.map]);
+
   const SHIP_ABBR: Record<string, string> = {
     ship_twilight: 'TW',
     ship_rebellion: 'RB',
@@ -1141,7 +1151,8 @@ export function GameBoard({
                 const isTwilightTSSelectable = twilightTSSelectableIds.has(tile.id);
                 const isRebellionMineSelectable = rebellionMineSelectableIds.has(tile.id);
                 const isFiraksDowngradeSelectable = firaksDowngradeSelectableIds.has(tile.id);
-                const isShipActionSelectable = isTwilightTSSelectable || isRebellionMineSelectable || isFiraksDowngradeSelectable;
+                const isAmbasSwapSelectable = ambasSwapSelectableIds.has(tile.id);
+                const isShipActionSelectable = isTwilightTSSelectable || isRebellionMineSelectable || isFiraksDowngradeSelectable || isAmbasSwapSelectable;
                 const isFederationSelected = federationSelectedIds.has(tile.id);
                 const satelliteOwnerIds = (() => {
                   const v = game.satellites?.[tile.id];
