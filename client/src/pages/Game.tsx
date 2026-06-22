@@ -1637,8 +1637,9 @@ export default function Game() {
                                             <span className="text-[10px] font-black text-zinc-500 w-3 shrink-0 tabular-nums">{ri + 1}</span>
                                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
                                             <span className={`text-xs truncate flex-1 min-w-0 ${isMe ? 'font-black text-white' : 'font-bold text-zinc-300'}`}>{r.name}</span>
-                                            <span className="text-sm font-black text-white tabular-nums shrink-0" title="미션 달성 수치">{r.value}</span>
-                                            {r.vp > 0 && <span className="text-sm font-black tabular-nums shrink-0 text-blue-400 w-8 text-right">+{r.vp}</span>}
+                                            <span className="text-sm font-black text-white tabular-nums shrink-0 w-7 text-right" title="미션 달성 수치">{r.value}</span>
+                                            {/* VP 칸은 0점이어도 항상 자리를 차지해 미션 수치 열이 안 밀리게 */}
+                                            <span className="text-sm font-black tabular-nums shrink-0 text-blue-400 w-8 text-right">{r.vp > 0 ? `+${r.vp}` : ''}</span>
                                           </div>
                                         );
                                       })}
