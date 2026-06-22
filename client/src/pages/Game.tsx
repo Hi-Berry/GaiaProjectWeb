@@ -742,9 +742,6 @@ export default function Game() {
         setIsBonusTilesOpen(prev => !prev);
         setIsResearchOpen(false);
       }
-      if (e.key.toLowerCase() === 'l') {
-        setIsLogPanelOpen((prev) => !prev);
-      }
       if (e.key === 'Escape') {
         setIsResearchOpen(false);
         setIsBonusTilesOpen(false);
@@ -5084,107 +5081,53 @@ export default function Game() {
         />
       )}
 
-      {/* 모바일 전용 로그 버튼 — 도킹 로그는 md미만에서 hidden이고 하단시트는 L키로만 열려서
-          터치 기기에선 로그 접근 경로가 없던 문제 수정(우하단 플로팅, 시트 열리면 숨김). 데스크톱은 기존 L키/도킹 유지. */}
-      {game && !isLogPanelOpen && (
+      {/* 모바일 전용 로그 버튼 — 누르면 상태창 자리에 로그 오버레이(같은 크기), 다시 누르면 상태창 복귀.
+          데스크톱은 사이드바 도킹 로그 사용(이 버튼 md:hidden). */}
+      {game && (
         <button
           type="button"
-          aria-label="게임 로그 열기"
-          title="게임 로그"
-          onClick={() => setIsLogPanelOpen(true)}
+          aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
+          title={isLogPanelOpen ? '상태창' : '게임 로그'}
+          onClick={() => setIsLogPanelOpen((prev) => !prev)}
           className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
           style={{
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
             right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
           }}
         >
-          <Clock className="w-5 h-5" />
+          {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
         </button>
       )}
 
-      {/* L 키: 게임 로그 — 평소 UI 없음, 하단 시트로 절반 정도 올라옴 */}
-      <AnimatePresence>
-        {isLogPanelOpen && game && (
-          <>
-            <motion.button
-              type="button"
-              aria-label="로그 닫기"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[117] bg-black/25 backdrop-blur-[1px]"
-              onClick={() => setIsLogPanelOpen(false)}
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed bottom-0 left-0 right-0 z-[118] flex flex-col h-[min(50vh,540px)] max-h-[55vh] border-t border-white/10 bg-zinc-950/95 backdrop-blur shadow-[0_-8px_32px_rgba(0,0,0,0.5)] ${isSidebarOpen ? 'max-md:!right-[var(--sidebar-w)]' : ''}`}
-              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${effectiveSidebarWidth}px` } as CSSProperties) : undefined}
-            >
-              <div className="flex items-center justify-between gap-4 shrink-0 border-b border-white/10 px-4 sm:px-6 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Clock className="w-5 h-5 text-blue-400 shrink-0" />
-                  <span className="font-black uppercase tracking-[0.2em] text-white text-sm truncate">
-                    Game Log
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center gap-1">
-                    {LOG_TEXT_SCALES.map((scale) => (
-                      <Button
-                        key={scale}
-                        type="button"
-                        variant={logTextScale === scale ? 'default' : 'outline'}
-                        size="sm"
-                        className={`h-7 px-2 text-[10px] font-black leading-none ${logTextScale === scale ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
-                        onClick={() => {
-                          setLogTextScale(scale);
-                          localStorage.setItem('game-log-text-scale', String(scale));
-                        }}
-                      >
-                        *{scale * 100}
-                      </Button>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/10 shrink-0"
-                    onClick={() => setIsLogPanelOpen(false)}
-                    title="닫기 (L / Esc)"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              <div
-                className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-4 sm:px-6 py-3 bg-black/20"
-                onWheel={(e) => e.stopPropagation()}
-              >
-                {(!game.gameLog || game.gameLog.length === 0) ? (
-                  <div className="text-center text-muted-foreground text-sm py-12">
-                    No actions yet
-                  </div>
-                ) : (
-                  <GameLog
-                    game={game}
-                    hideHeader
-                    className="w-full"
-                    maxHeight="none"
-                    textScale={logTextScale}
-                    onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                    onEntryMouseLeave={() => setHighlightedTileId(null)}
-                    onAiFeedbackClick={openAiFeedbackForAction}
-                  />
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* 모바일: 로그 버튼 누르면 상태창 자리(사이드바 영역·같은 크기·같은 zoom)에 로그 오버레이. 다시 누르면 상태창 복귀. */}
+      {isMobileViewport && isLogPanelOpen && game && (
+        <div
+          className="md:hidden fixed top-0 bottom-0 right-0 z-[110] flex flex-col border-l border-border bg-card/95 backdrop-blur-sm overflow-hidden"
+          style={{ width: effectiveSidebarWidth }}
+        >
+          <div
+            className="flex flex-col h-full overflow-hidden"
+            style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties}
+          >
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pt-2 pb-3" onWheel={(e) => e.stopPropagation()}>
+              {(!game.gameLog || game.gameLog.length === 0) ? (
+                <div className="text-center text-muted-foreground text-xs py-8">No actions yet</div>
+              ) : (
+                <GameLog
+                  game={game}
+                  hideHeader
+                  className="w-full"
+                  maxHeight="none"
+                  textScale={logTextScale}
+                  onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
+                  onEntryMouseLeave={() => setHighlightedTileId(null)}
+                  onAiFeedbackClick={openAiFeedbackForAction}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (

@@ -40,7 +40,6 @@ const HELP_COLUMNS: HelpSection[][] = [
       items: [
         { label: 'R', description: '연구 보드', isKey: true },
         { label: 'T', description: '보너스 타일 보드', isKey: true },
-        { label: 'L', description: '하단 로그 시트 (단축키만)', isKey: true },
         { label: 'F', description: 'Free Actions', isKey: true },
         { label: 'Space', description: '미니보드 핀', isKey: true },
         { label: 'Esc', description: '오버레이 닫기', isKey: true },
@@ -58,7 +57,7 @@ const HELP_COLUMNS: HelpSection[][] = [
       title: '하단·오버레이',
       items: [
         { label: '보너스', description: '패스 후 선택 패널' },
-        { label: '로그 L', description: '하단 절반 시트 (L/Esc/×)' },
+        { label: '로그', description: '모바일: 우하단 버튼으로 상태창↔로그 토글' },
         { label: '미니창', description: '핀·드래그·리사이즈' },
         { label: 'Income', description: '수익 선택' },
       ],
