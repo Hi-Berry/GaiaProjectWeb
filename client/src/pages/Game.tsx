@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -151,6 +151,9 @@ export default function Game() {
   const [isBonusSelectionPanelExpanded, setIsBonusSelectionPanelExpanded] = useState(true);
   /** L 키: 게임 로그 오버레이 (평소에는 UI 없음) */
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
+  /** 모바일 Info 오버레이: 3페이지(0=기술타일, 1=우주선, 2=라운드/보너스) 스와이프 */
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [infoPage, setInfoPage] = useState(0);
   /** 플레이어 상세(클릭 시) 팝오버 배율 */
   const [playerDetailScale, setPlayerDetailScale] = useState<1 | 1.5 | 2>(() => {
     const v = parseFloat(localStorage.getItem('player-detail-scale') || '1');
@@ -2048,6 +2051,42 @@ export default function Game() {
     setAiFeedbackOpen(true);
   };
 
+  /** 모바일 Info 오버레이용: 기술/우주선 섹션을 핀 미니뷰와 동일 핸들러로 재사용(section만 다름). 호출은 game 가드 내부에서만 → game! 안전 */
+  const renderInfoResearch = (section: 'tech' | 'ships') => (
+    <ResearchBoard
+      game={game!}
+      playerId={playerId}
+      isMini={true}
+      section={section}
+      onUsePowerAction={(actionId) => handleUsePowerAction(actionId)}
+      onUseHadschHallasPIAction={(actionId) => GameClient.useHadschHallasPIAction(gameId!, actionId)}
+      onUseBalTakGaiaformerToQic={() => GameClient.useBalTakGaiaformerToQic(gameId!)}
+      onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
+      onUseTechAction={(tileId) => {
+        if (!isMyTurn || game!.currentPhase !== 'main') {
+          toast({ title: '사용 불가', description: '내 턴 메인 단계에서만 사용할 수 있습니다.', variant: 'destructive' });
+          return;
+        }
+        if (game!.hasDoneMainAction) {
+          toast({ title: '사용 불가', description: '이미 메인 액션을 사용했습니다.', variant: 'destructive' });
+          return;
+        }
+        GameClient.useTechAction(gameId!, tileId);
+      }}
+      onAdvanceTech={(trackId) => handleResearchAdvanceTech(trackId)}
+      onSelectTechTile={(techTileId, trackId) => {
+        selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: true });
+      }}
+      onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
+      onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
+      onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
+      onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
+      onEndTurn={() => GameClient.endTurn(gameId!)}
+      onResetTurn={() => GameClient.resetTurn(gameId!)}
+      onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
+    />
+  );
+
   return (
     // h-screen(100vh)은 모바일에서 실제 가시 높이보다 커서 하단 버튼이 밀리고 페이지가 스크롤됨 → 100dvh로 고정
     <div className="flex h-[100dvh] overflow-hidden bg-background font-sans text-foreground relative">
@@ -2140,8 +2179,8 @@ export default function Game() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Sidebar Overlay (Left) */}
-      <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
+      {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
+      <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
           {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
@@ -5081,22 +5120,35 @@ export default function Game() {
         />
       )}
 
-      {/* 모바일 전용 로그 버튼 — 누르면 상태창 자리에 로그 오버레이(같은 크기), 다시 누르면 상태창 복귀.
-          데스크톱은 사이드바 도킹 로그 사용(이 버튼 md:hidden). */}
+      {/* 모바일 전용 우하단 버튼 그룹 — Info(보드 3페이지) + 로그(상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
+          데스크톱은 좌측 미니뷰/도킹 로그 사용(이 그룹 md:hidden). */}
       {game && (
-        <button
-          type="button"
-          aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
-          title={isLogPanelOpen ? '상태창' : '게임 로그'}
-          onClick={() => setIsLogPanelOpen((prev) => !prev)}
-          className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+        <div
+          className="md:hidden fixed right-3 bottom-3 z-[115] flex flex-col gap-2"
           style={{
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
             right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
           }}
         >
-          {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-        </button>
+          <button
+            type="button"
+            aria-label={isInfoOpen ? 'Info 닫기' : '보드 정보 열기'}
+            title={isInfoOpen ? '닫기' : '보드 정보 (기술/우주선/라운드)'}
+            onClick={() => { setIsInfoOpen((prev) => !prev); setIsLogPanelOpen(false); }}
+            className="h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-emerald-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          >
+            {isInfoOpen ? <X className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+          </button>
+          <button
+            type="button"
+            aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
+            title={isLogPanelOpen ? '상태창' : '게임 로그'}
+            onClick={() => { setIsLogPanelOpen((prev) => !prev); setIsInfoOpen(false); }}
+            className="h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          >
+            {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+          </button>
+        </div>
       )}
 
       {/* 모바일: 로그 버튼 누르면 상태창 자리(사이드바 영역·같은 크기·같은 zoom)에 로그 오버레이. 다시 누르면 상태창 복귀. */}
@@ -5125,6 +5177,74 @@ export default function Game() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 모바일 Info 오버레이 — 상태창 자리에 3페이지(기술타일 / 우주선·파워 / 라운드·보너스). 좌우 드래그(또는 점 클릭)로 전환. */}
+      {isMobileViewport && isInfoOpen && game && (
+        <div
+          className="md:hidden fixed top-0 bottom-0 right-0 z-[110] flex flex-col border-l border-border bg-card/95 backdrop-blur-sm overflow-hidden"
+          style={{ width: effectiveSidebarWidth }}
+        >
+          {/* 페이지 헤더 + 인디케이터 */}
+          <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 truncate">
+              {infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스'}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              {[0, 1, 2].map((i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`페이지 ${i + 1}`}
+                  onClick={() => setInfoPage(i)}
+                  className={`h-1.5 rounded-full transition-all ${infoPage === i ? 'w-4 bg-emerald-300' : 'w-1.5 bg-white/25'}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <motion.div
+              key={infoPage}
+              className="h-full w-full overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+              drag="x"
+              dragDirectionLock
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.15}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -55 && infoPage < 2) setInfoPage(infoPage + 1);
+                else if (info.offset.x > 55 && infoPage > 0) setInfoPage(infoPage - 1);
+              }}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              <div
+                className="flex flex-col overflow-hidden px-2 pt-2 pb-3"
+                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties}
+              >
+                {infoPage === 0 && renderInfoResearch('tech')}
+                {infoPage === 1 && renderInfoResearch('ships')}
+                {infoPage === 2 && (
+                  <div className="flex flex-col gap-4">
+                    <RoundBoard game={game} playerId={playerId} isMini={true} />
+                    <div className="h-[1px] bg-white/10 w-full" />
+                    <BonusTiles
+                      game={game}
+                      playerId={playerId}
+                      isMini={true}
+                      onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {
+                        if (game.roundNumber === 6) {
+                          setConfirmPassWithTileId('dummy');
+                        } else {
+                          setConfirmPassWithTileId(id);
+                        }
+                      }) : undefined}
+                      onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.div>
           </div>
         </div>
       )}

@@ -27,6 +27,8 @@ interface ResearchBoardProps {
     onResetTurn?: () => void;
     /** 화면 왼쪽에 상시 고정되는 축소 버전 여부 */
     isMini?: boolean;
+    /** 미니뷰에서 표시할 섹션: 'all'(전체) | 'tech'(트랙+풀 기술타일) | 'ships'(파워액션+우주선). 모바일 3페이지 Info 오버레이용 */
+    section?: 'all' | 'tech' | 'ships';
 }
 
 const SHIP_NAMES: Record<string, string> = {
@@ -180,7 +182,9 @@ const POWER_ACTION_BTN = {
     panelAvailable: 'bg-amber-950/50 hover:bg-amber-900/55 border-amber-500/45 hover:border-amber-400/65',
 };
 
-export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini }: ResearchBoardProps) {
+export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all' }: ResearchBoardProps) {
+    const showTech = section !== 'ships';
+    const showShips = section !== 'tech';
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
 
@@ -542,6 +546,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 {/* Research Tracks — Mini View: vertical columns (like real board) */}
                 {isMini ? (
                     <div className="flex flex-col gap-0">
+                        {showTech && (<>
                         {/* 6 track columns */}
                         <div className="grid grid-cols-6 gap-1 mb-0">
                             {RESEARCH_TRACKS.map((track) => {
@@ -746,8 +751,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 </div>
                             );
                         })()}
+                        </>)}
 
-
+                        {showShips && (<>
                         {/* Power Actions — 이미지 스트립(7등분 클릭존). 미니: 위 비용부분 크롭(object-bottom) */}
                         <div className="pt-1 border-t border-white/10 mt-1">
                             <div className="relative w-full aspect-[8/1] rounded overflow-hidden border border-amber-500/20">
@@ -935,6 +941,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 </div>
                             </div>
                         )}
+                        </>)}
                     </div>
                 ) : (
                     <div className={`grid grid-cols-6 gap-3`}>
