@@ -1015,19 +1015,26 @@ export class BotLogic {
                 // 게이트(rangeBoosterUnlocksTarget)는 "쓸 수 있다"고 켰는데 막상 후보엔 없는 모순을 현장 포착.
                 try {
                     const counts = candidates.reduce((m, c) => { m[c.type] = (m[c.type] || 0) + 1; return m; }, {} as Record<string, number>);
-                    const nb = this.findBuildActions(game, playerId).length;
-                    const nbp = this.findBuildActionsWithPendingSteps(game, playerId).length;
-                    const ns = this.findSpaceshipEntryActions(game, playerId).length;
-                    const unlocks = {
-                        range: this.rangeBoosterUnlocksTarget(game, playerId, 'rangeBonusActive'),
-                        gleens: this.rangeBoosterUnlocksTarget(game, playerId, 'gleensNavBonusActive'),
-                        temp: this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus'),
+                    const entry = {
+                        player: player.name,
+                        round: (game as any).roundNumber,
+                        active: { range: !!player.rangeBonusActive, gleens: !!player.gleensNavBonusActive, temp: !!player.tempRangeBonus },
+                        baseRange: getRange(player.research.navigation || 0) + (player.navigationBonus || 0),
+                        ore: player.ore, credits: player.credits, qic: player.qic, gaiaformers: player.gaiaformers,
+                        findBuild: this.findBuildActions(game, playerId).length,
+                        findBuildPending: this.findBuildActionsWithPendingSteps(game, playerId).length,
+                        findShipEntry: this.findSpaceshipEntryActions(game, playerId).length,
+                        unlocks: {
+                            range: this.rangeBoosterUnlocksTarget(game, playerId, 'rangeBonusActive'),
+                            gleens: this.rangeBoosterUnlocksTarget(game, playerId, 'gleensNavBonusActive'),
+                            temp: this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus'),
+                        },
+                        candidates: counts,
                     };
-                    const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-                    log(`[RANGE-WASTE] ${player.name} R${(game as any).roundNumber} active(range/gleens/temp=${!!player.rangeBonusActive}/${!!player.gleensNavBonusActive}/${!!player.tempRangeBonus}) but 0 range-actions. ` +
-                        `baseRange=${baseRange} ore=${player.ore} credits=${player.credits} qic=${player.qic} gaiaformers=${player.gaiaformers} | ` +
-                        `findBuild=${nb} findBuildPending=${nbp} findShipEntry=${ns} | unlocks=${JSON.stringify(unlocks)} | candidates=${JSON.stringify(counts)}`,
-                        'game', game.id);
+                    // 게임 객체에 저장 → get_game 덤프/종료 자동저장 JSON 어디에든 포함 (콘솔 안 봐도 됨)
+                    (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+                    (game as any).diagRangeWaste.push(entry);
+                    log(`[RANGE-WASTE] ${JSON.stringify(entry)}`, 'game', game.id);
                 } catch (e) { log(`[RANGE-WASTE] diag error: ${e}`, 'game', game.id); }
             }
         }
