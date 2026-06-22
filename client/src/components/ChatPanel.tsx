@@ -131,8 +131,9 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
         <div className="fixed left-[68px] md:left-[336px] bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
             {open ? (
                 <div
-                    className="relative bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl flex flex-col overflow-hidden"
-                    style={{ pointerEvents: 'auto', width: `${width}px`, maxWidth: '90vw' }}
+                    /* 좌측 앵커(모바일 68px·데스크톱 336px)를 뺀 폭으로 우측에 8px 여백 → X 버튼이 화면 밖으로 안 나감 */
+                    className="relative bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl flex flex-col overflow-hidden max-w-[calc(100vw-76px)] md:max-w-[calc(100vw-344px)]"
+                    style={{ pointerEvents: 'auto', width: `${width}px` }}
                 >
                     {/* 크기 조절 핸들: 상단=세로, 우측=가로, 우상단 코너=동시 (좌하단 앵커 기준) */}
                     <div onPointerDown={(e) => startResize(e, 'h')} className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-primary/40 z-20" title="드래그: 높이 조절" />
