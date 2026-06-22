@@ -128,7 +128,7 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
         m.faction ? FACTIONS.find((f) => f.id === m.faction)?.color ?? '#a1a1aa' : '#a1a1aa';
 
     return (
-        <div className="fixed left-[264px] md:left-[336px] bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none' }}>
+        <div className="fixed left-[68px] md:left-[336px] bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
             {open ? (
                 <div
                     className="relative bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl flex flex-col overflow-hidden"
