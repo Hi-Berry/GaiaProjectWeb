@@ -214,6 +214,9 @@ export default function Game() {
   // 모바일: 내용을 디자인폭(308px)으로 렌더 후 zoom으로 축소 → 영역과 함께 글자도 줄어 안 겹침.
   const MOBILE_PANEL_DESIGN_WIDTH = 308;
   const mobilePanelZoom = isMobileViewport ? effectiveSidebarWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
+  // 모바일 Info 오버레이: 화면 왼쪽에 상태창의 1.2배 폭으로(뷰포트 초과 방지 클램프). zoom은 그 폭에 맞춤.
+  const infoOverlayWidth = isMobileViewport ? Math.min(Math.round(effectiveSidebarWidth * 1.2), Math.round(winW * 0.9)) : effectiveSidebarWidth;
+  const infoOverlayZoom = isMobileViewport ? infoOverlayWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
 
   const startSidebarResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -5120,35 +5123,37 @@ export default function Game() {
         />
       )}
 
-      {/* 모바일 전용 우하단 버튼 그룹 — Info(보드 3페이지) + 로그(상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
-          데스크톱은 좌측 미니뷰/도킹 로그 사용(이 그룹 md:hidden). */}
+      {/* 모바일 전용 — Info(좌하단, 보드 3페이지 오버레이) + 로그(우하단, 상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
+          데스크톱은 좌측 미니뷰/도킹 로그 사용(md:hidden). */}
       {game && (
-        <div
-          className="md:hidden fixed right-3 bottom-3 z-[115] flex flex-col gap-2"
+        <button
+          type="button"
+          aria-label={isInfoOpen ? 'Info 닫기' : '보드 정보 열기'}
+          title={isInfoOpen ? '닫기' : '보드 정보 (기술/우주선/라운드)'}
+          onClick={() => { setIsInfoOpen((prev) => !prev); setIsLogPanelOpen(false); }}
+          className="md:hidden fixed left-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-emerald-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
+          }}
+        >
+          {isInfoOpen ? <X className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+        </button>
+      )}
+      {game && (
+        <button
+          type="button"
+          aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
+          title={isLogPanelOpen ? '상태창' : '게임 로그'}
+          onClick={() => { setIsLogPanelOpen((prev) => !prev); setIsInfoOpen(false); }}
+          className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
           style={{
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
             right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
           }}
         >
-          <button
-            type="button"
-            aria-label={isInfoOpen ? 'Info 닫기' : '보드 정보 열기'}
-            title={isInfoOpen ? '닫기' : '보드 정보 (기술/우주선/라운드)'}
-            onClick={() => { setIsInfoOpen((prev) => !prev); setIsLogPanelOpen(false); }}
-            className="h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-emerald-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
-          >
-            {isInfoOpen ? <X className="w-5 h-5" /> : <Info className="w-5 h-5" />}
-          </button>
-          <button
-            type="button"
-            aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
-            title={isLogPanelOpen ? '상태창' : '게임 로그'}
-            onClick={() => { setIsLogPanelOpen((prev) => !prev); setIsInfoOpen(false); }}
-            className="h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
-          >
-            {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-          </button>
-        </div>
+          {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+        </button>
       )}
 
       {/* 모바일: 로그 버튼 누르면 상태창 자리(사이드바 영역·같은 크기·같은 zoom)에 로그 오버레이. 다시 누르면 상태창 복귀. */}
@@ -5181,11 +5186,11 @@ export default function Game() {
         </div>
       )}
 
-      {/* 모바일 Info 오버레이 — 상태창 자리에 3페이지(기술타일 / 우주선·파워 / 라운드·보너스). 좌우 드래그(또는 점 클릭)로 전환. */}
+      {/* 모바일 Info 오버레이 — 화면 왼쪽에 상태창 1.2배 폭으로 3페이지(기술타일 / 우주선·파워 / 라운드·보너스). 좌우 드래그(또는 점 클릭)로 전환. */}
       {isMobileViewport && isInfoOpen && game && (
         <div
-          className="md:hidden fixed top-0 bottom-0 right-0 z-[110] flex flex-col border-l border-border bg-card/95 backdrop-blur-sm overflow-hidden"
-          style={{ width: effectiveSidebarWidth }}
+          className="md:hidden fixed top-0 bottom-0 left-0 z-[110] flex flex-col border-r border-border bg-card/95 backdrop-blur-sm overflow-hidden"
+          style={{ width: infoOverlayWidth }}
         >
           {/* 페이지 헤더 + 인디케이터 */}
           <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30">
@@ -5220,7 +5225,7 @@ export default function Game() {
             >
               <div
                 className="flex flex-col overflow-hidden px-2 pt-2 pb-3"
-                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties}
+                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / infoOverlayZoom}%`, zoom: infoOverlayZoom } as CSSProperties}
               >
                 {infoPage === 0 && renderInfoResearch('tech')}
                 {infoPage === 1 && renderInfoResearch('ships')}
