@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import { ResearchBoard } from '@/components/ResearchBoard';
 import { RoundBoard } from '@/components/RoundBoard';
@@ -194,6 +195,19 @@ export default function Game() {
     return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, isNaN(n) ? 340 : n));
   });
   const [isZoomInitialized, setIsZoomInitialized] = useState(false);
+
+  // 모바일에선 상태창이 화면 절반을 먹어 맵이 안 보임(사용자 관찰). 데스크탑은 그대로 두고
+  // 모바일(<768px)에서만 뷰포트 비율(≤45%)로 상태창 너비를 제한. winW를 reactive로 추적.
+  const isMobileViewport = useIsMobile();
+  const [winW, setWinW] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
+  useEffect(() => {
+    const onResize = () => setWinW(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const effectiveSidebarWidth = isMobileViewport
+    ? Math.min(sidebarWidth, Math.max(150, Math.round(winW * 0.45)))
+    : sidebarWidth;
 
   const startSidebarResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -2659,7 +2673,7 @@ export default function Game() {
               toast({ title: 'Rebellion 액션', description: '2: 1O+3P → M→TS', variant: 'default' });
             }}
             isSidebarOpen={isSidebarOpen}
-            sidebarWidth={isSidebarOpen ? sidebarWidth : 0}
+            sidebarWidth={isSidebarOpen ? effectiveSidebarWidth : 0}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             playerDetailScale={playerDetailScale}
             onTogglePlayerDetailScale={() => {
@@ -2681,7 +2695,7 @@ export default function Game() {
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={`absolute bottom-0 left-0 right-0 border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120] ${isSidebarOpen ? 'max-md:!right-[var(--sidebar-w)]' : ''}`}
-              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${sidebarWidth}px` } as CSSProperties) : undefined}
+              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${effectiveSidebarWidth}px` } as CSSProperties) : undefined}
             >
               <button
                 type="button"
@@ -4034,7 +4048,7 @@ export default function Game() {
         max-w-[85vw] md:max-w-none
         relative
       `}
-        style={isSidebarOpen ? { width: sidebarWidth } : undefined}
+        style={isSidebarOpen ? { width: effectiveSidebarWidth } : undefined}
       >
         {/* 사이드바 너비 리사이즈 핸들 (왼쪽 가장자리) */}
         {isSidebarOpen && (
@@ -5101,7 +5115,7 @@ export default function Game() {
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={`fixed bottom-0 left-0 right-0 z-[118] flex flex-col h-[min(50vh,540px)] max-h-[55vh] border-t border-white/10 bg-zinc-950/95 backdrop-blur shadow-[0_-8px_32px_rgba(0,0,0,0.5)] ${isSidebarOpen ? 'max-md:!right-[var(--sidebar-w)]' : ''}`}
-              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${sidebarWidth}px` } as CSSProperties) : undefined}
+              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${effectiveSidebarWidth}px` } as CSSProperties) : undefined}
             >
               <div className="flex items-center justify-between gap-4 shrink-0 border-b border-white/10 px-4 sm:px-6 py-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -5175,7 +5189,7 @@ export default function Game() {
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed top-20 z-[130] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
             style={{
-              left: isSidebarOpen ? `calc((100% - ${sidebarWidth}px) / 2)` : '50%',
+              left: isSidebarOpen ? `calc((100% - ${effectiveSidebarWidth}px) / 2)` : '50%',
             }}
           >
             {/* Title & Costs (Left Side) */}
