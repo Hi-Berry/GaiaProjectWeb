@@ -212,11 +212,15 @@ export default function Game() {
   // 모바일(<768px)에서만 뷰포트 비율(≤45%)로 상태창 너비를 제한. winW를 reactive로 추적.
   const isMobileViewport = useIsMobile();
   const [winW, setWinW] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
+  const [winH, setWinH] = useState<number>(() => (typeof window !== 'undefined' ? window.innerHeight : 800));
   useEffect(() => {
-    const onResize = () => setWinW(window.innerWidth);
+    const onResize = () => { setWinW(window.innerWidth); setWinH(window.innerHeight); };
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => { window.removeEventListener('resize', onResize); window.removeEventListener('orientationchange', onResize); };
   }, []);
+  // 화면 방향: 세로(portrait, 높이>너비) ↔ 가로(landscape). 레이아웃 결정에 사용(정보창 내용 표시방식과는 별개).
+  const isPortrait = winH > winW;
   const effectiveSidebarWidth = isMobileViewport
     ? Math.min(sidebarWidth, Math.max(75, Math.round(winW * 0.22)))
     : sidebarWidth;
@@ -226,9 +230,10 @@ export default function Game() {
   // 모바일 Info 오버레이: 화면 왼쪽에 상태창의 1.2배 폭으로(뷰포트 초과 방지 클램프). zoom은 그 폭에 맞춤.
   const infoOverlayWidth = isMobileViewport ? Math.min(Math.round(effectiveSidebarWidth * 1.2), Math.round(winW * 0.9)) : effectiveSidebarWidth;
   const infoOverlayZoom = isMobileViewport ? infoOverlayWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
-  // 세로 모드 분할: 모바일 + Info 열림 + 세로 모드일 때, 화면 상단 절반은 맵, 하단 절반을 정보창(좌)/상태창(우)으로 나눔.
-  // 반반이 아니라 정보창:상태창 = 1.2:1 비중(정보창이 더 큼).
-  const splitActive = isMobileViewport && isInfoOpen && infoLayout === 'vertical';
+  // 하단 분할: 모바일 + Info 열림 + 세로 화면(portrait)일 때, 상단 절반은 맵, 하단 절반을 정보창(좌)/상태창(우)으로 나눔.
+  // (가로 화면이면 정보창 풀하이트 좌측 + 상태창 우측.) 레이아웃은 화면 방향에 좌우되고, 정보창 내용 표시방식(스와이프/스크롤)은 infoLayout이 따로 결정.
+  // 분할 비율은 반반이 아니라 정보창:상태창 = 1.2:1(정보창이 더 큼).
+  const splitActive = isMobileViewport && isInfoOpen && isPortrait;
   const splitInfoWidth = splitActive ? Math.round(winW * 1.2 / 2.2) : 0;
   const splitStatusWidth = splitActive ? winW - splitInfoWidth : 0;
   const splitInfoZoom = splitActive ? splitInfoWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
