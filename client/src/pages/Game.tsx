@@ -5314,7 +5314,7 @@ export default function Game() {
               >
                 <div
                   className="flex flex-col overflow-hidden px-2 pt-2 pb-3"
-                  style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / infoOverlayZoom}%`, zoom: infoOverlayZoom } as CSSProperties}
+                  style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / infoEffectiveZoom}%`, zoom: infoEffectiveZoom } as CSSProperties}
                 >
                   {infoPage === 0 && renderInfoResearch('tech')}
                   {infoPage === 1 && renderInfoResearch('ships')}
