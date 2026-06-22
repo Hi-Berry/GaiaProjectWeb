@@ -5267,13 +5267,15 @@ export default function Game() {
               onWheel={(e) => e.stopPropagation()}
             >
               <div
-                className="flex flex-col gap-4 px-2 pt-2 pb-6"
+                className="flex flex-col gap-4 px-2 pt-2 pb-2"
                 style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: infoOverlayZoom } as CSSProperties}
               >
                 {renderInfoResearch('all')}
                 <div className="h-[1px] bg-white/10 w-full" />
                 {renderInfoRoundBonus()}
               </div>
+              {/* zoom 밖 스페이서: 마지막 내용이 좌하단 버튼(높이 48px+여백)에 가리지 않게 버튼만큼 더 스크롤되도록 */}
+              <div style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 5rem)' }} />
             </div>
           ) : (
             /* 가로 모드: 좌우 드래그 페이지 */
