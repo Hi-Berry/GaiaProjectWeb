@@ -448,37 +448,39 @@ function countOuterSectorsOccupied(game: GaiaGameState, playerId: string): numbe
 function findNearbyPlayersForPower(game: ServerGameState, tile: HexTile, sourcePlayerId: string): Array<{ playerId: string; maxPower: number; tileId: string }> {
 	const result: Array<{ playerId: string; maxPower: number; tileId: string }> = [];
 	const processedPlayers = new Set<string>();
+	const addOrUpdate = (targetPlayerId: string, powerValue: number, tileId: string) => {
+		if (powerValue <= 0) return;
+		if (processedPlayers.has(targetPlayerId)) {
+			const existing = result.find(r => r.playerId === targetPlayerId);
+			if (existing && powerValue > existing.maxPower) { existing.maxPower = powerValue; existing.tileId = tileId; }
+		} else {
+			processedPlayers.add(targetPlayerId);
+			result.push({ playerId: targetPlayerId, maxPower: powerValue, tileId });
+		}
+	};
 
-	// 2칸 이내의 다른 플레이어 건물 찾기
+	// 2칸 이내의 다른 플레이어 건물 + 란티다 기생광산 찾기
 	for (const otherTile of game.map) {
-		if (!otherTile.structure || otherTile.structure === 'ship') continue;
-		if (otherTile.ownerId === sourcePlayerId || !otherTile.ownerId) continue;
-
 		const distance = getDistance(tile, otherTile);
 		if (distance > 2) continue;
 
-		const targetPlayerId = otherTile.ownerId;
-
-		// 이미 처리한 플레이어는 최대값만 업데이트
-		const hasBigBuildingTechTile = (game.players[targetPlayerId]?.techTiles?.includes('tech-big-4str') && !isTechTileCovered(game.players[targetPlayerId], 'tech-big-4str')) || false;
-		let powerValue = getStructurePowerValue(otherTile.structure, hasBigBuildingTechTile);
-		// 매안(Bescods) 의회 보유 시 모행성(titanium) 건물은 파워 +1
-		const targetPlayer = game.players[targetPlayerId];
-		const bescodsHasPI = targetPlayer?.faction === 'bescods' && game.map.some(t => t.ownerId === targetPlayerId && t.structure === 'planetary_institute');
-		if (bescodsHasPI && otherTile.type === 'titanium') powerValue += 1;
-		// 모웨이드 의회: 링이 놓인 건물은 파워 수신 시 +2
-		if (targetPlayer?.faction === 'moweyip' && otherTile.moweyipRing) powerValue += 2;
-
-		if (processedPlayers.has(targetPlayerId)) {
-			const existing = result.find(r => r.playerId === targetPlayerId);
-			if (existing && powerValue > existing.maxPower) {
-				existing.maxPower = powerValue;
-				existing.tileId = otherTile.id;
-			}
-		} else {
-			processedPlayers.add(targetPlayerId);
-			result.push({ playerId: targetPlayerId, maxPower: powerValue, tileId: otherTile.id });
+		// 1) 일반 건물 (구조물 소유자)
+		if (otherTile.structure && otherTile.structure !== 'ship' && otherTile.ownerId && otherTile.ownerId !== sourcePlayerId) {
+			const targetPlayerId = otherTile.ownerId;
+			const hasBigBuildingTechTile = (game.players[targetPlayerId]?.techTiles?.includes('tech-big-4str') && !isTechTileCovered(game.players[targetPlayerId], 'tech-big-4str')) || false;
+			let powerValue = getStructurePowerValue(otherTile.structure, hasBigBuildingTechTile);
+			const targetPlayer = game.players[targetPlayerId];
+			// 매안(Bescods) 의회 보유 시 모행성(titanium) 건물은 파워 +1
+			const bescodsHasPI = targetPlayer?.faction === 'bescods' && game.map.some(t => t.ownerId === targetPlayerId && t.structure === 'planetary_institute');
+			if (bescodsHasPI && otherTile.type === 'titanium') powerValue += 1;
+			// 모웨이드 의회: 링이 놓인 건물은 파워 수신 시 +2
+			if (targetPlayer?.faction === 'moweyip' && otherTile.moweyipRing) powerValue += 2;
+			addOrUpdate(targetPlayerId, powerValue, otherTile.id);
 		}
+
+		// 2) 란티다 기생광산 (소유자=기생광산 주인, 파워값 1) — [버그수정] 기존엔 structure만 봐 기생광산 주인이 누수를 못 받았음
+		const pmOwner = otherTile.parasiticMine?.ownerId;
+		if (pmOwner && pmOwner !== sourcePlayerId) addOrUpdate(pmOwner, 1, otherTile.id);
 	}
 
 	return result;
