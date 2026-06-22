@@ -226,6 +226,16 @@ export default function Game() {
   // 모바일 Info 오버레이: 화면 왼쪽에 상태창의 1.2배 폭으로(뷰포트 초과 방지 클램프). zoom은 그 폭에 맞춤.
   const infoOverlayWidth = isMobileViewport ? Math.min(Math.round(effectiveSidebarWidth * 1.2), Math.round(winW * 0.9)) : effectiveSidebarWidth;
   const infoOverlayZoom = isMobileViewport ? infoOverlayWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
+  // 세로 모드 분할: 모바일 + Info 열림 + 세로 모드일 때, 화면 상단 절반은 맵, 하단 절반을 정보창(좌)/상태창(우)으로 나눔.
+  // 반반이 아니라 정보창:상태창 = 1.2:1 비중(정보창이 더 큼).
+  const splitActive = isMobileViewport && isInfoOpen && infoLayout === 'vertical';
+  const splitInfoWidth = splitActive ? Math.round(winW * 1.2 / 2.2) : 0;
+  const splitStatusWidth = splitActive ? winW - splitInfoWidth : 0;
+  const splitInfoZoom = splitActive ? splitInfoWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
+  const splitStatusZoom = splitActive ? splitStatusWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
+  // Info 오버레이 실제 폭/zoom: 분할 모드면 분할 폭, 아니면 좌측 풀하이트 오버레이 폭
+  const infoEffectiveWidth = splitActive ? splitInfoWidth : infoOverlayWidth;
+  const infoEffectiveZoom = splitActive ? splitInfoZoom : infoOverlayZoom;
 
   const startSidebarResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -4113,17 +4123,18 @@ export default function Game() {
 
       </main>
 
-      {/* Right Sidebar */}
+      {/* Right Sidebar — 분할 모드(세로 Info)에선 하단-우측 사분면(top-1/2 ~ bottom-0) */}
       <div
         className={`
-        ${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'}
-        right-0 top-0 bottom-0 z-[80]
+        z-[80]
         transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
-        max-w-[85vw] md:max-w-none
-        relative
+        ${splitActive
+          ? 'fixed right-0 left-auto bottom-0 top-1/2 translate-x-0 opacity-100 border-t'
+          : `${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'} right-0 top-0 bottom-0 max-w-[85vw] md:max-w-none relative`
+        }
       `}
-        style={isSidebarOpen ? { width: effectiveSidebarWidth } : undefined}
+        style={splitActive ? { width: splitStatusWidth } : (isSidebarOpen ? { width: effectiveSidebarWidth } : undefined)}
       >
         {/* 사이드바 너비 리사이즈 핸들 (왼쪽 가장자리) */}
         {isSidebarOpen && (
@@ -4137,10 +4148,12 @@ export default function Game() {
         {game.currentPhase === 'factionBidding' && (
           <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
         )}
-        {isSidebarOpen && (
+        {(isSidebarOpen || splitActive) && (
           <div
             className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden"
-            style={isMobileViewport ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties) : undefined}
+            style={splitActive
+              ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / splitStatusZoom}%`, zoom: splitStatusZoom } as CSSProperties)
+              : isMobileViewport ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties) : undefined}
           >
             <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
               {/* 연방 구현: GameBoard의 줌 컨트롤 좌측으로 이동됨 */}
@@ -5238,8 +5251,8 @@ export default function Game() {
       {/* 모바일 Info 오버레이 — 화면 왼쪽, 상태창 1.2배 폭. 가로 모드: 3페이지 드래그/점. 세로 모드: 3창 합쳐 스크롤. ("?" 다이얼로그에서 전환) */}
       {isMobileViewport && isInfoOpen && game && (
         <div
-          className="md:hidden fixed top-0 bottom-0 left-0 z-[110] flex flex-col border-r border-border bg-card/95 backdrop-blur-sm overflow-hidden"
-          style={{ width: infoOverlayWidth }}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'left-0 bottom-0 top-1/2 border-t border-r border-border' : 'top-0 bottom-0 left-0 border-r border-border'}`}
+          style={{ width: infoEffectiveWidth }}
         >
           {/* 헤더 + (가로 모드일 때만) 페이지 인디케이터 */}
           <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30">
@@ -5268,7 +5281,7 @@ export default function Game() {
             >
               <div
                 className="flex flex-col gap-4 px-2 pt-2 pb-2"
-                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: infoOverlayZoom } as CSSProperties}
+                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: infoEffectiveZoom } as CSSProperties}
               >
                 {renderInfoResearch('all')}
                 <div className="h-[1px] bg-white/10 w-full" />
