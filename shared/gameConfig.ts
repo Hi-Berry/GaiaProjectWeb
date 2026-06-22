@@ -863,7 +863,7 @@ export const FACTIONS: Faction[] = [
   {
     id: 'gleens', name: 'Gleens', homePlanet: 'desert', color: PLANET_COLORS.desert,
     startingTech: { navigation: 1 },
-    startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 1 },
+    startingResources: { ore: 4, knowledge: 3, credits: 15, qic: 0 },
     startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
     piIncome: { power: 4, ore: 1 }
   },
@@ -933,7 +933,7 @@ export const FACTIONS: Faction[] = [
     id: 'tinkeroids', name: 'Tinkeroids', homePlanet: 'asteroid', color: PLANET_COLORS.asteroid,
     startingTech: { science: 1 },
     startingResources: { ore: 4, knowledge: 2, credits: 15, qic: 1 },
-    startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
+    startingPower: { bowl1: 4, bowl2: 2, bowl3: 0 },
     startingMines: 1,
     startingStructure: 'planetary_institute',
     piIncome: { power: 4, tokens: 1 }
@@ -942,7 +942,7 @@ export const FACTIONS: Faction[] = [
     id: 'darkanians', name: 'Darkanians', homePlanet: 'asteroid', color: PLANET_COLORS.asteroid,
     startingTech: { navigation: 1, economy: 1 },
     startingResources: { ore: 7, knowledge: 3, credits: 15, qic: 1 },
-    startingPower: { bowl1: 2, bowl2: 4, bowl3: 0 },
+    startingPower: { bowl1: 4, bowl2: 2, bowl3: 0 },
     startingMines: 1,
     piIncome: { power: 4, tokens: 1 }
   },

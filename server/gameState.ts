@@ -3382,7 +3382,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (actionIndex === 1) {
 					if (player.qic < 2) return;
 					player.qic -= 2;
-					const count = player.techTiles?.length ?? 0;
+					const count = (player.techTiles ?? []).filter(id => !isTechTileCovered(player, id)).length; // 고급 타일에 덮인 일반 타일은 제외
 					addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex, noLog: true });
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -7433,7 +7433,7 @@ export function executeUseShipAction(
 		if (actionIndex === 1) {
 			if (player.qic < 2) return false;
 			player.qic -= 2;
-			const count = player.techTiles?.length ?? 0;
+			const count = (player.techTiles ?? []).filter(id => !isTechTileCovered(player, id)).length; // 고급 타일에 덮인 일반 타일은 제외
 			addScore(game, playerId, count + 2, 'spaceships', { shipTileId: shipTile.id, shipType: 'ship_tf_mars', actionIndex, noLog: true });
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
