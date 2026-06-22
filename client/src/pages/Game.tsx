@@ -206,7 +206,7 @@ export default function Game() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
   const effectiveSidebarWidth = isMobileViewport
-    ? Math.min(sidebarWidth, Math.max(150, Math.round(winW * 0.45)))
+    ? Math.min(sidebarWidth, Math.max(75, Math.round(winW * 0.22)))
     : sidebarWidth;
 
   const startSidebarResize = (e: React.MouseEvent) => {
