@@ -4677,7 +4677,8 @@ export default function Game() {
                           side="left"
                           align="start"
                           className="w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2"
-                          style={{ zoom: playerDetailScale }}
+                          /* 모바일: 팝오버는 portal로 상태창 zoom 래퍼 밖에서 렌더되므로 상태창과 동일 zoom을 곱해 크기를 맞춤(분할 모드면 splitStatusZoom). 사용자 ×배율은 그 위에 곱셈 유지 */
+                          style={{ zoom: isMobileViewport ? playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom) : playerDetailScale }}
                         >
                           {!hasPlayerDetailContent && (
                             <p className="text-[9px] text-zinc-400 text-center leading-relaxed px-1">
