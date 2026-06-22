@@ -154,6 +154,13 @@ export default function Game() {
   /** 모바일 Info 오버레이: 3페이지(0=기술타일, 1=우주선, 2=라운드/보너스) 스와이프 */
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [infoPage, setInfoPage] = useState(0);
+  /** Info 오버레이 레이아웃: 'horizontal'(드래그 페이지) | 'vertical'(3창 합쳐 세로 스크롤). "?" 다이얼로그에서 변경, localStorage+커스텀이벤트로 동기화 */
+  const [infoLayout, setInfoLayout] = useState<'horizontal' | 'vertical'>(() => (typeof localStorage !== 'undefined' && localStorage.getItem('info-overlay-layout') === 'vertical' ? 'vertical' : 'horizontal'));
+  useEffect(() => {
+    const onChange = (e: Event) => setInfoLayout((e as CustomEvent).detail === 'vertical' ? 'vertical' : 'horizontal');
+    window.addEventListener('info-overlay-layout-change', onChange);
+    return () => window.removeEventListener('info-overlay-layout-change', onChange);
+  }, []);
   /** 모바일: 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글, 기본 숨김 */
   const [isMapControlsOpen, setIsMapControlsOpen] = useState(false);
   /** 플레이어 상세(클릭 시) 팝오버 배율 */
@@ -2057,7 +2064,7 @@ export default function Game() {
   };
 
   /** 모바일 Info 오버레이용: 기술/우주선 섹션을 핀 미니뷰와 동일 핸들러로 재사용(section만 다름). 호출은 game 가드 내부에서만 → game! 안전 */
-  const renderInfoResearch = (section: 'tech' | 'ships') => (
+  const renderInfoResearch = (section: 'tech' | 'ships' | 'all') => (
     <ResearchBoard
       game={game!}
       playerId={playerId}
@@ -2090,6 +2097,27 @@ export default function Game() {
       onResetTurn={() => GameClient.resetTurn(gameId!)}
       onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
     />
+  );
+
+  /** 모바일 Info 오버레이 P3(라운드·보너스) — 가로/세로 모드 공용 */
+  const renderInfoRoundBonus = () => (
+    <div className="flex flex-col gap-4">
+      <RoundBoard game={game!} playerId={playerId} isMini={true} />
+      <div className="h-[1px] bg-white/10 w-full" />
+      <BonusTiles
+        game={game!}
+        playerId={playerId}
+        isMini={true}
+        onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {
+          if (game!.roundNumber === 6) {
+            setConfirmPassWithTileId('dummy');
+          } else {
+            setConfirmPassWithTileId(id);
+          }
+        }) : undefined}
+        onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
+      />
+    </div>
   );
 
   return (
@@ -5207,71 +5235,73 @@ export default function Game() {
         </div>
       )}
 
-      {/* 모바일 Info 오버레이 — 화면 왼쪽에 상태창 1.2배 폭으로 3페이지(기술타일 / 우주선·파워 / 라운드·보너스). 좌우 드래그(또는 점 클릭)로 전환. */}
+      {/* 모바일 Info 오버레이 — 화면 왼쪽, 상태창 1.2배 폭. 가로 모드: 3페이지 드래그/점. 세로 모드: 3창 합쳐 스크롤. ("?" 다이얼로그에서 전환) */}
       {isMobileViewport && isInfoOpen && game && (
         <div
           className="md:hidden fixed top-0 bottom-0 left-0 z-[110] flex flex-col border-r border-border bg-card/95 backdrop-blur-sm overflow-hidden"
           style={{ width: infoOverlayWidth }}
         >
-          {/* 페이지 헤더 + 인디케이터 */}
+          {/* 헤더 + (가로 모드일 때만) 페이지 인디케이터 */}
           <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 truncate">
-              {infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스'}
+              {infoLayout === 'vertical' ? '기술 · 우주선 · 라운드' : (infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스')}
             </span>
-            <div className="flex items-center gap-1 shrink-0">
-              {[0, 1, 2].map((i) => (
-                <button
-                  key={i}
-                  type="button"
-                  aria-label={`페이지 ${i + 1}`}
-                  onClick={() => setInfoPage(i)}
-                  className={`h-1.5 rounded-full transition-all ${infoPage === i ? 'w-4 bg-emerald-300' : 'w-1.5 bg-white/25'}`}
-                />
-              ))}
-            </div>
+            {infoLayout === 'horizontal' && (
+              <div className="flex items-center gap-1 shrink-0">
+                {[0, 1, 2].map((i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={`페이지 ${i + 1}`}
+                    onClick={() => setInfoPage(i)}
+                    className={`h-1.5 rounded-full transition-all ${infoPage === i ? 'w-4 bg-emerald-300' : 'w-1.5 bg-white/25'}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <motion.div
-              key={infoPage}
-              className="h-full w-full overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
-              drag="x"
-              dragDirectionLock
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.15}
-              onDragEnd={(_, info) => {
-                if (info.offset.x < -55 && infoPage < 2) setInfoPage(infoPage + 1);
-                else if (info.offset.x > 55 && infoPage > 0) setInfoPage(infoPage - 1);
-              }}
+          {infoLayout === 'vertical' ? (
+            /* 세로 모드: 기술+우주선+파워(section='all') → 라운드·보너스 한 흐름으로 위아래 스크롤 */
+            <div
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
               onWheel={(e) => e.stopPropagation()}
             >
               <div
-                className="flex flex-col overflow-hidden px-2 pt-2 pb-3"
-                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / infoOverlayZoom}%`, zoom: infoOverlayZoom } as CSSProperties}
+                className="flex flex-col gap-4 px-2 pt-2 pb-6"
+                style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: infoOverlayZoom } as CSSProperties}
               >
-                {infoPage === 0 && renderInfoResearch('tech')}
-                {infoPage === 1 && renderInfoResearch('ships')}
-                {infoPage === 2 && (
-                  <div className="flex flex-col gap-4">
-                    <RoundBoard game={game} playerId={playerId} isMini={true} />
-                    <div className="h-[1px] bg-white/10 w-full" />
-                    <BonusTiles
-                      game={game}
-                      playerId={playerId}
-                      isMini={true}
-                      onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {
-                        if (game.roundNumber === 6) {
-                          setConfirmPassWithTileId('dummy');
-                        } else {
-                          setConfirmPassWithTileId(id);
-                        }
-                      }) : undefined}
-                      onUseBonusAction={() => GameClient.useBonusAction(gameId!)}
-                    />
-                  </div>
-                )}
+                {renderInfoResearch('all')}
+                <div className="h-[1px] bg-white/10 w-full" />
+                {renderInfoRoundBonus()}
               </div>
-            </motion.div>
-          </div>
+            </div>
+          ) : (
+            /* 가로 모드: 좌우 드래그 페이지 */
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <motion.div
+                key={infoPage}
+                className="h-full w-full overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
+                drag="x"
+                dragDirectionLock
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.15}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -55 && infoPage < 2) setInfoPage(infoPage + 1);
+                  else if (info.offset.x > 55 && infoPage > 0) setInfoPage(infoPage - 1);
+                }}
+                onWheel={(e) => e.stopPropagation()}
+              >
+                <div
+                  className="flex flex-col overflow-hidden px-2 pt-2 pb-3"
+                  style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / infoOverlayZoom}%`, zoom: infoOverlayZoom } as CSSProperties}
+                >
+                  {infoPage === 0 && renderInfoResearch('tech')}
+                  {infoPage === 1 && renderInfoResearch('ships')}
+                  {infoPage === 2 && renderInfoRoundBonus()}
+                </div>
+              </motion.div>
+            </div>
+          )}
         </div>
       )}
 

@@ -275,6 +275,45 @@ function NotifyToggle() {
   );
 }
 
+/** 모바일 전용: Info 오버레이(좌하단 i 버튼) 레이아웃 선택 — 가로(드래그 페이지) vs 세로(3창 합쳐 스크롤). localStorage+커스텀이벤트로 Game.tsx와 동기화. */
+function TechViewSelector() {
+  const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal');
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('info-overlay-layout') === 'vertical') setLayout('vertical');
+  }, []);
+  const choose = (v: 'horizontal' | 'vertical') => {
+    setLayout(v);
+    localStorage.setItem('info-overlay-layout', v);
+    window.dispatchEvent(new CustomEvent('info-overlay-layout-change', { detail: v }));
+  };
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-400">
+        보드 정보 보기 (좌하단 i 버튼)
+      </h3>
+      <div className="px-2 py-1.5 space-y-1.5">
+        <div className="text-[9px] leading-snug text-zinc-500">기술타일·우주선·라운드 창을 어떻게 볼지 선택합니다.</div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => choose('horizontal')}
+            className={`flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${layout === 'horizontal' ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+          >
+            가로로 보기<div className="text-[8px] font-normal opacity-70 mt-0.5">3페이지 좌우 드래그</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => choose('vertical')}
+            className={`flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${layout === 'vertical' ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+          >
+            세로로 보기<div className="text-[8px] font-normal opacity-70 mt-0.5">3창 합쳐 위아래 스크롤</div>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 interface GameUiHelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -297,7 +336,9 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, showTaklonsBrain,
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-2"
           style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
         >
-          <NotifyToggle />
+          {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
+          <div className="hidden md:block"><NotifyToggle /></div>
+          <div className="md:hidden"><TechViewSelector /></div>
           <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
             <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 / 종족</h3>
             <div className="flex items-center justify-between gap-3 px-2 py-1.5">
