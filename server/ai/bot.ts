@@ -575,6 +575,29 @@ export class BotLogic {
         const currentP3 = player.power3 ?? 0;
         const isTaklons = player.faction === 'taklons';
 
+        // [버그수정 2026-06-23] 충전 낭비 회수 — 위 주석("낭비 안 됨")은 틀렸음.
+        // 다음 라운드 충전(powerIncome)이 bowl1/2 흡수용량(2*p1 + p2)을 초과하면, bowl3가 꽉 차 초과분이 증발한다.
+        // 패스 전 bowl3 토큰을 자원으로 비우면(→bowl1) 다음 충전이 그걸 다시 끌어올려 '낭비될 충전 = 공짜 자원'으로 회수.
+        // 비울 자원: 다음 라운드 ore 부족 예상이면 ore(3p→1o, 토큰3 비움), 아니면 credit(1p→1c, 토큰1 비움). (사용자 규칙)
+        // 한 번에 한 변환만 반환 → 패스 전 반복 호출로 wasted가 0이 될 때까지 체인.
+        {
+            const absorbCapacity = 2 * ((player.power1 ?? 0) + tokenIncome) + (player.power2 ?? 0);
+            const wastedCharge = Math.max(0, powerIncome - absorbCapacity);
+            if (wastedCharge > 0 && currentP3 >= 1) {
+                const nevPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                const exp = this.calculateExpectedRoundIncome(game, playerId, nextBonusTileId);
+                const oreShort = ((player.ore ?? 0) + (exp.ore ?? 0)) < 3;
+                const can3pOre = isTaklons
+                    ? (canSpendTaklonsPowerWithoutBrain(player, 3, 3) || canTaklonsSpendUsingBrain(player, 3, 3))
+                    : (nevPI ? currentP3 >= 2 : currentP3 >= 3);
+                if (oreShort && can3pOre) {
+                    const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
+                    return { type: 'convert_resource', params: { type: nevPI ? '2power-to-1ore-1credit' : '3power-to-1ore', useBrain } };
+                }
+                return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } };
+            }
+        }
+
         // 다음 라운드 수입이 아예 없으면 굳이 변환할 이유가 더 줄어듦
         const hasIncoming = (powerIncome + tokenIncome) > 0;
 
