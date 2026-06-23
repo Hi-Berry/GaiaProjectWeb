@@ -230,10 +230,13 @@ export default function Game() {
   // 모바일 Info 오버레이: 화면 왼쪽에 상태창의 1.2배 폭으로(뷰포트 초과 방지 클램프). zoom은 그 폭에 맞춤.
   const infoOverlayWidth = isMobileViewport ? Math.min(Math.round(effectiveSidebarWidth * 1.2), Math.round(winW * 0.9)) : effectiveSidebarWidth;
   const infoOverlayZoom = isMobileViewport ? infoOverlayWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
-  // 하단 분할: 모바일 + Info 열림 + 세로 화면(portrait)일 때, 상단 절반은 맵, 하단 절반을 정보창(좌)/상태창(우)으로 나눔.
+  // 세로(portrait) 모바일에선 정보창을 상시 표시 — i 버튼 토글 없이 항상 하단-좌측에 둠(사용자 요청). 가로(landscape)에선 i 버튼으로 토글.
+  const portraitMobile = isMobileViewport && isPortrait;
+  const infoEffectivelyOpen = isInfoOpen || portraitMobile;
+  // 하단 분할: 세로 화면(portrait)일 때 상단 절반은 맵, 하단 절반을 정보창(좌)/상태창(우)으로 나눔. 정보창이 상시라 portrait면 항상 분할.
   // (가로 화면이면 정보창 풀하이트 좌측 + 상태창 우측.) 레이아웃은 화면 방향에 좌우되고, 정보창 내용 표시방식(스와이프/스크롤)은 infoLayout이 따로 결정.
   // 분할 비율은 반반이 아니라 정보창:상태창 = 1.2:1(정보창이 더 큼).
-  const splitActive = isMobileViewport && isInfoOpen && isPortrait;
+  const splitActive = portraitMobile;
   const splitInfoWidth = splitActive ? Math.round(winW * 1.2 / 2.2) : 0;
   const splitStatusWidth = splitActive ? winW - splitInfoWidth : 0;
   const splitInfoZoom = splitActive ? splitInfoWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
@@ -5180,8 +5183,8 @@ export default function Game() {
       )}
 
       {/* 모바일 전용 — Info(좌하단, 보드 3페이지 오버레이) + 로그(우하단, 상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
-          데스크톱은 좌측 미니뷰/도킹 로그 사용(md:hidden). */}
-      {game && (
+          세로(portrait)에선 정보창이 상시 표시라 i 버튼 숨김(토글 불필요). 데스크톱은 좌측 미니뷰/도킹 로그 사용(md:hidden). */}
+      {game && !portraitMobile && (
         <button
           type="button"
           aria-label={isInfoOpen ? 'Info 닫기' : '보드 정보 열기'}
@@ -5258,8 +5261,9 @@ export default function Game() {
         </div>
       )}
 
-      {/* 모바일 Info 오버레이 — 화면 왼쪽, 상태창 1.2배 폭. 가로 모드: 3페이지 드래그/점. 세로 모드: 3창 합쳐 스크롤. ("?" 다이얼로그에서 전환) */}
-      {isMobileViewport && isInfoOpen && game && (
+      {/* 모바일 Info 오버레이 — 화면 왼쪽, 상태창 1.2배 폭. 가로 모드: 3페이지 드래그/점. 세로 모드: 3창 합쳐 스크롤. ("?" 다이얼로그에서 전환)
+          세로(portrait)에선 상시 표시(infoEffectivelyOpen), 가로(landscape)에선 i 버튼 토글. */}
+      {isMobileViewport && infoEffectivelyOpen && game && (
         <div
           className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'left-0 bottom-0 top-1/2 border-t border-r border-border' : 'top-0 bottom-0 left-0 border-r border-border'}`}
           style={{ width: infoEffectiveWidth }}
