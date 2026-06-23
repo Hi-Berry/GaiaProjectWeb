@@ -3429,6 +3429,7 @@ export default function Game() {
                     exit={{ y: -50, x: '-50%', opacity: 0 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                     className="fixed top-24 left-1/2 z-[65] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                    style={isMobileViewport ? ({ zoom: 0.78 } as CSSProperties) : undefined}
                   >
                     <div className="flex items-center gap-3 border-r border-white/10 pr-4">
                       <div className="flex flex-col shrink-0 mr-2">
@@ -5339,6 +5340,7 @@ export default function Game() {
             className="fixed top-20 z-[130] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
             style={{
               left: isSidebarOpen ? `calc((100% - ${effectiveSidebarWidth}px) / 2)` : '50%',
+              ...(isMobileViewport ? { zoom: 0.78 } : {}),
             }}
           >
             {/* Title & Costs (Left Side) */}

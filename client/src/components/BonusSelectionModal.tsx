@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Gift, Zap, Coins, FlaskConical, Gem, Target, Check, Mountain, Compass } from 'lucide-react';
 import type { GaiaGameState as GameState, BonusTile } from '@shared/gameConfig';
 import { ALL_BONUS_TILES } from '@shared/gameConfig';
+import { useIsMobile } from '@/hooks/use-mobile';
+import type { CSSProperties } from 'react';
 
 interface BonusSelectionModalProps {
   open: boolean;
@@ -65,6 +67,7 @@ export function BonusSelectionModal({
   mode,
 }: BonusSelectionModalProps) {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const currentPlayer = playerId ? game.players[playerId] : null;
   const currentBonusTile = currentPlayer?.bonusTile
@@ -90,7 +93,11 @@ export function BonusSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-[95vw] sm:max-w-3xl lg:max-w-5xl bg-zinc-950 border-white/10 text-zinc-100 max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6">
+      <DialogContent
+        className="max-w-[95vw] sm:max-w-3xl lg:max-w-5xl bg-zinc-950 border-white/10 text-zinc-100 max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6"
+        /* 모바일: 다른 패널처럼 비율 축소(타일·제목·여백 한꺼번에) */
+        style={isMobile ? ({ zoom: 0.82 } as CSSProperties) : undefined}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl font-black tracking-wider uppercase flex items-center gap-3">
             <Gift className="w-6 h-6 text-primary" />
