@@ -3,6 +3,7 @@ import { MessageCircle, X, Send } from 'lucide-react';
 import { GameClient, type GameState, type ChatMessage } from '@/lib/gameClient';
 import { FACTIONS } from '@shared/gameConfig';
 import { playChatSound } from '@/lib/audio';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ChatPanelProps {
     gameId: string;
@@ -11,10 +12,15 @@ interface ChatPanelProps {
     canChat: boolean;
     /** 내 식별자 (내가 보낸 메시지엔 효과음 안 울리도록) */
     selfId?: string | null;
+    /** 모바일 세로: 좌하단 i(Info) 버튼이 숨겨졌을 때 → 채팅을 i 자리(왼쪽 끝)로 당김 */
+    infoButtonHidden?: boolean;
 }
 
 /** 인게임 채팅 — 하단 왼쪽, 최상위 레이어. 접으면 작은 버튼(안 읽음 배지), 펼치면 메시지+입력창. */
-export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
+export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: ChatPanelProps) {
+    const isMobile = useIsMobile();
+    // 좌하단 앵커 위치: 데스크톱=336px(좌측 툴바 폭), 모바일=i버튼 옆 68px / i버튼 숨김(세로)이면 i 자리 12px
+    const anchorLeftPx = isMobile ? (infoButtonHidden ? 12 : 68) : 336;
     // 열림 상태를 localStorage에 보존 → 새로고침/턴 넘어가도 상시 떠 있게
     const [open, setOpen] = useState(() => {
         try { return localStorage.getItem('gaia-chat-open') === '1'; } catch { return false; }
@@ -128,7 +134,7 @@ export function ChatPanel({ gameId, game, canChat, selfId }: ChatPanelProps) {
         m.faction ? FACTIONS.find((f) => f.id === m.faction)?.color ?? '#a1a1aa' : '#a1a1aa';
 
     return (
-        <div className="fixed left-[68px] md:left-[336px] bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
+        <div className="fixed bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none', left: anchorLeftPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
             {open ? (
                 <div
                     /* 좌측 앵커(모바일 68px·데스크톱 336px)를 뺀 폭으로 우측에 8px 여백 → X 버튼이 화면 밖으로 안 나감 */

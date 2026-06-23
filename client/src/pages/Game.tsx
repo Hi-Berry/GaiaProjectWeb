@@ -5231,15 +5231,17 @@ export default function Game() {
         </button>
       )}
 
-      {/* 모바일: 로그 버튼 누르면 상태창 자리(사이드바 영역·같은 크기·같은 zoom)에 로그 오버레이. 다시 누르면 상태창 복귀. */}
+      {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && isLogPanelOpen && game && (
         <div
-          className="md:hidden fixed top-0 bottom-0 right-0 z-[110] flex flex-col border-l border-border bg-card/95 backdrop-blur-sm overflow-hidden"
-          style={{ width: effectiveSidebarWidth }}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'right-0 bottom-0 top-1/2 border-t border-l border-border' : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
         >
           <div
             className="flex flex-col h-full overflow-hidden"
-            style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties}
+            style={splitActive
+              ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / splitStatusZoom}%`, zoom: splitStatusZoom } as CSSProperties)
+              : ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties)}
           >
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pt-2 pb-3" onWheel={(e) => e.stopPropagation()}>
               {(!game.gameLog || game.gameLog.length === 0) ? (
@@ -5623,7 +5625,7 @@ export default function Game() {
 
       {/* 인게임 채팅 — 하단 좌측, 최상위 레이어. 참가자/관전자만 노출 */}
       {game && gameId && (isSpectator || (!!playerId && !!game.players[playerId])) && (
-        <ChatPanel gameId={gameId} game={game} canChat={true} selfId={playerId} />
+        <ChatPanel gameId={gameId} game={game} canChat={true} selfId={playerId} infoButtonHidden={portraitMobile} />
       )}
     </div>
   );
