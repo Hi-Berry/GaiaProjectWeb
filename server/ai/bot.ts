@@ -3475,7 +3475,9 @@ export class BotLogic {
                         // 아니면 거의 비활성(초반 ~4VP짜리 일찍 하지 말고 QIC를 확장에 쓰게). 사용자 규칙.
                         if (getPlayerFlag(playerId, 'qicVpGate', true)) {
                             const vp = (player.techTiles?.length ?? 0) + 2;
-                            score = (vp >= 6 || round === 6) ? 240 + vp * 10 : 25;
+                            // 초반 저VP(<6, R6 아님)면 후보에서 완전 제외(0). 25는 '낮은 점수'일 뿐 후보로 남아
+                            // MCTS가 즉시 VP 보고 집어 R2에도 눌리던 문제(사용자 관찰) → 0이면 score>0 가드에서 제외됨.
+                            score = (vp >= 6 || round === 6) ? 240 + vp * 10 : 0;
                         } else {
                             score = 320; // QIC 기술 타일: 매우 강력
                         }
@@ -3497,7 +3499,8 @@ export class BotLogic {
                         if (getPlayerFlag(playerId, 'qicVpGate', true)) {
                             // 정식 행성유형 집합(lost_planet·가상광산 포함) — naive 계산은 누락해 과소평가했음(서버 Eclipse 수정과 동일).
                             const vp = getPlayerPlanetTypesForGeodens(game, playerId).size + 2;
-                            score = (vp >= 6 || round === 6) ? 220 + vp * 10 : 25;
+                            // 초반 저VP면 후보 완전 제외(0) — qicVpGate가 점수만 깎고 안 막던 버그 수정(사용자 관찰: R2에도 누름).
+                            score = (vp >= 6 || round === 6) ? 220 + vp * 10 : 0;
                         } else {
                             score = 300; // QIC 기술/연방
                         }
