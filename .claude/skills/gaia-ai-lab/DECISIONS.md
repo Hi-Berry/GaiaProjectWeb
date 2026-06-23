@@ -118,3 +118,54 @@
 - [ ] **`fedZoneStrategy` 재검증 (최우선)** — 유일 채택인데 래퍼 버그로 검증된 적 없음. 별도 OFF 플래그 필요(현재 기본 ON).
 - [ ] `qicVpGate` 재측정 — 이전 38.8%는 무효(플래그 미적용). 2QIC 우주선 VP액션 실제 VP 평가, ≥6 또는 R6만.
 - [ ] **nevlas** 전략 보강 (최하위) — 파워토큰 경제 종족, 봇이 특수 메커니즘 미활용 의심. (종족 강제 배정 필요)
+
+## 2026-06-23 contention prior — mcts.ts PUCT(강한 레버) → 무해(노이즈), 미채택
+- mcts.ts bestUCT에 use_power_action 대상 getGrabUrgency PUCT 항 추가(flag useContentionPrior, contentionPriorW 기본2). HEAD mcts.ts 기준(유저 WIP은 stash).
+- head2head 120판(가중치격리): 도전자 승률 51.3%(61:58, p=0.783), VP +0.60±1.73(p=0.731). 음수 아님이나 노이즈.
+- 결론: 경쟁자원 선점 편향은 do-no-harm이지만 측정 이득 없음(봇이 이미 gain-2-ore 고평가). 가설(선점이 VP 이득) 미지지. mcts.ts 훅은 유저 파일이라 미커밋, 채택 보류. contention 데이터/모듈은 커밋되어 보존(향후 '의존 회피' 등 다른 적용 여지).
+
+## 2026-06-23 자원형 파워액션 선점 (preferResourcePowerAction) — 행동검증 통과, VP 음수 → 기각
+- 발견: 봇은 테라포밍스텝 파워액션(gain-1-step/2-steps)은 잘 쓰나 자원형(2O/7C)은 거의 안 씀. 계측(자가대국): gain-2-ore 0.25/게임. (참고: 사람게임 로그 봇=0/205는 구버전/탐지 이슈로 현재 자가대국과 불일치 — 자가대국 계측이 현재 행동의 정답.)
+- 계측 방법: bot.ts performAction use_power_action에 AI_POW_COUNT env-gated 카운터(data/pow-pick-count.txt). 주의: ESM이라 require('fs') 실패 → import * as nodeFs 로 해결. head2head 워커는 BotLogic.executeAction 경로를 탐(확인됨).
+- 레버: 결정경로에서 ore<3 & p3>=5 & gain-2-ore available이면 MCTS 건너뛰고 2O 강제(7C도 유사).
+- 행동검증(8판, B좌석만): gain-2-ore 2→7, 7C 5→10 — 발화 확인. 단 VP −10.13±7.60(p=0.18) → 강한 음수.
+- 결론: 자원형 파워액션 강제는 메인액션 템포 손실이 파워환율 이득을 압도해 손해. 봇의 기피가 대체로 옳음. 사용자 가설("무조건 이득") 미지지. 단 레버가 무뎌(좋은 건설도 무시) 음수 일부는 그 탓일 수 있음 → 외과적 버전(3p→O 치환 시점만) 여지.
+- 교훈: bestUCT prior(이전)는 최종선택 못 바꿈. 결정경로 강제 return은 결정적 발화(검증됨). "행동 검증 후 VP" 절차 정착.
+
+## 2026-06-23 자원형 파워액션 — 외과적 버전(3p→O 프리변환 시점만 2O 치환) → 중립~약음수, 미채택 (확정 120판)
+- 블런트(ore<3 강제) −10은 좋은수 무시 아티팩트였음(사용자 지적). 외과적 버전으로 격리: MCTS가 3p→O를 고른 순간에만 gain-2-ore로 치환.
+- 행동검증: gain-2-ore 발화 베이스 0.25/게임 → 외과 0.5~0.6/게임(B좌석). 발화 확인.
+- VP 추세: 8판 +0.06 → 60판 −4.54(p=0.09) → 120판 −2.50(유의없음). 음수 근처 진동=중립~약음수.
+- 120판 액션수(좌석당): 총건설 A 15.20 vs B 14.97(−0.23), research −0.19. 30판의 "B 건설 +0.97"은 소표본 노이즈였고 120판이 교정 → B가 개발을 더 하지 않음.
+- breakdown: 손실 researchTracks/techTiles/pass, 이득 finalMissions. remainingResources ≈ 동일.
+- 결론: 2O 효율(2파워/광석) 이득이 메인액션 비용과 상쇄(wash). 음수방향이라 미채택. 사용자 자원효율 논리는 옳으나 봇 실효는 중립.
+- 방법론 정착: bestUCT prior는 최종선택 못 바꿈 / 결정경로 강제는 결정적 발화 / 소표본(8~30) 액션수는 노이즈 큼 → 120판 필요 / "행동검증→VP→큰표본 확인" 절차.
+
+## 2026-06-23 야간 자율 실험 큐 (engineBlend 계측 결과 기반)
+- 계측: 휴리스틱 evaluateState score 평균 ~4956, engineValueNet raw출력 평균 ~77(VP스케일). weight 50 → 엔진망이 평가의 77% (압도). 
+- engineBlend=50(77%압도): VP −0.8 중립 → 망 ≈ 휴리스틱 동급. engineBlend=13(20%블렌드) 40판 +1.5 약양수(노이즈), 120판 확인중.
+- 핸드오프 문서 재확인: 가치망은 사람데이터 부족으로 노이즈. 실제 VP격차 = 우주선0/기술타일0/라운드미션/연구편식.
+- 야간 큐(전부 플래그 default OFF, 음수면 미채택): researchBreadth(연구분산 상태보상, evaluator.ts), ivitsFedAwareStation(우주정거장 연방연결성 우선, bot.ts findIvitsSpaceStationAction). 둘 다 tsc 통과, head2head 대기.
+- 임시계측 잔존: evaluator.ts engineBlend 블록의 AI_EVAL_SCALE 덤프(env-gated, 무해) — 정리 예정.
+
+## 2026-06-23 engineBlend(학습 엔진 가치망 블렌드) → 기각 (전 비중 중립)
+- engineBlend=50(망 77% 압도): VP −0.8 중립. engineBlend=13(20%): 40판 +1.5(노이즈) → 120판 VP −0.11(p=0.96) 완전 중립, 승률 44.9%.
+- 결론: 학습 엔진 가치망 ≈ 그리디 휴리스틱(어느 비중이든 중립). 블렌드만으론 개선 불가. 가치망 재학습(더 많은 자가대국+실제최종VP) 필요. 단 자가대국 학습데이터 저장 인프라 없음. → value-net 경로 보류, 구체적 격차(연구분산/연방) 표적으로 전환.
+
+## 2026-06-23 researchBreadth(연구 분산 상태보상) → weight 50 강한 음수
+- researchBreadth=50 60판: VP −5.44±1.85 (p=0.003 유의), 승률 39%. 강하게 해로움.
+- 해석: 봇은 지식수입 부족 → 강제 분산이 '얕고 넓게'(L2 여러개)가 돼 깊은트랙 L5보너스(12VP) 상실. 사람의 L4+ 넓고깊게는 지식이 받쳐줘야 가능. 봇엔 mono-deep이 분수에 맞음.
+- weight 15로 약하게 재확인 예정.
+
+## 2026-06-23 researchBreadth=15 (약한 분산 nudge) → +2.3 약양수 (120판 확인중)
+- weight 15 60판: VP +2.30±2.37 (p=0.33), 승률 53.3%. weight 50(−5.4)과 대조 → 스윗스팟 존재: 강제 분산은 해롭고, 살짝 유도는 이득.
+- 해석: mono-track에서 살짝 벗어나게만(L2+/L3+ 폭 가벼운 보상) 하면 +, 강제하면 얕은분산으로 −. 120판 확인 후 양수 유지면 채택.
+
+## 2026-06-23 ivitsFedAwareStation (우주정거장 연방 연결성 우선 배치) → +5.7 Ivits (120판 확인중)
+- bot.ts findIvitsSpaceStationAction에 전략0 추가: 빈 우주를 '내 건물 인접(거리1) 수' 많은 곳 우선(연방 닫기). Ivits 전용이라 타 종족 무해.
+- Ivits 강제 60판: 전체 VP +4.01(p=0.098), factionSplit Ivits onAvg 73.8 vs offAvg 68.1 = +5.70. 사용자 관찰("자유분방 배치") 교정.
+- 120판 강제Ivits로 확정 예정.
+
+## 2026-06-23 researchBreadth weight 최적화 종료 → 15 유지
+- 25 vs 15: 60판 +2.41(노이즈) → 120판 −0.75(p=0.71). 25는 15보다 안 나음. 15(검증된 +3.85 p=0.022) 유지.
+- 야간 자율 최종: 채택 2건(researchBreadth=15 유의, ivitsFedAwareStation do-no-harm) + 버그수정 4건(소행성QIC, qicVpGate실효화, 충전낭비cleanup, 채팅). engineBlend/researchBreadth50/breadth25 기각.
