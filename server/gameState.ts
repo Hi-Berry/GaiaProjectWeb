@@ -5776,6 +5776,26 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			}
 			return false;
 		}
+		// [버그수정 2026-06-23] 소행성도 표준 건설과 동일하게 거리(range)·QIC 적용. 이 분기가 range 체크를 건너뛰어
+		// QIC가 안 빠지던 버그(클라 mineBuildCost는 neededQIC를 요구/표시하는데 서버 미차감). Eclipse 6C 소행성 경로와 일관.
+		let astNeededQIC = 0;
+		{
+			let astBaseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+			if (player.tempRangeBonus) { astBaseRange += 3; player.tempRangeBonus = false; }
+			if (player.rangeBonusActive) { astBaseRange += 3; player.rangeBonusActive = false; }
+			if (player.gleensNavBonusActive) { astBaseRange += 2; player.gleensNavBonusActive = false; }
+			const astRangeTiles = getPlayerRangeTiles(game, playerId);
+			const astMinDist = astRangeTiles.length > 0 ? Math.min(...astRangeTiles.map(t => getDistance(t, tile))) : Infinity;
+			astNeededQIC = astMinDist > astBaseRange ? Math.ceil((astMinDist - astBaseRange) / 2) : 0;
+			if ((player.qic ?? 0) < astNeededQIC) {
+				debugLog(game, `executeBuildMine failed (Asteroid): out of range (need ${astNeededQIC} QIC, have ${player.qic ?? 0})`, 'error');
+				if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', `소행성이 사거리 밖입니다 (필요 QIC ${astNeededQIC}, 보유 ${player.qic ?? 0}).`);
+				return false;
+			}
+			player.qic = (player.qic ?? 0) - astNeededQIC;
+		}
+
+
 		const geodensTypesBeforeAsteroid = getPlayerPlanetTypesForGeodens(game, playerId);
 		const rm7QualifyAsteroid = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 		// 다카니안 의회: 소행성 무료 건설(포머 파괴)도 신규 섹터/외각이면 1K 2C — 이 분기는 표준 경로(아래)를 안 타서 누락됐었음(사용자 관찰).
@@ -5788,7 +5808,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		// 소행성 광산 건설 시 가이아포머 1개 파괴
 		player.gaiaformers = Math.max(0, (player.gaiaformers ?? 0) - 1);
 		player.destroyedGaiaformers = (player.destroyedGaiaformers ?? 0) + 1;
-		addGameLog(game, playerId, 'Built Mine on Asteroid', `Free (Used 1 Gaiaformer, ${player.gaiaformers} remaining)`, tileId);
+		addGameLog(game, playerId, 'Built Mine on Asteroid', `${astNeededQIC > 0 ? `${astNeededQIC} QIC · ` : ''}Used 1 Gaiaformer, ${player.gaiaformers} remaining`, tileId);
 		if (darkaniansPiBonusAst) {
 			player.knowledge = (player.knowledge ?? 0) + 1;
 			player.credits = (player.credits ?? 0) + 2;

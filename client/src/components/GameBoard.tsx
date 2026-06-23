@@ -2192,7 +2192,7 @@ export function GameBoard({
                       data-testid="button-build-mine"
                     >
                       {selectedTile.type === 'asteroid' ? (
-                        <>Build Mine (Free - Use 1 Gaiaformer)</>
+                        <>Build Mine ({mineBuildCost.qicCost > 0 ? `${mineBuildCost.qicCost} QIC · ` : ''}Use 1 Gaiaformer)</>
                       ) : (selectedTile.type === 'gaia' && currentPlayer?.pendingGaiaformerTiles?.includes(selectedTile.id)) || (selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && currentPlayer?.pendingGaiaformerTiles?.includes(selectedTile.id)) ? (
                         <>Build Mine (1 Ore, 2 Credits)</>
                       ) : selectedTile.type === 'proto' ? (
