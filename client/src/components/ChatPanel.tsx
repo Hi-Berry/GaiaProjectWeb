@@ -115,8 +115,10 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     useEffect(() => {
         const unsub = GameClient.onChatMessage((m) => {
             merge([m]);
+            // 내가 보낸 메시지(낙관적 표시 후 서버 echo)는 안 읽음 카운트/사운드에서 제외
+            if (m.senderId === selfIdRef.current) return;
             if (!openRef.current) setUnread((u) => u + 1);
-            if (m.senderId !== selfIdRef.current) playChatSound(); // 내가 보낸 건 제외
+            playChatSound();
         });
         return () => { unsub(); }; // cleanup은 void 반환이어야 함(unsub은 Socket을 반환하므로 감쌈)
     }, [merge]);
