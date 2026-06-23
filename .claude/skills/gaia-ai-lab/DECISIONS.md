@@ -174,3 +174,7 @@
 - 1차: 15 vs off 120판 +3.85 (p=0.022). 복제: off vs 15 120판 −3.02 (p=0.073, = 15가 +3.02 우세). 두 독립 샘플 일치 → researchBreadth=15는 robust ~+3 VP 개선 확정.
 - (패키지 둘다OFF vs 둘다ON 120판은 VP +1.52 모호했으나 단일샘플 노이즈; 직접 2회 측정이 일관 → 채택 신뢰.)
 - 야간 자율 최종 결산: 채택 researchBreadth=15(검증된 +3VP, clusterFedBonus 이후 첫 유의 강화), ivitsFedAwareStation(do-no-harm). 버그수정 6건(소행성QIC 서버+클라, qicVpGate실효화, 충전낭비cleanup, 채팅 낙관적+unread). 기각 engineBlend/breadth50/breadth25/2O자원파워액션.
+
+## 2026-06-23 planetTypeBreadth(행성유형 다양성 nudge) → 기각 (60판 +3.41 → 120판 −0.78 회귀)
+- researchBreadth와 동형 시도. 60판 VP +3.41(p=0.19) 유망했으나 120판 −0.78(p=0.66) 중립. 노이즈. evaluator.ts 코드 되돌림(HEAD).
+- 야간 종합 패턴: gentle eval nudge 6개 시도 → researchBreadth=15만 진짜(120판+복제 통과). 나머지(engineBlend/breadth50/breadth25/planetTypeBreadth/2O) 전부 60판 양수→120판 회귀 or 음수. 120판+복제 규율이 가짜 다 걸러냄. 결론: 고립된 nudge로 얻을 진짜 강화는 희소(이 효과 누적 ~2건: clusterFedBonus, researchBreadth). 추가 큰 도약엔 1:3 플레이 데이터 / 계획엔진 / RL 필요.
