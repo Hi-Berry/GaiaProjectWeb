@@ -2477,6 +2477,23 @@ export class BotLogic {
             return true;
         });
 
+        // 0) [flag: ivitsFedAwareStation] 연방-인지 배치 — 우주정거장을 '내 건물과 인접(거리1)한 수'가 많은 빈 우주에 우선.
+        //    내 건물 클러스터를 연방으로 닫는 위치를 선호(자유분방 배치 대신). 인접 건물 ≥1인 자리가 있을 때만 발동, 없으면 기존 전략. (사용자 관찰)
+        if (getPlayerFlag(playerId, 'ivitsFedAwareStation', true)) {
+            const fedReachable = emptySpaces
+                .map(s => {
+                    const dist = Math.min(...myPlanets.map(p => getDistance(p, s)));
+                    const neededQic = dist > range ? Math.ceil((dist - range) / 2) : 0;
+                    const adjOwn = myPlanets.filter(p => getDistance(p, s) === 1).length;
+                    return { space: s, dist, neededQic, adjOwn };
+                })
+                .filter(x => x.neededQic <= qic && x.adjOwn >= 1)
+                .sort((a, b) => (b.adjOwn - a.adjOwn) || (a.neededQic - b.neededQic) || (a.dist - b.dist));
+            if (fedReachable.length > 0) {
+                return { type: 'place_ivits_space_station', params: { tileId: fedReachable[0].space.id } };
+            }
+        }
+
         // 1) 전략 배치: 거리 밖 행성에 다리 역할
         const faction = FACTIONS.find(f => f.id === player.faction);
         const homeType = faction?.homePlanet;
