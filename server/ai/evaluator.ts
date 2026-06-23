@@ -512,6 +512,17 @@ export class Evaluator {
                 researchScore += w.researchLevel5Bonus * lateFactor;
             }
         }
+        // [flag: researchBreadth (숫자 가중치, 0=off)] 연구 분산 보상 — 봇은 1~2트랙 몰빵(20-24점), 사람은 4~5트랙 L4+(32-44점).
+        // researchLevel5Bonus가 '깊이'만 과보상하던 것 보완: 여러 트랙을 L2+/L3+로 올린 '폭'을 상태 보상(핸드오프 권장 방식).
+        const rbW = getPlayerFlag(playerId, 'researchBreadth', 15);
+        if (rbW) {
+            const lvls = Object.values(player.research ?? {}) as number[];
+            const tracksAt2 = lvls.filter(l => l >= 2).length;
+            const tracksAt3 = lvls.filter(l => l >= 3).length;
+            const breadth = Math.max(0, tracksAt2 - 1) + Math.max(0, tracksAt3 - 1) * 0.5; // 1트랙 몰빵=0, 분산할수록 ↑
+            researchScore += rbW * breadth;
+            logDebug(`6b) ResearchBreadth(x${rbW}): +${(rbW * breadth).toFixed(1)} (L2+=${tracksAt2}, L3+=${tracksAt3})`);
+        }
         score += researchScore;
         logDebug(`6) Research: +${researchScore.toFixed(1)}`);
 
