@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "source": "data/human-games",
+    "games": 21,
+    "skipped": 1,
+    "note": "contention = P(action taken during a round | game reached that round). earlyOrder 0=선점 먼저(시급), 1=늦게."
+  },
+  "byAction": {
+    "gain-3-knowledge": {
+      "perRound": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "overall": 0,
+      "earlyOrder": 1,
+      "n": 0
+    },
+    "gain-2-steps": {
+      "perRound": {
+        "1": 0,
+        "2": 0.048,
+        "3": 0.048,
+        "4": 0.048,
+        "5": 0.048,
+        "6": 0
+      },
+      "overall": 0.032,
+      "earlyOrder": 0.333,
+      "n": 4
+    },
+    "gain-2-ore": {
+      "perRound": {
+        "1": 0.619,
+        "2": 0.524,
+        "3": 0.333,
+        "4": 0.476,
+        "5": 0.476,
+        "6": 0.667
+      },
+      "overall": 0.516,
+      "earlyOrder": 0.282,
+      "n": 65
+    },
+    "gain-7-credits": {
+      "perRound": {
+        "1": 0.476,
+        "2": 0.333,
+        "3": 0.524,
+        "4": 0.619,
+        "5": 0.524,
+        "6": 0.333
+      },
+      "overall": 0.468,
+      "earlyOrder": 0.299,
+      "n": 59
+    },
+    "gain-2-knowledge": {
+      "perRound": {
+        "1": 0.238,
+        "2": 0.19,
+        "3": 0.143,
+        "4": 0.19,
+        "5": 0.095,
+        "6": 0.333
+      },
+      "overall": 0.198,
+      "earlyOrder": 0.657,
+      "n": 25
+    },
+    "gain-1-step": {
+      "perRound": {
+        "1": 0.143,
+        "2": 0.286,
+        "3": 0.143,
+        "4": 0.095,
+        "5": 0.048,
+        "6": 0.143
+      },
+      "overall": 0.143,
+      "earlyOrder": 0.125,
+      "n": 18
+    },
+    "gain-2-tokens": {
+      "perRound": {
+        "1": 0.095,
+        "2": 0.048,
+        "3": 0.095,
+        "4": 0.19,
+        "5": 0.286,
+        "6": 0.333
+      },
+      "overall": 0.175,
+      "earlyOrder": 0.682,
+      "n": 22
+    }
+  }
+}

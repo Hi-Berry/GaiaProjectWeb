@@ -84,12 +84,23 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     }, [canChat]);
 
     // id 기준 병합(중복 방지) + 시간순 정렬. 히스토리(game.chatMessages)와 라이브 이벤트를 함께 수용.
+    // 내가 보낸 메시지의 서버 echo가 오면, 먼저 띄운 낙관적(opt-) 항목을 제거해 중복 방지.
     const merge = useCallback((incoming: ChatMessage[]) => {
         if (!incoming?.length) return;
         setMessages((prev) => {
             const byId = new Map(prev.map((m) => [m.id, m]));
             let added = false;
-            for (const m of incoming) if (!byId.has(m.id)) { byId.set(m.id, m); added = true; }
+            for (const m of incoming) {
+                if (byId.has(m.id)) continue;
+                if ((m as any).senderId === selfIdRef.current) {
+                    const optKey = Array.from(byId.keys()).find((k) => {
+                        const v = byId.get(k);
+                        return k.startsWith('opt-') && v?.text === m.text && (v as any)?.senderId === (m as any).senderId;
+                    });
+                    if (optKey) byId.delete(optKey);
+                }
+                byId.set(m.id, m); added = true;
+            }
             if (!added) return prev;
             return Array.from(byId.values()).sort((a, b) => a.ts - b.ts);
         });
@@ -123,6 +134,18 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         const t = draft.trim();
         if (!t) return;
         GameClient.sendChat(gameId, t);
+        // 낙관적 업데이트: 서버 왕복(특히 부하 시 지연) 전에 내 메시지를 즉시 표시. 서버 echo 오면 merge가 opt- 항목 교체.
+        const self = selfId ? game.players[selfId] : undefined;
+        const optimistic = {
+            id: `opt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            senderId: selfId ?? 'me',
+            name: self?.name ?? '나',
+            faction: self?.faction ?? null,
+            isSpectator: !self,
+            text: t,
+            ts: Date.now(),
+        } as ChatMessage;
+        setMessages((prev) => [...prev, optimistic].sort((a, b) => a.ts - b.ts));
         setDraft('');
         // 연속 채팅 편하도록 입력창 포커스 유지
         inputRef.current?.focus();
