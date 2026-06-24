@@ -853,7 +853,7 @@ export class BotLogic {
 
         // 3-1. Firaks 의회 다운그레이드(랩→TS + 연구 1단계) — 종족 핵심 엔진. 메인 액션, 라운드당 1회.
         // 사용자 관찰: 거의 모든 유저가 1~2라운드부터 쓰려는 최고 능력인데 봇이 전혀 활용을 못했음(후보 생성 자체가 없었음).
-        if (player.faction === 'firaks') {
+        if (player.faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true)) {
             const fd = this.findFiraksDowngradeAction(game, playerId);
             if (fd) candidates.push(fd);
         }
@@ -1278,8 +1278,8 @@ export class BotLogic {
                 } else if (r2Preferred.includes(faction || '')) {
                     if (round <= 2) score += 70;
                     else score += 40;
-                } else if (faction === 'firaks') {
-                    // 피락스: 연구소+의회면 매 라운드 다운그레이드(랩→TS+연구) 엔진 → 의회를 강하게 조기 우선(사용자: 최고 능력, 1~2라부터).
+                } else if (faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true)) {
+                    // [flag: firaksDowngrade] 피락스: 연구소+의회면 매 라운드 다운그레이드(랩→TS+연구) 엔진 → 의회 조기 우선.
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
                     if (hasLab) score += round <= 3 ? 140 : 60;
                 } else {
@@ -1290,7 +1290,7 @@ export class BotLogic {
 
                 // 초반(1~2라) 의회는 거의 항상 과소비 → "광산 기반" 없으면 차단/강한 감점
                 // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
-                const firaksPiReady = faction === 'firaks' && myStructures.some(t => t.structure === 'research_lab');
+                const firaksPiReady = faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true) && myStructures.some(t => t.structure === 'research_lab');
                 if (round === 1) continue;
                 if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && round < 4) continue;
                 if (round <= 2 && mineCount < 5 && !firaksPiReady) continue;
