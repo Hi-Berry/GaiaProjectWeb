@@ -479,18 +479,18 @@ export default function Game() {
   const lastWasMyBidRef = useRef(false);
   const lastMyOfferCountRef = useRef(0);
   const lastPowerStateRef = useRef({ p1: 0, p2: 0, p3: 0, bs: 0 });
-  const prevPhaseRef = useRef<string | undefined>(undefined);
-
-  // 결과창: phase가 gameEnd로 바뀌는 순간(또는 최초 로드가 이미 gameEnd일 때)에만 한 번 열기 (관전 시 game_updated 재수신으로 창이 다시 열리는 현상 방지)
+  // 결과창은 게임당 정확히 1회만 자동으로 연다. (gameId 단위로 기록)
+  // [버그수정] 기존엔 'phase 전이(prevPhase!=gameEnd → gameEnd)'로 감지했는데, 서버가 끝난 게임을
+  // ~주기적으로 재방출(또는 재연결로 game 재수신)하면서 phase가 잠깐 다른 값→gameEnd로 흔들리면
+  // 전이로 오인해 결과창이 10초마다 다시 뜨는 현상이 있었음. 'gameId당 1회'로 바꿔 재방출/재연결/흔들림에 불변.
+  // 닫은 뒤 다시 보려면 결과화면의 '점수 보기' 버튼(아래)으로 수동 오픈.
+  const autoShownEndForGameRef = useRef<string | null>(null);
   useEffect(() => {
-    const phase = game?.currentPhase;
-    if (phase === 'gameEnd' && prevPhaseRef.current !== 'gameEnd') {
+    if (game?.currentPhase === 'gameEnd' && gameId && autoShownEndForGameRef.current !== gameId) {
+      autoShownEndForGameRef.current = gameId;
       setShowGameEndScore(true);
     }
-    // 관전/재연결 등으로 game이 잠깐 undefined가 되는 경우 prevPhaseRef가 리셋되면
-    // 이후 gameEnd를 다시 받았을 때 결과창이 "또" 열릴 수 있으므로, undefined로 덮어쓰지 않는다.
-    if (phase != null) prevPhaseRef.current = phase;
-  }, [game?.currentPhase]);
+  }, [game?.currentPhase, gameId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
