@@ -5032,7 +5032,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.knowledge = (player.knowledge ?? 0) + knowledge;
 			player.ore = (player.ore ?? 0) + ore;
 			player.credits = (player.credits ?? 0) + credits;
-			addGameLog(game, playerId, 'Terran Council', `${pending.tokenCount} tokens (2그릇 유지) → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
+			addGameLog(game, playerId, 'Terran Council', `${pending.tokenCount} tokens (2그릇 유지) → ${[qic&&`+${qic}Q`,knowledge&&`+${knowledge}K`,ore&&`+${ore}O`,credits&&`+${credits}C`].filter(Boolean).join(' ')||'없음'}`);
 			game.pendingTerranCouncilBenefit = null;
 			const queue = game.terranCouncilQueue ?? [];
 			if (queue.length > 0) {
@@ -7775,7 +7775,7 @@ export function executeBotTerranCouncilBenefit(
 	player.ore = (player.ore ?? 0) + ore;
 	player.credits = (player.credits || 0) + credits;
 
-	addGameLog(game, playerId, 'Bot: Terran Council', `Auto: ${tokens} tokens (2그릇 유지) → +${qic}Q +${knowledge}K +${ore}O +${credits}C`);
+	addGameLog(game, playerId, 'Bot: Terran Council', `Auto: ${tokens} tokens (2그릇 유지) → ${[qic&&`+${qic}Q`,knowledge&&`+${knowledge}K`,ore&&`+${ore}O`,credits&&`+${credits}C`].filter(Boolean).join(' ')||'없음'}`);
 	log(`Bot ${player.name} (Terran) auto-selected council benefits: ${tokens} tokens (kept in bowl 2)`, 'game', undefined, { simulation: (game as any).simulation });
 
 	game.pendingTerranCouncilBenefit = null;
