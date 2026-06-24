@@ -159,7 +159,7 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         m.faction ? FACTIONS.find((f) => f.id === m.faction)?.color ?? '#a1a1aa' : '#a1a1aa';
 
     return (
-        <div className="fixed bottom-3 z-[120] flex flex-col items-start" style={{ pointerEvents: 'none', left: anchorLeftPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
+        <div className="fixed bottom-3 z-[120] md:z-30 flex flex-col items-start" style={{ pointerEvents: 'none', left: anchorLeftPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
             {open ? (
                 <div
                     /* 좌측 앵커(모바일 68px·데스크톱 336px)를 뺀 폭으로 우측에 8px 여백 → X 버튼이 화면 밖으로 안 나감 */
