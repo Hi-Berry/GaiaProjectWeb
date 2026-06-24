@@ -2,6 +2,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import {
     ServerGameState,
     executeBuildMine,
+    executeFiraksDowngrade,
     executeUpgradeStructure,
     executeAdvanceTech,
     executePassRound,
@@ -93,6 +94,7 @@ type BotAction = {
     | 'enter_spaceship'
     | 'use_tech_action'
     | 'use_special_action'
+    | 'firaks_downgrade'
     | 'use_bonus_action'
     | 'place_gaiaformer'
     | 'take_twilight_artifact'
@@ -352,6 +354,8 @@ export class BotLogic {
                 return executeUseTechAction(io, game, playerId, action.params.tileId);
             case 'use_special_action':
                 return executeUseSpecialAction(io, game, playerId, action.params.actionId);
+            case 'firaks_downgrade':
+                return executeFiraksDowngrade(game, playerId, action.params.tileId, action.params.trackId);
             case 'use_bonus_action':
                 return executeUseBonusAction(io, game, playerId);
             case 'bal_tak_gaiaformer_to_qic':
@@ -847,6 +851,13 @@ export class BotLogic {
             if (ivitsAction) candidates.push(ivitsAction);
         }
 
+        // 3-1. Firaks 의회 다운그레이드(랩→TS + 연구 1단계) — 종족 핵심 엔진. 메인 액션, 라운드당 1회.
+        // 사용자 관찰: 거의 모든 유저가 1~2라운드부터 쓰려는 최고 능력인데 봇이 전혀 활용을 못했음(후보 생성 자체가 없었음).
+        if (player.faction === 'firaks') {
+            const fd = this.findFiraksDowngradeAction(game, playerId);
+            if (fd) candidates.push(fd);
+        }
+
         // 4. 교역소 할인 업그레이드
         const discountedTS = this.findDiscountedUpgradeAction(game, playerId);
         if (discountedTS) candidates.push(discountedTS);
@@ -1268,9 +1279,9 @@ export class BotLogic {
                     if (round <= 2) score += 70;
                     else score += 40;
                 } else if (faction === 'firaks') {
-                    // 피락스: 연구소가 있어야 의회 능력이 의미 있음
+                    // 피락스: 연구소+의회면 매 라운드 다운그레이드(랩→TS+연구) 엔진 → 의회를 강하게 조기 우선(사용자: 최고 능력, 1~2라부터).
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
-                    if (hasLab) score += 60;
+                    if (hasLab) score += round <= 3 ? 140 : 60;
                 } else {
                     // 그 외 종족: 4라운드 이전에는 건설 기피, 4라운드부터 의회 고려
                     if (round < 4) score -= 30;
@@ -1278,9 +1289,11 @@ export class BotLogic {
                 }
 
                 // 초반(1~2라) 의회는 거의 항상 과소비 → "광산 기반" 없으면 차단/강한 감점
+                // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
+                const firaksPiReady = faction === 'firaks' && myStructures.some(t => t.structure === 'research_lab');
                 if (round === 1) continue;
-                if (!earlyPiAllowed.includes(faction || '') && round < 4) continue; // 예외 종족 아니면 4R 전에는 아예 후보에 넣지 않음
-                if (round <= 2 && mineCount < 5) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
@@ -2458,6 +2471,27 @@ export class BotLogic {
      * 1) 거리 밖 행성에 다리 역할 빈 공간이 있으면 그 타일 우선
      * 2) 없으면 범위 내(또는 QIC로 도달 가능) 빈 우주 아무 타일이라도 배치 후보로 반환 → 패스 방지
      */
+    /** Firaks 의회 다운그레이드 후보: 연구소 1개를 교역소로 내리고 연구 1트랙 전진(메인 액션, 라운드당 1회).
+     * 트랙 선택: 레벨<4 중 현재 레벨 최고(투자 완성). 레벨4→5는 5슬롯 락을 봇에서 확인 못 해 보류(서버 거부→스톨 방지). */
+    private static findFiraksDowngradeAction(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        if (player.faction !== 'firaks') return null;
+        if (player.usedSpecialActions?.includes('firaks-downgrade')) return null;
+        if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return null;
+        const labs = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab');
+        if (labs.length === 0) return null;
+        const pref: ResearchTrack[] = ['terraforming', 'gaiaProject', 'economy', 'artificialIntelligence', 'science', 'navigation'];
+        let best: ResearchTrack | null = null, bestLvl = -1, bestPref = 99;
+        for (const tr of pref) {
+            const lvl = player.research?.[tr] ?? 0;
+            if (lvl >= 4) continue; // 레벨5 전진 보류(슬롯 락 위험)
+            const pi = pref.indexOf(tr);
+            if (lvl > bestLvl || (lvl === bestLvl && pi < bestPref)) { best = tr; bestLvl = lvl; bestPref = pi; }
+        }
+        if (!best) return null;
+        return { type: 'firaks_downgrade', params: { tileId: labs[0].id, trackId: best } };
+    }
+
     private static findIvitsSpaceStationAction(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
         const myPlanets = game.map.filter(t =>

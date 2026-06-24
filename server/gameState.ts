@@ -4439,41 +4439,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// 파이락(Firaks) Special: 의회 보유 시 연구소 1개→교역소 다운그레이드 + 아무 트랙 1칸 (라운드당 1회)
 		socket.on('firaks_downgrade', ({ gameId, tileId, trackId }: { gameId: string; tileId: string; trackId: ResearchTrack }) => {
 			const game = games.get(gameId); if (!game) return;
-			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const player = game.players[playerId];
-			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
-			if (player.faction !== 'firaks') return;
-			if (player.usedSpecialActions?.includes('firaks-downgrade')) return;
-			if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return;
-
-			const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab');
-			if (!tile) return;
-
-			const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
-			if (!tracks.includes(trackId)) return;
-			const currentLevel = player.research?.[trackId] ?? 0;
-			if (currentLevel >= 5) return;
-			if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return;
-			if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return;
-
-			saveActionStartState(game, playerId);
-			tile.structure = 'trading_station';
-			if (!player.usedSpecialActions) player.usedSpecialActions = [];
-			player.usedSpecialActions.push('firaks-downgrade');
-			player.research[trackId] = currentLevel + 1;
-			const newLevel = player.research[trackId];
-			addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
-			// 다운그레이드로 생긴 교역소도 일반 교역소 건설과 동일 취급: 인접 상대 파워 제공 + 연방 편입 + 교역소 라운드 점수
-			createPowerOffers(game, tile, playerId);
-			addBuildingToFederationIfAdjacent(game, playerId, tile.id);
-			applyRoundMissionScore(game, playerId, 'build_trading_station');
-			applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
-			applyRoundMissionScore(game, playerId, 'research_track');
-			applyAdvancedTechTileEffect(game, playerId, 'research');
-			log(`Player ${player.name} (Firaks) downgraded Lab to TS and advanced ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
-			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); io.to(gameId).emit('game_updated', game); }
 		});
 
 		// ---------- 연방 구현 ----------
@@ -6470,6 +6437,43 @@ export function executeSelectBonus(
 }
 
 /** 트랙 5단계는 게임당 1명만 가능. 이미 다른 플레이어가 해당 트랙 5단계면 true */
+/**
+ * 파이락 의회 능력: 연구소 1개를 교역소로 다운그레이드하고 연구 1트랙 1단계 전진(메인 액션, 라운드당 1회).
+ * 소켓 핸들러와 봇(performAction)이 공유 — 룰 중복 방지. 조건/효과는 firaks_downgrade 핸들러와 동일.
+ */
+export function executeFiraksDowngrade(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): boolean {
+	const player = game.players[playerId];
+	if (!player) return false;
+	if (game.currentPhase !== 'main') return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return false;
+	if (player.faction !== 'firaks') return false;
+	if (player.usedSpecialActions?.includes('firaks-downgrade')) return false;
+	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return false;
+	const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab');
+	if (!tile) return false;
+	const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+	if (!tracks.includes(trackId)) return false;
+	const currentLevel = player.research?.[trackId] ?? 0;
+	if (currentLevel >= 5) return false;
+	if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return false;
+	if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
+	saveActionStartState(game, playerId);
+	tile.structure = 'trading_station';
+	if (!player.usedSpecialActions) player.usedSpecialActions = [];
+	player.usedSpecialActions.push('firaks-downgrade');
+	player.research[trackId] = currentLevel + 1;
+	const newLevel = player.research[trackId];
+	addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
+	createPowerOffers(game, tile, playerId);
+	addBuildingToFederationIfAdjacent(game, playerId, tile.id);
+	applyRoundMissionScore(game, playerId, 'build_trading_station');
+	applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
+	applyRoundMissionScore(game, playerId, 'research_track');
+	applyAdvancedTechTileEffect(game, playerId, 'research');
+	game.hasDoneMainAction = true;
+	return true;
+}
+
 function isTrackLevel5Taken(game: ServerGameState, track: ResearchTrack, excludePlayerId: string): boolean {
 	return Object.entries(game.players).some(([pid, p]) => pid !== excludePlayerId && (p.research?.[track] ?? 0) >= 5);
 }
