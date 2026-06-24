@@ -37,7 +37,8 @@ export function flushGameData(game: ServerGameState): void {
     if (!arr || !arr.length) { buffers.delete(game.id); return; }
     try {
         const lines = arr
-            .map(r => JSON.stringify({ y: game.players[r.playerId]?.score ?? 0, round: r.round, bot: r.bot, a: r.a, f: r.f }))
+            // g(gameId)·fac(종족) 추가: 게임단위 train/val 분할 + 강한 게임만 필터링(MINVP)·중복제거 가능케.
+            .map(r => JSON.stringify({ y: game.players[r.playerId]?.score ?? 0, g: game.id, fac: game.players[r.playerId]?.faction ?? null, round: r.round, bot: r.bot, a: r.a, f: r.f }))
             .join('\n') + '\n';
         fs.mkdirSync(path.dirname(OUT), { recursive: true });
         fs.appendFileSync(OUT, lines);
