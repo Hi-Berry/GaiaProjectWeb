@@ -77,16 +77,19 @@ function parseVP(detail: string): number {
 
 function reconstructGame(g: any, fname: string): { y: number; g: string; round: number; bot: boolean; f: number[] }[] {
     const out: any[] = [];
-    const botMap = buildBotMap(g);
     const tileType: Record<string, string> = {};
     for (const t of (g.map || [])) if (t.id) tileType[t.id] = t.type;
     const finalScore: Record<string, number> = {};
     for (const id of Object.keys(g.players || {})) finalScore[id] = g.players[id]?.score ?? 0;
 
-    // 모든 플레이어 보드/연구/VP/가이아포머/우주선 = fullGameLog(봇 포함) 타임스탬프 순.
-    const flog = [...(g.fullGameLog || [])].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
-    // 사람 결정시점 = actionJournal(playerBefore 스냅샷 有, 사람만) 타임스탬프 순.
-    const decisions = [...(g.actionJournal || [])].filter(e => e.playerBefore && botMap[e.playerId] === false)
+    // ★actionJournal은 (봇 제외) 사람 액션만 기록 → 거기 playerId는 전부 사람. (옛 포맷은 fullGameLog가 비어도 여기엔 다 있음.)
+    const decisions = [...(g.actionJournal || [])].filter(e => e.playerBefore)
+        .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+    if (decisions.length === 0) return out;
+    const humanIds = new Set(decisions.map(e => e.playerId));
+
+    // 상대(=actionJournal에 없는 플레이어=봇) 보드/연구/VP는 fullGameLog로 추적. (있을 때만; 옛 포맷은 비어 상대피처 0.)
+    const flog = [...(g.fullGameLog || [])].filter(e => e.playerId && !humanIds.has(e.playerId))
         .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
 
     const liveMap = new Map<string, { ownerId: string; structure: string; type?: string }>();
@@ -94,36 +97,40 @@ function reconstructGame(g: any, fname: string): { y: number; g: string; round: 
     const scoreEst: Record<string, number> = {};
     const gf: Record<string, number> = {};
     const ships: Record<string, number> = {};
-    let fp = 0; // fullGameLog 포인터
+    let fp = 0;
 
-    function applyFlog(e: any) {
+    function applyEvent(e: any, trackResearchVP: boolean) {
         const pid = e.playerId; if (!pid) return;
         const st = structOf(e.action || '');
         if (st && isBoardTile(e.tileId)) liveMap.set(e.tileId, { ownerId: pid, structure: st, type: tileType[e.tileId] });
-        const tr = (e.action || '').includes('Research') || (e.action || '').includes('Tech') ? parseTrack(e.details || '') : null;
-        if (tr) { (research[pid] = research[pid] || {})[tr.track] = Math.max(research[pid][tr.track] || 0, tr.lvl); }
-        scoreEst[pid] = (scoreEst[pid] || 0) + parseVP(e.details || '');
         if (/Placed Gaiaformer/.test(e.action || '')) gf[pid] = (gf[pid] || 0) + 1;
         else if (/Gaiaformer Returned/.test(e.action || '')) gf[pid] = Math.max(0, (gf[pid] || 0) - 1);
         if (/Entered Ship/.test(e.action || '')) ships[pid] = (ships[pid] || 0) + 1;
+        if (trackResearchVP) { // 상대만: 연구/점수는 스냅샷이 없어 로그에서 추정
+            const tr = (e.action || '').includes('Research') || (e.action || '').includes('Tech') ? parseTrack(e.details || '') : null;
+            if (tr) { (research[pid] = research[pid] || {})[tr.track] = Math.max(research[pid][tr.track] || 0, tr.lvl); }
+            scoreEst[pid] = (scoreEst[pid] || 0) + parseVP(e.details || '');
+        }
     }
 
     for (const d of decisions) {
         const ts = d.timestamp ?? 0;
-        while (fp < flog.length && (flog[fp].timestamp ?? 0) <= ts) applyFlog(flog[fp++]);
+        while (fp < flog.length && (flog[fp].timestamp ?? 0) <= ts) applyEvent(flog[fp++], true); // 상대 진행
 
         const hid = d.playerId;
         const players: Record<string, any> = {};
-        // 사람: 정확한 자원/연구/점수/기술타일/연방은 스냅샷, 구조물은 liveMap(공용).
+        // 사람: 자원/연구/점수/기술타일/연방은 정확한 스냅샷, 본인 구조물은 actionJournal 빌드로 누적한 liveMap.
         players[hid] = flatPlayer(d.playerBefore, gf[hid] || 0, ships[hid] || 0);
-        // 상대(봇 포함): score=VP추정, research=추적, 구조물=liveMap. (techTiles/federations는 상대피처에 안 쓰임)
+        // 상대: fullGameLog 추적(없으면 빈값 → 상대대비 4피처만 근사). techTiles/federations는 상대피처에 안 쓰임.
         for (const oid of Object.keys(g.players || {})) {
-            if (oid === hid) continue;
+            if (oid === hid || humanIds.has(oid)) continue;
             players[oid] = { faction: g.players[oid]?.faction, score: scoreEst[oid] || 0, research: research[oid] || {}, techTiles: [], federations: [], spaceshipsEntered: [], gaiaformers: gf[oid] || 0 };
         }
         const pg = { players, map: Array.from(liveMap.values()), roundNumber: d.round ?? 0 } as any;
-        const f = extractFeatures(pg, hid);
-        out.push({ y: finalScore[hid] ?? 0, g: fname, round: d.round ?? 0, bot: false, f });
+        out.push({ y: finalScore[hid] ?? 0, g: fname, round: d.round ?? 0, bot: false, f: extractFeatures(pg, hid) });
+
+        // 사람 본인 빌드/가이아포머/우주선을 액션 적용(연구/VP는 스냅샷에서 오므로 추적 안 함).
+        applyEvent(d, false);
     }
     return out;
 }
