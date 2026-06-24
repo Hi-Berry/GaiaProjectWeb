@@ -4704,7 +4704,7 @@ export default function Game() {
                               </div>
                               <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
                               <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">
-                                <div className="w-full text-[9px] text-zinc-500 font-bold leading-none flex flex-wrap gap-x-1.5 gap-y-0.5">
+                                <div className="w-full text-[9px] text-white font-bold leading-none flex flex-wrap gap-x-1.5 gap-y-0.5">
                                   <span>유형 {ownedPlanetTypeCount}개</span>
                                   {occupiedSectorCount > 0 && <span>/ 판 {occupiedSectorCount}개</span>}
                                   {occupiedOuterSectorCount > 0 && <span>/ 외각 {occupiedOuterSectorCount}개</span>}
