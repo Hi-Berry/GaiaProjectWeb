@@ -18,7 +18,7 @@ import readline from 'readline';
 import { ValueNet } from '../server/ai/valueNet';
 import { FEATURE_DIM, FEATURE_NAMES } from '../server/ai/features';
 
-const DATA = process.env.VALUE_NET_DATA || 'data/valuenet-data.jsonl';
+const DATA = process.env.VALUE_NET_DATA || 'data/human-features.jsonl';
 const OUT = process.env.OUT || 'server/ai/humanValueNet.json';
 const EPOCHS = Number(process.env.EP) || 40;
 const MINVP = Number(process.env.MINVP) || 0; // 약한 사람게임 거르려면 올림(예: 100)
@@ -29,8 +29,8 @@ const MASK = [2, 29, 30];
 function mask(f: number[]): number[] { const g = f.slice(); for (const i of MASK) g[i] = 0; return g; }
 function shuffle<T>(a: T[]) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } }
 
-async function loadHuman(): Promise<{ y: number; f: number[] }[]> {
-    const rows: { y: number; f: number[] }[] = [];
+async function loadHuman(): Promise<{ y: number; f: number[]; g: string }[]> {
+    const rows: { y: number; f: number[]; g: string }[] = [];
     const rl = readline.createInterface({ input: fs.createReadStream(DATA), crlfDelay: Infinity });
     let total = 0, bot = 0;
     for await (const line of rl) {
@@ -40,7 +40,7 @@ async function loadHuman(): Promise<{ y: number; f: number[] }[]> {
         if (r.bot) { bot++; continue; }            // 사람만
         if (!Array.isArray(r.f) || r.f.length !== FEATURE_DIM || typeof r.y !== 'number') continue;
         if (r.y < MINVP) continue;
-        rows.push({ y: r.y, f: mask(r.f) });
+        rows.push({ y: r.y, f: mask(r.f), g: r.g ?? 'unknown' });
     }
     console.log(`스트림: 총 ${total} | 봇 ${bot} 제외 | 사람 사용 ${rows.length} (MINVP=${MINVP})`);
     return rows;
@@ -50,12 +50,14 @@ async function loadHuman(): Promise<{ y: number; f: number[] }[]> {
     const rows = await loadHuman();
     if (rows.length < 200) { console.error('사람 샘플이 너무 적음 — 1:3 게임 더 필요(>~50판 권장).'); process.exit(1); }
 
-    shuffle(rows);
-    const nVal = Math.floor(rows.length * 0.15);
-    const val = rows.slice(0, nVal);
-    const train = rows.slice(nVal);
-    // ⚠️ 행단위 split: 같은 게임 샘플이 train/val에 섞일 수 있어 valMAE는 낙관 편향. gradient(probe)가 더 신뢰됨.
-    console.log(`train=${train.length} | val=${val.length} | 행단위split(누출주의)`);
+    // 게임단위 train/val 분할 (누출 방지: 같은 게임 샘플은 한쪽에만).
+    const gameIds = [...new Set(rows.map(r => r.g))];
+    shuffle(gameIds);
+    const nValGames = Math.max(1, Math.floor(gameIds.length * 0.2));
+    const valGames = new Set(gameIds.slice(0, nValGames));
+    const val = rows.filter(r => valGames.has(r.g));
+    const train = rows.filter(r => !valGames.has(r.g));
+    console.log(`게임 ${gameIds.length}개 → train게임 ${gameIds.length - nValGames} / val게임 ${nValGames} | train샘플 ${train.length} val샘플 ${val.length} (게임단위, 누출없음)`);
 
     // 평균 기준선(상수 예측) MAE — 망이 이걸 이겨야 의미.
     const meanY = train.reduce((s, r) => s + r.y, 0) / train.length;
