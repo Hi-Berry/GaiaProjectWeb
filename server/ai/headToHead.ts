@@ -26,8 +26,35 @@ import path from 'path';
 
 type Flags = Record<string, number | boolean>;
 type Variant = { label?: string; weights?: unknown; flags?: Flags };
-type SeatResult = { playerId: string; faction?: string; score: number; group: 'A' | 'B' | null; pos?: number };
+type SeatResult = { playerId: string; faction?: string; score: number; group: 'A' | 'B' | null; pos?: number; actions?: Record<string, number> };
 type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[] };
+
+// 행동 분류 — "변경이 의도한 행동대체를 실제로 했는지"(예: 교역소↓ → 광산/연구소↑ vs 그냥 패스↑) 검증용.
+const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'research', 'federation', 'powerAct', 'techTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total'] as const;
+function classifyAction(a: string): string | null {
+    if (!a) return null;
+    // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
+    if (/Ship Tech: Nav\+1|Rebellion: Gain.*tech|Rebellion: Gained Tech/i.test(a)) return 'navP1';
+    // 2) 우주선 입장/액션 (우주선 prefix 행동은 광산건설 등이어도 우주선으로 일관 분류)
+    if (/Entered Ship|Entered Spaceship/i.test(a)) return 'shipEnter';
+    if (/^(Rebellion|Eclipse|TF Mars|Twilight):|Ship Action/i.test(a)) return 'shipAct';
+    // 3) 기술타일 획득
+    if (/Gained Tech Tile|Advanced Tech Tile|^Advanced Tech:|^Ship Tech:/i.test(a)) return 'techTile';
+    // 4) 업그레이드 — ★특정 대상(교역소/연구소/의회)을 일반 'Upgraded'보다 먼저 잡아야 함
+    if (/Upgraded to Trading Station/i.test(a)) return 'tradingStation';
+    if (/Upgraded to Research Lab/i.test(a)) return 'researchLab';
+    if (/Upgraded to (Planetary Institute|Academy)/i.test(a)) return 'piAcademy';
+    if (/^Upgraded|Downgrade/i.test(a)) return 'upgrade';
+    // 5) 건설/연구/연방/가이아/파워
+    if (/Built Mine|Build Mine/i.test(a)) return 'mine';
+    if (/Advanced Research/i.test(a)) return 'research';
+    if (/^Federation\b/i.test(a)) return 'federation';
+    if (/Placed Gaiaformer|Gaia Project/i.test(a)) return 'gaiaform';
+    if (/Power Action|Q\.I\.C\.? Action|QIC Action/i.test(a)) return 'powerAct';
+    // 6) 패스(보너스 선택)
+    if (/Selected Bonus|^Pass\b|^Passed/i.test(a)) return 'pass';
+    return null;
+}
 
 type Worker = { idx: number; port: number; proc: ChildProcess; socket: Socket };
 
@@ -170,12 +197,23 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
         const onUpdate = (updated: any) => {
             if (!gameId || updated?.id !== gameId || updated.currentPhase !== 'gameEnd') return;
             cleanup();
+            // 행동믹스 집계: 게임상태에 포함된 gameLog를 playerId별로 분류 카운트.
+            const byPlayer: Record<string, Record<string, number>> = {};
+            for (const e of (updated.gameLog ?? [])) {
+                const pid = e?.playerId;
+                if (!pid) continue;
+                const k = classifyAction(e.action || '');
+                if (!k) continue;
+                (byPlayer[pid] ??= {})[k] = ((byPlayer[pid] ??= {})[k] || 0) + 1;
+                byPlayer[pid].total = (byPlayer[pid].total || 0) + 1;
+            }
             const seats: SeatResult[] = Object.entries(updated.players || {}).map(([playerId, p]: [string, any]) => ({
                 playerId,
                 faction: p.faction,
                 score: typeof p.score === 'number' ? p.score : 0,
                 group: (p.h2hGroup as 'A' | 'B' | undefined) ?? null,
                 pos: p.h2hPos,
+                actions: byPlayer[playerId] ?? {},
             }));
             resolve({ gameId, bPositions: headToHead.bPositions, seats });
         };
@@ -321,6 +359,25 @@ async function main() {
             factionSplit = { faction: FORCE_FACTION, bScores: bs, aScores: as };
         }
 
+        // [행동믹스 검증] 변경이 '의도한 행동대체'를 실제로 했는지 — 예: 교역소↓가 광산/연구소↑(좋은 발전)로
+        // 갔는지, 아니면 그냥 패스↑(헛수고)인지. VP가 무해(±0)여도 이 표로 메커니즘이 작동했는지 구분한다.
+        const behaviorAgg = (group: 'A' | 'B') => {
+            const sums: Record<string, number> = {};
+            let seatN = 0;
+            for (const g of results) {
+                for (const s of g.seats) {
+                    if (s.group !== group) continue;
+                    seatN++;
+                    for (const k of BEHAVIOR_KEYS) sums[k] = (sums[k] || 0) + (s.actions?.[k] || 0);
+                }
+            }
+            const avg: Record<string, number> = {};
+            for (const k of BEHAVIOR_KEYS) avg[k] = seatN ? sums[k] / seatN : 0;
+            return { avg, seatN };
+        };
+        const behA = behaviorAgg('A');
+        const behB = behaviorAgg('B');
+
         const verdict = (() => {
             if (decisive < 10) return '판수 부족 — 더 많은 게임 필요 (권장 60+)';
             const sigWin = winPValue < 0.05;
@@ -360,6 +417,7 @@ async function main() {
                 offAvg: mean(factionSplit.aScores),
                 delta: mean(factionSplit.bScores) - mean(factionSplit.aScores),
             } : null,
+            behavior: { champion: behA.avg, challenger: behB.avg, championSeats: behA.seatN, challengerSeats: behB.seatN },
         };
         writeJson(REPORT_PATH, report);
 
@@ -377,6 +435,19 @@ async function main() {
             const tFac = sePooled > 0 ? d / sePooled : 0;
             const pFac = 2 * (1 - normCdf(Math.abs(tFac)));
             console.log(`\n  ★ [${factionSplit.faction}] 플래그ON ${onAvg.toFixed(1)} (n=${factionSplit.bScores.length}) vs OFF ${offAvg.toFixed(1)} (n=${factionSplit.aScores.length}) → Δ${d >= 0 ? '+' : ''}${d.toFixed(2)} (p≈${pFac.toFixed(3)})`);
+        }
+        // 행동믹스 차이표: 도전자(B)가 챔피언(A) 대비 각 행동을 좌석당 평균 몇 번 더/덜 했는지.
+        // "교역소↓ → 광산/연구소/연구↑"면 의도한 발전 대체가 일어난 것(좋음). "그냥 총행동↓·패스 빠름"이면 헛수고.
+        console.log('\n  ── 행동믹스(좌석당 평균, B=도전자 − A=챔피언) ──');
+        const labelMap: Record<string, string> = {
+            mine: '광산', tradingStation: '교역소', researchLab: '연구소', piAcademy: '의회/아카데미',
+            upgrade: '업글(기타)', research: '연구진행', federation: '연방', powerAct: '파워액션',
+            techTile: '기술타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
+        };
+        for (const k of BEHAVIOR_KEYS) {
+            const a = behA.avg[k] || 0, b = behB.avg[k] || 0, d = b - a;
+            const bar = Math.abs(d) < 0.05 ? '' : (d > 0 ? '▲' : '▼');
+            console.log(`    ${(labelMap[k] || k).padEnd(7)} A ${a.toFixed(2).padStart(6)}  B ${b.toFixed(2).padStart(6)}  Δ${d >= 0 ? '+' : ''}${d.toFixed(2)} ${bar}`);
         }
         console.log(`  리포트: ${REPORT_PATH}`);
     } finally {

@@ -350,6 +350,24 @@ export class Evaluator {
         score += oreScore + credScore + knowScore;
         logDebug(`2) Resources: Ore +${oreScore.toFixed(1)}, Cred +${credScore.toFixed(1)}, Know +${knowScore.toFixed(1)}`);
 
+        // [flag: potentialEval] 다턴 잠재력: ore·knowledge는 '쟁여둔 잉여(0.1×)'가 아니라 '선불된 다음 행동'이다.
+        // 데이터(사람 vs 봇 행동믹스): 봇은 라운드당 행동수가 절반(research −9·upgrade −8·mine −7) — 라운드 중반에
+        // ore/지식이 말라 일찍 패스(패스 횟수는 동일). ore·지식을 '다음 행동가치의 작은 일부'로 평가해, 크레딧 대신
+        // ore/지식 획득을 우대(크레딧은 0.1× 유지 = 풍선 억제). ★분수를 작게 유지하는 게 핵심: 광산 건설(~60×멀티)이
+        // 보유 ore 가치(~수/개)를 항상 압도하므로 봇은 모으되 결국 쓴다(hoarding 유발 X). 남은 라운드↑ = 쓸 기회↑ → 소폭 가산.
+        if (getPlayerFlag(playerId, 'potentialEval', false)) {
+            const potMult = 1 + 0.3 * remainingRounds;
+            // 지식: 4당 연구 1칸 가능. 남은 라운드만큼만 실제 쓸 수 있으니 캡(hoarding 방지).
+            const usableKnow = Math.min(Math.floor((player.knowledge || 0) / 4), remainingRounds);
+            const knowPot = usableKnow * (w.researchTerraforming * 0.4) * potMult;
+            // 광석: 건설/업글의 핵심 연료. 남은 라운드 동안 쓸 양으로 캡.
+            const usableOre = Math.min((player.ore || 0), remainingRounds + 1);
+            const orePot = usableOre * (w.structureMine * 0.1) * potMult;
+            const potential = knowPot + orePot;
+            score += potential;
+            logDebug(`2p) Potential(다턴 연료): know ${usableKnow}→+${knowPot.toFixed(0)}, ore ${usableOre}→+${orePot.toFixed(0)} = +${potential.toFixed(1)}`);
+        }
+
         const qicWeight = round >= 4 ? w.qicWeightLate : w.qicWeightEarly;
         const qicScore = (player.qic || 0) * qicWeight;
         score += qicScore;

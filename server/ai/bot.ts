@@ -62,6 +62,7 @@ import {
     countGreenFederations,
     TechTile,
     SHIP_TECH_TILES,
+    SHIP_TECH_BY_SHIP,
     isPlanetHex,
     FEDERATION_12VP_ID,
     getGaiaBaseQic,
@@ -2974,8 +2975,22 @@ export class BotLogic {
         // 1. 우주선 전용 타일 보너스 (보통 일반 타일보다 강력함)
         const isShipTech = tileId.startsWith('ship-tech-');
         if (isShipTech) {
-            if (round <= 3) score += 90; // 초반 우주선 타일 매우 선호
-            else score += 45;
+            if (getPlayerFlag(playerId, 'shipTechEntryValue', false)) {
+                // [flag] 우주선 기술타일을 종류별 실제 가치로 평가. flat +90/+45는 nav+1·1O3K를 저평가해
+                // 일반 income타일(+70~120)에 밀림 → 봇이 2TF+Mine만 가끔 집음(데이터: Nav+1 0.09 vs 사람 4.59).
+                const early = round <= 3;
+                if (tileId === 'ship-tech-nav+1') {
+                    const myStruct = game.map.filter(t => t.ownerId === playerId && t.structure).length;
+                    score += (early && myStruct < 9) ? 170 : 110; // 영구 +사거리=확장 약점 직격, 일반타일 압도
+                } else if (tileId === 'ship-tech-1o3k') {
+                    score += early ? 100 : 70; // 지식3(연구 병목 연료)+광석1
+                } else {
+                    score += early ? 90 : 45;  // 2tf-mine 등 (추가 보너스는 아래 별도 블록)
+                }
+            } else {
+                if (round <= 3) score += 90; // 초반 우주선 타일 매우 선호
+                else score += 45;
+            }
         }
         if (tileId === 'ship-tech-2tf-mine') {
             const oldSteps = player.pendingTerraformSteps || 0;
@@ -3469,6 +3484,26 @@ export class BotLogic {
                 score = 50 + best * 0.5; // 입장은 다음 턴 사용 + -5VP라 액션가치의 절반 반영
                 const occupantsP = shipState?.occupants?.length || 0;
                 if (occupantsP >= 1) score += 20; // 동반 입장 파워 충전 가산
+
+                // [flag: shipTechEntryValue] 우주선이 주는 '기술타일' 가치를 입장 결정에 반영.
+                // 데이터(사람 vs 봇 좌석당): Nav+1 획득 4.59 vs 0.09(50배!), Rebellion 관여 3.71 vs 0.70(5배).
+                // 원인: 입장가치를 estimateBestShipActionValue(액션)으로만 매겨 → Rebellion이 주는 Nav+1(영구 +사거리)
+                // 가치가 0 → Twilight/Eclipse에 밀려 안 탐. Nav+1은 봇 최대약점(확장·QIC낭비를 사거리 부족이 유발) 직격.
+                if (getPlayerFlag(playerId, 'shipTechEntryValue', false)) {
+                    const techId = (game.shipTechByShip ?? SHIP_TECH_BY_SHIP)[tile.type || ''];
+                    if (techId && !(player.techTiles ?? []).includes(techId) && (game.shipTechPool?.[techId] ?? 1) > 0) {
+                        let tv = 0;
+                        if (techId === 'ship-tech-nav+1') {
+                            // 영구 +1 사거리: 확장기(구조물<9·초중반)일수록 매우 큼. nav연구 1레벨(navExpandEval ~130)에 준함.
+                            tv = (round <= 4 && myPlanets.length < 9) ? 170 : 100;
+                        } else if (techId === 'ship-tech-1o3k') {
+                            tv = 70;  // 1 ore + 3 knowledge 즉시 (지식=연구 병목 연료)
+                        } else if (techId === 'ship-tech-2tf-mine') {
+                            tv = 90;  // 2 테라폼 + 무료 광산 (확장)
+                        }
+                        score += tv * 0.5; // 입장→액션으로 다음 턴 획득 → 액션가치와 동일하게 절반 반영
+                    }
+                }
             } else {
                 score = getPlayerFlag(playerId, 'shipLowPriority', false) ? 40 : 80;
                 // 입장 순서 가산 (2/3번째 +2PW, 4번째 +3PW)
