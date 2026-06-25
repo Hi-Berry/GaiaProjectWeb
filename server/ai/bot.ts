@@ -3924,10 +3924,19 @@ export class BotLogic {
     private static calculateBonusTileScore(game: ServerGameState, player: PlayerState, tile: BonusTile, round: number, playerId: string): number {
         let score = 0;
 
+        // [flag: earlyOreBonusTile] 데이터(사람 vs 봇 R1-3 보너스타일 선택): 사람은 1O 확장타일(1o-mine/1o-2tokens/
+        // 1o-ts)을 선호, 봇은 4C-gaia(순수 크레딧)를 그 자리에 집음 → 크레딧 풍선만 키우고 광석 굶겨 새 광산을 못 깜
+        // (R3종료까지 건물행동 봇 8.71 vs 사람 11.43, R3 보유자원 봇 9.8 vs 사람 5.3 = 봇은 쟁여두고 안 지음).
+        // 초반엔 광석이 확장(새 광산)의 병목이므로 광석 가중치를 올려 사람처럼 1O 확장타일을 고르게 한다.
+        let oreW = 3, knowW = 3;
+        if (getPlayerFlag(playerId, 'earlyOreBonusTile', false) && round <= 3) {
+            oreW = 5;   // 광석=새 광산 연료(확장 병목)
+            knowW = 4;  // 지식=연구 연료
+        }
         let resourceValue = 0;
         if (tile.income) {
-            resourceValue += (tile.income.ore || 0) * 3;
-            resourceValue += (tile.income.knowledge || 0) * 3;
+            resourceValue += (tile.income.ore || 0) * oreW;
+            resourceValue += (tile.income.knowledge || 0) * knowW;
             resourceValue += (tile.income.qic || 0) * 4;
             resourceValue += (tile.income.credits || 0) * 1;
             resourceValue += (tile.income.power || 0) * 1;
