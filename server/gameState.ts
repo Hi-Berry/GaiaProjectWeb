@@ -2002,6 +2002,8 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			player.usedSpecialActions = [];
 			player.usedBonusAction = false;
 			player.gleensNavBonusActive = false;
+			// [버그수정 2026-06-25] Ivits 우주정거장 플래그도 여기(canonical per-round 리셋)서 리셋 — 기존엔 6844(전원패스 분기)에만 있어, 그 경로를 못 타면 플래그가 true로 막혀 봇이 정거장을 못 놓고 여러 라운드 idle 패스(사용자 관찰: R2-4 통째 패스, 도달가능 빈칸 多).
+			player.usedIvitsSpaceStationThisRound = false;
 			// [버그수정 2026-06-19] 타클론 브레인 스톤(가이아 영역) 복귀는 여기(income loop, 충전 적용 전)서 하면
 			// 그릇1으로 돌아온 직후 이 라운드 income 충전이 브레인스톤을 끌어올려버린다(사용자 관찰).
 			// 표준 순서(income 충전 → 가이아 단계 토큰 복귀)대로, 가이아포머 토큰 복귀와 같은 위치(income 이후)로 옮김.
