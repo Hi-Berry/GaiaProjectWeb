@@ -215,3 +215,9 @@
 - **판별 실험 expandDrive(확장 +28/건물, 40판 격리):** VP **−6.10(p=0.039)**, **광산 Δ−0.11(안 늚!)**. → 확장 가치를 올려도 광산이 안 생김 = **평가기가 확장을 저평가하는 게 아니라, 지을 타일에 도달을 못 하는 것(reach 한계).** 봇은 이미 닿는 광산은 다 짓고 있음.
 - **진짜 병목 = 도달능력**: 가이아포머(transdim→가이아 새 타일) 봇 0.03 vs 사람 0.43, 확장연구(nav/terra/gaia) 봇 4-7 vs 사람 9-14(★기존 최대발견). 사람은 사거리/포머로 새 타일을 열어 광산을 더 깜.
 - **왜 안 고쳐지나:** expandDrive(−6)·expansionResearch(+0.72 무의차) 둘 다 단일 조각만 건드려 wash. **"연구↑ + 사거리↑ + 그 결과 건설↑"이 묶인 복리 엔진 부트스트랩** 문제 → 단일 eval nudge로 안 풀림. **path2(학습정책)/계획엔진이 필요한 핵심 근거**(1턴 평가기는 "지금 nav 올려 다음턴 가이아행성 따기"를 못 봄). expandDrive OFF 유지.
+
+## 2026-06-25 earlyTerraExpand (R1-3 terraforming 연구 강제) — ❌ 기각 (−7.9, 광산 ↓), reach-coupling 확정
+- **연구(사람 R1-3 연구트랙):** 봇 terra 0%·gaia 2%(nav58·econ41만) vs 사람 terra20·gaia29%. 가이아포머 봇 0.06 vs 사람 1.24. 가설: terra↑→개척비용↓→findBuildActions 빌드후보↑→광산 따라옴. 결정경로 강제(humanRule2O 방식, 평가기 nudge는 wash라).
+- **측정 함정(중요):** bot.ts `log()`는 head2head stdout에 안 찍힘 → "발화 횟수 grep" 무용(0으로 오판). **발화 여부는 행동표 변화로 판단해야.** 초기 가드판(terraTarget/canTerra)은 행동표 거의 불변=거의 발화 안 함 → +1.15/−5.54는 **노이즈**(같은 사실상-no-op이 40판 변동만으로 ±6 흔들림 = 40판 불신 실증).
+- **무조건 발화판(R≤3·terra<2·지식≥4):** 행동표 크게 변함(총행동 −2.77) = 실제 발화. **VP −7.89(p=0.011), 광산 Δ−0.31(줄음!).** → **terra를 강제로 올려도 광산이 안 늘고 오히려 줆**(낮은 nav로는 terra해도 닿을 non-home 행성 없음 + 강제 terra가 실제 빌드/템포 밀어냄).
+- **★결론(반복확인):** 단일 레버 3종 전멸 — expandDrive(−6, 광산 안 늚)·earlyOreBonusTile(무해, 광산 안 늚)·earlyTerraExpand(−7.9, 광산 줆). **확장 병목 = nav+terra+reach+build 묶인 다턴 계획이라 단일 hand-rule로 절대 안 풀림.** path2(학습정책)/계획엔진이 유일한 길. 코드 revert(HEAD), flag 제거.
