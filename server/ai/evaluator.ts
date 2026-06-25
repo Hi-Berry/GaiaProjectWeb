@@ -492,6 +492,15 @@ export class Evaluator {
             economy: w.researchEconomy,
             science: w.researchScience,
         };
+        // [flag: researchLikeHuman] 데이터유래(사람 27게임): 봇은 nav+economy에 87% 몰빵(econ 44%·nav 43%),
+        // 사람은 terr 21·gaia 23·ai 24%로 고루. economy 가중치(22, 최고)가 economy 쏠림→크레딧 풍선만 키움.
+        // 사람 분포 쪽으로 재조정: economy 억제, terraforming/gaiaProject/AI(QIC) 부스트.
+        if (getPlayerFlag(playerId, 'researchLikeHuman', false)) {
+            rw.economy = 17;                  // 22→17 (과투자 완화, 부드럽게)
+            rw.terraforming = 16;             // 14→16
+            rw.gaiaProject = 16;              // 12→16 (행성다양성)
+            rw.artificialIntelligence = 13;   // 10→13 (QIC)
+        }
         let researchScore = 0;
         for (const [track, level] of Object.entries(player.research || {})) {
             const weight = rw[track] ?? 10;
