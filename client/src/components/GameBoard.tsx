@@ -87,8 +87,12 @@ function brightenKeepHue(hex: string, targetMax: number): string {
   const num = parseInt(h, 16);
   let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
   const mx = Math.max(r, g, b, 1);
-  if (mx >= targetMax) return '#' + h;
-  const f = targetMax / mx;
+  const mn = Math.min(r, g, b);
+  // [버그수정] 저채도(회색/검정, 예: titanium #424242 — Bescods/Firaks)는 max를 215로 밀면 R=G=B≈215 → 거의 흰색이 됨.
+  // (채도가 없어 '색상 유지'가 무의미.) 회색은 목표를 낮춰 '보이는 중간 회색'으로 → 위성이 흰색 아닌 회색 종족색으로 보임.
+  const effTarget = (mx - mn) < 30 ? Math.min(targetMax, 135) : targetMax;
+  if (mx >= effTarget) return '#' + h;
+  const f = effTarget / mx;
   r = Math.min(255, Math.round(r * f)); g = Math.min(255, Math.round(g * f)); b = Math.min(255, Math.round(b * f));
   return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
