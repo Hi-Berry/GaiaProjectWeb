@@ -1017,10 +1017,14 @@ export class BotLogic {
                 // 패스 직전에 1O→1토큰 프리액션을 1~2회 미리 수행하는 후보도 추가.
                 // (연방용 토큰 확보 + 파워 수입 누수 방지)
                 const { powerIncome, tokenIncome } = this.calculateExpectedPowerIncome(game, playerId);
-                const p1Next = (player.power1 ?? 0) + tokenIncome;
-                const expectedWaste = Math.max(0, powerIncome - p1Next);
+                // [버그수정] 충전 흡수용량 = 2×(그릇1+토큰수입) + 그릇2. (그릇1 토큰은 1→2→3로 2충전, 그릇2는 1충전 흡수.)
+                // 기존엔 (powerIncome - 그릇1)로 계산해 그릇1을 1배만 치고 그릇2를 무시 → 흡수할 토큰이 충분한데도
+                // 낭비로 오판하여 귀한 광석을 토큰으로 불필요하게 태웠음(사용자 관찰). 556행 cleanup의 올바른 시뮬레이션과 일치시킴.
+                const absorbCapacity = 2 * ((player.power1 ?? 0) + tokenIncome) + (player.power2 ?? 0);
+                const expectedWaste = Math.max(0, powerIncome - absorbCapacity);
                 const oreNow = player.ore ?? 0;
-                const k = Math.max(0, Math.min(2, expectedWaste, oreNow));
+                // 1광석→1토큰 = 흡수용량 +2 → 진짜 낭비분의 절반만(ceil) 변환. 광석은 최소 1개 남김(빌드 자원 보호).
+                const k = Math.max(0, Math.min(2, Math.ceil(expectedWaste / 2), Math.max(0, oreNow - 1)));
                 if (k > 0) {
                     const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
                     candidates.push({ type: 'pass_round', params: { bonusTileId }, preActions });
