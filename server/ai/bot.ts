@@ -4030,6 +4030,11 @@ export class BotLogic {
     private static calculateAdjacencyBonus(game: ServerGameState, playerId: string, tile: HexTile): number {
         let bonus = 0;
         const neighbors = game.map.filter(t => getDistance(t, tile) === 1);
+        // [flag: noInflateFed] 이미 형성된(닫힌) 연방에 속한 내 건물 옆 군집화는 연방가치 0(연방은 형성 시 1회 점수).
+        // 그런 이웃엔 군집보너스(+50/+20)를 안 줘서, 봇이 닫힌 연방을 계속 부풀리지 않고 새 연방용 NON-연방 건물 옆/새 영토로 가게 유도(사용자 관찰).
+        const noInflateFed = getPlayerFlag(playerId, 'noInflateFed', true);
+        const fedHexes: string[] = noInflateFed ? ((game as any).playerFederationHexes?.[playerId] || []) : [];
+        const clusterCounts = (neighborId: string) => !(noInflateFed && fedHexes.includes(neighborId));
 
         // [flag: taklonsPowerPos] 타클론은 파워가 생명(브레인스톤 증폭) → 상대 건물(특히 광산: 업글확률↑=리치 더 받음) 옆 포지셔닝을 크게 우대.
         // 사용자 모델: "상대 있는 곳/중앙으로 가서 파워 받을 준비". 봇은 보통 자기영역만 안전 확장해 이 핵심을 놓침.
@@ -4042,16 +4047,16 @@ export class BotLogic {
                 else if (neighbor.structure) bonus += taklonsLeech ? 28 : 10;
             }
 
-            // 내 건물 인접 (군집화 및 위성 절약) - 대폭 상향
-            if (neighbor.ownerId === playerId && neighbor.structure && neighbor.structure !== 'ship') {
+            // 내 건물 인접 (군집화 및 위성 절약) - 대폭 상향. 단 이미 연방인 이웃은 제외(닫힌 연방 부풀리기 방지).
+            if (neighbor.ownerId === playerId && neighbor.structure && neighbor.structure !== 'ship' && clusterCounts(neighbor.id)) {
                 bonus += 50;
             }
         }
 
-        // 2거리 내에 내 건물이 있으면 연방 연결에 유리
+        // 2거리 내에 내 건물이 있으면 연방 연결에 유리 (이미 연방인 이웃 제외)
         const range2Neighbors = game.map.filter(t => getDistance(t, tile) === 2);
         for (const neighbor of range2Neighbors) {
-            if (neighbor.ownerId === playerId && neighbor.structure && neighbor.structure !== 'ship') {
+            if (neighbor.ownerId === playerId && neighbor.structure && neighbor.structure !== 'ship' && clusterCounts(neighbor.id)) {
                 bonus += 20;
             }
         }
