@@ -441,6 +441,11 @@ export class Evaluator {
             // 상위 건물이 아예 없을 때 짓는 교역소 1개만 '첫 교역소'의 엄청난 보너스를 받음
             if (i === 0 && advancedStructuresCount === 0) {
                 tsScore += w.structureTradingStation * structMultiplier;
+            } else if (getPlayerFlag(playerId, 'tpDiminish', true) && i >= 2) {
+                // [flag: tpDiminish] 3번째+ 교역소는 메리트 거의 없음 — 크레딧 수입은 1~2개면 충분하고, 잉여 크레딧은
+                // 광석 없이 못 써 '돈 풍선'만 됨(사용자 관찰: 교역소 4개+돈 터짐). 광산 가치만 부여 → 광산→TP 업글
+                // 인센티브 ~0이라 괜한 4번째 교역소 대신 광산/연구소/확장을 하게 됨.
+                tsScore += w.structureMine * structMultiplier;
             } else {
                 // 교역소는 광산을 업그레이드해서 짓는 것이므로 광산보다 가치가 낮아지면 안 됨 (페널티 제거)
                 const secondTsBase = round <= 2 ? w.structureMine + 15 : (w.structureTradingStation + w.structureMine) / 2;

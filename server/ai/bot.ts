@@ -4093,7 +4093,7 @@ export class BotLogic {
             // [실험 tightCluster] 봇이 구조물을 연결클러스터 7.7개로 흩뿌려(최대파워4.3<7) 연방 못 함(맵-피처 발견).
             // 거리합산 대신 인접(dist1=위성없이 연결)을 강하게 우대해 '실제 연결 클러스터'를 키우게 유도.
             // FORCE_TIGHT=1로 측정 시 전체 봇에 적용(클러스터 지표 비교용).
-            const tightOn = getPlayerFlag(playerId, 'tightCluster', (typeof process !== 'undefined' && process.env?.FORCE_TIGHT === '1'));
+            const tightOn = getPlayerFlag(playerId, 'tightCluster', true);
             if (tightOn) {
                 if (minDist <= 1) score += 100;        // 인접 = 위성 없이 연결되는 진짜 클러스터 성장
                 else if (minDist === 2) score += 30;   // 위성 1개로 연결 가능
