@@ -3075,9 +3075,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const isCurrentPlayer = game.turnOrder[game.currentPlayerIndex] === playerId;
 			const currentTurnEmpty = isCurrentPlayer && !game.hasDoneMainAction;
 			const prevState: any = game.prevTurnStartState?.[playerId];
-			const startState: any = (currentTurnEmpty && prevState?.fullGameState) ? prevState : game.turnStartState?.[playerId];
+			const tsState: any = game.turnStartState?.[playerId];
+			// 견고한 선택: 빈 현재턴이면 prev(직전 턴 시작)를 우선, 아니면 ts(이번/마지막 턴 시작). 둘 중 fullGameState 있는 것.
+			const ordered = currentTurnEmpty ? [prevState, tsState] : [tsState, prevState];
+			const startState: any = ordered.find(s => s?.fullGameState);
 			if (!startState?.fullGameState) {
-				callback?.({ error: '이 플레이어의 롤백 스냅샷이 없습니다.' });
+				// [진단] 배포 환경에서 원인 파악용 — 어떤 스냅샷이 비었는지 에러에 담아 보여줌.
+				const diag = `ts=${tsState ? (tsState.fullGameState ? 'O' : 'noFull') : 'none'} prev=${prevState ? (prevState.fullGameState ? 'O' : 'noFull') : 'none'} cur=${isCurrentPlayer} emptyTurn=${currentTurnEmpty} tsKeys=[${Object.keys(game.turnStartState || {}).length}]`;
+				log(`Admin rollback: no snapshot for ${game.players[playerId]?.name ?? playerId} — ${diag}`, 'error', gameId);
+				callback?.({ error: `롤백 스냅샷이 없습니다 (${diag})` });
 				return;
 			}
 			const restored = deepClone(startState.fullGameState) as ServerGameState;
