@@ -525,6 +525,20 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: humanRule2O] 데이터 유래 규칙(사람 27게임): 사람은 '크레딧 부자 + 광석 뒤처짐 + 파워 보유'일 때
+                // 2O 파워액션을 누른다(90회 관측: 평균 cred10.9·ore3.7·p3 4.8). 봇은 실전에서 이걸 0회(크레딧 풍선).
+                // 평가기 nudge는 무시되므로(어제 확인) MCTS 우회해 강제. 단 연방/연구(지식≥4)/할인업글이 우선.
+                if (getPlayerFlag(playerId, 'humanRule2O', true) && !game.hasDoneMainAction) {
+                    const round2 = game.roundNumber ?? 1;
+                    const ore = player.ore ?? 0, cred = player.credits ?? 0, p3 = player.power3 ?? 0;
+                    const twoOre = game.powerActions.find(a => a.id === 'gain-2-ore' && !a.isUsed);
+                    const hasFed = candidates.some(c => c.type === 'form_federation');
+                    if (twoOre && p3 >= 4 && cred >= 8 && ore < cred * 0.5 && round2 <= 5
+                        && (player.knowledge ?? 0) < 4 && !hasFed) {
+                        log(`Bot ${player.name} humanRule2O: press 2O (cred${cred} ore${ore} p3${p3})`, 'game', game.id);
+                        return { type: 'use_power_action', params: { actionId: 'gain-2-ore', useBrain: player.faction === 'taklons' } };
+                    }
+                }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await MCTS.search(game, playerId, candidates);
 
