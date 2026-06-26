@@ -138,7 +138,7 @@ export function BonusSelectionModal({
         )}
 
         {/* Available Bonus Tiles Grid */}
-        <div className="flex-1 overflow-y-auto p-2 sm:p-4 grid grid-cols-4 min-[360px]:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-2 sm:gap-4 auto-rows-max justify-items-center w-full max-h-[70vh]">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 grid grid-cols-4 min-[360px]:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-2 sm:gap-4 auto-rows-max justify-items-center w-full">
           {game.availableBonusTiles.map((tile) => {
             const isSelected = selectedTileId === tile.id;
             const tileIndex = ALL_BONUS_TILES.findIndex(t => t.id === tile.id);
@@ -184,7 +184,7 @@ export function BonusSelectionModal({
           </div>
         )}
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 shrink-0">
           {mode === 'pass' ? (
             // 패스 모드에서는 Cancel 버튼만 표시 (타일 클릭 시 바로 선택됨)
             <Button
