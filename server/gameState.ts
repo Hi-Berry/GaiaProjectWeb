@@ -3432,6 +3432,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					applyRoundMissionScore(game, playerId, 'build_trading_station');
+					applyAdvancedTechTileEffect(game, playerId, 'build_ts'); // adv-vp-build-ts(+3VP) — 리벨리온 Mine→TS도 '교역소 건설'로 취급(누락 수정, 사용자 관찰)
 					addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
 					createPowerOffers(game, target, playerId);
 					addBuildingToFederationIfAdjacent(game, playerId, target.id);
@@ -7516,6 +7517,7 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			applyRoundMissionScore(game, playerId, 'build_trading_station');
+			applyAdvancedTechTileEffect(game, playerId, 'build_ts'); // adv-vp-build-ts(+3VP) — 리벨리온 Mine→TS도 교역소 건설로 취급(누락 수정)
 			addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
 			createPowerOffers(game, target, playerId);
 			addBuildingToFederationIfAdjacent(game, playerId, target.id);
