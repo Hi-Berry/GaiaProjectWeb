@@ -3050,12 +3050,12 @@ export class BotLogic {
                 score -= 180;
             }
         } else if (round <= 4) {
-            // 중반(R3-4): income 우대. 단 즉발 7VP는 R4부터만 — R3은 아직 엔진 빌딩 시기라 7VP를 먹으면
-            // 남은 라운드 income 복리를 버리는 손해(사용자 관찰: "벌써 3라운드에 7점 타일을 먹음"). R3은 R1-2처럼 회피.
+            // 중반(R3-4): income 우대. 즉발 7VP는 R3·R4 모두 회피 — 아직 엔진 빌딩 시기라 7VP를 먹으면 남은
+            // 라운드 income 복리를 버리는 손해(사용자: "3라운드는 물론 4라운드도 7점 타일 먹기엔 이름"). 7VP는 R5+에서만.
             if (tileId.startsWith('tech-inc-')) score += 70;
             if (tileId === 'tech-act-4p') score += 60;
             if (tileId === 'tech-imm-1o-1q') score += 40;
-            if (tileId === 'tech-imm-7vp') score += (round >= 4 ? 70 : -180);  // R3 조기 7VP 획득 방지, R4+에서만 적극
+            if (tileId === 'tech-imm-7vp') score -= 180;  // R3-4 모두 즉발 7VP 회피 — 엔진 빌딩 시기라 R5+에서만(사용자: R4도 이름)
             if (tileId === 'tech-gaia-3vp') score += 35;
             if (tileId === 'tech-imm-1k-planet') {
                 const types = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.type).filter(t => t)).size;
