@@ -7374,6 +7374,9 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 	player.qic = (player.qic ?? 0) - neededQIC;
 	const rm7QualifyEclipse = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 	const geodensTypesBeforeEclipse = getPlayerPlanetTypesForGeodens(game, playerId);
+	const ecHadInThisSector = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
+	const ecHadInOuter = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
+	const darkaniansPiBonusEclipse = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (!ecHadInThisSector || (OUTER_SECTORS.includes(tile.sector) && !ecHadInOuter));
 	tile.structure = 'mine';
 	tile.ownerId = playerId;
 	game.pendingEclipseAsteroidMine = null;
@@ -7385,6 +7388,7 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 		applyRoundMissionScore(game, playerId, 'new_planet_type');
 	}
 	applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeEclipse);
+	if (darkaniansPiBonusEclipse) { player.knowledge = (player.knowledge ?? 0) + 1; player.credits = (player.credits ?? 0) + 2; addGameLog(game, playerId, 'Darkanians PI', 'New sector / new outer sector: +1K, +2C', tileId); } // 이클립스 소행성광산 누락 보강(사용자 관찰)
 	applyAdvancedTechTileEffect(game, playerId, 'build_mine');
 	createPowerOffers(game, tile, playerId);
 	addBuildingToFederationIfAdjacent(game, playerId, tileId);
