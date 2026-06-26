@@ -132,12 +132,20 @@ function buildFreeActionUndoSnapshot(game: ServerGameState): string {
 		freeActionUndoStack: game.freeActionUndoStack,
 		freeActionUndoState: (game as any).freeActionUndoState,
 		freeActionUndoContext: game.freeActionUndoContext,
+		// [메모리] gameLog/humanActionJournal도 떼고 클론한다. turn-start 스냅샷(cloneGameForTurnStartSnapshot)은
+		// 이미 이 둘을 제외하는데, free-action 스냅샷만 StateCloner 통째복제라 제외 안 해 왔다(비일관 버그).
+		// humanActionJournal은 사람게임(=프로덕션 OOM 상황)에서 게임 용량의 ~90%까지 자라므로, 프리액션 1회마다
+		// 이걸 복제·문자열화해 스택에 쌓으면 메모리가 폭증한다. undo 복원 시 라이브 로그를 다시 붙인다(아래 핸들러).
+		gameLog: game.gameLog,
+		humanActionJournal: game.humanActionJournal,
 	};
 	game.turnStartState = undefined;
 	game.prevTurnStartState = undefined;
 	game.freeActionUndoStack = undefined;
 	(game as any).freeActionUndoState = undefined;
 	game.freeActionUndoContext = undefined;
+	game.gameLog = undefined as any;
+	game.humanActionJournal = undefined as any;
 	try {
 		const cloned = StateCloner.cloneGameState(game) as ServerGameState;
 		cloned.queuedPowerOffers = undefined;
@@ -149,6 +157,8 @@ function buildFreeActionUndoSnapshot(game: ServerGameState): string {
 		game.freeActionUndoStack = detached.freeActionUndoStack;
 		(game as any).freeActionUndoState = detached.freeActionUndoState;
 		game.freeActionUndoContext = detached.freeActionUndoContext;
+		game.gameLog = detached.gameLog;
+		game.humanActionJournal = detached.humanActionJournal;
 	}
 }
 
@@ -176,6 +186,12 @@ function pushFreeActionUndoSnapshot(game: ServerGameState): void {
 	}
 	game.freeActionUndoContext = context;
 	game.freeActionUndoStack.push(buildFreeActionUndoSnapshot(game));
+	// [메모리] 백스톱: 한 턴에 프리액션이 비정상적으로 많아도 스택이 무한정 자라지 않게 상한(오래된 것부터 버림).
+	// 40단계면 정상 플레이의 되돌리기엔 충분하고, 그 이전까지 되돌릴 일은 사실상 없음.
+	const FREE_UNDO_CAP = 40;
+	if (game.freeActionUndoStack.length > FREE_UNDO_CAP) {
+		game.freeActionUndoStack.splice(0, game.freeActionUndoStack.length - FREE_UNDO_CAP);
+	}
 	(game as any).freeActionUndoState = undefined;
 }
 
@@ -4106,6 +4122,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 				restoredGame.freeActionUndoContext = currentUndoContext;
 				restoredGame.turnStartState = currentTurnStartState;
 				restoredGame.prevTurnStartState = currentPrevTurnStartState; // 스냅샷엔 안 담으므로 라이브에서 복원
+				// [메모리] 스냅샷에서 gameLog/humanActionJournal을 제외했으므로(buildFreeActionUndoSnapshot) 라이브에서 재부착.
+				// 자원 상태는 스냅샷(프리액션 직전)으로 정확히 되돌아가고, 로그/저널은 라이브 것을 유지(되돌린 프리액션
+				// 로그 한 줄이 남는 경미한 표시 차이는 허용 — OOM 회피가 우선). 아래 addGameLog가 'Undo' 줄을 덧붙임.
+				restoredGame.gameLog = game.gameLog;
+				restoredGame.humanActionJournal = game.humanActionJournal;
 				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
