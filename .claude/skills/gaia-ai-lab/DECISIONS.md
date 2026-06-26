@@ -285,3 +285,11 @@
 - 판정: 음수아님+일관양성(90판)+승률61%+도메인옳음(정책-가이드 탐색, 연구트랙 약점 직격)+메커니즘(PUCT blend, Q보존) → **채택.** 
 - **★ 알파고 마일스톤:** 봇이 그리디 휴리스틱 Q + 사람 모방 정책망 prior를 MCTS PUCT로 결합해 탐색 → 점수 향상. "그리디 탈피 다중탐색"(사용자 goal) 구조적 첫 실득점. 후보재정렬(−10.75)→타입PUCT(−2.85)→granularPUCT(+1.47)의 진화로 도달.
 - **다음 증폭:** (1)빌드도 행성유형/new-type 분할 등 정책 더 정밀화 (2)가중치 미세튜닝(300~700 스윕) (3)사람 1:3 데이터로 정책 재학습(신호 자람) (4)per-candidate replay로 특정-수 정책. 각 단계가 PUCT 이득 키움.
+
+## 2026-06-27 ❌ 정책망 빌드분할(Build:new/old, 16클래스) — 기각, research-split 복원
+- 연구트랙 분할이 통했으니(+1.47) 빌드도 'Build:새유형 vs 기존'으로 분할 시도(683샘플 데이터풍부+빌드타깃 약점).
+- **검증(40판, challenger=policyPUCT OFF vs 챔피언=빌드분할 ON): VP +4.39(OFF가 강함!) = 빌드분할 PUCT가 −4.39로 악화.** research-split(+1.47)과 정반대.
+- **원인:** 16클래스로 과분할 → train acc 27.3%(research-split)→23.8% 하락 = 정책 noisier → prior 악화. **교훈: 정책 granularity는 sweet spot 있음 — research-split(15클래스)이 최적, 더 쪼개면 데이터분산으로 역효과.**
+- 조치: trainPolicyNet/bot.ts/policyNet.json을 0edc8e6(research-split +1.47)로 복원. policyPUCT 기본 ON 유지.
+- **세션 누적(측정): 현재봇 75.0 vs 세션시작(r1ShipPriority+policyPUCT OFF) 70.7 = +4.36VP.** 알파고 구조전환 + 검증된 향상.
+- **다음(데이터 자라면): 사람 1:3↑ → 정책망 재학습(신호 3.9→10.1로 자람), 가중치 미세튜닝, per-candidate replay(특정수).** 
