@@ -4196,7 +4196,14 @@ export default function Game() {
                     const pb = game.players[b];
                     if (pa?.hasPassed && !pb?.hasPassed) return 1;
                     if (!pa?.hasPassed && pb?.hasPassed) return -1;
-                    return 0;
+                    // 둘 다 패스했으면 '패스한 순서'(passingOrder = 다음 라운드 선후공)대로 표시 — 기존엔 turnOrder
+                    // 순서를 유지해 패스한 사람들이 제멋대로 보였음(사용자 관찰). 패스 1번째 → 2번째 순.
+                    if (pa?.hasPassed && pb?.hasPassed) {
+                      const po = game.passingOrder ?? [];
+                      const ia = po.indexOf(a), ib = po.indexOf(b);
+                      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+                    }
+                    return 0; // 둘 다 플레이 중 → turnOrder 순서 유지
                   })
               ).map((id) => {
                 const p = game.players[id] as PlayerState | undefined;
