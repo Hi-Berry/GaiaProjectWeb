@@ -3551,7 +3551,7 @@ export class BotLogic {
             // 입장 점수(50+best*0.5)가 빌드(~300)보다 낮아 후순위로 밀려 봇이 우주선을 안 탐 → R1-2엔 입장을
             // 빌드와 경쟁하게 부스트. 특히 Rebellion(Nav+1=영구 +사거리=봇 reach 약점 직격, 사용자 "거의 이기는 액션")
             // 과 미보유 기술타일 우주선을 강하게. self-play는 contention 못 재현하니 boarding률 검증 + VP는 1:3로 판정.
-            if (getPlayerFlag(playerId, 'r1ShipPriority', false) && round <= 2) {
+            if (getPlayerFlag(playerId, 'r1ShipPriority', true) && round <= 2) {
                 score += 180; // 입장을 빌드와 경쟁권으로
                 const techId = (game.shipTechByShip ?? SHIP_TECH_BY_SHIP)[tile.type || ''];
                 if (techId && !(player.techTiles ?? []).includes(techId) && (game.shipTechPool?.[techId] ?? 1) > 0) {
