@@ -74,8 +74,8 @@ export class MCTS {
         // [flag: policyPUCT] 알파고식: 사람 모방 정책망(policyNet.json)으로 root 자식들에 prior 부여 →
         // bestUCT의 PUCT 항으로 탐색을 사람 수 쪽으로 유도(휴리스틱 Q는 그대로 보존). 후보재정렬(−10.75)과 달리
         // 순서를 안 바꾸고 selection만 블렌드. 가중치 policyPUCTw로 스케일 조정(raw eval Q와 맞춤).
-        if (getPlayerFlag(playerId, 'policyPUCT', false)) {
-            MCTS._policyPUCTw = getPlayerFlag(playerId, 'policyPUCTw', 300);
+        if (getPlayerFlag(playerId, 'policyPUCT', true)) {
+            MCTS._policyPUCTw = getPlayerFlag(playerId, 'policyPUCTw', 500);
             try { root.priorsMap = BotLogic.policyPriorMap(rootStore, playerId, possibleActions); } catch { /* 정책망 없으면 무시 */ }
         } else {
             MCTS._policyPUCTw = 0;
