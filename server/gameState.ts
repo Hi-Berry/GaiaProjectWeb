@@ -6542,6 +6542,9 @@ export function executeFiraksDowngrade(game: ServerGameState, playerId: string, 
 	const currentLevel = player.research?.[trackId] ?? 0;
 	if (currentLevel >= 5) return false;
 	if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return false;
+	// [버그수정] L5 도달(4→5)은 초록 연방 1개가 필요하고 소모(플립)된다 — Firaks 다운그레이드 advance도 동일.
+	// 기존엔 요구·소모를 안 해 AI L5 등을 초록연방 안 뒤집고 공짜로 올리던 문제(사용자 관찰).
+	if (currentLevel === 4 && countGreenFederations(player) < 1) return false;
 	if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
 	saveActionStartState(game, playerId);
 	tile.structure = 'trading_station';
@@ -6549,6 +6552,7 @@ export function executeFiraksDowngrade(game: ServerGameState, playerId: string, 
 	player.usedSpecialActions.push('firaks-downgrade');
 	player.research[trackId] = currentLevel + 1;
 	const newLevel = player.research[trackId];
+	if (newLevel === 5) spendGreenFederation(player); // L5 도달 시 초록 연방 소모/플립 (누락 수정 — 사용자 관찰)
 	addGameLog(game, playerId, 'Firaks: Downgrade', `Lab→TS, ${trackId} Lv.${newLevel}`, tileId);
 	createPowerOffers(game, tile, playerId);
 	addBuildingToFederationIfAdjacent(game, playerId, tile.id);
