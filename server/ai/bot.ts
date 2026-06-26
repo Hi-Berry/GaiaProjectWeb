@@ -1,4 +1,5 @@
 import { Server as SocketIOServer } from 'socket.io';
+import * as nodeFs from 'fs';
 import {
     ServerGameState,
     executeBuildMine,
@@ -106,6 +107,20 @@ type BotAction = {
     /** 프리 액션을 먼저 실행한 뒤 메인 액션 (예: 2O→2토큰 후 연방) */
     preActions?: BotAction[];
 };
+
+// ===== [정책망 prior] 사람 모방 학습 정책망(policyNet.json) 로드 — 알파고식 후보 prior용 =====
+let _policyNet: { labels: string[]; W: number[][]; featDim?: number } | null = null;
+let _policyTried = false;
+function loadPolicyNet(): { labels: string[]; W: number[][] } | null {
+    if (_policyTried) return _policyNet;
+    _policyTried = true;
+    try {
+        _policyNet = JSON.parse(nodeFs.readFileSync('server/ai/policyNet.json', 'utf8'));
+    } catch { _policyNet = null; }
+    return _policyNet;
+}
+const POLICY_NONPLANET = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'asteroid', 'proto', 'gaia']);
+const POLICY_SHIP = new Set(['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse']);
 
 export class BotLogic {
     private static getTrackForTechTile(game: ServerGameState, techTileId: string): ResearchTrack | null {
@@ -1113,7 +1128,90 @@ export class BotLogic {
             return [...feds, ...prio, ...rest];
         }
 
+        // [flag: policyPrior] 알파고식: 사람 모방 학습 정책망(policyNet.json, imitation +10.1%p)으로
+        // 후보를 '사람이 그 상태에서 할 법한 행동타입' 확률 순으로 안정정렬 → MCTS 롤아웃(top-N 평가)을
+        // 사람 수 쪽으로 좁힘. mcts.ts(사용자 영역) 미수정. 동률은 원래 우선순위 유지(stable).
+        if (getPlayerFlag(playerId, 'policyPrior', false)) {
+            const probs = this.policyProbs(game, playerId);
+            if (probs) {
+                const vals = Object.values(probs).slice().sort((a, b) => a - b);
+                const med = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
+                const scored = uniqueCandidates.map((c, i) => {
+                    const lab = this.actionLabel(c);
+                    return { c, pr: (lab && probs[lab] != null) ? probs[lab] : med, i };
+                });
+                scored.sort((a, b) => (b.pr - a.pr) || (a.i - b.i));
+                return scored.map(s => s.c);
+            }
+        }
+
         return uniqueCandidates;
+    }
+
+    /** [정책망] BotAction → 학습 라벨(행동타입). 매핑 없으면 null(중립 prior). */
+    private static actionLabel(a: BotAction): string | null {
+        switch (a.type) {
+            case 'build_mine': return 'Built Mine';
+            case 'advance_research': return 'Advanced Research';
+            case 'upgrade_structure': {
+                const t = (a.params as any)?.target;
+                if (t === 'trading_station') return 'Upgraded to Trading Station';
+                if (t === 'research_lab') return 'Upgraded to Research Lab';
+                if (t === 'academy') return 'Academy';
+                return null;
+            }
+            case 'form_federation': return 'Federation';
+            case 'select_advanced_tech_tile': case 'select_tech_tile':
+            case 'cover_advanced_tech_tile': case 'advance_tech': return 'Gained Tech Tile';
+            case 'enter_spaceship': return 'Entered Ship';
+            case 'use_power_action': return 'Power Action';
+            case 'use_ship_action': case 'use_tech_action': return 'Used Tech Action';
+            case 'place_gaiaformer': return 'Placed Gaiaformer';
+            default: return null;
+        }
+    }
+
+    /** [정책망] 현재 상태에서 학습된 정책망(softmax)으로 행동타입 확률분포 계산. 피처는 trainPolicyNet.mjs와 일치. */
+    private static policyProbs(game: ServerGameState, playerId: string): Record<string, number> | null {
+        const net = loadPolicyNet();
+        if (!net) return null;
+        const p = game.players[playerId];
+        if (!p) return null;
+        const res: any = p.research || {};
+        const owned = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+        const mines = owned.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length;
+        const planets = owned.filter(t => !POLICY_NONPLANET.has(t.type || ''));
+        const types = new Set(planets.map(t => t.type)).size;
+        const sectors = new Set(owned.map(t => t.sector)).size;
+        const ships = game.map.filter(t => POLICY_SHIP.has(t.type || ''));
+        const protos = game.map.filter(t => t.type === 'proto' || t.type === 'asteroid');
+        const nShip = (ships.length && owned.length) ? Math.min(...ships.map(s => Math.min(...owned.map(m => getDistance(m, s))))) : 9;
+        const nProto = (protos.length && owned.length) ? Math.min(...protos.map(s => Math.min(...owned.map(m => getDistance(m, s))))) : 9;
+        const HEXN = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+        const set = new Set(owned.map(t => t.q + ',' + t.r));
+        let adj = 0;
+        for (const m of owned) for (const [dq, dr] of HEXN) if (set.has((m.q + dq) + ',' + (m.r + dr))) { adj++; break; }
+        const techN = p.techTiles?.length || 0;
+        const fedN = (p as any).federations?.length || 0;
+        const f = [
+            (game.roundNumber || 1) / 6, (p.score || 0) / 100, (p.ore ?? 0) / 15, (p.credits ?? 0) / 20,
+            (p.knowledge ?? 0) / 15, (p.qic ?? 0) / 8, ((p.power1 ?? 0) + (p.power2 ?? 0) + (p.power3 ?? 0)) / 12,
+            (res.terraforming ?? 0) / 5, (res.navigation ?? 0) / 5, (res.artificialIntelligence ?? 0) / 5,
+            (res.gaiaProject ?? 0) / 5, (res.economy ?? 0) / 5, (res.science ?? 0) / 5,
+            techN / 8, fedN / 3,
+            mines / 12, owned.length / 18, (p.spaceshipsEntered?.length || 0) / 3, fedN / 3, techN / 8,
+            owned.length / 12, types / 7, sectors / 8, Math.min(nShip, 9) / 9, Math.min(nProto, 9) / 9,
+            owned.length ? adj / owned.length : 0,
+            1, // bias
+        ];
+        const W = net.W;
+        const logit = W.map(w => { let s = 0; for (let d = 0; d < f.length; d++) s += w[d] * f[d]; return s; });
+        const mx = Math.max(...logit);
+        const ex = logit.map(v => Math.exp(v - mx));
+        const Z = ex.reduce((a, b) => a + b, 0) || 1;
+        const probs: Record<string, number> = {};
+        net.labels.forEach((lab: string, i: number) => { probs[lab] = ex[i] / Z; });
+        return probs;
     }
 
 
