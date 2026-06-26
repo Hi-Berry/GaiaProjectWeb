@@ -1148,6 +1148,21 @@ export class BotLogic {
         return uniqueCandidates;
     }
 
+    /** [정책망/PUCT] 후보 액션들에 대해 정책망 prior(확률)를 계산, 후보 집합 위에서 정규화(합≈1)해 Map 반환.
+     *  mcts.ts가 root 자식들의 PUCT prior로 사용. 매핑 없는 액션은 작은 기본값. policyProbs 실패시 빈 Map. */
+    static policyPriorMap(game: ServerGameState, playerId: string, actions: BotAction[]): Map<BotAction, number> {
+        const m = new Map<BotAction, number>();
+        const probs = this.policyProbs(game, playerId);
+        if (!probs || !actions.length) return m;
+        const raw = actions.map(a => {
+            const lab = this.actionLabel(a);
+            return (lab && probs[lab] != null) ? probs[lab] : 0.04; // 미매핑은 작은 prior
+        });
+        const sum = raw.reduce((x, y) => x + y, 0) || 1;
+        actions.forEach((a, i) => m.set(a, raw[i] / sum));
+        return m;
+    }
+
     /** [정책망] BotAction → 학습 라벨(행동타입). 매핑 없으면 null(중립 prior). */
     private static actionLabel(a: BotAction): string | null {
         switch (a.type) {

@@ -21,10 +21,13 @@ export interface MCTSNode {
     visits: number;
     score: number;
     untriedActions: any[];
+    prior?: number;                    // [policyPUCT] 정책망 prior(root 자식만). bestUCT의 PUCT 항에 사용.
+    priorsMap?: Map<any, number>;      // [policyPUCT] root 노드에만: action→정규화 prior.
 }
 
 export class MCTS {
     private static readonly C = Math.sqrt(2); // Exploration constant
+    private static _policyPUCTw = 0;           // [policyPUCT] 정책 prior 가중치(search에서 flag로 설정, 0=off)
     /** tune-ai 등에서 런타임으로 짧게 쓰려면 setTimeMsOverride(1000) 호출 */
     private static _timeMsOverride: number | null = null;
     static setTimeMsOverride(ms: number | null): void {
@@ -67,6 +70,16 @@ export class MCTS {
             score: 0,
             untriedActions: [...possibleActions]
         };
+
+        // [flag: policyPUCT] 알파고식: 사람 모방 정책망(policyNet.json)으로 root 자식들에 prior 부여 →
+        // bestUCT의 PUCT 항으로 탐색을 사람 수 쪽으로 유도(휴리스틱 Q는 그대로 보존). 후보재정렬(−10.75)과 달리
+        // 순서를 안 바꾸고 selection만 블렌드. 가중치 policyPUCTw로 스케일 조정(raw eval Q와 맞춤).
+        if (getPlayerFlag(playerId, 'policyPUCT', false)) {
+            MCTS._policyPUCTw = getPlayerFlag(playerId, 'policyPUCTw', 300);
+            try { root.priorsMap = BotLogic.policyPriorMap(rootStore, playerId, possibleActions); } catch { /* 정책망 없으면 무시 */ }
+        } else {
+            MCTS._policyPUCTw = 0;
+        }
 
         const startTime = Date.now();
         let iterations = 0;
@@ -158,7 +171,12 @@ export class MCTS {
         let bestChild: MCTSNode = node.children[0];
 
         for (const child of node.children) {
-            const uct = (child.score / child.visits) + this.C * Math.sqrt(Math.log(node.visits) / child.visits);
+            let uct = (child.score / child.visits) + this.C * Math.sqrt(Math.log(node.visits) / child.visits);
+            // [policyPUCT] root 자식만 prior 보유 → 정책 prior 항 추가(저방문일수록 큼, 방문 늘면 감쇠 = Q가 지배).
+            // 순서 교체가 아니라 selection 블렌드라 휴리스틱 최선수가 창 밖으로 안 밀림(후보재정렬 −10.75의 교훈).
+            if (child.prior != null && MCTS._policyPUCTw > 0) {
+                uct += MCTS._policyPUCTw * child.prior * Math.sqrt(node.visits) / (1 + child.visits);
+            }
             if (uct > bestScore) {
                 bestScore = uct;
                 bestChild = child;
@@ -214,6 +232,8 @@ export class MCTS {
             score: 0,
             untriedActions: this.getPossibleActions(newState, playerId)
         };
+        // [policyPUCT] root 자식이면 정책망 prior 부여(root만 priorsMap 보유 → 깊은 노드는 prior 없음 = 순수 UCT).
+        if (node.priorsMap) childNode.prior = node.priorsMap.get(action);
 
         node.children.push(childNode);
         return childNode;
