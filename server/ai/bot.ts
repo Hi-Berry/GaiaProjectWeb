@@ -3547,6 +3547,18 @@ export class BotLogic {
                 if (tile.type === 'ship_tf_mars') score += 50;
             }
 
+            // [flag: r1ShipPriority] 사람은 R1에 95% 우주선 탑승(봇 58%는 게임 내내 아예 안 탐 — 35로그+자가대국 확인).
+            // 입장 점수(50+best*0.5)가 빌드(~300)보다 낮아 후순위로 밀려 봇이 우주선을 안 탐 → R1-2엔 입장을
+            // 빌드와 경쟁하게 부스트. 특히 Rebellion(Nav+1=영구 +사거리=봇 reach 약점 직격, 사용자 "거의 이기는 액션")
+            // 과 미보유 기술타일 우주선을 강하게. self-play는 contention 못 재현하니 boarding률 검증 + VP는 1:3로 판정.
+            if (getPlayerFlag(playerId, 'r1ShipPriority', false) && round <= 2) {
+                score += 180; // 입장을 빌드와 경쟁권으로
+                const techId = (game.shipTechByShip ?? SHIP_TECH_BY_SHIP)[tile.type || ''];
+                if (techId && !(player.techTiles ?? []).includes(techId) && (game.shipTechPool?.[techId] ?? 1) > 0) {
+                    score += (techId === 'ship-tech-nav+1') ? 90 : 50; // Nav+1(reach 직격) 최우선, 기타 기술타일도 가산
+                }
+            }
+
             const act: BotAction = { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } };
             // 서버 규칙 기준으로 실제 성공하는 후보만 남김 (점수/토큰/사거리 등 누락 방지)
             // note: 후보 생성은 sync이므로, 여기서는 "가능성 높은 것"만 일단 모으고 아래에서 한번에 필터링
