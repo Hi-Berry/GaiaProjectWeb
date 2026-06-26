@@ -1081,12 +1081,23 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 	}
 	game.pendingTurnEndPlayerId = undefined;
 
+	const _prevIdx = game.currentPlayerIndex;
 	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
 	let passCount = 0;
 	while (game.players[game.turnOrder[game.currentPlayerIndex]].hasPassed) {
 		game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
 		passCount++;
 		if (passCount >= game.turnOrder.length) break;
+	}
+	// [진단] "턴 끝냈는데 나에게 다시 돌아온다"는 사용자 보고. 다음 플레이어가 방금 끝낸 사람이면 = 되돌아옴.
+	// passStates를 같이 기록해 '정상(다른 플레이어 전원 패스로 나만 남음)'인지 '버그(남들 미패스인데 회귀)'인지 구분.
+	if (game.turnOrder[game.currentPlayerIndex] === endedPlayerId) {
+		const passStates = game.turnOrder.map(id => `${game.players[id]?.name ?? id}:${game.players[id]?.hasPassed ? 'P' : '-'}`).join(' ');
+		const othersAllPassed = game.turnOrder.every(id => id === endedPlayerId || game.players[id]?.hasPassed);
+		const verdict = othersAllPassed ? 'OK(others-all-passed)' : '★BUG(others-NOT-passed)';
+		log(`[TURN-REVERT] ended=${game.players[endedPlayerId]?.name} → back to self ${verdict} | round=${game.roundNumber} pass=[${passStates}]`, 'game', game.id);
+		(game as any).turnRevertDiag = (game as any).turnRevertDiag || [];
+		(game as any).turnRevertDiag.push({ round: game.roundNumber, ended: endedPlayerId, verdict, passStates });
 	}
 
 	const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
