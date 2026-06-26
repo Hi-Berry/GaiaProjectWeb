@@ -1167,7 +1167,10 @@ export class BotLogic {
     private static actionLabel(a: BotAction): string | null {
         switch (a.type) {
             case 'build_mine': return 'Built Mine';
-            case 'advance_research': return 'Advanced Research';
+            case 'advance_research': {
+                const tr = (a.params as any)?.trackId;
+                return tr ? ('R:' + tr) : 'Advanced Research';
+            }
             case 'upgrade_structure': {
                 const t = (a.params as any)?.target;
                 if (t === 'trading_station') return 'Upgraded to Trading Station';
