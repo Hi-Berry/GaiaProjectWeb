@@ -4490,7 +4490,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					FEDERATION_REWARDS.forEach(r => { game.federationPool![r.id] = 3; });
 				}
 				if (!game.satellites) game.satellites = {};
-				game.federationMode = { playerId, selectedHexIds: [], selectedPlanetIds: [], selectedSpaceStationHexIds: [] };
+				game.federationMode = { playerId, selectedHexIds: [], selectedPlanetIds: [], selectedSpaceStationHexIds: [], toggleSeq: 0 };
 				game.federationPreview = computeFederationPreview(game, playerId);
 			}
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
@@ -4564,6 +4564,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 			}
 			game.federationPreview = computeFederationPreview(game, playerId);
+			// [낙관적 동기화] 토글 시퀀스 증가 → 클라가 자기 낙관 토글 수와 비교해 옛(stale) 패킷을 무시(rubber-banding 방지).
+			if (game.federationMode) game.federationMode.toggleSeq = (game.federationMode.toggleSeq ?? 0) + 1;
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 

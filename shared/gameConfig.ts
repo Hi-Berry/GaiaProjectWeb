@@ -515,7 +515,7 @@ export interface GaiaGameState {
   /** 연방: 타일 ID -> 해당 타일에 위성을 둔 플레이어 ID 목록 (한 빈칸에 여러 플레이어 가능) */
   satellites?: Record<string, string[]>;
   /** 연방 구현 모드: 빈공간(위성)·내 건물 행성·내 우주정거장 칸 선택 중. 빈공간만 위성/QIC 소모, 건물/우주정거장은 연방 계산 기준점만 */
-  federationMode?: { playerId: string; selectedHexIds: string[]; selectedPlanetIds?: string[]; selectedSpaceStationHexIds?: string[] } | null;
+  federationMode?: { playerId: string; selectedHexIds: string[]; selectedPlanetIds?: string[]; selectedSpaceStationHexIds?: string[]; toggleSeq?: number } | null;
   /** 연방 모드에서 클릭할 때마다 서버가 채우는 미리보기: 포함될 건물·파워·필요 파워 */
   federationPreview?: { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected?: boolean } | null;
   /** 연방 완료 후 보상 선택 대기 (선택된 빈공간 수 = 소모한 파워토큰 수) */
