@@ -20,7 +20,8 @@ for(const f of files){let g;try{g=JSON.parse(fs.readFileSync(dir+'/'+f,'utf8'))}
   const geom=new Map();for(const t of g.map)if(t.q!=null)geom.set(t.id,{q:t.q,r:t.r,type:t.type,sector:t.sector});
   const ships=[...geom.values()].filter(t=>SHIP.has(t.type)),protos=[...geom.values()].filter(t=>t.type==='proto'||t.type==='asteroid');
   const owner=new Map(),eng={};
-  for(const e of g.actionJournal){const pid=e.playerId,act=e.action||'',tid=e.tileId,lab=labelOf(act,e.details);
+  for(const e of g.actionJournal){const pid=e.playerId,act=e.action||'',tid=e.tileId;let lab=labelOf(act,e.details);
+    if(lab==='Built Mine'&&tid){const bt=geom.get(tid);const mt=new Set([...owner.entries()].filter(([,o])=>o===pid).map(([id])=>geom.get(id)?.type).filter(Boolean));lab=(bt&&bt.type&&!mt.has(bt.type))?'Build:new':'Build:old';}
     if(lab&&e.playerBefore){const mine=[...owner.entries()].filter(([,o])=>o===pid).map(([id])=>geom.get(id)).filter(Boolean);
       const planets=mine.filter(t=>!NONPLANET.has(t.type)),types=new Set(planets.map(t=>t.type)),sectors=new Set(mine.map(t=>t.sector));
       const nShip=ships.length&&mine.length?Math.min(...ships.map(s=>Math.min(...mine.map(m=>dist(m,s))))):9;
