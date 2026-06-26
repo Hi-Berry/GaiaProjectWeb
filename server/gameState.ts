@@ -3627,6 +3627,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				player.virtualMineAsteroid = true;
 				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상 — 실제/기생/잊혀진 광산과 동일(사용자 관찰)
+					applyAdvancedTechTileEffect(game, playerId, 'build_mine'); // adv-vp-build-mine(+3VP) — 가상광산(소행성)도 '광산 건설'로 취급(누락 수정, 사용자 관찰)
 				// 가상 광산도 새 행성 유형으로 취급 → 라운드 미션(유형당) + Geodens 의회 보너스 (실제 광산 건설과 동일)
 				if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeArt.size) {
 					applyRoundMissionScore(game, playerId, 'new_planet_type');
@@ -3638,6 +3639,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				player.virtualMineProto = true;
 				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상(사용자 관찰)
+					applyAdvancedTechTileEffect(game, playerId, 'build_mine'); // adv-vp-build-mine(+3VP) — 가상광산(프로토)도 '광산 건설'로 취급(누락 수정, 사용자 관찰)
 				if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeArtProto.size) {
 					applyRoundMissionScore(game, playerId, 'new_planet_type');
 				}
@@ -8631,6 +8633,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		player.virtualMineAsteroid = true;
 		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상 — 실제/기생/잊혀진 광산과 동일(사용자 관찰)
+					applyAdvancedTechTileEffect(game, playerId, 'build_mine'); // adv-vp-build-mine(+3VP) — 가상광산(소행성)도 '광산 건설'로 취급(누락 수정, 사용자 관찰)
 		// 가상 광산도 새 행성 유형으로 취급 → 라운드 미션(유형당) + Geodens 의회 보너스 (사람 경로와 동일)
 		if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeArt.size) {
 			applyRoundMissionScore(game, playerId, 'new_planet_type');
@@ -8642,6 +8645,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		player.virtualMineProto = true;
 		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상(사용자 관찰)
+					applyAdvancedTechTileEffect(game, playerId, 'build_mine'); // adv-vp-build-mine(+3VP) — 가상광산(프로토)도 '광산 건설'로 취급(누락 수정, 사용자 관찰)
 		if (getPlayerPlanetTypesForGeodens(game, playerId).size > geodensTypesBeforeProto.size) {
 			applyRoundMissionScore(game, playerId, 'new_planet_type');
 		}
