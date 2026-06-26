@@ -1137,7 +1137,7 @@ export class BotLogic {
                 const vals = Object.values(probs).slice().sort((a, b) => a - b);
                 const med = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
                 const scored = uniqueCandidates.map((c, i) => {
-                    const lab = this.actionLabel(game, playerId, c);
+                    const lab = this.actionLabel(c);
                     return { c, pr: (lab && probs[lab] != null) ? probs[lab] : med, i };
                 });
                 scored.sort((a, b) => (b.pr - a.pr) || (a.i - b.i));
@@ -1155,7 +1155,7 @@ export class BotLogic {
         const probs = this.policyProbs(game, playerId);
         if (!probs || !actions.length) return m;
         const raw = actions.map(a => {
-            const lab = this.actionLabel(game, playerId, a);
+            const lab = this.actionLabel(a);
             return (lab && probs[lab] != null) ? probs[lab] : 0.04; // 미매핑은 작은 prior
         });
         const sum = raw.reduce((x, y) => x + y, 0) || 1;
@@ -1163,18 +1163,10 @@ export class BotLogic {
         return m;
     }
 
-    /** [정책망] BotAction → 학습 라벨(행동타입+서브). 매핑 없으면 null(중립 prior). game-aware(빌드 새유형 판정). */
-    private static actionLabel(game: ServerGameState, playerId: string, a: BotAction): string | null {
+    /** [정책망] BotAction → 학습 라벨(행동타입). 매핑 없으면 null(중립 prior). */
+    private static actionLabel(a: BotAction): string | null {
         switch (a.type) {
-            case 'build_mine': {
-                const tid = (a.params as any)?.tileId;
-                const tile = tid ? game.map.find(t => t.id === tid) : null;
-                if (tile && tile.type) {
-                    const myTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship').map(t => t.type));
-                    return myTypes.has(tile.type) ? 'Build:old' : 'Build:new';
-                }
-                return 'Build:old';
-            }
+            case 'build_mine': return 'Built Mine';
             case 'advance_research': {
                 const tr = (a.params as any)?.trackId;
                 return tr ? ('R:' + tr) : 'Advanced Research';
