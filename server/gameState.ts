@@ -5309,15 +5309,15 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 		if (techTileId === 'ship-tech-nav+1') {
 			player.navigationBonus = (player.navigationBonus || 0) + 1;
-			addGameLog(game, playerId, 'Ship Tech: Nav+1', 'Permanent +1 range');
+			addGameLog(game, playerId, 'Ship Tech: Nav+1', 'Permanent +1 range', techTileId);
 		} else if (techTileId === 'ship-tech-1o3k') {
 			player.ore += 1;
 			player.knowledge += 3;
-			addGameLog(game, playerId, 'Ship Tech: 1O 3K', '+1 Ore, +3 Knowledge');
+			addGameLog(game, playerId, 'Ship Tech: 1O 3K', '+1 Ore, +3 Knowledge', techTileId);
 		} else if (techTileId === 'ship-tech-2tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 2;
 			player.nextMineFreeFromShipTech = true;
-			addGameLog(game, playerId, 'Ship Tech: 2TF+Mine', '2 terraform steps, next mine free');
+			addGameLog(game, playerId, 'Ship Tech: 2TF+Mine', '2 terraform steps, next mine free', techTileId);
 		}
 		game.pendingTechTileSelection = null;
 		game.availableShipTechTileIds = undefined;
