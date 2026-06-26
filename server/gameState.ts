@@ -5248,7 +5248,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 						log(`Player ${game.players[playerId].name} disconnected`, 'game', undefined, { simulation: (game as any).simulation });
 						// 같은 플레이어의 다른 소켓(여러 탭)이 안 남았으면 = 완전히 떠남 → 채팅에 시스템 알림(사용자 요청).
 						// 게임 끝(gameEnd 포함) 어느 단계든 창 닫으면 표시. 봇은 소켓이 없으니 해당 없음.
-						const stillConnected = [...socketToPlayerMap.values()].includes(playerId);
+						const stillConnected = Array.from(socketToPlayerMap.values()).includes(playerId);
 						if (!stillConnected && !game.botPlayerIds?.includes(playerId)) {
 							const name = game.players[playerId].name;
 							const msg = {
