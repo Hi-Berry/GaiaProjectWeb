@@ -1322,6 +1322,7 @@ export default function Game() {
 
   if (game.currentPhase === 'lobby') {
     return (
+      <>
       <GameLobby
         game={game}
         gameId={gameId!}
@@ -1370,6 +1371,9 @@ export default function Game() {
           setLocation('/');
         } : undefined}
       />
+      {/* 로비에서도 채팅 가능 — 서버 send_chat은 phase 제약 없음(대기 중 소통) */}
+      <ChatPanel gameId={gameId!} game={game} canChat={true} selfId={playerId} />
+      </>
     );
   }
 
