@@ -6553,6 +6553,7 @@ export function executeFiraksDowngrade(game: ServerGameState, playerId: string, 
 	createPowerOffers(game, tile, playerId);
 	addBuildingToFederationIfAdjacent(game, playerId, tile.id);
 	applyRoundMissionScore(game, playerId, 'build_trading_station');
+	applyAdvancedTechTileEffect(game, playerId, 'build_ts'); // adv-vp-build-ts(+3VP) — 파이락 다운그레이드(Lab→TS)도 교역소 건설 혜택 다 받음(누락 수정)
 	applyTrackLevelBonus(game, playerId, player, trackId, newLevel);
 	applyRoundMissionScore(game, playerId, 'research_track');
 	applyAdvancedTechTileEffect(game, playerId, 'research');
