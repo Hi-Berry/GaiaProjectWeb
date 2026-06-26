@@ -2171,6 +2171,19 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 }
 
 export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState) {
+	// [버그수정] 수입 단계가 아직 안 끝났는데 액션 단계를 시작하면, 뒤 순번 플레이어(예: 네뷸라)의 수입 팝업이
+	// 영영 안 뜨고 파워를 못 받는다(사용자 관찰: 마지막 라운드 네뷸라 파워 미수령). ①팝업 활성 중이면 시작 보류
+	// (완료 후 체인이 다시 부름) ②팝업은 없는데 미처리 수입 플레이어가 남았으면(체인 끊김) 수입 체인을 이어 복구.
+	if (game.pendingIncomeOrder) {
+		log(`[INCOME-GUARD] action phase deferred: income popup active for ${game.pendingIncomeOrder.playerId} (round ${game.roundNumber})`, 'game', game.id);
+		return;
+	}
+	const stragglerIncome = (game.turnOrder ?? []).find(id => (((game.players[id] as any)?.pendingIncomeItems?.length) ?? 0) > 0);
+	if (stragglerIncome) {
+		log(`[INCOME-GUARD] action phase deferred: ${stragglerIncome} still has unshown income items — resuming income chain (round ${game.roundNumber})`, 'game', game.id);
+		helperTriggerIncomePhase(io, game);
+		return;
+	}
 	// [버그수정 2026-06-19] 라운드당 액션단계는 한 번만 시작. 여러 경로(수익선택완료·Itars교환·Terran의회·tinkeroid)가
 	// 라운드시작을 중복 호출하면 index가 0으로 재리셋돼 시작 플레이어가 연속 2턴 하던 문제(사용자 관찰, Itars게임 4회).
 	if ((game as any).actionPhaseStartedRound === game.roundNumber) return;
@@ -2254,6 +2267,17 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (ProceedAfterItarsTerranBenefit): ${err}`, 'error');
 		});
+		return;
+	}
+	// [버그수정] 수입 미완료 상태에서 액션 단계 시작 금지 — 뒤 순번 수입 스킵(네뷸라 파워 미수령) 방지. (helperStartNewRoundTurn과 동일)
+	if (game.pendingIncomeOrder) {
+		log(`[INCOME-GUARD] action phase deferred(Itars path): income popup active for ${game.pendingIncomeOrder.playerId} (round ${game.roundNumber})`, 'game', game.id);
+		return;
+	}
+	const stragglerIncome2 = (game.turnOrder ?? []).find(id => (((game.players[id] as any)?.pendingIncomeItems?.length) ?? 0) > 0);
+	if (stragglerIncome2) {
+		log(`[INCOME-GUARD] action phase deferred(Itars path): ${stragglerIncome2} unshown income — resuming income chain (round ${game.roundNumber})`, 'game', game.id);
+		helperTriggerIncomePhase(io, game);
 		return;
 	}
 	// [버그수정 2026-06-19] 라운드당 액션단계 1회만 시작(helperStartNewRoundTurn과 동일 가드) — 중복 시작 시 시작플레이어 더블턴 방지.
