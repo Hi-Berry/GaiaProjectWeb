@@ -40,6 +40,13 @@ export function storeSpectatorId(gameId: string, spectatorId: string) {
   localStorage.setItem(`gaia-${gameId}-spectatorId`, spectatorId);
 }
 
+// [낙관적 UI 동기화] 프리액션을 빠르게 연타하면, 서버가 이전 프리액션을 처리하며 보낸 옛 game_updated가
+// 뒤늦게 도착해 더 최신인 클라 낙관상태를 덮어써 되돌아가는(rubber-banding) 현상이 있다. 클라가 '이번 턴
+// 낙관적으로 보낸 프리액션 수'(_optimisticFreeCount)를 세고, 서버의 freeActionUndoStack.length와 비교해
+// 서버가 뒤처진 패킷은 Game.tsx에서 무시한다(곧 따라잡은 패킷이 온다). undo는 감소, 권위패킷 적용 시 동기화.
+let _optimisticFreeCount = 0;
+let _lastFreeActionAt = 0;
+
 export const GameClient = {
   listGames(): Promise<{
     games: Array<{
@@ -374,6 +381,7 @@ export const GameClient = {
 
   useHadschHallasPIAction(gameId: string, actionId: string) {
     const s = getSocket();
+    _optimisticFreeCount++; _lastFreeActionAt = Date.now();
     s.emit('use_hadsch_hallas_pi_action', { gameId, actionId });
   },
 
@@ -396,6 +404,7 @@ export const GameClient = {
     const s = getSocket();
     const payload: { gameId: string; moveBrainToBowl3?: boolean } = { gameId };
     if (moveBrainToBowl3 !== undefined) payload.moveBrainToBowl3 = moveBrainToBowl3;
+    _optimisticFreeCount++; _lastFreeActionAt = Date.now();
     s.emit('burn_power', payload);
   },
 
@@ -403,6 +412,7 @@ export const GameClient = {
     const s = getSocket();
     const payload: { gameId: string; type: string; useBrain?: boolean } = { gameId, type };
     if (useBrain !== undefined) payload.useBrain = useBrain;
+    _optimisticFreeCount++; _lastFreeActionAt = Date.now();
     s.emit('convert_resource', payload);
   },
 
@@ -440,8 +450,15 @@ export const GameClient = {
     const s = getSocket();
     const payload: { gameId: string; steps?: number } = { gameId };
     if (steps != null && Number.isFinite(steps) && steps > 0) payload.steps = Math.floor(steps);
+    _optimisticFreeCount = Math.max(0, _optimisticFreeCount - Math.max(1, Math.floor(steps ?? 1)));
+    _lastFreeActionAt = Date.now();
     s.emit('undo_free_action', payload);
   },
+
+  // 낙관적 프리액션 동기화 헬퍼 (rubber-banding 방지) — Game.tsx의 game_updated 핸들러가 사용.
+  getOptimisticFreeCount(): number { return _optimisticFreeCount; },
+  lastOptimisticFreeActionAt(): number { return _lastFreeActionAt; },
+  syncOptimisticFreeCount(serverCount: number): void { _optimisticFreeCount = Math.max(0, serverCount | 0); },
 
   useSpecialAction(gameId: string, actionId: string) {
     const s = getSocket();
