@@ -5240,14 +5240,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('disconnect', () => {
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (playerId) {
+				socketToPlayerMap.delete(socket.id); // 이 소켓 먼저 제거 후 '다른 탭 남았나' 판정
 				const gameId = playerGameMap.get(playerId);
 				if (gameId) {
 					const game = games.get(gameId);
 					if (game && game.players[playerId]) {
 						log(`Player ${game.players[playerId].name} disconnected`, 'game', undefined, { simulation: (game as any).simulation });
+						// 같은 플레이어의 다른 소켓(여러 탭)이 안 남았으면 = 완전히 떠남 → 채팅에 시스템 알림(사용자 요청).
+						// 게임 끝(gameEnd 포함) 어느 단계든 창 닫으면 표시. 봇은 소켓이 없으니 해당 없음.
+						const stillConnected = [...socketToPlayerMap.values()].includes(playerId);
+						if (!stillConnected && !game.botPlayerIds?.includes(playerId)) {
+							const name = game.players[playerId].name;
+							const msg = {
+								id: generatePlayerId(),
+								senderId: 'system',
+								name: '시스템',
+								faction: null,
+								isSpectator: false,
+								text: `🚪 ${name}님이 게임을 떠났습니다.`,
+								ts: Date.now(),
+							};
+							if (!game.chatMessages) game.chatMessages = [];
+							game.chatMessages.push(msg);
+							if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
+							io.to(gameId).emit('chat_message', msg);
+						}
 					}
 				}
-				socketToPlayerMap.delete(socket.id);
 			}
 			const spectatorId = socketToSpectatorMap.get(socket.id);
 			if (spectatorId) {
