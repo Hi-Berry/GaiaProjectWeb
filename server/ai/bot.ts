@@ -2727,6 +2727,18 @@ export class BotLogic {
                 break;
         }
 
+        // [사용자 전략] 경제·과학(지식) L5 도달은 R6이 최적 — 일찍 올리면 지식·연방토큰을 비효율 소모하고
+        // L5 income을 누릴 라운드도 차이가 작음. L4→L5(level===4)를 R1-4 강하게 억제, R5는 같은 트랙에
+        // L4+ 상대가 있어 L5를 뺏길 우려가 있을 때만 허용(선점), R6은 정상 가치로 올림.
+        if (level === 4 && (track === 'economy' || track === 'science')) {
+            if (round <= 4) {
+                score -= 200;
+            } else if (round === 5) {
+                const rivalNearL5 = Object.entries(game.players).some(([pid, p]) => pid !== playerId && ((p.research?.[track] ?? 0) >= 4));
+                if (!rivalNearL5) score -= 100; // 경쟁 없으면 R6까지 대기
+            }
+        }
+
         // [flag: expansionResearch] 봇 전종족이 확장연구(terra/nav/gaia)를 사람의 절반(합 4~7 vs 9~14)만 올려
         // 행성을 못 늘리는 게 최대 약점(데이터). 확장 3트랙을 과학(×22)·경제(×20)와 경쟁되게 상향 — 낮은 레벨일수록
         // 더 우선해 초반부터 확장 인프라(싼 테라포밍·사거리·가이아)를 깔게 한다. 측정으로 자성 확인.
