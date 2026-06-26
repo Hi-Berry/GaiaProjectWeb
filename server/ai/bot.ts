@@ -2349,6 +2349,22 @@ export class BotLogic {
             });
         }
 
+        // [버그수정] 삽(pendingTerraformSteps)이 로드된 상태에서 '삽을 실제 쓰는' 비-home 행성 빌드가 있으면,
+        // home행성(0삽) 빌드를 후보에서 제외한다. 후보점수는 삽쓰기(190)>home(40)로 맞지만 MCTS 최종선택은
+        // 평가기가 하고 평가기엔 '삽 낭비' 페널티가 없어, 테라포밍 ore가 안 드는 *싼* home 빌드를 골라 삽을
+        // 버리던 문제(사용자 반복관찰: "보너스 1삽 쓰고 모행성에 그냥 지음"). gaia/소행성 무료광산은 유지.
+        if (pendingSteps > 0) {
+            const tileOf = (a: BotAction) => game.map.find(x => x.id === a.params?.tileId);
+            const hasStepUsing = scored.some(s => {
+                const t = tileOf(s.action);
+                return !!t?.type && t.type !== homeType && getTerraformStepsForFaction(game, player.faction!, t.type) > 0;
+            });
+            if (hasStepUsing) {
+                const kept = scored.filter(s => tileOf(s.action)?.type !== homeType);
+                if (kept.length > 0) { scored.length = 0; scored.push(...kept); }
+            }
+        }
+
         scored.sort((a, b) => b.score - a.score);
         return scored.slice(0, 5).map(s => s.action);
     }
