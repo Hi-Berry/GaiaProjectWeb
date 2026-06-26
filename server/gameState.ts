@@ -1064,6 +1064,10 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 	// 끝난 플레이어의 마지막 로그에 로그 이후 적용된 효과까지 끌어올림(변동량 정확도 보강)
 	finalizeLogSnap(game, endedPlayerId);
 	game.hasDoneMainAction = false;
+	// [버그수정] 이번 라운드에 실제 턴(액션)이 1회 이상 진행됐음을 표시 → 라운드시작 헬퍼가 늦게(중복) 호출돼도
+	// currentPlayerIndex=0 재리셋을 막는 강한 가드(시작 플레이어 연속 2턴 방지). actionPhaseStartedRound 가드는
+	// 헬퍼가 직접 set하므로 "메인이 헬퍼를 안 거치고 시작된" 우회 경로를 못 막았음. 이 플래그는 턴 종료가 직접 set.
+	(game as any).firstMainActionDoneThisRound = true;
 	clearFreeActionUndo(game);
 	// [턴 롤백] 끝난 플레이어의 '턴 시작 스냅샷'을 삭제하지 않고 유지 → GM이 각 플레이어의
 	// 마지막 턴 시작으로 되돌릴 수 있게 함(플레이어당 1개, 다음 턴 시작 때 갱신). reset_turn은
@@ -2170,6 +2174,13 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 	// [버그수정 2026-06-19] 라운드당 액션단계는 한 번만 시작. 여러 경로(수익선택완료·Itars교환·Terran의회·tinkeroid)가
 	// 라운드시작을 중복 호출하면 index가 0으로 재리셋돼 시작 플레이어가 연속 2턴 하던 문제(사용자 관찰, Itars게임 4회).
 	if ((game as any).actionPhaseStartedRound === game.roundNumber) return;
+	// [버그수정] 이미 이번 라운드에 턴이 진행됐으면(시작 플레이어가 한 번 둠) index=0 재리셋 금지 — 늦은/중복
+	// 라운드시작 호출이 시작 플레이어를 연속 2턴 시키던 버그. actionPhaseStartedRound가 우회된 경로도 이걸로 차단.
+	if ((game as any).firstMainActionDoneThisRound) {
+		log(`[ROUND-START-GUARD] helperStartNewRoundTurn blocked: round ${game.roundNumber} already had a turn (index stays ${game.currentPlayerIndex})`, 'game', game.id);
+		(game as any).actionPhaseStartedRound = game.roundNumber;
+		return;
+	}
 	(game as any).actionPhaseStartedRound = game.roundNumber;
 	// 수익 단계 종료 → 액션 단계는 항상 턴 순서 1번(선 플레이어)부터
 	game.currentPlayerIndex = 0;
@@ -2247,6 +2258,12 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 	}
 	// [버그수정 2026-06-19] 라운드당 액션단계 1회만 시작(helperStartNewRoundTurn과 동일 가드) — 중복 시작 시 시작플레이어 더블턴 방지.
 	if ((game as any).actionPhaseStartedRound === game.roundNumber) return;
+	// [버그수정] 위와 동일 — 이미 턴이 진행된 라운드면 index=0 재리셋 금지(시작플레이어 더블턴 방지).
+	if ((game as any).firstMainActionDoneThisRound) {
+		log(`[ROUND-START-GUARD] helperProceedAfterItars blocked: round ${game.roundNumber} already had a turn (index stays ${game.currentPlayerIndex})`, 'game', game.id);
+		(game as any).actionPhaseStartedRound = game.roundNumber;
+		return;
+	}
 	(game as any).actionPhaseStartedRound = game.roundNumber;
 	game.currentPlayerIndex = 0;
 	// 첫 플레이어가 패스한 상태면 다음 플레이어로
@@ -6880,6 +6897,7 @@ export function executePassRound(
 		if (Object.values(game.players).every(p => p.hasPassed)) {
 			game.roundNumber++;
 			(game as any).incomePhaseAppliedThisRound = false;
+			(game as any).firstMainActionDoneThisRound = false; // 새 라운드: 액션 진행 플래그 리셋(시작플레이어 더블턴 가드)
 			game.powerActions.forEach(a => { a.isUsed = false; (a as any).usedByPlayerId = undefined; (a as any).usedByPlayerName = undefined; });
 			Object.values(game.players).forEach(p => {
 				if (p.hadschHallasPIActions) p.hadschHallasPIActions.forEach(a => { a.isUsed = false; });
