@@ -2960,6 +2960,23 @@ export class BotLogic {
                 break;
         }
 
+        // [flag: humanResearchPrior] 사람 로그 35판(66 시드) 직접 분석 — 첫 연구 분포:
+        //   navigation 41% · gaiaProject 32% · terraforming 11% · economy 9% · science 6% · AI 2%
+        //   전체 누적도 science 8%(최하위). 봇 공식은 science ×22(162점)로 첫 연구를 지식에 몰아 사람과 정반대였음.
+        // → 데이터를 직접 박는다: science 과대평가 제거 + 초반(R1-2) 첫 연구를 사람처럼 항해/가이아로.
+        // ※ 이건 self-play A/B가 아니라 사람 데이터가 곧 정답인 케이스(확장가치는 봇끼리 안 잡힘). do-no-harm만 확인, 진짜판정=1:3.
+        if (getPlayerFlag(playerId, 'humanResearchPrior', true)) {
+            if (track === 'science') {            // ×22→사실상 ×12(상향 전 값)로 환원 + 초반보너스 축소
+                score -= (6 - level) * 10;
+                if (round <= 3) score -= 20;
+            }
+            if (round <= 2) {                     // 첫 연구 shaping: nav>gaia>terra>eco
+                if (track === 'navigation') score += 95;
+                else if (track === 'gaiaProject') score += 85;
+                else if (track === 'economy') score -= 40;
+            }
+        }
+
         // [사용자 전략] 경제·과학(지식) L5 도달은 R6이 최적 — 일찍 올리면 지식·연방토큰을 비효율 소모하고
         // L5 income을 누릴 라운드도 차이가 작음. L4→L5(level===4)를 R1-4 강하게 억제, R5는 같은 트랙에
         // L4+ 상대가 있어 L5를 뺏길 우려가 있을 때만 허용(선점), R6은 정상 가치로 올림.

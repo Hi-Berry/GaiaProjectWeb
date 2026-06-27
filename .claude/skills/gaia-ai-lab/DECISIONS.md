@@ -384,3 +384,10 @@
 - 룰(calculateAdjacencyBonus): 상대건물 인접 아님(=TS 2ore/3credit 할인 불가) AND 내건물 dist≤2도 아님 = 진짜 외곽 → bonus −150. 내클러스터/상대옆 빌드는 예외. R1-4 한정.
 - **do-no-harm 50판: VP +0.94(중립 p=0.72), 광산 −0.49(외곽빌드 실제 억제), 가이아포밍 +0.14.** 행동변화 확인 + 비음수 → 채택.
 - ※ leech/TS할인/포지션 가치는 self-play로 안 잡힘(과거 buildNearShipOpp −1.76) → **진짜 판정은 사용자 1:3.** flag로 끄면 구동작.
+
+## 2026-06-28 ★ humanResearchPrior 채택(기본 ON) — 첫 연구를 사람처럼 nav/gaia로 (데이터 직접 박음)
+- 사용자 지적: "사람 로그 보면 아무도 지식 안 올리는데 왜 안 고쳐지나". → 사람 35판 직접 분석.
+- **사람 첫 연구 분포: nav 41% / gaia 32% / terra 11% / eco 9% / science 6% / AI 2%. 전체 누적도 science 8%(최하위).**
+- 봇 공식은 science ×22(L0R1 162점)로 첫 연구를 지식에 몰아 사람과 정반대였음 → 교정: science ×22→×12 환원+초반보너스축소, R1-2 nav+95/gaia+85/eco−40. 새 ordering nav155>gaia133>terra127>eco115>science82.
+- **do-no-harm 50판: 도전자(구 science몰빵) +2.08 VP(p=0.43 노이즈). 즉 self-play는 구를 살짝 선호.** 가이아포밍+0.19/광산−0.38(확장연구로 이동 확인).
+- ★ 채택 근거: (1)사람 데이터 명백(science 6% 첫/8% 전체) (2)실게임 봇 연구VP 이미 1/3(13.5 vs 37)→science먼저가 실전가치 아님, +2.08은 봇끼리 인공물 (3)self-play는 확장/연구전략 가치 판정 불가(합의됨) (4)research 단독효과 없음=배치(isolatedTSPenalty)와 함께 가야. **진짜판정=사용자 1:3. 실게임 악화 시 flag OFF로 즉시 복원.**
