@@ -899,12 +899,8 @@ export class BotLogic {
         // 휴리스틱/학습/LLM이 못 푸는 공간 연방계획을, 좁은 부분문제의 정확탐색(getBestFederationAction what-if)으로 직격.
         // (사람 R3 묘수 = 2채 지어 7파워 연결→연방. 연방은 봇 최대약점이라 고가치.) 프로토타입: 1빌드 완성형만.
         if (getPlayerFlag(playerId, 'fedBridge', false) && !game.simulation && buildActions.length > 0) {
-            for (const a of buildActions) {
-                const tid = (a.params as any)?.tileId;
-                if (a.type === 'build_mine' && tid && this.buildEnablesFederation(game, playerId, tid)) {
-                    return [a]; // 이 빌드 후 다음 턴 연방 가능 → 강제 건설
-                }
-            }
+            const bridge = this.findFederationBridge(game, playerId, buildActions);
+            if (bridge) return [bridge]; // 이 빌드(또는 다음 1채와 함께) 연방 완성 → 강제 건설
         }
 
         if (buildActions.length > 0) candidates.push(...buildActions);
@@ -1766,6 +1762,31 @@ export class BotLogic {
         try { after = FederationPlanner.getBestFederationAction(game, playerId); } catch { /* ignore */ }
         tile.ownerId = savedOwner; tile.structure = savedStruct; // 복원
         return !!after;
+    }
+
+    /** [fedBridge 묘수] 연방을 완성/근접시키는 브리징 빌드 찾기. 1빌드 완성 우선, 없으면 2빌드(이 빌드+다음1채로 완성).
+     *  사람 R3 묘수(2채 지어 7파워 연결→연방)를 정확탐색으로 재현. 성능: !simulation 실턴만, 후보 상위 8개로 제한(O(N^2)). */
+    private static findFederationBridge(game: ServerGameState, playerId: string, buildActions: BotAction[]): BotAction | null {
+        const mines = buildActions.filter(a => a.type === 'build_mine' && (a.params as any)?.tileId).slice(0, 8);
+        // 1빌드 완성
+        for (const a of mines) {
+            if (this.buildEnablesFederation(game, playerId, (a.params as any).tileId)) return a;
+        }
+        // 2빌드: tile1 임시건설 후, 다른 후보 tile2가 완성하면 tile1(첫 브리징) 반환
+        for (const a of mines) {
+            const t1 = game.map.find(t => t.id === (a.params as any).tileId);
+            if (!t1 || t1.structure) continue;
+            const so = t1.ownerId, ss = t1.structure;
+            t1.ownerId = playerId; t1.structure = 'mine';
+            let found = false;
+            for (const b of mines) {
+                if (b === a) continue;
+                if (this.buildEnablesFederation(game, playerId, (b.params as any).tileId)) { found = true; break; }
+            }
+            t1.ownerId = so; t1.structure = ss; // 복원
+            if (found) return a;
+        }
+        return null;
     }
 
     private static findBuildActions(game: ServerGameState, playerId: string): BotAction[] {
