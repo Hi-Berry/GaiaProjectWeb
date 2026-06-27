@@ -372,3 +372,9 @@
 - **do-no-harm −0.38(중립, 이전 −1.76서 교정)**, 우주선입장 +0.09. placement는 self-play 못판정 → do-no-harm+데이터기반이라 ON, **1:3 판정.**
 - 현 오프닝 배치 채택 2: startPlacementExpansion(−0.21) + buildNearShip(−0.38). 둘 다 do-no-harm+사용자관찰/사람데이터 기반. 사용자 1:3서 "외각 2O6C TS↓ + 우주선/확장지 근처↑" 확인 대기.
 - 교훈: placement 보너스는 약하게+데이터범위로(강하면 엔진왜곡 backfire). 상대 proximity는 첫집 무관(데이터). 자기건물 군집은 기존 adjacencyBonus가 담당.
+
+## 2026-06-28 ★ 다턴 계획엔진 brick1 (persistent 연방완성 plan) — 중립, 핵심 아키텍처 발견
+- multiTurnPlan: 7파워 빌드set을 game에 저장→여러턴 commit(fedBridge −3.59의 "commit 안함" 교정).
+- **50판: VP −0.29, 연방 1.48→1.43(−0.05 안늚!), 광산 +0.67(브리징 지음), 총행동 −0.79.**
+- ★발견: **commit해서 브리징 광산을 실제 지었는데도 연방 안 생김** → "다턴 commit 부족"이 문제가 아니라, **봇 클러스터가 흩어져 2채 브리징해도 7파워 연결 불가(위성비용 폭발)**. 사람 R3는 클러스터가 *가까워서*(좋은 배치) 2채로 1위성 연방됨. 봇은 흩어진 배치라 브리징해도 연방 안 됨.
+- **★★ 결론: 연방/계획 다 *배치(placement/reach/흩어짐)*의 하류.** 계획엔진의 자연스런 타깃(연방)은 증상. 진짜 병=상류 배치 좌표. 그걸 hand-code하는 placement-coordination planner는 (a)가장 어려운 핵심 (b)self-play 검증불가 (c)reach 벽 그대로일 위험. **→ 더 유망한 아키텍처 = 학습(정책/가치망이 배치좌표를 *암묵* 학습, 알파제로식). 데이터 게이트(사용자 1:3).** multiTurnPlan/fedBridge flag OFF, 코드보존.
