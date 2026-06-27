@@ -4381,6 +4381,18 @@ export class BotLogic {
             }
         }
 
+        // [flag: isolatedTSPenalty] 사용자 전략(2026-06-28): "3원(상대인접) 교역소가 안 되는 자리 = 고립"에 강한 패널티.
+        // TS 업글은 상대 건물 인접 시 2ore/3credit(할인), 고립 시 2ore/6credit. 즉 상대옆=싼TS+leech+맵장악.
+        // 상대 건물 인접도 아니고 내 클러스터(dist≤2 내건물=연방 연결)도 아닌 *진짜 외곽 흩뿌리기*만 강하게 감점
+        // → 봇이 외곽 가이아 점프 대신 중앙/상대옆으로 확장(사용자 라이브 관찰: 스자가 2Nav로 외곽 가이아 점프).
+        // ※ self-play 검증 불가(봇끼리 leech가치 안 잡힘, 과거 buildNearShipOpp −1.76) → 사용자 1:3가 진짜 판정. R1-4 한정.
+        if (getPlayerFlag(playerId, 'isolatedTSPenalty', true) && game.roundNumber <= 4) {
+            const adjOpp = neighbors.some(n => n.ownerId && n.ownerId !== playerId && n.structure && n.structure !== 'ship');
+            const nearOwn = neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship')
+                || range2Neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship');
+            if (!adjOpp && !nearOwn) bonus -= 150; // 강하게: 외곽 고립 빌드 억제
+        }
+
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
         if (opponentGaiaformers.some(gf => getDistance(gf, tile) === 1)) bonus += 15;
 
