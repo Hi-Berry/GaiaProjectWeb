@@ -898,9 +898,15 @@ export class BotLogic {
         // [flag: fedBridge] 묘수: 빈 타일에 광산을 지으면 연방이 *새로* 가능해지는 '브리징 빌드'를 강제 우선.
         // 휴리스틱/학습/LLM이 못 푸는 공간 연방계획을, 좁은 부분문제의 정확탐색(getBestFederationAction what-if)으로 직격.
         // (사람 R3 묘수 = 2채 지어 7파워 연결→연방. 연방은 봇 최대약점이라 고가치.) 프로토타입: 1빌드 완성형만.
+        // [flag: multiTurnPlan] 다턴 계획엔진: 연방완성 plan을 game에 저장해 여러 턴 commit(fedBridge는 commit 안 해 −3.59였음).
+        if (getPlayerFlag(playerId, 'multiTurnPlan', false) && !game.simulation && buildActions.length > 0) {
+            const step = this.getMultiTurnFedStep(game, playerId, buildActions);
+            if (step) return [step]; // persistent 계획의 다음 스텝 commit
+        }
+        // [flag: fedBridge] (구) 비-persistent 버전 — 기각(−3.59), OFF 유지
         if (getPlayerFlag(playerId, 'fedBridge', false) && !game.simulation && buildActions.length > 0) {
             const bridge = this.findFederationBridge(game, playerId, buildActions);
-            if (bridge) return [bridge]; // 이 빌드(또는 다음 1채와 함께) 연방 완성 → 강제 건설
+            if (bridge) return [bridge];
         }
 
         if (buildActions.length > 0) candidates.push(...buildActions);
@@ -1785,6 +1791,59 @@ export class BotLogic {
             }
             t1.ownerId = so; t1.structure = ss; // 복원
             if (found) return a;
+        }
+        return null;
+    }
+
+    // ===== [다턴 계획엔진 brick1] persistent 연방완성 플랜 =====
+    // 핵심: 봇이 매턴 재결정해 다턴 계획을 commit 못 하는 문제(fedBridge −3.59) 교정.
+    // 7파워 만드는 최소 빌드 set을 *게임상태에 저장*하고 여러 턴 그 다음 스텝을 commit → 끝까지 실행.
+
+    /** 7파워 연결 컴포넌트를 만드는 최소 빌드 타일 set(1~2채) 계산. buildEnablesFederation의 set 버전. */
+    private static computeFedBuildSet(game: ServerGameState, playerId: string, buildActions: BotAction[]): string[] | null {
+        const mines = buildActions.filter(a => a.type === 'build_mine' && (a.params as any)?.tileId).slice(0, 8);
+        for (const a of mines) { // 1채로 완성
+            if (this.buildEnablesFederation(game, playerId, (a.params as any).tileId)) return [(a.params as any).tileId];
+        }
+        for (const a of mines) { // 2채로 완성
+            const t1 = game.map.find(t => t.id === (a.params as any).tileId);
+            if (!t1 || t1.structure) continue;
+            const so = t1.ownerId, ss = t1.structure;
+            t1.ownerId = playerId; t1.structure = 'mine';
+            let pair: string | null = null;
+            for (const b of mines) {
+                if (b === a) continue;
+                if (this.buildEnablesFederation(game, playerId, (b.params as any).tileId)) { pair = (b.params as any).tileId; break; }
+            }
+            t1.ownerId = so; t1.structure = ss;
+            if (pair) return [(a.params as any).tileId, pair];
+        }
+        return null;
+    }
+
+    /** persistent 연방완성 플랜의 다음 스텝(빌드 액션) 반환. 계획을 game에 저장해 여러 턴 commit. */
+    private static getMultiTurnFedStep(game: ServerGameState, playerId: string, buildActions: BotAction[]): BotAction | null {
+        const store = (game as any)._botFedPlan || ((game as any)._botFedPlan = {});
+        const buildable = new Map<string, BotAction>();
+        for (const a of buildActions) if (a.type === 'build_mine' && (a.params as any)?.tileId) buildable.set((a.params as any).tileId, a);
+
+        let plan = store[playerId];
+        if (plan) {
+            // 이미 지어진 타일 제거(진행)
+            plan.tiles = plan.tiles.filter((tid: string) => { const t = game.map.find(x => x.id === tid); return t && !t.structure; });
+            if (plan.tiles.length === 0) { delete store[playerId]; }          // 완료 → 기존 로직이 연방 형성
+            else {
+                const next = plan.tiles.find((tid: string) => buildable.has(tid)); // 다음 빌드가능 스텝
+                if (next) return buildable.get(next)!;                          // commit
+                delete store[playerId];                                          // 다음 스텝 불가(무효) → 재계획
+            }
+        }
+        // 새 계획: 이미 연방 가능하면 불필요(기존 로직 처리)
+        if (FederationPlanner.getBestFederationAction(game, playerId)) return null;
+        const tiles = this.computeFedBuildSet(game, playerId, buildActions);
+        if (tiles && tiles.length > 0) {
+            store[playerId] = { tiles: tiles.slice(), round: game.roundNumber };
+            return buildable.get(tiles[0]) || null;
         }
         return null;
     }
