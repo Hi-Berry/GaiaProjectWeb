@@ -3032,6 +3032,17 @@ export class BotLogic {
             }
         }
 
+        // [flag: advTechChain] 사용자 관찰(2026-06-28): L3 + 4지식 + 초록연방 + 트랙 위 미보유 고급타일인데도
+        // 봇이 일반 수익타일을 먹음. 고급타일 자격 = 트랙 L4. 기존 ×2.0 폭발가중은 level===4(4→5)에만 걸려
+        // "3→4로 *자격 자체를 만드는*" 결정적 한 수를 +55로만 약하게 평가했음 → 고급타일(~30VP)을 못 챙김(techTiles 사람40.5 vs 봇3.3).
+        // 이 트랙 위에 아무도 안 가진 고급타일 + 초록연방 보유 시, 3→4 전진을 크게 우대(다음 빌드에서 고급타일 획득).
+        if (getPlayerFlag(playerId, 'advTechChain', true) && level === 3 && countGreenFederations(player) >= 1) {
+            const adv = advTiles[track];
+            if (adv?.id && !Object.values(game.players).some(p => p.techTiles?.includes(adv.id))) {
+                score += 110; // 고급타일 자격을 만드는 결정적 수
+            }
+        }
+
         return score;
     }
 
