@@ -3303,7 +3303,9 @@ export class BotLogic {
             }
 
             const nearbyPlanets = game.map.filter(t => t.id !== tile.id && !t.ownerId && t.type !== 'space' && t.type !== 'deep_space');
-            const weightByTf = getPlayerFlag(playerId, 'startPlacementExpansion', false);
+            // [기본 ON 전환 2026-06-28] 사용자 관찰("오프닝 광산 위치 엉망") + 사람은 싸고 가까운 확장지(평균 5.6행성)에 둠.
+            // self-play는 placement 못 판정(47판 null=do-no-harm)이나 이론옳음+실전관찰 → 켬. 1:3로 최종판정.
+            const weightByTf = getPlayerFlag(playerId, 'startPlacementExpansion', true);
             for (const p of nearbyPlanets) {
                 const dist = getDistance(tile, p);
                 if (dist > 3) continue;
