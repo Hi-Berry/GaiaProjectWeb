@@ -894,6 +894,19 @@ export class BotLogic {
 
         // 5. 일반 건설 시도
         const buildActions = this.findBuildActions(game, playerId);
+
+        // [flag: fedBridge] 묘수: 빈 타일에 광산을 지으면 연방이 *새로* 가능해지는 '브리징 빌드'를 강제 우선.
+        // 휴리스틱/학습/LLM이 못 푸는 공간 연방계획을, 좁은 부분문제의 정확탐색(getBestFederationAction what-if)으로 직격.
+        // (사람 R3 묘수 = 2채 지어 7파워 연결→연방. 연방은 봇 최대약점이라 고가치.) 프로토타입: 1빌드 완성형만.
+        if (getPlayerFlag(playerId, 'fedBridge', false) && !game.simulation && buildActions.length > 0) {
+            for (const a of buildActions) {
+                const tid = (a.params as any)?.tileId;
+                if (a.type === 'build_mine' && tid && this.buildEnablesFederation(game, playerId, tid)) {
+                    return [a]; // 이 빌드 후 다음 턴 연방 가능 → 강제 건설
+                }
+            }
+        }
+
         if (buildActions.length > 0) candidates.push(...buildActions);
 
         // 6. 일반 업그레이드 시도
@@ -1739,6 +1752,22 @@ export class BotLogic {
      * 우선순위: 모행성 > 가이아 > 파워/TF Mars 콤보 > 테라포밍
      * QIC 소모는 최대 1로 제한
      */
+    /** [fedBridge 묘수] 이 빈 타일에 광산을 지으면 연방이 *새로* 가능해지나? clone 없이 임시변경+복원(getBestFederationAction은 읽기전용).
+     *  지금 이미 연방 가능하면(before non-null) 브리징 불필요 → false. 지금 불가인데 지으면 가능 → true(브리징 빌드). */
+    private static buildEnablesFederation(game: ServerGameState, playerId: string, tileId: string): boolean {
+        const tile = game.map.find(t => t.id === tileId);
+        if (!tile || tile.structure) return false; // 빈 타일만
+        let before: any = null;
+        try { before = FederationPlanner.getBestFederationAction(game, playerId); } catch { return false; }
+        if (before) return false; // 이미 연방 가능 → 기존 로직이 처리
+        const savedOwner = tile.ownerId, savedStruct = tile.structure;
+        tile.ownerId = playerId; tile.structure = 'mine';
+        let after: any = null;
+        try { after = FederationPlanner.getBestFederationAction(game, playerId); } catch { /* ignore */ }
+        tile.ownerId = savedOwner; tile.structure = savedStruct; // 복원
+        return !!after;
+    }
+
     private static findBuildActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
