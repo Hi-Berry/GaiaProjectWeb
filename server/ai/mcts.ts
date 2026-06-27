@@ -28,8 +28,6 @@ export interface MCTSNode {
 export class MCTS {
     private static readonly C = Math.sqrt(2); // Exploration constant
     private static _policyPUCTw = 0;           // [policyPUCT] 정책 prior 가중치(search에서 flag로 설정, 0=off)
-    // [종족조건부 policyPUCT] 120판 종족분해서 정책PUCT 양성(+4.5↑) + taklons forcing +5.9 확인. 이 종족만 PUCT 적용.
-    static readonly POSITIVE_PUCT_FACTIONS = new Set(['taklons', 'geodens', 'bescods', 'itars', 'hadsch_hallas']);
     /** tune-ai 등에서 런타임으로 짧게 쓰려면 setTimeMsOverride(1000) 호출 */
     private static _timeMsOverride: number | null = null;
     static setTimeMsOverride(ms: number | null): void {
@@ -76,13 +74,9 @@ export class MCTS {
         // [flag: policyPUCT] 알파고식: 사람 모방 정책망(policyNet.json)으로 root 자식들에 prior 부여 →
         // bestUCT의 PUCT 항으로 탐색을 사람 수 쪽으로 유도(휴리스틱 Q는 그대로 보존). 후보재정렬(−10.75)과 달리
         // 순서를 안 바꾸고 selection만 블렌드. 가중치 policyPUCTw로 스케일 조정(raw eval Q와 맞춤).
-        // [정정 2026-06-27] 평균 PUCT는 120판서 중립(소표본 +2.8은 winner's curse). 단 ★종족별로는 섞임★:
-        // taklons forcing +5.9(진짜), nevlas는 노이즈. → policyPUCT를 *도움되는 종족에만* 켜는 조건부.
-        // policyPUCTByFaction ON이면 POSITIVE_PUCT_FACTIONS만 PUCT 적용(120판 양성+forcing 확인 기반).
-        const _fac = initialState.players?.[playerId]?.faction || '';
-        const _puctOn = getPlayerFlag(playerId, 'policyPUCT', false)
-            || (getPlayerFlag(playerId, 'policyPUCTByFaction', false) && MCTS.POSITIVE_PUCT_FACTIONS.has(_fac));
-        if (_puctOn) {
+        // [정정 2026-06-27] 120판 격리서 +1.45(OFF유리) = 소표본 +2.8은 winner's curse였음. 정책망 PUCT는
+        // 현 데이터(2147샘플)론 중립~약음성 → 기본 OFF로 되돌림. 인프라/정책망은 보존(1:3 데이터 크면 재시도).
+        if (getPlayerFlag(playerId, 'policyPUCT', false)) {
             MCTS._policyPUCTw = getPlayerFlag(playerId, 'policyPUCTw', 500);
             try { root.priorsMap = BotLogic.policyPriorMap(rootStore, playerId, possibleActions); } catch { /* 정책망 없으면 무시 */ }
         } else {
