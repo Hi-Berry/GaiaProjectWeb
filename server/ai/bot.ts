@@ -4324,6 +4324,23 @@ export class BotLogic {
 
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
         if (opponentGaiaformers.some(gf => getDistance(gf, tile) === 1)) bonus += 15;
+
+        // [flag: buildNearShipOpp] 사용자 관찰(고수): 같은 비용 타일이면 외각 고립보다 *우주선 근처*(탑승=Rebellion/기술연방)·
+        // *상대 dist2*(파워충전+TS할인 셋업)가 중요. 봇이 외각으로 새서 2O/6C 풀가격 TS 짓는 치명적 문제 교정.
+        if (getPlayerFlag(playerId, 'buildNearShipOpp', true)) {
+            const entered = game.players[playerId]?.spaceshipsEntered || [];
+            for (const t of game.map) {
+                const ty = t.type || '';
+                if (ty === 'ship_twilight' || ty === 'ship_rebellion' || ty === 'ship_tf_mars' || ty === 'ship_eclipse') {
+                    if (entered.includes(t.id)) continue;
+                    const d = getDistance(tile, t);
+                    if (d <= 1) bonus += 55; else if (d === 2) bonus += 30; else if (d === 3) bonus += 12;
+                }
+            }
+            for (const neighbor of range2Neighbors) { // 상대 dist2(파워충전 셋업). dist1은 위에서 이미 +20.
+                if (neighbor.ownerId && neighbor.ownerId !== playerId && neighbor.structure && neighbor.structure !== 'ship') bonus += 12;
+            }
+        }
         return bonus;
     }
 
