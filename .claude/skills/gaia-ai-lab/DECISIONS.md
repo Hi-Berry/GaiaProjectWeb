@@ -340,3 +340,9 @@
 - **진짜 검증된 세션 성과 = flag튜닝이 아니라 버그/룰 수정**(self-play VP로 안 잡히나 명백히 옳음): 맵생성 우주선 거리>3, R1-2 3오레 차단, 오레기아 교역소나선, ship-fed 연방, proto, nevlas/taklons 조기패스. + 인프라(candidate캡처·정책망·dev:nowatch).
 - **채택 처리:** policyPUCT → OFF(중립+연산비용). r1ShipPriority → **ON 유지**(중립이나 do-no-harm + 도메인옳음[사람 R1우주선95%] + 실전 우주선경쟁 가치 — self-play는 contention 못 재현). 버그수정 전부 유지.
 - **근본 결론: self-play 튜닝으로 짜낼 VP는 사실상 없음(전부 노이즈/포화). 봇 강화의 유일한 실레버 = 사람 1:3 데이터**(정책망 재학습·종족·per-candidate 다 데이터 게이트). 인프라는 다 깔림.
+
+## 2026-06-27 ❌ 종족조건부 policyPUCT — 기각 (per-faction 효과 대부분 노이즈, forcing 2/3 회귀)
+- 사용자 통찰("평균이 종족효과 가림") 검증: 120판 종족분해서 policyPUCT/r1Ship이 종족별 ±10~15로 갈려보임.
+- **forcing 확인(n~30): taklons+policyPUCT +10.8→+5.9(홀로 유지) / geodens+policyPUCT +8.0→−1.7(회귀) / nevlas+r1Ship +15.7→−1.3(회귀).** 3중 2 회귀.
+- **결론: per-faction "효과"도 대부분 소표본 노이즈**(종족당 n~10이 per-game ±20 분산으로 가짜패턴). 120판 종족사인으로 게이트하면 false-positive(geodens)로 손해. taklons 1종족(1/18, 우연일 수도)만 위해 게이트 = winner's curse 함정 → 미채택, 코드 revert.
+- ★★ 최종 확정: **self-play VP 튜닝은 평균이든 종족별이든 신뢰가능한 이득 없음(완전 포화).** 정책망(평균 중립, 종족별 노이즈)·flag(r1Ship/policyPUCT 120판 중립)·가중치 전부. **봇 강화 유일 실레버 = 사람 1:3 데이터.** 인프라(정책망·PUCT·candidate캡처) 다 보존, 데이터 게이트.
