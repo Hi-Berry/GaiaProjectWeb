@@ -360,3 +360,8 @@
 - **★핵심 원인 2가지:** ①브리징 케이스 자체가 드묾(클러스터 흩어짐=reach 상류문제) ②강제로 tile1 짓고도 **다음 턴 tile2+연방을 안 이어감**(광산+0.54 vs 연방+0.09=대부분 미완성 낭비) → **봇이 다턴 계획을 commit 못 함**(매턴 재결정).
 - **★★ 통합 결론:** 연방(봇#1약점) = reach/흩어진확장 + 다턴 commit불가의 하류. 정확탐색은 *한 시점* 푸나 *여러 턴 실행*을 못 함. buildOrderPlanner(−4.14)와 같은 실패모드(강제 빌드 disruption). **튜닝·학습·LLM·정확탐색 전부 이 "다턴 좌표계획+commit" 벽에 막힘** — 이게 greedy 1-ply 아키텍처의 진짜 천장. 돌파엔 다턴 plan을 *상태로 유지하며 실행*하는 구조(또는 충분한 학습데이터) 필요.
 - fedBridge 기본 OFF(코드 보존). what-if 헬퍼(buildEnablesFederation)는 재사용 가능.
+
+## 2026-06-28 오프닝 배치 (사용자 관찰: 광산위치 엉망/외각 2O6C TS)
+- startPlacementExpansion 기본 ON: 시작광산을 싸고 가까운 확장지 우선. **do-no-harm −0.21(중립)**, ON 유지(placement는 self-play 못판정, 1:3 판정).
+- ❌ buildNearShipOpp(우주선+55/상대dist2 근처 빌드보너스) 기각: **VP −1.76 + 우주선액션 −0.84·총행동 −1.47(역효과).** 원인: "우주선 옆에 짓기 ≠ 타기" — 옆 나쁜타일 빌드로 액션낭비→엔진약화→오히려 우주선 덜 탐. 단순 proximity 보너스가 backfire. flag OFF.
+- ★사용자 통찰(같은비용→상대인접[파워+TS할인]·우주선근처 우선, 외각기피)은 옳음. 단 placement는 scoring 한 항 튜닝이 다른 걸 왜곡 → fedCompactBuild(−4.22)·buildNearShipOpp(−1.76) 다 실패 패턴. 진짜 해법: 외각 *페널티*(proximity 보너스 아니라) 또는 placement를 다턴 계획으로(같은 벽) 또는 사용자 특정 bad-case 외과수정.

@@ -4327,7 +4327,7 @@ export class BotLogic {
 
         // [flag: buildNearShipOpp] 사용자 관찰(고수): 같은 비용 타일이면 외각 고립보다 *우주선 근처*(탑승=Rebellion/기술연방)·
         // *상대 dist2*(파워충전+TS할인 셋업)가 중요. 봇이 외각으로 새서 2O/6C 풀가격 TS 짓는 치명적 문제 교정.
-        if (getPlayerFlag(playerId, 'buildNearShipOpp', true)) {
+        if (getPlayerFlag(playerId, 'buildNearShipOpp', false)) {
             const entered = game.players[playerId]?.spaceshipsEntered || [];
             for (const t of game.map) {
                 const ty = t.type || '';
