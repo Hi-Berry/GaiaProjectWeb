@@ -4328,7 +4328,7 @@ export class BotLogic {
         // [flag: buildNearShip] 사람 첫집 패턴 데이터(39건): 첫 광산을 우주선 dist≤2에 51%(평균2.2)·자기건물 dist≤3에 80%로 둠.
         // 상대 proximity는 무관(26%/분산)이라 제외(이전 buildNearShipOpp가 상대항 넣어 −1.76 backfire). 우주선만, 약하게, R1-2 한정.
         // 자기건물 군집(close-to-own 80%)은 위 adjacencyBonus(+50 dist1/+20 dist2)가 이미 담당.
-        if (getPlayerFlag(playerId, 'buildNearShip', false) && game.roundNumber <= 2) {
+        if (getPlayerFlag(playerId, 'buildNearShip', true) && game.roundNumber <= 2) {
             const entered = game.players[playerId]?.spaceshipsEntered || [];
             for (const t of game.map) {
                 const ty = t.type || '';

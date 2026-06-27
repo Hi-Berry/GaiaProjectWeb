@@ -365,3 +365,10 @@
 - startPlacementExpansion 기본 ON: 시작광산을 싸고 가까운 확장지 우선. **do-no-harm −0.21(중립)**, ON 유지(placement는 self-play 못판정, 1:3 판정).
 - ❌ buildNearShipOpp(우주선+55/상대dist2 근처 빌드보너스) 기각: **VP −1.76 + 우주선액션 −0.84·총행동 −1.47(역효과).** 원인: "우주선 옆에 짓기 ≠ 타기" — 옆 나쁜타일 빌드로 액션낭비→엔진약화→오히려 우주선 덜 탐. 단순 proximity 보너스가 backfire. flag OFF.
 - ★사용자 통찰(같은비용→상대인접[파워+TS할인]·우주선근처 우선, 외각기피)은 옳음. 단 placement는 scoring 한 항 튜닝이 다른 걸 왜곡 → fedCompactBuild(−4.22)·buildNearShipOpp(−1.76) 다 실패 패턴. 진짜 해법: 외각 *페널티*(proximity 보너스 아니라) 또는 placement를 다턴 계획으로(같은 벽) 또는 사용자 특정 bad-case 외과수정.
+
+## 2026-06-28 ✅ buildNearShip 기본ON (데이터 교정판) — 사람 첫집 패턴 기반
+- 사람 R1 첫광산 분석(39건): 우주선 dist≤2에 51%(평균2.2)·자기건물 dist≤3에 80%, 상대는 무관(26%/분산).
+- 교정: 우주선 proximity만(상대항 제거=이전 buildNearShipOpp −1.76의 원인), 약하게(30/20/8 ← 55/30/12), R1-2 한정.
+- **do-no-harm −0.38(중립, 이전 −1.76서 교정)**, 우주선입장 +0.09. placement는 self-play 못판정 → do-no-harm+데이터기반이라 ON, **1:3 판정.**
+- 현 오프닝 배치 채택 2: startPlacementExpansion(−0.21) + buildNearShip(−0.38). 둘 다 do-no-harm+사용자관찰/사람데이터 기반. 사용자 1:3서 "외각 2O6C TS↓ + 우주선/확장지 근처↑" 확인 대기.
+- 교훈: placement 보너스는 약하게+데이터범위로(강하면 엔진왜곡 backfire). 상대 proximity는 첫집 무관(데이터). 자기건물 군집은 기존 adjacencyBonus가 담당.
