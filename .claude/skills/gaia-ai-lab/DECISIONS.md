@@ -298,3 +298,13 @@
 - 1번(가중치튜닝): challenger w vs 챔피언 w=500. w=300 30판 +1.33, w=800 30판 +3.97(유망) → **w=800 60판 −1.70**(회귀). 30판 +3.97은 winner's curse. 300~800 노이즈범위 평평 → **w=500 유지.**
 - 2번(per-candidate 정책): **정확한 후보집합 복원=엔진replay 불가**(사람JSON에 중간 풀/기술타일/파워액션 상태 미저장, getCandidateMoves 20+필드 필요). 빌드타깃 랭커는 reach약점에 묶여 비추천(빌드분할 −4.39 전례). **→ 진짜 증폭경로 = research-track처럼 reach-무관+데이터충분 결정의 granular 정책**(다음 후보: 연방보상/기술타일 선택). 과분할 주의(한번에 하나).
 - 현 알파고 채택 상태 확정: policyPUCT(w=500, research-split 15클래스 net) + r1ShipPriority. 세션누적 +4.36VP.
+
+## 2026-06-27 ★★ 채택 power-action granular 정책 (자율 실험 성공)
+- 정책망에 power선택 6범주(Pw:ore/credits/knowledge/tokens/tf/qic) 추가 → 19클래스. (research-split 유지)
+- **검증(challenger=OFF vs 챔피언=power+research ON): 40판 −3.30, 60판 −2.81 (100판 일관, 57%승) = PUCT 효과 ~+2.8~3.3. research-only(+1.47) 대비 +1.4 개선.** → 채택(net 커밋 유지).
+- **★★ 핵심 원칙 발견:** granular 정책 성패 = **"클래스 수"가 아니라 "features가 그 결정을 설명하느냐"**. 
+  - research트랙(자원/지식기반)·power선택(자원기반) → features有 → 통함(+1.47/+2.8)
+  - 빌드타깃(맵위치기반) → features不足(좌표 미사용) → 실패(−4.39)
+  - **다음 granular 후보: features로 설명되는 결정** — 연방보상(자원), 기술타일(연구상태), 업글타깃(자원). 맵위치 결정(빌드/우주선배치)은 per-candidate 맵피처 필요(replay 막힘).
+- 현 알파고 상태: policyPUCT(w500, power+research 19클래스 net) + r1ShipPriority. PUCT 자체효과 +2.8(↑ from +1.47).
+- 데이터: 사람게임 무제한 보존(61MB/35게임, 자동삭제X) → 1:3 누적이 정책 직접강화. 용량 무문제.
