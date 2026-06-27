@@ -293,3 +293,8 @@
 - 조치: trainPolicyNet/bot.ts/policyNet.json을 0edc8e6(research-split +1.47)로 복원. policyPUCT 기본 ON 유지.
 - **세션 누적(측정): 현재봇 75.0 vs 세션시작(r1ShipPriority+policyPUCT OFF) 70.7 = +4.36VP.** 알파고 구조전환 + 검증된 향상.
 - **다음(데이터 자라면): 사람 1:3↑ → 정책망 재학습(신호 3.9→10.1로 자람), 가중치 미세튜닝, per-candidate replay(특정수).** 
+
+## 2026-06-27 policyPUCTw 가중치 스윕 — w=500 유지 (튜닝 이득 없음)
+- 1번(가중치튜닝): challenger w vs 챔피언 w=500. w=300 30판 +1.33, w=800 30판 +3.97(유망) → **w=800 60판 −1.70**(회귀). 30판 +3.97은 winner's curse. 300~800 노이즈범위 평평 → **w=500 유지.**
+- 2번(per-candidate 정책): **정확한 후보집합 복원=엔진replay 불가**(사람JSON에 중간 풀/기술타일/파워액션 상태 미저장, getCandidateMoves 20+필드 필요). 빌드타깃 랭커는 reach약점에 묶여 비추천(빌드분할 −4.39 전례). **→ 진짜 증폭경로 = research-track처럼 reach-무관+데이터충분 결정의 granular 정책**(다음 후보: 연방보상/기술타일 선택). 과분할 주의(한번에 하나).
+- 현 알파고 채택 상태 확정: policyPUCT(w=500, research-split 15클래스 net) + r1ShipPriority. 세션누적 +4.36VP.
