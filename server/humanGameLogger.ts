@@ -20,6 +20,7 @@ export type HumanActionJournalEntry = {
   scoreAfter?: number;
   playerBefore?: ReturnType<typeof summarizePlayer>;
   playerAfter?: ReturnType<typeof summarizePlayer>;
+  candidates?: Array<{ type: string; tileId?: string; trackId?: string; target?: string; actionId?: string }>; // [per-candidate 학습] 결정시점 가능 후보들
 };
 
 /**
@@ -118,7 +119,8 @@ export function recordHumanActionFromLog(game: GaiaGameState & {
     scoreAfter: player.score,
     playerBefore: summarizePlayer(startPlayer),
     playerAfter: summarizePlayer(player),
-  });
+    candidates: (game.turnStartState?.[playerId] as any)?.humanCandidates, // [per-candidate 학습] 결정시점 가능 후보들
+  } as HumanActionJournalEntry);
 
   // 가치망 학습 데이터: 사람(강한 플레이어)의 결정 시점 상태 + 선택한 수(모방학습용)도 수집
   // (VALUE_NET_COLLECT=1일 때만). 봇 데이터(botHandler)와 합쳐 강한 플레이를 학습.

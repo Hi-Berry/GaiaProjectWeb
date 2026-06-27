@@ -215,6 +215,26 @@ function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
 }
 
 /** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
+// [per-candidate 학습] 사람 결정시점의 '가능했던 후보 수' 캡처용 훅(DI로 BotLogic.getCandidateMoves 주입 — 순환참조 회피).
+// index.ts에서 setHumanCandidateHook로 주입. 사람 게임 학습데이터에 (선택한 수 + 대안 후보)를 남겨 per-candidate 정책 가능.
+let _humanCandidateHook: ((game: ServerGameState, playerId: string) => any[]) | null = null;
+export function setHumanCandidateHook(fn: (game: ServerGameState, playerId: string) => any[]): void {
+	_humanCandidateHook = fn;
+}
+function captureHumanCandidates(game: ServerGameState, playerId: string): any[] | undefined {
+	if (!_humanCandidateHook) return undefined;
+	if ((game as any).botPlayerIds?.includes(playerId)) return undefined; // 사람만
+	if (game.currentPhase !== 'main') return undefined;                   // 메인 결정만(핵심)
+	try {
+		const cands = _humanCandidateHook(game, playerId) || [];
+		// 경량 저장: 타입 + 식별 파라미터만(피처는 저장된 최종맵으로 사후계산). 폭주 방지 40개 캡.
+		return cands.slice(0, 40).map((c: any) => ({
+			type: c.type, tileId: c.params?.tileId, trackId: c.params?.trackId,
+			target: c.params?.target, actionId: c.params?.actionId,
+		}));
+	} catch { return undefined; } // 캡처 실패는 게임에 절대 영향 없음
+}
+
 function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: string) {
 	clearFreeActionUndo(game);
 	// 턴 시작(또는 리셋) 시점 = 이 플레이어 액션 변동량의 기준선. 인컴/지난 턴/누수가 '이 턴 액션'에 안 섞이게 한다.
@@ -224,6 +244,7 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
 		roundNumber: game.roundNumber,
 		currentPlayerIndex: game.currentPlayerIndex,
 		playerState: deepClone(game.players[playerId]),
+		humanCandidates: captureHumanCandidates(game, playerId), // [per-candidate 학습] 결정시점 가능 후보들
 		mapState: deepClone(game.map),
 		spaceshipsState: game.spaceships ? deepClone(game.spaceships) : undefined,
 		twilightArtifactSlots: game.twilightArtifactSlots ? deepClone(game.twilightArtifactSlots) : undefined,

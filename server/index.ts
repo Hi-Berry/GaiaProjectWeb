@@ -3,7 +3,18 @@ import { createServer } from "http";
 import os from "os";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
-import { setupGameServer } from "./gameState";
+import { setupGameServer, setHumanCandidateHook } from "./gameState";
+import { BotLogic } from "./ai/bot";
+import { StateCloner } from "./ai/stateCloner";
+
+// [per-candidate 학습] 사람 결정시점의 가능 후보를 turnStartState에 캡처하도록 BotLogic 주입(DI, 순환참조 회피).
+// ★ 반드시 클론에 호출 — getCandidateMoves가 후보생성 중 game을 임시변경(pendingSteps 등)하므로
+//   라이브 게임 손상 방지 위해 복제본에서만 실행(복원 실패해도 네 실제 게임엔 무영향).
+setHumanCandidateHook((g, pid) => {
+  const clone = StateCloner.cloneGameStateForSimulation(g as any);
+  (clone as any).simulation = true;
+  return BotLogic.getCandidateMoves(clone, pid);
+});
 
 function getConnectionUrls(port: number): { local: string; lan: string[] } {
   const local = `http://localhost:${port}`;
