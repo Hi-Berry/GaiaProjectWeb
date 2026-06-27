@@ -1182,7 +1182,15 @@ export class BotLogic {
             case 'select_advanced_tech_tile': case 'select_tech_tile':
             case 'cover_advanced_tech_tile': case 'advance_tech': return 'Gained Tech Tile';
             case 'enter_spaceship': return 'Entered Ship';
-            case 'use_power_action': return 'Power Action';
+            case 'use_power_action': {
+                const id = (a.params as any)?.actionId || '';
+                if (/ore/.test(id)) return 'Pw:ore';
+                if (/credit/.test(id)) return 'Pw:credits';
+                if (/knowledge/.test(id)) return 'Pw:knowledge';
+                if (/token/.test(id)) return 'Pw:tokens';
+                if (/step/.test(id)) return 'Pw:tf';
+                return 'Pw:other'; // qic-action-* 등
+            }
             case 'use_ship_action': case 'use_tech_action': return 'Used Tech Action';
             case 'place_gaiaformer': return 'Placed Gaiaformer';
             default: return null;

@@ -10,6 +10,10 @@ const HEX=[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]];
 const dist=(a,b)=>(Math.abs(a.q-b.q)+Math.abs(a.q+a.r-b.q-b.r)+Math.abs(a.r-b.r))/2;
 const labelOf=(act,details)=>{if(!MAINSET.has(act))return null;
   if(/Advanced Research/i.test(act)){const tr=(details||'').split(/ to level/i)[0].trim();return tr?('R:'+tr):'Advanced Research';}
+  if(/Power Action/i.test(act)){const d=details||'';
+    if(/Ore/i.test(d))return'Pw:ore';if(/Credit/i.test(d))return'Pw:credits';
+    if(/Knowledge/i.test(d))return'Pw:knowledge';if(/Token/i.test(d))return'Pw:tokens';
+    if(/Terraform|step/i.test(d))return'Pw:tf';return'Pw:other';}
   return act;};
 function scalarFeat(e){const pb=e.playerBefore;if(!pb)return null;const r=pb.resources||{},res=pb.research||{};
   return [(e.round||1)/6,(pb.score||0)/100,(r.ore??0)/15,(r.credits??0)/20,(r.knowledge??0)/15,(r.qic??0)/8,((r.power1??0)+(r.power2??0)+(r.power3??0))/12,...TRACKS.map(t=>(res[t]??0)/5),(pb.techTiles?.length||0)/8,(pb.federations?.length||0)/3];}
