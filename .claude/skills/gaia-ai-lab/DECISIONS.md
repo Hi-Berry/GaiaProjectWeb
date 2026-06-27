@@ -318,3 +318,10 @@
 ## 2026-06-27 야간: 세션 누적 120판 확정 + 종족 피처 추가
 - **누적 120판: 현재봇(r1Ship+policyPUCT power-split) 73.3 vs 세션시작 70.5 = +2.83VP, 55%(66:54), p=0.104.** 작은표본 노이즈(+0.29/−4.36)가 120판서 +2.83 안착 = 세션 진짜 이득 ~+2.8VP 확정(winner's curse 부풀림 제거).
 - **종족 피처 추가(사용자 지시):** 사람 종족별 플레이 뚜렷이 다름 — nevlas 파워9.4(vs~5)·terran 가이아9.0·ambas 연방11.7·firaks 연구소6.3·lantids 광산8(최저)/연구10.5. 정책망에 종족 one-hot(18) 추가 → featDim 26→44, train acc 27.8%. 검증중(working-dir, git HEAD는 power-split 폴백).
+
+## 2026-06-27 야간: ❌ 종족 피처(one-hot 18) — 과적합으로 악화, 되돌림
+- 사용자 지시로 종족 one-hot 18개를 정책망 피처에 추가(featDim 26→44). 분석상 종족별 플레이 뚜렷이 다름(nevlas파워·terran가이아·ambas연방).
+- **검증(challenger OFF vs 종족net ON, 60판): VP +1.12(OFF 이김) = 종족피처가 PUCT를 악화.** power-split(+2.8 ON유리)에서 뒤집힘.
+- **원인: 종족당 ~120샘플(2147/18)로 18피처 과적합.** 종족차이는 실재하나 현 데이터론 학습 불가. **데이터 더 모이면(사용자 1:3) 재시도 가치O** — 종족피처 코드는 git에 남기지 않되 이 교훈 기록(데이터 게이트).
+- 되돌림: bot.ts/trainPolicyNet/policyNet.json → power-split(검증된 +2.8) 복원.
+- ★교훈 보강: feature 추가도 "데이터 대비 과다하면 과적합"(클래스 과분할과 같은 한계). 종족(18) > 데이터 여력. research/power 분할은 OK였던 건 클래스가 적고 feature증가 없어서.
