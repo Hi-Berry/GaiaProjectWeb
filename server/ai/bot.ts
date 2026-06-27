@@ -4325,20 +4325,17 @@ export class BotLogic {
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
         if (opponentGaiaformers.some(gf => getDistance(gf, tile) === 1)) bonus += 15;
 
-        // [flag: buildNearShipOpp] 사용자 관찰(고수): 같은 비용 타일이면 외각 고립보다 *우주선 근처*(탑승=Rebellion/기술연방)·
-        // *상대 dist2*(파워충전+TS할인 셋업)가 중요. 봇이 외각으로 새서 2O/6C 풀가격 TS 짓는 치명적 문제 교정.
-        if (getPlayerFlag(playerId, 'buildNearShipOpp', false)) {
+        // [flag: buildNearShip] 사람 첫집 패턴 데이터(39건): 첫 광산을 우주선 dist≤2에 51%(평균2.2)·자기건물 dist≤3에 80%로 둠.
+        // 상대 proximity는 무관(26%/분산)이라 제외(이전 buildNearShipOpp가 상대항 넣어 −1.76 backfire). 우주선만, 약하게, R1-2 한정.
+        // 자기건물 군집(close-to-own 80%)은 위 adjacencyBonus(+50 dist1/+20 dist2)가 이미 담당.
+        if (getPlayerFlag(playerId, 'buildNearShip', false) && game.roundNumber <= 2) {
             const entered = game.players[playerId]?.spaceshipsEntered || [];
             for (const t of game.map) {
                 const ty = t.type || '';
-                if (ty === 'ship_twilight' || ty === 'ship_rebellion' || ty === 'ship_tf_mars' || ty === 'ship_eclipse') {
-                    if (entered.includes(t.id)) continue;
+                if ((ty === 'ship_twilight' || ty === 'ship_rebellion' || ty === 'ship_tf_mars' || ty === 'ship_eclipse') && !entered.includes(t.id)) {
                     const d = getDistance(tile, t);
-                    if (d <= 1) bonus += 55; else if (d === 2) bonus += 30; else if (d === 3) bonus += 12;
+                    if (d <= 1) bonus += 30; else if (d === 2) bonus += 20; else if (d === 3) bonus += 8; // 약하게(이전 55/30/12 backfire)
                 }
-            }
-            for (const neighbor of range2Neighbors) { // 상대 dist2(파워충전 셋업). dist1은 위에서 이미 +20.
-                if (neighbor.ownerId && neighbor.ownerId !== playerId && neighbor.structure && neighbor.structure !== 'ship') bonus += 12;
             }
         }
         return bonus;
