@@ -1409,7 +1409,7 @@ export class BotLogic {
                 // [flag: advTileOverL5] green+L4+좋은 고급타일(≥85) 보유 시 연구소 건설을 우대 — 이게 tech-gain을 트리거해
                 // findTechTileAction이 그 고급타일을 집게 함(트리거 없으면 고급타일 기회 자체가 안 생겨 봇 0건이던 것).
                 if (getPlayerFlag(playerId, 'advTileOverL5', true) && countGreenFederations(player) >= 1
-                    && this.bestClaimableAdvScore(game, playerId) >= 85) score += 130;
+                    && this.bestClaimableAdvScore(game, playerId) >= 70) score += 130;
 
                 candidates.push({
                     id: `lab-${ts.id}`,
@@ -1515,7 +1515,7 @@ export class BotLogic {
                 score += this.calculateFinalMissionBonus(game, playerId, lab, 'academy');
                 // [flag: advTileOverL5] green+L4+좋은 고급타일(≥85)이면 아카 건설 우대 — tech-gain 트리거→고급타일 획득.
                 if (getPlayerFlag(playerId, 'advTileOverL5', true) && countGreenFederations(player) >= 1
-                    && this.bestClaimableAdvScore(game, playerId) >= 85) score += 130;
+                    && this.bestClaimableAdvScore(game, playerId) >= 70) score += 130;
 
                 // 지식 수입이 풍족한데 돈이 부족하면 연구소보다 교역소를 선호하도록 유도하는 점수 보정 (TS 점수가 상대적으로 올라감)
                 if ((player.knowledge || 0) > 10 && (player.credits || 0) < 10) {
@@ -3039,7 +3039,7 @@ export class BotLogic {
                 // ★ value-aware: green이 1개뿐이고, 청구가능 고급타일 중 *정말 좋은 것*(scoreAdvancedTechTile≥85)이 있을 때만
                 //   L5 부스트 생략(green을 그 고급타일에 양보). 나쁜 고급타일 땜에 좋은 L5 포기하지 않음. green 2+면 둘 다 가능→유지.
                 const divertToAdv = getPlayerFlag(playerId, 'advTileOverL5', true) && greenFeds === 1
-                    && this.bestClaimableAdvScore(game, playerId) >= 85;
+                    && this.bestClaimableAdvScore(game, playerId) >= 70;
                 if (!divertToAdv) score *= 2.0;
             }
         }
@@ -3066,7 +3066,7 @@ export class BotLogic {
         if (countGreenFederations(player) < 1) return false;
         // [flag: advTileOverL5] green 1개뿐인데 청구가능 고급타일 중 *정말 좋은 것*(≥85)이 있으면 L5 말고 그 고급타일에 양보.
         if (getPlayerFlag(playerId, 'advTileOverL5', true) && countGreenFederations(player) === 1
-            && this.bestClaimableAdvScore(game, playerId) >= 85) {
+            && this.bestClaimableAdvScore(game, playerId) >= 70) {
             return false;
         }
         if (Object.entries(game.players).some(([pid, p]) => pid !== playerId && (p.research?.[trackId] ?? 0) >= 5)) return false;
@@ -3162,7 +3162,7 @@ export class BotLogic {
         // 이기는 calibration 때문에 봇이 트리거를 만들어도 고급을 안 집던 마지막 관문 → 좋은 고급타일(≥85)이면 표준보다 우선.
         // value-aware: ≥85(정말 좋은 것)만 강제, 나쁜 고급은 기존대로 표준과 정상 비교.
         const advPreferred = !!bestAdv && (bestAdv.score > maxScore
-            || (getPlayerFlag(playerId, 'advTileOverL5', true) && bestAdv.score >= 85));
+            || (getPlayerFlag(playerId, 'advTileOverL5', true) && bestAdv.score >= 70));
         if (bestAdv && advPreferred) {
             if (!isSimulate) {
                 log(`Bot ${player.name} selected ADVANCED Tech Tile: ${bestAdv.tileId} (adv ${bestAdv.score.toFixed(1)} vs std ${maxScore.toFixed(1)})`, 'game', game.id);
