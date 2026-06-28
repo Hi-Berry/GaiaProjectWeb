@@ -68,6 +68,7 @@
 - 06-18 사거리 부스터(트왈라잇+3/보너스+3/글린+2) **낭비 + "부스터 후 사거리 액션만" 룰 위반**(봇이 소켓 가드 우회) → 후보 필터 + 발동 가드.
 - 06-17 글린/보너스 사거리 부스터를 필요 없는데 켜서 낭비.
 - 06-18 가상광산 인공물(asteroid/proto) 'build_mine' 라운드미션 +2 누락 / 고급타일 adv-vp-research(+2/연구전진) 일부 경로 누락 / 다카니안 소행성 의회 보너스 누락.
+- 06-28 **인공물 take 시 bowl3 토큰 낭비**(사용자 관찰): 6파워는 `spendPowerTokens`로 그릇1→2→3 순 소모 → bowl1+bowl2<6이면 부족분만큼 bowl3 토큰이 그냥 제거됨. `findTwilightArtifactActions` totalPower≥6 분기가 preActions 없이 바로 소모하던 것 교정 → 제거될 bowl3 토큰 `d=min(p3,6-p1-p2)`개를 먼저 1P→1C 환수(토큰은 bowl1로 옮겨졌다가 어차피 소모 → 최종 파워 동일, 크레딧 d 이득 = strictly dominant). 헬퍼 `doomedBowl3CashoutPreActions`. 타클론(브레인스톤 특수회계) 제외. h2h 불필요(낭비수정).
 
 ## 종족별 평균 점수 (최근 측정 — 약한 종족부터 보강 대상)
 

@@ -4161,6 +4161,19 @@ export class BotLogic {
     }
 
     /** 인공물 획득 후보. 파워 6 미만이면 need=6-totalPower만큼 1O→1토큰 후보를 need~min(6,ore)까지 넣어 MCTS가 효율 판단. */
+    /** [낭비수정] 그릇1→2→3 순으로 cost 파워를 즉시 소모하는 액션(인공물 take 등) 전에,
+     *  소모로 그냥 제거될 bowl3 토큰을 1P→1C로 미리 환수하는 프리액션 목록을 만든다.
+     *  bowl1+bowl2 < cost면 부족분만큼 bowl3가 소모되는데, 그 토큰을 먼저 환수하면 토큰은 bowl1로
+     *  옮겨졌다가 어차피 소모되므로 최종 파워 상태는 동일하고 크레딧만 회수된다(strictly dominant).
+     *  타클론은 브레인스톤 파워회계가 특수(토큰 1개=3파워)해 모델이 깨지므로 제외. */
+    private static doomedBowl3CashoutPreActions(player: PlayerState, cost: number): BotAction[] {
+        if (player.faction === 'taklons') return [];
+        const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+        const doomed = Math.min(p3, Math.max(0, cost - p1 - p2));
+        if (doomed <= 0) return [];
+        return Array.from({ length: doomed }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
     private static findTwilightArtifactActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
@@ -4172,7 +4185,11 @@ export class BotLogic {
             const bestId = this.getBestArtifactId(game, playerId);
             const refill = bestId === 'art-income-2p3' ? 2 : 0;
             if (!bestId || !this.canSpendPowerTokensForStrategicAction(game, player, 6, 0, refill)) return results;
-            if (bestId) results.push({ type: 'take_twilight_artifact', params: { artifactId: bestId } });
+            // 6파워 소모로 그냥 제거될 bowl3 토큰을 먼저 1P→1C로 환수(최종 파워 동일+크레딧 이득). 사용자 관찰 교정.
+            const cashout = this.doomedBowl3CashoutPreActions(player, 6);
+            results.push(cashout.length
+                ? { type: 'take_twilight_artifact', params: { artifactId: bestId }, preActions: cashout }
+                : { type: 'take_twilight_artifact', params: { artifactId: bestId } });
             return results;
         }
 
