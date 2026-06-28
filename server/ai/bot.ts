@@ -564,6 +564,14 @@ export class BotLogic {
                     // affordable하면 그걸 실행 = 생산적 턴(1:1 변환보다 훨씬 이득). MCTS가 파워액션 저평가해 0회 쓰던 것 일반교정
                     // (humanRule2O 일반판, 사용자 관찰). 토큰예비 가드로 연방용 토큰 드레인 방지.
                     if (getPlayerFlag(playerId, 'powerActionOverPass', true) && !game.hasDoneMainAction) {
+                        // 패스 직전 once-per-round 특수액션(아카데미 QIC·기술액션)도 사용 — 안 쓰면 그 라운드 통째 낭비(사용자 관찰).
+                        // gleens-2nav/space_giants-2tf 등 once-per-game 부스터는 제외(아껴야 함). 이들은 비용 없는 자원획득이라 순이득.
+                        const sp = this.findSpecialActions(game, playerId).find(a =>
+                            a.params?.actionId === 'academy-qic' || a.type === 'use_tech_action');
+                        if (sp) {
+                            log(`Bot ${player.name} powerActionOverPass(special): ${sp.type}/${(sp.params as any)?.actionId ?? (sp.params as any)?.tileId} 대신 패스 안 함`, 'game', game.id);
+                            return sp;
+                        }
                         const pa = this.findPowerActions(game, playerId)[0];
                         if (pa) {
                             const act = game.powerActions.find(a => a.id === pa.params?.actionId);
