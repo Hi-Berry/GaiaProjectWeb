@@ -427,3 +427,9 @@
 - 수정 3관문(전부 value-aware, scoreAdvancedTechTile≥85 좋은타일만): ①green1개뿐+좋은고급 있으면 L5 ×2.0 부스트 끔(green 양보) ②green+L4+좋은고급이면 연구소/아카 빌드 +130(tech-gain 트리거 생성) ③findTechTileAction에서 좋은고급(≥85)이면 표준보다 우선 선택.
 - **do-no-harm 40판: VP +4.35(p=0.14 노이즈). ★단 고급타일 선택 여전히 0** — 강제선택까지 넣어도 0 = 봇이 self-play서 전제상태(green+L4+좋은고급) 자체에 도달 안함(엔진 벽, advTechChain과 동일). 
 - 채택 근거: 논리적 정확+value-aware(나쁜고급 안 먹음, 사용자 우려)+do-no-harm+확인된 최대갭(0vs95). **VP증명은 self-play 불가(전제 희박)→사용자 1:3 유일 판정.** 1:3서도 안 먹으면 threshold 85가 높은 것→낮추기. flag OFF로 구동작.
+
+## 2026-06-28 밤 자율 배치 (사용자 취침, 미검증분 일괄 do-no-harm)
+- **fedTrimSatPath 채택(ON)**: 위성경로 연방 과포함 트림(모웨이드 첫연방 +1위성·8파워 관찰). BFS 연결컴포넌트 통째병합→트림. 40판 VP-1.11(노이즈), 연방 1.44vs1.46(안깨짐), 에러0(폴백작동). 버그수정+안전+논리적 → ON. 진짜판정 1:3.
+- **gaiaformPreSpend 되돌림(OFF)**: 무검증 "순이득"이라 ON했는데 40판 ON이 -5.24(p=0.11). 추정원인: 변환을 *크레딧*으로 해서 크레딧과잉(죽음의나선) 악화 — 저가치 자원추가가 역효과. 자기교정→OFF. (deficit 1엔 3P→1ore 불가라 credit밖에 못썼던 게 한계.)
+- **academyTypeChoice 유지(ON)**: 도전자OFF +0.49(중립), 연방 1.54vs1.48. 사용자룰(기본 left지식, right QIC는 리벨리온/R5+) 도메인옳음 → 유지.
+- 전부 에러0(game_error 없음 — 폴백/가드 안전).
