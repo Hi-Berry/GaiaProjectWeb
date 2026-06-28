@@ -404,3 +404,10 @@
 - **do-no-harm 40판: VP −7.10 (p=0.007 유의!), 광산 +0.61(뭉치긴 함).** 명확한 손해 → 기각.
 - ★원인: 랭커는 *상대위치*만 학습, *타일가치*(가이아/proto/미션/테라폼) 모름 → ×60으로 가치 무시하고 가까운 나쁜타일에 뭉쳐 +80VP짜리 먼 가이아/미션 버림.
 - ★★교훈: (1)position-only 모방을 value-driven 봇에 강하게 박으면 역효과(humanResearchPrior −2.08과 같은 family, 더 큼). (2)**추측이지만 surgical한 isolatedTSPenalty(극단고립만 −150, 가치보존)=+0.94가 오히려 정답.** data probe는 "밀집이 압도적 신호"라는 *방향*만 확증(isolatedTSPenalty 설계 정당화). (3)학습정책을 쓰려면 가치피처 포함 재학습 or 전체 정책망(후보생성 자체 대체)이어야. placementPolicy flag OFF 코드보존.
+
+## 2026-06-28 ★ advTileOverL5 채택(기본 ON) — green을 L5 대신 고급타일에 (3관문 + value-aware)
+- 사용자 관찰: 봇 R6에 고급타일(10+VP) 안 먹고 광산 짓다 패스. 데이터 확증: 봇 고급타일 0건 vs 사람 95, green 21개 미사용, L5도달 15.
+- 사용자 의문 "왜 L5가 고급타일보다 늘 높나" → calculateResearchScore의 level4 green ×2.0이 L5를 ~200으로 띄워 둘 다 green쓰는 고급타일(~75-120) 압도. 주석은 "고급위해 L5"였지만 정반대(L5가 green 소모).
+- 수정 3관문(전부 value-aware, scoreAdvancedTechTile≥85 좋은타일만): ①green1개뿐+좋은고급 있으면 L5 ×2.0 부스트 끔(green 양보) ②green+L4+좋은고급이면 연구소/아카 빌드 +130(tech-gain 트리거 생성) ③findTechTileAction에서 좋은고급(≥85)이면 표준보다 우선 선택.
+- **do-no-harm 40판: VP +4.35(p=0.14 노이즈). ★단 고급타일 선택 여전히 0** — 강제선택까지 넣어도 0 = 봇이 self-play서 전제상태(green+L4+좋은고급) 자체에 도달 안함(엔진 벽, advTechChain과 동일). 
+- 채택 근거: 논리적 정확+value-aware(나쁜고급 안 먹음, 사용자 우려)+do-no-harm+확인된 최대갭(0vs95). **VP증명은 self-play 불가(전제 희박)→사용자 1:3 유일 판정.** 1:3서도 안 먹으면 threshold 85가 높은 것→낮추기. flag OFF로 구동작.
