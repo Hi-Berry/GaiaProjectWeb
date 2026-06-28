@@ -393,7 +393,7 @@ export class FederationPlanner {
                 currentPower = getFederationBuildingPower(game, playerId, currentPlanetIds, Array.from(currentHexIds));
 
                 if (currentPower >= requiredPower) {
-                    return this.finalizeFederation(game, playerId, Array.from(currentHexIds), Array.from(currentPlanetIds), tokensSpent);
+                    return this.finalizeFederation(game, playerId, Array.from(currentHexIds), Array.from(currentPlanetIds), tokensSpent, requiredPower);
                 }
 
                 // Since we added new planets, add their empty neighbors to the queue
@@ -467,13 +467,74 @@ export class FederationPlanner {
         return availableIds;
     }
 
+    /**
+     * [flag: fedTrimSatPath] 위성 경로 연방의 과포함 트림(사용자 관찰: +1위성·8파워 과형성).
+     * BFS가 연결 컴포넌트를 통째로 병합해 7파워 초과 + 잉여 위성 → 연결성·요구파워 유지하며 잉여 건물/위성 제거.
+     * 안전: 결과가 연결+≥요구파워 + 실제 축소일 때만 채택, 아니면 원본(무효 연방 → game_error 방지).
+     */
+    private static trimFederationSet(
+        game: ServerGameState, playerId: string,
+        hexIds: string[], planetIds: string[], requiredPower: number
+    ): { hexIds: string[], planetIds: string[] } {
+        const orig = { hexIds, planetIds };
+        try {
+            const powerRank = (id: string): number => {
+                const t = game.map.find(x => x.id === id); if (!t) return 0;
+                let p = 0;
+                if (t.ownerId === playerId && t.structure && t.structure !== 'ship') {
+                    p = (t.structure === 'planetary_institute' || t.structure === 'academy') ? 3 : (t.structure === 'trading_station' || t.structure === 'research_lab') ? 2 : 1;
+                }
+                if (t.parasiticMine?.ownerId === playerId) p += 1;
+                if (t.spaceStation?.ownerId === playerId) p += 1;
+                return p;
+            };
+            const connected = (P: Set<string>, H: Set<string>): boolean => {
+                const all = new Set<string>(Array.from(P).concat(Array.from(H)));
+                if (all.size <= 1) return true;
+                const start = all.values().next().value as string;
+                const seen = new Set<string>([start]); const stack = [start];
+                while (stack.length) {
+                    const id = stack.pop()!; const t = game.map.find(x => x.id === id); if (!t) continue;
+                    for (const n of getNeighbors(game.map, t)) {
+                        if (all.has(n.id) && !seen.has(n.id)) { seen.add(n.id); stack.push(n.id); }
+                    }
+                }
+                return seen.size === all.size;
+            };
+            const pow = (P: Set<string>, H: Set<string>) => getFederationBuildingPower(game, playerId, P, Array.from(H));
+            const P = new Set(planetIds), H = new Set(hexIds);
+            const buildings = Array.from(P).sort((a, b) => powerRank(a) - powerRank(b));
+            for (const b of buildings) {
+                const P2 = new Set(P); P2.delete(b);
+                if (P2.size > 0 && pow(P2, H) >= requiredPower && connected(P2, H)) P.delete(b);
+            }
+            for (const s of Array.from(H)) {
+                const H2 = new Set(H); H2.delete(s);
+                if (pow(P, H2) >= requiredPower && connected(P, H2)) H.delete(s);
+            }
+            if (pow(P, H) >= requiredPower && connected(P, H) && (P.size + H.size) < (planetIds.length + hexIds.length)) {
+                return { hexIds: Array.from(H), planetIds: Array.from(P) };
+            }
+        } catch { /* 폴백 */ }
+        return orig;
+    }
+
     private static finalizeFederation(
         game: ServerGameState,
         playerId: string,
         selectedHexIds: string[],
         selectedPlanetIds: string[],
-        spentTokens: number
+        spentTokens: number,
+        requiredPower?: number
     ) {
+        // [flag: fedTrimSatPath] 위성 경로(hex 있음)면 과포함 트림 시도(안전 폴백 내장).
+        if (requiredPower != null && selectedHexIds.length > 0
+            && getPlayerFlag(playerId, 'fedTrimSatPath', false)) {
+            const trimmed = this.trimFederationSet(game, playerId, selectedHexIds, selectedPlanetIds, requiredPower);
+            selectedHexIds = trimmed.hexIds;
+            selectedPlanetIds = trimmed.planetIds;
+            spentTokens = trimmed.hexIds.length;
+        }
         // [버그수정 2026-06-18] 우주선 연방(ship-fed-*)이 보상 후보에서 누락됐었음 — 일반보다 월등(12VP/기술타일 등).
         // 서버 federation_select_reward 규칙과 동일: 내가 입장한 우주선의 ship-fed가 아직 안 뺏겼으면 선택 가능(풀 무관).
         const availableIds = this.getAvailableRewardIds(game, playerId);
