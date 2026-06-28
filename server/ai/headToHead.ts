@@ -26,7 +26,7 @@ import path from 'path';
 
 type Flags = Record<string, number | boolean>;
 type Variant = { label?: string; weights?: unknown; flags?: Flags };
-type SeatResult = { playerId: string; faction?: string; score: number; group: 'A' | 'B' | null; pos?: number; actions?: Record<string, number> };
+type SeatResult = { playerId: string; faction?: string; score: number; group: 'A' | 'B' | null; pos?: number; actions?: Record<string, number>; r1income?: number };
 type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[] };
 
 // 행동 분류 — "변경이 의도한 행동대체를 실제로 했는지"(예: 교역소↓ → 광산/연구소↑ vs 그냥 패스↑) 검증용.
@@ -214,6 +214,8 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 group: (p.h2hGroup as 'A' | 'B' | undefined) ?? null,
                 pos: p.h2hPos,
                 actions: byPlayer[playerId] ?? {},
+                // [진단] 1라운드 수익 합(O+K+C). 0이면 그 플레이어가 1R 수익 못 받음 = 수익 스킵 버그 게임.
+                r1income: (() => { const t = p.roundIncomeTotals?.[1]; return t ? ((t.ore ?? 0) + (t.knowledge ?? 0) + (t.credits ?? 0)) : 0; })(),
             }));
             resolve({ gameId, bPositions: headToHead.bPositions, seats });
         };

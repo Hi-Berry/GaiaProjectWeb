@@ -1804,7 +1804,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 	if ((game as ServerGameState).pendingTurnEndPlayerId) {
 		(game as ServerGameState).pendingTurnEndPlayerId = undefined;
 	}
-	log(`Triggering income phase for round ${game.roundNumber}`, 'game', undefined, { simulation: (game as any).simulation });
+	log(`Triggering income phase for round ${game.roundNumber}`, 'game', game.id, { simulation: (game as any).simulation });
+	// [진단] 분기 결정 상태를 게임별 로그파일에 기록 (수익 스킵 버그 추적)
+	log(`[Income][diag] round=${game.roundNumber} incomePhaseAppliedThisRound=${(game as any).incomePhaseAppliedThisRound} pendingIncomeOrder=${(game.pendingIncomeOrder as any)?.playerId ?? 'none'}`, 'game', game.id, { simulation: (game as any).simulation });
 	const turnOrder = game.turnOrder ?? Object.keys(game.players);
 
 	// 재진입(한 명이 수익 선택 완료 후): 수익 재적용 없이, 파워/토큰 선택이 남은 다음 플레이어만 턴 순서로 찾기
@@ -1838,7 +1840,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const factionId = player.faction;
 
 			const beforeResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
-			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game', undefined, { simulation: (game as any).simulation });
+			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game', game.id, { simulation: (game as any).simulation });
 
 			// --- Round income totals accumulator (stable metric for tuning) ---
 			const incomeRound = game.roundNumber || 1;
@@ -2064,7 +2066,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			// 기존 itarsPendingBowl1Tokens 로직 삭제 (아래 가이아 포머 복귀 로직에서 통합 처리됨)
 
 			const afterResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
-			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game', undefined, { simulation: (game as any).simulation });
+			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game', game.id, { simulation: (game as any).simulation });
 
 			// Save round income totals (power/tokens counts are already totals for the round)
 			if (!player.roundIncomeTotals) player.roundIncomeTotals = {};
