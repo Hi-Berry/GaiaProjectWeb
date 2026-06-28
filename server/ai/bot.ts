@@ -3424,6 +3424,23 @@ export class BotLogic {
 
         const myMines = game.map.filter(t => t.ownerId === playerId && t.structure);
 
+        // [flag: startPlacementFuturePlayers] 초기 배치 '큰 그림' 신호 사전계산(후보마다 동일 → 루프 밖):
+        // 미래 배치자 홈타입 / 우주선 위치 / 맵 중심.
+        const smartPlace = getPlayerFlag(playerId, 'startPlacementFuturePlayers', false);
+        const oppHomeTypes = new Set<string>(
+            Object.values(game.players)
+                .filter(p => p && p.faction && p.faction !== player.faction)
+                .map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet as string | undefined)
+                .filter((x): x is string => !!x)
+        );
+        const shipTiles = game.map.filter(t => ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].includes(t.type || ''));
+        const mapCenter = (() => {
+            if (game.map.length === 0) return { q: 0, r: 0 };
+            let sq = 0, sr = 0;
+            for (const t of game.map) { sq += (t.q ?? 0); sr += (t.r ?? 0); }
+            return { q: sq / game.map.length, r: sr / game.map.length };
+        })();
+
         for (const tile of freeTiles) {
             let score = 0;
 
@@ -3453,17 +3470,11 @@ export class BotLogic {
                 score += w;
             }
 
-            // [flag: startPlacementFuturePlayers 기본 OFF] 내 턴 뒤에 놓을/지을 상대(미래 배치자)를 고려.
-            // 상대는 자기 홈 행성 타입 위에 지을 확률이 높다 → 그 '빈 홈타입 타일' 근처(dist≤2)에 놓으면 미래 파워 리치 기대.
-            // 추측이라 확실한 '이미 놓인 광산 +5'(line 위)보다 낮게(+2, 캡 +6)만 반영. 중앙·접점 자리를 자연히 선호하게 됨.
+            // [flag: startPlacementFuturePlayers 기본 OFF] 초기 배치 '큰 그림' 가점 (스코어러가 즉시 확장만 보던 myopia 보완).
             // self-play로 검증 불가(contention 미재현) → 도메인 논리 + 실게임 1:3 판정용. OFF 기본이라 기존 동작 무영향.
-            if (getPlayerFlag(playerId, 'startPlacementFuturePlayers', false)) {
-                const oppHomeTypes = new Set<string>(
-                    Object.values(game.players)
-                        .filter(p => p && p.faction && p.faction !== player.faction)
-                        .map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet as string | undefined)
-                        .filter((x): x is string => !!x)
-                );
+            if (smartPlace) {
+                // (a) 미래 배치자: 상대는 자기 홈 행성 타입에 지을 확률↑ → 그 빈 홈타입 타일 인접(dist≤2)이면 미래 파워 리치 기대.
+                //     확실한 '이미 놓인 광산 +5'보다 낮게(+2, 캡 +6).
                 let futureLeech = 0;
                 for (const ft of game.map) {
                     if (ft.ownerId || ft.structure || !ft.type) continue; // 빈 타일만
@@ -3471,6 +3482,13 @@ export class BotLogic {
                     if (getDistance(tile, ft) <= 2) futureLeech += 2;
                 }
                 score += Math.min(futureLeech, 6);
+                // (b) 우주선 인접: 우주선 입장(액션)은 강력한데 초기 사거리는 짧다 → 가까울수록 입장 비용(Nav/QIC)↓ (dist≤2:+4, ≤4:+2).
+                for (const ship of shipTiles) {
+                    const d = getDistance(tile, ship);
+                    if (d <= 2) score += 4; else if (d <= 4) score += 2;
+                }
+                // (c) 맵 중앙: 연결성·사거리·리치·우주선 접근 모두 우위. 중심에 가까울수록 가점(최대 +6, dist≥6은 0).
+                score += Math.max(0, 6 - getDistance(tile, mapCenter));
             }
 
             // 두 번째 광산을 첫 번째 광산 근처(거리 3 이하)에 배치하는 것을 매우 강하게 기피 (선택지가 정말 없을 때만 어쩔 수 없이 짓도록)
