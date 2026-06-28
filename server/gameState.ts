@@ -776,8 +776,9 @@ export function getFederationRequiredPower(game: ServerGameState, playerId: stri
 	// 그 외 종족은 매 연방 시도마다 선택된 건물/우주정거장 파워가 7(또는 Xenos면 6) 이상인지로 판정.
 	if (player?.faction !== 'ivits') return powerPerFed;
 
-	// 우주선 연방(삽 꼭대기 등 ship-fed-*)은 위성으로 형성한 연방이 아니므로 누적 요구치 계산에서 제외.
-	const formedFedCount = getFederationEntries(player).filter(e => !e.rewardId.startsWith('ship-fed-')).length;
+	// [수정 2026-06-28] 하이브 누적 요구치는 *모든* 연방(위성+우주선)을 1개씩 센다(사용자 룰 확정).
+	// 이전엔 ship-fed-*를 제외해 우주선 연방 보유 시 다음 요구파워가 7씩 모자라게 떴음(예: 위성2+우주선1=3개인데 21로).
+	const formedFedCount = getFederationEntries(player).length;
 	const n = formedFedCount + 1;
 	return powerPerFed * n;
 }
