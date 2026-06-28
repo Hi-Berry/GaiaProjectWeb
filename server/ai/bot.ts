@@ -3285,6 +3285,13 @@ export class BotLogic {
             s += gaiaCount * 2;
         } else if (tileId === 'adv-imm-5vp-fed') {
             s += fedCount * 5;
+        } else if (tileId === 'adv-act-3k') {
+            // 자원형(매 라운드 액션). 라운드-인지: 남은 라운드만큼 사용 → passesLeft 비례. 지식=연구엔진 연료라 가중 높게.
+            s += Math.round(6 * passesLeft);
+        } else if (tileId === 'adv-act-1q-5c') {
+            s += Math.round(5 * passesLeft); // QIC1+크레딧5/라운드
+        } else if (tileId === 'adv-act-3o') {
+            s += Math.round(4 * passesLeft); // 광석3/라운드
         } else if (tileId.startsWith('adv-')) {
             // 알 수 없는 고급 타일: 보수적 베이스만
             s += 35;
