@@ -68,6 +68,7 @@
 - 06-18 사거리 부스터(트왈라잇+3/보너스+3/글린+2) **낭비 + "부스터 후 사거리 액션만" 룰 위반**(봇이 소켓 가드 우회) → 후보 필터 + 발동 가드.
 - 06-17 글린/보너스 사거리 부스터를 필요 없는데 켜서 낭비.
 - 06-18 가상광산 인공물(asteroid/proto) 'build_mine' 라운드미션 +2 누락 / 고급타일 adv-vp-research(+2/연구전진) 일부 경로 누락 / 다카니안 소행성 의회 보너스 누락.
+- 06-28 **연구 전진 충전 낭비**(사용자 지시 후속): advance_research가 충전을 유발하는 두 지점(아무 트랙 L3 도달 +3PW, 경제 L5 도달 +6PW, applyTrackLevelBonus)에서 bowl 수용량 부족 시 충전이 버려지던 것 교정. 헬퍼 `advanceResearchAction`이 newLevel로 충전량을 산정해 `chargeDrainPreActions`로 bowl3 선환수. 후보 생성 2곳(nav QIC절약, pickResearchTracks)에 적용. waste≥2 strictly dominant(p3 부족 시도 "회수 가능한 만큼"이라 무해), `chargeDrainBowl3` 플래그 공유. h2h 불필요. 남은 미해결: 상대 leech 예측 선환수(휴리스틱→h2h 필요), 기술타일 구동 연구전진의 충전(드물어 보류).
 - 06-28 **우주선 입장 충전 낭비**(사용자 관찰): 2·3번째 입장 +2PW·4번째 +3PW 충전(executeEnterSpaceship)이 bowl 수용량(2·p1+p2) 부족 시 버려짐. 기존 tech-act-4p의 충전낭비 대비 인라인 로직을 헬퍼 `chargeDrainPreActions(playerId,player,chargeAmount)`로 추출해 우주선 입장에도 적용. waste≥2에서만 bowl3를 1P→1C로 비워(strictly dominant: 비운 토큰이 충전으로 bowl3 복귀+크레딧) — 기존 `chargeDrainBowl3` 플래그(기본ON) 공유. itars/nevlas(입장 시 토큰 선소모)·타클론 제외. h2h 불필요(낭비수정). 미해결: 연구L3(+3)·eco L5(+6) 충전, 상대 leech 예측 선환수는 별도(후자는 휴리스틱이라 h2h 필요).
 - 06-28 **인공물 take 시 bowl3 토큰 낭비**(사용자 관찰): 6파워는 `spendPowerTokens`로 그릇1→2→3 순 소모 → bowl1+bowl2<6이면 부족분만큼 bowl3 토큰이 그냥 제거됨. `findTwilightArtifactActions` totalPower≥6 분기가 preActions 없이 바로 소모하던 것 교정 → 제거될 bowl3 토큰 `d=min(p3,6-p1-p2)`개를 먼저 1P→1C 환수(토큰은 bowl1로 옮겨졌다가 어차피 소모 → 최종 파워 동일, 크레딧 d 이득 = strictly dominant). 헬퍼 `doomedBowl3CashoutPreActions`. 타클론(브레인스톤 특수회계) 제외. h2h 불필요(낭비수정).
 

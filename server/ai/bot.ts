@@ -923,7 +923,7 @@ export class BotLogic {
             if (currentNav < 5) {
                 const needsQIC = this.checkIfActionNeedsQIC(game, playerId, primaryBuild);
                 if (needsQIC && this.willNavResearchSaveQIC(game, playerId, primaryBuild)) {
-                    candidates.push({ type: 'advance_research', params: { trackId: navId } });
+                    candidates.push(this.advanceResearchAction(playerId, player, navId));
                 }
             }
         }
@@ -996,7 +996,7 @@ export class BotLogic {
         if ((player.knowledge ?? 0) >= 4) {
             const tracks = this.pickResearchTracks(game, player, playerId);
             for (const track of tracks) {
-                candidates.push({ type: 'advance_research', params: { trackId: track } });
+                candidates.push(this.advanceResearchAction(playerId, player, track));
             }
         }
 
@@ -4666,6 +4666,18 @@ export class BotLogic {
         if (waste < 2 || p3 < 1) return [];
         const drains = Math.min(p3, Math.ceil(waste / 2));
         return Array.from({ length: drains }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
+    /** advance_research 후보 생성 헬퍼: 그 전진이 충전을 유발하면(아무 트랙 L3 도달 +3PW, 경제 L5 +6PW,
+     *  applyTrackLevelBonus) bowl 수용량 부족분을 chargeDrainPreActions로 미리 비워 충전 낭비를 막는다.
+     *  충전을 안 일으키는 전진은 preActions 없이 그대로. */
+    private static advanceResearchAction(playerId: string, player: PlayerState, trackId: ResearchTrack): BotAction {
+        const newLevel = (player.research?.[trackId] ?? 0) + 1;
+        const charge = newLevel === 3 ? 3 : (trackId === 'economy' && newLevel === 5 ? 6 : 0);
+        const preActions = this.chargeDrainPreActions(playerId, player, charge);
+        return preActions.length
+            ? { type: 'advance_research', params: { trackId }, preActions }
+            : { type: 'advance_research', params: { trackId } };
     }
 
     private static findSpecialActions(game: ServerGameState, playerId: string): BotAction[] {
