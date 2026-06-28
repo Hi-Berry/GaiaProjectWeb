@@ -2575,7 +2575,14 @@ export class BotLogic {
                 - actualSteps * penaltyPerStep
                 - (dist * 15) // 거리 페널티 대폭 증가
             );
-            
+            // [flag: pendingStepsQicPenalty 기본 ON] 펜딩 테라폼스텝 빌드 경로에도 QIC 점프 페널티 적용.
+            // findBuildActions엔 강한 QIC 억제가 있는데 이 경로엔 없어서, 테라폼 보너스/삽 액션 쓸 때
+            // 사거리 밖 타일에 1QIC 던져 짓던 낭비(사용자 관찰: "Nav 1만 올리고 2거리에 QIC 던져 지음").
+            // 페널티는 후보 순서만 바꿈 → 인레인지(0QIC) 타일 있으면 그걸, 없으면 최소QIC 타일 선택(빌드 자체는 안 막음).
+            if (getPlayerFlag(playerId, 'pendingStepsQicPenalty', true) && neededQic > 0) {
+                score -= neededQic * (game.roundNumber <= 4 ? 220 : 120);
+            }
+
             score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
             score += this.calculateFinalMissionBonus(game, playerId, tile);
 

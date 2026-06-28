@@ -79,6 +79,12 @@
 - 확장(사용자 추가 관찰 "우주선 주변+맵 중앙 가점 없음"): 같은 플래그에 (b)우주선 인접(dist≤2:+4, ≤4:+2 — 입장 비용↓) (c)맵 중심 근접(최대 +6, 전체 타일 q/r 평균=중심) 추가. 사전계산은 루프 밖.
 - 미구현(v2 후보): contested 확장군집(여러 상대 사거리 동시 노출) 약한 감점.
 
+## 2026-06-28 pendingStepsQicPenalty (플래그 기본 ON)
+- 사용자 관찰: 봇이 "Nav를 레벨1로만 올리고(=range 안 늚) 2거리에 1QIC 던져 짓는다, 늘 1QIC 손해". 실게임 로그(b3lhu1ks R1 ivits) 확인: terra/volcanic에 1QIC씩 빌드 + nav→1(range 그대로 1).
+- 근본: 빌드 생성기 2개 중 `findBuildActions`엔 강한 QIC 억제(R1 −300/QIC, nav절약 skip, navBeforeJump 검증됨)가 있는데, **`findBuildActionsWithPendingSteps`(펜딩 테라폼스텝 경로)엔 QIC 페널티가 전혀 없었음**(score=dist*15만). 테라폼 보너스/삽 액션 쓰면 이 경로만 타서 QIC 낭비.
+- 픽스: 펜딩스텝 경로 regular 타일 score에 `−neededQic*(R≤4?220:120)`. 순서만 바꿈(인레인지 우선, 없으면 최소QIC) → 빌드 자체는 안 막아 삽 낭비 없음. 이미 검증된 navBeforeJump 억제의 누락분 보충이라 기본 ON.
+- 검증: QIC 효율은 self-play로 측정 가능(placement와 달리). do-no-harm h2h 권장(미실행).
+
 ## 종족별 평균 점수 (최근 측정 — 약한 종족부터 보강 대상)
 
 06-18 (버그픽스 후, 120판, ~27샘플/종족):
