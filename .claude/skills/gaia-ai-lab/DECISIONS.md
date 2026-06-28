@@ -83,7 +83,7 @@
 - 사용자 관찰: 봇이 "Nav를 레벨1로만 올리고(=range 안 늚) 2거리에 1QIC 던져 짓는다, 늘 1QIC 손해". 실게임 로그(b3lhu1ks R1 ivits) 확인: terra/volcanic에 1QIC씩 빌드 + nav→1(range 그대로 1).
 - 근본: 빌드 생성기 2개 중 `findBuildActions`엔 강한 QIC 억제(R1 −300/QIC, nav절약 skip, navBeforeJump 검증됨)가 있는데, **`findBuildActionsWithPendingSteps`(펜딩 테라폼스텝 경로)엔 QIC 페널티가 전혀 없었음**(score=dist*15만). 테라폼 보너스/삽 액션 쓰면 이 경로만 타서 QIC 낭비.
 - 픽스: 펜딩스텝 경로 regular 타일 score에 `−neededQic*(R≤4?220:120)`. 순서만 바꿈(인레인지 우선, 없으면 최소QIC) → 빌드 자체는 안 막아 삽 낭비 없음. 이미 검증된 navBeforeJump 억제의 누락분 보충이라 기본 ON.
-- 검증: QIC 효율은 self-play로 측정 가능(placement와 달리). do-no-harm h2h 권장(미실행).
+- 검증: ✅ do-no-harm 120판(챔피언ON vs 도전자OFF, 가중치격리). 평균VP 챔피언71.6 vs 도전자70.7 → 신동작 +0.86VP(p=0.65 노이즈), 승률 신66:구53. 음수아님+방향일관 → 채택유지. 행동: 신ON이 광산 +0.10/좌석(QIC아껴 인레인지확장↑)=의도대로. 수익스킵 게임 0(측정 클린).
 
 ## 종족별 평균 점수 (최근 측정 — 약한 종족부터 보강 대상)
 
