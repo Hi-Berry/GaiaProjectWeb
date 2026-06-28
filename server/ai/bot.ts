@@ -3866,7 +3866,15 @@ export class BotLogic {
                 }
             }
 
-            const act: BotAction = { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } };
+            // [사용자 관찰] 입장 순서 충전(2·3번째 +2PW, 4번째 +3PW, executeEnterSpaceship)이 bowl 수용량 부족으로
+            // 버려지면 bowl3 먼저 비워 수용량 확보. itars/nevlas는 입장 시 토큰 1개를 선소모해 bowl 상태가 바뀌어
+            // chargeDrainPreActions 모델(strictly dominant 보장)이 어긋나므로 제외.
+            const myIdx = (shipState?.occupants?.length ?? 0) + 1;
+            const entryCharge = (myIdx === 2 || myIdx === 3) ? 2 : (myIdx === 4 ? 3 : 0);
+            const entryDrain = ['itars', 'nevlas'].includes(player.faction || '') ? [] : this.chargeDrainPreActions(playerId, player, entryCharge);
+            const act: BotAction = entryDrain.length
+                ? { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic }, preActions: entryDrain }
+                : { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } };
             // 서버 규칙 기준으로 실제 성공하는 후보만 남김 (점수/토큰/사거리 등 누락 방지)
             // note: 후보 생성은 sync이므로, 여기서는 "가능성 높은 것"만 일단 모으고 아래에서 한번에 필터링
             // 서버 executeEnterSpaceship 기준으로 불가능한 후보는 애초에 넣지 않음
@@ -4645,6 +4653,21 @@ export class BotLogic {
         return Math.min(threatScore, 65);
     }
 
+    /** [flag: chargeDrainBowl3 기본 ON] chargeAmount 파워를 충전하는 액션(tech-act-4p·우주선 입장 등) 전에,
+     *  충전 수용량(2*p1+p2)이 부족해 버려질 충전이 2 이상이면 bowl3 토큰을 1P→1C로 미리 비워 수용량을 확보한다
+     *  (가치 추출 + 낭비 방지). waste>=2에서만 발동하므로 비운 토큰은 그 충전으로 bowl3에 되돌아와 strictly dominant
+     *  (최종 파워 동일 + 크레딧 이득). 드레인 수는 p3로 캡(프리액션 실패→리스케줄 루프 방지). 타클론은 브레인스톤
+     *  파워회계(토큰1개=3파워) 특수로 제외. */
+    private static chargeDrainPreActions(playerId: string, player: PlayerState, chargeAmount: number): BotAction[] {
+        if (!getPlayerFlag(playerId, 'chargeDrainBowl3', true)) return [];
+        if (player.faction === 'taklons' || chargeAmount <= 0) return [];
+        const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+        const waste = Math.max(0, chargeAmount - (2 * p1 + p2));
+        if (waste < 2 || p3 < 1) return [];
+        const drains = Math.min(p3, Math.ceil(waste / 2));
+        return Array.from({ length: drains }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
     private static findSpecialActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const res: BotAction[] = [];
@@ -4659,20 +4682,8 @@ export class BotLogic {
         for (const tid of player.techTiles || []) {
             if (player.usedTechActions?.includes(tid)) continue;
             if (tid === 'tech-act-4p') {
-                // [사용자 관찰] 4파워 충전 전에 bowl이 차 있으면(수용량 2*p1+p2 < 4) 충전이 버려진다.
-                // 충전 낭비가 2 이상이고 비울 bowl-3가 있으면, 먼저 1P→1C 프리액션으로 bowl-3을 비워
-                // 수용량을 확보한다(가치 추출 + 낭비 방지). 연방의 'bowl-3 먼저' 원리와 동일.
-                // 드레인 수는 p3로 캡(프리액션 실패→리스케줄 루프 방지). 타클론은 브레인스톤 복잡성으로 제외.
-                const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
-                const waste = Math.max(0, 4 - (2 * p1 + p2));
-                const preActions: BotAction[] = [];
-                // [flag: chargeDrainBowl3 기본 ON] head2head로 do-no-harm 검증/되돌리기 가능.
-                if (getPlayerFlag(playerId, 'chargeDrainBowl3', true) && player.faction !== 'taklons' && waste >= 2 && p3 >= 1) {
-                    const drains = Math.min(p3, Math.ceil(waste / 2));
-                    for (let i = 0; i < drains; i++) {
-                        preActions.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: false } });
-                    }
-                }
+                // [사용자 관찰] 4파워 충전 전에 bowl이 차 있으면(수용량 2*p1+p2 < 4) 충전이 버려진다 → bowl3 먼저 비워 수용량 확보.
+                const preActions = this.chargeDrainPreActions(playerId, player, 4);
                 res.push(preActions.length
                     ? { type: 'use_tech_action', params: { tileId: tid }, preActions }
                     : { type: 'use_tech_action', params: { tileId: tid } });
