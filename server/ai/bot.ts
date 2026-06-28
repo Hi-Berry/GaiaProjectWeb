@@ -1545,10 +1545,17 @@ export class BotLogic {
                 }
 
                 score -= fedPenalty(lab.id);
+                // [flag: academyTypeChoice] 아카 타입 선택(사용자 룰): 기본 left(2지식 패시브 — 연구기아 봇에 유익).
+                // right(QIC 특수액션)는 ①리벨리온 우주선 입장(3정큐=3QIC 액션 연료 필요) 또는 ②R5+(후반엔 패시브지식 회수 라운드 적고 QIC 유연성↑)일 때만.
+                // 기존엔 항상 right만 지어 QIC 액션도 안 누르고(=아무것도 못 얻음) 지식도 못 받던 이중낭비.
+                const onRebellion = (player.spaceshipsEntered || []).some(id => game.map.find(t => t.id === id)?.type === 'ship_rebellion');
+                const acadTarget = getPlayerFlag(playerId, 'academyTypeChoice', true)
+                    ? (((game.roundNumber ?? 1) >= 5 || onRebellion) ? 'academy_right' : 'academy_left')
+                    : 'academy_right';
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: lab.id, target: 'academy_right' } },
+                    action: { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget } },
                     isFederated: isFederated(lab.id),
                 });
             }
