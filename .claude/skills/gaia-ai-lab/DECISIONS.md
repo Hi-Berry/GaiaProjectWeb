@@ -72,6 +72,12 @@
 - 06-28 **우주선 입장 충전 낭비**(사용자 관찰): 2·3번째 입장 +2PW·4번째 +3PW 충전(executeEnterSpaceship)이 bowl 수용량(2·p1+p2) 부족 시 버려짐. 기존 tech-act-4p의 충전낭비 대비 인라인 로직을 헬퍼 `chargeDrainPreActions(playerId,player,chargeAmount)`로 추출해 우주선 입장에도 적용. waste≥2에서만 bowl3를 1P→1C로 비워(strictly dominant: 비운 토큰이 충전으로 bowl3 복귀+크레딧) — 기존 `chargeDrainBowl3` 플래그(기본ON) 공유. itars/nevlas(입장 시 토큰 선소모)·타클론 제외. h2h 불필요(낭비수정). 미해결: 연구L3(+3)·eco L5(+6) 충전, 상대 leech 예측 선환수는 별도(후자는 휴리스틱이라 h2h 필요).
 - 06-28 **인공물 take 시 bowl3 토큰 낭비**(사용자 관찰): 6파워는 `spendPowerTokens`로 그릇1→2→3 순 소모 → bowl1+bowl2<6이면 부족분만큼 bowl3 토큰이 그냥 제거됨. `findTwilightArtifactActions` totalPower≥6 분기가 preActions 없이 바로 소모하던 것 교정 → 제거될 bowl3 토큰 `d=min(p3,6-p1-p2)`개를 먼저 1P→1C 환수(토큰은 bowl1로 옮겨졌다가 어차피 소모 → 최종 파워 동일, 크레딧 d 이득 = strictly dominant). 헬퍼 `doomedBowl3CashoutPreActions`. 타클론(브레인스톤 특수회계) 제외. h2h 불필요(낭비수정).
 
+## 2026-06-28 startPlacementFuturePlayers (플래그 기본 OFF, 미검증)
+- 사용자 관찰: 봇이 초기 광산 놓을 때 '내 턴 뒤에 놓을 사람'(미래 배치자) 위치 고려 안 함. 스코어러(findStartingMineAction)가 **이미 놓인** 상대 광산(+5/dist≤2)만 봄.
+- 구현: 상대 홈 행성 타입의 빈 타일이 dist≤2면 +2(캡 +6) — 상대가 거기 지을 확률↑→미래 리치 기대. 중앙·접점 자리를 자연히 선호.
+- ★검증 한계: placement/contention은 self-play 재현 불가(placementPolicy −7.10 기각 전례). do-no-harm으로 '손해 없음'만 확인 가능, 진짜 판정은 실게임 1:3. 그래서 **기본 OFF**로 두고 사용자가 켜서 관찰.
+- 미구현(v2 후보): contested 확장군집(여러 상대 사거리 동시 노출) 약한 감점.
+
 ## 종족별 평균 점수 (최근 측정 — 약한 종족부터 보강 대상)
 
 06-18 (버그픽스 후, 120판, ~27샘플/종족):

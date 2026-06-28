@@ -3453,6 +3453,26 @@ export class BotLogic {
                 score += w;
             }
 
+            // [flag: startPlacementFuturePlayers 기본 OFF] 내 턴 뒤에 놓을/지을 상대(미래 배치자)를 고려.
+            // 상대는 자기 홈 행성 타입 위에 지을 확률이 높다 → 그 '빈 홈타입 타일' 근처(dist≤2)에 놓으면 미래 파워 리치 기대.
+            // 추측이라 확실한 '이미 놓인 광산 +5'(line 위)보다 낮게(+2, 캡 +6)만 반영. 중앙·접점 자리를 자연히 선호하게 됨.
+            // self-play로 검증 불가(contention 미재현) → 도메인 논리 + 실게임 1:3 판정용. OFF 기본이라 기존 동작 무영향.
+            if (getPlayerFlag(playerId, 'startPlacementFuturePlayers', false)) {
+                const oppHomeTypes = new Set<string>(
+                    Object.values(game.players)
+                        .filter(p => p && p.faction && p.faction !== player.faction)
+                        .map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet as string | undefined)
+                        .filter((x): x is string => !!x)
+                );
+                let futureLeech = 0;
+                for (const ft of game.map) {
+                    if (ft.ownerId || ft.structure || !ft.type) continue; // 빈 타일만
+                    if (!oppHomeTypes.has(ft.type)) continue;
+                    if (getDistance(tile, ft) <= 2) futureLeech += 2;
+                }
+                score += Math.min(futureLeech, 6);
+            }
+
             // 두 번째 광산을 첫 번째 광산 근처(거리 3 이하)에 배치하는 것을 매우 강하게 기피 (선택지가 정말 없을 때만 어쩔 수 없이 짓도록)
             if (myMines.length === 1) {
                 const distToFirst = getDistance(tile, myMines[0]);
