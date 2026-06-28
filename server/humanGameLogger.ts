@@ -55,6 +55,9 @@ type HumanGamePayload = {
   gameLog: NonNullable<GaiaGameState['gameLog']>;
   actionJournal: HumanActionJournalEntry[];
   fullGameLog: FullGameLogEntry[];
+  // [2026-06-28] 봇/사람 구분 명시. actionJournal은 사람 전용이라 분석엔 충분했지만, self-play 오염 가드와
+  // fullGameLog의 isBot 라벨 신뢰를 위해 저장파일에 botPlayerIds를 박는다(런타임엔 있는데 export 누락이던 것).
+  botPlayerIds: string[];
   // [2026-06-18] 최종 보드맵. 모방학습 맵-피처의 전제조건: 불투명 journal tileId('internal-N')를
   // 타일 메타(type/sector/위치/인접)로 해석 + 저널 재생으로 결정시점 보드 복원을 가능케 한다.
   // 봇 self-play 로그(final_state)는 이미 map을 저장하는데 human export만 누락이던 비대칭 수정.
@@ -174,6 +177,7 @@ function buildPayload(game: GaiaGameState & {
   id?: string;
   createdAt?: number;
   humanActionJournal?: HumanActionJournalEntry[];
+  botPlayerIds?: string[];
 }): HumanGamePayload {
   const rankedIds = Object.keys(game.players).sort((a, b) => (game.players[b].score ?? 0) - (game.players[a].score ?? 0));
   const players: HumanGamePayload['players'] = {};
@@ -195,6 +199,7 @@ function buildPayload(game: GaiaGameState & {
     gameLog: game.gameLog ?? [],
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: takeFullGameLog(game.id),
+    botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
   };
 }
