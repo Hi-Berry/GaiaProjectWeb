@@ -560,6 +560,20 @@ export class BotLogic {
 
                 // 패스하기 직전 자원 변환 (Cleanup logic)
                 if (bestAction?.type === 'pass_round') {
+                    // [flag: powerActionOverPass] 패스+1:1 파워변환 대신, 쓸만한 파워액션(findPowerActions: 점수≥0만, 베이스150+)이
+                    // affordable하면 그걸 실행 = 생산적 턴(1:1 변환보다 훨씬 이득). MCTS가 파워액션 저평가해 0회 쓰던 것 일반교정
+                    // (humanRule2O 일반판, 사용자 관찰). 토큰예비 가드로 연방용 토큰 드레인 방지.
+                    if (getPlayerFlag(playerId, 'powerActionOverPass', true) && !game.hasDoneMainAction) {
+                        const pa = this.findPowerActions(game, playerId)[0];
+                        if (pa) {
+                            const act = game.powerActions.find(a => a.id === pa.params?.actionId);
+                            const cost = (act && act.costType !== 'qic') ? act.cost : 0;
+                            if (cost === 0 || this.canSpendPowerTokensForStrategicAction(game, player, cost)) {
+                                log(`Bot ${player.name} powerActionOverPass: ${pa.params?.actionId} 대신 패스 안 함`, 'game', game.id);
+                                return pa;
+                            }
+                        }
+                    }
                     const cleanup = this.findCleanupConvertAction(game, playerId, bestAction.params?.bonusTileId);
                     if (cleanup) {
                         log(`Bot ${player.name} performs cleanup convert before passing: ${cleanup.params.type}`, 'game', game.id);
