@@ -3426,7 +3426,7 @@ export class BotLogic {
 
         // [flag: startPlacementFuturePlayers] 초기 배치 '큰 그림' 신호 사전계산(후보마다 동일 → 루프 밖):
         // 미래 배치자 홈타입 / 우주선 위치 / 맵 중심.
-        const smartPlace = getPlayerFlag(playerId, 'startPlacementFuturePlayers', false);
+        const smartPlace = getPlayerFlag(playerId, 'startPlacementFuturePlayers', true);
         const oppHomeTypes = new Set<string>(
             Object.values(game.players)
                 .filter(p => p && p.faction && p.faction !== player.faction)
@@ -3470,7 +3470,7 @@ export class BotLogic {
                 score += w;
             }
 
-            // [flag: startPlacementFuturePlayers 기본 OFF] 초기 배치 '큰 그림' 가점 (스코어러가 즉시 확장만 보던 myopia 보완).
+            // [flag: startPlacementFuturePlayers 기본 ON] 초기 배치 '큰 그림' 가점 (스코어러가 즉시 확장만 보던 myopia 보완).
             // self-play로 검증 불가(contention 미재현) → 도메인 논리 + 실게임 1:3 판정용. OFF 기본이라 기존 동작 무영향.
             if (smartPlace) {
                 // (a) 미래 배치자: 상대는 자기 홈 행성 타입에 지을 확률↑ → 그 빈 홈타입 타일 인접(dist≤2)이면 미래 파워 리치 기대.
