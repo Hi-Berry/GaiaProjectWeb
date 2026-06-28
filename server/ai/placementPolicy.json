@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "trainedOn": "22 human map-games (2026-06-18~28), 656 build-tile decisions",
+  "top1": 0.178,
+  "randomBaseline": 0.050,
+  "features": ["dOwn","dOpp","dShip","dProto","adjEmpty","adjOwn","newSector","newType"],
+  "weights": [-3.57, -0.85, 0.13, -0.98, -0.54, 1.20, 0.11, -0.81],
+  "note": "정규화: dist류 min(d,9)/9, adjEmpty/6, adjOwn/6, newSector·newType 0/1. 점수=Σ w*feat (클수록 사람이 고를 확률↑)."
+}
