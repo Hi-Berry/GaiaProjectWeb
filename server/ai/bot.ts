@@ -2439,9 +2439,24 @@ export class BotLogic {
                 let score = 350 - neededQic * 40;
                 if (isFreeProject) score += 200;
 
+                // [flag: gaiaformPreSpend] 포머 비용을 bowl1+2로 못 채우는 부족분(deficit)만큼 bowl3 토큰을 미리
+                // 프리액션(1P→1C)으로 소비 → 비용은 bowl1/2에서 충당, bowl3를 가이아영역에 처박는 대신 크레딧으로 회수.
+                // (사용자 관찰: 0/5/3·비용6 → bowl3 1개가 영역으로 낭비됐는데, deficit=1만 변환해 +1크레딧 + bowl3 2개 보존).
+                // deficit만큼만(전부 X → bowl2 강등 손해). free project/타클론(브레인스톤 특수)은 제외.
+                let preActions: BotAction[] | undefined;
+                if (getPlayerFlag(playerId, 'gaiaformPreSpend', false) && !isFreeProject && player.faction !== 'taklons') {
+                    const p1 = player.power1 || 0, p2 = player.power2 || 0, p3 = player.power3 || 0;
+                    const deficit = powerRequired - (p1 + p2);
+                    if (deficit > 0 && p3 >= deficit) {
+                        preActions = Array.from({ length: deficit }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit' } }));
+                    }
+                }
+
                 actions.push({
                     score,
-                    action: { type: 'place_gaiaformer', params: { tileId: tile.id, qicUsed: neededQic } }
+                    action: preActions
+                        ? { type: 'place_gaiaformer', params: { tileId: tile.id, qicUsed: neededQic }, preActions }
+                        : { type: 'place_gaiaformer', params: { tileId: tile.id, qicUsed: neededQic } }
                 });
             }
         }
