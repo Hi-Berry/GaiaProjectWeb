@@ -4414,7 +4414,13 @@ export class BotLogic {
         // 상대 건물 인접도 아니고 내 클러스터(dist≤2 내건물=연방 연결)도 아닌 *진짜 외곽 흩뿌리기*만 강하게 감점
         // → 봇이 외곽 가이아 점프 대신 중앙/상대옆으로 확장(사용자 라이브 관찰: 스자가 2Nav로 외곽 가이아 점프).
         // ※ self-play 검증 불가(봇끼리 leech가치 안 잡힘, 과거 buildNearShipOpp −1.76) → 사용자 1:3가 진짜 판정. R1-4 한정.
-        if (getPlayerFlag(playerId, 'isolatedTSPenalty', true) && game.roundNumber <= 4) {
+        // [flag: placementPolicy] 사람 22판(656 빌드결정)에서 학습한 배치 정책(placementPolicy.json, top1 17.8% vs random 5%).
+        // 8-피처 선형 랭커: dOwn −3.57(압도적 밀집), adjOwn +1.20, dProto −0.98, dOpp −0.85(상대근접=2/3 싼TS), newType −0.81…
+        // isolatedTSPenalty(추측 −150)의 데이터-정밀 대체. ON이면 그걸 끄고 학습점수를 씀.
+        if (getPlayerFlag(playerId, 'placementPolicy', false)) {
+            // 비싼 계산(맵 전수 filter)이라 MCTS 롤아웃(game.simulation)에선 생략 — root 결정에만 적용(GC 폭주 방지).
+            if (!game.simulation) bonus += this.calculatePlacementPolicyScore(game, playerId, tile) * 60;
+        } else if (getPlayerFlag(playerId, 'isolatedTSPenalty', true) && game.roundNumber <= 4) {
             const adjOpp = neighbors.some(n => n.ownerId && n.ownerId !== playerId && n.structure && n.structure !== 'ship');
             const nearOwn = neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship')
                 || range2Neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship');
@@ -4438,6 +4444,35 @@ export class BotLogic {
             }
         }
         return bonus;
+    }
+
+    /**
+     * [학습정책] 사람 22판 656 빌드결정에서 학습한 배치 선형 랭커 점수 (server/ai/placementPolicy.json).
+     * imitationProbeTile.mjs와 *동일* 피처/정규화. 게임 누적 시 재학습→W 갱신. 점수 클수록 사람이 고를 자리.
+     */
+    private static calculatePlacementPolicyScore(game: ServerGameState, playerId: string, tile: HexTile): number {
+        const W = [-3.57, -0.85, 0.13, -0.98, -0.54, 1.20, 0.11, -0.81]; // [dOwn,dOpp,dShip,dProto,adjEmpty,adjOwn,newSector,newType]
+        const NONPLANET = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
+        const isPlanetT = (t: HexTile) => !!t.type && !NONPLANET.has(t.type) && !t.type.startsWith('ship_');
+        const tiles = game.map;
+        const mine = tiles.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && isPlanetT(t));
+        if (mine.length === 0) return 0;
+        const empties = tiles.filter(t => isPlanetT(t) && !t.ownerId && !t.structure);
+        const ships = tiles.filter(t => (t.type || '').startsWith('ship_'));
+        const protos = tiles.filter(t => t.type === 'proto' || t.type === 'asteroid');
+        const opp = tiles.filter(t => t.ownerId && t.ownerId !== playerId && t.structure && t.structure !== 'ship');
+        const md = (arr: HexTile[]) => arr.length ? Math.min(...arr.map(s => getDistance(s, tile))) : 9;
+        const adjEmpty = empties.filter(t => t.id !== tile.id && getDistance(t, tile) === 1).length;
+        const adjOwn = mine.filter(m => getDistance(m, tile) === 1).length;
+        const myTypes = new Set(mine.map(t => t.type));
+        const mySectors = new Set(mine.map(t => t.sector));
+        const f = [
+            Math.min(md(mine), 9) / 9, Math.min(md(opp), 9) / 9, Math.min(md(ships), 9) / 9, Math.min(md(protos), 9) / 9,
+            adjEmpty / 6, adjOwn / 6, mySectors.has(tile.sector) ? 0 : 1, myTypes.has(tile.type) ? 0 : 1,
+        ];
+        let s = 0;
+        for (let i = 0; i < W.length; i++) s += W[i] * f[i];
+        return s;
     }
 
     private static getBuildingValue(structure: string, faction: string): number {
