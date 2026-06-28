@@ -2459,7 +2459,7 @@ export class BotLogic {
                 // (사용자 관찰: 0/5/3·비용6 → bowl3 1개가 영역으로 낭비됐는데, deficit=1만 변환해 +1크레딧 + bowl3 2개 보존).
                 // deficit만큼만(전부 X → bowl2 강등 손해). free project/타클론(브레인스톤 특수)은 제외.
                 let preActions: BotAction[] | undefined;
-                if (getPlayerFlag(playerId, 'gaiaformPreSpend', true) && !isFreeProject && player.faction !== 'taklons') {
+                if (getPlayerFlag(playerId, 'gaiaformPreSpend', false) && !isFreeProject && player.faction !== 'taklons') {
                     const p1 = player.power1 || 0, p2 = player.power2 || 0, p3 = player.power3 || 0;
                     const deficit = powerRequired - (p1 + p2);
                     if (deficit > 0 && p3 >= deficit) {

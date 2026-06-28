@@ -529,7 +529,7 @@ export class FederationPlanner {
     ) {
         // [flag: fedTrimSatPath] 위성 경로(hex 있음)면 과포함 트림 시도(안전 폴백 내장).
         if (requiredPower != null && selectedHexIds.length > 0
-            && getPlayerFlag(playerId, 'fedTrimSatPath', false)) {
+            && getPlayerFlag(playerId, 'fedTrimSatPath', true)) {
             const trimmed = this.trimFederationSet(game, playerId, selectedHexIds, selectedPlanetIds, requiredPower);
             selectedHexIds = trimmed.hexIds;
             selectedPlanetIds = trimmed.planetIds;
