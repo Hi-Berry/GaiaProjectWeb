@@ -71,6 +71,8 @@ export interface PlayerState {
   brainStoneBowl?: 1 | 2 | 3;
   /** 타클론: 우주선 입장 시 브레인 스톤이 가이아 영역으로 가 다음 라운드까지 사용 불가 */
   brainStoneInGaia?: boolean;
+  /** 타클론: 브레인 스톤을 연방 위성/인공물 등 토큰 비용으로 써버려 영구 소멸한 상태(복귀 없음). 사용자 요청 2026-06-29 */
+  brainStoneSpent?: boolean;
   /** 타클론: 파워 소비 시 브레인 스톤 우선 사용 선호(전역 토글, 기본 true=큰 파워는 브레인 우선). false면 일반토큰 우선(브레인 보존). */
   taklonsBrainPriority?: boolean;
   /** 아이타: 2그릇 태울 때 "사라지는" 1토큰을 가이아포머 공간처럼 보관, 다음 라운드에 1그릇으로 복귀 */
@@ -1133,8 +1135,8 @@ export function getMaxPowerGain(player: PlayerState): number {
   let p1 = player.power1 ?? 0;
   let p2 = player.power2 ?? 0;
 
-  // 타클론 브레인스톤 처리 (가이아 구역에 있지 않을 경우)
-  if (player.faction === 'taklons' && !player.brainStoneInGaia) {
+  // 타클론 브레인스톤 처리 (가이아 구역에 있지 않고, 소멸하지 않았을 경우)
+  if (player.faction === 'taklons' && !player.brainStoneInGaia && !player.brainStoneSpent) {
     if (player.brainStoneBowl === 1) p1 += 1;
     else if (player.brainStoneBowl === 2) p2 += 1;
   }
@@ -1144,7 +1146,8 @@ export function getMaxPowerGain(player: PlayerState): number {
 
 /** 타클론: 파워 수령 시 브레인 스톤 우선 이동 여부를 반영한 캐스케이드. brainStoneInGaia면 일반 chargePower와 동일. */
 export function chargePowerTaklons(player: PlayerState, amount: number, brainFirst: boolean) {
-  if (player.brainStoneInGaia) {
+  // 브레인 스톤이 가이아 영역에 있거나 영구 소멸했으면 브레인 없는 일반 캐스케이드.
+  if (player.brainStoneInGaia || player.brainStoneSpent) {
     chargePower(player, amount);
     return;
   }
@@ -1289,7 +1292,7 @@ export function snapshotPlayerPower(player: PlayerState): { p1: number; p2: numb
     p1: player.power1 ?? 0,
     p2: player.power2 ?? 0,
     p3: player.power3 ?? 0,
-    bs: player.faction === 'taklons' && !player.brainStoneInGaia ? (player.brainStoneBowl ?? 1) : undefined,
+    bs: player.faction === 'taklons' && !player.brainStoneInGaia && !player.brainStoneSpent ? (player.brainStoneBowl ?? 1) : undefined,
   };
 }
 

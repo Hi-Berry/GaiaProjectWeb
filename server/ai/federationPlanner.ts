@@ -44,7 +44,9 @@ export class FederationPlanner {
 
         const requiredPower = getFederationRequiredPower(game, playerId);
         const isIvits = player.faction === 'ivits';
-        let availableTokens = isIvits ? (player.qic || 0) : ((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0));
+        // 타클론 브레인 스톤도 위성 1개분 토큰으로 사용 가능(서버 spendPowerTokens와 일치) → 후보 산정에 포함.
+        const brainTok = (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) ? 1 : 0;
+        let availableTokens = isIvits ? (player.qic || 0) : ((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainTok);
         availableTokens += extraTokens;
 
         const fedHexes = game.playerFederationHexes?.[playerId] || [];

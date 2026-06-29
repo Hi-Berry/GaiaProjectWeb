@@ -1743,7 +1743,8 @@ export function GameBoard({
                     const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
                     const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
                     const isInShip = ship.occupants.includes(playerId);
-                    const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0);
+                    const brainTok = (currentPlayer.faction === 'taklons' && currentPlayer.brainStoneBowl != null && !currentPlayer.brainStoneInGaia) ? 1 : 0;
+                    const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0) + brainTok;
 
                     // 우주선 기술타일 (탑승/미탑승 공통 표시)
                     const techId = game.shipTechByShip?.[selectedTile.type] ?? SHIP_TECH_BY_SHIP[selectedTile.type];

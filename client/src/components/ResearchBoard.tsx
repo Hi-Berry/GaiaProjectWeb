@@ -863,7 +863,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
                                                                     const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
                                                                     
-                                                                    const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0);
+                                                                    const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0) + ((currentPlayer?.faction === 'taklons' && currentPlayer?.brainStoneBowl != null && !currentPlayer?.brainStoneInGaia) ? 1 : 0);
                                                                     const canTake = isInShip && onTakeTwilightArtifact && game.turnOrder?.[game.currentPlayerIndex ?? 0] === playerId && !game.hasDoneMainAction && totalPower >= 6;
                                                                     
                                                                     return (
@@ -1538,7 +1538,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                             const artIndex = ARTIFACTS.findIndex(a => a.id === aid);
                                                                             const artImgUrl = artIndex !== -1 ? `/image/Art${artIndex + 1}.png` : null;
 
-                                                                            const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0);
+                                                                            const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0) + ((currentPlayer?.faction === 'taklons' && currentPlayer?.brainStoneBowl != null && !currentPlayer?.brainStoneInGaia) ? 1 : 0);
                                                                             const canTake = isInShip && onTakeTwilightArtifact && game.turnOrder?.[game.currentPlayerIndex ?? 0] === playerId && !game.hasDoneMainAction && totalPower >= 6;
                                                                             return (
                                                                                 <Button

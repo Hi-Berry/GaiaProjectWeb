@@ -529,7 +529,12 @@ export function hasNearbyPlayersForDiscount(game: ServerGameState, tile: HexTile
 
 /** 파워 토큰 소비: 1그릇 → 2그릇 → 3그릇 순. 성공 시 true */
 function spendPowerTokens(player: PlayerState, amount: number): boolean {
-	const total = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+	// [사용자 요청 2026-06-29] 타클론 브레인 스톤도 토큰 비용(연방 위성·인공물 등)에 1토큰으로 사용 가능.
+	//   일반 토큰(그릇1→2→3)을 우선 소모하고, 부족분 1개를 브레인 스톤으로 충당한다.
+	//   쓴 브레인은 가이아 영역으로 빼고(brainStoneInGaia), 이후 가이아 사이클로 그릇1 복귀(타클론 특성과 일치).
+	const hasBrain = player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia && !player.brainStoneSpent;
+	const brainAvail = hasBrain ? 1 : 0;
+	const total = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvail;
 	if (total < amount) return false;
 	let remaining = amount;
 	const from1 = Math.min(remaining, player.power1 || 0);
@@ -540,6 +545,13 @@ function spendPowerTokens(player: PlayerState, amount: number): boolean {
 	remaining -= from2;
 	const from3 = Math.min(remaining, player.power3 || 0);
 	player.power3 = (player.power3 || 0) - from3;
+	remaining -= from3;
+	// 일반 토큰으로 모자란 마지막 1개는 브레인 스톤으로 충당 → 영구 소멸(복귀 없음, 사용자 요청).
+	if (remaining > 0 && hasBrain) {
+		player.brainStoneSpent = true;
+		player.brainStoneBowl = undefined;
+		remaining -= 1;
+	}
 	return true;
 }
 
@@ -4754,7 +4766,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 				player.qic -= numEmpty;
 			} else {
-				const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+				// 브레인 스톤도 1토큰으로 셈 (실제 소비는 spendPowerTokens가 일반토큰 우선→브레인 순으로 처리)
+				const brainTok = (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) ? 1 : 0;
+				const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainTok;
 				if (totalPower < numEmpty) {
 					log(`Federation complete rejected: need ${numEmpty} power tokens, have ${totalPower}`, 'game', undefined, { simulation: (game as any).simulation });
 					io.to(gameId).emit('game_error', { message: `파워 토큰이 부족합니다. (필요: ${numEmpty}, 보유: ${totalPower})` });
@@ -8179,7 +8193,9 @@ export function executeBotFederation(
 		if (qicHave < numEmpty) return false;
 		player.qic = qicHave - numEmpty;
 	} else {
-		const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+		// 브레인 스톤도 1토큰으로 셈 (spendPowerTokens가 일반토큰 우선→브레인 순으로 소비)
+		const brainTok = (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) ? 1 : 0;
+		const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainTok;
 		if (totalPower < numEmpty) return false;
 		if (!spendPowerTokens(player, numEmpty)) return false;
 	}
