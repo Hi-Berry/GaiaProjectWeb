@@ -78,7 +78,7 @@ export class FederationPlanner {
             //   봇 연방 sprawl(많은 집을 한 연방에 몰아 위성 낭비 + 2번째 연방 재료 소진) 억제 — 좁게 모아 연방 수↑.
             //   R6은 VP만 보고 다 묶어도 무방하므로 예외(round>=6은 아래 endgame 분기로 빠짐). 게임 룰 아닌 봇 정책.
             //   (과거 '위성 수' 하드캡은 기각됐으나 이건 '건물 수' 정책 — 사용자 직접 요청.)
-            if (getPlayerFlag(playerId, 'fedMax5Buildings', false)
+            if (getPlayerFlag(playerId, 'fedMax5Buildings', true)
                 && round < 6 && result.selectedPlanetIds.length > 5) {
                 continue;
             }
