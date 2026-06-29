@@ -46,6 +46,9 @@ export function storeSpectatorId(gameId: string, spectatorId: string) {
 // 서버가 뒤처진 패킷은 Game.tsx에서 무시한다(곧 따라잡은 패킷이 온다). undo는 감소, 권위패킷 적용 시 동기화.
 let _optimisticFreeCount = 0;
 let _lastFreeActionAt = 0;
+// [러버밴딩 v2] '이미 화면에 적용한 서버 프리액션 수'의 최고치. 연타로 optimisticCount가 서버를 추월(거부 클릭 포함)해도
+// UI가 동결되지 않도록, 스킵 기준을 'optimisticCount 미달'이 아니라 '이미 적용한 수보다 후퇴(stale)'로 바꾸기 위함.
+let _lastAppliedServerFreeCount = 0;
 
 export const GameClient = {
   listGames(): Promise<{
@@ -450,7 +453,10 @@ export const GameClient = {
     const s = getSocket();
     const payload: { gameId: string; steps?: number } = { gameId };
     if (steps != null && Number.isFinite(steps) && steps > 0) payload.steps = Math.floor(steps);
-    _optimisticFreeCount = Math.max(0, _optimisticFreeCount - Math.max(1, Math.floor(steps ?? 1)));
+    const dec = Math.max(1, Math.floor(steps ?? 1));
+    _optimisticFreeCount = Math.max(0, _optimisticFreeCount - dec);
+    // undo는 정당한 후퇴 → 적용 기준선도 낮춰 줘야 서버의 낮아진 카운트 패킷이 스킵되지 않음.
+    _lastAppliedServerFreeCount = Math.max(0, _lastAppliedServerFreeCount - dec);
     _lastFreeActionAt = Date.now();
     s.emit('undo_free_action', payload);
   },
@@ -459,6 +465,10 @@ export const GameClient = {
   getOptimisticFreeCount(): number { return _optimisticFreeCount; },
   lastOptimisticFreeActionAt(): number { return _lastFreeActionAt; },
   syncOptimisticFreeCount(serverCount: number): void { _optimisticFreeCount = Math.max(0, serverCount | 0); },
+  // [러버밴딩 v2] 단조 진행 기준선. 적용한 최고 서버 카운트보다 낮은(stale) 패킷만 스킵.
+  getLastAppliedServerFreeCount(): number { return _lastAppliedServerFreeCount; },
+  noteAppliedServerFreeCount(n: number): void { _lastAppliedServerFreeCount = (n | 0) <= 0 ? 0 : Math.max(_lastAppliedServerFreeCount, n | 0); },
+  resetAppliedServerFreeCount(): void { _lastAppliedServerFreeCount = 0; },
 
   useSpecialAction(gameId: string, actionId: string) {
     const s = getSocket();

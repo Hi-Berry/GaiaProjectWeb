@@ -608,17 +608,22 @@ export default function Game() {
     const unsubGame = GameClient.onGameUpdated((updatedGame) => {
       if (updatedGame.id !== gameId) return;
       if (updatedGame.hostId === playerId) isHostSessionRef.current = true;
-      // [낙관적 동기화] 프리액션 연타 시, 서버가 이전 프리액션을 처리하며 보낸 옛 패킷이 뒤늦게 도착해
-      // 더 최신인 클라 낙관상태(ABC)를 옛 상태(B)로 덮어써 되돌아가는 rubber-banding 방지.
-      // 내 턴·메인액션 전·연타 중(2s 이내)에 서버 프리액션 수가 내 낙관 수보다 적으면 = 옛 패킷 → 무시(곧 최신 옴).
+      // [낙관적 동기화 v2] 프리액션 연타 시, 서버가 이전 프리액션을 처리하며 보낸 옛 패킷이 뒤늦게 도착해
+      // 더 최신인 화면 상태를 옛 상태로 덮어써 되돌아가는 rubber-banding 방지.
+      // (v1 버그) 스킵 기준이 'serverFreeCount < optimisticCount'였는데, 자원 소진 후/추가 연타로 optimisticCount가
+      //   서버를 영구 추월하면 모든 패킷이 스킵돼 UI가 2초 동안 동결됐다(사용자 관찰: "3개쯤 변하고 더 눌러도 무반응,
+      //   새로고침하면 다 적용"). → 기준을 '이미 적용한 서버 카운트보다 후퇴(stale)하는 패킷만 스킵'(단조 진행)으로 변경.
+      //   연타 중에도 서버 카운트가 오르면 매 패킷을 적용하므로 동결되지 않음. undo는 기준선을 함께 낮춰 정상 반영.
       const isSelfTurn = updatedGame.turnOrder?.[updatedGame.currentPlayerIndex] === playerId;
       const serverFreeCount = (updatedGame as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length ?? 0;
-      const optimisticCount = GameClient.getOptimisticFreeCount();
       const bursting = Date.now() - GameClient.lastOptimisticFreeActionAt() < 2000; // 폐색 방지용 시간 폴백
-      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount < optimisticCount) {
-        return; // 옛(stale) 자기-프리액션 echo — 무시
+      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount < GameClient.getLastAppliedServerFreeCount()) {
+        return; // 이미 보여준 것보다 뒤처진(stale) 자기-프리액션 echo — 무시
       }
       GameClient.syncOptimisticFreeCount(serverFreeCount); // 권위 상태 채택 → 카운트 재동기화
+      // 단조 기준선 갱신: 새 컨텍스트(카운트 0, 턴 전환/메인액션 후)면 0으로 리셋, 아니면 최고치 유지.
+      if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
+      else GameClient.noteAppliedServerFreeCount(serverFreeCount);
       setGame(updatedGame);
       // 자동 전환은 useEffect(game?.turnOrder, currentPlayerIndex)에서 처리
       // 메인 액션을 이미 한 상태면 추가 액션 선택 불가 → 대기 중인 선택 초기화
