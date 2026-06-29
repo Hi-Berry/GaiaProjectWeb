@@ -564,6 +564,17 @@ export class BotLogic {
                     // affordable하면 그걸 실행 = 생산적 턴(1:1 변환보다 훨씬 이득). MCTS가 파워액션 저평가해 0회 쓰던 것 일반교정
                     // (humanRule2O 일반판, 사용자 관찰). 토큰예비 가드로 연방용 토큰 드레인 방지.
                     if (getPlayerFlag(playerId, 'powerActionOverPass', true) && !game.hasDoneMainAction) {
+                        // [flag: ivitsStationBeforePass] Ivits 우주정거장(once-per-round, O/C 무료)을 안 놓고 패스하던 누수 교정.
+                        //   데이터: 봇 우주정거장 4.5/게임 vs 사람 11.3 — 라운드마다 빼먹어 사거리·연방 앵커 손실(사용자 관찰: "하이브 특출나게 못함").
+                        //   패스 직전 미사용 + 배치 가능하면 우선 배치. (findIvitsSpaceStationAction이 affordable QIC만 반환.)
+                        if (player.faction === 'ivits' && !player.usedIvitsSpaceStationThisRound
+                            && getPlayerFlag(playerId, 'ivitsStationBeforePass', false)) {
+                            const station = this.findIvitsSpaceStationAction(game, playerId);
+                            if (station) {
+                                log(`Bot ${player.name} ivitsStationBeforePass: 우주정거장 배치 후 패스 보류`, 'game', game.id);
+                                return station;
+                            }
+                        }
                         // 패스 직전 once-per-round 특수액션(아카데미 QIC·기술액션)도 사용 — 안 쓰면 그 라운드 통째 낭비(사용자 관찰).
                         // gleens-2nav/space_giants-2tf 등 once-per-game 부스터는 제외(아껴야 함). 이들은 비용 없는 자원획득이라 순이득.
                         const sp = this.findSpecialActions(game, playerId).find(a =>
@@ -4676,8 +4687,25 @@ export class BotLogic {
         const player = game.players[playerId];
         const faction = player.faction || '';
         if (faction === 'ivits') {
-            const ivitsPlanets = game.map.filter(t => t.ownerId === playerId && t.structure);
+            const ivitsPlanets = game.map.filter(t => t.ownerId === playerId && (t.structure || (t.spaceStation && (t.spaceStation as any).ownerId === playerId)));
             const minDist = ivitsPlanets.length > 0 ? Math.min(...ivitsPlanets.map(p => getDistance(p, tile))) : 999;
+            // [flag: ivitsTightCluster] 기존 Ivits는 평면 +20만 받아 '뭉치기' 당김이 없어 산개→연결 불가→연방 불가
+            //   (사용자 관찰: "점프 과해 건물 연결 못 해 연방 못 함"). 다른 종족의 tightCluster/fedCompletion 당김을 Ivits에도 부여.
+            //   단 Ivits는 QIC 위성이 싸 dist2 연결도 저렴하므로 dist2를 다른 종족보다 후하게(+50).
+            if (getPlayerFlag(playerId, 'ivitsTightCluster', false)) {
+                let s = 0;
+                if (minDist <= 1) s += 100;       // 위성 없이 연결되는 진짜 클러스터 성장
+                else if (minDist === 2) s += 50;  // QIC 위성 1개로 싸게 연결
+                // 거의 완성된 연결 클러스터(파워합 5~7)를 마저 끝내도록 commit
+                let potentialPower = 1;
+                for (const p of ivitsPlanets) {
+                    if (getDistance(tile, p) <= 4 && p.structure) potentialPower += this.getBuildingValue(p.structure, faction);
+                }
+                if (potentialPower >= 7) s += 110;
+                else if (potentialPower >= 5) s += 60;
+                else if (potentialPower >= 4) s += 25;
+                return s;
+            }
             return minDist <= 2 ? 20 : 0;
         }
         let score = 0;

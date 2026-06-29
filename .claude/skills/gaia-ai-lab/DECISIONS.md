@@ -461,3 +461,9 @@
 - 120판 종족혼합: VP −1.27 (p=0.49, 노이즈), 승률 43%. **연방 1.39→1.44 (Δ+0.05, 사실상 그대로).**
 - 결론: 건물 캡(sprawl 억제)으론 연방 수가 안 늘었다. 봇 연방 부족 원인은 sprawl이 아니라 '2번째 클러스터 형성 불가'(getBestFederationAction 2번째 null) — 기존 reach 벽 재확인. 건물 캡은 그 집들을 2번째 연방으로 전환 못 시킴.
 - 판정: 측정상 무해(VP 노이즈)지만 점수/연방 이득 없음. **사용자가 플레이 스타일(연방 좁게)로 원해서 기본 ON 채택**(getPlayerFlag 기본값 false→true). 연방 수 증대는 별도 '2번째 클러스터 형성' 작업 필요.
+
+## 2026-06-29 Ivits 약점(사용자 "하이브 특출나게 못함") — 두 수정 다 중립/기각
+- 진단: Ivits 68.5(18종족 7번째 바닥). ability-usage: 봇 우주정거장 4.5/게임 vs 사람 11.3. calculateFederationScore가 Ivits엔 평면 +20만(tightCluster/fedCompletion 스킵).
+- **ivitsStationBeforePass(OFF 유지)**: 패스 직전 미사용 우주정거장 배치. forced-ivits 80판 VP +0.70(p=0.75), 연방 1.31→1.30 그대로. "더 놓기"는 연방 증대 X.
+- **ivitsTightCluster(OFF 유지)**: Ivits 빌드에 dist1+100/dist2+50/fedCompletion commit 부여. forced-ivits 80판(둘 다 ON) VP +0.45(p=0.83), **연방 1.41→1.32(노이즈, 안 늘어).**
+- 결론: 사용자 관찰("과점프→산개→연결불가→연방불가")은 정확하나, **빌드 클러스터링은 후보점수라 MCTS 평가기가 덮어써 실제 연방으로 안 이어짐**(mcts-candidate-score-vs-final-pick 벽 재확인). 연방 증대는 평가기 레벨 또는 결정경로 강제 필요(둘 다 큰 작업·기존 buildOrderPlanner도 2번째 클러스터 null로 실패).
