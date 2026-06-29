@@ -30,7 +30,7 @@ type SeatResult = { playerId: string; faction?: string; score: number; group: 'A
 type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[] };
 
 // 행동 분류 — "변경이 의도한 행동대체를 실제로 했는지"(예: 교역소↓ → 광산/연구소↑ vs 그냥 패스↑) 검증용.
-const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'research', 'federation', 'powerAct', 'techTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total'] as const;
+const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'research', 'federation', 'powerAct', 'techTile', 'advTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -213,7 +213,8 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 score: typeof p.score === 'number' ? p.score : 0,
                 group: (p.h2hGroup as 'A' | 'B' | undefined) ?? null,
                 pos: p.h2hPos,
-                actions: byPlayer[playerId] ?? {},
+                // [고급타일 계측] 최종 보유 기술타일 중 고급('adv-' 접두) 개수 — greenForAdvTile 등 고급타일 획득 효과 직접 확인용.
+                actions: { ...(byPlayer[playerId] ?? {}), advTile: (Array.isArray(p.techTiles) ? p.techTiles.filter((t: string) => typeof t === 'string' && t.startsWith('adv-')).length : 0) },
                 // [진단] 1라운드 수익 합(O+K+C). 0이면 그 플레이어가 1R 수익 못 받음 = 수익 스킵 버그 게임.
                 r1income: (() => { const t = p.roundIncomeTotals?.[1]; return t ? ((t.ore ?? 0) + (t.knowledge ?? 0) + (t.credits ?? 0)) : 0; })(),
             }));
@@ -444,7 +445,7 @@ async function main() {
         const labelMap: Record<string, string> = {
             mine: '광산', tradingStation: '교역소', researchLab: '연구소', piAcademy: '의회/아카데미',
             upgrade: '업글(기타)', research: '연구진행', federation: '연방', powerAct: '파워액션',
-            techTile: '기술타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
+            techTile: '기술타일', advTile: '고급타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
         };
         for (const k of BEHAVIOR_KEYS) {
             const a = behA.avg[k] || 0, b = behB.avg[k] || 0, d = b - a;

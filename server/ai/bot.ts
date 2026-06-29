@@ -3089,7 +3089,7 @@ export class BotLogic {
         // [flag: advTileOverL5] L4→L5 승급은 초록연방을 소모한다. 좋은 고급타일(≥70)이 아직 청구 가능하고 초록연방을
         //   들고 있으면, 초록을 L5에 태우지 말고 아껴 고급타일에 쓰게 강하게 억제(고급타일 > L5 가치, 사용자 관찰).
         //   봇이 초록을 L5에 소모→고급타일 0건이던 핵심 원인 교정. R6은 고급타일 트리거(아카/연구소) 시간이 없으니 예외.
-        if (level === 4 && round < 6 && getPlayerFlag(playerId, 'greenForAdvTile', true)
+        if (level === 4 && round < 6 && getPlayerFlag(playerId, 'greenForAdvTile', false)
             && countGreenFederations(player) >= 1 && this.bestClaimableAdvScore(game, playerId) >= 70) {
             score -= 250;
         }
