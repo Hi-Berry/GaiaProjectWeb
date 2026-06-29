@@ -2960,7 +2960,16 @@ export class BotLogic {
                 score += (6 - level) * 10;
                 // [동적 분석] 항해를 올렸을 때 새로 닿는 행성이 있는가?
                 const currentRange = BotLogic.getEffectiveBaseRange(player);
-                const nextRange = getRange(level + 1) + (player.navigationBonus || 0);
+                // [flag: navLookaheadTier] 사용자 관찰("nav1 올리고 2거리에 QIC 던져 짓고 → 나중에 nav2"):
+                //   getRange는 0·1→1, 2·3→2로 tier가 둘씩 묶여, nav0에서 level+1만 보면 range가 안 늘어(getRange(1)=1)
+                //   '항해 올려도 새 땅 0개'로 오판 → 항해를 미루고 QIC로 점프 → 뒤늦게 nav2. 자매함수 willNavResearchSaveQIC는
+                //   이미 '실제 range가 느는 다음 레벨까지' 보도록 고쳐졌으나(1648~), 이 점수기엔 미적용이었음. 동일 수정 이식.
+                let navNextLvl = level + 1;
+                if (getPlayerFlag(playerId, 'navLookaheadTier', false)) {
+                    while (navNextLvl <= 5 && getRange(navNextLvl) <= getRange(level)) navNextLvl++;
+                    if (navNextLvl > 5) navNextLvl = 5;
+                }
+                const nextRange = getRange(navNextLvl) + (player.navigationBonus || 0);
                 const reachableNow = new Set(game.map.filter(t => !t.ownerId && BotLogic.isPlanetHex(t) && myStructures.some(s => getDistance(s, t) <= currentRange)));
                 const reachableNext = new Set(game.map.filter(t => !t.ownerId && BotLogic.isPlanetHex(t) && myStructures.some(s => getDistance(s, t) <= nextRange)));
 

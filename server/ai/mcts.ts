@@ -279,7 +279,15 @@ export class MCTS {
         // [flag: realRolloutIncome] 가상 라운드 사이 income을 가짜 모델(applyApproxIncome) 대신
         // 검증된 getNextRoundIncomePreview 기반 정확 적용(rolloutIncome.ts)으로. deepRollout과 함께 켜야 효과.
         const realRolloutIncome = getPlayerFlag(playerId, 'realRolloutIncome', false);
-        const MAIN_ACTION_CAP = deepRollout ? 5 : 1;
+        // [flag: deepRollCurRes] deepRollout 정련(2026-06-29). 기존 결함: applyRolloutIncome은 '1라운드치' 수입을
+        //   더하는데 mcts가 이걸 체인의 '매 가상액션마다'(최대 4회) 호출 → 한 라운드 내 다중액션엔 수입이 없음에도
+        //   ~4라운드치 자원을 부어 자원 환상 발생 → 우주선액션 스팸 + 일회성/경합 파워액션 방기 (테란 80판 VP −7.45 기각).
+        //   교정: 체인을 '현재 자원'으로만 굴림 = 이번 라운드 예산 모델. 사용자 의도("지금 4k로 X+Y+Z 한다") 직역.
+        //   자원이 떨어지면 affordable한 데까지만 연쇄되므로 "이번 라운드에 실제로 할 수 있는 시퀀스"를 본다.
+        const deepRollCurRes = getPlayerFlag(playerId, 'deepRollCurRes', false);
+        // [flag: deepRollCap] 체인 길이 상한. 길수록 그리디 연쇄가 평가기 편향(우주선액션 선호)을 증폭하고
+        //   400ms 내 MCTS 반복도 줄어듦(80판 CAP5: 우주선+1.11/파워−0.46/VP−1.89 중립). 짧게(3) 줄여 +로 넘기는 실험.
+        const MAIN_ACTION_CAP = deepRollout ? getPlayerFlag(playerId, 'deepRollCap', 5) : 1;
         let mainActionsUsed = 0;
         const ROLLOUT_STEPS = deepRollout ? 14 : 6;
         // 좌석별 플래그로 롤아웃 평가 폭(TOP_N)을 조정 가능. 기본 8. 후보 starvation 완화 실험용(예: 12).
@@ -333,7 +341,9 @@ export class MCTS {
                     currentState.hasDoneMainAction = false; // 가상의 다음 턴(자원 제약 유지)
                     // [flag: rolloutIncome/realRolloutIncome] 가상 라운드 사이 income 적용 → 다라운드 경제 빌드업
                     // (지금 경제 깔고 → 다음 자원으로 연방/연구5)을 롤아웃이 보게 함. 수입/상대턴 미반영의 보완.
-                    if (realRolloutIncome) applyRolloutIncome(currentState, playerId); // 정확(검증된 프리뷰 기반)
+                    // deepRollCurRes면 수입 미적용(현재 자원으로만 = 이번 라운드 예산). 매-액션 수입 환상 교정.
+                    if (deepRollCurRes) { /* no income: 현재 자원으로만 연쇄 */ }
+                    else if (realRolloutIncome) applyRolloutIncome(currentState, playerId); // 정확(검증된 프리뷰 기반)
                     else if (rolloutIncome) this.applyApproxIncome(currentState, playerId); // 가짜 근사(레거시)
                 } else {
                     break;

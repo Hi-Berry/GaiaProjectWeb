@@ -72,6 +72,15 @@ export class FederationPlanner {
             const result = this.tryFormFederationFrom(game, playerId, startTile, requiredPower, availableTokens);
             if (!result) continue;
 
+            // [flag: fedMax5Buildings] 사용자 정책(2026-06-29): 마지막 라운드(R6) 아니면 연방에 건물 5개 초과 금지.
+            //   봇 연방 sprawl(많은 집을 한 연방에 몰아 위성 낭비 + 2번째 연방 재료 소진) 억제 — 좁게 모아 연방 수↑.
+            //   R6은 VP만 보고 다 묶어도 무방하므로 예외(round>=6은 아래 endgame 분기로 빠짐). 게임 룰 아닌 봇 정책.
+            //   (과거 '위성 수' 하드캡은 기각됐으나 이건 '건물 수' 정책 — 사용자 직접 요청.)
+            if (getPlayerFlag(playerId, 'fedMax5Buildings', false)
+                && round < 6 && result.selectedPlanetIds.length > 5) {
+                continue;
+            }
+
             // [flag: fedEndgameVp] 마지막 라운드: 보상 선택지를 펼쳐 후보로 내보낸다 → MCTS가 각 보상의
             // '다운스트림 총 VP'(자원으로 연구5단계 보상/고급타일/라운드·최종미션 점수까지)를 시뮬해서 고름.
             // 토큰은 sunk cost라 위성 페널티 거의 0. (사용자 모델: 끝엔 12VP 강제도, 자원연방이 더 크면 그걸도.)
