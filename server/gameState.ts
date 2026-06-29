@@ -2682,6 +2682,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			if (!game.players[playerId]) { callback({ error: 'Player not found' }); return; }
 
+			// '떠났습니다'와 대칭으로 '다시 접속했습니다' 알림(사용자 요청). 단 이 소켓 등록 '전에' 같은 플레이어의
+			// 다른 소켓이 없었을 때만 = 진짜 떠나있다 돌아온 경우만. (여러 탭/빠른 새로고침 중복 알림 방지.) 봇 제외.
+			const wasAway = !Array.from(socketToPlayerMap.values()).includes(playerId)
+				&& !game.botPlayerIds?.includes(playerId);
+
 			// If the reconnecting player is the host, update the host socket context
 			if (game.hostId === playerId) {
 				game.hostSocketId = socket.id;
@@ -2691,6 +2696,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 			playerGameMap.set(playerId, gameId);
 			socket.join(gameId);
 			clampPlayerResources(game);
+
+			if (wasAway) {
+				const name = game.players[playerId].name;
+				const msg = {
+					id: generatePlayerId(),
+					senderId: 'system',
+					name: '시스템',
+					faction: null,
+					isSpectator: false,
+					text: `🔄 ${name}님이 다시 접속했습니다.`,
+					ts: Date.now(),
+				};
+				if (!game.chatMessages) game.chatMessages = [];
+				game.chatMessages.push(msg);
+				if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
+				io.to(gameId).emit('chat_message', msg);
+			}
+
 			io.to(gameId).emit('game_updated', game);
 			callback({ game });
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
