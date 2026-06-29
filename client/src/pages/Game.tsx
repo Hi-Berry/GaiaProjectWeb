@@ -4747,7 +4747,7 @@ export default function Game() {
                                       return (
                                         <div
                                           key={type}
-                                          className={`relative inline-flex items-center justify-center rounded-full border transition-all ${isOwned ? 'w-4 h-4 border-white/70 bg-black/40 opacity-100 shadow-[0_0_6px_rgba(255,255,255,0.15)]' : 'w-3.5 h-3.5 border-white/15 bg-black/20 opacity-65'}`}
+                                          className={`relative inline-flex items-center justify-center rounded-full border transition-all ${isOwned ? 'w-4 h-4 border-white/70 bg-black/40 opacity-100 shadow-[0_0_6px_rgba(255,255,255,0.15)]' : 'w-3.5 h-3.5 border-white/20 bg-black/20 opacity-100'}`}
                                           title={`${label}: ${count}${isThreeStep ? ' (3삽)' : ''}`}
                                         >
                                           <span
