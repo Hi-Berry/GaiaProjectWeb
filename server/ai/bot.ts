@@ -3086,6 +3086,14 @@ export class BotLogic {
             }
         }
 
+        // [flag: advTileOverL5] L4→L5 승급은 초록연방을 소모한다. 좋은 고급타일(≥70)이 아직 청구 가능하고 초록연방을
+        //   들고 있으면, 초록을 L5에 태우지 말고 아껴 고급타일에 쓰게 강하게 억제(고급타일 > L5 가치, 사용자 관찰).
+        //   봇이 초록을 L5에 소모→고급타일 0건이던 핵심 원인 교정. R6은 고급타일 트리거(아카/연구소) 시간이 없으니 예외.
+        if (level === 4 && round < 6 && getPlayerFlag(playerId, 'greenForAdvTile', true)
+            && countGreenFederations(player) >= 1 && this.bestClaimableAdvScore(game, playerId) >= 70) {
+            score -= 250;
+        }
+
         // [flag: expansionResearch] 봇 전종족이 확장연구(terra/nav/gaia)를 사람의 절반(합 4~7 vs 9~14)만 올려
         // 행성을 못 늘리는 게 최대 약점(데이터). 확장 3트랙을 과학(×22)·경제(×20)와 경쟁되게 상향 — 낮은 레벨일수록
         // 더 우선해 초반부터 확장 인프라(싼 테라포밍·사거리·가이아)를 깔게 한다. 측정으로 자성 확인.
