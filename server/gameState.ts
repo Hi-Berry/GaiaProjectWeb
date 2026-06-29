@@ -5759,6 +5759,31 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			debugLog(game, `executeBuildMine failed (Spaceship Fed): Cannot build on asteroid directly`, 'error');
 			return false;
 		}
+		// [사용자 룰 C, 2026-06-29] 무한거리 무료광산: 기본 광산비용(1O2C)·거리QIC는 면제하되,
+		//   가이아 행성 기본 QIC와 테라포밍 스텝(광석)은 정상 청구한다. 자원 부족 시 그 행성엔 못 짓는다.
+		//   (기존엔 전부 면제라 비-원주민/가이아 행성도 완전 공짜였음 — 사용자 관찰로 교정.)
+		const isFedGaiaReclaim = (tile.type === 'transdim' || tile.type === 'gaia') && player.pendingGaiaformerTiles?.includes(tileId);
+		let fedGaiaQic = 0, fedTerraOre = 0, fedDiscountSteps = 0;
+		if (!isFedGaiaReclaim) {
+			if (tile.type === 'gaia') {
+				if (player.faction === 'gleens') fedTerraOre = 1; // 글린스는 가이아 비용을 1광석으로
+				else fedGaiaQic = getGaiaBaseQic(player.faction || '');
+			} else {
+				const fedSteps = getTerraformStepsForFaction(game, player.faction!, tile.type as any);
+				const pend = player.pendingTerraformSteps || 0;
+				fedDiscountSteps = Math.min(pend, fedSteps);
+				const actual = fedSteps - fedDiscountSteps;
+				fedTerraOre = actual * getTerraformCost(player.research.terraforming);
+			}
+		}
+		if ((player.ore ?? 0) < fedTerraOre || (player.qic ?? 0) < fedGaiaQic) {
+			debugLog(game, `executeBuildMine failed (Spaceship Fed): insufficient terraform/gaia cost (need ${fedTerraOre}O, ${fedGaiaQic}Q on ${tile.type})`, 'error');
+			io.to(game.id).emit('game_error', `무료광산: 해당 행성의 테라포밍/가이아 비용(${fedTerraOre}광석${fedGaiaQic ? `, ${fedGaiaQic}QIC` : ''})이 부족합니다.`);
+			return false;
+		}
+		player.ore = (player.ore ?? 0) - fedTerraOre;
+		player.qic = (player.qic ?? 0) - fedGaiaQic;
+		if (fedDiscountSteps > 0) player.pendingTerraformSteps = Math.max(0, (player.pendingTerraformSteps || 0) - fedDiscountSteps);
 		// (이미 위에서 체크함)
 		game.pendingSpaceshipFedMine = null;
 		const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
@@ -5774,7 +5799,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 		}
 
-		addGameLog(game, playerId, 'Spaceship Fed', 'Mine 1 free (no Nav)', tileId);
+		addGameLog(game, playerId, 'Spaceship Fed', `Mine 무한거리 (기본무료${fedTerraOre ? `, ${fedTerraOre}O 테라포밍` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC 가이아` : ''})`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_mine');
 		if (rm7Qualify) applyRoundMissionScore(game, playerId, 'new_sector');
 		if (tile.type === 'gaia') applyRoundMissionScore(game, playerId, 'build_gaia');

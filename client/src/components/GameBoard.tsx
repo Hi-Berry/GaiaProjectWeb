@@ -828,6 +828,9 @@ export function GameBoard({
   const mineBuildCost = useMemo(() => {
     if (!selectedTile || !currentPlayer) return null;
 
+    // [사용자 룰 C] 우주선 연방 무한거리 무료광산: 기본 1O2C·거리QIC 면제, 테라포밍 스텝·가이아QIC만 청구 (서버와 동일).
+    const isFedFreeMine = game.pendingSpaceshipFedMine?.playerId === playerId;
+
     const baseRange = getEffectiveBaseRange(currentPlayer);
     const rangeTiles = game.map.filter((t: HexTile) =>
       (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
@@ -841,6 +844,8 @@ export function GameBoard({
     if ((selectedTile.type === 'transdim' || selectedTile.type === 'gaia') && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) {
       neededQIC = 0;
     }
+    // 무한거리 무료광산: 거리QIC 면제 (가이아QIC·테라포밍은 아래에서 정상 계산)
+    if (isFedFreeMine) neededQIC = 0;
 
     // 소행성: faction 없이도 비용 계산 (가이아포머 1개 사용, 비용 0)
     const isLantidaParasitic = currentPlayer.faction === 'lantids' &&
@@ -855,9 +860,11 @@ export function GameBoard({
 
     if (!faction) return null;
 
+    // isFedFreeMine도 기본 광산비용(1O2C)을 면제 (단 freeMine과 달리 테라포밍은 면제 안 함 — 아래 분기는 그대로).
     const freeMine = !!currentPlayer.nextMineFreeFromShipTech || !!currentPlayer.spaceshipFed3TfMineFree;
-    let oreCost = freeMine ? 0 : 1;
-    let credits = freeMine ? 0 : 2;
+    const baseFree = freeMine || isFedFreeMine;
+    let oreCost = baseFree ? 0 : 1;
+    let credits = baseFree ? 0 : 2;
     let qicCost = neededQIC;
     const terraformingLevel = currentPlayer.research?.terraforming ?? 0;
     let terraformSteps = 0;
@@ -881,8 +888,8 @@ export function GameBoard({
       (selectedTile.type === 'transdim' && selectedTile.hasGaiaformer && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) ||
       (selectedTile.type === 'gaia' && currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id))
     ) {
-      oreCost = freeMine ? 0 : 1;
-      credits = freeMine ? 0 : 2;
+      oreCost = baseFree ? 0 : 1;
+      credits = baseFree ? 0 : 2;
       qicCost = 0;
     }
     // 가이아 행성 (다른 출처, 내 pending 아님)
@@ -897,7 +904,7 @@ export function GameBoard({
     const pendingTerraformSteps = currentPlayer.pendingTerraformSteps || 0;
     const discountSteps = Math.min(pendingTerraformSteps, terraformSteps);
     return { oreCost, credits, qicCost, terraformSteps, terraformingLevel, needsExtraTerraforming, terraformDiscount: discountSteps };
-  }, [selectedTile, currentPlayer, faction, game.map, playerId]);
+  }, [selectedTile, currentPlayer, faction, game.map, playerId, game.pendingSpaceshipFedMine]);
 
   const canBuildMine = useMemo(() => {
     const isTurn = game.turnOrder[game.currentPlayerIndex] === playerId;

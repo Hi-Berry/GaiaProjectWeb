@@ -2698,20 +2698,39 @@ export class BotLogic {
             t.parasiticMine?.ownerId === playerId ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
-        const candidates = game.map
+        // [사용자 룰 C, 2026-06-29] 무한거리 무료광산도 가이아QIC·테라포밍 스텝(광석)은 서버가 청구한다.
+        //   → 봇이 감당 못 하는 타일을 고르면 build 실패→데드락. 비용을 계산해 '감당 가능' 타일만 후보로 두되,
+        //   감당 가능한 게 하나도 없으면 어쩔 수 없이 전체에서 고른다(데드락 방지; 그 경우 서버가 거부→해소 핸들러 처리).
+        const haveOre = player.ore ?? 0, haveQic = this.getAvailableQic(player);
+        const scoreTile = (t: HexTile) => {
+            const dist = myTiles.length > 0 ? Math.min(...myTiles.map(p => getDistance(p, t))) : 0;
+            const steps = t.type ? getTerraformStepsForFaction(game, player.faction!, t.type as any) : 0;
+            // 서버와 동일한 비용 산정: 가이아=가이아QIC(글린스는 1광석), 그 외=테라포밍 광석(펜딩스텝 할인)
+            let needOre = 0, needQic = 0;
+            const reclaim = (t.type === 'transdim' || t.type === 'gaia') && player.pendingGaiaformerTiles?.includes(t.id);
+            if (!reclaim) {
+                if (t.type === 'gaia') {
+                    if (player.faction === 'gleens') needOre = 1; else needQic = getGaiaBaseQic(player.faction || '');
+                } else {
+                    const actual = Math.max(0, steps - Math.min(player.pendingTerraformSteps || 0, steps));
+                    needOre = actual * getTerraformCost(player.research.terraforming);
+                }
+            }
+            const affordable = haveOre >= needOre && haveQic >= needQic;
+            const score =
+                (steps === 0 ? 120 : 80 - steps * 10) +
+                this.calculateRoundScoringBonus(game, playerId, 'build_mine') +
+                this.calculateFinalMissionBonus(game, playerId, t) -
+                dist;
+            return { tileId: t.id, score, affordable };
+        };
+        const all = game.map
             .filter(t => !forbidden.has(t.type || '') && !t.ownerId && t.structure === null)
-            .map(t => {
-                const dist = myTiles.length > 0 ? Math.min(...myTiles.map(p => getDistance(p, t))) : 0;
-                const steps = t.type ? getTerraformStepsForFaction(game, player.faction!, t.type as any) : 0;
-                const score =
-                    (steps === 0 ? 120 : 80 - steps * 10) +
-                    this.calculateRoundScoringBonus(game, playerId, 'build_mine') +
-                    this.calculateFinalMissionBonus(game, playerId, t) -
-                    dist;
-                return { tileId: t.id, score };
-            })
+            .map(scoreTile)
             .sort((a, b) => b.score - a.score);
-        return candidates[0] ? { type: 'build_mine', params: { tileId: candidates[0].tileId } } : null;
+        const affordableList = all.filter(c => c.affordable);
+        const pick = (affordableList.length > 0 ? affordableList : all)[0];
+        return pick ? { type: 'build_mine', params: { tileId: pick.tileId } } : null;
     }
 
     /**
