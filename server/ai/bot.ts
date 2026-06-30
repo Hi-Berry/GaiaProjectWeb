@@ -3259,7 +3259,10 @@ export class BotLogic {
         // [flag: advTileOverL5] 사람은 좋은 고급타일이면 거의 무조건 먹음(봇 0건/사람95). 표준 수익타일 점수가 고급을
         // 이기는 calibration 때문에 봇이 트리거를 만들어도 고급을 안 집던 마지막 관문 → 좋은 고급타일(≥85)이면 표준보다 우선.
         // value-aware: ≥85(정말 좋은 것)만 강제, 나쁜 고급은 기존대로 표준과 정상 비교.
-        const advPreferred = !!bestAdv && (bestAdv.score > maxScore
+        // [flag: advTileAlways] 사용자 모델: 고급타일은 거의 항상 기본보다 가치 큼 → 청구 가능하면(초록+L4+미보유) 무조건 우선.
+        //   기존 임계(≥70/기본초과)가 봇이 '딸 수 있는데 기본 집는'(사용자가 1:3에서 수없이 관찰) 원인. 실제 결정부 직접 교정.
+        const advPreferred = !!bestAdv && (getPlayerFlag(playerId, 'advTileAlways', true)
+            || bestAdv.score > maxScore
             || (getPlayerFlag(playerId, 'advTileOverL5', true) && bestAdv.score >= 70));
         if (bestAdv && advPreferred) {
             if (!isSimulate) {
