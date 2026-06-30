@@ -5790,11 +5790,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 				fedTerraOre = actual * getTerraformCost(player.research.terraforming);
 			}
 		}
-		if ((player.ore ?? 0) < fedTerraOre || (player.qic ?? 0) < fedGaiaQic) {
-			debugLog(game, `executeBuildMine failed (Spaceship Fed): insufficient terraform/gaia cost (need ${fedTerraOre}O, ${fedGaiaQic}Q on ${tile.type})`, 'error');
-			io.to(game.id).emit('game_error', `무료광산: 해당 행성의 테라포밍/가이아 비용(${fedTerraOre}광석${fedGaiaQic ? `, ${fedGaiaQic}QIC` : ''})이 부족합니다.`);
-			return false;
-		}
+		// [데드락 수정 2026-06-30] 비용 부족 시 '거부'하면 pendingSpaceshipFedMine이 영영 안 풀려(턴종료도 막힘) 게임이 hang됨
+		//   (실측: 80판 중 데드락으로 멈춤). → 거부 대신 '낼 수 있는 만큼만 청구하고 모자라면 면제'해 항상 건설 가능하게.
+		//   (사용자 룰: 테라포밍/가이아 비용 청구 — 단 못 낼 땐 면제. 무한거리 무료광산은 어디든 반드시 놓을 수 있어야 함.)
+		if ((player.ore ?? 0) < fedTerraOre) { fedTerraOre = 0; fedDiscountSteps = 0; }
+		if ((player.qic ?? 0) < fedGaiaQic) fedGaiaQic = 0;
 		player.ore = (player.ore ?? 0) - fedTerraOre;
 		player.qic = (player.qic ?? 0) - fedGaiaQic;
 		if (fedDiscountSteps > 0) player.pendingTerraformSteps = Math.max(0, (player.pendingTerraformSteps || 0) - fedDiscountSteps);

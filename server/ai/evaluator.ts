@@ -647,7 +647,10 @@ export class Evaluator {
                 }
                 if (bestLvl >= 3) {
                     const ready = Math.min(bestLvl, 4) - 2; // L3→1, L4→2
-                    const advScore = ready * 30 * fedRoundScale;
+                    // [flag: advTileValueBoost] 사용자 가설검증 — 고급타일이 저평가라 MCTS가 경로를 안 따라가나?
+                    //   준비보상을 30→90으로 키워 "초록+L4+고급타일 가능" 상태를 강하게 만들어, MCTS가 트리거(아카/연구소) 건설로 끌리는지 직접 측정.
+                    const readyW = getPlayerFlag(playerId, 'advTileValueBoost', false) ? 90 : 30;
+                    const advScore = ready * readyW * fedRoundScale;
                     score += advScore;
                     logDebug(`8c) AdvTileReady: green ${greenAvail}, bestTrackLvl ${bestLvl} → +${advScore.toFixed(1)}`);
                 }
@@ -827,7 +830,9 @@ export class Evaluator {
             }
         }
         // [개선] 고급 기술타일은 다(多)연방/다구조물형 반복VP라 잠재가치가 큼 — 상한 600→1000으로 상향.
-        advTechScore = Math.min(advTechScore, 1000);
+        // [flag: advTileValueBoost] 보유 고급타일 가치의 ×0.5 디스카운트를 상쇄(×2)해 '거의 정가'로 — 저평가 가설 테스트.
+        if (getPlayerFlag(playerId, 'advTileValueBoost', false)) advTechScore *= 2;
+        advTechScore = Math.min(advTechScore, 1400);
         if (advTechScore > 0) {
             score += advTechScore;
             logDebug(`12b) Advanced Tech Tiles: +${advTechScore.toFixed(1)}`);
