@@ -649,7 +649,7 @@ export class Evaluator {
                     const ready = Math.min(bestLvl, 4) - 2; // L3→1, L4→2
                     // [flag: advTileValueBoost] 사용자 가설검증 — 고급타일이 저평가라 MCTS가 경로를 안 따라가나?
                     //   준비보상을 30→90으로 키워 "초록+L4+고급타일 가능" 상태를 강하게 만들어, MCTS가 트리거(아카/연구소) 건설로 끌리는지 직접 측정.
-                    const readyW = getPlayerFlag(playerId, 'advTileValueBoost', false) ? 90 : 30;
+                    const readyW = getPlayerFlag(playerId, 'advTileValueMax', false) ? 400 : (getPlayerFlag(playerId, 'advTileValueBoost', false) ? 90 : 30);
                     const advScore = ready * readyW * fedRoundScale;
                     score += advScore;
                     logDebug(`8c) AdvTileReady: green ${greenAvail}, bestTrackLvl ${bestLvl} → +${advScore.toFixed(1)}`);
@@ -671,7 +671,7 @@ export class Evaluator {
         // select_advanced_tech_tile 직후엔 타일이 아직 techTiles에 없어(커버 후 확정) 평가가 0 →
         // MCTS가 "즉시 보상 있는 일반 타일"만 선택, 고급타일 채택 0의 두 번째 원인. 입수 직전 가치를 크레딧.
         if ((game as any).pendingAdvancedTechCover?.playerId === playerId) {
-            const advCredit = 240;
+            const advCredit = getPlayerFlag(playerId, 'advTileValueMax', false) ? 2000 : 240;
             score += advCredit;
             logDebug(`8d) AdvTile-acquiring (pending cover): +${advCredit.toFixed(1)}`);
         }
@@ -831,8 +831,9 @@ export class Evaluator {
         }
         // [개선] 고급 기술타일은 다(多)연방/다구조물형 반복VP라 잠재가치가 큼 — 상한 600→1000으로 상향.
         // [flag: advTileValueBoost] 보유 고급타일 가치의 ×0.5 디스카운트를 상쇄(×2)해 '거의 정가'로 — 저평가 가설 테스트.
-        if (getPlayerFlag(playerId, 'advTileValueBoost', false)) advTechScore *= 2;
-        advTechScore = Math.min(advTechScore, 1400);
+        if (getPlayerFlag(playerId, 'advTileValueMax', false)) advTechScore *= 6;
+        else if (getPlayerFlag(playerId, 'advTileValueBoost', false)) advTechScore *= 2;
+        advTechScore = Math.min(advTechScore, getPlayerFlag(playerId, 'advTileValueMax', false) ? 6000 : 1400);
         if (advTechScore > 0) {
             score += advTechScore;
             logDebug(`12b) Advanced Tech Tiles: +${advTechScore.toFixed(1)}`);
