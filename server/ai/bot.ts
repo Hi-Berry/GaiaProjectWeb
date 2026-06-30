@@ -24,6 +24,7 @@ import {
     executeBotFederation,
     executeBurnPower,
     executeConvertResource,
+    executeUseHadschHallasPIAction,
     getAcademyLeftCount,
     getAcademyRightCount,
     executeEnterSpaceship,
@@ -93,6 +94,7 @@ type BotAction = {
     | 'form_federation'
     | 'burn_power'
     | 'convert_resource'
+    | 'use_hadsch_hallas_pi_action'
     | 'enter_spaceship'
     | 'use_tech_action'
     | 'use_special_action'
@@ -327,6 +329,8 @@ export class BotLogic {
                 return executeEclipseBuildAsteroidMine(io, game, playerId, action.params.tileId);
             case 'convert_resource':
                 return executeConvertResource(io, game, playerId, action.params.type, action.params.useBrain);
+            case 'use_hadsch_hallas_pi_action':
+                return executeUseHadschHallasPIAction(io, game, playerId, action.params.actionId);
             case 'charge_power':
                 return false;
             case 'end_turn':
@@ -555,11 +559,19 @@ export class BotLogic {
                         return { type: 'use_power_action', params: { actionId: 'gain-2-ore', useBrain: player.faction === 'taklons' } };
                     }
                 }
+                // HH PI 변환(무료): 메인액션 전에 남는 크레딧을 QIC 등으로 미리 보충 → 그 턴 건설/연방에 QIC 활용. 루프가 버퍼까지 반복.
+                {
+                    const hhConvPre = this.findHadschHallasConvert(game, playerId);
+                    if (hhConvPre) { log(`Bot ${player.name} HH PI convert (pre-action): ${(hhConvPre.params as any)?.actionId}`, 'game', game.id); return hhConvPre; }
+                }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await MCTS.search(game, playerId, candidates);
 
                 // 패스하기 직전 자원 변환 (Cleanup logic)
                 if (bestAction?.type === 'pass_round') {
+                    // HH PI 변환(무료): 패스 전 남는 크레딧을 QIC/광석/지식으로. 봇 루프가 버퍼까지 반복 → 크레딧 풍선 해소.
+                    const hhConv = this.findHadschHallasConvert(game, playerId);
+                    if (hhConv) { log(`Bot ${player.name} HH PI convert before pass: ${(hhConv.params as any)?.actionId}`, 'game', game.id); return hhConv; }
                     // [flag: powerActionOverPass] 패스+1:1 파워변환 대신, 쓸만한 파워액션(findPowerActions: 점수≥0만, 베이스150+)이
                     // affordable하면 그걸 실행 = 생산적 턴(1:1 변환보다 훨씬 이득). MCTS가 파워액션 저평가해 0회 쓰던 것 일반교정
                     // (humanRule2O 일반판, 사용자 관찰). 토큰예비 가드로 연방용 토큰 드레인 방지.
@@ -609,6 +621,29 @@ export class BotLogic {
     }
 
     /** 패스하기 직전에 다음 라운드 수입으로 인해 버려지는 자원이 생기지 않도록 미리 변환 시도 */
+    /** [flag: hadschHallasConvert] HH PI 무료 변환(4C→1QIC / 3C→1O / 4C→1K) — 남는 크레딧을 부족한 자원으로.
+     *  봇이 HH 시그니처를 0회 쓰던 갭(사람 44.7/게임) + 크레딧 풍선(봇 크레딧 과잉) 동시 교정.
+     *  QIC(연방·건설·가이아에 귀함) 최우선, 그다음 부족한 광석/지식. 건설 버퍼(6C)는 남긴다. */
+    private static findHadschHallasConvert(game: ServerGameState, playerId: string): BotAction | null {
+        const player = game.players[playerId];
+        if (!player || player.faction !== 'hadsch_hallas') return null;
+        if (!getPlayerFlag(playerId, 'hadschHallasConvert', true)) return null;
+        const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        if (!hasPI || !player.hadschHallasPIActions?.length) return null;
+        const credits = player.credits ?? 0;
+        const BUFFER = 3; // 즉시 쓸 최소 크레딧만 남김(HH는 크레딧 부자라 적극 전환)
+        const qic = player.qic ?? 0, ore = player.ore ?? 0, know = player.knowledge ?? 0;
+        // QIC 최우선(연방·건설·가이아에 귀함): 크레딧 여유 & QIC 넉넉하지 않으면(<8) 적극 전환
+        if (qic < 8 && credits >= 4 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
+        // 광석 부족(<3)하면 3C→1O (건설 연료)
+        if (ore < 3 && credits >= 3 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-3c-1o' } };
+        // 지식 부족(<3)하면 4C→1K
+        if (know < 3 && credits >= 4 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1k' } };
+        // 크레딧 풍선(>=10)이면 남는 걸 QIC로 계속 빼 (죽은 크레딧 < 자원)
+        if (credits >= 10) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
+        return null;
+    }
+
     private static findCleanupConvertAction(game: ServerGameState, playerId: string, nextBonusTileId?: string): BotAction | null {
         const player = game.players[playerId];
         if (!player) return null;

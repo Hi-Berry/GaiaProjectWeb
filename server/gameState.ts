@@ -4120,25 +4120,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.pendingTurnEndPlayerId) return;
-			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			const player = game.players[playerId];
-			if (player.faction !== 'hadsch_hallas') return;
-			const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-			if (!hasPI || !player.hadschHallasPIActions?.length) return;
-			const action = player.hadschHallasPIActions.find(a => a.id === actionId);
-			if (!action) return;
-			if ((player.credits ?? 0) < action.costCredits) return;
-
-			pushFreeActionUndoSnapshot(game);
-
-			player.credits = (player.credits ?? 0) - action.costCredits;
-			if (actionId === 'hh-4c-1qic') grantQic(game, playerId, 1);
-			else if (actionId === 'hh-4c-1k') player.knowledge = (player.knowledge ?? 0) + 1;
-			else if (actionId === 'hh-3c-1o') player.ore = (player.ore ?? 0) + 1;
-			else return;
-			addGameLog(game, playerId, 'Hadsch Hallas PI', action.label, undefined);
-			log(`Player ${player.name} used Hadsch Hallas PI action: ${action.label}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeUseHadschHallasPIAction(io, game as ServerGameState, playerId, actionId);
 		});
 
 		// 발타크 프리 액션: 1 포머 → 1 QIC (사용한 포머는 다음 라운드 시작까지 잠김, 가이아 토큰 표기)
@@ -8304,6 +8286,28 @@ export function executeBalTakGaiaformerToQic(
 }
 
 /** 자원 변환 (Free Action) */
+/** Hadsch Hallas PI 무료 변환 액션(4C→1QIC / 4C→1K / 3C→1O) — 봇/소켓 공용. 크레딧만 있으면 반복 가능(once-per-round 아님). */
+export function executeUseHadschHallasPIAction(io: SocketIOServer, game: ServerGameState, playerId: string, actionId: string): boolean {
+	const player = game.players[playerId];
+	if (!player || player.faction !== 'hadsch_hallas') return false;
+	if (game.currentPhase !== 'main') return false;
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+	if (!hasPI || !player.hadschHallasPIActions?.length) return false;
+	const action = player.hadschHallasPIActions.find(a => a.id === actionId);
+	if (!action) return false;
+	if ((player.credits ?? 0) < action.costCredits) return false;
+	pushFreeActionUndoSnapshot(game);
+	player.credits = (player.credits ?? 0) - action.costCredits;
+	if (actionId === 'hh-4c-1qic') grantQic(game, playerId, 1);
+	else if (actionId === 'hh-4c-1k') player.knowledge = (player.knowledge ?? 0) + 1;
+	else if (actionId === 'hh-3c-1o') player.ore = (player.ore ?? 0) + 1;
+	else return false;
+	addGameLog(game, playerId, 'Hadsch Hallas PI', action.label, undefined);
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 export function executeConvertResource(
 	io: SocketIOServer,
 	game: ServerGameState,

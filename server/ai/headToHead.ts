@@ -30,7 +30,7 @@ type SeatResult = { playerId: string; faction?: string; score: number; group: 'A
 type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[] };
 
 // 행동 분류 — "변경이 의도한 행동대체를 실제로 했는지"(예: 교역소↓ → 광산/연구소↑ vs 그냥 패스↑) 검증용.
-const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'downgrade', 'research', 'federation', 'powerAct', 'techTile', 'advTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total'] as const;
+const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'downgrade', 'research', 'federation', 'powerAct', 'hhConvert', 'techTile', 'advTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -51,6 +51,7 @@ function classifyAction(a: string): string | null {
     if (/Advanced Research/i.test(a)) return 'research';
     if (/^Federation\b/i.test(a)) return 'federation';
     if (/Placed Gaiaformer|Gaia Project/i.test(a)) return 'gaiaform';
+    if (/Hadsch Hallas PI/i.test(a)) return 'hhConvert'; // HH 시그니처 변환 계측
     if (/Power Action|Q\.I\.C\.? Action|QIC Action/i.test(a)) return 'powerAct';
     // 6) 패스(보너스 선택)
     if (/Selected Bonus|^Pass\b|^Passed/i.test(a)) return 'pass';
@@ -445,7 +446,7 @@ async function main() {
         console.log('\n  ── 행동믹스(좌석당 평균, B=도전자 − A=챔피언) ──');
         const labelMap: Record<string, string> = {
             mine: '광산', tradingStation: '교역소', researchLab: '연구소', piAcademy: '의회/아카데미',
-            upgrade: '업글(기타)', downgrade: '다운그레이드', research: '연구진행', federation: '연방', powerAct: '파워액션',
+            upgrade: '업글(기타)', downgrade: '다운그레이드', research: '연구진행', federation: '연방', powerAct: '파워액션', hhConvert: 'HH변환',
             techTile: '기술타일', advTile: '고급타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
         };
         for (const k of BEHAVIOR_KEYS) {
