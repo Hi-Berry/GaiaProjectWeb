@@ -503,3 +503,10 @@
 - forced-HH 40판: 보수적(버퍼6/qic<5) → HH변환 0.40, VP −3.67(빡빡해 나쁜 타이밍만). 적극(버퍼3/qic<8/풍선≥10) → **HH변환 0.70, VP +0.33(중립), 연방 +0.10.** do-no-harm + 시그니처 사용 + QIC가 연방에 보탬 → 기본 ON.
 - 단 0.70은 사람 44.7보다 훨씬 적음(봇이 self-play에선 크레딧 부자가 아님). vs사람 실전서 더 체감 예상.
 - 계측 자산: headToHead에 'HH변환'·'다운그레이드' 행 추가.
+
+## 2026-06-30 종족능력 갭 4종 — tinkeroids 채택, darkanians/bal_tak 기각, taklons 무레버
+- **tinkeroids(채택, 무플래그 룰개선)**: executeBotTinkeroidSpecial이 무조건 options[0] 고르던 것 → 라운드별 우선순위(1-3R: 4파워>1QIC>1TF광산, 4-6R: 3K>2QIC>3TF광산). 명백한 개선·저위험이라 적용(이미 최강 종족 91점이라 A/B 생략).
+- **darkanians(기각, OFF)**: PI 신섹터 +1K+2C를 빌드점수 +35로 유도. forced 40판 VP −0.49, paired 65.3(ON)vs66.8(OFF). 신섹터는 멀어(QIC점프) 보너스가 reach 벽/점프페널티에 막힘 → 중립-음수.
+- **bal_tak(기각, OFF)**: 선제 포머→QIC(qic<2시). forced 40판 VP −2.33, paired 75.0(ON)vs84.2(OFF, Δ−9.2). 선제변환이 오히려 손해 → 기각.
+- **taklons(무레버)**: 시그니처(브레인스톤·번·PI토큰)가 수익 자동처리/이미 구현됨 — "안 쓰는" 게 아니라 자동이라 추가할 행동 없음. factionAbilityUsage의 1.7 vs 22는 로깅/패시브 차이.
+- **메타 교훈(중요)**: 종족능력 개선은 "점수 보너스로 유도"·"선제 자원전환"은 self-play서 워시아웃(reach/MCTS벽 + vs사람 엣지 미보상). "결정부 직접교정"(advTileAlways)·"없던 행동 직접실행"(hadschHallasConvert)만 먹힘. 이게 통하는 fix와 안 통하는 fix의 분기선.

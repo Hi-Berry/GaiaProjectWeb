@@ -7923,8 +7923,15 @@ export function executeBotTinkeroidSpecial(
 	if (!pending || pending.playerId !== playerId) return false;
 	if (!pending.options || pending.options.length === 0) return false;
 
-	const specialId = pending.options[0];
 	const player = game.players[playerId];
+	// [2026-06-30] 기존엔 무조건 options[0] (전략 0). 라운드별 우선순위로 스마트 선택:
+	//   초반(1-3R): 엔진/확장 연료 — 4파워 > 1QIC > 1TF+광산. 후반(4-6R): 점수직결 — 3지식 > 2QIC > 3TF+광산.
+	//   (지식은 연구·고급타일, QIC는 연방·건설에 귀함. options에 있는 것 중 우선순위 첫 매칭.)
+	const round = (game as any).roundNumber ?? 1;
+	const pref = round <= 3
+		? ['tinkeroid-4power', 'tinkeroid-1qic', 'tinkeroid-1tf-mine']
+		: ['tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
+	const specialId = pref.find(s => pending.options.includes(s)) ?? pending.options[0];
 	player.tinkeroidRoundSpecialId = specialId;
 	player.tinkeroidsChosenSpecialIds = [...(player.tinkeroidsChosenSpecialIds ?? []), specialId];
 

@@ -564,6 +564,13 @@ export class BotLogic {
                     const hhConvPre = this.findHadschHallasConvert(game, playerId);
                     if (hhConvPre) { log(`Bot ${player.name} HH PI convert (pre-action): ${(hhConvPre.params as any)?.actionId}`, 'game', game.id); return hhConvPre; }
                 }
+                // [flag: balTakProactiveQic] 발타크 포머→QIC 선제 변환: 발타크는 가이아프로젝트 불가라 포머는 QIC 전용이고,
+                //   어차피 패스 시 전부 자동변환됨 → QIC가 낮을 때 미리 1개 바꿔두면 그 턴 빌드/액션에 활용(무해, 순이득).
+                if (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakProactiveQic', false)
+                    && (player.qic ?? 0) < 2 && getEffectiveGaiaformers(player) >= 1) {
+                    log(`Bot ${player.name} balTak proactive 포머→QIC (qic=${player.qic})`, 'game', game.id);
+                    return { type: 'bal_tak_gaiaformer_to_qic', params: {} };
+                }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await MCTS.search(game, playerId, candidates);
 
@@ -2078,6 +2085,18 @@ export class BotLogic {
                 }
             }
 
+            // [flag: darkaniansNewSector] 다카니안 PI는 '신규 섹터/외각 진출' 건설 시 +1K+2C를 주는데(서버 자동지급),
+            //   봇이 이 가치를 평가 안 해 신섹터 진출을 우선 안 함(사용자 관찰: 시그니처 1.0 vs 사람 22.3).
+            //   PI 보유 시 '내 건물이 없는 섹터'에 짓는 후보를 우대(+1K~5점 +2C~20점 ≈ 35). geodens 신유형과 같은 패턴.
+            let darkaniansSectorBonus = 0;
+            if (player.faction === 'darkanians' && getPlayerFlag(playerId, 'darkaniansNewSector', false)) {
+                const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                if (hasPI) {
+                    const mySectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship').map(t => t.sector));
+                    if (!mySectors.has(tile.sector)) darkaniansSectorBonus = 35;
+                }
+            }
+
             if (neededQicForRange > 0) {
                 // [사용자 피드백] 장거리(QIC) 확장의 가치를 주변 꿀행성 군집도로 평가하는 교두보(Bridgehead) 확보 전략
                 let easyTargetsDist1 = 0;
@@ -2147,7 +2166,7 @@ export class BotLogic {
             }
 
             // 새-유형 가점은 allowBigQicJump 게이트(bridgeheadBonus>=180) 판정 이후에 더해 게이트 오염 방지
-            bridgeheadBonus += geodensNewTypeBonus;
+            bridgeheadBonus += geodensNewTypeBonus + darkaniansSectorBonus;
 
             if (tile.type === 'gaia') {
                 // [수정 #1] 내 가이아포머가 성숙한 타일(pendingGaiaformerTiles)은 이미 포밍 완료 → 추가 QIC/오레 비용 없음.
