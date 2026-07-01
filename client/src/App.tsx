@@ -30,6 +30,20 @@ function App() {
     preloadImages(PRELOAD_IMAGES);
   }, []);
 
+  // [패닉 키] '0' 누르면 즉시 naver로 이동(보스키). 단 입력창(채팅 등) 포커스 중엔 무시 — 타이핑 방해 안 함.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '0' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable;
+      if (typing) return; // 채팅/입력 중이면 무시
+      window.location.href = 'https://www.naver.com';
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
