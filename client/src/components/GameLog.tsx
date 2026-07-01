@@ -52,6 +52,12 @@ export function GameLog({
     return null;
   };
 
+  // [플레이어 필터] 특정 플레이어 로그만 보기 (사용자 요청). null=전체.
+  const [filterPlayerId, setFilterPlayerId] = useState<string | null>(null);
+  // 로그에 등장하는 플레이어 목록(등장 순서 유지, 중복 제거) — 필터 칩용.
+  const logPlayerIds: string[] = [];
+  for (const l of logs) { const pid = (l as any)?.playerId; if (pid && game.players[pid] && !logPlayerIds.includes(pid)) logPlayerIds.push(pid); }
+
   // 라운드 점프: 각 라운드의 '첫(시간순) 로그' origIndex와 DOM 노드 ref
   const [showRounds, setShowRounds] = useState(false);
   const topRef = useRef<HTMLDivElement | null>(null);
@@ -406,6 +412,35 @@ export function GameLog({
             </button>
           ))}
         </div>
+        {/* [플레이어 필터] 로그에 등장한 플레이어 칩 — 클릭 시 그 플레이어 로그만. 다시 클릭/전체로 해제. */}
+        {logPlayerIds.length > 1 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-[9px] text-zinc-500 font-black shrink-0">필터</span>
+            <button
+              type="button"
+              onClick={() => setFilterPlayerId(null)}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${filterPlayerId === null ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-800/80 border-white/10 text-zinc-300 hover:bg-zinc-700'}`}
+            >전체</button>
+            {logPlayerIds.map((pid) => {
+              const p = game.players[pid];
+              const face = p?.faction ? raceFaceSrc(p.faction) : null;
+              const nm = (p?.name || p?.faction || pid).slice(0, 7);
+              const sel = filterPlayerId === pid;
+              return (
+                <button
+                  key={pid}
+                  type="button"
+                  onClick={() => setFilterPlayerId(sel ? null : pid)}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${sel ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-800/80 border-white/10 text-zinc-300 hover:bg-zinc-700'}`}
+                  title={p?.name || pid}
+                >
+                  {face && <img src={face} alt="" className="w-3.5 h-3.5 rounded-sm object-cover" />}
+                  <span className="truncate max-w-[60px]">{nm}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       )}
       {logs.length === 0 ? (
@@ -413,7 +448,7 @@ export function GameLog({
           No actions yet
         </div>
       ) : (
-        [...logs].reverse().map((log, index, reversedLogs) => {
+        [...logs].reverse().filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
           // 최신순 표시 유지. 라운드 라벨은 블록 '하단'(그 라운드의 가장 오래된 로그 아래)에:
           // 화면에서 바로 아래(더 오래된) 항목과 라운드가 다르거나 마지막이면 이 항목이 해당 라운드의 첫(시간상) 로그.
           const nextOlder = index < reversedLogs.length - 1 ? reversedLogs[index + 1] : null;
@@ -655,7 +690,8 @@ export function GameLog({
                       </div>
                     );
                   }
-                  const origIdx = logs.length - 1 - index; // 최신순(역순) 표시 → 원본 시간순 인덱스로 환산
+                  // 원본 시간순 인덱스: 필터 시 index가 어긋나므로 로그 객체로 직접 찾음(스냅샷 diff 정확).
+                  const origIdx = logs.indexOf(log);
                   // base(이 액션 직전 스냅샷)가 있으면 '이 액션만'의 변동. 없으면(구 로그) 같은 플레이어 직전 로그로 폴백.
                   const prev = log.base ?? prevSnapFor(origIdx, log.playerId);
                   return (
