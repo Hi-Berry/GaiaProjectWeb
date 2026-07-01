@@ -335,7 +335,12 @@ export class Evaluator {
         // 현재 점수와 가치망 "예측 최종 점수"를 반반 섞음. 망은 보조 신호(경계 有)라 탐색 악용 완화.
         if (getPlayerFlag(playerId, 'valueNetBlend', false)) {
             const net = getValueNet();
-            if (net) vpBasis = 0.5 * (player.score || 0) + 0.5 * net.predict(extractFeatures(game, playerId));
+            if (net) {
+                // [flag: valueNetBlendW] 블렌드 가중치(0~1). 망이 노이즈면 작게(0.1~0.15) 섞어 방향성만 취하고 노이즈 지배 방지.
+                //   사용자: 절대MAE 나빠도 엔진축 방향성(+)은 맞으니 작은 넛지로 쓸 수 있나 검증.
+                const bw = Math.max(0, Math.min(1, getPlayerFlag(playerId, 'valueNetBlendW', 0.5)));
+                vpBasis = (1 - bw) * (player.score || 0) + bw * net.predict(extractFeatures(game, playerId));
+            }
         }
         const vpScore = vpBasis * vpWeight;
         score += vpScore;

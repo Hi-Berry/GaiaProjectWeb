@@ -1050,7 +1050,21 @@ export class BotLogic {
         if (buildActions.length > 0) candidates.push(...buildActions);
 
         // 6. 일반 업그레이드 시도
-        const upgradeActions = this.findUpgradeActions(game, playerId);
+        let upgradeActions = this.findUpgradeActions(game, playerId);
+        // [flag: expandOverTS] 사용자 라벨(Q5): 초반엔 확장(미점유 타일 광산)이 교역소 업글보다 급함(타일 선점당함, TS는 천천히).
+        //   봇은 교역소 업글에 편중(초반 봇 17% vs 사람 8%). R≤3에 '미점유 새 타일 광산' 후보가 있으면 mine→TS 업글 후보 제거해 확장 우선.
+        if (getPlayerFlag(playerId, 'expandOverTS', false) && ((game as any).roundNumber ?? 1) <= 3) {
+            const faction = FACTIONS.find(f => f.id === player.faction);
+            const homeType = faction?.homePlanet;
+            const hasFreshExpansion = buildActions.some(b => {
+                if (b.type !== 'build_mine') return false;
+                const t = game.map.find(x => x.id === (b.params as any)?.tileId);
+                return t && !t.ownerId && t.type !== homeType; // 미점유 + 비모행성유형 = 새 확장
+            });
+            if (hasFreshExpansion) {
+                upgradeActions = upgradeActions.filter(u => !(u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station'));
+            }
+        }
         if (upgradeActions.length > 0) candidates.push(...upgradeActions);
 
         // 7. 내비게이션 연구 보너스 (QIC 절약)
