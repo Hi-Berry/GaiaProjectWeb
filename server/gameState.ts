@@ -7423,6 +7423,8 @@ export function executePlaceIvitsSpaceStation(
 export function peekEclipseAsteroidMineTileIds(game: ServerGameState, playerId: string): string[] {
 	const player = game.players[playerId];
 	if (!player) return [];
+	// [버그수정 2026-07-01] 광산 8개 한도 초과 방지 — 이클립스 소행성광산도 광산 토큰을 쓰므로 한도 적용(사용자 관찰: 광산 9개).
+	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return [];
 	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) return [];
 	const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
@@ -7454,6 +7456,8 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 	if (!player) return false;
 	const tile = game.map.find(t => t.id === tileId);
 	if (!tile || tile.type !== 'asteroid' || tile.structure !== null) return false;
+	// [버그수정 2026-07-01] 광산 8개 한도 가드(이클립스 소행성광산도 토큰 사용). 초과 시 건설 거부.
+	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) return false;
 	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) return false;
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
@@ -7729,6 +7733,8 @@ export function executeUseShipAction(
 		}
 		if (actionIndex === 3) {
 			if (player.credits < 6) return false;
+			// 건설 가능 소행성 없으면(사거리 밖 or 광산 8개 한도) 6C 낭비·stuck 방지 위해 차단(소켓 경로와 일치).
+			if (peekEclipseAsteroidMineTileIds(game, playerId).length === 0) return false;
 			player.credits -= 6;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
