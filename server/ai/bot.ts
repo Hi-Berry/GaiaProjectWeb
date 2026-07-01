@@ -46,6 +46,8 @@ import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
 import { getPlayerFlag } from './variant';
+import { StateCloner } from './stateCloner';
+import { Evaluator } from './evaluator';
 import {
     PlayerState,
     HexTile,
@@ -571,6 +573,11 @@ export class BotLogic {
                     log(`Bot ${player.name} balTak proactive 포머→QIC (qic=${player.qic})`, 'game', game.id);
                     return { type: 'bal_tak_gaiaformer_to_qic', params: {} };
                 }
+                // [flag: twoTurnPlan] 다턴 플래너 — 시뮬 중엔 실행 안 함(중첩 폭발 방지). 실제 결정에서만 2턴 시퀀스 비교.
+                if (!isSimulate) {
+                    const planned = await this.planTwoTurn(game, playerId, candidates);
+                    if (planned) { log(`Bot ${player.name} twoTurnPlan commit: ${planned.type}`, 'game', game.id); return planned; }
+                }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await MCTS.search(game, playerId, candidates);
 
@@ -634,6 +641,53 @@ export class BotLogic {
         }
 
         return null;
+    }
+
+    /**
+     * [flag: twoTurnPlan] 다턴 플래너 v1 — 탑 후보 각각을 '이번 액션 + 다음 턴 최선 후속'까지 실제 시뮬(라운드 내라
+     *   수입 없이 정확)해 2턴 종료상태로 비교, 최고 시퀀스의 첫 수를 커밋. deepRollout(fuzzy 그리디 롤아웃)과 달리
+     *   탑후보를 deliberate하게 enumerate·비교 = 사용자 원안("두 시퀀스 비교해 좋은 쪽"). 후속은 그리디 1-ply(MCTS 재귀 회피).
+     *   1-ply 평가가 못 보는 '셋업→페이오프'(nav→무료건설, 포머→광산)를 2턴 시야로 포착 시도.
+     */
+    private static async planTwoTurn(game: ServerGameState, playerId: string, candidates: BotAction[]): Promise<BotAction | null> {
+        if (!getPlayerFlag(playerId, 'twoTurnPlan', false)) return null;
+        if (game.hasDoneMainAction) return null;
+        const dummyIo = { to: () => ({ emit: () => { } }) } as any;
+        // 메인 액션 후보만(패스/변환 제외). 상위 6개만 평가(성능).
+        const mains = candidates.filter(c => c.type !== 'pass_round' && c.type !== 'convert_resource').slice(0, 6);
+        if (mains.length < 2) return null;
+
+        // 후속턴 모델: 같은 상태에서 그리디 1-ply 최선 액션을 골라 state에 직접 적용.
+        const applyGreedyFollowup = async (state: ServerGameState): Promise<void> => {
+            let cands: BotAction[] = [];
+            try { cands = this.getCandidateMoves(state, playerId).filter(c => c.type !== 'pass_round').slice(0, 5); } catch { return; }
+            let best: BotAction | null = null, bestS = -Infinity;
+            for (const fc of cands) {
+                try {
+                    const s2 = StateCloner.cloneGameStateForSimulation(state); (s2 as any).simulation = true;
+                    const ok = await this.performAction(dummyIo, s2, fc, playerId);
+                    if (!ok) continue;
+                    const sc = Evaluator.evaluateState(s2, playerId);
+                    if (sc > bestS) { bestS = sc; best = fc; }
+                } catch { /* skip */ }
+            }
+            if (best) { try { await this.performAction(dummyIo, state, best, playerId); } catch { /* */ } }
+        };
+
+        let bestAct: BotAction | null = null, bestScore = -Infinity;
+        for (const c of mains) {
+            try {
+                const s1 = StateCloner.cloneGameStateForSimulation(game); (s1 as any).simulation = true;
+                const ok = await this.performAction(dummyIo, s1, c, playerId);
+                if (!ok) continue;
+                // 다음 턴(같은 라운드, 수입 없음): 메인액션 플래그만 리셋하고 그리디 후속 적용
+                (s1 as any).hasDoneMainAction = false;
+                await applyGreedyFollowup(s1);
+                const score = Evaluator.evaluateState(s1, playerId);
+                if (score > bestScore) { bestScore = score; bestAct = c; }
+            } catch { /* skip candidate */ }
+        }
+        return bestAct;
     }
 
     /** 패스하기 직전에 다음 라운드 수입으로 인해 버려지는 자원이 생기지 않도록 미리 변환 시도 */
