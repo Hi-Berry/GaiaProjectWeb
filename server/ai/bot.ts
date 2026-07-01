@@ -561,6 +561,14 @@ export class BotLogic {
                         return { type: 'use_power_action', params: { actionId: 'gain-2-ore', useBrain: player.faction === 'taklons' } };
                     }
                 }
+                // [flag: r1TsFirst] R1 오프닝을 사람처럼 — 사람 R1 첫수 교역소업글 59% vs 봇 광산 65%.
+                //   사람은 R1에 수입엔진(TS→랩) 착수, 봇은 광산 흩뿌리기. TS 아직 없고 mine→TS 업글 가능하면 R1 첫 메인액션으로 강제.
+                //   (R2+ 확장 우선(Q5)과 구분 — R1만 엔진 착수.)
+                if (getPlayerFlag(playerId, 'r1TsFirst', false) && (game.roundNumber ?? 1) === 1 && !game.hasDoneMainAction
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) {
+                    const ts = this.findUpgradeActions(game, playerId).find(u => u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station');
+                    if (ts) { log(`Bot ${player.name} r1TsFirst: R1 교역소 업글 오프닝`, 'game', game.id); return ts; }
+                }
                 // HH PI 변환(무료): 메인액션 전에 남는 크레딧을 QIC 등으로 미리 보충 → 그 턴 건설/연방에 QIC 활용. 루프가 버퍼까지 반복.
                 {
                     const hhConvPre = this.findHadschHallasConvert(game, playerId);
