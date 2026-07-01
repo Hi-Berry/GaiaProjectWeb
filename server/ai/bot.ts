@@ -611,6 +611,15 @@ export class BotLogic {
                                 return pa;
                             }
                         }
+                        // [flag: shipOverPass] 패스 직전 우주선(Lost Fleet) 활용 — 사람 초반 우주선 30% vs 봇 11%,
+                        //   봇은 대신 초반 패스 17%(할 게 없어 놈). 이미 탄 배의 액션(무료 자원/기술) 우선, 없으면 입장
+                        //   (어차피 패스할 턴이니 생산적). 사람처럼 초반에 우주선으로 자원·확장을 뽑게. 파인더가 유효/afford만 반환.
+                        if (getPlayerFlag(playerId, 'shipOverPass', false)) {
+                            const shipAct = this.findSpaceshipActions(game, playerId)[0];
+                            if (shipAct) { log(`Bot ${player.name} shipOverPass: 우주선 액션 대신 패스 안 함`, 'game', game.id); return shipAct; }
+                            const shipEnter = this.findSpaceshipEntryActions(game, playerId)[0];
+                            if (shipEnter) { log(`Bot ${player.name} shipOverPass: 우주선 입장 대신 패스 안 함`, 'game', game.id); return shipEnter; }
+                        }
                     }
                     const cleanup = this.findCleanupConvertAction(game, playerId, bestAction.params?.bonusTileId);
                     if (cleanup) {
