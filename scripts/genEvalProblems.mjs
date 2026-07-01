@@ -21,7 +21,7 @@ const P = (title, state, opts) => {
 for (let i = 0; i < 20; i++) {
   const rd = R(2, 4), occ = R(0, 3), ship = pick(["Rebellion(nav+1 기술)", "Eclipse(소행성광산)", "Twilight(TS→랩)", "TF Mars(2P삽)"]), qic = R(0, 3), mc = R(2, 6);
   P("우주선 입장 vs 확장",
-    `R${rd} | 자원 ${R(3, 9)}C ${R(1, 5)}O ${qic}QIC 파워${R(2, 8)} | 광산${mc} 교역소${R(0, 3)} | ${ship} 탑승자 ${occ}명(입장시 ${occ >= 2 ? "+2파워" : "파워없음"})`,
+    `R${rd} | 자원 ${R(3, 9)}C ${R(1, 5)}O ${qic}QIC 파워${R(2, 8)} | 광산${mc} 교역소${R(0, 3)} | ${ship} 탑승자 ${occ}명(입장시 ${occ >= 3 ? "+3파워" : occ >= 1 ? "+2파워" : "파워없음"})`,
     [`A) ${ship} 우주선 입장 (−5VP, 기술/액션)`, `B) 근처 미점유 행성에 광산 확장`, `C) 파워액션(2O/2K 등)으로 자원`]);
 }
 // 타입2: 연방 형성 타이밍

@@ -8568,10 +8568,12 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 		addGameLog(game, playerId, 'Taklons: Brain Stone', 'Moved to Gaia (until next round)', tileId);
 	}
 
-	// 입장 순서 보상: 2·3번째 2PW, 4번째 3PW
+	// 입장 순서 보상: 2·3번째 탑승 +2PW, 4번째+ +3PW (idx = 나 타기 전 탑승자 수 = 0-based 내 순번).
+	// [버그수정 2026-07-01] 기존 idx===2||3(3·4번째)은 off-by-one — 탑승자 1명 있어도(2번째 탑승) 파워 0이었음.
+	//   의도/룰(사용자 확인): 탑승자 1명 있으면(2번째) 이미 +2. → idx 1·2 = +2, 3+ = +3.
 	const idx = shipState.occupants.length;
-	if (idx === 2 || idx === 3) chargePower(player, 2);
-	else if (idx === 4) chargePower(player, 3);
+	if (idx === 1 || idx === 2) chargePower(player, 2);
+	else if (idx >= 3) chargePower(player, 3);
 
 	const shipNm = (({ ship_twilight: 'Twilight', ship_rebellion: 'Rebellion', ship_tf_mars: 'TF Mars', ship_eclipse: 'Eclipse' } as Record<string, string>)[tile.type ?? ''] ?? '우주선');
 	addGameLog(game, playerId, 'Entered Ship', `${shipNm} · ${scoreBefore}VP → ${player.score ?? 0}VP (-${entryCost})${useQic ? `, ${useQic}QIC` : ''}`, tileId);
