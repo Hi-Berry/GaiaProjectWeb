@@ -682,6 +682,18 @@ export class Evaluator {
             score += gaiaScore;
             logDebug(`9) Gaiaformers: ${player.gaiaformers} * ${w.gaiaformerValueEach} = +${gaiaScore.toFixed(1)}`);
         }
+        // [flag: gaiaformerPlacedValue] 다턴 세팅 핵심: '놓은 가이아포머'(transdim에 내 포머, 다음 라운드 성숙→가이아 광산)를
+        //   평가기가 0으로 봐서, 포머 놓으면 gaiaformers -1(−5점)만 남고 미래 광산 가치는 미반영 → MCTS가 '포머 놓기=순손해'로
+        //   판단해 절대 안 놓음(봇 0.03 vs 사람 0.43). 예약된 가이아 타일을 '거의 확정된 새 광산'으로 크레딧해 다턴 세팅을 유도.
+        //   배치가 MCTS 결정이라 평가기 수정이 직접 먹힌다(advanced-tile과 달리).
+        if (getPlayerFlag(playerId, 'gaiaformerPlacedValue', false)) {
+            const placed = (player.pendingGaiaformerTiles?.length ?? 0);
+            if (placed > 0) {
+                const placedScore = placed * 16; // 새 가이아 광산 1개 ≈ 수입+확장+연방씨앗 (소비된 포머 5점보다 큼 = 순이득)
+                score += placedScore;
+                logDebug(`9b) Placed gaiaformers (pending gaia mines): ${placed} * 16 = +${placedScore.toFixed(1)}`);
+            }
+        }
 
         // 8) 현재 라운드 미션 정렬 보너스 (해당 라운드 VP를 더 벌 수 있으면 가치 상승)
         let roundBonus = 0;
