@@ -395,6 +395,13 @@ export class Evaluator {
         if (player.brainStoneBowl === 1) bsScore += w.brainStoneBowl1;
         if (player.brainStoneBowl === 2) bsScore += w.brainStoneBowl2;
         if (player.brainStoneBowl === 3) bsScore += w.brainStoneBowl3;
+        // [아이타] 가이아공간 토큰(gaiaformerPower): 번/가이아프로젝트로 이동한 토큰. 다음 라운드 Bowl I로 복귀하고,
+        //   PI 보유 시 4개당 기술타일로 환전 가능 → 소멸이 아니다. 이걸 0으로 두면 MCTS가 아이타 번을 '토큰 손실'로 오판해
+        //   burn_power 후보를 탐색해도 안 고름. PI면 bowl3급(기술타일 연료), 아니면 bowl1급(복귀)으로 가치화.
+        if (player.faction === 'itars' && (player.gaiaformerPower || 0) > 0) {
+            const hasItarsPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+            bsScore += (player.gaiaformerPower || 0) * (hasItarsPI ? w.power3Value : w.power1Value);
+        }
         score += p1Score + p2Score + p3Score + bsScore;
         logDebug(`4) Power: P1(+${p1Score.toFixed(1)}), P2(+${p2Score.toFixed(1)}), P3(+${p3Score.toFixed(1)}), BrainStone(+${bsScore.toFixed(1)})`);
 

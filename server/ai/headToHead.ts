@@ -30,7 +30,16 @@ type SeatResult = { playerId: string; faction?: string; score: number; group: 'A
 type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[] };
 
 // 행동 분류 — "변경이 의도한 행동대체를 실제로 했는지"(예: 교역소↓ → 광산/연구소↑ vs 그냥 패스↑) 검증용.
-const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'downgrade', 'research', 'federation', 'powerAct', 'hhConvert', 'techTile', 'advTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total'] as const;
+const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'downgrade', 'research', 'federation', 'powerAct', 'hhConvert', 'techTile', 'advTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total',
+    // [라운드 분해 계측] 전체합계는 후반 랩발판 때문에 무의미 → "초반에 얼마나 린하게 유지하나"를 본다.
+    //   tsEarly=R1~2 TS업글수(적을수록 광산 유지), mineEarly=R1~2 광산건설수(많을수록 확장 우선), tsRoundSum/tsRoundN=TS 평균 라운드(늦을수록 절제).
+    'tsEarly', 'mineEarly', 'tsRoundSum', 'tsRoundN',
+    // [즉포 계측] gaia_project 부스터(bon-2pw-gaiaproject) 선택 vs 특수액션 사용 — "골라놓고 안 씀"(반납 낭비) 측정.
+    'gaiaPick', 'gaiaUse',
+    // [란티다 계측] PI(의회) 건설·평균라운드·기생광산 — PI 먼저 짓고 기생하는지(각 후속 기생=+2지식).
+    'piBuilt', 'paraMine', 'piRoundSum', 'piRoundN',
+    // [아이타 계측] 파워 번 횟수 — 아이타는 번 토큰이 가이아 복귀라 적극 번해도 됨(막라 제외).
+    'burn'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -204,10 +213,41 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
             for (const e of (updated.gameLog ?? [])) {
                 const pid = e?.playerId;
                 if (!pid) continue;
+                // [즉포 계측] classifyAction 밖에서 원시 로그로 직접 카운트(Bonus Action은 classify null이라 continue됨).
+                const _det = e.details || '';
+                if ((e.action === 'Selected Bonus' && /took bon-2pw-gaiaproject/.test(_det)) ||
+                    (e.action === 'Selected Bonus Tile' && /ACT: GP/.test(_det))) {
+                    (byPlayer[pid] ??= {}).gaiaPick = ((byPlayer[pid] ??= {}).gaiaPick || 0) + 1;
+                }
+                if (e.action === 'Bonus Action' && /Gaia Project/i.test(_det)) {
+                    (byPlayer[pid] ??= {}).gaiaUse = ((byPlayer[pid] ??= {}).gaiaUse || 0) + 1;
+                }
+                // [란티다 계측] PI 건설(+평균 라운드), 기생광산 수.
+                if (/Upgraded to Planetary Institute/i.test(e.action || '')) {
+                    (byPlayer[pid] ??= {}).piBuilt = ((byPlayer[pid] ??= {}).piBuilt || 0) + 1;
+                    const prd = typeof e.round === 'number' ? e.round : 99;
+                    (byPlayer[pid] ??= {}).piRoundSum = ((byPlayer[pid] ??= {}).piRoundSum || 0) + prd;
+                    (byPlayer[pid] ??= {}).piRoundN = ((byPlayer[pid] ??= {}).piRoundN || 0) + 1;
+                }
+                if (/Built Parasitic Mine/i.test(e.action || '')) {
+                    (byPlayer[pid] ??= {}).paraMine = ((byPlayer[pid] ??= {}).paraMine || 0) + 1;
+                }
+                // 번은 consolidation으로 action이 'Free Actions'가 되고 번 텍스트가 details로 감 → action+details 둘 다 검사(안 그럼 과소집계).
+                if (/Power Burn|Burn 2 Power|Burn \(/i.test(e.action || '') || /Bowl II ?-> ?III|to Gaia area/i.test(e.details || '')) {
+                    (byPlayer[pid] ??= {}).burn = ((byPlayer[pid] ??= {}).burn || 0) + 1;
+                }
                 const k = classifyAction(e.action || '');
                 if (!k) continue;
                 (byPlayer[pid] ??= {})[k] = ((byPlayer[pid] ??= {})[k] || 0) + 1;
                 byPlayer[pid].total = (byPlayer[pid].total || 0) + 1;
+                // [라운드 분해] 초반 타이밍 계측 — 전체합계로는 안 보이는 "초반 린함"을 잡는다.
+                const rd = typeof e.round === 'number' ? e.round : 99;
+                if (k === 'tradingStation') {
+                    if (rd <= 2) byPlayer[pid].tsEarly = (byPlayer[pid].tsEarly || 0) + 1;
+                    byPlayer[pid].tsRoundSum = (byPlayer[pid].tsRoundSum || 0) + rd; // TS 평균 라운드 계산용
+                    byPlayer[pid].tsRoundN = (byPlayer[pid].tsRoundN || 0) + 1;
+                }
+                if (k === 'mine' && rd <= 2) byPlayer[pid].mineEarly = (byPlayer[pid].mineEarly || 0) + 1;
             }
             const seats: SeatResult[] = Object.entries(updated.players || {}).map(([playerId, p]: [string, any]) => ({
                 playerId,
@@ -448,12 +488,23 @@ async function main() {
             mine: '광산', tradingStation: '교역소', researchLab: '연구소', piAcademy: '의회/아카데미',
             upgrade: '업글(기타)', downgrade: '다운그레이드', research: '연구진행', federation: '연방', powerAct: '파워액션', hhConvert: 'HH변환',
             techTile: '기술타일', advTile: '고급타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
+            tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
+            gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번',
         };
         for (const k of BEHAVIOR_KEYS) {
+            if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력
             const a = behA.avg[k] || 0, b = behB.avg[k] || 0, d = b - a;
             const bar = Math.abs(d) < 0.05 ? '' : (d > 0 ? '▲' : '▼');
             console.log(`    ${(labelMap[k] || k).padEnd(7)} A ${a.toFixed(2).padStart(6)}  B ${b.toFixed(2).padStart(6)}  Δ${d >= 0 ? '+' : ''}${d.toFixed(2)} ${bar}`);
         }
+        // TS 평균 라운드(늦을수록 절제) — 좌석평균 합/횟수로 재계산.
+        const tsAvgRd = (bh: any) => (bh.avg.tsRoundN ? (bh.avg.tsRoundSum / bh.avg.tsRoundN) : 0);
+        const ta = tsAvgRd(behA), tb = tsAvgRd(behB);
+        console.log(`    ${'TS평균R'.padEnd(7)} A ${ta.toFixed(2).padStart(6)}  B ${tb.toFixed(2).padStart(6)}  Δ${(tb - ta) >= 0 ? '+' : ''}${(tb - ta).toFixed(2)} ${Math.abs(tb - ta) < 0.05 ? '' : (tb > ta ? '▲(늦음=절제)' : '▼(빠름)')}`);
+        // PI 평균 라운드(란티다: 낮을수록 조기 PI=기생 지식 극대화)
+        const piAvgRd = (bh: any) => (bh.avg.piRoundN ? (bh.avg.piRoundSum / bh.avg.piRoundN) : 0);
+        const pa = piAvgRd(behA), pb = piAvgRd(behB);
+        console.log(`    ${'PI평균R'.padEnd(7)} A ${pa.toFixed(2).padStart(6)}  B ${pb.toFixed(2).padStart(6)}  Δ${(pb - pa) >= 0 ? '+' : ''}${(pb - pa).toFixed(2)} ${Math.abs(pb - pa) < 0.05 ? '' : (pb < pa ? '▼(조기=좋음)' : '▲(늦음)')}`);
         console.log(`  리포트: ${REPORT_PATH}`);
     } finally {
         await shutdownWorkers(workers);

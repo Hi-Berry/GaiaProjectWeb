@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound } from '@/lib/audio';
+import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playEndSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -489,8 +489,16 @@ export default function Game() {
     if (game?.currentPhase === 'gameEnd' && gameId && autoShownEndForGameRef.current !== gameId) {
       autoShownEndForGameRef.current = gameId;
       setShowGameEndScore(true);
+      // [종료 효과음] 내가 1등이면 축하 팡파레, 그 외엔 부드러운 마무리음(~3초). gameId당 1회만(재방출/재연결에 중복 재생 방지).
+      try {
+        const players = Object.entries(game.players || {});
+        const maxScore = Math.max(...players.map(([, p]: [string, any]) => p?.score ?? 0));
+        const myScore = (game.players as any)?.[playerId ?? '']?.score ?? 0;
+        const isWinner = players.length > 0 && myScore === maxScore && maxScore > 0; // 동점도 1등으로 축하
+        playEndSound(isWinner);
+      } catch { /* noop */ }
     }
-  }, [game?.currentPhase, gameId]);
+  }, [game?.currentPhase, gameId, playerId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

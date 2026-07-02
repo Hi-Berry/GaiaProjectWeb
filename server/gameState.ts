@@ -1361,7 +1361,17 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 		lastLog.action = 'Free Actions';
 		const newDetail = details || action;
 		if (lastLog.details) {
-			if (!lastLog.details.includes(newDetail)) {
+			// [로그 표시 수정] 같은 변환을 여러 번(예: 연방 파워 채우려 1O→1Token ×5) 하면 기존엔 동일 문자열을 dedup해
+			//   로그에 1개만 떠서 "5번 한 걸 1번처럼" 보였음(사용자 관찰). → 마지막 세그먼트와 같으면 ×N 카운트로 집계.
+			const segs = lastLog.details.split(', ');
+			const last = segs[segs.length - 1];
+			const mm = last.match(/^(.*) ×(\d+)$/);
+			const lastBase = mm ? mm[1] : last;
+			const lastN = mm ? parseInt(mm[2], 10) : 1;
+			if (lastBase === newDetail) {
+				segs[segs.length - 1] = `${newDetail} ×${lastN + 1}`;
+				lastLog.details = segs.join(', ');
+			} else if (!lastLog.details.includes(newDetail)) {
 				lastLog.details += `, ${newDetail}`;
 			}
 		} else {
@@ -1377,6 +1387,7 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 			action: isConsolidatable ? 'Free Actions' : action,
 			details: details || (isConsolidatable ? action : undefined),
 			tileId,
+			round: game.roundNumber, // [계측] 라운드별 행동 분해용(초반 TS 타이밍 등). h2h가 e.round로 버킷팅.
 		});
 	}
 

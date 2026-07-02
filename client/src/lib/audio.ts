@@ -118,3 +118,22 @@ export function playPowerReceiveSound() {
     setTimeout(() => playBeep(startFreq * 1.25, 0.05, 0.1), 60);
     setTimeout(() => playBeep(startFreq * 1.5, 0.08, 0.1), 120);
 }
+
+/**
+ * 게임 종료 효과음(~3초). 볼륨 설정을 존중(playBeep 경유).
+ * - 1등(isWinner): C5–E5–G5–C6 상승 아르페지오 + 마지막 C장3화음 지속(축하 팡파레).
+ * - 그 외: 부드러운 2음 하강(중립 마무리).
+ */
+export function playEndSound(isWinner: boolean) {
+    if (isWinner) {
+        playBeep(523.25, 0.35, 0.16);                                   // C5
+        setTimeout(() => playBeep(659.25, 0.35, 0.16), 180);            // E5
+        setTimeout(() => playBeep(783.99, 0.35, 0.16), 360);            // G5
+        setTimeout(() => playBeep(1046.5, 2.4, 0.18), 560);            // C6 (지속)
+        setTimeout(() => playBeep(1318.51, 2.3, 0.09), 620);           // E6 (화음감)
+        setTimeout(() => playBeep(1567.98, 2.3, 0.08), 660);           // G6 (화음감)
+    } else {
+        playBeep(392.0, 0.5, 0.1);                                      // G4
+        setTimeout(() => playBeep(329.63, 1.2, 0.09), 400);            // E4
+    }
+}

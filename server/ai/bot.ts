@@ -569,6 +569,15 @@ export class BotLogic {
                     const ts = this.findUpgradeActions(game, playerId).find(u => u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station');
                     if (ts) { log(`Bot ${player.name} r1TsFirst: R1 교역소 업글 오프닝`, 'game', game.id); return ts; }
                 }
+                // [flag: lantidsEarlyPI] 란티다 정석: 조기(R3~)에 의회(PI)를 지어야 이후 기생광산마다 +2지식(사용자: "3라 정도 의회가 정석").
+                //   점수 가점으론 MCTS가 안 고름(실측 PI건설 0.37→0.36) → 직접 강제. TS 있고·PI 없고·감당되면 그 턴 메인액션으로 PI 업글.
+                //   (findUpgradeActions가 lantidsEarlyPI 게이트 우회로 PI 후보를 내주므로 여기서 집어 강제 실행.)
+                if (getPlayerFlag(playerId, 'lantidsEarlyPI', true) && player.faction === 'lantids' && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) >= 3
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+                    const pi = this.findUpgradeActions(game, playerId).find(u => u.type === 'upgrade_structure' && (u.params as any)?.target === 'planetary_institute');
+                    if (pi) { log(`Bot ${player.name} lantidsEarlyPI: R${game.roundNumber} 의회 강제 오프닝`, 'game', game.id); return pi; }
+                }
                 // HH PI 변환(무료): 메인액션 전에 남는 크레딧을 QIC 등으로 미리 보충 → 그 턴 건설/연방에 QIC 활용. 루프가 버퍼까지 반복.
                 {
                     const hhConvPre = this.findHadschHallasConvert(game, playerId);
@@ -711,14 +720,19 @@ export class BotLogic {
         const credits = player.credits ?? 0;
         const BUFFER = 3; // 즉시 쓸 최소 크레딧만 남김(HH는 크레딧 부자라 적극 전환)
         const qic = player.qic ?? 0, ore = player.ore ?? 0, know = player.knowledge ?? 0;
-        // QIC 최우선(연방·건설·가이아에 귀함): 크레딧 여유 & QIC 넉넉하지 않으면(<8) 적극 전환
-        if (qic < 8 && credits >= 4 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
+        // [flag: hhConvertMinimal] 사용자 관찰: 어제 채택한 HH 변환이 과함 — QIC를 8까지 쟁이고(qic<8) 크레딧 풍선을 무한
+        //   배출해서, 이번 턴 3개만 쓸 건데 5개+를 미리 바꿔둠. 안 쓸 QIC는 죽은 크레딧과 다를 바 없고(개당 4C 지불) 오히려 손해.
+        //   → 목표를 "필요한 만큼(~3)"으로 낮추고, 순수 풍선배출(QIC로 무한 전환)을 제거. 부족한 광석/지식 보충은 유지.
+        const minimal = getPlayerFlag(playerId, 'hhConvertMinimal', false);
+        const qicTarget = minimal ? 3 : 8;
+        // QIC(연방·건설·가이아에 귀함): 목표 미만이고 크레딧 여유 있으면 전환
+        if (qic < qicTarget && credits >= 4 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
         // 광석 부족(<3)하면 3C→1O (건설 연료)
         if (ore < 3 && credits >= 3 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-3c-1o' } };
         // 지식 부족(<3)하면 4C→1K
         if (know < 3 && credits >= 4 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1k' } };
-        // 크레딧 풍선(>=10)이면 남는 걸 QIC로 계속 빼 (죽은 크레딧 < 자원)
-        if (credits >= 10) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
+        // 크레딧 풍선(>=10)이면 남는 걸 QIC로 계속 빼 (죽은 크레딧 < 자원) — minimal이면 이 무한배출은 안 함(안 쓸 QIC=손해).
+        if (!minimal && credits >= 10) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
         return null;
     }
 
@@ -1095,6 +1109,15 @@ export class BotLogic {
         // 8-1. 파워/QIC 액션 - MCTS가 충분히 탐색하도록 상위 3개 후보
         const powerActions = this.findPowerActions(game, playerId);
         if (powerActions.length > 0) candidates.push(...powerActions);
+
+        // [flag: itarsBurnCandidate] 아이타 번은 토큰이 가이아공간으로 가(소멸X, 다음R 복귀+PI로 기술타일) 사실상 공짜.
+        //   휴리스틱으로 "언제 번할지" 하드코딩하는 대신 burn_power를 MCTS 후보로 넣어 탐색이 "번→파워액션" 최적을
+        //   알아서 찾게 함(사용자 아이디어: 2/8/0을 2/0/4처럼 돌려봄). 평가기가 아이타 가이아토큰을 가치화해야 번이 손해로 안 보임(evaluator 수정 동반).
+        //   R6(복귀 없음)·bowl2<2(번 불가)면 제외. 아이타 한정(일반 종족은 번=토큰 영구소멸이라 후보로 안 넣음).
+        if (getPlayerFlag(playerId, 'itarsBurnCandidate', true) && player.faction === 'itars'
+            && (game.roundNumber ?? 1) < 6 && (player.power2 ?? 0) >= 2) {
+            candidates.push({ type: 'burn_power', params: {} });
+        }
 
         // 8-2. 우주선 입장 (Lost Fleet Ship)
         const shipEntries = this.findSpaceshipEntryActions(game, playerId);
@@ -1473,6 +1496,14 @@ export class BotLogic {
                     const academyCount = myStructures.filter(t => t.structure === 'academy').length;
                     const isFirstTS = tsCount === 0 && labCountNow === 0 && academyCount === 0;
 
+                    // [flag: tsEarlyHardGate] 점수 패널티는 TS를 후보에서 못 잘라냄(top-5 안에 남아 MCTS 평가기가 결국 고름
+                    //   → 측정상 초반 TS 타이밍 안 바뀜: TS(R1-2) 2.16→2.00, TS평균R 3.11→3.09). 그래서 점수가 아니라 하드 게이팅으로.
+                    //   초반(R≤2)엔 good-case가 아니면 mine→TS 후보를 아예 '생성하지 않아' MCTS가 보지도 못하게 한다.
+                    //   good-case: ①첫 TS(랩/의회 발판) ②광산 딱 3개(표준보드 3번째 광산 수입 0 → TS 전환이 순이득). 연방은 R3+라 초반 무관.
+                    if (getPlayerFlag(playerId, 'tsEarlyHardGate', false) && round <= 2 && !isFirstTS && mineCount !== 3) {
+                        continue;
+                    }
+
                     if (!isDiscounted && round <= 3) {
                         score -= isFirstTS ? 20 : 100; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티 (첫 교역소는 연구소를 위해 완화)
                     }
@@ -1506,6 +1537,23 @@ export class BotLogic {
                     // [오레기아 가드] 다음 라운드 크레딧:오레 수입>3.5면 추가 TS는 오레를 먹고 크레딧수입만 더 올려
                     // 비율을 악화(=교역소 죽음의 나선). 첫 TS(연구소 발판) 외엔 강하게 억제 → 광산/오레 파워액션 우선.
                     if (oreStarved && !isFirstTS) score -= 220;
+
+                    // [flag: tsScoreRework] 사용자 룰: mine→TS는 광석수입→크레딧수입 "전환"일 뿐 총수입은 안 늘어(돈 남으면 오히려 실질수입↓).
+                    //   그러니 TS는 기본적으로 잘 안 짓고, 아래 3가지 좋은 케이스에만 가점:
+                    //   ① 광산 딱 3개 — 표준 보드에서 3번째 광산은 광석수입을 안 늘리므로, 하나를 TS로 바꾸면 광석수입 손실 0 + 크레딧수입 +3 (순이득)
+                    //   ② 연구소/의회 발판 — 이 TS를 lab/academy로 올릴 계획(isFirstTS 또는 랩 여유+광산기반 있음)
+                    //   ③ 연방에 파워 부족 — TS 파워값↑로 7파워 달성 (아래 1521 연방블록이 +480/+280로 이미 처리)
+                    if (getPlayerFlag(playerId, 'tsScoreRework', false)) {
+                        const mineExactly3 = mineCount === 3;
+                        const labStepping = isFirstTS || (labCountNow + academyCount < 3 && mineCount >= 4);
+                        if (mineExactly3) {
+                            score += 140; // 3번째 광산 수입 0 → TS 전환이 순이득(광석수입 손실 없이 크레딧수입 획득)
+                        } else if (!labStepping) {
+                            // 발판도 광산3도 아니면 일반 TS = 쓸모있는 광석수입을 (남을) 크레딧으로 바꾸는 낭비 → 강한 감점.
+                            // (연방 파워 케이스는 아래 연방블록의 큰 가점이 이 감점을 덮음)
+                            score -= 160;
+                        }
+                    }
 
                     score -= fedPenalty(mine.id);
                     score += this.calculateRoundScoringBonus(game, playerId, 'build_trading_station');
@@ -1584,6 +1632,14 @@ export class BotLogic {
         const hasPI = myStructures.some(t => t.structure === 'planetary_institute');
         if (ore >= 4 && credits >= 6 && !hasPI) {
             const tsList = myStructures.filter(t => t.structure === 'trading_station');
+            // [flag: lantidsEarlyPI] 란티다 PI = 기생광산 지을 때마다 +2지식(gameState 5876). 기생 타겟(상대 점유행성)이 있으면
+            //   PI를 먼저 짓고 기생해야 이득이 큼(사용자). 기존엔 제네릭 취급 → R4 전 PI 차단(아래 continue) → 기생광산이
+            //   전부 지식보너스를 못 받음(실측: 란티다 봇 게임 PI 0개, 기생 3개 전부 PI前). 타겟 수 비례 우대 + 조기 허용.
+            const lantidsEarlyPI = player.faction === 'lantids' && getPlayerFlag(playerId, 'lantidsEarlyPI', true);
+            const paraTargetCount = lantidsEarlyPI
+                ? game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure && !t.parasiticMine && !t.type?.startsWith('ship_')).length
+                : 0;
+            const lantidsPiReady = lantidsEarlyPI && paraTargetCount >= 1 && mineCount >= 2;
             for (const ts of tsList) {
                 // 기본 의회 점수 (초반에는 아카데미/연구소보다 낮게 설정하여 무분별한 의회 건설 방지)
                 let score = 30;
@@ -1604,6 +1660,10 @@ export class BotLogic {
                     // [flag: firaksDowngrade] 피락스: 연구소+의회면 매 라운드 다운그레이드(랩→TS+연구) 엔진 → 의회 조기 우선.
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
                     if (hasLab) score += round <= 3 ? 140 : 60;
+                } else if (lantidsPiReady) {
+                    // 란티다: 기생 타겟 있으면 조기 PI 강력 우대(각 후속 기생 = +2지식). 타겟 많을수록 더.
+                    score += round <= 2 ? 60 : 90;
+                    score += Math.min(80, paraTargetCount * 15);
                 } else {
                     // 그 외 종족: 4라운드 이전에는 건설 기피, 4라운드부터 의회 고려
                     if (round < 4) score -= 30;
@@ -1614,8 +1674,8 @@ export class BotLogic {
                 // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
                 const firaksPiReady = faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true) && myStructures.some(t => t.structure === 'research_lab');
                 if (round === 1) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
@@ -2471,7 +2531,11 @@ export class BotLogic {
                         // → R1~2엔 차단 수준(1000, ore<6 경로와 동일)으로 올려 오레가 남아돌아도 안 하게.
                         // (후반 R3+는 사거리 소진 후 정체 방지용 저페널티 유지 = ore-terraform 재활성화 본래 목적, 회귀 X)
                         const earlyGuard = getPlayerFlag(playerId, 'earlyTerraformGuard', true) && round <= 2 && player.faction !== 'darkanians';
-                        stepPenalty = earlyGuard ? 1000 : 50;
+                        // [flag: midTerraformGuard] 사용자 관찰: 막라도 아닌데(특히 R4) 원삽 원시행성에 3O 써서 짓는 건 손해 —
+                        //   그 광산이 컴파운드할 라운드가 적어 3오레 투자 대비 이득이 작음(안 짓는 게 나음). R3~4에도 차단 수준 페널티로
+                        //   확장>업글/연구/저비용확장을 우선. (R5+는 종료 임박이라 유지 — 정체방지 목적.)
+                        const midGuard = getPlayerFlag(playerId, 'midTerraformGuard', false) && round >= 3 && round <= 4 && player.faction !== 'darkanians';
+                        stepPenalty = (earlyGuard || midGuard) ? 1000 : 50;
                     } else {
                         // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
                         stepPenalty = (terraformCost / 3) * 1000;
@@ -2695,7 +2759,7 @@ export class BotLogic {
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
         );
 
-        const scored: { action: BotAction, score: number }[] = [];
+        const scored: { action: BotAction, score: number, nq?: number, cov?: number }[] = [];
 
         for (const tile of candidates) {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
@@ -2710,7 +2774,8 @@ export class BotLogic {
                 if ((player.ore ?? 0) < gaiaOre) continue;
                 scored.push({
                     action: { type: 'build_mine', params: { tileId: tile.id } },
-                    score: 120 - (neededQic * 20) + this.calculateRoundScoringBonus(game, playerId, 'build_gaia') + this.calculateFinalMissionBonus(game, playerId, tile)
+                    score: 120 - (neededQic * 20) + this.calculateRoundScoringBonus(game, playerId, 'build_gaia') + this.calculateFinalMissionBonus(game, playerId, tile),
+                    nq: neededQic, cov: -1 // 가이아 무료광산은 삽커버 필터에서 제외(고가치)
                 });
                 continue;
             }
@@ -2719,7 +2784,8 @@ export class BotLogic {
                 if (!isFree || getEffectiveGaiaformers(player) <= 0) continue;
                 scored.push({
                     action: { type: 'build_mine', params: { tileId: tile.id } },
-                    score: 105 - (dist * 10) + this.calculateFinalMissionBonus(game, playerId, tile)
+                    score: 105 - (dist * 10) + this.calculateFinalMissionBonus(game, playerId, tile),
+                    nq: neededQic, cov: -1 // 소행성 무료광산도 필터 제외
                 });
                 continue;
             }
@@ -2786,7 +2852,8 @@ export class BotLogic {
                     balPres.length > 0
                         ? { type: 'build_mine', params: { tileId: tile.id }, preActions: balPres }
                         : { type: 'build_mine', params: { tileId: tile.id } },
-                score
+                score,
+                nq: neededQic, cov: coveredByPending // 삽커버 필터용(투삽=cov2 > 원삽=cov1)
             });
         }
 
@@ -2803,6 +2870,21 @@ export class BotLogic {
             if (hasStepUsing) {
                 const kept = scored.filter(s => tileOf(s.action)?.type !== homeType);
                 if (kept.length > 0) { scored.length = 0; scored.push(...kept); }
+            }
+        }
+
+        // [flag: pendingStepsPreferFull] 사용자 규칙: QIC 소모 0(사거리 내) 후보 중에선 펜딩삽을 더 많이 쓰는(투삽) 타일을 우선.
+        //   공짜빌드는 남은 삽이 버려져(clearFreeMineFlags reset) 원삽에 지으면 낭비인데, 후보점수만으론 MCTS가 가까운 원삽을
+        //   골라(candidate-score≠eval). → 사거리 내 저커버(원삽) 후보를 '제거'해 MCTS가 투삽을 고르게 강제. (관찰: Nav2에 2거리
+        //   투삽 냅두고 1거리 원삽에 지음.) 사거리 밖(QIC 필요)·가이아/소행성(cov=-1)은 제외 → QIC 낭비 유발 안 함.
+        if (getPlayerFlag(playerId, 'pendingStepsPreferFull', true)) {
+            const inRange = scored.filter(s => s.nq === 0 && (s.cov ?? -1) >= 0);
+            const maxCov = inRange.length > 0 ? Math.max(...inRange.map(s => s.cov ?? 0)) : 0;
+            if (maxCov > 0) {
+                for (let i = scored.length - 1; i >= 0; i--) {
+                    const s = scored[i];
+                    if (s.nq === 0 && (s.cov ?? -1) >= 0 && (s.cov ?? 0) < maxCov) scored.splice(i, 1);
+                }
             }
         }
 
@@ -3954,6 +4036,13 @@ export class BotLogic {
 
     private static getPowerTokenReserve(game: ServerGameState, player: PlayerState): number {
         const round = game.roundNumber ?? 1;
+        // [flag: itarsBurnFreely] 아이타는 번한 토큰이 소멸이 아니라 가이아 공간으로 가 다음 라운드 Bowl I 복귀(+PI로 4개당 기술타일).
+        //   그래서 막라(R6, 복귀 없음)만 아니면 토큰을 예비로 아낄 이유가 적음 → 예비 0으로 낮춰 파워액션/번을 적극적으로.
+        //   (사용자 관찰: 아이타가 번을 잘 안 함. Ivits는 이미 예비 면제(canSpend...)인데 아이타는 예외 없었음.)
+        if (player.faction === 'itars' && round < 6) {
+            const pid = Object.keys(game.players).find(k => game.players[k] === player);
+            if (getPlayerFlag(pid, 'itarsBurnFreely', false)) return 0;
+        }
         if (round <= 2) return 4;
         if (round <= 4) return 3;
         if (round === 5) return 1;
@@ -4595,7 +4684,17 @@ export class BotLogic {
         if (tile.specialAction) {
             if (tile.specialAction === 'range_3') resourceValue += 3;
             if (tile.specialAction === 'terraform_step') resourceValue += 3;
-            if (tile.specialAction === 'gaia_project') resourceValue += 2;
+            if (tile.specialAction === 'gaia_project') {
+                // [flag: gaiaBoosterUsable] 즉포(bon-2pw-gaiaproject)의 특수액션(가이아포머 배치)은 실제로 쓸 수 있을 때만 가치.
+                //   실측(사람게임 45판): 봇이 즉포 든 27구간 중 23구간(85%)이 특수액션 안 쓰고 반납 = 2파워만 받고 슬롯 낭비.
+                //   findGaiaformerActions>0 = 지금 가이아포밍 가능(포머 보유+사거리 내 transdim+파워). 쓸 수 있으면 상향, 못 쓰면
+                //   감점해 2파워 수입가치를 상쇄 → 자원/확장 부스터를 대신 고르게. (사용자 관찰)
+                if (getPlayerFlag(playerId, 'gaiaBoosterUsable', true)) {
+                    resourceValue += this.findGaiaformerActions(game, playerId).length > 0 ? 4 : -3;
+                } else {
+                    resourceValue += 2;
+                }
+            }
         }
 
         let passBonusValue = 0;
