@@ -1595,7 +1595,7 @@ export class BotLogic {
                 // [flag: firaksLabLock] 파이락스 다운그레이드 엔진(랩→TS+연구, 라운드당 1회)은 PI가 있어야 발동.
                 //   (1) PI 전엔 2번째 랩 금지 — PI 없이 랩 2개는 다운그레이드 못 하는 낭비, PI를 먼저 지으라(사용자 요청).
                 //   (2) PI 있는데 랩 0개(다운그레이드로 소모됨)면, 매 라운드 능력 쓰려면 랩 1개 재확보를 강하게 우선.
-                const firaksLabLock = player.faction === 'firaks' && getPlayerFlag(playerId, 'firaksLabLock', false);
+                const firaksLabLock = player.faction === 'firaks' && getPlayerFlag(playerId, 'firaksLabLock', true);
                 const firaksHasPI = firaksLabLock && myStructures.some(t => t.structure === 'planetary_institute');
                 if (firaksLabLock && !firaksHasPI && labCount >= 1) continue; // (1) PI 전 2번째 랩 락
                 if (round <= 2) {
