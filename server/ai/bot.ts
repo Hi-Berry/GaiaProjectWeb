@@ -1592,6 +1592,12 @@ export class BotLogic {
                 // 연구소는 최소 1개는 필요(기술 타일 + 트랙 전진으로 확장 가능해짐).
                 // 다만 광산 기반 없이 너무 빨리 뛰면 망하므로 "첫 연구소"만 완화된 조건으로 허용.
                 const isFirstLab = labCount === 0;
+                // [flag: firaksLabLock] 파이락스 다운그레이드 엔진(랩→TS+연구, 라운드당 1회)은 PI가 있어야 발동.
+                //   (1) PI 전엔 2번째 랩 금지 — PI 없이 랩 2개는 다운그레이드 못 하는 낭비, PI를 먼저 지으라(사용자 요청).
+                //   (2) PI 있는데 랩 0개(다운그레이드로 소모됨)면, 매 라운드 능력 쓰려면 랩 1개 재확보를 강하게 우선.
+                const firaksLabLock = player.faction === 'firaks' && getPlayerFlag(playerId, 'firaksLabLock', false);
+                const firaksHasPI = firaksLabLock && myStructures.some(t => t.structure === 'planetary_institute');
+                if (firaksLabLock && !firaksHasPI && labCount >= 1) continue; // (1) PI 전 2번째 랩 락
                 if (round <= 2) {
                     // 첫 연구소가 아니면 1~2라는 억제
                     if (!isFirstLab) continue;
@@ -1605,6 +1611,8 @@ export class BotLogic {
                 // 초반 연구소 확보 가점 (매우 높게 조정)
                 if (round <= 3 && labCount < 2) score += 80;
                 if (labCount === 0) score += 100;
+                // (2) 파이락스 PI 보유 + 랩 0개 = 다운그레이드 능력 쓸 랩이 없음 → 재확보 강하게 우선(매 라운드 엔진 가동).
+                if (firaksLabLock && firaksHasPI && labCount === 0) score += 250;
 
                 // 광산/TS 엔진이 아직 약하면 추가 감점 (단, "첫 연구소"는 감점을 완화)
                 // 첫 연구소일지라도 기반이 너무 없으면 살짝 감점을 주되 후보에서 아예 날아가지는 않게 유지
@@ -1764,7 +1772,19 @@ export class BotLogic {
         // 핵심 정책: 연방에 묶인 건물 업그레이드는 "다음 연방"에 도움이 안 되므로,
         // 비연방 업그레이드 후보가 하나라도 있으면 연방 업그레이드는 전부 제거한다.
         const hasNonFederated = candidates.some(c => !c.isFederated);
-        const filtered = hasNonFederated ? candidates.filter(c => !c.isFederated) : candidates;
+        // [flag: noFedTierUp] 사용자 관찰("이미 연방에 속한 건물 티어 올리는 게 너무 아까워"): 기존 필터는 비연방 대안이
+        //   있을 때만 연방 업글을 뺐음 → 업글 후보가 전부 연방건물이면 그냥 둬서 MCTS가 −450 점수 무시하고 골라(과충전 낭비 +
+        //   새 연방 씨앗 소모). 이 플래그는 연방 건물 티어업을 '항상' 후보에서 제외(점수 아닌 필터=결정적). 없으면 업글 안 하고
+        //   건설/연구/파워로 감(연방 씨앗 보존). fedMinTrim("작게 자주") 모델과 정합.
+        // [정제] blunt(연방건물 전부 제외)는 TS→랩(엔진)까지 막아 −3.56(연구소 −0.24). 랩/PI(지식·능력=실이득)는 연방건물이라도
+        //   허용하고, mine→TS(수입전환+파워범프)·아카데미(파워범프)만 제외 = 아까운 낭비만 컷.
+        const isEngineUpgrade = (c: ScoredUpgrade) => {
+            const tgt = (c.action.params as any)?.target;
+            return tgt === 'research_lab' || tgt === 'planetary_institute';
+        };
+        const filtered = getPlayerFlag(playerId, 'noFedTierUp', true)
+            ? candidates.filter(c => !c.isFederated || isEngineUpgrade(c))
+            : (hasNonFederated ? candidates.filter(c => !c.isFederated) : candidates);
 
         filtered.sort((a, b) => b.score - a.score);
         // 후보 컷이 너무 강하면 좋은 수가 탐색에서 사라짐 → 상위 5개로 확장
@@ -2589,6 +2609,18 @@ export class BotLogic {
         if (scored.length === 0) {
             const alt = this.findAlternativeBuildAction(game, playerId);
             return alt ? [alt] : [];
+        }
+
+        // [flag: noBuildAdjFed] 사용자: 이미 닫힌 연방에 '딱 붙여' 새로 짓는 것도 아까움 — 연방은 형성 시 1회 점수라
+        //   거기 건물을 보태도 이득 없고, 그 건물로 새 연방을 못 씀. 다른 곳(연방 비인접) 건설이 가능하면 그쪽으로.
+        //   noInflateFed는 군집보너스만 0으로 깎아 MCTS가 무시 → 후보 필터로 '연방 인접' 후보를 제거(비인접 대안 있을 때만=결정적).
+        if (getPlayerFlag(playerId, 'noBuildAdjFed', true)) {
+            const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
+            if (fedHexes.length > 0) {
+                const adjToFed = (t: HexTile) => game.map.some(n => fedHexes.includes(n.id) && getDistance(n, t) === 1);
+                const nonAdj = scored.filter(s => (s as any).tile && !adjToFed((s as any).tile));
+                if (nonAdj.length > 0) { scored.length = 0; scored.push(...nonAdj); } // 비인접 대안 있으면 연방인접 후보 제거
+            }
         }
 
         scored.sort((a, b) => b.score - a.score);

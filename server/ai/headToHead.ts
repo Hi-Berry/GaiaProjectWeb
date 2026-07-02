@@ -39,7 +39,9 @@ const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'up
     // [란티다 계측] PI(의회) 건설·평균라운드·기생광산 — PI 먼저 짓고 기생하는지(각 후속 기생=+2지식).
     'piBuilt', 'paraMine', 'piRoundSum', 'piRoundN',
     // [아이타 계측] 파워 번 횟수 — 아이타는 번 토큰이 가이아 복귀라 적극 번해도 됨(막라 제외).
-    'burn'] as const;
+    'burn',
+    // [Ivits 계측] 우주정거장 배치 수 — 봇 4.5/게임 vs 사람 11.3, 안 놓고 패스하던 누수 확인용.
+    'spaceStation'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -235,6 +237,9 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 // 번은 consolidation으로 action이 'Free Actions'가 되고 번 텍스트가 details로 감 → action+details 둘 다 검사(안 그럼 과소집계).
                 if (/Power Burn|Burn 2 Power|Burn \(/i.test(e.action || '') || /Bowl II ?-> ?III|to Gaia area/i.test(e.details || '')) {
                     (byPlayer[pid] ??= {}).burn = ((byPlayer[pid] ??= {}).burn || 0) + 1;
+                }
+                if (/Ivits: Space Station/i.test(e.action || '')) {
+                    (byPlayer[pid] ??= {}).spaceStation = ((byPlayer[pid] ??= {}).spaceStation || 0) + 1;
                 }
                 const k = classifyAction(e.action || '');
                 if (!k) continue;
@@ -489,7 +494,7 @@ async function main() {
             upgrade: '업글(기타)', downgrade: '다운그레이드', research: '연구진행', federation: '연방', powerAct: '파워액션', hhConvert: 'HH변환',
             techTile: '기술타일', advTile: '고급타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
             tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
-            gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번',
+            gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장',
         };
         for (const k of BEHAVIOR_KEYS) {
             if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력
