@@ -1801,7 +1801,11 @@ export class BotLogic {
             const mines = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine');
             const discounted = mines.filter(t => hasNearbyPlayersForDiscount(game, t, playerId));
             // 연방에 아직 안 속한 타일 우선 (다음 연방에 유리)
-            const preferred = discounted.find(t => !fedHexes.includes(t.id)) ?? discounted[0];
+            // [버그수정] noFedTierUp이 findUpgradeActions에서 연방 mine→TS를 막는데, 이 할인경로는 별도라 우회했음
+            //   — `?? discounted[0]` 폴백이 할인광산 전부 연방일 때 연방 광산을 TS로 올림(사용자 관찰: 다카니안이 연방 광산을 TS로).
+            //   noFedTierUp ON이면 연방 광산엔 폴백하지 않음(비연방 할인광산 없으면 null → 딴 행동).
+            const noFedTierUp = getPlayerFlag(playerId, 'noFedTierUp', true);
+            const preferred = discounted.find(t => !fedHexes.includes(t.id)) ?? (noFedTierUp ? undefined : discounted[0]);
             if (preferred) {
                 return { type: 'upgrade_structure', params: { tileId: preferred.id, target: 'trading_station' } };
             }
@@ -4005,6 +4009,16 @@ export class BotLogic {
                     // 토큰이 부족하여 연방 선언이 어려울 때 가치 상승
                     const totalTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
                     if (totalTokens < 7) score += 40;
+                    // [flag: noR1TokenGain] 사용자: R1엔 구체적 용처 없이 토큰추가(3파워→2토큰) 하는 게 아까움 — 초반엔 건설·확장·연구 우선.
+                    //   단 예외: 인공물 획득은 6토큰 소모(gameState 8731)라, 트와일라잇 우주선 탑승 + 슬롯 있음 + 토큰<6이면
+                    //   토큰 모으는 게 맞음(사용자 지적). 그 외엔 R1 score<0로 후보 제외(pre-pass 패스대체에도 안 뽑힘).
+                    if ((game.roundNumber ?? 1) === 1 && getPlayerFlag(playerId, 'noR1TokenGain', false)) {
+                        const twi = game.map.find(t => t.type === 'ship_twilight');
+                        const boardedTwi = !!twi && (player.spaceshipsEntered ?? []).includes(twi.id);
+                        const slotsOpen = (game.twilightArtifactSlots ?? []).some(s => s != null);
+                        const goingForArtifact = boardedTwi && slotsOpen && totalTokens < 6;
+                        if (!goingForArtifact) score = -1;
+                    }
                     break;
                 case 'gain-2-steps': {
                     // 단독 파워 후보에서는 2스텝 행성 등 “1스텝으로는 부족한” 목표가 있을 수 있으므로,
