@@ -2188,6 +2188,16 @@ export class BotLogic {
         const likelyNavThisTurn = getPlayerFlag(playerId, 'navBeforeJump', true)
             ? (canResearch && (player.research.navigation ?? 0) < 5)
             : (plannedTopTrack === 'navigation');
+        // [flag: navBeforeJumpSoon] 지식<4라 '이번 턴'엔 nav를 못 올려도, 다음 수입이면 올릴 수 있고(초반) nav가 낮으면
+        //   지금 QIC 점프로 먼 행성을 먹지 말고 미룬다. 사용자 관찰: "2거리인데 점프해서 먹고 그 다음에 nav를 올림"
+        //   = 순서 낭비. 다턴 계획이면 'nav 먼저 올리고 다음 턴에 0 QIC로 먹기'. (지식수입 근사 = 1 + 연구소 + 좌아카데미;
+        //   bescods/nevlas는 연구소가 지식이 아니라 제외.) willNavResearchSaveQIC가 '정말 QIC가 줄어드나'를 별도 확인.
+        const kLab = (player.faction === 'bescods' || player.faction === 'nevlas') ? 0
+            : game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length;
+        const kAcadLeft = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy' && (t as any).academyType === 'left').length;
+        const navRaisableSoon = getPlayerFlag(playerId, 'navBeforeJumpSoon', true)
+            && !canResearch && (player.research.navigation ?? 0) < 5 && (game.roundNumber ?? 1) <= 4
+            && ((player.knowledge ?? 0) + (1 + kLab + kAcadLeft) >= 4);
 
         // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
         const rangeBonusValue = range >= 2 ? 30 : 0;
@@ -2343,7 +2353,7 @@ export class BotLogic {
             // 정책: 이번 턴에 Nav를 올릴 가능성이 높다면(지식>=4이고 navigation이 최우선 트랙),
             // Nav 업그레이드로 QIC 소모를 줄일 수 있는 타일에 대해 QIC 점프 광산을 미리 짓지 않게 한다.
             // (즉, "연구 먼저 → 0 QIC로 확장" 플로우 강제)
-            if (likelyNavThisTurn && neededQicForRange > 0) {
+            if ((likelyNavThisTurn || navRaisableSoon) && neededQicForRange > 0) {
                 const probe: BotAction = { type: 'build_mine', params: { tileId: tile.id } };
                 if (this.willNavResearchSaveQIC(game, playerId, probe)) {
                     continue;
