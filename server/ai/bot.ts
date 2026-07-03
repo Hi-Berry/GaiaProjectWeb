@@ -4408,10 +4408,28 @@ export class BotLogic {
                         const mines = game.map
                             .filter(t => t.ownerId === playerId && t.structure === 'mine')
                             .filter(t => !noFedTierUp || !fedHexes.includes(t.id));
-                        // 비할인(2/6) 우선 → 그다음 비연방 → 폴백(noFedTierUp OFF면 연방 포함 전체)
+                        // 비연방 우선 → 폴백(noFedTierUp OFF면 연방 포함 전체)
                         const nonFed = mines.filter(t => !fedHexes.includes(t.id));
                         const pool = nonFed.length ? nonFed : mines;
-                        const mine = pool.find(t => !hasNearbyPlayersForDiscount(game, t, playerId)) ?? pool[0];
+                        // 후보 광산 점수화(사용자 룰): ①비할인(2/6) 우선(싼 2/3은 일반업글용으로 아낌) ②인접 내건물=군집/연방연결
+                        //   ③업글로 연방이 새로 열리거나 더 적은 위성으로 가능해지는 광산 우선. ③은 풀 클론+플래너라 비싸 !simulation에서만.
+                        let mine = pool[0];
+                        if (pool.length > 1) {
+                            const noSim = !game.simulation;
+                            const baseFed = noSim ? this.getBestFederationSpentTokens(game, playerId) : null;
+                            let best = -Infinity;
+                            for (const t of pool) {
+                                let s = 0;
+                                if (!hasNearbyPlayersForDiscount(game, t, playerId)) s += 120; // 비할인(2/6) 우선
+                                s += this.calculateAdjacencyBonus(game, playerId, t);           // 인접 내건물=군집/연방 연결
+                                if (noSim) {
+                                    const after = this.getBestFederationSpentTokensAfterUpgrade(game, playerId, t.id, 'trading_station');
+                                    if (baseFed == null && after != null) s += 400;             // 이 업글로 연방이 새로 열림
+                                    else if (baseFed != null && after != null && after < baseFed) s += Math.min(250, (baseFed - after) * 90); // 위성 절감폭만큼
+                                }
+                                if (s > best) { best = s; mine = t; }
+                            }
+                        }
                         if (mine) {
                             score = 300; // Mine -> TS 업그레이드
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
