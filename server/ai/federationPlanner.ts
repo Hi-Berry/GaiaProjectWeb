@@ -317,7 +317,11 @@ export class FederationPlanner {
             // [flag: fedMinTrim] 연결 컴포넌트가 이미 7 이상이면 통째로 묶지 말고 "딱 7 넘는 최소 연결 부분집합"만
             // 연방에 넣어 초과분 건물을 다음 연방 씨앗으로 보존. 강자는 연방을 작게·여러 개 만들어 보상/초록토큰을 늘림.
             // (봇 최대 병목: 연방 1.4 vs 사람 4.5). Ivits는 누적규칙이라 제외.
-            if (!isIvits && getPlayerFlag(playerId, 'fedMinTrim', true) && currentPower >= requiredPower + 1) {
+            // [버그수정 2026-07-03 사용자관찰: Ivits 21파워인데 연방 1개] 기존엔 !isIvits로 Ivits를 fedMinTrim에서 제외 →
+            //   연결된 큰 클러스터(14~21파워)를 통째로 1개 거대 연방으로 묶어 7VP 1회만(쪼개면 3개=21VP+보상3). Ivits도 부분집합
+            //   연방은 합법이므로 제외 해제 — 최소 7파워로 쪼개 남은 건 다음 연방 씨앗으로. (flag: ivitsFedTrim로 격리 검증)
+            const useTrim = getPlayerFlag(playerId, 'fedMinTrim', true) && (!isIvits || getPlayerFlag(playerId, 'ivitsFedTrim', false));
+            if (useTrim && currentPower >= requiredPower + 1) {
                 const trimmed = this.minimalConnectedFedSet(game, playerId, startTile.id, initialComponent, requiredPower);
                 if (trimmed && getFederationBuildingPower(game, playerId, trimmed) >= requiredPower) {
                     return this.finalizeFederation(game, playerId, [], Array.from(trimmed), 0);
