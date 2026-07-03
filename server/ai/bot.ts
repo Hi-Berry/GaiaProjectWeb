@@ -1108,6 +1108,16 @@ export class BotLogic {
 
         if (buildActions.length > 0) candidates.push(...buildActions);
 
+        // [flag: asteroidMainCandidate] per-candidate 데이터: 사람 소행성광산 48건이 봇 후보에 없었음 —
+        // Eclipse 6C 소행성이 findAlternativeBuildAction(자원기아·광산캡 *폴백*)에만 있어 정상 상황에선 MCTS가 검토 불가.
+        // 사람은 이걸 주력 수로 씀(소행성=미션·타입다양성·확장). affordable하면 정규 후보로 승격 — 채택은 MCTS가 평가.
+        if (getPlayerFlag(playerId, 'asteroidMainCandidate', false) && (player.credits ?? 0) >= 6) {
+            const alt = this.findAlternativeBuildAction(game, playerId);
+            if (alt && !candidates.some(c => c.type === alt.type && (c.params as any)?.shipTileId === (alt.params as any)?.shipTileId && (c.params as any)?.actionIndex === (alt.params as any)?.actionIndex)) {
+                candidates.push(alt);
+            }
+        }
+
         // 6. 일반 업그레이드 시도
         let upgradeActions = this.findUpgradeActions(game, playerId);
         // [flag: expandOverTS] 사용자 라벨(Q5): 초반엔 확장(미점유 타일 광산)이 교역소 업글보다 급함(타일 선점당함, TS는 천천히).
@@ -1225,6 +1235,21 @@ export class BotLogic {
             const tracks = this.pickResearchTracks(game, player, playerId);
             for (const track of tracks) {
                 candidates.push(this.advanceResearchAction(playerId, player, track));
+            }
+            // [flag: allTracksResearch] per-candidate 데이터(18게임): 사람 연구수의 81%(52/64)가 지식 충분한데
+            // 봇 후보에 없었음 = top-3 슬라이스가 4-6순위 트랙을 MCTS에서 숨김(하드필터의 후보생성 갭).
+            // 나머지 자격 트랙(L<5, L4→5는 green 필요)도 후보로 — 랭킹은 MCTS가 평가로 함.
+            if (getPlayerFlag(playerId, 'allTracksResearch', false)) {
+                const ALL: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+                for (const track of ALL) {
+                    if (tracks.includes(track)) continue;
+                    const lvl = player.research[track] ?? 0;
+                    if (lvl >= 5) continue;
+                    if (lvl === 4 && !getFederationEntries(player).some(f => f.isGreen)) continue;
+                    if (player.faction === 'bal_tak' && track === 'navigation'
+                        && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) continue;
+                    candidates.push(this.advanceResearchAction(playerId, player, track));
+                }
             }
         }
 
