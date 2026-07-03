@@ -326,7 +326,12 @@ export class BotLogic {
             case 'use_ship_action':
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
             case 'enter_spaceship':
-                return executeEnterSpaceship(io, game, playerId, action.params.tileId, action.params.useRangeBonus, action.params.qicToUse) === null;
+                {
+                    // [계측 SHIPREJ 2026-07-04] enter_spaceship 실패 155건/일 — 서버 거부사유(문자열)를 버리지 말고 로그
+                    const shipErr = executeEnterSpaceship(io, game, playerId, action.params.tileId, action.params.useRangeBonus, action.params.qicToUse);
+                    if (shipErr !== null && !game.simulation) log(`[SHIPREJ] ${playerId} ${action.params.tileId}: ${shipErr}`, 'error', game.id);
+                    return shipErr === null;
+                }
             case 'eclipse_build_asteroid_mine':
                 return executeEclipseBuildAsteroidMine(io, game, playerId, action.params.tileId);
             case 'convert_resource':
@@ -2585,13 +2590,17 @@ export class BotLogic {
                         });
                         continue;
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 3) {
+                        // [버그수정 2026-07-04] burn 1회 = bowl3 +1뿐 — 기존엔 번 1개만 붙여 실행 시 "Insufficient Power 3"
+                        // 277회/일 실패(→강제 pass 턴 낭비). 부족분(3-power3)만큼 번 반복 부착. 타클론은 브레인 회계 특수라 1회 유지.
+                        const burns1 = player.faction === 'taklons' ? 1 : Math.max(1, 3 - power3);
+                        const burnPres1: BotAction[] = Array.from({ length: burns1 }, () => ({
+                            type: 'burn_power' as const,
+                            params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
+                        }));
                         scored.push({
                             tile,
                             score: 69 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            action: buildMineAction(tile.id, neededQicForRange, {
-                                type: 'burn_power',
-                                params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
-                            }, {
+                            action: buildMineAction(tile.id, neededQicForRange, ...burnPres1, {
                                 type: 'use_power_action',
                                 params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }
                             })
@@ -2624,13 +2633,16 @@ export class BotLogic {
                         });
                         continue;
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
+                        // [버그수정 2026-07-04] 위 gain-1-step과 동일 — 부족분(5-power3)만큼 번 반복 부착.
+                        const burns2 = player.faction === 'taklons' ? 1 : Math.max(1, 5 - power3);
+                        const burnPres2: BotAction[] = Array.from({ length: burns2 }, () => ({
+                            type: 'burn_power' as const,
+                            params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
+                        }));
                         scored.push({
                             tile,
                             score: 59 - (qicPenalty * 0.8) + bridgeheadBonus,
-                            action: buildMineAction(tile.id, neededQicForRange, {
-                                type: 'burn_power',
-                                params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
-                            }, {
+                            action: buildMineAction(tile.id, neededQicForRange, ...burnPres2, {
                                 type: 'use_power_action',
                                 params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }
                             })

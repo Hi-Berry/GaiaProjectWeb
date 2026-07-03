@@ -7354,14 +7354,18 @@ export function executeUseSpecialAction(
 export function executeUseBonusAction(
 	io: SocketIOServer, game: ServerGameState, playerId: string
 ): boolean {
-	if (!game || game.currentPhase !== 'main' || game.hasDoneMainAction) return false;
-	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
+	// [계측 BONUSREJ 2026-07-04] 봇 use_bonus_action 실패 388건/일 — 거부 이유 분포 수집(시뮬 제외)
+	const rej = (why: string) => { debugLog(game, `[BONUSREJ] ${playerId} ${why}`, 'error'); return false; };
+	if (!game || game.currentPhase !== 'main') return rej('phase');
+	if (game.hasDoneMainAction) return rej('hasDoneMainAction');
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return rej('notTurn');
 
 	const player = game.players[playerId];
-	if (!player?.bonusTile || player.usedBonusAction) return false;
+	if (!player?.bonusTile) return rej('noBonusTile');
+	if (player.usedBonusAction) return rej('alreadyUsed');
 
 	const bonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
-	if (!bonusTile?.specialAction) return false;
+	if (!bonusTile?.specialAction) return rej('noSpecialAction');
 
 	saveActionStartState(game, playerId);
 
@@ -7372,8 +7376,8 @@ export function executeUseBonusAction(
 			addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
 			log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
 			break;
-		case 'gaia_project':
-			if (getEffectiveGaiaformers(player) < 1) return false;
+		case gaia_project:
+			if (getEffectiveGaiaformers(player) < 1) return rej(noFormer);
 			player.usedBonusAction = true;
 			game.pendingTFMarsGaiaProject = { playerId, shipTileId: 'bonus-gaia' };
 			game.hasDoneMainAction = true;
