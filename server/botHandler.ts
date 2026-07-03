@@ -501,6 +501,17 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
     } else {
         log(`Bot ${player.name} failed to execute ${action.type}. Action details: ${JSON.stringify(action)}`, 'error', game.id);
+        // [hang 근본수정 2026-07-04] pending(우주선기술 무료광산/테라폼스텝) 상태에서 후보가 서버에 거부되면
+        // pass도 서버가 거부(pending 우선) → 무한 재스케줄 루프(uk3aybql 수 분 hang). 첫 실패에 즉시 pending을
+        // 정면 해소: skip_ship_tech_mine 시도, 안 되면 스텝 포기 — 낭비지만 무한루프·타임아웃보다 압도적으로 나음.
+        if (game.currentPhase === 'main' && game.pendingShipTechMine?.playerId === currentPlayerId) {
+            log(`Bot ${player.name} pending-build failed → skip_ship_tech_mine (근본해소). candidates were: ${JSON.stringify(action)}`, 'error', game.id);
+            const skipOk = await BotLogic.performAction(io, game, { type: 'skip_ship_tech_mine', params: {} }, currentPlayerId);
+            if (skipOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); return; }
+        } else if (game.currentPhase === 'main' && (player.pendingTerraformSteps || 0) > 0 && action.type === 'build_mine') {
+            log(`Bot ${player.name} pending-steps build failed → 스텝 포기(무한루프 방지)`, 'error', game.id);
+            player.pendingTerraformSteps = 0;
+        }
         if (game.currentPhase === 'main' && !player.hasPassed) {
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
