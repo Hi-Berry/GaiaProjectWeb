@@ -3375,6 +3375,19 @@ export class BotLogic {
             else if (track === 'economy' && next === 5) { o += 3; c += 6; pw += 6; }
             else if (track === 'science' && next === 5) kn += 9;
             score += q * 18 + o * 8 + c * 4 + pw * 4 + kn * 7;
+            // (H) 이 트랙 위에 '좋은' 미보유 고급타일이 있으면, 그 타일 품질(scoreAdvancedTechTile)에 비례해
+            //   L4 자격을 만드는 상승을 우대(사용자 지적: 좋은 고급타일 먹을 수 있어도 보너스가 없었음).
+            //   청구엔 트랙 L4 + 초록연방 소모가 필요 → 초록연방 보유 시에만. 정액 +110/+30 근사(advTechChain·시너지)의 값-인지 대체.
+            const advOnTrack = (game.advancedTechTilesByTrack || {})[track];
+            if (advOnTrack?.id && !Object.values(game.players).some(p => p.techTiles?.includes(advOnTrack.id))
+                && countGreenFederations(player) >= 1) {
+                const advScore = this.scoreAdvancedTechTile(game, playerId, advOnTrack.id, round, player);
+                if (advScore > 0) {
+                    if (next === 4) score += advScore;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
+                    else if (next < 4) score += advScore * 0.3; // L4로 가는 도중: 약한 선행 가점
+                    // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
+                }
+            }
         }
 
         // [flag: humanResearchPrior] 사람 로그 35판(66 시드) 직접 분석 — 첫 연구 분포:
@@ -3423,17 +3436,18 @@ export class BotLogic {
         }
 
         // 2. 고급 기술 타일 시너지 분석
+        //   [flag: researchValueModel] 아래 정액 시너지(+30/+25)는 위 (H)의 값-인지 보너스가 대체 → 플래그 ON시 생략(중복 방지).
         const advTiles = game.advancedTechTilesByTrack || {};
-        const myAdvTracks = Object.keys(advTiles).filter(t => player.research[t as ResearchTrack] >= 4);
-
-        for (const [t, tile] of Object.entries(advTiles)) {
-            if (t === track) {
-                // 이 트랙 위에 있는 고급 타일이 나에게 유리한가?
-                if (tile.id.includes('vp-build') || tile.id.includes('vp-terraform')) {
-                    score += 30; // 건설/테라포밍 점수 타일은 매우 강력
-                }
-                if (tile.id.includes('pass-') && round >= 4) {
-                    score += 25; // 후반 패스 보너스 타일 시너지
+        if (!getPlayerFlag(playerId, 'researchValueModel', true)) {
+            for (const [t, tile] of Object.entries(advTiles)) {
+                if (t === track) {
+                    // 이 트랙 위에 있는 고급 타일이 나에게 유리한가?
+                    if (tile.id.includes('vp-build') || tile.id.includes('vp-terraform')) {
+                        score += 30; // 건설/테라포밍 점수 타일은 매우 강력
+                    }
+                    if (tile.id.includes('pass-') && round >= 4) {
+                        score += 25; // 후반 패스 보너스 타일 시너지
+                    }
                 }
             }
         }
@@ -3469,7 +3483,9 @@ export class BotLogic {
         // 봇이 일반 수익타일을 먹음. 고급타일 자격 = 트랙 L4. 기존 ×2.0 폭발가중은 level===4(4→5)에만 걸려
         // "3→4로 *자격 자체를 만드는*" 결정적 한 수를 +55로만 약하게 평가했음 → 고급타일(~30VP)을 못 챙김(techTiles 사람40.5 vs 봇3.3).
         // 이 트랙 위에 아무도 안 가진 고급타일 + 초록연방 보유 시, 3→4 전진을 크게 우대(다음 빌드에서 고급타일 획득).
-        if (getPlayerFlag(playerId, 'advTechChain', true) && level === 3 && countGreenFederations(player) >= 1) {
+        //   [flag: researchValueModel] 이 정액 +110은 위 (H)의 값-인지 자격보너스(next===4 += advScore)가 대체 → 플래그 ON시 생략.
+        if (getPlayerFlag(playerId, 'advTechChain', true) && !getPlayerFlag(playerId, 'researchValueModel', true)
+            && level === 3 && countGreenFederations(player) >= 1) {
             const adv = advTiles[track];
             if (adv?.id && !Object.values(game.players).some(p => p.techTiles?.includes(adv.id))) {
                 score += 110; // 고급타일 자격을 만드는 결정적 수
