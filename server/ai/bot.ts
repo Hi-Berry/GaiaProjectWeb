@@ -4299,6 +4299,16 @@ export class BotLogic {
                 if (tile.type === 'ship_rebellion') score += 40;
                 if (tile.type === 'ship_eclipse') score += 60; // 후반 소행성 건설/연구용
                 if (tile.type === 'ship_tf_mars') score += 50;
+                // [flag: twilightArtifactEntry] Twilight = 인공물(6토큰→VP) 접근처인데 입장가치가 0이라 봇이 안 타 인공물을 못 먹음.
+                //   좋은 인공물 있고 토큰 4+(6 근처)면 입장 우대. 특히 Ivits는 연방이 QIC 소모라 토큰 쓸 곳이 인공물뿐 → 강하게
+                //   (안 그럼 gain-2-tokens로 토큰만 쌓고 안 씀, 사용자관찰). 취득은 입장 후 findTwilightArtifactActions가 처리.
+                if (tile.type === 'ship_twilight' && getPlayerFlag(playerId, 'twilightArtifactEntry', true)) {
+                    const totalPow = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0);
+                    const slotsOpen = (game.twilightArtifactSlots ?? []).some(s => s != null);
+                    if (slotsOpen && totalPow >= 4 && this.getBestArtifactId(game, playerId) != null) {
+                        score += player.faction === 'ivits' ? 120 : 55;
+                    }
+                }
             }
 
             // [flag: r1ShipPriority] 사람은 R1에 95% 우주선 탑승(봇 58%는 게임 내내 아예 안 탐 — 35로그+자가대국 확인).
@@ -4635,6 +4645,12 @@ export class BotLogic {
         const ore = player.ore ?? 0;
 
         const results: BotAction[] = [];
+
+        // [버그가드] 인공물 취득은 트왈라잇 우주선 탑승 + 남은 슬롯 필요(executeTakeTwilightArtifact). 탑승 안 했으면 무효후보라 안 냄.
+        const twilight = game.map.find(t => t.type === 'ship_twilight');
+        const boarded = !!twilight && (player.spaceshipsEntered ?? []).includes(twilight.id);
+        const slotsOpen = (game.twilightArtifactSlots ?? []).some(s => s != null);
+        if (!boarded || !slotsOpen) return results;
 
         if (totalPower >= 6) {
             const bestId = this.getBestArtifactId(game, playerId);
