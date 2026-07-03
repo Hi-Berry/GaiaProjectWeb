@@ -7859,6 +7859,18 @@ export function executeBotSelectTechTile(
 	if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return false;
 
 	const player = game.players[playerId];
+	const _wasItarsExch = game.pendingTechTileSelection.structureType === 'itars_pi_exchange';
+	// [버그수정 2026-07-03] 폴백이 itars_pi_exchange 후속(남은토큰→2번째 교환 or 진행)을 안 해 gaia phase hang(사용자: 아이타 기술2개 후 멈춤). 소켓 경로와 동일 체이닝 후 클리어.
+	const _clearPendingTech = () => {
+		if (_wasItarsExch) {
+			const remaining = game.itarsGaiaformerRemainingAfterTech ?? 0;
+			game.itarsGaiaformerRemainingAfterTech = undefined;
+			if (remaining >= 4) { game.pendingItarsGaiaformerExchange = { playerId, tokensRemaining: remaining }; }
+			else { player.power1 = (player.power1 || 0) + remaining; if (remaining > 0) addGameLog(game, playerId, 'Itars PI', `${remaining} tokens → Bowl 1`); helperProceedAfterItarsGaiaformerOrTerran(io, game); }
+		}
+		game.pendingTechTileSelection = null;
+		game.availableShipTechTileIds = undefined;
+	};
 	const tracks: ResearchTrack[] = ['economy', 'terraforming', 'science', 'navigation', 'artificialIntelligence', 'gaiaProject'];
 
 	// 1. 트랙 타일 시도: 진행 가능한 트랙에 남은 타일이 있으면 선택
@@ -7889,8 +7901,7 @@ export function executeBotSelectTechTile(
 			const idx = tilesCast.indexOf(tile);
 			if (idx !== -1) tilesCast[idx] = null;
 			log(`Bot ${player.name} gained tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
-			game.pendingTechTileSelection = null;
-			game.availableShipTechTileIds = undefined;
+			_clearPendingTech();
 			clampPlayerResources(game);
 			io.to(game.id).emit('game_updated', game);
 			return true;
@@ -7920,8 +7931,7 @@ export function executeBotSelectTechTile(
 				if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 				(game.techTilesPool as (typeof poolTile | null)[])[pi] = null;
 				log(`Bot ${player.name} gained pool tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
-				game.pendingTechTileSelection = null;
-				game.availableShipTechTileIds = undefined;
+				_clearPendingTech();
 				clampPlayerResources(game);
 				io.to(game.id).emit('game_updated', game);
 				return true;
@@ -7931,8 +7941,7 @@ export function executeBotSelectTechTile(
 
 	// 진행 가능한 조합이 없으면 강제 해제 (무한 대기 방지)
 	log(`Bot ${player.name} could not find valid tech tile selection, clearing pending state`, 'game', undefined, { simulation: (game as any).simulation });
-	game.pendingTechTileSelection = null;
-	game.availableShipTechTileIds = undefined;
+	_clearPendingTech();
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
 	return true;
