@@ -3328,15 +3328,17 @@ export class BotLogic {
                 if (faction === 'bal_tak') score += 120;
                 break;
             case 'economy':
-                score += (6 - level) * 20; // 상향 (15 -> 20)
-                if (round <= 2) score += 35; // 초반 경제 대폭 우대
-                if (round >= 5) score -= 30;
-                // [flag: lateEconDamp] R6(막라운드)엔 수입 페이즈가 안 남음 — 수입은 라운드 시작에 징수, 연구상승은
-                //   그 후(액션)라 R6 경제상승은 반복수입 가치=0(사용자 관찰: 막라운드에 경제트랙 몰빵). income기반
-                //   (6-level)*20을 R6에 상쇄해 경제 대신 VP행동(건물/연방/타일)로 유도. L5 즉시 +6P·L3 +3충전은
-                //   별도 충전후보 경로(advanceTechTriggersCharge)가 이미 평가하므로 유효 수단은 안 죽는다.
-                if (round === 6 && getPlayerFlag(playerId, 'lateEconDamp', true)) {
-                    score -= (6 - level) * 20;
+                // [flag: researchValueModel] 경제 '반복수입' 성분은 남은 징수 횟수(6-round)에 비례해야 정확.
+                //   수입은 라운드 시작 징수, 연구상승은 그 후(액션)라 라운드R 상승분은 R+1..R6에 (6-R)회만 걷힘 → R6=0.
+                //   기존은 (6-level)*20 고정이라 막라운드에도 경제 몰빵(사용자 관찰). L5 도달보상(3O/6C/6P)은 아래 (B)에서.
+                if (getPlayerFlag(playerId, 'researchValueModel', true)) {
+                    const remainingIncomes = Math.max(0, 6 - round); // R1=5 … R5=1 … R6=0
+                    if (level < 4) score += (6 - level) * 20 * (remainingIncomes / 5); // 반복수입: 남은 징수 비례
+                    if (round <= 2) score += 35; // 초반 경제 우대(남은 징수 많음)
+                } else {
+                    score += (6 - level) * 20; // 상향 (15 -> 20)
+                    if (round <= 2) score += 35; // 초반 경제 대폭 우대
+                    if (round >= 5) score -= 30;
                 }
                 // [사용자 전략] 아카데미 건설 시 경제 2단계까지 우선순위 강화
                 const academyCount = myStructures.filter(t => t.structure === 'academy').length;
@@ -3349,6 +3351,30 @@ export class BotLogic {
                 if (round <= 3) score += 30; // 초반 과학은 엔진의 핵심
                 if (level >= 3) score += 15;
                 break;
+        }
+
+        // [flag: researchValueModel] 트랙 상승의 '라운드-불변' 성분 — 기존 감쇠 공식이 놓치던 것(사용자 지적).
+        if (getPlayerFlag(playerId, 'researchValueModel', true)) {
+            const next = level + 1;
+            // (G) 라이벌이 이미 L5 점유 → 그 트랙 L5 도달 불가(단일 슬롯). 후보에서 제외.
+            if (next === 5 && Object.entries(game.players).some(([pid, p]) => pid !== playerId && (p.research?.[track] ?? 0) >= 5)) {
+                return -1000;
+            }
+            // (A) 엔드게임 트랙 VP: 종료 시 L3/4/5 = 4/8/12점(절대). 스텝이 L3+ 넘으면 +4 확정VP — 라운드 무관.
+            //   막라운드에 저트랙 한 칸 올려 L3 찍는 게 최고수(사용자 예: Nav1/Eco2 → 4K를 Eco에 = Eco3 = +4VP).
+            const endVp = (l: number) => (l >= 5 ? 12 : l >= 4 ? 8 : l >= 3 ? 4 : 0);
+            const VP_UNIT = 15; // 1VP ≈ 15점(새 행성=15 스케일). 측정/1:3로 보정.
+            score += (endVp(next) - endVp(level)) * VP_UNIT;
+            // (B) 즉시 도달보상 자원가치(받는 즉시 = 라운드 무관, R6에도 액션 연료/전환으로 유효).
+            //   공통 L3 +3충전, nav L1/3 +1Q, AI L1/2 +1Q·L3/4 +2Q·L5 +4Q, terra L1/4 +2O, eco L5 +3O6C6P, sci L5 +9K.
+            let q = 0, o = 0, c = 0, pw = 0, kn = 0;
+            if (next === 3) pw += 3;
+            if (track === 'navigation' && (next === 1 || next === 3)) q += 1;
+            else if (track === 'artificialIntelligence') q += next === 5 ? 4 : next >= 3 ? 2 : 1;
+            else if (track === 'terraforming' && (next === 1 || next === 4)) o += 2;
+            else if (track === 'economy' && next === 5) { o += 3; c += 6; pw += 6; }
+            else if (track === 'science' && next === 5) kn += 9;
+            score += q * 18 + o * 8 + c * 4 + pw * 4 + kn * 7;
         }
 
         // [flag: humanResearchPrior] 사람 로그 35판(66 시드) 직접 분석 — 첫 연구 분포:
@@ -3418,8 +3444,11 @@ export class BotLogic {
         // 3b. [개선] "트랙 완주" 유인 — 기본항 (6-level)*weight 가 낮은 레벨을 선호해
         //   봇이 여러 트랙을 얕게 펼치고(레벨2~3 다수) 레벨5에 못 가는 문제를 교정.
         //   이미 올린 트랙을 끝까지 밀어 레벨4(고급타일 자격·종료보너스8) → 레벨5(종료보너스12·강력 능력)로 가게 한다.
-        if (level === 2) score += 25;   // 2→3 진척
-        else if (level === 3) score += 55; // 3→4: 고급 기술 타일 자격 + 5단계 발판이라 강하게 완주 유도
+        // [flag: researchValueModel] 이 +25/+55는 엔드게임 VP를 뭉툭하게 근사하던 것 → 위 (A)가 명시적으로 대체하므로 중복 제거.
+        if (!getPlayerFlag(playerId, 'researchValueModel', true)) {
+            if (level === 2) score += 25;   // 2→3 진척
+            else if (level === 3) score += 55; // 3→4: 고급 기술 타일 자격 + 5단계 발판이라 강하게 완주 유도
+        }
 
         // 4. 다음 레벨 보상 가치
         if (level === 4) {

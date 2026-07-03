@@ -10,7 +10,7 @@ GAMES="${1:-120}"
 LABEL="${2:-$(date +%F)}"
 
 # 베이스라인 = "이 플래그들을 OFF로 돌린 봇"(= 채택 전 봇). 새 채택이 생기면 여기 추가해 같은 기준 유지.
-BASELINE_OFF='{"gaiaBoosterUsable":false,"lantidsEarlyPI":false,"pendingStepsPreferFull":false,"itarsBurnCandidate":false,"noFedTierUp":false,"noBuildAdjFed":false,"firaksLabLock":false,"rebellionMineSelect":false,"lateEconDamp":false}'
+BASELINE_OFF='{"gaiaBoosterUsable":false,"lantidsEarlyPI":false,"pendingStepsPreferFull":false,"itarsBurnCandidate":false,"noFedTierUp":false,"noBuildAdjFed":false,"firaksLabLock":false,"rebellionMineSelect":false,"researchValueModel":false}'
 
 echo "[strengthTrack] $LABEL | games=$GAMES | baseline OFF = $BASELINE_OFF"
 
