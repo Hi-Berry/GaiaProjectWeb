@@ -28,6 +28,65 @@ function bestUnfederatedClusterPower(game: ServerGameState, playerId: string): n
     return best;
 }
 
+// [flag: humanValueBlendK] 사람게임 학습 가치망 v2 (2026-07-04, 39맵게임 624스냅샷, R3우승예측 62% vs 베이스49%).
+// 릿지 선형: 예측VP = Σ w·feat×100. 휴리스틱을 *대체하지 않고* score += K×예측VP로 가산 —
+// 망은 엔진 한계가치(기술타일+6.1/연방+13/우주선입장+17/큰건물+14VP)만 알고 자원/템포는 모름(휴리스틱 담당).
+// 후보 간 랭킹엔 상수항(round/intercept) 무관. 피처 정규화는 scripts/valueProbe.mjs와 반드시 동일.
+let _hvn: { weights: number[] } | null = null;
+let _hvnTried = false;
+function getHumanValueNet(): { weights: number[] } | null {
+    if (_hvnTried) return _hvn;
+    _hvnTried = true;
+    try {
+        const p = path.join(process.cwd(), 'server', 'ai', 'humanValueNet.json');
+        if (fs.existsSync(p)) _hvn = JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch { _hvn = null; }
+    return _hvn;
+}
+const HVN_HEX = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+const HVN_TRACKS = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+function computeHumanValueVP(game: ServerGameState, playerId: string): number {
+    const net = getHumanValueNet();
+    if (!net) return 0;
+    const player = game.players[playerId];
+    if (!player) return 0;
+    const owned = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship'
+        && t.type && !['space', 'deep_space', 'transdim', 'lost_fleet_ship'].includes(t.type) && !t.type.startsWith('ship_'));
+    const cnt: Record<string, number> = { mine: 0, trading_station: 0, research_lab: 0, academy: 0, planetary_institute: 0 };
+    for (const t of owned) if (cnt[t.structure!] != null) cnt[t.structure!]++;
+    // 클러스터 (probe와 동일: 인접 연결성분, 파워 mine1/ts·lab2/big3)
+    const sp = (s: string) => (s === 'planetary_institute' || s === 'academy') ? 3 : (s === 'trading_station' || s === 'research_lab') ? 2 : 1;
+    const key = (t: any) => t.q + ',' + t.r;
+    const coordSet = new Set(owned.map(key));
+    const byCoord = new Map(owned.map(t => [key(t), t]));
+    const seen = new Set<string>(); let nCl = 0, maxP = 0;
+    for (const m of owned) {
+        if (seen.has(key(m))) continue;
+        nCl++; let p = 0; const stack = [m];
+        while (stack.length) {
+            const c = stack.pop()!; const ck = key(c); if (seen.has(ck)) continue; seen.add(ck);
+            p += sp(c.structure!);
+            for (const [dq, dr] of HVN_HEX) { const nk = (c.q! + dq) + ',' + (c.r! + dr); if (coordSet.has(nk) && !seen.has(nk)) stack.push(byCoord.get(nk)!); }
+        }
+        if (p > maxP) maxP = p;
+    }
+    const types = new Set(owned.map(t => t.type)), sectors = new Set(owned.map(t => t.sector));
+    const resArr = HVN_TRACKS.map(t => (player.research?.[t as keyof typeof player.research] ?? 0));
+    const resSum = resArr.reduce((a, b) => a + b, 0);
+    const deep = resArr.filter(v => v >= 3).length;
+    const gfPlaced = game.map.filter(t => t.hasGaiaformer && t.gaiaformerOwnerId === playerId).length
+        + owned.filter(t => t.isGaiaformed).length;
+    const f = [(game.roundNumber ?? 1) / 6, cnt.mine / 10, cnt.trading_station / 5, cnt.research_lab / 4,
+        (cnt.academy + cnt.planetary_institute) / 3, (player.techTiles?.length ?? 0) / 10,
+        getFederationEntries(player).length / 4, (player.spaceshipsEntered?.length ?? 0) / 3, gfPlaced / 3,
+        ...resArr.map(v => v / 5), resSum / 20, deep / 4,
+        types.size / 7, sectors.size / 9, nCl / 6, maxP / 12, owned.length / 13];
+    let s = 0;
+    const W = net.weights;
+    for (let i = 0; i < W.length && i < f.length; i++) s += W[i] * f[i];
+    return s * 100; // 예측VP 스케일(상수항 생략 — 후보 랭킹엔 무관)
+}
+
 // 학습된 가치망(있으면) 지연 로드. useValueNet 플래그가 켜진 좌석은 휴리스틱 대신 이 망의 예측 최종VP를 리프값으로 사용.
 let _valueNet: ValueNet | null = null;
 let _valueNetTried = false;
@@ -307,6 +366,11 @@ export class Evaluator {
             const net = getValueNet();
             if (net) return net.predict(extractFeatures(game, playerId));
         }
+
+        // [flag: humanValueBlendK] 사람게임 가치망 v2 가산 블렌드 (0=OFF). K×예측VP를 휴리스틱에 더함.
+        // K=5면 연방 +65점(휴리스틱 fed 120의 절반 보정), 기술타일 +30점 등 — 전략 항 보정, 전술(자원)은 휴리스틱 유지.
+        const hvnK = getPlayerFlag(playerId, 'humanValueBlendK', 0);
+        const hvnBonus = hvnK > 0 ? hvnK * computeHumanValueVP(game, playerId) : 0;
 
         // 좌석별 변형(head-to-head A/B)이 있으면 그 프로필을, 없으면 전역 프로필을 사용
         const profile = getPlayerProfile(playerId) ?? ACTIVE_PROFILE;
@@ -964,7 +1028,11 @@ export class Evaluator {
             }
         }
 
+        // [flag: humanValueBlendK] 사람게임 가치망 가산 (위에서 계산, 0=OFF)
+        score += hvnBonus;
+
         if (debug) {
+            if (hvnBonus !== 0) logDebug(`hvn) humanValueNet blend: +${hvnBonus.toFixed(1)}`);
             logDebug(`==> Total Score: ${score.toFixed(1)}`);
             console.log(logs.join('\n'));
         }
