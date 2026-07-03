@@ -1035,7 +1035,7 @@ export class BotLogic {
                 //   위성 지불은 bowl1→2→3 순이라 남는 bowl3는 idle. 연방 전에 그 idle bowl3를 프리액션(1P→1C)으로 미리 써서
                 //   가치(크레딧)를 뽑는다. 1P→1C는 bowl3→bowl1로 토큰을 되돌리므로(제거X) 위성 지불 총량엔 영향 없음(안전).
                 // [flag: bowl3CashoutOre] 위성이 소모할 bowl3 deficit도 먼저 변환해 회수(순이득, 사용자 룰) — idle 변환에 선행
-                const fedDoomed = getPlayerFlag(playerId, 'bowl3CashoutOre', false)
+                const fedDoomed = getPlayerFlag(playerId, 'bowl3CashoutOre', true)
                     ? this.doomedBowl3CashoutPreActions(player, spent, playerId) : [];
                 const fedBowl3Pre = [...fedDoomed, ...this.fedSpendBowl3PreActions(playerId, player, spent)];
                 candidates.push(fedBowl3Pre.length
@@ -2848,7 +2848,7 @@ export class BotLogic {
                 }
                 // [flag: bowl3CashoutOre] 사용자 룰 v2: 포밍이 소모할 bowl3 deficit을 ore우선(3P→1O)+캡가드로 회수.
                 // (구 gaiaformPreSpend −5.24의 원인=크레딧-only·캡무시 — 교정판. 캡으로 변환 불가면 빈 배열=그냥 소모.)
-                if (!preActions && getPlayerFlag(playerId, 'bowl3CashoutOre', false) && !isFreeProject) {
+                if (!preActions && getPlayerFlag(playerId, 'bowl3CashoutOre', true) && !isFreeProject) {
                     const cash = this.doomedBowl3CashoutPreActions(player, powerRequired, playerId);
                     if (cash.length) preActions = cash;
                 }
@@ -4845,7 +4845,7 @@ export class BotLogic {
         // [flag: bowl3CashoutOre] 사용자 룰(2026-07-04): "소모될 bowl3는 반드시 변환으로 가치 회수, 단 캡(30C)으로
         // 변환 불가면 예외". ore 우선(3P→1O) → 나머지 1P→1C(크레딧 캡 가드 — 이전 gaiaformPreSpend −5.24의
         // 원인=캡/크레딧부자에 무가치 크레딧 변환). 캡으로 전부 막히면 빈 배열(그냥 소모 — 사용자 예외 그대로).
-        if (playerId && getPlayerFlag(playerId, 'bowl3CashoutOre', false)) {
+        if (playerId && getPlayerFlag(playerId, 'bowl3CashoutOre', true)) {
             const acts: BotAction[] = [];
             let rem = doomed;
             let oreRoom = Math.max(0, 15 - (player.ore ?? 0));
