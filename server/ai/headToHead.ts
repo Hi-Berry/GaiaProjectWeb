@@ -48,8 +48,9 @@ const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'up
     //   econAdv=경제트랙 상승 전체, econAdvR4=R4+ 경제상승(막라 낭비), resLateL3=R5+에 L3+ 도달(엔드게임 VP 챙김),
     //   gaiaMine=가이아 광산 전체, gaiaQic2=2QIC+ 던진 가이아 광산("2Qic 가이아 그만").
     'econAdv', 'econAdvR4', 'resLateL3', 'gaiaMine', 'gaiaQic2',
-    // [파워관리 검증] finalP3=게임종료 시 보유 bowl3(쟁여둠 신호; 낮을수록 다 씀=사람같음). 파워액션(powerAct)과 함께 봄.
-    'finalP3'] as const;
+    // [파워관리 검증] finalP3=종료 시 bowl3, midP3=게임내내 평균 보유 bowl3(사람~1.5), charge=충전횟수(Power Gained=공급).
+    //   파워액션(powerAct)과 함께: midP3 낮고 파워액션 적으면 '공급부족'(충전 안함), midP3 높은데 파워액션 적으면 '소비부족'(안씀).
+    'finalP3', 'midP3', 'charge'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -213,6 +214,7 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
     return new Promise((resolve, reject) => {
         let gameId = '';
         let lastUpdate: any = null; // [hang 진단] 마지막 게임상태 — 타임아웃 시 어느 종족/pending에서 멈췄는지 덤프
+        const p3samp: Record<string, { s: number; n: number }> = {}; // [파워 공급vs소비] 게임 내내 bowl3 샘플 → mid-game 평균 보유 bowl3
         const timer = setTimeout(() => {
             // [hang 진단] 사용자 가설: 스톨=특정 종족 액션 무한루프 버그(아이타/아이비츠류). 걸린 상태를 찍는다.
             try {
@@ -230,7 +232,13 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
         const cleanup = () => { clearTimeout(timer); socket.off('game_updated', onUpdate); };
 
         const onUpdate = (updated: any) => {
-            if (updated?.id === gameId) lastUpdate = updated; // 매 갱신 저장(hang 진단용)
+            if (updated?.id === gameId) {
+                lastUpdate = updated; // 매 갱신 저장(hang 진단용)
+                // [파워 공급vs소비] 매 갱신마다 각 플레이어 bowl3 샘플 → 봇이 사람(~1.5)만큼 충전파워를 들고 있나(공급) 판별
+                for (const [pid, p] of Object.entries(updated.players || {})) {
+                    const q = (p3samp[pid] ??= { s: 0, n: 0 }); q.s += ((p as any).power3 ?? 0); q.n++;
+                }
+            }
             if (!gameId || updated?.id !== gameId || updated.currentPhase !== 'gameEnd') return;
             cleanup();
             // 행동믹스 집계: 게임상태에 포함된 gameLog를 playerId별로 분류 카운트.
@@ -247,6 +255,8 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 if (e.action === 'Bonus Action' && /Gaia Project/i.test(_det)) {
                     (byPlayer[pid] ??= {}).gaiaUse = ((byPlayer[pid] ??= {}).gaiaUse || 0) + 1;
                 }
+                // [파워 공급vs소비] 충전 횟수(Power Gained) — 봇이 사람만큼 파워를 모으나(leech/수입=공급).
+                if (/Power Gained/i.test(e.action || '')) (byPlayer[pid] ??= {}).charge = ((byPlayer[pid] ??= {}).charge || 0) + 1;
                 // [란티다 계측] PI 건설(+평균 라운드), 기생광산 수.
                 if (/Upgraded to Planetary Institute/i.test(e.action || '')) {
                     (byPlayer[pid] ??= {}).piBuilt = ((byPlayer[pid] ??= {}).piBuilt || 0) + 1;
@@ -308,7 +318,7 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 group: (p.h2hGroup as 'A' | 'B' | undefined) ?? null,
                 pos: p.h2hPos,
                 // [고급타일 계측] 최종 보유 기술타일 중 고급('adv-' 접두) 개수 — greenForAdvTile 등 고급타일 획득 효과 직접 확인용.
-                actions: { ...(byPlayer[playerId] ?? {}), advTile: (Array.isArray(p.techTiles) ? p.techTiles.filter((t: string) => typeof t === 'string' && t.startsWith('adv-')).length : 0), finalP3: p.power3 ?? 0 },
+                actions: { ...(byPlayer[playerId] ?? {}), advTile: (Array.isArray(p.techTiles) ? p.techTiles.filter((t: string) => typeof t === 'string' && t.startsWith('adv-')).length : 0), finalP3: p.power3 ?? 0, midP3: (p3samp[playerId] && p3samp[playerId].n) ? p3samp[playerId].s / p3samp[playerId].n : 0 },
                 // [진단] 1라운드 수익 합(O+K+C). 0이면 그 플레이어가 1R 수익 못 받음 = 수익 스킵 버그 게임.
                 r1income: (() => { const t = p.roundIncomeTotals?.[1]; return t ? ((t.ore ?? 0) + (t.knowledge ?? 0) + (t.credits ?? 0)) : 0; })(),
             }));
@@ -543,7 +553,7 @@ async function main() {
             tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
             gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장', takBurn: '타클론번', takBrainIdle: '브레인놀림',
             econAdv: '경제상승', econAdvR4: '경제상승R4+', resLateL3: 'R5+L3도달', gaiaMine: '가이아광산', gaiaQic2: '2Q+가이아',
-            finalP3: '종료bowl3',
+            finalP3: '종료bowl3', midP3: '평균bowl3', charge: '충전횟수',
         };
         for (const k of BEHAVIOR_KEYS) {
             if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력
