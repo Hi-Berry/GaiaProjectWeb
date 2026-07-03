@@ -78,11 +78,11 @@ export class FederationPlanner {
             //   봇 연방 sprawl(많은 집을 한 연방에 몰아 위성 낭비 + 2번째 연방 재료 소진) 억제 — 좁게 모아 연방 수↑.
             //   R6은 VP만 보고 다 묶어도 무방하므로 예외(round>=6은 아래 endgame 분기로 빠짐). 게임 룰 아닌 봇 정책.
             //   (과거 '위성 수' 하드캡은 기각됐으나 이건 '건물 수' 정책 — 사용자 직접 요청.)
-            if (getPlayerFlag(playerId, 'fedMax5Buildings', true)
+            // [사용자 2026-07-03] Ivits(하이브)는 건물 수 제한 자체를 없앤다 — 저파워 건물+우주정거장 다수로 연방 짜는 스타일이라
+            //   5캡이 안 맞고, 1번째 연방 후 남은 광산으로 2번째 연방을 못 만들던 원인. Ivits는 fedMax5 완전 면제.
+            //   그 외 종족은 캡 유지하되 '최소 연방'(7파워를 저파워건물로 겨우 채운 것)은 허용, 파워 크게 초과(sprawl)일 때만 스킵.
+            if (getPlayerFlag(playerId, 'fedMax5Buildings', true) && !isIvits
                 && round < 6 && result.selectedPlanetIds.length > 5) {
-                // [버그수정 2026-07-03 사용자관찰: Ivits 1연방 후 안 함] 7파워를 저파워 건물(광산 1파워)로 채우면 7광산=7건물>5라
-                //   이 캡이 연방 자체를 막아 2번째 연방 불가(Ivits는 광산 위주라 특히). fedMinTrim이 파워는 최소화하므로,
-                //   파워가 required 근처(=그 건물들이 '필요')면 허용하고, 크게 초과(sprawl, 트리밍 가능)일 때만 스킵.
                 const fedPow = getFederationBuildingPower(game, playerId, new Set(result.selectedPlanetIds));
                 if (fedPow > requiredPower + 2) continue;
             }
