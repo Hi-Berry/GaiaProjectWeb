@@ -658,3 +658,4 @@
 - ★관통 진단: **QIC 기아(봇 종료 QIC 1.0)** — rebellion 3정큐(후보 380점)·twilight 재수령(350)·qic-action-tech 전부 QIC 없어 못 씀. 사람 연구분포 AI트랙 24% 1위(QIC엔진) vs 봇 가중치 꼴찌(×8 대충숫자). 기술타일 볼륨갭(9.2vs3.2장)의 상류도 QIC(rebellion/qic-action 펀딩 타일).
 - **aiTrackQicEngine 채택(ON)**: AI트랙 ×8→×13 + R3+30. **roundMissionW15 채택(ON)**: 미션정렬 vp×5→×15(코드 VP환율 proto15×/shipfed26× 통일).
 - 결합 40판: VP +0.38(완전중립 p=0.92), ON쪽 기술타일 +0.36·총행동 +1.06. do-no-harm 통과. 진짜판정 1:3.
+- **twilightRecoupBeforePass 보류(OFF)**: 패스직전 3QIC 재수령 직접실행. 40판 −3.60(p=0.30 노이즈) + 발화 6회뿐(전제 3QIC+입장+연방 동시가 희박). 이득 입증불가 → OFF. aiTrackQicEngine으로 QIC 늘면 MCTS 기존 후보(350점)가 자연 발화 예상. 코드보존.
