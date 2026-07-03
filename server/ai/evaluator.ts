@@ -693,6 +693,18 @@ export class Evaluator {
             logDebug(`8d) AdvTile-acquiring (pending cover): +${advCredit.toFixed(1)}`);
         }
 
+        // [flag: pendingTechTileValue] 옵션가치: 아카/연구소 등을 지으면 '곧' 기술타일을 고른다(pendingTechTileSelection).
+        //   그 임박가치를 평가에 안 넣으면(지금까진 0) 봇이 그 빌드를 저평가 → 즉시VP(광물→위성 12점 연방 등)에 밀림
+        //   (사용자 지적의 근본원인: 다턴이면 '아카+기술타일 7점' 라인이 더 좋은데 그리디가 셋업 중간상태를 저평가).
+        //   보유 타일은 아래 projectedTechIncome로 평가되나 pending은 아직 techTiles에 없음 → 임박 타일 1장 기대VP를 당겨줌.
+        //   pendingFederationReward(10*vpWeight)와 같은 패턴. 하드코딩 목표 대신 평가기가 A vs B를 스스로 판단하게 하는 레버.
+        if (getPlayerFlag(playerId, 'pendingTechTileValue', true) && (game as any).pendingTechTileSelection?.playerId === playerId) {
+            const incR = Math.max(0, 6 - round);
+            const pend = Math.min(7 + incR * 1.5, 13) * vpWeight; // 기본 ~7VP + 남은 라운드 수입 소폭(과대 방지 상한 13)
+            score += pend;
+            logDebug(`8e) Pending TechTile imminent: +${pend.toFixed(1)}`);
+        }
+
         // 7) Gaiaformers
         if (player.gaiaformers && player.gaiaformers > 0) {
             const gaiaScore = player.gaiaformers * w.gaiaformerValueEach;
