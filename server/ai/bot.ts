@@ -4400,10 +4400,18 @@ export class BotLogic {
                         // [noFedTierUp] 리벨리온 mine→TS도 연방 우회 경로였음(사용자 관찰: 연방 광산을 이 액션으로 올림).
                         //   findUpgradeActions/할인경로처럼 비연방 광산 우선, noFedTierUp ON이면 연방 광산엔 폴백 안 함
                         //   (비연방 광산 없으면 이 액션 스킵 → 다른 우주선 액션/행동으로 연방 씨앗 보존).
+                        // [광산 선택 — 사용자 룰] 이 액션은 비용이 고정(1O+3P)이라 할인(2/3) 여부와 무관.
+                        //   일반 업글은 싼 2/3 자리를 쓰지만, 리벨리온 액션은 오히려 비싼 2/6(비할인) 자리에 써서
+                        //   싼 2/3 자리는 일반 업글용으로 아껴야 이득 → 비연방 중 비할인 광산을 우선한다.
                         const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
-                        const mines = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine');
                         const noFedTierUp = getPlayerFlag(playerId, 'noFedTierUp', true);
-                        const mine = mines.find(t => !fedHexes.includes(t.id)) ?? (noFedTierUp ? undefined : mines[0]);
+                        const mines = game.map
+                            .filter(t => t.ownerId === playerId && t.structure === 'mine')
+                            .filter(t => !noFedTierUp || !fedHexes.includes(t.id));
+                        // 비할인(2/6) 우선 → 그다음 비연방 → 폴백(noFedTierUp OFF면 연방 포함 전체)
+                        const nonFed = mines.filter(t => !fedHexes.includes(t.id));
+                        const pool = nonFed.length ? nonFed : mines;
+                        const mine = pool.find(t => !hasNearbyPlayersForDiscount(game, t, playerId)) ?? pool[0];
                         if (mine) {
                             score = 300; // Mine -> TS 업그레이드
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
