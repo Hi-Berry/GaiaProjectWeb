@@ -2667,7 +2667,7 @@ export class BotLogic {
                         // 그중 36건은 광석 충분한데 페널티 1000-3000이 -50 게이트에 걸려 *후보 자체가 안 생김* = 사실상 하드필터.
                         // 사람은 R3+에 미션/타입/연방 가치로 이걸 지음. R3+는 페널티를 게이트 통과 수준(≤400)으로 캡해
                         // MCTS가 보너스와 트레이드오프 평가하게 함. R1-2는 기존 차단 유지(사람도 0건, 데이터 검증됨).
-                        if (getPlayerFlag(playerId, 'tfCandidateOpen', false) && round >= 3) {
+                        if (getPlayerFlag(playerId, 'tfCandidateOpen', true) && round >= 3) {
                             stepPenalty = Math.min(stepPenalty, 400);
                         }
                     }
