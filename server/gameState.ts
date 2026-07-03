@@ -1172,6 +1172,14 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 	const player = game.players[playerId];
 	log(`forceSkipStuckBotTurn: skipping ${player?.name ?? playerId} (${reason})`, 'error', game.id);
 	if (player) player.hasPassed = true; // 이 라운드 동안만 스킵 (다음 라운드에 hasPassed 리셋되어 복귀)
+	// [hang수정 2026-07-04] 스킵당한 플레이어의 미해결 pending을 청소 — 안 지우면 스킵 후에도 후속 턴이
+	// pendingShipTechMine/hasDoneMainAction에 막혀 hang 지속(관측: uk3aybql 무한 "must complete pending build" 루프).
+	if (game.pendingShipTechMine?.playerId === playerId) game.pendingShipTechMine = null;
+	if (game.pendingSpaceshipFedMine?.playerId === playerId) game.pendingSpaceshipFedMine = null;
+	if (game.pendingEclipseAsteroidMine?.playerId === playerId) game.pendingEclipseAsteroidMine = null;
+	if (game.pendingTechTileSelection?.playerId === playerId) game.pendingTechTileSelection = null;
+	if (player) player.pendingTerraformSteps = 0;
+	game.hasDoneMainAction = false;
 
 	if (Object.values(game.players).every(p => p.hasPassed)) {
 		forceFinishStalledGame(io, game, `all passed after skip (${reason})`);

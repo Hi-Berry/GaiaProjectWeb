@@ -145,6 +145,25 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         return;
     }
 
+    // [hang수정 2026-07-04] 2차 월클록 워치독 — 카운터(STALL_THRESHOLD) 방식은 중간 성공(preAction 등)으로
+    // 리셋되며 우회될 수 있음(관측: uk3aybql 무한 "must complete pending build" 수 분). gameLog 길이+턴 지문이
+    // 20초간 무변화(=실제 진행 없음)면 무조건 강제 스킵. 정상 MCTS(≤6s)나 사람 턴(여기 도달 안 함)엔 무해.
+    {
+        const g = game as any;
+        const fpr = `${currentPlayerId}|${game.gameLog?.length ?? 0}|${game.roundNumber}|${game.currentPhase}|${game.hasDoneMainAction ? 1 : 0}`;
+        if (g._botWallFpr === fpr) {
+            if (Date.now() - (g._botWallFprTs ?? Date.now()) > 20000 && currentPlayerId) {
+                g._botWallFpr = null;
+                log(`wall-clock watchdog: no progress 20s → force skip (${fpr})`, 'error', game.id);
+                forceSkipStuckBotTurn(io, game, currentPlayerId, 'wall-clock watchdog 20s');
+                return;
+            }
+        } else {
+            g._botWallFpr = fpr;
+            g._botWallFprTs = Date.now();
+        }
+    }
+
     botExecutingGames.add(game.id);
     game.isBotExecuting = true;
     try {
