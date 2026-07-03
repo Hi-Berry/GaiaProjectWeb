@@ -4397,7 +4397,13 @@ export class BotLogic {
                         score = 250;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.ore || 0) >= 1 && (player.power3 || 0) >= 3) {
-                        const mine = game.map.find(t => t.ownerId === playerId && t.structure === 'mine');
+                        // [noFedTierUp] 리벨리온 mine→TS도 연방 우회 경로였음(사용자 관찰: 연방 광산을 이 액션으로 올림).
+                        //   findUpgradeActions/할인경로처럼 비연방 광산 우선, noFedTierUp ON이면 연방 광산엔 폴백 안 함
+                        //   (비연방 광산 없으면 이 액션 스킵 → 다른 우주선 액션/행동으로 연방 씨앗 보존).
+                        const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
+                        const mines = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine');
+                        const noFedTierUp = getPlayerFlag(playerId, 'noFedTierUp', true);
+                        const mine = mines.find(t => !fedHexes.includes(t.id)) ?? (noFedTierUp ? undefined : mines[0]);
                         if (mine) {
                             score = 300; // Mine -> TS 업그레이드
                             action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
