@@ -43,7 +43,11 @@ const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'up
     // [Ivits 계측] 우주정거장 배치 수 — 봇 4.5/게임 vs 사람 11.3, 안 놓고 패스하던 누수 확인용.
     'spaceStation',
     // [타클론 브레인 점검] takBurn=브레인 bowl2→3 번 횟수, takBrainIdle=브레인 bowl3에 둔 채 턴종료 횟수(미사용).
-    'takBurn', 'takBrainIdle'] as const;
+    'takBurn', 'takBrainIdle',
+    // [연구/QIC 행동 검증] 코드 넣은 게 실제로 행동을 바꿨는지 직접 계측(사용자 요청 "넣어서 실제로 이렇게 동작").
+    //   econAdv=경제트랙 상승 전체, econAdvR4=R4+ 경제상승(막라 낭비), resLateL3=R5+에 L3+ 도달(엔드게임 VP 챙김),
+    //   gaiaMine=가이아 광산 전체, gaiaQic2=2QIC+ 던진 가이아 광산("2Qic 가이아 그만").
+    'econAdv', 'econAdvR4', 'resLateL3', 'gaiaMine', 'gaiaQic2'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -248,6 +252,24 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 }
                 if (/Brain idle bowl3/i.test(e.action || '')) {
                     (byPlayer[pid] ??= {}).takBrainIdle = ((byPlayer[pid] ??= {}).takBrainIdle || 0) + 1;
+                }
+                // [연구/QIC 행동 검증] 라운드별 트랙/비용을 원시 로그에서 직접 계측.
+                if (/Advanced Research/i.test(e.action || '')) {
+                    const rm = /^(\w+) to level (\d+)/i.exec(_det);
+                    const rrd = typeof e.round === 'number' ? e.round : 99;
+                    if (rm) {
+                        const trk = rm[1].toLowerCase(); const lvl = +rm[2];
+                        if (trk === 'economy') {
+                            (byPlayer[pid] ??= {}).econAdv = ((byPlayer[pid] ??= {}).econAdv || 0) + 1;
+                            if (rrd >= 4) (byPlayer[pid] ??= {}).econAdvR4 = ((byPlayer[pid] ??= {}).econAdvR4 || 0) + 1;
+                        }
+                        if (lvl >= 3 && rrd >= 5) (byPlayer[pid] ??= {}).resLateL3 = ((byPlayer[pid] ??= {}).resLateL3 || 0) + 1;
+                    }
+                }
+                if (/Built Mine/i.test(e.action || '') && /on gaia\b/i.test(_det)) {
+                    (byPlayer[pid] ??= {}).gaiaMine = ((byPlayer[pid] ??= {}).gaiaMine || 0) + 1;
+                    const qm = /(\d+)QIC/.exec(_det);
+                    if (qm && +qm[1] >= 2) (byPlayer[pid] ??= {}).gaiaQic2 = ((byPlayer[pid] ??= {}).gaiaQic2 || 0) + 1;
                 }
                 const k = classifyAction(e.action || '');
                 if (!k) continue;
@@ -503,6 +525,7 @@ async function main() {
             techTile: '기술타일', advTile: '고급타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
             tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
             gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장', takBurn: '타클론번', takBrainIdle: '브레인놀림',
+            econAdv: '경제상승', econAdvR4: '경제상승R4+', resLateL3: 'R5+L3도달', gaiaMine: '가이아광산', gaiaQic2: '2Q+가이아',
         };
         for (const k of BEHAVIOR_KEYS) {
             if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력
