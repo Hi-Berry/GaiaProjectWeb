@@ -8420,8 +8420,13 @@ export function executeConvertResource(
 			player.power3! -= 1; player.power1 = (player.power1 ?? 0) + 1; player.credits = (player.credits ?? 0) + 2;
 			logDesc = '1P → 2C'; success = true;
 		} else if (isTaklons) {
-			if (canSpendTaklonsPower(player, 3, 1) && spendTaklonsPower(player, 3, 1, useBrain ?? false)) {
+			// [버그수정 2026-07-03 사용자관찰] 브레인(3파워)을 1P→1C에 쓰면 3파워 소모+1크레딧만=2파워 낭비.
+			// 일반 bowl3 토큰 있으면 그걸로(브레인 보존), 없고 브레인만이면 3파워어치를 3크레딧으로(낭비0).
+			const brainInBowl3 = !player.brainStoneInGaia && player.brainStoneBowl === 3;
+			if ((player.power3 ?? 0) >= 1 && spendTaklonsPower(player, 3, 1, false)) {
 				player.credits += 1; logDesc = '1P → 1C'; success = true;
+			} else if (brainInBowl3 && spendTaklonsPower(player, 3, 3, true)) {
+				player.credits += 3; logDesc = 'Brain 3P → 3C'; success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 1) {
 			player.power3! -= 1; player.power1 = (player.power1 ?? 0) + 1; player.credits = (player.credits ?? 0) + 1;
