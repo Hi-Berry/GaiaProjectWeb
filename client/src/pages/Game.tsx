@@ -3136,7 +3136,7 @@ export default function Game() {
 
           return (
             <AlertDialog open={!!confirmPassWithTileId} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
-              <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-lg">
+              <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-lg max-h-[90vh] overflow-y-auto">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-white font-black uppercase tracking-wider flex items-center gap-2">
                     <Gift className="w-5 h-5 text-primary" />
@@ -3218,7 +3218,7 @@ export default function Game() {
                   </div>
                 )}
 
-                <AlertDialogFooter>
+                <AlertDialogFooter className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-zinc-950/95 backdrop-blur border-t border-white/10">
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                     Cancel
                   </AlertDialogCancel>
