@@ -212,10 +212,25 @@ async function shutdownWorkers(workers: Worker[]) {
 function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Variant; B: Variant; forceFaction?: string; forceFactionPos?: number }): Promise<GameResult> {
     return new Promise((resolve, reject) => {
         let gameId = '';
-        const timer = setTimeout(() => { cleanup(); reject(new Error('Game timeout')); }, GAME_TIMEOUT_MS);
+        let lastUpdate: any = null; // [hang 진단] 마지막 게임상태 — 타임아웃 시 어느 종족/pending에서 멈췄는지 덤프
+        const timer = setTimeout(() => {
+            // [hang 진단] 사용자 가설: 스톨=특정 종족 액션 무한루프 버그(아이타/아이비츠류). 걸린 상태를 찍는다.
+            try {
+                const u = lastUpdate;
+                if (u) {
+                    const cur = u.currentPlayerId || u.currentPlayer || u.activePlayerId || u.turnPlayerId || '?';
+                    const fac = u.players?.[cur]?.faction || '?';
+                    const pend = Object.keys(u).filter(k => /^pending/i.test(k) && u[k]).join(',') || 'none';
+                    const seats = Object.values(u.players || {}).map((p: any) => p.faction).join('/');
+                    console.warn(`[HANG] game=${gameId} phase=${u.currentPhase} R${u.roundNumber} turn=${cur}(${fac}) pending=[${pend}] seats=${seats}`);
+                }
+            } catch { }
+            cleanup(); reject(new Error('Game timeout'));
+        }, GAME_TIMEOUT_MS);
         const cleanup = () => { clearTimeout(timer); socket.off('game_updated', onUpdate); };
 
         const onUpdate = (updated: any) => {
+            if (updated?.id === gameId) lastUpdate = updated; // 매 갱신 저장(hang 진단용)
             if (!gameId || updated?.id !== gameId || updated.currentPhase !== 'gameEnd') return;
             cleanup();
             // 행동믹스 집계: 게임상태에 포함된 gameLog를 playerId별로 분류 카운트.
