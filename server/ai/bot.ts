@@ -1048,7 +1048,7 @@ export class BotLogic {
             // [flag: oreFedGuard] 사용자 관찰(2026-07-04): "쓸모없이 Ore 다 위성 변환해서 무리한 연방".
             // 기존 R4+는 광석 8개까지 + 위성수 무제한 → 후반 evaluator가 광석을 싸게 쳐(resMultLate) 8O 올인 연방.
             // 교정: R4-5도 광석 예비 1개 유지 + k≤4 + spent>6 금지. R6만 관대(잔여광석=⅓VP뿐이라 큰 연방이 이득).
-            const guard = getPlayerFlag(playerId, 'oreFedGuard', false);
+            const guard = getPlayerFlag(playerId, 'oreFedGuard', true);
             const maxK = guard
                 ? (_round >= 6 ? Math.min(oreForFed, 8) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4) : Math.min(oreForFed, 3))
                 : (_round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6));
