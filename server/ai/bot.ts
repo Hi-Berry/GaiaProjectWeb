@@ -1045,8 +1045,13 @@ export class BotLogic {
         // Ivits는 연방 위성 비용이 QIC이므로, 여기서 "오레->토큰" 프리액션을 섞으면 계산(availableTokens)이 틀어져 QIC 마이너스가 날 수 있음.
         if (player.faction !== 'ivits') {
             const oreForFed = player.ore ?? 0;
-            // R≥4 후반엔 더 많은 광물 태우는 후보도 허용 (오레 8개까지)
-            const maxK = _round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6);
+            // [flag: oreFedGuard] 사용자 관찰(2026-07-04): "쓸모없이 Ore 다 위성 변환해서 무리한 연방".
+            // 기존 R4+는 광석 8개까지 + 위성수 무제한 → 후반 evaluator가 광석을 싸게 쳐(resMultLate) 8O 올인 연방.
+            // 교정: R4-5도 광석 예비 1개 유지 + k≤4 + spent>6 금지. R6만 관대(잔여광석=⅓VP뿐이라 큰 연방이 이득).
+            const guard = getPlayerFlag(playerId, 'oreFedGuard', false);
+            const maxK = guard
+                ? (_round >= 6 ? Math.min(oreForFed, 8) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4) : Math.min(oreForFed, 3))
+                : (_round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6));
             const fedSubN = _round >= 4 ? 4 : 2;
             for (let k = 2; k <= maxK; k++) {
                 const fedWithKs = FederationPlanner.getFederationActions(game, playerId, k, fedSubN);
@@ -1056,6 +1061,8 @@ export class BotLogic {
                     if (_round <= 2 && spent > 2) continue;
                     // R3+: 다소 비싼 후보도 허용
                     if (_round === 3 && spent > 6) continue;
+                    // [flag: oreFedGuard] R4-5도 위성 상한(기존 무제한) — R6 endgame만 예외
+                    if (guard && _round >= 4 && _round <= 5 && spent > 6) continue;
                     if (!this.canSpendPowerTokensForStrategicAction(game, player, spent, k)) continue;
                     const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
                     candidates.push({ type: 'form_federation', params: fedWithK, preActions });
