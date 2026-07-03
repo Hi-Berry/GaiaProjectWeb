@@ -2301,7 +2301,7 @@ export class BotLogic {
             // 소행성: 모행성이 asteroid인 종족(틴커로이드/다카니안)만, 그리고 사용 가능한 가이아포머가 있을 때만 후보.
             // 서버 executeBuildMine은 소행성 건설에 항상 포머 1개를 요구·소모하므로, 포머 없이 후보로 내면
             // 건설이 실패하고 game_error가 방 전체에 브로드캐스트된다(사람 화면에 에러 누수).
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', false) && (game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
+            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
             !t.type?.startsWith('ship_') &&
             // 남의 가이아 포머만 올라간 칸 / 아직 건설 타이밍이 아닌 칸은 표준 광산 후보에서 제외 (서버 executeBuildMine과 동일)
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
@@ -2932,7 +2932,7 @@ export class BotLogic {
             t.type !== 'space' && t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
             // 소행성은 포머가 있어야만 건설 가능(서버가 항상 포머 1개 요구·소모). 모행성이 asteroid라도 동일.
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', false) && (game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
+            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
             !t.type?.startsWith('ship_') &&
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
