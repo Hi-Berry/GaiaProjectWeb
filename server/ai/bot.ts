@@ -3331,6 +3331,13 @@ export class BotLogic {
                 score += (6 - level) * 20; // 상향 (15 -> 20)
                 if (round <= 2) score += 35; // 초반 경제 대폭 우대
                 if (round >= 5) score -= 30;
+                // [flag: lateEconDamp] R6(막라운드)엔 수입 페이즈가 안 남음 — 수입은 라운드 시작에 징수, 연구상승은
+                //   그 후(액션)라 R6 경제상승은 반복수입 가치=0(사용자 관찰: 막라운드에 경제트랙 몰빵). income기반
+                //   (6-level)*20을 R6에 상쇄해 경제 대신 VP행동(건물/연방/타일)로 유도. L5 즉시 +6P·L3 +3충전은
+                //   별도 충전후보 경로(advanceTechTriggersCharge)가 이미 평가하므로 유효 수단은 안 죽는다.
+                if (round === 6 && getPlayerFlag(playerId, 'lateEconDamp', true)) {
+                    score -= (6 - level) * 20;
+                }
                 // [사용자 전략] 아카데미 건설 시 경제 2단계까지 우선순위 강화
                 const academyCount = myStructures.filter(t => t.structure === 'academy').length;
                 if (academyCount >= 1 && level < 2) {
