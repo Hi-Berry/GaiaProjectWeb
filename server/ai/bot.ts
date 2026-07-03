@@ -1034,7 +1034,10 @@ export class BotLogic {
                 // [flag: fedSpendBowl3] 사용자 관찰: 제노스 등이 연방하려 충전한 bowl3 토큰을 안 쓰고 그대로 둔 채 연방함.
                 //   위성 지불은 bowl1→2→3 순이라 남는 bowl3는 idle. 연방 전에 그 idle bowl3를 프리액션(1P→1C)으로 미리 써서
                 //   가치(크레딧)를 뽑는다. 1P→1C는 bowl3→bowl1로 토큰을 되돌리므로(제거X) 위성 지불 총량엔 영향 없음(안전).
-                const fedBowl3Pre = this.fedSpendBowl3PreActions(playerId, player, spent);
+                // [flag: bowl3CashoutOre] 위성이 소모할 bowl3 deficit도 먼저 변환해 회수(순이득, 사용자 룰) — idle 변환에 선행
+                const fedDoomed = getPlayerFlag(playerId, 'bowl3CashoutOre', false)
+                    ? this.doomedBowl3CashoutPreActions(player, spent, playerId) : [];
+                const fedBowl3Pre = [...fedDoomed, ...this.fedSpendBowl3PreActions(playerId, player, spent)];
                 candidates.push(fedBowl3Pre.length
                     ? { type: 'form_federation', params: fedAction, preActions: fedBowl3Pre }
                     : { type: 'form_federation', params: fedAction });
@@ -2819,6 +2822,12 @@ export class BotLogic {
                     if (deficit > 0 && p3 >= deficit) {
                         preActions = Array.from({ length: deficit }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit' } }));
                     }
+                }
+                // [flag: bowl3CashoutOre] 사용자 룰 v2: 포밍이 소모할 bowl3 deficit을 ore우선(3P→1O)+캡가드로 회수.
+                // (구 gaiaformPreSpend −5.24의 원인=크레딧-only·캡무시 — 교정판. 캡으로 변환 불가면 빈 배열=그냥 소모.)
+                if (!preActions && getPlayerFlag(playerId, 'bowl3CashoutOre', false) && !isFreeProject) {
+                    const cash = this.doomedBowl3CashoutPreActions(player, powerRequired, playerId);
+                    if (cash.length) preActions = cash;
                 }
 
                 actions.push({
@@ -4805,11 +4814,28 @@ export class BotLogic {
      *  bowl1+bowl2 < cost면 부족분만큼 bowl3가 소모되는데, 그 토큰을 먼저 환수하면 토큰은 bowl1로
      *  옮겨졌다가 어차피 소모되므로 최종 파워 상태는 동일하고 크레딧만 회수된다(strictly dominant).
      *  타클론은 브레인스톤 파워회계가 특수(토큰 1개=3파워)해 모델이 깨지므로 제외. */
-    private static doomedBowl3CashoutPreActions(player: PlayerState, cost: number): BotAction[] {
+    private static doomedBowl3CashoutPreActions(player: PlayerState, cost: number, playerId?: string, bowl1Extra = 0): BotAction[] {
         if (player.faction === 'taklons') return [];
-        const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+        const p1 = (player.power1 ?? 0) + bowl1Extra, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
         const doomed = Math.min(p3, Math.max(0, cost - p1 - p2));
         if (doomed <= 0) return [];
+        // [flag: bowl3CashoutOre] 사용자 룰(2026-07-04): "소모될 bowl3는 반드시 변환으로 가치 회수, 단 캡(30C)으로
+        // 변환 불가면 예외". ore 우선(3P→1O) → 나머지 1P→1C(크레딧 캡 가드 — 이전 gaiaformPreSpend −5.24의
+        // 원인=캡/크레딧부자에 무가치 크레딧 변환). 캡으로 전부 막히면 빈 배열(그냥 소모 — 사용자 예외 그대로).
+        if (playerId && getPlayerFlag(playerId, 'bowl3CashoutOre', false)) {
+            const acts: BotAction[] = [];
+            let rem = doomed;
+            let oreRoom = Math.max(0, 15 - (player.ore ?? 0));
+            while (rem >= 3 && oreRoom > 0) {
+                acts.push({ type: 'convert_resource' as const, params: { type: '3power-to-1ore', useBrain: false } });
+                rem -= 3; oreRoom--;
+            }
+            const credRoom = Math.max(0, 30 - (player.credits ?? 0));
+            for (let i = 0; i < Math.min(rem, credRoom); i++) {
+                acts.push({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } });
+            }
+            return acts;
+        }
         return Array.from({ length: doomed }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
     }
 
@@ -4831,7 +4857,7 @@ export class BotLogic {
             const refill = bestId === 'art-income-2p3' ? 2 : 0;
             if (!bestId || !this.canSpendPowerTokensForStrategicAction(game, player, 6, 0, refill)) return results;
             // 6파워 소모로 그냥 제거될 bowl3 토큰을 먼저 1P→1C로 환수(최종 파워 동일+크레딧 이득). 사용자 관찰 교정.
-            const cashout = this.doomedBowl3CashoutPreActions(player, 6);
+            const cashout = this.doomedBowl3CashoutPreActions(player, 6, playerId);
             results.push(cashout.length
                 ? { type: 'take_twilight_artifact', params: { artifactId: bestId }, preActions: cashout }
                 : { type: 'take_twilight_artifact', params: { artifactId: bestId } });
