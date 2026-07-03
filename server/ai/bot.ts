@@ -2195,9 +2195,14 @@ export class BotLogic {
         const kLab = (player.faction === 'bescods' || player.faction === 'nevlas') ? 0
             : game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length;
         const kAcadLeft = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy' && (t as any).academyType === 'left').length;
+        // getRange 티어는 둘씩 묶임(0·1→range1, 2·3→range2, 4·5→range3). nav가 1 또는 3이면 '한 번만 더' 올리면
+        //   사거리가 열림 → 지식과 무관하게 QIC 점프 대신 그 한 칸을 기다림(사용자 관찰: Nav1만 올려 +1Q 얻고 2Q 점프,
+        //   나중에 Nav2 만듦 = 순서 낭비. Nav0→2 직행이 맞음). nav0은 2칸이라 '다음 수입이면 지식≥4'일 때만 미룸.
+        const navLevel = player.research.navigation ?? 0;
+        const navOneStepToRange = navLevel === 1 || navLevel === 3;
         const navRaisableSoon = getPlayerFlag(playerId, 'navBeforeJumpSoon', true)
-            && !canResearch && (player.research.navigation ?? 0) < 5 && (game.roundNumber ?? 1) <= 4
-            && ((player.knowledge ?? 0) + (1 + kLab + kAcadLeft) >= 4);
+            && !canResearch && navLevel < 5 && (game.roundNumber ?? 1) <= 5
+            && (navOneStepToRange || ((player.knowledge ?? 0) + (1 + kLab + kAcadLeft) >= 4));
 
         // [사용자 전략] 2거리 이상 확보 시 광산 건설 가중치 부여
         const rangeBonusValue = range >= 2 ? 30 : 0;
