@@ -659,3 +659,9 @@
 - **aiTrackQicEngine 채택(ON)**: AI트랙 ×8→×13 + R3+30. **roundMissionW15 채택(ON)**: 미션정렬 vp×5→×15(코드 VP환율 proto15×/shipfed26× 통일).
 - 결합 40판: VP +0.38(완전중립 p=0.92), ON쪽 기술타일 +0.36·총행동 +1.06. do-no-harm 통과. 진짜판정 1:3.
 - **twilightRecoupBeforePass 보류(OFF)**: 패스직전 3QIC 재수령 직접실행. 40판 −3.60(p=0.30 노이즈) + 발화 6회뿐(전제 3QIC+입장+연방 동시가 희박). 이득 입증불가 → OFF. aiTrackQicEngine으로 QIC 늘면 MCTS 기존 후보(350점)가 자연 발화 예상. 코드보존.
+
+## 2026-07-04 ★ 50게임 게이트: 가치망 v2 probe 성공 → blend 통합 실패 (경로 판정 완료)
+- **probe(scripts/valueProbe.mjs): 성공.** 사람게임only(39맵게임, 624 라운드말 스냅샷, fullGameLog재생)로 2덩어리 문제 해소 — R3 우승예측 62% vs 엔진크기베이스 49%, 쌍별 81.2% vs 71.8%(LOGO). 한계가치: tech+6.1/fed+13/ship입장+17/big+14/sector+4.6VP — 갭분석과 자기일관. **가치망 학습이 처음으로 신호.** humanValueNet.json 저장, 게임 쌓이면 재학습 파이프라인.
+- **evaluator 가산블렌드(humanValueBlendK): 실패.** K=5 VP+0.15 중립 but 행동 의도방향 무변(기술타일 −0.31 노이즈). **K=12 VP −9.64 (p=0.002) 유의 악화.** 용량-반응 명확.
+- ★판정: **선형 엔진카운트 블렌드 = 낮으면 중복, 높으면 유해.** 원인: 망은 자원/템포 몰라서 K 크면 전술 무시(placementPolicy ×60 −7.10과 동일 패턴). 낮은 K에선 휴리스틱이 이미 기술타일/연방/우주선을 점수화하고 있어 정보 중복.
+- ★★교훈(placementPolicy와 공통 뿌리): **probe의 예측력 ≠ 통합 가치. 통합은 평가기가 *모르는 새 결정정보*를 더해야지, 아는 걸 재가중하면 중복~유해.** 남은 학습 경로: ①per-candidate 재랭킹(후보 중 사람 선택 학습 — humanCandidates 캡처 훅 가동중, *결정 그 자체*라 중복 불가) ②비선형 ③게임 축적. blend flag 기본0 유지, probe·json은 자산으로 보존.
