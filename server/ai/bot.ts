@@ -1650,6 +1650,11 @@ export class BotLogic {
                         } else if (before != null && after != null && after < before) {
                             score += Math.min(280, (before - after) * 90); // 위성을 더 적게 쓰는 연방 가능 → 절감폭만큼 가점
                         } else if (round === 6) {
+                            // [flag: r6TsGuard] 사용자 관찰(2026-07-04): R6 마지막턴 4O4C에서 미션(연구소 4VP)도 연방개선도
+                            // 없는 TS 업글 = 자원만 태우고 잔여자원 VP 마이너스. 기존 무조건 +120이 이걸 부추김 →
+                            // 연방개선 없고 라운드미션도 TS가 아니면 후보 자체를 제외(gfFinalRoundGuard와 같은 R6 확정낭비 패턴).
+                            const tsMission = game.roundScoringTiles[5]?.triggerType === 'build_trading_station';
+                            if (getPlayerFlag(playerId, 'r6TsGuard', false) && !tsMission) continue;
                             score += 120;
                         }
                     }
@@ -1665,7 +1670,15 @@ export class BotLogic {
         }
 
         // 2. Trading Stations -> Research Labs
-        if (ore >= 3 && credits >= 5) {
+        // [flag: upgradeConvertCombo] 사용자 관찰(2026-07-04 R6 블런더): 4O4C인데 연구소(3O5C)가 credits>=5에 탈락 →
+        // 1O→1C 한 번이면 정확히 가능(+ 라운드미션 4VP)했는데 후보가 안 생겨 무의미한 TS 업글을 함.
+        // 광석 잉여가 크레딧 갭을 덮으면 1O→1C 프리액션 콤보로 후보 생성(변환+메인 번들 갭 교정).
+        const labCreditGap = Math.max(0, 5 - credits);
+        const labCombo = getPlayerFlag(playerId, 'upgradeConvertCombo', false) && labCreditGap > 0 && ore >= 3 + labCreditGap;
+        if ((ore >= 3 && credits >= 5) || labCombo) {
+            const labConvertPre: BotAction[] | undefined = labCombo
+                ? Array.from({ length: labCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
+                : undefined;
             const tsList = myStructures.filter(t => t.structure === 'trading_station');
             const labCount = labCountNow;
             for (const ts of tsList) {
@@ -1710,7 +1723,9 @@ export class BotLogic {
                 candidates.push({
                     id: `lab-${ts.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'research_lab' } },
+                    action: labConvertPre
+                        ? { type: 'upgrade_structure', params: { tileId: ts.id, target: 'research_lab' }, preActions: labConvertPre }
+                        : { type: 'upgrade_structure', params: { tileId: ts.id, target: 'research_lab' } },
                     isFederated: isFederated(ts.id),
                 });
             }
@@ -1790,7 +1805,13 @@ export class BotLogic {
 
         // 4. Research Labs -> Academies
         const academyCount = myStructures.filter(t => t.structure === 'academy').length;
-        if (ore >= 6 && credits >= 6 && academyCount < 2) {
+        // [flag: upgradeConvertCombo] 아카(6O6C)도 광석 잉여가 크레딧 갭을 덮으면 1O→1C 콤보 후보(연구소와 동일 갭 교정)
+        const acadCreditGap = Math.max(0, 6 - credits);
+        const acadCombo = getPlayerFlag(playerId, 'upgradeConvertCombo', false) && acadCreditGap > 0 && ore >= 6 + acadCreditGap;
+        const acadConvertPre: BotAction[] | undefined = acadCombo
+            ? Array.from({ length: acadCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
+            : undefined;
+        if (((ore >= 6 && credits >= 6) || acadCombo) && academyCount < 2) {
             const labList = myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
                 // 아카데미는 너무 초반(1R)에는 과소비가 잦지만, 2~3R부터는 상황에 따라 허용
@@ -1841,7 +1862,9 @@ export class BotLogic {
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget } },
+                    action: acadConvertPre
+                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget }, preActions: acadConvertPre }
+                        : { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget } },
                     isFederated: isFederated(lab.id),
                 });
             }
