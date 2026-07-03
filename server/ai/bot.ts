@@ -4403,32 +4403,40 @@ export class BotLogic {
                         // [광산 선택 — 사용자 룰] 이 액션은 비용이 고정(1O+3P)이라 할인(2/3) 여부와 무관.
                         //   일반 업글은 싼 2/3 자리를 쓰지만, 리벨리온 액션은 오히려 비싼 2/6(비할인) 자리에 써서
                         //   싼 2/3 자리는 일반 업글용으로 아껴야 이득 → 비연방 중 비할인 광산을 우선한다.
-                        const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
-                        const noFedTierUp = getPlayerFlag(playerId, 'noFedTierUp', true);
-                        const mines = game.map
-                            .filter(t => t.ownerId === playerId && t.structure === 'mine')
-                            .filter(t => !noFedTierUp || !fedHexes.includes(t.id));
-                        // 비연방 우선 → 폴백(noFedTierUp OFF면 연방 포함 전체)
-                        const nonFed = mines.filter(t => !fedHexes.includes(t.id));
-                        const pool = nonFed.length ? nonFed : mines;
-                        // 후보 광산 점수화(사용자 룰): ①비할인(2/6) 우선(싼 2/3은 일반업글용으로 아낌) ②인접 내건물=군집/연방연결
-                        //   ③업글로 연방이 새로 열리거나 더 적은 위성으로 가능해지는 광산 우선. ③은 풀 클론+플래너라 비싸 !simulation에서만.
-                        let mine = pool[0];
-                        if (pool.length > 1) {
-                            const noSim = !game.simulation;
-                            const baseFed = noSim ? this.getBestFederationSpentTokens(game, playerId) : null;
-                            let best = -Infinity;
-                            for (const t of pool) {
-                                let s = 0;
-                                if (!hasNearbyPlayersForDiscount(game, t, playerId)) s += 120; // 비할인(2/6) 우선
-                                s += this.calculateAdjacencyBonus(game, playerId, t);           // 인접 내건물=군집/연방 연결
-                                if (noSim) {
-                                    const after = this.getBestFederationSpentTokensAfterUpgrade(game, playerId, t.id, 'trading_station');
-                                    if (baseFed == null && after != null) s += 400;             // 이 업글로 연방이 새로 열림
-                                    else if (baseFed != null && after != null && after < baseFed) s += Math.min(250, (baseFed - after) * 90); // 위성 절감폭만큼
+                        // [flag: rebellionMineSelect] 이 리벨리온 mine→TS 선택 개선 전체를 측정 가능하게 게이트(기본 ON).
+                        //   OFF면 구 동작(맵 순서 첫 광산, 연방 미고려). strengthTrack BASELINE_OFF에 추가해 Δ 측정.
+                        let mine;
+                        if (getPlayerFlag(playerId, 'rebellionMineSelect', true)) {
+                            const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
+                            const noFedTierUp = getPlayerFlag(playerId, 'noFedTierUp', true);
+                            const mines = game.map
+                                .filter(t => t.ownerId === playerId && t.structure === 'mine')
+                                .filter(t => !noFedTierUp || !fedHexes.includes(t.id));
+                            // 비연방 우선 → 폴백(noFedTierUp OFF면 연방 포함 전체)
+                            const nonFed = mines.filter(t => !fedHexes.includes(t.id));
+                            const pool = nonFed.length ? nonFed : mines;
+                            // 후보 광산 점수화(사용자 룰): ①비할인(2/6) 우선(싼 2/3은 일반업글용으로 아낌) ②인접 내건물=군집/연방연결
+                            //   ③업글로 연방이 새로 열리거나 더 적은 위성으로 가능해지는 광산 우선. ③은 풀 클론+플래너라 비싸 !simulation에서만.
+                            mine = pool[0];
+                            if (pool.length > 1) {
+                                const noSim = !game.simulation;
+                                const baseFed = noSim ? this.getBestFederationSpentTokens(game, playerId) : null;
+                                let best = -Infinity;
+                                for (const t of pool) {
+                                    let s = 0;
+                                    if (!hasNearbyPlayersForDiscount(game, t, playerId)) s += 120; // 비할인(2/6) 우선
+                                    s += this.calculateAdjacencyBonus(game, playerId, t);           // 인접 내건물=군집/연방 연결
+                                    if (noSim) {
+                                        const after = this.getBestFederationSpentTokensAfterUpgrade(game, playerId, t.id, 'trading_station');
+                                        if (baseFed == null && after != null) s += 400;             // 이 업글로 연방이 새로 열림
+                                        else if (baseFed != null && after != null && after < baseFed) s += Math.min(250, (baseFed - after) * 90); // 위성 절감폭만큼
+                                    }
+                                    if (s > best) { best = s; mine = t; }
                                 }
-                                if (s > best) { best = s; mine = t; }
                             }
+                        } else {
+                            // 구 동작: 맵 순서상 첫 광산(연방·2/6 미고려)
+                            mine = game.map.find(t => t.ownerId === playerId && t.structure === 'mine');
                         }
                         if (mine) {
                             score = 300; // Mine -> TS 업그레이드
