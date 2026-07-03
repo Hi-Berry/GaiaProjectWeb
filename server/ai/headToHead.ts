@@ -47,7 +47,9 @@ const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'up
     // [연구/QIC 행동 검증] 코드 넣은 게 실제로 행동을 바꿨는지 직접 계측(사용자 요청 "넣어서 실제로 이렇게 동작").
     //   econAdv=경제트랙 상승 전체, econAdvR4=R4+ 경제상승(막라 낭비), resLateL3=R5+에 L3+ 도달(엔드게임 VP 챙김),
     //   gaiaMine=가이아 광산 전체, gaiaQic2=2QIC+ 던진 가이아 광산("2Qic 가이아 그만").
-    'econAdv', 'econAdvR4', 'resLateL3', 'gaiaMine', 'gaiaQic2'] as const;
+    'econAdv', 'econAdvR4', 'resLateL3', 'gaiaMine', 'gaiaQic2',
+    // [파워관리 검증] finalP3=게임종료 시 보유 bowl3(쟁여둠 신호; 낮을수록 다 씀=사람같음). 파워액션(powerAct)과 함께 봄.
+    'finalP3'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -291,7 +293,7 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 group: (p.h2hGroup as 'A' | 'B' | undefined) ?? null,
                 pos: p.h2hPos,
                 // [고급타일 계측] 최종 보유 기술타일 중 고급('adv-' 접두) 개수 — greenForAdvTile 등 고급타일 획득 효과 직접 확인용.
-                actions: { ...(byPlayer[playerId] ?? {}), advTile: (Array.isArray(p.techTiles) ? p.techTiles.filter((t: string) => typeof t === 'string' && t.startsWith('adv-')).length : 0) },
+                actions: { ...(byPlayer[playerId] ?? {}), advTile: (Array.isArray(p.techTiles) ? p.techTiles.filter((t: string) => typeof t === 'string' && t.startsWith('adv-')).length : 0), finalP3: p.power3 ?? 0 },
                 // [진단] 1라운드 수익 합(O+K+C). 0이면 그 플레이어가 1R 수익 못 받음 = 수익 스킵 버그 게임.
                 r1income: (() => { const t = p.roundIncomeTotals?.[1]; return t ? ((t.ore ?? 0) + (t.knowledge ?? 0) + (t.credits ?? 0)) : 0; })(),
             }));
@@ -526,6 +528,7 @@ async function main() {
             tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
             gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장', takBurn: '타클론번', takBrainIdle: '브레인놀림',
             econAdv: '경제상승', econAdvR4: '경제상승R4+', resLateL3: 'R5+L3도달', gaiaMine: '가이아광산', gaiaQic2: '2Q+가이아',
+            finalP3: '종료bowl3',
         };
         for (const k of BEHAVIOR_KEYS) {
             if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력

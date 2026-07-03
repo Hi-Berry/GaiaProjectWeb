@@ -390,7 +390,19 @@ export class Evaluator {
         // 3) Power bowls
         const p1Score = (player.power1 || 0) * w.power1Value;
         const p2Score = (player.power2 || 0) * w.power2Value;
-        const p3Score = (player.power3 || 0) * w.power3Value;
+        // [flag: powerHoardDamp] 사람은 충전파워(bowl3)를 ~1.5만 유지하고 계속 파워액션/번으로 순환 + 패스 전 비움.
+        //   봇은 bowl3를 flat 0.7/개로 값매겨 쟁여둘수록 점수↑ → hoarding + 막라 소멸(0점)인데도 과대평가(사용자 최대약점).
+        //   개선: ①앞 3개만 제값, 초과분은 ×0.25(빨리 못 씀=낭비위험) ②R6 보유 bowl3는 거의 0(패스 후 소멸).
+        //   → '쟁여둔 상태' 값이 낮아져 MCTS가 '파워액션으로 쓴 상태'를 상대적으로 선호(hold→spend 결정 직격).
+        const _p3 = player.power3 || 0;
+        let p3Score;
+        if (getPlayerFlag(playerId, 'powerHoardDamp', true)) {
+            const useful = Math.min(_p3, 3), excess = Math.max(0, _p3 - 3);
+            const roundKeep = round >= 6 ? 0.25 : 1; // 막라 보유 bowl3 = 패스하면 소멸 → 거의 무가치
+            p3Score = (useful * w.power3Value + excess * w.power3Value * 0.25) * roundKeep;
+        } else {
+            p3Score = _p3 * w.power3Value;
+        }
         let bsScore = 0;
         // [flag: taklonsBrainSpend] 사용자 통찰: 타클론 브레인(bowl3)은 들고 있는 자산이 아니라 매턴 쓰고 충전으로 복귀시켜
         //   라운드 내내 재활용하는 엔진. brainStoneBowl3=2.5가 '보유'를 과대평가 → MCTS가 쓰기 싫어해(쓰면 −2.5) hoarding+안 돌림.
