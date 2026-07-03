@@ -1017,7 +1017,13 @@ export class BotLogic {
             // R≥3은 비싼 연방도 적극 허용, R≥4는 토큰 부족해도 일단 후보로 넣어 MCTS가 판단
             const allowEarlyExpensiveFed = _round >= 4 || (_round >= 3 && (spent <= 6 || tokenSurplus >= 4)) || spent <= 2 || tokenSurplus >= 8;
             if (allowEarlyExpensiveFed && this.canSpendPowerTokensForStrategicAction(game, player, spent)) {
-                candidates.push({ type: 'form_federation', params: fedAction });
+                // [flag: fedSpendBowl3] 사용자 관찰: 제노스 등이 연방하려 충전한 bowl3 토큰을 안 쓰고 그대로 둔 채 연방함.
+                //   위성 지불은 bowl1→2→3 순이라 남는 bowl3는 idle. 연방 전에 그 idle bowl3를 프리액션(1P→1C)으로 미리 써서
+                //   가치(크레딧)를 뽑는다. 1P→1C는 bowl3→bowl1로 토큰을 되돌리므로(제거X) 위성 지불 총량엔 영향 없음(안전).
+                const fedBowl3Pre = this.fedSpendBowl3PreActions(playerId, player, spent);
+                candidates.push(fedBowl3Pre.length
+                    ? { type: 'form_federation', params: fedAction, preActions: fedBowl3Pre }
+                    : { type: 'form_federation', params: fedAction });
             }
         }
 
@@ -5275,6 +5281,20 @@ export class BotLogic {
         if (p3 < 1) return [];
         const drains = Math.min(p3, Math.ceil(waste / 2));
         return Array.from({ length: drains }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
+    /** [flag: fedSpendBowl3] 연방 형성 전에 '남을' idle bowl3 토큰을 프리액션(1P→1C)으로 미리 써서 가치(크레딧)를 뽑는다.
+     *  위성 지불은 bowl1→2→3 순이라 bowl3 소모분 = max(0, spent−p1−p2); 그 위 나머지 bowl3 = idle(사용자 관찰: 그대로 둔 채 연방).
+     *  1P→1C는 토큰을 bowl3→bowl1로 되돌려(제거X) 위성 지불 총량이 불변이라 안전. taklons는 브레인 회계 리스크로 제외. */
+    private static fedSpendBowl3PreActions(playerId: string, player: PlayerState, spentTokens: number): BotAction[] {
+        if (!getPlayerFlag(playerId, 'fedSpendBowl3', true)) return [];
+        if (player.faction === 'taklons') return [];
+        const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+        const bowl3UsedBySat = Math.max(0, (spentTokens ?? 0) - p1 - p2);
+        const idle = Math.max(0, p3 - bowl3UsedBySat);
+        if (idle < 1) return [];
+        const drain = Math.min(idle, 6);
+        return Array.from({ length: drain }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
     }
 
     /** advance_research 후보 생성 헬퍼: 그 전진이 충전을 유발하면(아무 트랙 L3 도달 +3PW, 경제 L5 +6PW,
