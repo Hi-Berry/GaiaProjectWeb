@@ -7828,6 +7828,13 @@ export function executeEndTurn(
 	if (game.pendingLostPlanet?.playerId === playerId) return false;
 
 	const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
+	// [계측] 타클론이 브레인을 bowl3에 둔 채 턴 종료 = 이번 턴 브레인 미사용(사용자 점검 요청). h2h가 이 마커를 셈.
+	{
+		const _ep = game.players[endingPlayerId];
+		if (_ep?.faction === 'taklons' && _ep.brainStoneBowl === 3 && !_ep.brainStoneInGaia) {
+			addGameLog(game, endingPlayerId, 'Taklons: Brain idle bowl3 (turn end)', `p3=${_ep.power3}`);
+		}
+	}
 	const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
 	if (manualOfferCount > 0) {
 		game.pendingTurnEndPlayerId = endingPlayerId;
@@ -7946,7 +7953,7 @@ export function executeBotTinkeroidSpecial(
 	//   (지식은 연구·고급타일, QIC는 연방·건설에 귀함. options에 있는 것 중 우선순위 첫 매칭.)
 	const round = (game as any).roundNumber ?? 1;
 	const pref = round <= 3
-		? ['tinkeroid-4power', 'tinkeroid-1qic', 'tinkeroid-1tf-mine']
+		? ['tinkeroid-1tf-mine', 'tinkeroid-4power', 'tinkeroid-1qic']  /* [사용자 2026-07-03] R1-3 확장(1TF광산) 최우선 — under-build 교정, 4파워는 초반 굴릴데 적음 */
 		: ['tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
 	const specialId = pref.find(s => pending.options.includes(s)) ?? pending.options[0];
 	player.tinkeroidRoundSpecialId = specialId;

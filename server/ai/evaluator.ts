@@ -392,9 +392,14 @@ export class Evaluator {
         const p2Score = (player.power2 || 0) * w.power2Value;
         const p3Score = (player.power3 || 0) * w.power3Value;
         let bsScore = 0;
+        // [flag: taklonsBrainSpend] 사용자 통찰: 타클론 브레인(bowl3)은 들고 있는 자산이 아니라 매턴 쓰고 충전으로 복귀시켜
+        //   라운드 내내 재활용하는 엔진. brainStoneBowl3=2.5가 '보유'를 과대평가 → MCTS가 쓰기 싫어해(쓰면 −2.5) hoarding+안 돌림.
+        //   재활용되니 쓰는 건 사실상 손해가 아님 → 이 플래그면 bowl3 가중치를 확 낮춰(≈bowl1) MCTS가 매턴 브레인-파워액션을 쓰게(재활용).
+        const brainSpendMode = player.faction === 'taklons' && getPlayerFlag(playerId, 'taklonsBrainSpend', false);
+        const bb3 = brainSpendMode ? Math.min(w.brainStoneBowl3, w.brainStoneBowl1 + 0.3) : w.brainStoneBowl3;
         if (player.brainStoneBowl === 1) bsScore += w.brainStoneBowl1;
         if (player.brainStoneBowl === 2) bsScore += w.brainStoneBowl2;
-        if (player.brainStoneBowl === 3) bsScore += w.brainStoneBowl3;
+        if (player.brainStoneBowl === 3) bsScore += bb3;
         // [아이타] 가이아공간 토큰(gaiaformerPower): 번/가이아프로젝트로 이동한 토큰. 다음 라운드 Bowl I로 복귀하고,
         //   PI 보유 시 4개당 기술타일로 환전 가능 → 소멸이 아니다. 이걸 0으로 두면 MCTS가 아이타 번을 '토큰 손실'로 오판해
         //   burn_power 후보를 탐색해도 안 고름. PI면 bowl3급(기술타일 연료), 아니면 bowl1급(복귀)으로 가치화.

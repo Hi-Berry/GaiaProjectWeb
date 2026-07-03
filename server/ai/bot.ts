@@ -494,6 +494,15 @@ export class BotLogic {
                 const special = this.findSpecialActions(game, playerId);
                 if (special.length > 0) return special[0];
 
+                // [flag: taklonsSpendIdleBrain] ★올바른 훅: 메인액션 후 턴종료 직전 = 브레인 idle이 실제 생기는 지점.
+                //   타클론 브레인이 bowl3에 놀고 있으면 3P→1O(useBrain)로 써서 재활용(매턴 쓰고 충전복귀=타클론 엔진, 사용자).
+                //   이전 시도는 pre-pass에만 넣어(패스때만) idle을 못 잡았음. 여기선 end_turn 전마다 발동 → 실제 idle 감소.
+                if (getPlayerFlag(playerId, 'taklonsSpendIdleBrain', false) && player.faction === 'taklons'
+                    && player.brainStoneBowl === 3 && !player.brainStoneInGaia) {
+                    log(`Bot ${player.name} taklonsSpendIdleBrain(turn-end): 브레인 3P→1O 재활용`, 'game', game.id);
+                    return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain: true } };
+                }
+
                 return { type: 'end_turn', params: {} };
             }
 
@@ -644,6 +653,14 @@ export class BotLogic {
                             const shipEnter = this.findSpaceshipEntryActions(game, playerId)[0];
                             if (shipEnter) { log(`Bot ${player.name} shipOverPass: 우주선 입장 대신 패스 안 함`, 'game', game.id); return shipEnter; }
                         }
+                    }
+                    // [flag: taklonsSpendIdleBrain] 계측결과: 브레인을 bowl3로 옮겨도(번) 안 쓰고 턴종료(브레인놀림 1.6~2.1/게임).
+                    //   핵심은 "옮기기"가 아니라 "쓰기" — 패스 직전 브레인이 bowl3에 놀고 있으면 3P→1O(useBrain)로 써버림
+                    //   (안 쓸 바엔 1O이라도, 사용자). 브레인 3파워 소진 = idle 방지. cleanup보다 먼저.
+                    if (getPlayerFlag(playerId, 'taklonsSpendIdleBrain', false)
+                        && player.faction === 'taklons' && player.brainStoneBowl === 3 && !player.brainStoneInGaia) {
+                        log(`Bot ${player.name} taklonsSpendIdleBrain: 브레인 3P→1O (idle 방지)`, 'game', game.id);
+                        return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain: true } };
                     }
                     const cleanup = this.findCleanupConvertAction(game, playerId, bestAction.params?.bonusTileId);
                     if (cleanup) {
@@ -1117,6 +1134,14 @@ export class BotLogic {
         if (getPlayerFlag(playerId, 'itarsBurnCandidate', true) && player.faction === 'itars'
             && (game.roundNumber ?? 1) < 6 && (player.power2 ?? 0) >= 2) {
             candidates.push({ type: 'burn_power', params: {} });
+        }
+
+        // [flag: taklonsBrainBurn] 타클론 브레인스톤이 bowl2에 있으면 놀리지 말고 bowl3로 올려 활용(파워액션/1O·3C 변환).
+        //   타클론 번(브레인 in 2): 일반토큰 1개 소모 + 브레인→bowl3. 평가기가 이미 브레인 bowl3(2.5)>bowl2(1.2)로 봐서
+        //   후보만 열면 MCTS가 옮김(아이타 번과 같은 템플릿). 브레인 in 2 + bowl2 일반토큰 ≥1(번 성립) 조건.
+        if (getPlayerFlag(playerId, 'taklonsBrainBurn', false) && player.faction === 'taklons'
+            && player.brainStoneBowl === 2 && (player.power2 ?? 0) >= 1) {
+            candidates.push({ type: 'burn_power', params: { moveBrainToBowl3: true } });
         }
 
         // 8-2. 우주선 입장 (Lost Fleet Ship)
@@ -2440,8 +2465,13 @@ export class BotLogic {
                 continue;
             }
 
+            // [flag: rangeBuildOnly] 거리보너스(range_3/트왈3거리/글린) 활성 중엔 그 액션의 뒤가 {광산·포머·소행성·우주선} 빌드로
+            //   한정돼야 함(사용자 규칙: 셋업액션끼리 못 겹침). 그런데 봇이 range 켜고 3파워1스텝/5파워2스텝(별개 셋업)을 또 시도 →
+            //   스텝-콤보 후보를 억제해 range 뒤엔 직접 빌드만 하게. gleens는 nav보너스라 동일.
+            const rangeBoostActive = getPlayerFlag(playerId, 'rangeBuildOnly', true)
+                && !!(player.rangeBonusActive || player.tempRangeBonus || player.gleensNavBonusActive);
             // 파워 액션 콤보: 3P→1삽 (gain-1-step, cost 3P) — 이어서 이 타일에 광산 가능할 때만
-            if (remainingSteps === 1) {
+            if (remainingSteps === 1 && !rangeBoostActive) {
                 const stepAction = game.powerActions.find(a => a.id === 'gain-1-step' && !a.isUsed);
                 if (stepAction && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {
                     if (power3 >= 3) {
@@ -2472,7 +2502,7 @@ export class BotLogic {
             }
 
             // 파워 액션 콤보: 5P→2삽 (gain-2-steps, cost 5P)
-            if (remainingSteps <= 2) {
+            if (remainingSteps <= 2 && !rangeBoostActive) {
                 // 이 타일에 남은 테라가 1스텝뿐이고 3P→1삽으로 갈 수 있으면, 같은 타일에 5P→2삽은 쓰지 않음.
                 // (remainingSteps===2 인 2스텝 행성은 여기서 건너뛰지 않음 → gain-2-steps 후보 유지)
                 if (remainingSteps === 1) {
@@ -3973,6 +4003,8 @@ export class BotLogic {
                     break;
                 }
                 case 'gain-1-step': {
+                    // [flag: rangeBuildOnly] 거리보너스 활성 중엔 스텝-파워액션도 셋업체이닝이라 금지(range 뒤엔 직접 빌드만).
+                    if (getPlayerFlag(playerId, 'rangeBuildOnly', true) && (player.rangeBonusActive || player.tempRangeBonus || player.gleensNavBonusActive)) { score = -1; break; }
                     const oldSteps = player.pendingTerraformSteps || 0;
                     player.pendingTerraformSteps = oldSteps + 1;
                     const possibleBuildActions = this.findBuildActionsWithPendingSteps(game, playerId);
@@ -4021,6 +4053,8 @@ export class BotLogic {
                     }
                     break;
                 case 'gain-2-steps': {
+                    // [flag: rangeBuildOnly] 거리보너스 활성 중엔 스텝-파워액션 금지(range 뒤엔 직접 빌드만).
+                    if (getPlayerFlag(playerId, 'rangeBuildOnly', true) && (player.rangeBonusActive || player.tempRangeBonus || player.gleensNavBonusActive)) { score = -1; break; }
                     // 단독 파워 후보에서는 2스텝 행성 등 “1스텝으로는 부족한” 목표가 있을 수 있으므로,
                     // gain-1-step으로 열리는 다른 광산이 있다고 gain-2-steps를 막지 않음(타일별 판단은 findBuildActions).
                     const oldSteps = player.pendingTerraformSteps || 0;
@@ -5100,10 +5134,22 @@ export class BotLogic {
      *  파워회계(토큰1개=3파워) 특수로 제외. */
     private static chargeDrainPreActions(playerId: string, player: PlayerState, chargeAmount: number): BotAction[] {
         if (!getPlayerFlag(playerId, 'chargeDrainBowl3', true)) return [];
-        if (player.faction === 'taklons' || chargeAmount <= 0) return [];
+        if (chargeAmount <= 0) return [];
         const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
         const waste = Math.max(0, chargeAmount - (2 * p1 + p2));
-        if (waste < 2 || p3 < 1) return [];
+        if (waste < 2) return [];
+        // [flag: taklonsChargeDrain] 타클론은 브레인 회계(1토큰=3파워) 특수로 기존엔 charge-drain 제외 → 충전 넘칠 때 bowl3를
+        //   안 비워 브레인 낀 채 충전 낭비(사용자: "파워 넘칠 때 브레인 미리 안 바꿈"). 브레인 bowl3면 3P→1O(useBrain)로 미리 써서
+        //   슬롯 크게 확보 + 브레인 활용. 브레인 회계 리스크로 별 플래그 격리 — 브레인 있으면 그것만(over-drain 방지), 없으면 일반 드레인.
+        if (player.faction === 'taklons') {
+            if (!getPlayerFlag(playerId, 'taklonsChargeDrain', false)) return [];
+            if (player.brainStoneBowl === 3 && !player.brainStoneInGaia) {
+                return [{ type: 'convert_resource' as const, params: { type: '3power-to-1ore', useBrain: true } }];
+            }
+            const drains = Math.min(p3, Math.ceil(waste / 2));
+            return Array.from({ length: drains }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+        }
+        if (p3 < 1) return [];
         const drains = Math.min(p3, Math.ceil(waste / 2));
         return Array.from({ length: drains }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
     }

@@ -41,7 +41,9 @@ const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'up
     // [아이타 계측] 파워 번 횟수 — 아이타는 번 토큰이 가이아 복귀라 적극 번해도 됨(막라 제외).
     'burn',
     // [Ivits 계측] 우주정거장 배치 수 — 봇 4.5/게임 vs 사람 11.3, 안 놓고 패스하던 누수 확인용.
-    'spaceStation'] as const;
+    'spaceStation',
+    // [타클론 브레인 점검] takBurn=브레인 bowl2→3 번 횟수, takBrainIdle=브레인 bowl3에 둔 채 턴종료 횟수(미사용).
+    'takBurn', 'takBrainIdle'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -240,6 +242,12 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 }
                 if (/Ivits: Space Station/i.test(e.action || '')) {
                     (byPlayer[pid] ??= {}).spaceStation = ((byPlayer[pid] ??= {}).spaceStation || 0) + 1;
+                }
+                if (/Taklons: Burn/i.test(e.action || '')) {
+                    (byPlayer[pid] ??= {}).takBurn = ((byPlayer[pid] ??= {}).takBurn || 0) + 1;
+                }
+                if (/Brain idle bowl3/i.test(e.action || '')) {
+                    (byPlayer[pid] ??= {}).takBrainIdle = ((byPlayer[pid] ??= {}).takBrainIdle || 0) + 1;
                 }
                 const k = classifyAction(e.action || '');
                 if (!k) continue;
@@ -494,7 +502,7 @@ async function main() {
             upgrade: '업글(기타)', downgrade: '다운그레이드', research: '연구진행', federation: '연방', powerAct: '파워액션', hhConvert: 'HH변환',
             techTile: '기술타일', advTile: '고급타일', gaiaform: '가이아포밍', shipEnter: '우주선입장', shipAct: '우주선액션', navP1: 'Nav+1획득', pass: '패스', total: '총행동',
             tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
-            gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장',
+            gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장', takBurn: '타클론번', takBrainIdle: '브레인놀림',
         };
         for (const k of BEHAVIOR_KEYS) {
             if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력
