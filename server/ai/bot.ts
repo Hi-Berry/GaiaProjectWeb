@@ -1654,7 +1654,7 @@ export class BotLogic {
                             // 없는 TS 업글 = 자원만 태우고 잔여자원 VP 마이너스. 기존 무조건 +120이 이걸 부추김 →
                             // 연방개선 없고 라운드미션도 TS가 아니면 후보 자체를 제외(gfFinalRoundGuard와 같은 R6 확정낭비 패턴).
                             const tsMission = game.roundScoringTiles[5]?.triggerType === 'build_trading_station';
-                            if (getPlayerFlag(playerId, 'r6TsGuard', false) && !tsMission) continue;
+                            if (getPlayerFlag(playerId, 'r6TsGuard', true) && !tsMission) continue;
                             score += 120;
                         }
                     }
@@ -1674,7 +1674,7 @@ export class BotLogic {
         // 1O→1C 한 번이면 정확히 가능(+ 라운드미션 4VP)했는데 후보가 안 생겨 무의미한 TS 업글을 함.
         // 광석 잉여가 크레딧 갭을 덮으면 1O→1C 프리액션 콤보로 후보 생성(변환+메인 번들 갭 교정).
         const labCreditGap = Math.max(0, 5 - credits);
-        const labCombo = getPlayerFlag(playerId, 'upgradeConvertCombo', false) && labCreditGap > 0 && ore >= 3 + labCreditGap;
+        const labCombo = getPlayerFlag(playerId, 'upgradeConvertCombo', true) && labCreditGap > 0 && ore >= 3 + labCreditGap;
         if ((ore >= 3 && credits >= 5) || labCombo) {
             const labConvertPre: BotAction[] | undefined = labCombo
                 ? Array.from({ length: labCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
@@ -1807,7 +1807,7 @@ export class BotLogic {
         const academyCount = myStructures.filter(t => t.structure === 'academy').length;
         // [flag: upgradeConvertCombo] 아카(6O6C)도 광석 잉여가 크레딧 갭을 덮으면 1O→1C 콤보 후보(연구소와 동일 갭 교정)
         const acadCreditGap = Math.max(0, 6 - credits);
-        const acadCombo = getPlayerFlag(playerId, 'upgradeConvertCombo', false) && acadCreditGap > 0 && ore >= 6 + acadCreditGap;
+        const acadCombo = getPlayerFlag(playerId, 'upgradeConvertCombo', true) && acadCreditGap > 0 && ore >= 6 + acadCreditGap;
         const acadConvertPre: BotAction[] | undefined = acadCombo
             ? Array.from({ length: acadCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
             : undefined;
