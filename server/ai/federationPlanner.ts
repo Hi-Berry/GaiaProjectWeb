@@ -80,7 +80,11 @@ export class FederationPlanner {
             //   (과거 '위성 수' 하드캡은 기각됐으나 이건 '건물 수' 정책 — 사용자 직접 요청.)
             if (getPlayerFlag(playerId, 'fedMax5Buildings', true)
                 && round < 6 && result.selectedPlanetIds.length > 5) {
-                continue;
+                // [버그수정 2026-07-03 사용자관찰: Ivits 1연방 후 안 함] 7파워를 저파워 건물(광산 1파워)로 채우면 7광산=7건물>5라
+                //   이 캡이 연방 자체를 막아 2번째 연방 불가(Ivits는 광산 위주라 특히). fedMinTrim이 파워는 최소화하므로,
+                //   파워가 required 근처(=그 건물들이 '필요')면 허용하고, 크게 초과(sprawl, 트리밍 가능)일 때만 스킵.
+                const fedPow = getFederationBuildingPower(game, playerId, new Set(result.selectedPlanetIds));
+                if (fedPow > requiredPower + 2) continue;
             }
 
             // [flag: fedEndgameVp] 마지막 라운드: 보상 선택지를 펼쳐 후보로 내보낸다 → MCTS가 각 보상의
