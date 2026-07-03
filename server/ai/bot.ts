@@ -3338,9 +3338,17 @@ export class BotLogic {
                 }
                 break;
             case 'artificialIntelligence':
-                // 정보(AI) 트랙: QIC 보상은 유용하지만 확장(항해/테라포밍/경제)보다 우선하면 안 됨
-                score += (6 - level) * 8;
-                if (round >= 5 && level < 3) score += 15; // 후반에만 보조적으로
+                // [flag: aiTrackQicEngine] 사람 35판 연구분포: AI트랙이 전체 24%로 *1위*(gaia21/terra21/nav17/eco9/sci8).
+                // 기존 ×8(꼴찌)은 "확장보다 우선 안 됨"이라 대충 정한 수 — 실제 QIC는 사람의 만능 통화
+                // (rebellion 3정큐=기술타일, twilight 재수령 8-12VP, QIC액션, 점프). 봇 종료 QIC 1.0 = QIC기아가
+                // techTiles(-44)·spaceships(-17.5) 갭의 상류. 초반은 확장 우선 유지, R3+ 중후반 주력으로.
+                if (getPlayerFlag(playerId, 'aiTrackQicEngine', true)) {
+                    score += (6 - level) * 13;
+                    if (round >= 3) score += 30; // 사람은 중후반 QIC 엔진화
+                } else {
+                    score += (6 - level) * 8;
+                    if (round >= 5 && level < 3) score += 15;
+                }
                 break;
             case 'gaiaProject':
                 score += (6 - level) * 8;
@@ -4973,19 +4981,24 @@ export class BotLogic {
         const currentRoundIndex = round - 1;
         if (currentRoundIndex < 0 || currentRoundIndex >= game.roundScoringTiles.length) return 0;
 
+        // [flag: roundMissionW15] 정렬 가중치 ×5는 코드베이스 VP환율(proto 6VP=+90→15×, ship-fed 12VP=320→26×)
+        // 대비 3-5배 저평가된 대충 숫자 → 4VP미션이 +20뿐이라 봇이 미션을 무시(트리거 사람 11.5회 vs 봇 4.9회, 갭 -20VP).
+        // ×15로 환율 통일. 사람은 라운드마다 미션에 행동을 정렬함(같은 광산도 미션 라운드에).
+        const W = getPlayerFlag(playerId, 'roundMissionW15', true) ? 15 : 5;
+
         const tile = game.roundScoringTiles[currentRoundIndex];
-        if (tile.triggerType === triggerType) return tile.vp * 5;
+        if (tile.triggerType === triggerType) return tile.vp * W;
 
         // [라운드미션 커버리지 2026-06-15] build류가 'new_planet_type'/'new_sector' 라운드점수를 트리거하는데
         // 기존엔 triggerType('build_mine' 등)만 비교해 누락. buildTile 주어지면 새 행성타입/새 섹터도 정렬.
         if (buildTile && triggerType.startsWith('build_')) {
             if (tile.triggerType === 'new_planet_type') {
                 const myTypes = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.type).map(t => t.type));
-                if (buildTile.type && !myTypes.has(buildTile.type)) return tile.vp * 5;
+                if (buildTile.type && !myTypes.has(buildTile.type)) return tile.vp * W;
             }
             if (tile.triggerType === 'new_sector') {
                 const mySectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
-                if (buildTile.sector != null && !mySectors.has(buildTile.sector)) return tile.vp * 5;
+                if (buildTile.sector != null && !mySectors.has(buildTile.sector)) return tile.vp * W;
             }
         }
 
