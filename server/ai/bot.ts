@@ -627,6 +627,20 @@ export class BotLogic {
                                 return station;
                             }
                         }
+                        // [flag: twilightRecoupBeforePass] 패스 직전 twilight 액션1(3QIC→연방보상 재수령 4-12VP) 직접실행.
+                        // 데이터: spaceships VP 사람 twilight 8.1 vs 봇 0.1 — 봇은 QIC 남기고 패스(3QIC=패스 시 1VP뿐).
+                        // ※ 기각된 shipOverPass(입장 강제→타고 안 씀 −5.49)와 다름: *이미 입장*+3QIC+연방보유일 때 확정 VP만
+                        //   회수하는 surgical 직접실행(advTileAlways 패턴). 재수령>패스는 산술적으로 항상 이득.
+                        if (getPlayerFlag(playerId, 'twilightRecoupBeforePass', false)
+                            && (player.qic ?? 0) >= 3 && getFederationEntries(player).length >= 1) {
+                            const twi = this.findPlayerShip(game, playerId, 'ship_twilight');
+                            const twiState = twi ? game.spaceships?.[twi.id] : null;
+                            if (twi && (player.spaceshipsEntered || []).includes(twi.id)
+                                && twiState && !((twiState.usedActionIndices ?? []) as number[]).includes(1)) {
+                                log(`Bot ${player.name} twilightRecoupBeforePass: 3QIC 연방보상 재수령 후 패스 보류`, 'game', game.id);
+                                return { type: 'use_ship_action', params: { shipTileId: twi.id, actionIndex: 1 } };
+                            }
+                        }
                         // 패스 직전 once-per-round 특수액션(아카데미 QIC·기술액션)도 사용 — 안 쓰면 그 라운드 통째 낭비(사용자 관찰).
                         // gleens-2nav/space_giants-2tf 등 once-per-game 부스터는 제외(아껴야 함). 이들은 비용 없는 자원획득이라 순이득.
                         const sp = this.findSpecialActions(game, playerId).find(a =>
