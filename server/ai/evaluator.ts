@@ -396,7 +396,7 @@ export class Evaluator {
         //   → '쟁여둔 상태' 값이 낮아져 MCTS가 '파워액션으로 쓴 상태'를 상대적으로 선호(hold→spend 결정 직격).
         const _p3 = player.power3 || 0;
         let p3Score;
-        if (getPlayerFlag(playerId, 'powerHoardDamp', true)) {
+        if (getPlayerFlag(playerId, 'powerHoardDamp', false)) { // [기각 2026-07-03] 검증: 행동 무변(파워액션 3.18↔3.11, 종료bowl3 둘다~0.4=봇 이미 비움) + VP −2.8. 전제(막라 hoarding) 틀림. 기본 OFF.
             const useful = Math.min(_p3, 3), excess = Math.max(0, _p3 - 3);
             const roundKeep = round >= 6 ? 0.25 : 1; // 막라 보유 bowl3 = 패스하면 소멸 → 거의 무가치
             p3Score = (useful * w.power3Value + excess * w.power3Value * 0.25) * roundKeep;
