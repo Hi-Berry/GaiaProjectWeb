@@ -1033,8 +1033,21 @@ export class BotLogic {
         // R≤2: 토큰 후보 3개까지, R3+: 5개까지, R4+: 8개까지 (후보 다양성 확대로 큰 연방 선택지 확보)
         const _round = (game as any).roundNumber ?? 1;
         const totalPowerTokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+        // [flag: piBeforeFed] 사용자 관찰(2026-07-05): 봇이 연방 먼저 → 내부 PI/업글(파워 낭비). 실측: PI가 연방 前 26 vs
+        // 後 41, xenos는 前0/後6(의회 선건설 시 요구파워 6 혜택을 매번 놓침), 연방후 업글의 51%가 닫힌 연방 내부.
+        // 의회를 아직 안 지었고 지금 지을 수 있으면(자원+연구소) 이 턴 연방 형성을 보류 — PI(3~4파워, xenos 문턱6)를
+        // 먼저 넣어 더 싸고 강한 연방을 만들게. R≤5 한정(R6은 연방이 급함).
+        let holdFedForPi = false;
+        if (getPlayerFlag(playerId, 'piBeforeFed', false) && _round <= 5) {
+            const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+            if (!hasPI) {
+                const piUpgradeReady = this.findUpgradeActions(game, playerId)
+                    .some(u => u.type === 'upgrade_structure' && (u.params as any)?.target === 'planetary_institute');
+                if (piUpgradeReady) holdFedForPi = true;
+            }
+        }
         const fedTopN = _round >= 4 ? 8 : _round >= 3 ? 5 : 3;
-        const fedActions = FederationPlanner.getFederationActions(game, playerId, 0, fedTopN);
+        const fedActions = holdFedForPi ? [] : FederationPlanner.getFederationActions(game, playerId, 0, fedTopN);
         for (const fedAction of fedActions) {
             const spent = fedAction.spentTokens ?? 0;
             const tokenSurplus = totalPowerTokens - spent;
@@ -1056,7 +1069,7 @@ export class BotLogic {
 
         // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
         // Ivits는 연방 위성 비용이 QIC이므로, 여기서 "오레->토큰" 프리액션을 섞으면 계산(availableTokens)이 틀어져 QIC 마이너스가 날 수 있음.
-        if (player.faction !== 'ivits') {
+        if (player.faction !== 'ivits' && !holdFedForPi) {
             const oreForFed = player.ore ?? 0;
             // [flag: oreFedGuard] 사용자 관찰(2026-07-04): "쓸모없이 Ore 다 위성 변환해서 무리한 연방".
             // 기존 R4+는 광석 8개까지 + 위성수 무제한 → 후반 evaluator가 광석을 싸게 쳐(resMultLate) 8O 올인 연방.
