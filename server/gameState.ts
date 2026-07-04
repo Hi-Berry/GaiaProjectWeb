@@ -4854,7 +4854,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!Array.isArray(player.federations) || (player.federations.length > 0 && typeof (player.federations as any)[0] === 'string')) {
 				player.federations = getFederationEntries(player);
 			}
-			player.federations.push({ rewardId, isGreen: true });
+			player.federations.push({ rewardId, isGreen: rewardId !== FEDERATION_12VP_ID }); // [버그수정 2026-07-05] 12VP 연방은 유일한 비-초록(사용자 룰)
 
 			const { selectedHexIds, selectedPlanetIds = [], selectedSpaceStationHexIds = [] } = game.pendingFederationReward;
 			if (!game.satellites) game.satellites = {};
@@ -8279,7 +8279,7 @@ export function executeBotFederation(
 	if (!Array.isArray(player.federations) || (player.federations.length > 0 && typeof (player.federations as any)[0] === 'string')) {
 		player.federations = getFederationEntries(player);
 	}
-	player.federations.push({ rewardId, isGreen: true });
+	player.federations.push({ rewardId, isGreen: rewardId !== FEDERATION_12VP_ID }); // [버그수정 2026-07-05] 12VP 연방은 유일한 비-초록(사용자 룰)
 
 	if (!game.satellites) game.satellites = {};
 	for (const hexId of selectedHexIds) {
