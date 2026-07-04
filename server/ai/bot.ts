@@ -5047,7 +5047,7 @@ export class BotLogic {
         // [flag: bonusTileHumanW] 사람 vs 봇 선택분포(246 대 275): 사람 top=4pw충전 12%/2c-1q 13%인데 봇은
         // 1k-lab 12%/1o-1k 8% 과애호(-8/-6 갭). power ×1(4파워=4점)이 bowl3 공급원(사람 bowl3 3-4 유지의 원천)을
         // 저평가, knowledge는 science편향 잔재로 과평가 → 데이터대로 power↑ know↓ qic↑.
-        const humanW = getPlayerFlag(playerId, 'bonusTileHumanW', false);
+        const humanW = getPlayerFlag(playerId, 'bonusTileHumanW', true);
         let resourceValue = 0;
         if (tile.income) {
             resourceValue += (tile.income.ore || 0) * oreW;
