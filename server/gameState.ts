@@ -1180,6 +1180,20 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 	if (game.pendingTechTileSelection?.playerId === playerId) game.pendingTechTileSelection = null;
 	if (player) player.pendingTerraformSteps = 0;
 	game.hasDoneMainAction = false;
+	// [hang수정 2026-07-05] 잔류 pendingPowerOffers가 게임 전체를 막음(iiftcanv: offers+shipTechMine 콤보 타임아웃).
+	// 무응답 오퍼 강제 해소(무료=수락, 유료=거절) + 보류된 턴종료 마무리.
+	if (game.pendingPowerOffers && game.pendingPowerOffers.length > 0) {
+		for (const offer of game.pendingPowerOffers) {
+			if (offer.responded) continue;
+			if (offer.vpCost === 0 && offer.amount > 0 && game.players[offer.targetPlayerId]) {
+				applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount);
+			}
+			offer.responded = true;
+		}
+		game.pendingPowerOffers = [];
+		log(`forceSkipStuckBotTurn: stale pendingPowerOffers 강제 해소`, 'error', game.id);
+	}
+	game.pendingTurnEndPlayerId = undefined;
 
 	if (Object.values(game.players).every(p => p.hasPassed)) {
 		forceFinishStalledGame(io, game, `all passed after skip (${reason})`);

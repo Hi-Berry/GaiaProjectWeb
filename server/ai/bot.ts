@@ -462,7 +462,9 @@ export class BotLogic {
                 const pendingBuilds = this.findBuildActionsWithPendingSteps(game, playerId);
                 if (pendingBuilds.length === 1) return pendingBuilds[0];
                 if (pendingBuilds.length > 1) {
-                    log(`Bot ${player.name} must complete pending build with ${pendingBuilds.length} candidates...`, 'game', game.id);
+                    // [로그오염 수정 2026-07-05] MCTS 시뮬 클론도 이 경로를 타는데 simulation 가드가 없어
+                    // 게임파일에 초당 수회 스팸(hang처럼 보임 + 진짜 원인 가림) → 가드 추가
+                    log(`Bot ${player.name} must complete pending build with ${pendingBuilds.length} candidates...`, 'game', game.id, { simulation: (game as any).simulation });
                     return await MCTS.search(game, playerId, pendingBuilds);
                 }
                 // 만약 건설할 곳이 없다면 무효 advance_tech 반복 대신 pending을 정리한다.
