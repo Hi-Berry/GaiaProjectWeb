@@ -1038,7 +1038,7 @@ export class BotLogic {
         // 의회를 아직 안 지었고 지금 지을 수 있으면(자원+연구소) 이 턴 연방 형성을 보류 — PI(3~4파워, xenos 문턱6)를
         // 먼저 넣어 더 싸고 강한 연방을 만들게. R≤5 한정(R6은 연방이 급함).
         let holdFedForPi = false;
-        if (getPlayerFlag(playerId, 'piBeforeFed', false) && _round <= 5) {
+        if (getPlayerFlag(playerId, 'piBeforeFed', true) && _round <= 5) {
             const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
             if (!hasPI) {
                 const piUpgradeReady = this.findUpgradeActions(game, playerId)
