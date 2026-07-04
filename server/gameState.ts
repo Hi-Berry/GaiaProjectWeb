@@ -2301,7 +2301,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 				const stateTag = totalPow < req ? 'LOW_POWER' : (maxComp >= req ? 'FORMABLE' : 'SCATTERED');
 				fedProbe = ` | FED[${stateTag} req${req} tot${totalPow} maxC${maxComp} tok${tok}]`;
 			} catch { /* 진단 실패 무시 */ }
-			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}${shTag}${fedProbe}`, 'game', undefined, { simulation: (game as any).simulation });
+			log(`[PACE r${game.roundNumber}] ${p.faction}: VP${p.score} | struct${st.length}(m${c.mine ?? 0}/ts${c.trading_station ?? 0}/lab${c.research_lab ?? 0}/pi${c.planetary_institute ?? 0}/ac${c.academy ?? 0}) | res${rs} | fed${feds} | O${p.ore}C${p.credits}K${p.knowledge}Q${p.qic} P${(p.power1 ?? 0)}/${(p.power2 ?? 0)}/${(p.power3 ?? 0)}${shTag}${fedProbe}`, 'game', game.id, { simulation: (game as any).simulation });
 		}
 	}
 
