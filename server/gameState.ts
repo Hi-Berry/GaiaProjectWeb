@@ -7376,8 +7376,8 @@ export function executeUseBonusAction(
 			addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
 			log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
 			break;
-		case gaia_project:
-			if (getEffectiveGaiaformers(player) < 1) return rej(noFormer);
+		case 'gaia_project':
+			if (getEffectiveGaiaformers(player) < 1) return rej('noFormer');
 			player.usedBonusAction = true;
 			game.pendingTFMarsGaiaProject = { playerId, shipTileId: 'bonus-gaia' };
 			game.hasDoneMainAction = true;
