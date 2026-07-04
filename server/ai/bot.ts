@@ -1149,6 +1149,17 @@ export class BotLogic {
                 upgradeActions = upgradeActions.filter(u => !(u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station'));
             }
         }
+        // [flag: missionBankTS] 다턴뱅킹 2호(TS미션 갭 0.92): 다음 라운드가 build_trading_station 미션이고 이번은
+        // 아니면 mine→TS 업글을 한 라운드 보류(TS수입 1R 손실 < 미션 +3-4VP, 미션R에 burst). R5까지·연방개선 업글은 예외
+        // (findUpgradeActions의 fed-what-if 큰 가점 후보를 죽이지 않게 TS타깃만 필터).
+        if (getPlayerFlag(playerId, 'missionBankTS', false)) {
+            const r = game.roundNumber ?? 1;
+            const cur = game.roundScoringTiles?.[r - 1]?.triggerType;
+            const next = game.roundScoringTiles?.[r]?.triggerType;
+            if (r <= 5 && next === 'build_trading_station' && cur !== 'build_trading_station') {
+                upgradeActions = upgradeActions.filter(u => !(u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station'));
+            }
+        }
         if (upgradeActions.length > 0) candidates.push(...upgradeActions);
 
         // 7. 내비게이션 연구 보너스 (QIC 절약)
