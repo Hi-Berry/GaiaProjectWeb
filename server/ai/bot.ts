@@ -5573,6 +5573,9 @@ export class BotLogic {
                     // 글린+2나 트왈라잇 임시 부스터가 이미 켜져 있으면 중첩하지 않음(각각 별개 액션).
                     if (player.gleensNavBonusActive || player.tempRangeBonus) shouldAdd = false;
                     else if (!this.rangeBoosterUnlocksTarget(game, playerId, 'rangeBonusActive')) shouldAdd = false;
+                } else if (tile.specialAction === 'gaia_project' && getEffectiveGaiaformers(player) < 1) {
+                    // [BONUSREJ 미러수정 2026-07-05] 포머 0개면 서버가 noFormer 거부 — 후보 자체를 안 냄
+                    shouldAdd = false;
                 }
                 if (shouldAdd) {
                     res.push({ type: 'use_bonus_action', params: { actionId: tile.specialAction } });
