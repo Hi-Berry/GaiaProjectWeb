@@ -2489,6 +2489,14 @@ export class BotLogic {
                 // [수정 #1] 내 가이아포머가 성숙한 타일(pendingGaiaformerTiles)은 이미 포밍 완료 → 추가 QIC/오레 비용 없음.
                 // 기존엔 gaiaBaseQic를 그대로 요구해 QIC가 0이면 영영 스킵 → 가이아포머(파워+토큰) 낭비. 강하게 우선 건설.
                 const alreadyFormed = player.pendingGaiaformerTiles?.includes(tile.id) ?? false;
+                // [flag: missionBankGaia] 다턴뱅킹 3호(가이아미션 갭 1.0): 다음R이 build_gaia 미션이고 이번은 아니면
+                // 성숙 포머 빌드를 1R 보류(내 타일이라 뺏길 위험 없음, 광산수입 1R 손실 < 미션 +3-4VP).
+                if (alreadyFormed && getPlayerFlag(playerId, 'missionBankGaia', false)) {
+                    const r = game.roundNumber ?? 1;
+                    const curM = game.roundScoringTiles?.[r - 1]?.triggerType;
+                    const nextM = game.roundScoringTiles?.[r]?.triggerType;
+                    if (r <= 5 && nextM === 'build_gaia' && curM !== 'build_gaia' && curM !== 'build_mine') continue;
+                }
                 // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
                 const isGleens = player.faction === 'gleens';
                 const gaiaBaseQic = alreadyFormed ? 0 : getGaiaBaseQic(player.faction || '');
