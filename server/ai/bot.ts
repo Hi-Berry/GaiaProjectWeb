@@ -1251,7 +1251,7 @@ export class BotLogic {
         // 다음 라운드가 research_track 미션이고 이번은 아니면 연구를 미뤄 지식 축적(다음 라운드에 +미션VP로 회수).
         // 예외: L4(고급타일/L5 레이스 타이밍) 트랙 있으면 안 미룸, 지식 12+면 이미 충분해 미룰 필요 없음(그냥 진행), R5까지만.
         let bankResearch = false;
-        if (getPlayerFlag(playerId, 'missionBankResearch', false) && (player.knowledge ?? 0) >= 4) {
+        if (getPlayerFlag(playerId, 'missionBankResearch', true) && (player.knowledge ?? 0) >= 4) {
             const r = game.roundNumber ?? 1;
             const cur = game.roundScoringTiles?.[r - 1]?.triggerType;
             const next = game.roundScoringTiles?.[r]?.triggerType;
