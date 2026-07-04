@@ -1075,8 +1075,10 @@ export class BotLogic {
             // 기존 R4+는 광석 8개까지 + 위성수 무제한 → 후반 evaluator가 광석을 싸게 쳐(resMultLate) 8O 올인 연방.
             // 교정: R4-5도 광석 예비 1개 유지 + k≤4 + spent>6 금지. R6만 관대(잔여광석=⅓VP뿐이라 큰 연방이 이득).
             const guard = getPlayerFlag(playerId, 'oreFedGuard', true);
+            // [사용자 관찰 2026-07-05] R6 관대(8)도 회수: 제노스가 막라에 광물 8개→토큰, 연방은 위성 4개만 사용
+            // → 4토큰 증발 + 막라 미션 업글 액션(광물) 불가. R6도 예비 1개 유지, 상한 6.
             const maxK = guard
-                ? (_round >= 6 ? Math.min(oreForFed, 8) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4) : Math.min(oreForFed, 3))
+                ? (_round >= 6 ? Math.min(Math.max(0, oreForFed - 1), 6) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4) : Math.min(oreForFed, 3))
                 : (_round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6));
             const fedSubN = _round >= 4 ? 4 : 2;
             for (let k = 2; k <= maxK; k++) {
@@ -1090,7 +1092,11 @@ export class BotLogic {
                     // [flag: oreFedGuard] R4-5도 위성 상한(기존 무제한) — R6 endgame만 예외
                     if (guard && _round >= 4 && _round <= 5 && spent > 6) continue;
                     if (!this.canSpendPowerTokensForStrategicAction(game, player, spent, k)) continue;
-                    const preActions = Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
+                    // [버그수정 2026-07-05] 기존엔 k개를 무조건 변환 — 연방이 위성 spent개만 쓰면 (k-부족분)토큰이
+                    // 통째로 증발(사용자 관측: 8변환→4위성=4증발). 변환은 *부족분*(spent-보유토큰)만.
+                    const shortfall = Math.max(0, spent - totalPowerTokens);
+                    if (shortfall <= 0) continue; // 변환 불필요 = 1a 후보와 중복
+                    const preActions = Array.from({ length: shortfall }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
                     candidates.push({ type: 'form_federation', params: fedWithK, preActions });
                 }
             }
