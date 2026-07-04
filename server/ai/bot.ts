@@ -1246,7 +1246,21 @@ export class BotLogic {
         if (conversions.length > 0) candidates.push(...conversions);
 
         // 9. 일반 연구 (최우선 순위 부여)
-        if ((player.knowledge ?? 0) >= 4) {
+        // [flag: missionBankResearch] 미션 뱅킹(같은게임 대조: 사람 트리거 11.5 vs 봇 4.6, research 갭 1.75 최대 —
+        // 사람은 연구미션 라운드에 2-3회 burst = 지식을 미리 모음. 봇은 4K 되는 즉시 소비해 burst 불가).
+        // 다음 라운드가 research_track 미션이고 이번은 아니면 연구를 미뤄 지식 축적(다음 라운드에 +미션VP로 회수).
+        // 예외: L4(고급타일/L5 레이스 타이밍) 트랙 있으면 안 미룸, 지식 12+면 이미 충분해 미룰 필요 없음(그냥 진행), R5까지만.
+        let bankResearch = false;
+        if (getPlayerFlag(playerId, 'missionBankResearch', false) && (player.knowledge ?? 0) >= 4) {
+            const r = game.roundNumber ?? 1;
+            const cur = game.roundScoringTiles?.[r - 1]?.triggerType;
+            const next = game.roundScoringTiles?.[r]?.triggerType;
+            const hasL4 = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
+                .some(t => (player.research[t] ?? 0) === 4);
+            bankResearch = r <= 5 && next === 'research_track' && cur !== 'research_track'
+                && (player.knowledge ?? 0) < 12 && !hasL4;
+        }
+        if ((player.knowledge ?? 0) >= 4 && !bankResearch) {
             const tracks = this.pickResearchTracks(game, player, playerId);
             for (const track of tracks) {
                 candidates.push(this.advanceResearchAction(playerId, player, track));
