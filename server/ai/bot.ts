@@ -167,6 +167,9 @@ export class BotLogic {
             if (total < 1) return false;
         }
 
+        // [SHIPREJ 미러수정 2026-07-05] 타클론: 브레인이 가이아 영역이면 서버가 입장 거부(3건/40판 실패 원인)
+        if (player.faction === 'taklons' && (player as any).brainStoneInGaia) return false;
+
         // 거리/QIC 체크 (AI는 useRangeBonus를 쓰지 않으므로 baseRange만)
         const myPlanets = game.map.filter(t =>
             (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
@@ -174,7 +177,9 @@ export class BotLogic {
         );
         if (myPlanets.length === 0) return false;
 
-        const baseRange = this.getEffectiveBaseRange(player);
+        // [SHIPREJ 미러수정 2026-07-05] getEffectiveBaseRange는 rangeBonusActive(+3)를 포함하지만 후보가
+        // useRangeBonus를 안 보내 서버는 미포함 → '사거리 부족' 4건/40판. 서버와 동일하게 그 몫을 제외.
+        const baseRange = this.getEffectiveBaseRange(player) - (player.rangeBonusActive ? 3 : 0);
         const minDist = Math.min(...myPlanets.map(t => getDistance(t, tile)));
         const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
         if (qicToUse < neededQIC) return false;
