@@ -5044,13 +5044,17 @@ export class BotLogic {
             oreW = 5;   // 광석=새 광산 연료(확장 병목)
             knowW = 4;  // 지식=연구 연료
         }
+        // [flag: bonusTileHumanW] 사람 vs 봇 선택분포(246 대 275): 사람 top=4pw충전 12%/2c-1q 13%인데 봇은
+        // 1k-lab 12%/1o-1k 8% 과애호(-8/-6 갭). power ×1(4파워=4점)이 bowl3 공급원(사람 bowl3 3-4 유지의 원천)을
+        // 저평가, knowledge는 science편향 잔재로 과평가 → 데이터대로 power↑ know↓ qic↑.
+        const humanW = getPlayerFlag(playerId, 'bonusTileHumanW', false);
         let resourceValue = 0;
         if (tile.income) {
             resourceValue += (tile.income.ore || 0) * oreW;
-            resourceValue += (tile.income.knowledge || 0) * knowW;
-            resourceValue += (tile.income.qic || 0) * 4;
+            resourceValue += (tile.income.knowledge || 0) * (humanW ? 2.5 : knowW);
+            resourceValue += (tile.income.qic || 0) * (humanW ? 5 : 4);
             resourceValue += (tile.income.credits || 0) * 1;
-            resourceValue += (tile.income.power || 0) * 1;
+            resourceValue += (tile.income.power || 0) * (humanW ? 2.5 : 1);
         }
         if (tile.specialAction) {
             if (tile.specialAction === 'range_3') resourceValue += 3;
