@@ -1788,7 +1788,11 @@ export class BotLogic {
         // 3. Trading Stations -> Planetary Institute
         const hasPI = myStructures.some(t => t.structure === 'planetary_institute');
         if (ore >= 4 && credits >= 6 && !hasPI) {
-            const tsList = myStructures.filter(t => t.structure === 'trading_station');
+            // [버그수정 2026-07-05: bescods 트리] 매안은 TS→PI를 서버가 거부(6197), 전용 경로=연구소→PI(6224).
+            // 봇에 매안 분기가 없어 표준 TS→PI만 시도→항상 실패→매안은 의회를 영영 못 지었음(사용자 관찰).
+            const tsList = player.faction === 'bescods'
+                ? myStructures.filter(t => t.structure === 'research_lab')
+                : myStructures.filter(t => t.structure === 'trading_station');
             // [flag: lantidsEarlyPI] 란티다 PI = 기생광산 지을 때마다 +2지식(gameState 5876). 기생 타겟(상대 점유행성)이 있으면
             //   PI를 먼저 짓고 기생해야 이득이 큼(사용자). 기존엔 제네릭 취급 → R4 전 PI 차단(아래 continue) → 기생광산이
             //   전부 지식보너스를 못 받음(실측: 란티다 봇 게임 PI 0개, 기생 3개 전부 PI前). 타겟 수 비례 우대 + 조기 허용.
@@ -1866,7 +1870,11 @@ export class BotLogic {
             ? Array.from({ length: acadCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
             : undefined;
         if (((ore >= 6 && credits >= 6) || acadCombo) && academyCount < 2) {
-            const labList = myStructures.filter(t => t.structure === 'research_lab');
+            // [버그수정 2026-07-05: bescods 트리] 매안 전용 TS→아카(서버 6234)도 아카 소스로 — 봇에 분기가 없어
+            // 매안이 교역소에서 아카 직행을 영영 못 썼음(사용자 관찰). 표준 연구소→아카는 매안도 유효라 둘 다.
+            const labList = player.faction === 'bescods'
+                ? myStructures.filter(t => t.structure === 'research_lab' || t.structure === 'trading_station')
+                : myStructures.filter(t => t.structure === 'research_lab');
             for (const lab of labList) {
                 // 아카데미는 너무 초반(1R)에는 과소비가 잦지만, 2~3R부터는 상황에 따라 허용
                 // 사용자 피드백: 1라 아카도 가능하면 좋음. (단, 시작 광산 2개 수준은 확보되어야 함)
