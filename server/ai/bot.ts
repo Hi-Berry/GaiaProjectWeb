@@ -19,6 +19,8 @@ import {
     executeUseShipAction,
     executeEndTurn,
     executeSelectTechTile,
+    executeEclipseAdvanceTrack,
+    executeCancelEclipseResearch,
     executeSelectAdvancedTechTile,
     executeCoverAdvancedTechTile,
     executeBotFederation,
@@ -88,6 +90,7 @@ type BotAction = {
     | 'place_lost_planet'
     | 'use_ship_action'
     | 'eclipse_build_asteroid_mine'
+    | 'eclipse_advance_track'
     | 'select_tech_tile'
     | 'select_advanced_tech_tile'
     | 'cover_advanced_tech_tile'
@@ -337,6 +340,12 @@ export class BotLogic {
                     if (shipErr !== null && !game.simulation) log(`[SHIPREJ] ${playerId} ${action.params.tileId}: ${shipErr}`, 'error', game.id);
                     return shipErr === null;
                 }
+            case 'eclipse_advance_track': {
+                // [hang 근본수정] pendingEclipseResearch 해소 — 실패 시 취소 폴백(자원 롤백, 교착 방지)
+                const okAdv = executeEclipseAdvanceTrack(io, game, playerId, action.params.trackId);
+                if (!okAdv) return executeCancelEclipseResearch(io, game, playerId);
+                return true;
+            }
             case 'eclipse_build_asteroid_mine':
                 return executeEclipseBuildAsteroidMine(io, game, playerId, action.params.tileId);
             case 'convert_resource':
@@ -441,6 +450,30 @@ export class BotLogic {
             if (game.pendingEclipseAsteroidMine?.playerId === playerId) {
                 return this.findEclipseAsteroidTarget(game, playerId);
             }
+
+            // [hang 근본수정 2026-07-05] Eclipse 연구트랙 선택 대기 — 봇 미처리로 교착이던 것(p2ze7cmd). 최선 트랙 선택, 불가 시 취소.
+
+
+            if (game.pendingEclipseResearch?.playerId === playerId) {
+
+
+                const elTracks = this.pickResearchTracks(game, player, playerId);
+
+
+                const ALL_EL: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+
+
+                const elPick = [...elTracks, ...ALL_EL].find(t => (player.research[t] ?? 0) < 5
+
+
+                    && !(t === 'navigation' && player.faction === 'bal_tak' && !game.map.some(x => x.ownerId === playerId && x.structure === 'planetary_institute')));
+
+
+                return { type: 'eclipse_advance_track', params: { trackId: elPick ?? 'economy' } };
+
+
+            }
+
 
             // Nav 5 잊혀진 행성 배치 대기 중
             if (game.pendingLostPlanet?.playerId === playerId) {
@@ -966,6 +999,15 @@ export class BotLogic {
         }
 
         const candidates: BotAction[] = [];
+
+        // [hang 근본수정 2026-07-05] Eclipse 연구트랙 선택 대기 — 후보로도 강제 처리
+        if (game.pendingEclipseResearch?.playerId === playerId) {
+            const elTracks = this.pickResearchTracks(game, player, playerId);
+            const ALL_EL: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+            const elPick = [...elTracks, ...ALL_EL].find(t => (player.research[t] ?? 0) < 5
+                && !(t === 'navigation' && player.faction === 'bal_tak' && !game.map.some(x => x.ownerId === playerId && x.structure === 'planetary_institute')));
+            return [{ type: 'eclipse_advance_track', params: { trackId: elPick ?? 'economy' } }];
+        }
 
         // 0a. 고급 기술 타일 커버/트랙 전진 대기 상태는 강제 처리 (이걸 안 하면 턴 진행 불가)
         if (game.pendingAdvancedTechCover?.playerId === playerId) {

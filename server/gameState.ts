@@ -1167,6 +1167,55 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
  * **게임은 계속**되게 한다. 실유저가 봇과 플레이 중 봇이 막혀도 게임이 멈추거나 강제 종료되지 않게 하는 것이 목적.
  * 전원이 패스 상태가 되면(=더 진행 불가) 비로소 정상 종료한다.
  */
+
+/** [hang 근본수정 2026-07-05] Eclipse 액션2(연구트랙 선택) 해소 — 봇도 호출 가능하게 추출.
+ *  기존엔 socket 클로저 전용 → 봇이 pendingEclipseResearch를 영영 해소 못해 교착(p2ze7cmd 재현으로 확정). */
+export function executeEclipseAdvanceTrack(io: SocketIOServer, game: ServerGameState, playerId: string, trackId: string): boolean {
+	if (!game || game.currentPhase !== 'main') return false;
+	const pending = game.pendingEclipseResearch;
+	if (!pending || pending.playerId !== playerId) return false;
+	const player = game.players[playerId];
+	const track = trackId as ResearchTrack;
+	const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+	if (!tracks.includes(track) || player.research[track] >= 5) return false;
+	if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
+	const newLevel = (player.research[track] ?? 0) + 1;
+	if (newLevel === 5 && (countGreenFederations(player) < 1 || isTrackLevel5Taken(game, track, playerId))) return false;
+
+	saveActionStartState(game, playerId);
+	if (newLevel === 5) spendGreenFederation(player);
+	player.research[track]++;
+	const levelNow = player.research[track];
+	applyTrackLevelBonus(game, playerId, player, track, levelNow);
+	addGameLog(game, playerId, 'Eclipse: Research', `${track} → Lv.${levelNow} (2K+3P)`, pending.shipTileId);
+	applyRoundMissionScore(game, playerId, 'research_track');
+	applyAdvancedTechTileEffect(game, playerId, 'research');
+	game.pendingEclipseResearch = null;
+	game.hasDoneMainAction = true;
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
+/** Eclipse 연구 선택 취소(자원 롤백) — 봇의 최후 폴백용 추출판 */
+export function executeCancelEclipseResearch(io: SocketIOServer, game: ServerGameState, playerId: string): boolean {
+	if (!game || game.currentPhase !== 'main') return false;
+	const pending = game.pendingEclipseResearch;
+	if (!pending || pending.playerId !== playerId) return false;
+	const player = game.players[playerId];
+	player.knowledge = (player.knowledge || 0) + 2;
+	player.power3 = (player.power3 || 0) + 3;
+	player.power1 = Math.max(0, (player.power1 || 0) - 3);
+	const shipState = game.spaceships?.[pending.shipTileId];
+	if (shipState && shipState.usedActionIndices) {
+		shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 2);
+		shipState.actionsUsed = shipState.usedActionIndices.length;
+	}
+	game.hasDoneMainAction = false;
+	game.pendingEclipseResearch = null;
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState, playerId: string, reason: string): void {
 	if (game.currentPhase === 'gameEnd') return;
 	const player = game.players[playerId];
@@ -1178,6 +1227,8 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 	if (game.pendingSpaceshipFedMine?.playerId === playerId) game.pendingSpaceshipFedMine = null;
 	if (game.pendingEclipseAsteroidMine?.playerId === playerId) game.pendingEclipseAsteroidMine = null;
 	if (game.pendingTechTileSelection?.playerId === playerId) game.pendingTechTileSelection = null;
+	if (game.pendingEclipseResearch?.playerId === playerId) game.pendingEclipseResearch = null; // [2026-07-05] 미처리 pending 감사에서 발견
+	if (game.pendingFederationReward?.playerId === playerId) game.pendingFederationReward = null;
 	if (player) player.pendingTerraformSteps = 0;
 	game.hasDoneMainAction = false;
 	// [hang수정 2026-07-05] 잔류 pendingPowerOffers가 게임 전체를 막음(iiftcanv: offers+shipTechMine 콤보 타임아웃).
@@ -3836,29 +3887,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// Eclipse 액션2: 선택한 연구 트랙 1칸 진행 (비용은 이미 use_ship_action에서 차감됨)
 		socket.on('eclipse_advance_track', ({ gameId, trackId }) => {
 			const game = games.get(gameId); if (!game) return;
-			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const pending = game.pendingEclipseResearch;
-			if (!pending || pending.playerId !== playerId) return;
-			const player = game.players[playerId];
-			const track = trackId as ResearchTrack;
-			const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
-			if (!tracks.includes(track) || player.research[track] >= 5) return;
-			if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return;
-			const newLevel = (player.research[track] ?? 0) + 1;
-			if (newLevel === 5 && (countGreenFederations(player) < 1 || isTrackLevel5Taken(game, track, playerId))) return;
-
-			saveActionStartState(game, playerId);
-			if (newLevel === 5) spendGreenFederation(player);
-			player.research[track]++;
-			const levelNow = player.research[track];
-			applyTrackLevelBonus(game, playerId, player, track, levelNow);
-			addGameLog(game, playerId, 'Eclipse: Research', `${track} → Lv.${levelNow} (2K+3P)`, pending.shipTileId);
-			applyRoundMissionScore(game, playerId, 'research_track');
-			applyAdvancedTechTileEffect(game, playerId, 'research');
-			game.pendingEclipseResearch = null;
-			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			executeEclipseAdvanceTrack(io, game, playerId, trackId);
 		});
 
 		// Eclipse 액션3: 6C 지불 후 소행성 광산 건설 (가이아포머 소모 없음)

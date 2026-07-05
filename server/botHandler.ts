@@ -139,7 +139,8 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         (game.pendingShipTechTrackAdvance && game.botPlayerIds.includes(game.pendingShipTechTrackAdvance.playerId)) ||
         (game.pendingAdvancedTechCover && game.botPlayerIds.includes(game.pendingAdvancedTechCover.playerId)) ||
         (game.pendingAdvancedTechTrackAdvance && game.botPlayerIds.includes(game.pendingAdvancedTechTrackAdvance.playerId)) ||
-        (game.pendingEclipseAsteroidMine && game.botPlayerIds.includes(game.pendingEclipseAsteroidMine.playerId));
+        (game.pendingEclipseAsteroidMine && game.botPlayerIds.includes(game.pendingEclipseAsteroidMine.playerId)) ||
+        (game.pendingEclipseResearch && game.botPlayerIds.includes(game.pendingEclipseResearch.playerId));
 
     if (!isBotTurn && !hasPendingBotAutoChoice) {
         return;
