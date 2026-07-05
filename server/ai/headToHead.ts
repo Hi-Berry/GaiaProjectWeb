@@ -92,7 +92,7 @@ const BASE_PORT = Math.max(1000, Number(process.env.H2H_BASE_PORT) || 5300);
 const GAMES = Math.max(6, Number(process.env.H2H_GAMES) || 60);
 const MCTS_MS = Math.max(50, Number(process.env.H2H_MCTS_MS) || 500);
 const BOT_DELAY_MS = Math.max(0, Number(process.env.H2H_BOT_DELAY_MS) || 0);
-const GAME_TIMEOUT_MS = (Number(process.env.H2H_GAME_TIMEOUT_MIN) || 35) * 60 * 1000;
+const GAME_TIMEOUT_MS = (Number(process.env.H2H_GAME_TIMEOUT_MIN) || 8) * 60 * 1000; // [2026-07-05] 35→8분: 정상게임 1.5-2분, hang 1건=35분 손실×13=6h wedge 사고
 // [faction-forcing] 종족별 측정: 이 종족을 고정 좌석(FORCE_FACTION_POS, 기본 0)에 강제 배정.
 // 그 좌석은 B_PATTERNS 회전으로 절반은 B(플래그ON)/절반은 A(OFF)가 되어 동일 종족 paired 비교가 된다.
 const FORCE_FACTION = process.env.H2H_FORCE_FACTION || '';
