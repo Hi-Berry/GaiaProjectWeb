@@ -1725,6 +1725,12 @@ export class BotLogic {
                     // 비율을 악화(=교역소 죽음의 나선). 첫 TS(연구소 발판) 외엔 강하게 억제 → 광산/오레 파워액션 우선.
                     if (oreStarved && !isFirstTS) score -= 220;
 
+                    // [flag: hhPiRush] HH 부검(2026-07-03 fhhid49g, 33점): R2 TS 4연속(8O)→PI(4O6C) 광물 영영 못 모음
+                    // → PI 없는 HH는 신용 사용처가 없어 26~30C 사장. 단 무조건 감점은 정상 TS 플레이도 깎아
+                    // HH 좌석 −6.9(24판) → 사재기가 실제 형성 중일 때(credits≥10)만 = 죽음의 나선 상태 한정.
+                    if (getPlayerFlag(playerId, 'hhPiRush', true) && player.faction === 'hadsch_hallas' && tsCount >= 2
+                        && credits >= 10 && !myStructures.some(t => t.structure === 'planetary_institute')) score -= 140;
+
                     // [flag: tsScoreRework] 사용자 룰: mine→TS는 광석수입→크레딧수입 "전환"일 뿐 총수입은 안 늘어(돈 남으면 오히려 실질수입↓).
                     //   그러니 TS는 기본적으로 잘 안 짓고, 아래 3가지 좋은 케이스에만 가점:
                     //   ① 광산 딱 3개 — 표준 보드에서 3번째 광산은 광석수입을 안 늘리므로, 하나를 TS로 바꾸면 광석수입 손실 0 + 크레딧수입 +3 (순이득)
@@ -1854,6 +1860,10 @@ export class BotLogic {
                 ? game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure && !t.parasiticMine && !t.type?.startsWith('ship_')).length
                 : 0;
             const lantidsPiReady = lantidsEarlyPI && paraTargetCount >= 1 && mineCount >= 2;
+            // [flag: hhPiRush] HH 의회 = 종족 엔진(매라운드 4C→1Q/4C→1K/3C→1O 무료변환, gameState 6245).
+            // 실게임 부검(33점 참사): R4 전 hard continue로 PI 후보가 MCTS에 보이지도 않음(후보생성 갭)
+            // → 광산 기반(3+)만 있으면 조기 허용. PI만 서면 hadschHallasConvert가 신용을 자원으로 순환.
+            const hhPiReady = player.faction === 'hadsch_hallas' && getPlayerFlag(playerId, 'hhPiRush', true) && mineCount >= 3;
             for (const ts of tsList) {
                 // 기본 의회 점수 (초반에는 아카데미/연구소보다 낮게 설정하여 무분별한 의회 건설 방지)
                 let score = 30;
@@ -1878,6 +1888,9 @@ export class BotLogic {
                     // 란티다: 기생 타겟 있으면 조기 PI 강력 우대(각 후속 기생 = +2지식). 타겟 많을수록 더.
                     score += round <= 2 ? 60 : 90;
                     score += Math.min(80, paraTargetCount * 15);
+                } else if (hhPiReady) {
+                    // HH: PI가 곧 경제 엔진 — 조기일수록 변환 라운드가 많이 남아 가치가 큼.
+                    score += round <= 2 ? 80 : 60;
                 } else {
                     // 그 외 종족: 4라운드 이전에는 건설 기피, 4라운드부터 의회 고려
                     if (round < 4) score -= 30;
@@ -1888,8 +1901,8 @@ export class BotLogic {
                 // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
                 const firaksPiReady = faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true) && myStructures.some(t => t.structure === 'research_lab');
                 if (round === 1) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
