@@ -220,13 +220,19 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
             try {
                 const u = lastUpdate;
                 if (u) {
-                    const cur = u.currentPlayerId || u.currentPlayer || u.activePlayerId || u.turnPlayerId || '?';
+                    // [2026-07-05 정밀화] 기존 필드명이 틀려 turn=?(?)만 찍힘 → 실제 필드(turnOrder[currentPlayerIndex])로.
+                    const cur = u.turnOrder?.[u.currentPlayerIndex] || '?';
                     const fac = u.players?.[cur]?.faction || '?';
-                    const pend = Object.keys(u).filter(k => /^pending/i.test(k) && u[k]).join(',') || 'none';
+                    const pend = Object.keys(u).filter(k => /^pending/i.test(k) && u[k] && !(Array.isArray(u[k]) && u[k].length === 0)).join(',') || 'none';
                     const seats = Object.values(u.players || {}).map((p: any) => p.faction).join('/');
-                    console.warn(`[HANG] game=${gameId} phase=${u.currentPhase} R${u.roundNumber} turn=${cur}(${fac}) pending=[${pend}] seats=${seats}`);
+                    const stm = u.pendingShipTechMine ? `${u.pendingShipTechMine.playerId}(${u.players?.[u.pendingShipTechMine.playerId]?.faction})` : '-';
+                    const offers = (u.pendingPowerOffers || []).map((o: any) =>
+                        `${o.targetPlayerId?.slice(-4)}(${u.players?.[o.targetPlayerId]?.faction})amt${o.amount}vp${o.vpCost}${o.responded ? 'R' : '!'}`).join(',') || '-';
+                    const lastLogs = (u.gameLog || []).slice(-4).map((e: any) => `${e.playerName}:${e.action}`).join(' | ');
+                    console.warn(`[HANG] game=${gameId} phase=${u.currentPhase} R${u.roundNumber} turn=${cur}(${fac}) hasMain=${u.hasDoneMainAction} pend=[${pend}] seats=${seats}`);
+                    console.warn(`[HANG+] shipTechMine=${stm} offers=[${offers}] turnEndPending=${u.pendingTurnEndPlayerId?.slice(-4) || '-'} lastLog=[${lastLogs}]`);
                 }
-            } catch { }
+            } catch (dumpErr) { console.warn(`[HANG] dump failed: ${(dumpErr as Error).message}`); }
             cleanup(); reject(new Error('Game timeout'));
         }, GAME_TIMEOUT_MS);
         const cleanup = () => { clearTimeout(timer); socket.off('game_updated', onUpdate); };
