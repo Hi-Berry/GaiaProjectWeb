@@ -384,6 +384,26 @@ async function evalWorker(worker: Worker, headToHead: { A: Variant; B: Variant }
             console.log(`[head2head][w${worker.idx + 1}] game ${gi + 1}/${GAMES} (B@${bPositions}) ${line}`);
         } catch (e) {
             console.warn(`[head2head][w${worker.idx + 1}] game ${gi + 1}/${GAMES} failed: ${(e as Error).message}`);
+            // [2026-07-05 워커 recycle] hang 후 워커 서버가 오염돼 이후 게임 연쇄 타임아웃(13연속→run wedge 6h 사고).
+            // 실패 시 해당 워커 프로세스를 죽이고 재부팅해 깨끗한 상태로 계속.
+            try {
+                console.warn(`[head2head][w${worker.idx + 1}] recycling worker after failure...`);
+                try { worker.socket.disconnect(); } catch { }
+                killWorkerTree(worker.proc);
+                ACTIVE_WORKERS.delete(worker.proc);
+                await new Promise(r => setTimeout(r, 2000));
+                const proc2 = startServerProcess(worker.port);
+                ACTIVE_WORKERS.add(proc2);
+                const socket2 = await waitForServer(worker.port);
+                const token = process.env.AI_TUNING_TOKEN;
+                await emitAsync(socket2, 'admin_set_mcts_time_ms', { timeMs: MCTS_MS, token });
+                await emitAsync(socket2, 'admin_set_bot_delay_ms', { delayMs: BOT_DELAY_MS, token });
+                worker.proc = proc2; worker.socket = socket2;
+                console.warn(`[head2head][w${worker.idx + 1}] worker recycled on :${worker.port}`);
+            } catch (re) {
+                console.warn(`[head2head][w${worker.idx + 1}] recycle failed: ${(re as Error).message} — 이 워커 잔여 게임 스킵`);
+                return results;
+            }
         }
     }
     return results;
