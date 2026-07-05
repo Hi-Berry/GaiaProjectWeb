@@ -170,7 +170,12 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
     try {
         await doBotTurn(io, game);
     } catch (error) {
-        log(`Bot turn execution error for game ${game.id}: ${error}`, 'error');
+        // [hang 근본수정 2026-07-05 최종] 예외 시 ①게임파일에 로깅(기존 콘솔-only는 워커 stdio:ignore로 증발 —
+        // 예외 원인이 안 보였음) ②재스케줄(기존엔 루프가 여기서 영영 죽어 게임 동결 — udljuarm에서
+        // "must complete pending build" 후 완전 침묵의 정체). 재스케줄되면 월클록 워치독이 20초 내 forceSkip으로 회복.
+        const st = (error as Error)?.stack?.split('\n').slice(0, 4).join(' | ') ?? String(error);
+        log(`Bot turn EXCEPTION (loop 재스케줄): ${st}`, 'error', game.id);
+        setTimeout(() => executeBotTurnIfNeeded(io, game), d(1000));
     } finally {
         game.isBotExecuting = false;
         botExecutingGames.delete(game.id);
