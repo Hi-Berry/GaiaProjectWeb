@@ -1402,6 +1402,13 @@ export class BotLogic {
             const trulyStarved = ore < 1 && credits < 3 && (player.knowledge ?? 0) < 1 && (player.qic ?? 0) < 1;
             const passTooEarly = noMainActionYet && (game.roundNumber ?? 1) <= 4 && !trulyStarved;
 
+            // [flag: r6SpendDown] R6 소비 강제 — 데이터: 사람 R6 ~25액션(+42VP) vs 봇 ~8액션, 봇은 R6시작 광석 10.7을
+            // 쥐고도 잔여 10+ 남기고 패스(승자-패자 대조: 승자 잔여 10.5 vs 패자 12.8 = 소비가 이김).
+            // R6에 VP성 액션(빌드/업글/연구/기술액션/우주선액션)이 후보에 있으면 패스를 후보에서 제외 — MCTS가 그중 최선을 고름.
+            const r6Spend = getPlayerFlag(playerId, 'r6SpendDown', false) && (game.roundNumber ?? 1) >= 6
+                && candidates.some(c => c.type === 'build_mine' || c.type === 'upgrade_structure'
+                    || c.type === 'advance_research' || c.type === 'use_tech_action' || c.type === 'use_ship_action');
+
             if ((player.knowledge ?? 0) >= 4) {
                 // 지식이 남았으면 패스하지 않도록 후보에 넣지 않음. (연구를 강제)
             } else if (mustDoActions.length > 0) {
@@ -1414,6 +1421,8 @@ export class BotLogic {
                 // 초반 자원 수급 인프라(광산/TS)는 패스보다 우선
             } else if (passTooEarly) {
                 // 자원 남았는데 메인 액션 안 하고 패스하는 행동은 R1~4까지 차단
+            } else if (r6Spend) {
+                // R6: VP성 액션이 남아있는 한 패스 금지(소비 강제) — 실패 시 botHandler의 pass 폴백이 안전망
             } else {
                 const bestBonus = this.findBonusTileAction(game, playerId);
                 const bonusTileId = bestBonus?.params?.bonusTileId;
