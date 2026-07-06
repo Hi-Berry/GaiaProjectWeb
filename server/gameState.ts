@@ -2414,11 +2414,24 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 		return;
 	}
 	// [버그수정 2026-06-19] 라운드당 액션단계 1회만 시작(helperStartNewRoundTurn과 동일 가드) — 중복 시작 시 시작플레이어 더블턴 방지.
-	if ((game as any).actionPhaseStartedRound === game.roundNumber) return;
+	// [hang수정 2026-07-07] 단 bare return은 아무도 턴을 재개하지 않아 게임 정지(사용자: 아이타 교환 후 멈춤 관측).
+	// 액션 단계가 이미 시작된 상태라도 현재 턴 재개(emit + 봇 트리거)는 하고 나간다 — 둘 다 멱등이라 안전.
+	if ((game as any).actionPhaseStartedRound === game.roundNumber) {
+		log(`[ITARS-RESUME] round ${game.roundNumber} action phase already started — resuming current turn (index ${game.currentPlayerIndex})`, 'game', game.id);
+		clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (ItarsResumeStarted): ${err}`, 'error');
+		});
+		return;
+	}
 	// [버그수정] 위와 동일 — 이미 턴이 진행된 라운드면 index=0 재리셋 금지(시작플레이어 더블턴 방지).
 	if ((game as any).firstMainActionDoneThisRound) {
 		log(`[ROUND-START-GUARD] helperProceedAfterItars blocked: round ${game.roundNumber} already had a turn (index stays ${game.currentPlayerIndex})`, 'game', game.id);
 		(game as any).actionPhaseStartedRound = game.roundNumber;
+		clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (ItarsResumeMidRound): ${err}`, 'error');
+		});
 		return;
 	}
 	(game as any).actionPhaseStartedRound = game.roundNumber;
@@ -2433,6 +2446,8 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 		if (!game.turnStartState) game.turnStartState = {};
 		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
 	}
+	// [가시화 2026-07-07] 아이타 경로 라운드 시작은 로그가 전무해 hang 원인 특정 불가였음 — RoundStart와 동급 로그
+	log(`[RoundStart] (Itars/Terran path) round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', game.id, { simulation: (game as any).simulation });
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
 
 	// 봇 턴 확인
@@ -4131,7 +4146,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			player.power1 = (player.power1 || 0) + tokensRemaining;
 			if (tokensRemaining > 0) addGameLog(game, playerId, 'Itars PI', `${tokensRemaining} tokens → Bowl 1`);
-			proceedAfterItarsGaiaformerOrTerran(game);
+			// [hang수정 2026-07-07] 소켓 핸들러 내 예외는 조용히 죽어 액션 단계가 영영 시작 안 됨 — 가시화 + 최후 복구
+			try {
+				proceedAfterItarsGaiaformerOrTerran(game);
+			} catch (e) {
+				log(`[ITARS-CHAIN] proceedAfterItars(choice) EXCEPTION: ${(e as Error)?.stack || e}`, 'error', game.id);
+				executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { /* 위에서 로깅됨 */ });
+			}
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
@@ -5600,12 +5621,23 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	if (game.pendingTechTileSelection.structureType === 'itars_pi_exchange') {
 		const remaining = game.itarsGaiaformerRemainingAfterTech ?? 0;
 		game.itarsGaiaformerRemainingAfterTech = undefined;
+		// [hang수정 2026-07-07] 사용자 관측: 아이타 3번째 교환 타일 후 게임 정지(봇 재개 로그 전무).
+		// 이 체인의 예외가 소켓 핸들러에서 조용히 죽으면 액션 단계가 영영 시작 안 됨 → 진행 로그 + 예외 가시화 +
+		// pendingTechTileSelection을 helperProceed *이전에* 정리(재개된 봇/클라가 잔존 pending을 보지 않게).
+		log(`[ITARS-CHAIN] ${player.name} tech done, remaining=${remaining} (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
 		if (remaining >= 4) {
 			game.pendingItarsGaiaformerExchange = { playerId, tokensRemaining: remaining };
 		} else {
 			player.power1 = (player.power1 || 0) + remaining;
 			if (remaining > 0) addGameLog(game, playerId, 'Itars PI', `${remaining} tokens → Bowl 1`);
-			helperProceedAfterItarsGaiaformerOrTerran(io, game);
+			game.pendingTechTileSelection = null;
+			game.availableShipTechTileIds = undefined;
+			try {
+				helperProceedAfterItarsGaiaformerOrTerran(io, game);
+			} catch (e) {
+				log(`[ITARS-CHAIN] helperProceed EXCEPTION: ${(e as Error)?.stack || e}`, 'error', game.id);
+				executeBotTurnIfNeeded(io, game).catch(() => { /* 위에서 로깅됨 */ });
+			}
 		}
 	}
 
