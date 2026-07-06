@@ -790,7 +790,13 @@ export function getFederationRequiredPower(game: ServerGameState, playerId: stri
 
 	// [수정 2026-06-28] 하이브 누적 요구치는 *모든* 연방(위성+우주선)을 1개씩 센다(사용자 룰 확정).
 	// 이전엔 ship-fed-*를 제외해 우주선 연방 보유 시 다음 요구파워가 7씩 모자라게 떴음(예: 위성2+우주선1=3개인데 21로).
-	const formedFedCount = getFederationEntries(player).length;
+	// [수정 2026-07-06] 단 테라포밍 5단계 '보상' 연방은 선언이 아니므로 제외(사용자 버그: 3선언+TF5 상태에서
+	// 다음 요구치가 28이어야 하는데 28/35로 떠 연방 불가). 새 게임은 fromTrack5 마커, 마커 없는 진행 중
+	// 게임은 TF≥5 도달+트랙 연방타일 존재로 폴백 차감.
+	const entries = getFederationEntries(player);
+	const marked = entries.filter(e => (e as any).fromTrack5).length;
+	const legacyTf5 = marked === 0 && ((player.research?.terraforming ?? 0) >= 5) && (game as any).federationOnTerraforming5 ? 1 : 0;
+	const formedFedCount = Math.max(0, entries.length - marked - legacyTf5);
 	const n = formedFedCount + 1;
 	return powerPerFed * n;
 }
@@ -4525,7 +4531,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			// 이미 거리 보너스가 켜져 있으면 글린 +2항해 포함 모든 스페셜 액션 차단 (중복 활성 방지)
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
-			executeUseSpecialAction(io, game, playerId, actionId);
+			const ok = executeUseSpecialAction(io, game, playerId, actionId);
+			// [버그수정 2026-07-06] 실패가 조용히 삼켜져 유저는 액션이 된 줄 알고 턴종료 → "메인 액션 미수행" 에러로만
+			// 나타남(사용자 관찰 "종종"). 실패 사유를 즉시 피드백 + 게임파일에 계측.
+			if (!ok) {
+				const why = game.currentPhase !== 'main' ? '메인 단계가 아닙니다'
+					: game.hasDoneMainAction ? '이번 턴 메인 액션을 이미 사용했습니다'
+					: game.turnOrder[game.currentPlayerIndex] !== playerId ? '자신의 턴이 아닙니다'
+					: game.players[playerId]?.usedSpecialActions?.includes(actionId) ? '이번 라운드에 이미 사용한 스페셜 액션입니다'
+					: '조건이 맞지 않습니다';
+				debugLog(game, `[SPECIALREJ] ${playerId} ${actionId} → ${why} (main=${game.hasDoneMainAction}, phase=${game.currentPhase})`, 'error');
+				socket.emit('game_error', { message: `스페셜 액션 사용 불가: ${why}` });
+			}
 		});
 
 		// 팅커로이드: 라운드 시작 시 고른 Special 액션 확정 (한 옵션만 남으면 자동 지정됨)
@@ -5061,6 +5078,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				return;
 			}
 			if (!game.hasDoneMainAction) {
+				// [계측 2026-07-06] 사용자 "스페셜 QIC 받기 후 종종 이 에러" — 직전 액션 흐름을 게임파일에 남겨 재발 시 원인 특정
+				const recent = (game.gameLog || []).slice(-3).map((e: any) => `${e.playerName ?? e.playerId}:${e.action}`).join(' | ');
+				debugLog(game, `[ENDREJ] ${playerId} end_turn 거부(main=false). 직전 로그: ${recent}`, 'error');
 				socket.emit('game_error', { message: '메인 액션을 수행하지 않아 턴을 종료할 수 없습니다.' });
 				return;
 			}

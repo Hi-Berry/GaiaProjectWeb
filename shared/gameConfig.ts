@@ -578,6 +578,8 @@ export interface FactionBiddingState {
 export interface FederationEntry {
   rewardId: string;
   isGreen: boolean;
+  /** 테라포밍 5단계 보상으로 받은 연방(선언 아님) — 하이브 누적 요구파워 계산에서 제외용 */
+  fromTrack5?: boolean;
 }
 
 /** 12점 연방 ID: 획득 시 바로 빨강이라 5단계/고급 타일 획득에 사용 불가 */
