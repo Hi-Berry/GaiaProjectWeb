@@ -192,9 +192,6 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     // 프리액션은 자기 턴(메인 단계)에만 — 서버 검증과 동일하게 클라 버튼도 막아 혼선 방지
     const canFreeAction = !!playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.currentPhase === 'main';
     const balTakCanAdvanceNav = !currentPlayer || currentPlayer.faction !== 'bal_tak' || game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-    const effectiveGaiaformers = currentPlayer?.faction === 'bal_tak'
-        ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
-        : (currentPlayer?.gaiaformers ?? 0);
 
     const pendingTech = game.pendingTechTileSelection?.playerId === playerId ? game.pendingTechTileSelection : null;
     /** 우주선 기술 타일도 선택지에 포함 (리벨리온 3Q, 연구소 건설 시 트랙+풀+우주선 모두 선택 가능) */
@@ -1321,27 +1318,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             </div>
                         )}
 
-                        {playerId && currentPlayer?.faction === 'bal_tak' && onUseBalTakGaiaformerToQic && (
-                            <div className="space-y-2 pt-4 border-t border-white/5">
-                                <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-amber-400/90">Bal T&apos;aks (Free Action)</h4>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={effectiveGaiaformers < 1 || !canFreeAction}
-                                        className="border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40"
-                                        onClick={() => onUseBalTakGaiaformerToQic()}
-                                    >
-                                        1 포머 → 1 QIC
-                                    </Button>
-                                    {(currentPlayer.balTakGaiaformersUsedForQic ?? 0) > 0 && (
-                                        <span className="text-[10px] text-amber-400/90">
-                                            가이아 토큰 보관: {(currentPlayer.balTakGaiaformersUsedForQic ?? 0)}개 (다음 라운드 복귀)
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                        {/* 발타크 '1포머→1QIC'는 프리액션이므로 프리액션 다이얼로그(FreeActionsDialog)에만 둔다.
+                            연구보드(상태창)에 중복 표시하면 '가이아 토큰 보관: N개' 카운트와 함께 혼란을 줘서 제거(사용자 요청). */}
 
                         {/* 내 기술 타일 액션 (4PW 등 — 라운드당 1회 사용) */}
                         {playerId && onUseTechAction && (() => {
