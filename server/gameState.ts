@@ -8098,7 +8098,9 @@ export function executeBotBescodsAdvanceLowestTrack(
 	});
 	if (candidates.length === 0) return false;
 
-	// Pick the first candidate (deterministic, e.g. prefer science > economy > gaia > AI > nav > terra)
+	// 동점 최하위 트랙 타이브레이크: science 우선. ★반직관적이나 측정으로 확정(2026-07-06, bescods 강제 40판):
+	//   '가치순(확장 우선)'으로 바꾸니 매안 좌석 −10.10 VP. 매 라운드 공짜 전진을 방치된 science에 넣어 트랙 폭/균형
+	//   (L3 파워·breadth·미션다양성)을 확보하고 유료연구는 확장에 집중하는 게 매안엔 더 강함. 건드리지 말 것.
 	const preferred: ResearchTrack[] = ['science', 'economy', 'gaiaProject', 'artificialIntelligence', 'navigation', 'terraforming'];
 	const chosen = preferred.find(t => candidates.includes(t as ResearchTrack)) ?? candidates[0];
 
