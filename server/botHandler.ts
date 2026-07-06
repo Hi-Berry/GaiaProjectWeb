@@ -20,6 +20,19 @@ import {
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
 import { recordDecisionFeatures } from './ai/valueData';
+import { getPlayerFlag } from './ai/variant';
+
+/** [flag: bescodsLateSpecial] 매안 트랙업(뺏길 수 없는 액션)을 라운드 첫 턴이 아니라 패스 직전으로 미루는 중.
+ *  예외: 최하위 트랙이 L4면 L5 자리 선점 경쟁이 있는 유일한 케이스라 기존대로 즉시 사용. */
+function bescodsSpecialDeferred(game: ServerGameState, playerId: string): boolean {
+    const p = game.players[playerId];
+    if (p?.faction !== 'bescods') return false;
+    if (p.usedSpecialActions?.includes('bescods-advance-lowest')) return false;
+    if (!getPlayerFlag(playerId, 'bescodsLateSpecial', true)) return false;
+    const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
+    const minLevel = Math.min(...tracks.map(t => p.research?.[t] ?? 0));
+    return minLevel < 4; // L5 경쟁이면 미루지 않음
+}
 
 const botExecutingGames = new Set<string>();
 
@@ -437,10 +450,12 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     }
 
     // === 매안(Bescods): 미사용 상태면 자동으로 가장 낮은 트랙 +1 처리 ===
+    // [flag: bescodsLateSpecial] ON이면 여기(라운드 첫 턴)서 안 쓰고 패스 직전 인터셉트에서 사용(무손실 순서 교정).
     if (game.currentPhase === 'main' && !game.hasDoneMainAction) {
         const bescodsPlayer = game.players[currentPlayerId ?? ''];
         if (
             bescodsPlayer?.faction === 'bescods' &&
+            !bescodsSpecialDeferred(game, currentPlayerId) &&
             !bescodsPlayer.usedSpecialActions?.includes('bescods-advance-lowest')
         ) {
             await new Promise(resolve => setTimeout(resolve, d(400)));
@@ -484,6 +499,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
                     return;
                 }
             }
+            // [flag: bescodsLateSpecial] 미뤄둔 매안 트랙업이 남아있으면 패스 전에 반드시 소진(공짜 전진 유실 방지)
+            if (!game.hasDoneMainAction && bescodsSpecialDeferred(game, currentPlayerId)) {
+                const spOk = executeBotBescodsAdvanceLowestTrack(io, game, currentPlayerId);
+                if (spOk) { setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); return; }
+            }
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             log(`Bot ${player.name} has no valid action, forcing pass to advance turn`, 'game');
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
@@ -494,6 +514,15 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             else forceSkipStuckBotTurn(io, game, currentPlayerId, 'no-action pass failed → 즉시 안전스킵');
         }
         return;
+    }
+
+    // [flag: bescodsLateSpecial] 봇이 패스하려는 시점 = 이번 라운드 남은 액션이 없음 → 미뤄둔 매안 트랙업을 지금 사용.
+    // (뺏길 수 없는 액션이라 마지막에 해도 가치 동일, 대신 앞 턴들을 경쟁 액션에 씀 — 사용자 순서 모델)
+    if (action.type === 'pass_round' && game.currentPhase === 'main' && !game.hasDoneMainAction
+        && bescodsSpecialDeferred(game, currentPlayerId)) {
+        log(`Bot ${player.name} (Bescods) deferred lowest-track advance before pass`, 'game', game.id);
+        const spOk = executeBotBescodsAdvanceLowestTrack(io, game, currentPlayerId);
+        if (spOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); return; }
     }
 
     log(`Bot ${player.name} executing: ${action.type}`, 'game');

@@ -27,6 +27,7 @@ import {
     executeBurnPower,
     executeConvertResource,
     executeUseHadschHallasPIAction,
+    executeBotBescodsAdvanceLowestTrack,
     getAcademyLeftCount,
     getAcademyRightCount,
     executeEnterSpaceship,
@@ -100,6 +101,7 @@ type BotAction = {
     | 'burn_power'
     | 'convert_resource'
     | 'use_hadsch_hallas_pi_action'
+    | 'bescods_advance_lowest'
     | 'enter_spaceship'
     | 'use_tech_action'
     | 'use_special_action'
@@ -186,7 +188,10 @@ export class BotLogic {
         const minDist = Math.min(...myPlanets.map(t => getDistance(t, tile)));
         const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
         if (qicToUse < neededQIC) return false;
-        if ((player.qic || 0) < qicToUse) return false;
+        // [flag: balTakShipQic] 발타크는 입장 거리 QIC도 포머→QIC 프리액션으로 충당 가능(PI 전 Nav 불가라 점프 의존)
+        const entryQicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false))
+            ? this.getAvailableQic(player) : (player.qic || 0);
+        if (entryQicAvail < qicToUse) return false;
 
         return true;
     }
@@ -214,10 +219,16 @@ export class BotLogic {
         const usedIndices = (shipState.usedActionIndices ?? (shipState.actionsUsed != null ? [] : [])) as number[];
         if (usedIndices.includes(actionIndex) || usedIndices.length >= 3) return false;
 
+        // [flag: balTakShipQic] 발타크는 미사용 포머→QIC 프리액션(bal_tak_gaiaformer_to_qic)으로 QIC 액션을
+        // 지불 가능(사용자 지적: 포머→QIC→리벨리온 3정큐가 봇 후보에 없었음). 유효 QIC = 지갑 + 미사용 포머.
+        // 실행 시엔 findSpaceshipActions가 부족분만큼 변환 preActions를 붙여 지갑을 먼저 채움.
+        const qicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false))
+            ? this.getAvailableQic(player) : (player.qic ?? 0);
+
         // --- Twilight ---
         if (shipTile.type === 'ship_twilight') {
             if (actionIndex === 1) {
-                return (player.qic ?? 0) >= 3;
+                return qicAvail >= 3;
             }
             if (actionIndex === 2) {
                 if (!targetTileId) return false;
@@ -234,7 +245,7 @@ export class BotLogic {
         // --- Rebellion ---
         if (shipTile.type === 'ship_rebellion') {
             if (actionIndex === 1) {
-                return (player.qic ?? 0) >= 3;
+                return qicAvail >= 3;
             }
             if (actionIndex === 2) {
                 const tid = targetTileId != null ? String(targetTileId) : '';
@@ -252,7 +263,7 @@ export class BotLogic {
         // --- TF Mars ---
         if (shipTile.type === 'ship_tf_mars') {
             if (actionIndex === 1) {
-                return (player.qic ?? 0) >= 2;
+                return qicAvail >= 2;
             }
             if (actionIndex === 2) {
                 if ((player.power3 ?? 0) < 2) return false;
@@ -281,7 +292,7 @@ export class BotLogic {
         // --- Eclipse ---
         if (shipTile.type === 'ship_eclipse') {
             if (actionIndex === 1) {
-                return (player.qic ?? 0) >= 2;
+                return qicAvail >= 2;
             }
             if (actionIndex === 2) {
                 return (player.knowledge ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
@@ -357,6 +368,8 @@ export class BotLogic {
             }
             case 'use_ship_action':
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
+            case 'bescods_advance_lowest':
+                return executeBotBescodsAdvanceLowestTrack(io, game, playerId);
             case 'enter_spaceship':
                 {
                     // [계측 SHIPREJ 2026-07-04] enter_spaceship 실패 155건/일 — 서버 거부사유(문자열)를 버리지 말고 로그
@@ -1292,6 +1305,16 @@ export class BotLogic {
             candidates.push({ type: 'burn_power', params: { moveBrainToBowl3: true } });
         }
 
+        // 8-1b. [flag: bescodsLateSpecial] 매안 트랙업을 botHandler 자동 선사용 대신 MCTS 후보로 —
+        // 인에이블러(레벨 보너스 자원·사거리→이번 라운드 연구소/Nav2 등 콤보)면 MCTS가 일찍 잡고, 아니면
+        // 자연히 뒤로 밀림(사용자 교정 2026-07-06: 무조건 첫턴도, 무조건 패스직전도 아닌 '판단'이 맞음).
+        // botHandler의 패스 인터셉트가 유실 방지 안전망.
+        if (player.faction === 'bescods' && getPlayerFlag(playerId, 'bescodsLateSpecial', true)
+            && !game.hasDoneMainAction
+            && !player.usedSpecialActions?.includes('bescods-advance-lowest')) {
+            candidates.push({ type: 'bescods_advance_lowest', params: {} });
+        }
+
         // 8-2. 우주선 입장 (Lost Fleet Ship)
         const shipEntries = this.findSpaceshipEntryActions(game, playerId);
         if (shipEntries.length > 0) candidates.push(...shipEntries); // 우주선 탑승을 적극 고려
@@ -1535,6 +1558,30 @@ export class BotLogic {
             const prio = uniqueCandidates.filter(c => c.type !== 'form_federation' && PRIORITY.has(c.type));
             const rest = uniqueCandidates.filter(c => c.type !== 'form_federation' && !PRIORITY.has(c.type));
             return [...feds, ...prio, ...rest];
+        }
+
+        // [flag: deferSafeBuild] 라운드 내 긴급도 순서(사용자 모델 2026-07-06): 뺏길 수 없는 액션(무경쟁 가이아
+        // 1QIC 건설)은 공유 자원인 파워액션(상대가 먼저 쓰면 이번 라운드 소멸)보다 뒤로. 점수 너지는 MCTS가 무시
+        // (aiTrackQicEngine·tsEarlyHardGate 교훈)하므로 하드 필터로 이번 턴 후보에서 제외 — 무경쟁이라 다음 턴에
+        // 그대로 남아 총 액션 집합은 불변(순서만 교정). 가드: ①상대 구조물이 3헥스 내면 경쟁 취급(제외 안 함)
+        // ②자원이 넉넉해(가이아 건설 2회분) 뒤로 미뤄도 못 짓게 될 위험이 없을 때만 ③패스 후보가 있는 턴(라운드
+        // 꼬리)엔 미루지 않고 다 함.
+        if (getPlayerFlag(playerId, 'deferSafeBuild', false)
+            && !uniqueCandidates.some(c => c.type === 'pass_round')
+            && uniqueCandidates.some(c => c.type === 'use_power_action')
+            && (player.qic ?? 0) >= 2 && (player.ore ?? 0) >= 2 && (player.credits ?? 0) >= 5) {
+            const isSafeGaiaBuild = (c: BotAction): boolean => {
+                if (c.type !== 'build_mine') return false;
+                const tile = game.map.find(t => t.id === (c.params as any)?.tileId);
+                if (!tile || tile.type !== 'gaia') return false;
+                // 3헥스 내 상대 구조물 = 경쟁 가능성 → 긴급 취급(미루지 않음)
+                return !game.map.some(t => t.ownerId && t.ownerId !== playerId && t.structure
+                    && t.structure !== 'ship' && getDistance(tile, t) <= 3);
+            };
+            const filtered = uniqueCandidates.filter(c => !isSafeGaiaBuild(c));
+            if (filtered.length < uniqueCandidates.length && filtered.some(c => c.type !== 'convert_resource')) {
+                return filtered;
+            }
         }
 
         // [flag: policyPrior] 알파고식: 사람 모방 학습 정책망(policyNet.json, imitation +10.1%p)으로
@@ -4608,7 +4655,9 @@ export class BotLogic {
 
             const minDist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQic = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-            if (neededQic > qic) continue;
+            // [flag: balTakShipQic] 발타크 입장 거리 QIC를 포머 변환으로 충당(부족분 preActions는 아래 act에서)
+            const balTakEntry = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false);
+            if (neededQic > (balTakEntry ? this.getAvailableQic(player) : qic)) continue;
 
             // 기존 200(의회급)은 명시적 과보정이라 봇이 우주선에 과탑승 → 확장(광산) 메인액션 잠식
             // → 연방/연구 미달성의 한 원인이었다. head2head에서 낮출수록 +방향(우주선 입장의 66%가 미사용).
@@ -4688,8 +4737,12 @@ export class BotLogic {
             const myIdx = (shipState?.occupants?.length ?? 0) + 1;
             const entryCharge = (myIdx === 2 || myIdx === 3) ? 2 : (myIdx === 4 ? 3 : 0);
             const entryDrain = ['itars', 'nevlas'].includes(player.faction || '') ? [] : this.chargeDrainPreActions(playerId, player, entryCharge);
-            const act: BotAction = entryDrain.length
-                ? { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic }, preActions: entryDrain }
+            // [flag: balTakShipQic] 지갑 부족분은 포머→QIC 변환을 먼저 실행(서버 executeEnterSpaceship은 지갑만 차감)
+            const balTakEntryPres = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false))
+                ? this.balTakGaiaformerPreActionsForQicShortfall(player, qic, neededQic) : [];
+            const entryPres = [...balTakEntryPres, ...entryDrain];
+            const act: BotAction = entryPres.length
+                ? { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic }, preActions: entryPres }
                 : { type: 'enter_spaceship', params: { tileId: tile.id, qicToUse: neededQic } };
             // 서버 규칙 기준으로 실제 성공하는 후보만 남김 (점수/토큰/사거리 등 누락 방지)
             // note: 후보 생성은 sync이므로, 여기서는 "가능성 높은 것"만 일단 모으고 아래에서 한번에 필터링
@@ -4730,6 +4783,17 @@ export class BotLogic {
             if (parts.length) log(`[SHIPDIAG] R${round} ${playerId} ${parts.join(' ')}`, 'shipdiag', game.id);
         }
 
+        // [flag: balTakShipQic] 발타크 유효 QIC = 지갑 + 미사용 포머(무료 변환) — QIC 우주선 액션(리벨리온
+        // 3정큐=기술타일 등)을 포머 변환으로 지불하는 콤보가 후보에 없던 갭(사용자 지적). 부족분만 변환 preActions.
+        const balTakShip = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false);
+        const effShipQic = balTakShip ? this.getAvailableQic(player) : (player.qic || 0);
+        const shipQicAction = (shipId: string, i: number, qicCost: number): BotAction => {
+            const pres = balTakShip ? this.balTakGaiaformerPreActionsForQicShortfall(player, player.qic || 0, qicCost) : [];
+            return pres.length
+                ? { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i }, preActions: pres }
+                : { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+        };
+
         for (const shipId of entered) {
             const shipTile = game.map.find(t => t.id === shipId);
             const shipState = game.spaceships?.[shipId];
@@ -4745,9 +4809,9 @@ export class BotLogic {
                 let action: BotAction | null = null;
 
                 if (shipTile.type === 'ship_twilight') {
-                    if (i === 1 && (player.qic || 0) >= 3) {
+                    if (i === 1 && effShipQic >= 3) {
                         score = 350; // 연방 보상 → 매우 강력
-                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                        action = shipQicAction(shipId, i, 3);
                     } else if (i === 1 && (player.qic || 0) >= 0) {
                         score = 230;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
@@ -4766,9 +4830,9 @@ export class BotLogic {
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
-                    if (i === 1 && (player.qic || 0) >= 3) {
+                    if (i === 1 && effShipQic >= 3) {
                         score = 380; // 기술 타일 획득: 최강 액션
-                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                        action = shipQicAction(shipId, i, 3);
                     } else if (i === 1) {
                         score = 250;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
@@ -4826,7 +4890,7 @@ export class BotLogic {
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_tf_mars') {
-                    if (i === 1 && (player.qic || 0) >= 2) {
+                    if (i === 1 && effShipQic >= 2) {
                         // TF Mars 1 = (기술타일수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
                         // 아니면 거의 비활성(초반 ~4VP짜리 일찍 하지 말고 QIC를 확장에 쓰게). 사용자 규칙.
                         if (getPlayerFlag(playerId, 'qicVpGate', true)) {
@@ -4837,7 +4901,7 @@ export class BotLogic {
                         } else {
                             score = 320; // QIC 기술 타일: 매우 강력
                         }
-                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                        action = shipQicAction(shipId, i, 2);
                     } else if (i === 1) {
                         score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
@@ -4849,7 +4913,7 @@ export class BotLogic {
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_eclipse') {
-                    if (i === 1 && (player.qic || 0) >= 2) {
+                    if (i === 1 && effShipQic >= 2) {
                         // Eclipse 1 = (행성유형수 + 2) VP. [flag: qicVpGate] 실제 VP로 평가: ≥6 또는 R6일 때만 적극,
                         // 아니면 거의 비활성(초반 QIC는 확장에). 사용자 규칙.
                         if (getPlayerFlag(playerId, 'qicVpGate', true)) {
@@ -4860,7 +4924,7 @@ export class BotLogic {
                         } else {
                             score = 300; // QIC 기술/연방
                         }
-                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                        action = shipQicAction(shipId, i, 2);
                     } else if (i === 1) {
                         score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
