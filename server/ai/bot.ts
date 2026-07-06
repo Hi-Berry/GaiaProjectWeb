@@ -296,6 +296,30 @@ export class BotLogic {
         return false;
     }
 
+    /** [shipActionDiag] 계측: 우주선 액션별 자원 병목 사유. 'ELIG'(자원·타깃 충족) 또는 'BLK:<자원>'. */
+    private static shipActionStatus(game: ServerGameState, playerId: string, shipType: string, i: number): string {
+        const p = game.players[playerId]; if (!p) return '?';
+        const q = p.qic ?? 0, o = p.ore ?? 0, k = p.knowledge ?? 0, c = p.credits ?? 0, p3 = p.power3 ?? 0, gf = p.gaiaformers ?? 0;
+        if (shipType === 'ship_twilight') {
+            if (i === 1) return q >= 3 ? 'ELIG' : 'qic3';
+            if (i === 2) { if (!game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) return 'noTS'; if (o < 2) return 'ore2'; if (p3 < 3) return 'pw3'; return 'ELIG'; }
+            if (i === 3) return k >= 1 ? 'ELIG' : 'know1';
+        } else if (shipType === 'ship_rebellion') {
+            if (i === 1) return q >= 3 ? 'ELIG' : 'qic3';
+            if (i === 2) { if (!game.map.some(t => t.ownerId === playerId && t.structure === 'mine')) return 'noMine'; if (o < 1) return 'ore1'; if (p3 < 3) return 'pw3'; return 'ELIG'; }
+            if (i === 3) return k >= 2 ? 'ELIG' : 'know2';
+        } else if (shipType === 'ship_tf_mars') {
+            if (i === 1) return q >= 2 ? 'ELIG' : 'qic2';
+            if (i === 2) { if (p3 < 2) return 'pw2'; if (gf <= 0) return 'noGaiaformer'; if (this.findGaiaformerActions(game, playerId).length === 0) return 'noGfTarget'; return 'ELIG'; }
+            if (i === 3) return c >= 3 ? 'ELIG' : 'cred3';
+        } else if (shipType === 'ship_eclipse') {
+            if (i === 1) return q >= 2 ? 'ELIG' : 'qic2';
+            if (i === 2) { if (k < 2) return 'know2'; if (p3 < 3) return 'pw3'; return 'ELIG'; }
+            if (i === 3) { if (c < 6) return 'cred6'; if (peekEclipseAsteroidMineTileIds(game, playerId).length === 0) return 'noAsteroid'; return 'ELIG'; }
+        }
+        return '?';
+    }
+
     static async performAction(io: SocketIOServer, game: ServerGameState, action: BotAction, playerId: string): Promise<boolean> {
         const nested = (action as any).preActions as BotAction[] | undefined;
         if (nested?.length) {
@@ -4683,6 +4707,23 @@ export class BotLogic {
         const round = game.roundNumber;
 
         const candidates: { action: BotAction; score: number }[] = [];
+
+        // [flag: shipActionDiag] 계측(기본 OFF, 순수 로깅): 입장한 우주선의 안 쓴 각 액션이 자원충족(ELIG)인지
+        //   자원부족 탈락(BLK:<자원>)인지 게임파일 로그. 실사용(저널)과 대조해 '자원부족' vs '있는데 미선택' 판별.
+        if (getPlayerFlag(playerId, 'shipActionDiag', false) && !game.simulation) {
+            const parts: string[] = [];
+            for (const shipId of entered) {
+                const st = game.spaceships?.[shipId]; const tl = game.map.find(t => t.id === shipId);
+                if (!st || !tl) continue;
+                const used = st.usedActionIndices || [];
+                for (let i = 1; i <= 3; i++) {
+                    if (used.includes(i)) continue;
+                    const s = this.shipActionStatus(game, playerId, tl.type || '', i);
+                    parts.push(`${(tl.type || '').replace('ship_', '')}#${i}=${s}`);
+                }
+            }
+            if (parts.length) log(`[SHIPDIAG] R${round} ${playerId} ${parts.join(' ')}`, 'shipdiag', game.id);
+        }
 
         for (const shipId of entered) {
             const shipTile = game.map.find(t => t.id === shipId);
