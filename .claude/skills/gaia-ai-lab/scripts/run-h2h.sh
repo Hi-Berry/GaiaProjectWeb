@@ -24,10 +24,21 @@ FORCE_FACTION="${5:-}"
 echo "$FLAGS" > server/ai/challenger.flags.json
 echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS${FORCE_FACTION:+ | forceFaction=$FORCE_FACTION}"
 
-# 좀비(이전에 중단된 head2head 워커) 정리 — 개발서버(watch)/Cursor는 보존
-if command -v powershell.exe >/dev/null 2>&1; then
-  powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { \$_.CommandLine -like '*GaiaProjectWeb*' -and \$_.CommandLine -like '*server/index.ts*' -and \$_.CommandLine -notlike '*watch*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" >/dev/null 2>&1 || true
-fi
+# 좀비(중단된 head2head 워커 서버) 정리 — 개발서버(watch)/Cursor는 보존.
+# Windows: 각 워커는 cmd.exe→node.exe(게임서버) 트리라 proc.kill()로 안 죽어 고아로 남음.
+kill_h2h_workers() {
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { \$_.CommandLine -like '*GaiaProjectWeb*' -and \$_.CommandLine -like '*server/index.ts*' -and \$_.CommandLine -notlike '*watch*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" >/dev/null 2>&1 || true
+  fi
+}
+
+# 시작 전 정리(이전 런 누수분)
+kill_h2h_workers
+
+# ★중단(INT/TERM) 시에도 워커 정리 — TaskStop이 시그널을 graceful하게 전달하면 여기서 청소돼 좀비 누적 방지.
+# (정상 완주는 headToHead의 shutdownWorkers가 처리하므로 트랩은 중단에만 걸어 동시 실행 런을 안 건드림.
+#  단 TaskStop이 하드킬(SIGKILL)이면 트랩도 못 돎 → 그땐 다음 런의 시작-정리가 잡음.)
+trap 'echo "[run-h2h] interrupted — cleaning workers"; kill_h2h_workers; exit 130' INT TERM
 
 # 가중치 격리: 챌린저도 챔피언 가중치 사용 → 플래그만 비교 (weightsDiffer=false 확인할 것)
 AI_CHALLENGER_WEIGHTS=server/ai/aiWeights.json \
