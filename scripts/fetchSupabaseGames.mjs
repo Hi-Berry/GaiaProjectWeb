@@ -24,6 +24,12 @@ const headers = {
 
 const PAGE = 500;
 
+// [제외] 봇 hang/강제스킵 버그로 오염된 게임 — 연구·학습에 쓰면 안 됨(봇이 중반부터 소멸해 정상 플레이 아님).
+// data/excluded-games/ 에 사유와 함께 보관. 여기 gameId를 넣으면 재다운로드 시에도 스킵된다.
+const EXCLUDED_GAME_IDS = new Set([
+  'na0vujw3', // 2026-07-06: 워치독 income-대기 오발로 봇2명(HH R3·bescods R4) 강제스킵→소멸, R4+ 봇 전멸. 버그샘플.
+]);
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   let offset = 0;
@@ -48,6 +54,7 @@ async function main() {
       const gameId = row.game_id || payload?.gameId || `unknown-${total}`;
       const completed = row.completed_at || payload?.completedAt || '';
       const datePart = String(completed).slice(0, 10) || 'nodate';
+      if (EXCLUDED_GAME_IDS.has(gameId)) { skipped++; continue; } // 버그오염 게임 — 연구 데이터에서 영구 제외
       const file = path.join(OUT_DIR, `${datePart}_${gameId}.json`);
       if (fs.existsSync(file)) { skipped++; continue; }
       fs.writeFileSync(file, JSON.stringify(payload, null, 2));
