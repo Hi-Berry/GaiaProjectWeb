@@ -169,7 +169,21 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         //   라운드 시작의 첫 봇을 income 대기(실측 24초)만으로 20초 초과 판정해 즉시 강제스킵한다
         //   (→ 그 봇이 turnOrder에서 소멸=봇 증발 사고의 방아쇠였음). 해당 서브페이즈에선 타이머를 리셋해
         //   '봇의 실제 메인턴이 시작된 뒤'부터만 20초를 센다. (봇 income은 즉시 자동처리라 여기서 hang 안 됨.)
-        if (game.pendingIncomeOrder || (game as any).pendingBonusSelection || game.currentPhase === 'bonusSelection') {
+        // [hang수정 2026-07-07 사용자 가설 적중] income뿐 아니라 '사람이 잡고 있는 모든 pending'(아이타 교환,
+        // 기술타일 선택, 테란의회, 연방보상 등) 대기도 정당한 대기다. 라운드 전환 직후엔 currentPlayerIndex가
+        // 이전 라운드 잔재(봇)를 가리킬 수 있어, 사람이 아이타 타일을 20초+ 고민하면 그 봇을 forceSkip
+        // → 봇이 라운드 통째로 패스(조용한 VP 손실). 사람 pending 활성 중엔 타이머 리셋.
+        const humanHeldPending = [
+            game.pendingItarsGaiaformerExchange?.playerId, game.pendingTechTileSelection?.playerId,
+            game.pendingTerranCouncilBenefit?.playerId, game.pendingTinkeroidSpecialChoice?.playerId,
+            game.pendingEclipseResearch?.playerId, game.pendingFederationReward?.playerId,
+            game.pendingSpaceshipFedMine?.playerId, game.pendingLostPlanet?.playerId,
+            game.pendingAdvancedTechCover?.playerId, game.pendingAdvancedTechTrackAdvance?.playerId,
+            game.pendingEclipseAsteroidMine?.playerId, game.pendingShipTechTrackAdvance?.playerId,
+            game.pendingShipTechMine?.playerId, (game as any).pendingTFMarsGaiaProject?.playerId,
+        ].some(pid => pid && !(game.botPlayerIds ?? []).includes(pid))
+            || (game.pendingPowerOffers ?? []).some(o => !o.responded && !(game.botPlayerIds ?? []).includes(o.targetPlayerId));
+        if (game.pendingIncomeOrder || (game as any).pendingBonusSelection || game.currentPhase === 'bonusSelection' || humanHeldPending) {
             g._botWallFpr = null;
             g._botWallFprTs = Date.now();
         } else {
