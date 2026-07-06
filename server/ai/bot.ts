@@ -189,7 +189,7 @@ export class BotLogic {
         const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
         if (qicToUse < neededQIC) return false;
         // [flag: balTakShipQic] 발타크는 입장 거리 QIC도 포머→QIC 프리액션으로 충당 가능(PI 전 Nav 불가라 점프 의존)
-        const entryQicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false))
+        const entryQicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true))
             ? this.getAvailableQic(player) : (player.qic || 0);
         if (entryQicAvail < qicToUse) return false;
 
@@ -222,7 +222,7 @@ export class BotLogic {
         // [flag: balTakShipQic] 발타크는 미사용 포머→QIC 프리액션(bal_tak_gaiaformer_to_qic)으로 QIC 액션을
         // 지불 가능(사용자 지적: 포머→QIC→리벨리온 3정큐가 봇 후보에 없었음). 유효 QIC = 지갑 + 미사용 포머.
         // 실행 시엔 findSpaceshipActions가 부족분만큼 변환 preActions를 붙여 지갑을 먼저 채움.
-        const qicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false))
+        const qicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true))
             ? this.getAvailableQic(player) : (player.qic ?? 0);
 
         // --- Twilight ---
@@ -1566,7 +1566,7 @@ export class BotLogic {
         // 그대로 남아 총 액션 집합은 불변(순서만 교정). 가드: ①상대 구조물이 3헥스 내면 경쟁 취급(제외 안 함)
         // ②자원이 넉넉해(가이아 건설 2회분) 뒤로 미뤄도 못 짓게 될 위험이 없을 때만 ③패스 후보가 있는 턴(라운드
         // 꼬리)엔 미루지 않고 다 함.
-        if (getPlayerFlag(playerId, 'deferSafeBuild', false)
+        if (getPlayerFlag(playerId, 'deferSafeBuild', true)
             && !uniqueCandidates.some(c => c.type === 'pass_round')
             && uniqueCandidates.some(c => c.type === 'use_power_action')
             && (player.qic ?? 0) >= 2 && (player.ore ?? 0) >= 2 && (player.credits ?? 0) >= 5) {
@@ -4656,7 +4656,7 @@ export class BotLogic {
             const minDist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQic = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
             // [flag: balTakShipQic] 발타크 입장 거리 QIC를 포머 변환으로 충당(부족분 preActions는 아래 act에서)
-            const balTakEntry = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false);
+            const balTakEntry = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true);
             if (neededQic > (balTakEntry ? this.getAvailableQic(player) : qic)) continue;
 
             // 기존 200(의회급)은 명시적 과보정이라 봇이 우주선에 과탑승 → 확장(광산) 메인액션 잠식
@@ -4738,7 +4738,7 @@ export class BotLogic {
             const entryCharge = (myIdx === 2 || myIdx === 3) ? 2 : (myIdx === 4 ? 3 : 0);
             const entryDrain = ['itars', 'nevlas'].includes(player.faction || '') ? [] : this.chargeDrainPreActions(playerId, player, entryCharge);
             // [flag: balTakShipQic] 지갑 부족분은 포머→QIC 변환을 먼저 실행(서버 executeEnterSpaceship은 지갑만 차감)
-            const balTakEntryPres = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false))
+            const balTakEntryPres = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true))
                 ? this.balTakGaiaformerPreActionsForQicShortfall(player, qic, neededQic) : [];
             const entryPres = [...balTakEntryPres, ...entryDrain];
             const act: BotAction = entryPres.length
@@ -4785,7 +4785,7 @@ export class BotLogic {
 
         // [flag: balTakShipQic] 발타크 유효 QIC = 지갑 + 미사용 포머(무료 변환) — QIC 우주선 액션(리벨리온
         // 3정큐=기술타일 등)을 포머 변환으로 지불하는 콤보가 후보에 없던 갭(사용자 지적). 부족분만 변환 preActions.
-        const balTakShip = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', false);
+        const balTakShip = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true);
         const effShipQic = balTakShip ? this.getAvailableQic(player) : (player.qic || 0);
         const shipQicAction = (shipId: string, i: number, qicCost: number): BotAction => {
             const pres = balTakShip ? this.balTakGaiaformerPreActionsForQicShortfall(player, player.qic || 0, qicCost) : [];
