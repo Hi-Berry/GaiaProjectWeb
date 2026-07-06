@@ -5269,24 +5269,60 @@ export class BotLogic {
 
     private static calculateFinalMissionBonus(game: ServerGameState, playerId: string, tile: HexTile, structure?: string): number {
         let totalBonus = 0;
-        const missions = game.finalScoringTiles || [];
         const player = game.players[playerId];
 
         const myTiles = game.map.filter(t => t.ownerId === playerId || t.parasiticMine?.ownerId === playerId);
         const myTypes = new Set(myTiles.map(t => t.type).filter(t => t));
 
-        for (const missionTile of missions) {
-            switch (missionTile.id) {
+        // [flag: finalMissionFix] ★버그수정: 이 함수가 game.finalScoringTiles(셋업 더미 {id:'fs1'/'fs2'})를 읽어
+        // fm_* switch가 영영 매칭 안 됨 = 13개 빌드후보 스코어링의 최종미션 정렬이 죽은 코드였음(evaluator는 별도로
+        // 올바른 game.finalMissionIds를 씀). 실게임 1:3(fy42d29p·9a5dmht7) 봇 최종미션 0점의 직접 원인.
+        // → 실제 미션 id(finalMissionIds)를 읽고, 부활 시 드러나는 누락 case(연방건물·외곽섹터·PI아카거리)도 보강.
+        const useFix = getPlayerFlag(playerId, 'finalMissionFix', true);
+        const missionIds: string[] = useFix
+            ? ((game.finalMissionIds as string[]) || [])
+            : ((game.finalScoringTiles || []).map(m => m.id));
+
+        for (const missionId of missionIds) {
+            switch (missionId) {
                 case 'fm_total_structures': totalBonus += 5; break;
                 case 'fm_planet_types':
                     if (tile.type && !myTypes.has(tile.type)) totalBonus += 35;
                     break;
-                case 'fm_gaia_planets': if (tile.type === 'gaia') totalBonus += 20; break;
-                case 'fm_sectors':
-                    const mySectors = new Set(game.map.filter(t => t.ownerId === playerId).map(t => t.sector));
+                case 'fm_gaia_planets': if (tile.type === 'gaia' || tile.type === 'transdim') totalBonus += 20; break;
+                case 'fm_sectors': {
+                    const mySectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship').map(t => t.sector));
                     if (!mySectors.has(tile.sector)) totalBonus += 25;
                     break;
+                }
+                case 'fm_outer_sectors': {
+                    // 외곽 섹터(11~18)만 카운트. 새 외곽 섹터 진입이면 우대.
+                    if (typeof tile.sector === 'number' && tile.sector >= 11 && tile.sector <= 18) {
+                        const myOuter = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector >= 11 && t.sector <= 18).map(t => t.sector));
+                        if (!myOuter.has(tile.sector)) totalBonus += 25;
+                    }
+                    break;
+                }
                 case 'fm_asteroid_buildings': if (tile.type === 'asteroid') totalBonus += 20; break;
+                case 'fm_federation_buildings': {
+                    // 연방 내 건물 최다 — 정확한 예측은 어려우나, 내 클러스터(dist≤1 내건물)에 붙는 빌드는
+                    // 연방에 포함될 확률↑. 과한 군집 유도 방지 위해 modest.
+                    const adjOwn = game.map.some(t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && getDistance(t, tile) === 1);
+                    if (adjOwn) totalBonus += 12;
+                    break;
+                }
+                case 'fm_pi_academy_distance': {
+                    // PI-아카데미 최대거리 보상. PI/아카를 지을 때 반대짝 건물에서 멀수록 우대.
+                    if (structure === 'planetary_institute') {
+                        const acs = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy');
+                        if (acs.length) totalBonus += Math.max(...acs.map(a => getDistance(a, tile))) * 5;
+                    } else if (structure === 'academy') {
+                        const pis = game.map.filter(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                        if (pis.length) totalBonus += Math.max(...pis.map(p => getDistance(p, tile))) * 5;
+                    }
+                    break;
+                }
+                // fm_satellites: 위성은 연방 형성의 산물(빌드 액션이 직접 만들지 않음) → per-build 가점 없음.
             }
         }
         const isPlanetTechAvailable = (game.techTilesPool || []).some(t => t?.id === 'tech-imm-1k-planet');

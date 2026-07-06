@@ -736,3 +736,11 @@
 - 2만 시드: 승자 입장 2.32회/우주선VP 7.9/순VP −3.7 vs 패자 2.05회/4.8/−5.5. VP0 공치기 시드 승34% vs 패48%.
 - usedActionBy 기준 "죽은입장(액션 0회)"은 승62%/패64%로 **대칭 = 승패 무판별**. 단 usedActionBy가 Rebellion류 무제한 액션·shipTech·ship연방보상을 안 잡는 것으로 의심(계측 불완전) → 신뢰 불가.
 - 결론: 입장 억제는 위험(승자가 더 많이 입장, 사람 QIC 46%가 우주선액션). 유효 레버가 있다면 "입장 후 수익화"인데 이는 R6과 같은 엔진질 하류 가능성. 진행하려면 먼저 usedActionBy+shipTechByShip+spaceshipFederationByShip+gameLog 통합 계측부터.
+
+## 2026-07-06 ★버그수정+채택(ON): finalMissionFix — 최종미션 정렬이 죽은 필드였음
+- **동기**: 새 1:3 로그 2판(fy42d29p·9a5dmht7) 분석 — 6봇 좌석 중 2곳이 **최종미션 0점**(xenos·bescods), 나머지도 15~21 vs 사람 36. 승자판별 미션 1.26×인데 봇이 통째로 버림.
+- **근본원인(버그)**: `bot.ts calculateFinalMissionBonus`가 `game.finalScoringTiles`를 읽는데, 이 필드는 셋업 시 더미 `[{id:'fs1'},{id:'fs2'}]`로 초기화되고 **실제 미션으로 갱신 안 됨**(실제 미션은 `game.finalMissionIds`). → `fm_*` switch가 영영 매칭 안 됨 = **빌드후보 스코어링 13곳의 최종미션 정렬이 죽은 코드**. evaluator(evaluator.ts:838)는 별도로 올바른 `finalMissionIds`+`getFinalMissionVp`를 써서 부분 보완하고 있었음(그래서 완전 0은 아니었음).
+- **수정**: `finalMissionIds`를 읽도록 교정 + 부활 시 드러난 누락 case 보강 — `fm_federation_buildings`(내 클러스터 인접 빌드 +12, 과군집 방지 modest)·`fm_outer_sectors`(새 외곽섹터 +25)·`fm_pi_academy_distance`(PI/아카 배치 시 반대짝과 거리×5)·`fm_gaia_planets`에 transdim 포함(서버 채점 일치). `fm_satellites`는 빌드가 직접 안 만들어 제외.
+- **자매버그 확인**: `roundScoringTiles`는 서버가 제대로 채움(gameState.ts:5004) → 라운드미션 스코어링 정상. `finalScoringTiles`가 봇이 읽던 유일한 죽은 필드.
+- **측정(40판, 가중치격리)**: VP +3.27(78.3→81.5) 승률 57.5%(p=0.307 유의성미달). 행동 의도방향: 연방 +0.14·총행동 +1.42·광산 +0.42·가이아광산 +0.36·우주선액션 +0.16·**PI평균R −0.57(조기화)**. 연구진행 −0.13(미미).
+- **판정: ✅ 채택(기본ON)** — 실제 버그 수정 + 음수 아님 + 행동 일관 양성(더 큰/더 연방적인 엔진). ★주의: +3.27은 첫 40판이라 winner's curse 가능(4~5회 실증)→순효과 do-no-harm~약양성으로 볼 것. 진짜 판정 = 다음 1:3에서 봇 최종미션 0점 재발 여부. 확인 120판은 여력될 때.
