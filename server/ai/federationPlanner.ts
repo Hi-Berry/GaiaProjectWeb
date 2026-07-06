@@ -133,7 +133,17 @@ export class FederationPlanner {
             } else {
                 satCost = sats * satellitePenalty;
             }
-            const score = rewardScore - satCost;
+            // [flag: fedPreferUpgradeSelfClose] 사용자 관찰(2026-07-06, 4+1+2 예시): 봇이 위성으로 뻗어
+            //   '자체로 연방 씨앗이 될 별도 클러스터'까지 삼켜 거대 연방 1개를 만들면, 위성 낭비 + 미래 연방 소진
+            //   (봇 1~2연방 vs 사람 5). 위성 브리지 연방이 자립가능 씨앗(단독 ≥요구−2 파워, 즉 그 자리 업글로
+            //   self-close 가능)을 병합할 때만 페널티 → 그 클러스터는 남겨 따로 연방(+기존 R4+ 업글넛지가 닫음).
+            //   ★블런트 위성캡(fedSatHumanCap −2.99) 아님: '연방 억제'가 아니라 '자립클러스터 삼킴'만 판별.
+            let cannibalPenalty = 0;
+            if (getPlayerFlag(playerId, 'fedPreferUpgradeSelfClose', false) && result.selectedHexIds.length > 0) {
+                const seeds = this.cannibalizedSeedCount(game, playerId, result.selectedPlanetIds, requiredPower);
+                cannibalPenalty = seeds * 140;
+            }
+            const score = rewardScore - satCost - cannibalPenalty;
             results.push({ ...result, score });
         }
 
@@ -293,6 +303,31 @@ export class FederationPlanner {
             selected.add(bestId);
         }
         return selected;
+    }
+
+    /** [fedPreferUpgradeSelfClose] 선택된 연방 건물들을 위성 없이(행성 인접만) 자연 클러스터로 분할해,
+     *  1등(주 클러스터) 외에 '단독 ≥요구−2 파워'인 자립가능 씨앗 클러스터가 몇 개나 삼켜졌는지 센다. */
+    private static cannibalizedSeedCount(
+        game: ServerGameState, playerId: string,
+        selectedPlanetIds: string[], requiredPower: number
+    ): number {
+        const remaining = new Set(selectedPlanetIds);
+        const clusters: Set<string>[] = [];
+        for (const id of selectedPlanetIds) {
+            if (!remaining.has(id)) continue;
+            const comp = getPlanetConnectedComponent(game, playerId, id); // 위성 아닌 행성 인접 연결성분
+            const compSet = new Set<string>();
+            comp.forEach((cid: string) => { if (remaining.has(cid)) { compSet.add(cid); remaining.delete(cid); } });
+            remaining.delete(id);
+            if (compSet.size > 0) clusters.push(compSet);
+        }
+        if (clusters.length <= 1) return 0;
+        clusters.sort((a, b) => b.size - a.size); // 최대 = 주 클러스터(유지)
+        let seeds = 0;
+        for (let i = 1; i < clusters.length; i++) {
+            if (getFederationBuildingPower(game, playerId, clusters[i]) >= requiredPower - 2) seeds++;
+        }
+        return seeds;
     }
 
     private static tryFormFederationFrom(

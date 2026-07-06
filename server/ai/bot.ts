@@ -2013,8 +2013,22 @@ export class BotLogic {
             const tgt = (c.action.params as any)?.target;
             return tgt === 'research_lab' || tgt === 'planetary_institute';
         };
+        // [flag: fedEngineUpgOutside] 사용자 관찰(2026-07-06 "여전히 연방 내부 티어업이 많다"): noFedTierUp이 엔진업글
+        //   (연구소/PI)은 연방건물이어도 '항상' 통과시켜, MCTS가 −450 점수를 무시하고 연방 안 TS를 연구소/PI로 올림.
+        //   전면차단은 −3.56 기각(TS→랩 엔진까지 막음)이므로, 엔진업글 자체는 유지하되 '같은 타깃의 비연방 대안이 있으면'
+        //   연방 안 업글만 후보에서 뺀다 = 엔진은 연방 밖 건물에 올려 그 파워증가가 다음 연방 씨앗이 되게(fedMinTrim 정합).
+        //   비연방 대안이 없으면(전부 연방) 기존대로 허용(엔진 못 올리는 −3.56 실패 회피).
+        const upTarget = (c: ScoredUpgrade) => (c.action.params as any)?.target;
+        const hasNonFedSameTarget = (c: ScoredUpgrade) =>
+            candidates.some(o => !o.isFederated && upTarget(o) === upTarget(c));
         const filtered = getPlayerFlag(playerId, 'noFedTierUp', true)
-            ? candidates.filter(c => !c.isFederated || isEngineUpgrade(c))
+            ? candidates.filter(c => {
+                if (!c.isFederated) return true;
+                if (!isEngineUpgrade(c)) return false;
+                // 연방 엔진업글: 같은 타깃의 비연방 대안이 있으면 제외(그쪽에 올려라)
+                if (getPlayerFlag(playerId, 'fedEngineUpgOutside', true) && hasNonFedSameTarget(c)) return false;
+                return true;
+              })
             : (hasNonFederated ? candidates.filter(c => !c.isFederated) : candidates);
 
         filtered.sort((a, b) => b.score - a.score);
@@ -4958,24 +4972,37 @@ export class BotLogic {
             score += game.roundNumber <= 4 ? 180 : 50;
         } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
             score += 150;
-        } else if (artifactId === 'art-vp-planet-types') {
-            const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
-            const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
-            if (player.virtualMineAsteroid) types.add('asteroid');
-            if (player.virtualMineProto) types.add('proto');
-            score += (3 + types.size) * (game.roundNumber >= 5 ? 24 : 12);
-        } else if (artifactId === 'art-vp-bridge') {
-            const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
-            const count = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure)).length;
-            score += count * 3 * (game.roundNumber >= 5 ? 24 : 12);
-        } else if (artifactId === 'art-vp-gaia') {
-            score += ((player.research?.gaiaProject ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
-        } else if (artifactId === 'art-vp-science') {
-            score += ((player.research?.science ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
-        } else if (artifactId === 'art-vp-tracks3') {
-            const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
-                .filter(t => (player.research?.[t] ?? 0) >= 3).length;
-            score += (tracks * 3) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-planet-types' || artifactId === 'art-vp-bridge'
+            || artifactId === 'art-vp-gaia' || artifactId === 'art-vp-science' || artifactId === 'art-vp-tracks3') {
+            // 스케일-VP 인공물: 실제 VP를 먼저 계산
+            let rawVp = 0;
+            if (artifactId === 'art-vp-planet-types') {
+                const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+                const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
+                if (player.virtualMineAsteroid) types.add('asteroid');
+                if (player.virtualMineProto) types.add('proto');
+                rawVp = 3 + types.size;
+            } else if (artifactId === 'art-vp-bridge') {
+                const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
+                rawVp = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure)).length * 3;
+            } else if (artifactId === 'art-vp-gaia') {
+                rawVp = (player.research?.gaiaProject ?? 0) * 3;
+            } else if (artifactId === 'art-vp-science') {
+                rawVp = (player.research?.science ?? 0) * 3;
+            } else { // art-vp-tracks3
+                rawVp = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
+                    .filter(t => (player.research?.[t] ?? 0) >= 3).length * 3;
+            }
+            const mult = game.roundNumber >= 5 ? 24 : 12;
+            // [flag: artifactVpTiming] 사람 실측(55게임): 스케일-VP 인공물은 R1-3 취득 0건, R4-5 VP중앙값 9-12,
+            //   저VP(<6)는 R6 엔드게임 줍기만. 봇은 R2에 트랙1개(3VP)를 6파워(bowl3 실탄)로 먹어 손해(사용자 관찰).
+            //   6파워 기회비용 > 저VP라 사람 타이밍(R4+·9VP+)에 정렬. 플래그 OFF면 기존과 완전 동일.
+            const r = game.roundNumber ?? 1;
+            if (getPlayerFlag(playerId, 'artifactVpTiming', false) && (r <= 3 || (r <= 5 && rawVp < 9))) {
+                score = 10; // 게이트(>80) 미달 → 초반/저VP 스케일 인공물 취득 안 함(다른 인공물/행동으로)
+            } else {
+                score += rawVp * mult;
+            }
         }
 
         return score;
