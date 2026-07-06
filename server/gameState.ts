@@ -1220,7 +1220,14 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 	if (game.currentPhase === 'gameEnd') return;
 	const player = game.players[playerId];
 	log(`forceSkipStuckBotTurn: skipping ${player?.name ?? playerId} (${reason})`, 'error', game.id);
-	if (player) player.hasPassed = true; // 이 라운드 동안만 스킵 (다음 라운드에 hasPassed 리셋되어 복귀)
+	if (player) {
+		player.hasPassed = true; // 이 라운드 동안만 스킵 (다음 라운드에 hasPassed 리셋되어 복귀)
+		// ★[버그수정 2026-07-06 na0vujw3] passingOrder에도 넣어야 라운드 전환(turnOrder=passingOrder, 7097행)에서
+		//   강제스킵된 봇이 turnOrder에서 탈락하지 않는다. 안 넣으면 봇이 "패스하다 사라짐"(hang→스킵→다음 라운드
+		//   turnOrder에서 소멸, 게임이 남은 사람만으로 조기종료). 위 주석의 '복귀' 가정이 실제로 성립하려면 필수.
+		if (!game.passingOrder) game.passingOrder = [];
+		if (!game.passingOrder.includes(playerId)) game.passingOrder.push(playerId);
+	}
 	// [hang수정 2026-07-04] 스킵당한 플레이어의 미해결 pending을 청소 — 안 지우면 스킵 후에도 후속 턴이
 	// pendingShipTechMine/hasDoneMainAction에 막혀 hang 지속(관측: uk3aybql 무한 "must complete pending build" 루프).
 	if (game.pendingShipTechMine?.playerId === playerId) game.pendingShipTechMine = null;
@@ -7094,7 +7101,14 @@ export function executePassRound(
 				});
 			}
 
-			game.turnOrder = [...game.passingOrder];
+			// ★[방어 2026-07-06] turnOrder = passingOrder는 passingOrder에 없는 플레이어를 게임에서 탈락시킨다.
+			//   어떤 경로로든(강제스킵·예외 등) hasPassed는 됐는데 passingOrder에 안 든 플레이어가 있으면 뒤에 보존 —
+			//   절대 플레이어를 turnOrder에서 소멸시키지 않는다(na0vujw3 봇 소멸 사고 방어망).
+			const missingFromPassing = game.turnOrder.filter(id => !game.passingOrder.includes(id));
+			if (missingFromPassing.length > 0) {
+				log(`[turnOrder guard] preserving ${missingFromPassing.length} player(s) missing from passingOrder: ${missingFromPassing.join(',')}`, 'error', game.id);
+			}
+			game.turnOrder = [...game.passingOrder, ...missingFromPassing];
 			game.passingOrder = [];
 			game.currentPlayerIndex = 0;
 
