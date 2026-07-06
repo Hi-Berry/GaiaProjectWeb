@@ -612,6 +612,17 @@ export class Evaluator {
             rw.gaiaProject = 16;              // 12→16 (행성다양성)
             rw.artificialIntelligence = 13;   // 10→13 (QIC)
         }
+        // [flag: qicEngineValue] shipActionDiag 확정(2026-07-06): 우주선 최강액션(#1 연방보상/기술타일/행성VP)이
+        //   QIC부족으로 74~94% 탈락 = QIC 기아가 근본원인. AI트랙은 QIC 즉시부여(L1+1·L2+1·L3+2·L4+2=L4까지 6QIC)인데
+        //   평가기 weight 10(최저권)이라 봇이 투자 안 함. ★aiTrackQicEngine(후보점수)은 무시됐으나 이건 평가기 term(유효 route).
+        //   ★사람 타이밍(55게임 177전진): AI투자 91%가 R4+, L1첫진입 중앙 R5·기술6·연방3. 초반(R≤3, 사람 9%)엔
+        //   확장연구 우선이라 부스트 안 함(flat R1부스트는 확장을 뺏음 — 사용자 교정). R4+·연방 갖춘 뒤 사람처럼 QIC엔진 투자.
+        if (getPlayerFlag(playerId, 'qicEngineValue', false)) {
+            const fedCount = getFederationEntries(player).length;
+            if (round >= 5) rw.artificialIntelligence = 22;              // R5-6: 사람 AI투자 집중 구간(52+85회)
+            else if (round === 4 && fedCount >= 1) rw.artificialIntelligence = 18; // R4: 연방 갖춘 뒤만(사람 L1중앙 연방3)
+            // R≤3: 기본 10 유지(초반 확장연구 보호)
+        }
         let researchScore = 0;
         for (const [track, level] of Object.entries(player.research || {})) {
             const weight = rw[track] ?? 10;
