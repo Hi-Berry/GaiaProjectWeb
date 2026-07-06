@@ -478,7 +478,10 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             log(`Bot ${player.name} has no valid action, forcing pass to advance turn`, 'game');
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
             if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }
-            else ensureBotProgress(io, game, currentPlayerId, 'no-action pass failed'); // 멈추지 말고 재시도/스킵
+            // [hang수정 2026-07-06] 패스마저 실패 = 막는 pending이 있다는 뜻(재시도해도 동일). 60회 재시도(≈30초)나
+            //   20초 월클록을 기다리지 말고 즉시 forceSkip(모든 pending 청소 + hasPassed 직접설정 + passingOrder 보존)으로
+            //   깨끗이 넘긴다 — 사람이 봇 hang을 기다리지 않게. (사용자 지적: 사람 대전 중 봇은 절대 hang되면 안 됨)
+            else forceSkipStuckBotTurn(io, game, currentPlayerId, 'no-action pass failed → 즉시 안전스킵');
         }
         return;
     }
@@ -522,7 +525,8 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
             if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }
-            else ensureBotProgress(io, game, currentPlayerId, `action ${action.type} + pass failed`);
+            // [hang수정 2026-07-06] 액션+패스 둘 다 실패 = 막는 pending. 재시도 루프(≈30초 hang) 대신 즉시 안전스킵.
+            else forceSkipStuckBotTurn(io, game, currentPlayerId, `action ${action.type} + pass failed → 즉시 안전스킵`);
         } else {
             ensureBotProgress(io, game, currentPlayerId, `action ${action.type} failed, not main/passed`);
         }
