@@ -3459,7 +3459,12 @@ export class BotLogic {
                     return { space: s, dist, neededQic, adjOwn };
                 })
                 .filter(x => x.neededQic <= qic && x.adjOwn >= 1)
-                .sort((a, b) => (b.adjOwn - a.adjOwn) || (a.neededQic - b.neededQic) || (a.dist - b.dist));
+                // [flag: ivitsStationFreeFirst] 사용자 관찰: 모행성 옆 무료(QIC0) 자리가 있는데도 인접건물 더 많은
+                //   자리에 QIC 내고 이상한 위치에 놓음. 정렬 1순위를 '무료 우선(neededQic 오름차순)'으로 바꿔,
+                //   공짜로 연결되는 자리가 있으면 QIC 안 쓰고 거기(그중 인접건물 많은 순), 무료가 없을 때만 QIC 지불.
+                .sort((a, b) => getPlayerFlag(playerId, 'ivitsStationFreeFirst', true)
+                    ? ((a.neededQic - b.neededQic) || (b.adjOwn - a.adjOwn) || (a.dist - b.dist))
+                    : ((b.adjOwn - a.adjOwn) || (a.neededQic - b.neededQic) || (a.dist - b.dist)));
             if (fedReachable.length > 0) {
                 return { type: 'place_ivits_space_station', params: { tileId: fedReachable[0].space.id } };
             }
