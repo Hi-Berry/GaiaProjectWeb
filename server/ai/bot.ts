@@ -4972,37 +4972,24 @@ export class BotLogic {
             score += game.roundNumber <= 4 ? 180 : 50;
         } else if (artifactId === 'art-7vp-virtual-asteroid' || artifactId === 'art-7vp-virtual-proto') {
             score += 150;
-        } else if (artifactId === 'art-vp-planet-types' || artifactId === 'art-vp-bridge'
-            || artifactId === 'art-vp-gaia' || artifactId === 'art-vp-science' || artifactId === 'art-vp-tracks3') {
-            // 스케일-VP 인공물: 실제 VP를 먼저 계산
-            let rawVp = 0;
-            if (artifactId === 'art-vp-planet-types') {
-                const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
-                const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
-                if (player.virtualMineAsteroid) types.add('asteroid');
-                if (player.virtualMineProto) types.add('proto');
-                rawVp = 3 + types.size;
-            } else if (artifactId === 'art-vp-bridge') {
-                const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
-                rawVp = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure)).length * 3;
-            } else if (artifactId === 'art-vp-gaia') {
-                rawVp = (player.research?.gaiaProject ?? 0) * 3;
-            } else if (artifactId === 'art-vp-science') {
-                rawVp = (player.research?.science ?? 0) * 3;
-            } else { // art-vp-tracks3
-                rawVp = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
-                    .filter(t => (player.research?.[t] ?? 0) >= 3).length * 3;
-            }
-            const mult = game.roundNumber >= 5 ? 24 : 12;
-            // [flag: artifactVpTiming] 사람 실측(55게임): 스케일-VP 인공물은 R1-3 취득 0건, R4-5 VP중앙값 9-12,
-            //   저VP(<6)는 R6 엔드게임 줍기만. 봇은 R2에 트랙1개(3VP)를 6파워(bowl3 실탄)로 먹어 손해(사용자 관찰).
-            //   6파워 기회비용 > 저VP라 사람 타이밍(R4+·9VP+)에 정렬. 플래그 OFF면 기존과 완전 동일.
-            const r = game.roundNumber ?? 1;
-            if (getPlayerFlag(playerId, 'artifactVpTiming', false) && (r <= 3 || (r <= 5 && rawVp < 9))) {
-                score = 10; // 게이트(>80) 미달 → 초반/저VP 스케일 인공물 취득 안 함(다른 인공물/행동으로)
-            } else {
-                score += rawVp * mult;
-            }
+        } else if (artifactId === 'art-vp-planet-types') {
+            const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+            const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
+            if (player.virtualMineAsteroid) types.add('asteroid');
+            if (player.virtualMineProto) types.add('proto');
+            score += (3 + types.size) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-bridge') {
+            const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
+            const count = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure)).length;
+            score += count * 3 * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-gaia') {
+            score += ((player.research?.gaiaProject ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-science') {
+            score += ((player.research?.science ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
+        } else if (artifactId === 'art-vp-tracks3') {
+            const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
+                .filter(t => (player.research?.[t] ?? 0) >= 3).length;
+            score += (tracks * 3) * (game.roundNumber >= 5 ? 24 : 12);
         }
 
         return score;

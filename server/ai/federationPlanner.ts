@@ -139,7 +139,7 @@ export class FederationPlanner {
             //   self-close 가능)을 병합할 때만 페널티 → 그 클러스터는 남겨 따로 연방(+기존 R4+ 업글넛지가 닫음).
             //   ★블런트 위성캡(fedSatHumanCap −2.99) 아님: '연방 억제'가 아니라 '자립클러스터 삼킴'만 판별.
             let cannibalPenalty = 0;
-            if (getPlayerFlag(playerId, 'fedPreferUpgradeSelfClose', false) && result.selectedHexIds.length > 0) {
+            if (getPlayerFlag(playerId, 'fedPreferUpgradeSelfClose', true) && result.selectedHexIds.length > 0) {
                 const seeds = this.cannibalizedSeedCount(game, playerId, result.selectedPlanetIds, requiredPower);
                 cannibalPenalty = seeds * 140;
             }
