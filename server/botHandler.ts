@@ -151,17 +151,27 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
     // 20초간 무변화(=실제 진행 없음)면 무조건 강제 스킵. 정상 MCTS(≤6s)나 사람 턴(여기 도달 안 함)엔 무해.
     {
         const g = game as any;
-        const fpr = `${currentPlayerId}|${game.gameLog?.length ?? 0}|${game.roundNumber}|${game.currentPhase}|${game.hasDoneMainAction ? 1 : 0}`;
-        if (g._botWallFpr === fpr) {
-            if (Date.now() - (g._botWallFprTs ?? Date.now()) > 20000 && currentPlayerId) {
-                g._botWallFpr = null;
-                log(`wall-clock watchdog: no progress 20s → force skip (${fpr})`, 'error', game.id);
-                forceSkipStuckBotTurn(io, game, currentPlayerId, 'wall-clock watchdog 20s');
-                return;
-            }
-        } else {
-            g._botWallFpr = fpr;
+        // [hang수정 2026-07-06 na0vujw3 서버로그] income/보너스선택 대기는 봇 hang이 아니라 정당한 대기다
+        //   (특히 사람이 income을 천천히 고르거나 접속이 끊긴 동안). 이 시간을 봇 no-progress로 세면,
+        //   라운드 시작의 첫 봇을 income 대기(실측 24초)만으로 20초 초과 판정해 즉시 강제스킵한다
+        //   (→ 그 봇이 turnOrder에서 소멸=봇 증발 사고의 방아쇠였음). 해당 서브페이즈에선 타이머를 리셋해
+        //   '봇의 실제 메인턴이 시작된 뒤'부터만 20초를 센다. (봇 income은 즉시 자동처리라 여기서 hang 안 됨.)
+        if (game.pendingIncomeOrder || (game as any).pendingBonusSelection || game.currentPhase === 'bonusSelection') {
+            g._botWallFpr = null;
             g._botWallFprTs = Date.now();
+        } else {
+            const fpr = `${currentPlayerId}|${game.gameLog?.length ?? 0}|${game.roundNumber}|${game.currentPhase}|${game.hasDoneMainAction ? 1 : 0}`;
+            if (g._botWallFpr === fpr) {
+                if (Date.now() - (g._botWallFprTs ?? Date.now()) > 20000 && currentPlayerId) {
+                    g._botWallFpr = null;
+                    log(`wall-clock watchdog: no progress 20s → force skip (${fpr})`, 'error', game.id);
+                    forceSkipStuckBotTurn(io, game, currentPlayerId, 'wall-clock watchdog 20s');
+                    return;
+                }
+            } else {
+                g._botWallFpr = fpr;
+                g._botWallFprTs = Date.now();
+            }
         }
     }
 
