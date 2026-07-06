@@ -1875,6 +1875,13 @@ export class BotLogic {
                 const firaksLabLock = player.faction === 'firaks' && getPlayerFlag(playerId, 'firaksLabLock', true);
                 const firaksHasPI = firaksLabLock && myStructures.some(t => t.structure === 'planetary_institute');
                 if (firaksLabLock && !firaksHasPI && labCount >= 1) continue; // (1) PI 전 2번째 랩 락
+                // [flag: geodensPiFirst] 기오덴 PI = 새 행성유형 정착마다 +3K — PI 전에 새 유형에 지은 광산은 전부 손실.
+                // 그런데 첫 랩(360)이 PI(~140)를 압살해 순서가 거꾸로였음(사용자 관찰: "왜 자꾸 의회 안 짓고 연구소를 노려").
+                // PI를 지금 지불 가능(4O6C)하고 새 유형 2+ 도달 가능하면 이 턴 랩을 미룸(랩은 다음 턴 — 순서만 교정).
+                if (player.faction === 'geodens' && getPlayerFlag(playerId, 'geodensPiFirst', false)
+                    && round <= 4 && ore >= 4 && credits >= 6
+                    && !myStructures.some(t => t.structure === 'planetary_institute')
+                    && this.shouldGeodenBuildPI(game, playerId)) continue;
                 if (round <= 2) {
                     // 첫 연구소가 아니면 1~2라는 억제
                     if (!isFirstLab) continue;
@@ -1935,6 +1942,10 @@ export class BotLogic {
             // 실게임 부검(33점 참사): R4 전 hard continue로 PI 후보가 MCTS에 보이지도 않음(후보생성 갭)
             // → 광산 기반(3+)만 있으면 조기 허용. PI만 서면 hadschHallasConvert가 신용을 자원으로 순환.
             const hhPiReady = player.faction === 'hadsch_hallas' && getPlayerFlag(playerId, 'hhPiRush', true) && mineCount >= 3;
+            // [flag: geodensPiFirst] R≤2 광산<5 게이트가 earlyPiAllowed(점수)와 무관하게 기오덴 PI 후보를 차단하고
+            // 있었음 — 새 유형 2+ 도달 가능 + 광산 3+면 조기 PI 후보 허용(PI 전 새유형 광산 = 3K씩 손실).
+            const geodensPiReady = player.faction === 'geodens' && getPlayerFlag(playerId, 'geodensPiFirst', false)
+                && mineCount >= 3 && this.shouldGeodenBuildPI(game, playerId);
             for (const ts of tsList) {
                 // 기본 의회 점수 (초반에는 아카데미/연구소보다 낮게 설정하여 무분별한 의회 건설 방지)
                 let score = 30;
@@ -1972,8 +1983,8 @@ export class BotLogic {
                 // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
                 const firaksPiReady = faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true) && myStructures.some(t => t.structure === 'research_lab');
                 if (round === 1) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
