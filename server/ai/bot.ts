@@ -1946,6 +1946,11 @@ export class BotLogic {
             // 있었음 — 새 유형 2+ 도달 가능 + 광산 3+면 조기 PI 후보 허용(PI 전 새유형 광산 = 3K씩 손실).
             const geodensPiReady = player.faction === 'geodens' && getPlayerFlag(playerId, 'geodensPiFirst', false)
                 && mineCount >= 3 && this.shouldGeodenBuildPI(game, playerId);
+            // [flag: bescodsPiBeforeFed] 매안 PI = 파워값 4(5394) → PI 먼저 지으면 연방이 훨씬 쌈(PI4+TS2+광산1=7).
+            // 사람은 대부분 연방 전 PI(사용자). 실측 매안 봇 PI율 6%(전종족 최저) — R<4 게이트 + 랩(PI 소스) 희생
+            // 저평가가 원인. 랩 1+ & 광산 3+면 조기 후보 허용 → piBeforeFed(ON)가 연방을 자동으로 PI 뒤로 시퀀싱.
+            const bescodsPiReady = player.faction === 'bescods' && getPlayerFlag(playerId, 'bescodsPiBeforeFed', false)
+                && mineCount >= 3 && myStructures.some(t => t.structure === 'research_lab');
             for (const ts of tsList) {
                 // 기본 의회 점수 (초반에는 아카데미/연구소보다 낮게 설정하여 무분별한 의회 건설 방지)
                 let score = 30;
@@ -1973,6 +1978,9 @@ export class BotLogic {
                 } else if (hhPiReady) {
                     // HH: PI가 곧 경제 엔진 — 조기일수록 변환 라운드가 많이 남아 가치가 큼.
                     score += round <= 2 ? 80 : 60;
+                } else if (bescodsPiReady) {
+                    // 매안: PI(4파워) = 연방 인에이블러. 아직 연방 없으면 더 강하게.
+                    score += (round <= 2 ? 70 : 50) + (countGreenFederations(player) === 0 ? 30 : 0);
                 } else {
                     // 그 외 종족: 4라운드 이전에는 건설 기피, 4라운드부터 의회 고려
                     if (round < 4) score -= 30;
@@ -1983,8 +1991,8 @@ export class BotLogic {
                 // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
                 const firaksPiReady = faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true) && myStructures.some(t => t.structure === 'research_lab');
                 if (round === 1) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 

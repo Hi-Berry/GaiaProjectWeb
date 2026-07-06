@@ -543,6 +543,28 @@ export class Evaluator {
         structScore += piCount * w.structurePlanetaryInstitute * structMultiplier;
         structScore += academyCount * w.structureAcademy * structMultiplier;
 
+        // [flag: geodensPiValue] 기오덴 PI = 새 행성유형 정착마다 +3K 스트림인데 평가기가 몰라 첫랩(180+기술타일)이
+        // PI(220)를 항상 이겼음(geodensPiFirst 후보조작 기각의 근본원인 — PI건설 0.65→0.51 역효과). PI 보유 상태를
+        // '아직 안 가진 도달권 새 유형 수 × W'로 가산 — MCTS가 새 유형이 많이 남았을 때 PI를 자연 선호. 숫자 플래그(0=OFF).
+        const geoW = player.faction === 'geodens' ? getPlayerFlag(playerId, 'geodensPiValue', 0) : 0;
+        if (geoW > 0 && piCount >= 1 && remainingRounds >= 2) {
+            const myTypes = new Set(myStructures.filter(t => t.type && t.type !== 'space' && t.type !== 'deep_space').map(t => t.type));
+            const newTypes = new Set(game.map
+                .filter(t => !t.ownerId && !t.structure && t.type
+                    && t.type !== 'space' && t.type !== 'deep_space' && t.type !== 'transdim'
+                    && !t.type.startsWith('ship_') && !myTypes.has(t.type))
+                .map(t => t.type)).size;
+            structScore += Math.min(newTypes, 5) * geoW;
+        }
+
+        // [flag: bescodsPiValue] 매안 PI = 파워값 4(일반 3) → 연방 인에이블러(PI4+TS2+광산1=7, 위성 최소).
+        // 랩→PI 업글이 평가기상 +40(220−180)뿐이라 랩 희생을 못 넘어 매안 PI율 6%(전종족 최저, 사람은 연방 전 PI가 표준).
+        // PI 보유 상태에 +W — 남은 라운드 2+일 때(연방 만들 시간이 있을 때)만. 숫자 플래그(0=OFF).
+        const besW = player.faction === 'bescods' ? getPlayerFlag(playerId, 'bescodsPiValue', 0) : 0;
+        if (besW > 0 && piCount >= 1 && remainingRounds >= 2) {
+            structScore += besW;
+        }
+
         // 2. 퍼널 구조 건물 점수 (교역소 병목 현상 해결)
         // 첫 번째 교역소는 연구소/아카데미로 가는 발판이므로 가치를 크게 줍니다.
         // 하지만 이미 연구소나 의회 등 상위 건물이 있다면, 현재 교역소가 0개라도 새로 짓는 교역소는 '두 번째 교역소'로 취급해야 합니다. (첫 교역소의 병목은 이미 뚫었기 때문)
