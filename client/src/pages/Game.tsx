@@ -625,7 +625,12 @@ export default function Game() {
       const isSelfTurn = updatedGame.turnOrder?.[updatedGame.currentPlayerIndex] === playerId;
       const serverFreeCount = (updatedGame as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length ?? 0;
       const bursting = Date.now() - GameClient.lastOptimisticFreeActionAt() < 2000; // 폐색 방지용 시간 폴백
-      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount < GameClient.getLastAppliedServerFreeCount()) {
+      // [버그수정 2026-07-06] serverFreeCount > 0 조건 추가. 진짜 stale 프리액션 echo는 항상 count≥1(프리액션이
+      //   스택에 push했으므로). count 0 = 서버가 free 컨텍스트를 리셋한 authoritative 상태 — 보너스타일 액션(range_3/
+      //   terraform_step)은 saveActionStartState→clearFreeActionUndo로 스택을 비워(count 0) hasDoneMainAction도 안 바꿔서,
+      //   프리액션 직후(버스트 중) 누르면 0 < lastApplied로 오판돼 스킵 → 다음 스텝/안내창 안 뜨고 F5해야 보이던 버그.
+      //   count 0은 절대 stale echo가 아니므로 스킵 대상에서 제외.
+      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount > 0 && serverFreeCount < GameClient.getLastAppliedServerFreeCount()) {
         return; // 이미 보여준 것보다 뒤처진(stale) 자기-프리액션 echo — 무시
       }
       GameClient.syncOptimisticFreeCount(serverFreeCount); // 권위 상태 채택 → 카운트 재동기화
