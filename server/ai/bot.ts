@@ -734,6 +734,27 @@ export class BotLogic {
                         if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
                     }
                 }
+                // [flag: gaiaMineFollow] 사람데이터(2026-07-07 로그): 가이아포머 배치→가이아 광산 건설 = 100%(62% 같은 라운드).
+                //   봇은 expansionEngineOpen로 가이아포밍은 2.2배 늘었으나 그 위 광산 건설 다운스트림이 약함(광산 −0.34) =
+                //   확장 sink 누락(가이아 행성 만들고 방치 → 템포 손실). 내 가이아포머가 완성된(pendingGaiaformerTiles) 행성에
+                //   광산을 지을 수 있으면 직접-return으로 즉시 건설(이미 쓴 포머+가이아페이즈 투자 회수, 순이득). 점수 nudge는
+                //   MCTS가 덮으므로(광산 후보 점수 무시) expansionEngineOpen처럼 직접 강제. 자금 부족 시 findBuildActions가
+                //   후보를 안 내면(credits<2 bail) 이 룰은 스킵되고 뒤의 mineCreditCombo/humanRule7C가 pre-fund → 다음 루프에 건설
+                //   (사람 패턴: power/변환으로 pre-fund 후 건설). 연방이 우선이면 양보.
+                if (getPlayerFlag(playerId, 'gaiaMineFollow', false) && !game.hasDoneMainAction
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const isMyReadyGaia = (tid: string | undefined) => {
+                        if (!tid) return false;
+                        const t = game.map.find(x => x.id === tid);
+                        return !!(t && t.hasGaiaformer && t.gaiaformerOwnerId === playerId && player.pendingGaiaformerTiles?.includes(t.id));
+                    };
+                    let gaiaBuild: BotAction | undefined;
+                    try { gaiaBuild = this.findBuildActions(game, playerId).find(a => a.type === 'build_mine' && isMyReadyGaia((a.params as any)?.tileId)); } catch { }
+                    if (gaiaBuild) {
+                        log(`Bot ${player.name} gaiaMineFollow: 가이아 광산 건설 강제 (tile=${(gaiaBuild.params as any)?.tileId} R${game.roundNumber})`, 'game', game.id);
+                        return gaiaBuild;
+                    }
+                }
                 // [flag: mineCreditCombo] 크레딧기아 교정(2026-07-07 측정: C≤2&O≥2인데 빌드안함 25%, 그중 변환 13%뿐).
                 //   findBuildActions가 credits<2면 즉시 bail(광산 후보 0) → 광석 있어도 못 지음. 광석 잉여면 1O→1C로
                 //   부족분 메워 광산 건설(예비 광석 남김 → 광석기아 악화 방지). 변환해도 실제 지을 광산이 있을 때만(낭비 방지).
@@ -1281,7 +1302,14 @@ export class BotLogic {
                     // 통째로 증발(사용자 관측: 8변환→4위성=4증발). 변환은 *부족분*(spent-보유토큰)만.
                     const shortfall = Math.max(0, spent - totalPowerTokens);
                     if (shortfall <= 0) continue; // 변환 불필요 = 1a 후보와 중복
-                    const preActions = Array.from({ length: shortfall }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
+                    const oreToTokenPre = Array.from({ length: shortfall }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1token' } }));
+                    // [버그수정 2026-07-07 사용자 관찰: "토큰 바꾸고 연방하면 3그릇 토큰 안 쓰고 감 여전"]
+                    //   이 경로(ore→token 연방)는 shortfall>0 = 보유 토큰이 부족 → 위성이 bowl3 포함 보유 토큰을 전부 소모함.
+                    //   그런데 무변환 연방 경로(위 1a)와 달리 이 경로엔 bowl3 cashout이 안 붙어, 소모될 bowl3를 1P→1C/3P→1O로
+                    //   회수하지 않고 그냥 위성으로 태웠음(가치 낭비). ore→token으로 bowl1이 +shortfall 되는 것(bowl1Extra)까지
+                    //   반영해 '위성에 소모될' bowl3만 정확히 회수(위성 지불 총량 불변, 순 크레딧/광석 이득). taklons는 함수가 자체 제외.
+                    const fedKCashout = this.doomedBowl3CashoutPreActions(player, spent, playerId, shortfall);
+                    const preActions = [...oreToTokenPre, ...fedKCashout];
                     candidates.push({ type: 'form_federation', params: fedWithK, preActions });
                 }
             }
