@@ -652,6 +652,40 @@ export class BotLogic {
                         return { type: 'use_power_action', params: { actionId: 'gain-2-ore', useBrain: player.faction === 'taklons' } };
                     }
                 }
+                // [flag: humanRule7C] humanRule2O의 크레딧판(사용자 관찰 2026-07-07): 봇이 크레딧기아인데 연방 전에 idle bowl3를
+                //   fedSpendBowl3로 1P→1C ×4(=4크레딧)만 뽑고 연방함. gain-7-credits(4파워→7크레딧=1.75C/파워)가 1P→1C(1C/파워)의
+                //   상위호환인데 안 씀("4p->7c 액션을 절대 안 함"). 평가기 nudge는 MCTS가 덮으므로 humanRule2O처럼 직접 return.
+                //   [2026-07-07 v1측정: 무조건 C≤4 발동 → 크레딧기아 25→17%(성공)이나 VP −2.38·광석기아 16→20%·광산 −0.34.
+                //    크레딧 풀어주니 병목이 광석으로 이동(action-gap=확장벽). → v2: "크레딧이 유일한 빌드차단"일 때만 발동하게 정밀화.]
+                //   프로브: (a)지금 지을/업글할 게 없고 (b)크레딧 +7이면 build_mine/업글이 가능해지며 (c)광석 보유(≥2, 지은 뒤 계속 확장)
+                //   일 때만 7C 강제 = 크레딧이 진짜 유일 병목일 때만. 그 외엔 MCTS/다른 룰에 양보(죽은 크레딧·병목이동 방지).
+                if (getPlayerFlag(playerId, 'humanRule7C', true) && !game.hasDoneMainAction) {
+                    const round7 = game.roundNumber ?? 1;
+                    const cred = player.credits ?? 0, p3 = player.power3 ?? 0, ore7 = player.ore ?? 0;
+                    const sevenC = game.powerActions.find(a => a.id === 'gain-7-credits' && !a.isUsed);
+                    if (sevenC && p3 >= 4 && cred <= 4 && ore7 >= 2 && round7 <= 5) {
+                        // 크레딧이 유일 병목인지 프로브: 현재 못 짓는데 +7C면 지어지는 build/upgrade가 있나
+                        const buildableNow = (g: any) => {
+                            try {
+                                const bs = this.findBuildActions(g, playerId).some(a => a.type === 'build_mine');
+                                const us = this.findUpgradeActions(g, playerId).some(a => a.type === 'upgrade_structure');
+                                return bs || us;
+                            } catch { return false; }
+                        };
+                        const canNow = buildableNow(game);
+                        let unlockedBy7C = false;
+                        if (!canNow) {
+                            const oldC = player.credits;
+                            player.credits = cred + 7;
+                            unlockedBy7C = buildableNow(game);
+                            player.credits = oldC;
+                        }
+                        if (!canNow && unlockedBy7C) {
+                            log(`Bot ${player.name} humanRule7C: press 7C (cred${cred} ore${ore7} p3${p3} R${round7}, unlocks build)`, 'game', game.id);
+                            return { type: 'use_power_action', params: { actionId: 'gain-7-credits', useBrain: player.faction === 'taklons' } };
+                        }
+                    }
+                }
                 // [flag: r1TsFirst] R1 오프닝을 사람처럼 — 사람 R1 첫수 교역소업글 59% vs 봇 광산 65%.
                 //   사람은 R1에 수입엔진(TS→랩) 착수, 봇은 광산 흩뿌리기. TS 아직 없고 mine→TS 업글 가능하면 R1 첫 메인액션으로 강제.
                 //   (R2+ 확장 우선(Q5)과 구분 — R1만 엔진 착수.)
@@ -674,6 +708,22 @@ export class BotLogic {
                     if (target) {
                         const act = this.advanceResearchAction(playerId, player, target);
                         if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
+                    }
+                }
+                // [flag: mineCreditCombo] 크레딧기아 교정(2026-07-07 측정: C≤2&O≥2인데 빌드안함 25%, 그중 변환 13%뿐).
+                //   findBuildActions가 credits<2면 즉시 bail(광산 후보 0) → 광석 있어도 못 지음. 광석 잉여면 1O→1C로
+                //   부족분 메워 광산 건설(예비 광석 남김 → 광석기아 악화 방지). 변환해도 실제 지을 광산이 있을 때만(낭비 방지).
+                if (getPlayerFlag(playerId, 'mineCreditCombo', true) && !game.hasDoneMainAction
+                    && (player.credits ?? 0) < 2 && (player.ore ?? 0) >= 4
+                    && getStructureCount(game, playerId, 'mine') < BUILDING_LIMITS.mine) {
+                    const oldC = player.credits;
+                    player.credits = 2; // 가정: 크레딧 충족 시 지을 광산이 있나
+                    let canBuildMine = false;
+                    try { canBuildMine = this.findBuildActions(game, playerId).some(a => a.type === 'build_mine'); } catch { }
+                    player.credits = oldC;
+                    if (canBuildMine) {
+                        log(`Bot ${player.name} mineCreditCombo: 1O→1C (크레딧기아 O${player.ore} C${player.credits}, 광산 건설용)`, 'game', game.id);
+                        return { type: 'convert_resource', params: { type: '1ore-to-1credit' } };
                     }
                 }
                 // [flag: lantidsEarlyPI] 란티다 정석: 조기(R3~)에 의회(PI)를 지어야 이후 기생광산마다 +2지식(사용자: "3라 정도 의회가 정석").
