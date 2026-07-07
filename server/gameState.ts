@@ -260,6 +260,21 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
 	};
 }
 
+/**
+ * [턴 롤백] playerId의 '턴 시작 스냅샷'을 새로 캡처하되, 기존(직전 턴) 스냅샷은 prevTurnStartState로 밀어 보존한다.
+ * finalizeTurnEnd(정상 턴 전환)만 이 prev-보존을 했고 라운드/페이즈 시작 경로(helperStartNewRoundTurn 등)는
+ * turnStartState만 덮어써 왔다 → 새 라운드 첫 턴에서 prevTurnStartState가 없어 어드민 롤백이 '전 턴'을 못 찾고
+ * 현재 턴 시작으로 폴백하던 버그(사용자: "4K 쓰기 전 턴으로 가야 하는데 프리액션만 해도 현재 턴으로 감"). 캡처 지점 통일.
+ */
+function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void {
+	if (!game.turnStartState) game.turnStartState = {};
+	if (game.turnStartState[playerId]?.fullGameState) {
+		if (!game.prevTurnStartState) game.prevTurnStartState = {};
+		game.prevTurnStartState[playerId] = game.turnStartState[playerId];
+	}
+	game.turnStartState[playerId] = buildTurnStartStateEntryForPlayer(game, playerId);
+}
+
 function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
 	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
 	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
@@ -1146,13 +1161,8 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 
 	const newCurrentPlayerId = game.turnOrder[game.currentPlayerIndex];
 	if (newCurrentPlayerId) {
-		if (!game.turnStartState) game.turnStartState = {};
 		// 새 턴 시작으로 덮어쓰기 전, 기존(직전 턴) 스냅샷을 prev로 보관 → 어드민이 현재 빈 턴에서 직전 턴까지 되감기 가능
-		if (game.turnStartState[newCurrentPlayerId]?.fullGameState) {
-			if (!game.prevTurnStartState) game.prevTurnStartState = {};
-			game.prevTurnStartState[newCurrentPlayerId] = game.turnStartState[newCurrentPlayerId];
-		}
-		game.turnStartState[newCurrentPlayerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, newCurrentPlayerId);
+		captureTurnStartWithPrev(game as ServerGameState, newCurrentPlayerId);
 	}
 
 	clampPlayerResources(game);
@@ -2337,8 +2347,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 
 	const currentId = game.turnOrder[game.currentPlayerIndex];
 	if (currentId) {
-		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
+		captureTurnStartWithPrev(game as ServerGameState, currentId);
 	}
 	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
 
@@ -2443,8 +2452,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 
 	const currentId = game.turnOrder[game.currentPlayerIndex];
 	if (currentId) {
-		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
+		captureTurnStartWithPrev(game as ServerGameState, currentId);
 	}
 	// [가시화 2026-07-07] 아이타 경로 라운드 시작은 로그가 전무해 hang 원인 특정 불가였음 — RoundStart와 동급 로그
 	log(`[RoundStart] (Itars/Terran path) round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', game.id, { simulation: (game as any).simulation });
@@ -2459,8 +2467,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 export function helperFinishAfterGaiaformerPhase(io: SocketIOServer, game: GaiaGameState) {
 	const currentId = game.turnOrder[game.currentPlayerIndex];
 	if (currentId) {
-		if (!game.turnStartState) game.turnStartState = {};
-		game.turnStartState[currentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, currentId);
+		captureTurnStartWithPrev(game as ServerGameState, currentId);
 	}
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
@@ -6709,8 +6716,7 @@ export function executeSelectBonus(
 
 		const firstPlayerId = game.turnOrder[0];
 		if (firstPlayerId) {
-			if (!game.turnStartState) game.turnStartState = {};
-			game.turnStartState[firstPlayerId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, firstPlayerId);
+			captureTurnStartWithPrev(game as ServerGameState, firstPlayerId);
 		}
 
 		helperTriggerIncomePhase(io, game);
@@ -7020,11 +7026,10 @@ export function executePassRound(
 			if (Object.values(game.players).every(p => p.hasPassed)) break;
 		}
 
-		// 다음 플레이어 지정을 위한 스냅샷 저장
+		// 다음 플레이어 지정을 위한 스냅샷 저장 (턴 전환 → prev 보존)
 		const nextId = game.turnOrder[game.currentPlayerIndex];
 		if (nextId && !game.players[nextId].hasPassed) {
-			if (!game.turnStartState) game.turnStartState = {};
-			game.turnStartState[nextId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, nextId);
+			captureTurnStartWithPrev(game as ServerGameState, nextId);
 		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
@@ -7196,8 +7201,7 @@ export function executePassRound(
 
 		const newCurrentId = game.turnOrder[game.currentPlayerIndex];
 		if (newCurrentId) {
-			if (!game.turnStartState) game.turnStartState = {};
-			game.turnStartState[newCurrentId] = buildTurnStartStateEntryForPlayer(game as ServerGameState, newCurrentId);
+			captureTurnStartWithPrev(game as ServerGameState, newCurrentId);
 		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
