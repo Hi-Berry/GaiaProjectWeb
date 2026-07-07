@@ -1762,6 +1762,21 @@ export class BotLogic {
                         continue;
                     }
 
+                    // [flag: mineKeepGate] 사용자(2026-07-07): 기술로 광석 income을 가져와도 광산을 계속 TS로 바꾸면
+                    //   광석수입이 무의미해짐 → 다음R 광석기아(결정의 16.9%가 광석≤1&크레딧≥4&빌드불가). 광산=광석엔진이라
+                    //   good-case 아니면 mine→TS 후보를 아예 생성 안 함(하드게이트, 점수 아님 — tsScoreRework 점수판은 기각됨).
+                    //   good-case: ①광산 정확히 3개(3번째는 income 0이라 순+3C) ②첫 TS(랩/의회 발판) ③연방을 새로 열거나 위성 줄임.
+                    //   tsEarlyHardGate(R≤2)의 전(全)라운드 + 연방 포함판. 광석수입 보존 → 비율 맞춰 빌드↑.
+                    if (getPlayerFlag(playerId, 'mineKeepGate', false) && !isFirstTS && mineCount !== 3) {
+                        let tsHelpsFed = false;
+                        if (round >= 3 && !game.simulation) {
+                            const before = BotLogic.getBestFederationSpentTokens(game, playerId);
+                            const after = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, mine.id, 'trading_station');
+                            tsHelpsFed = (before == null && after != null) || (before != null && after != null && after < before);
+                        }
+                        if (!tsHelpsFed) continue; // 광산 유지(광석수입 보존)
+                    }
+
                     if (!isDiscounted && round <= 3) {
                         score -= isFirstTS ? 20 : 100; // 초반 비할인 교역소는 웬만하면 올리지 않도록 강력한 패널티 (첫 교역소는 연구소를 위해 완화)
                     }
