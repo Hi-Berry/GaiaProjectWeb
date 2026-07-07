@@ -710,6 +710,32 @@ export class BotLogic {
                         return chosenSB;
                     }
                 }
+                // [flag: powerBeforeFedBurn] 사용자 전략(2026-07-07): 연방 전에 프리액션(1P→1C 회수)보다 **파워/우주선 액션으로
+                //   bowl3를 먼저 쓰는 게 최적**. 이유: 위성으로 쓴 bowl3는 게임에서 제거되지만, 파워액션에 쓴 bowl3는 bowl1로 복귀(재활용)
+                //   → 다음 턴 위성으로 재사용 = 같은 토큰으로 gain-7-credits(7c=1.75c/파워) + 연방 둘 다. cashout(1c/파워)보다 우월.
+                //   트레이드오프: 연방을 한 턴 미룸(파워액션=메인). 연방이 bowl3를 ≥4 태울 상황(spent−p1−p2≥4)+7C/2O 가능하면 이번 턴은
+                //   그 파워액션 먼저. R≤5(R6 연방 급함), taklons 제외(브레인 회계). 더 부족한 자원 우선(크레딧≤광석→7C). 우주선 케이스는
+                //   앞의 shipActionBalance가 이미 처리(여기 도달=우주선 안 걸림). 리스크(연방 지연)로 head2head do-no-harm 확인 필요.
+                if (getPlayerFlag(playerId, 'powerBeforeFedBurn', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) <= 5 && player.faction !== 'taklons') {
+                    const p1b = player.power1 ?? 0, p2b = player.power2 ?? 0, p3b = player.power3 ?? 0;
+                    if (p3b >= 4) {
+                        const fedBurnsBowl3 = candidates.some(c => c.type === 'form_federation'
+                            && Math.max(0, ((c.params as any)?.spentTokens ?? 0) - p1b - p2b) >= 4);
+                        if (fedBurnsBowl3) {
+                            const credB = player.credits ?? 0, oreB = player.ore ?? 0;
+                            const sevenCB = game.powerActions.find(a => a.id === 'gain-7-credits' && !a.isUsed);
+                            const twoOB = game.powerActions.find(a => a.id === 'gain-2-ore' && !a.isUsed);
+                            let actId: string | null = null;
+                            if (sevenCB && (credB <= oreB || !twoOB)) actId = 'gain-7-credits';
+                            else if (twoOB) actId = 'gain-2-ore';
+                            if (actId) {
+                                log(`Bot ${player.name} powerBeforeFedBurn: ${actId} 먼저(연방 bowl3≥4 소모 회피, C${credB} O${oreB} p3${p3b} R${game.roundNumber})`, 'game', game.id);
+                                return { type: 'use_power_action', params: { actionId: actId, useBrain: false } };
+                            }
+                        }
+                    }
+                }
                 // [flag: r1TsFirst] R1 오프닝을 사람처럼 — 사람 R1 첫수 교역소업글 59% vs 봇 광산 65%.
                 //   사람은 R1에 수입엔진(TS→랩) 착수, 봇은 광산 흩뿌리기. TS 아직 없고 mine→TS 업글 가능하면 R1 첫 메인액션으로 강제.
                 //   (R2+ 확장 우선(Q5)과 구분 — R1만 엔진 착수.)
@@ -741,7 +767,7 @@ export class BotLogic {
                 //   MCTS가 덮으므로(광산 후보 점수 무시) expansionEngineOpen처럼 직접 강제. 자금 부족 시 findBuildActions가
                 //   후보를 안 내면(credits<2 bail) 이 룰은 스킵되고 뒤의 mineCreditCombo/humanRule7C가 pre-fund → 다음 루프에 건설
                 //   (사람 패턴: power/변환으로 pre-fund 후 건설). 연방이 우선이면 양보.
-                if (getPlayerFlag(playerId, 'gaiaMineFollow', false) && !game.hasDoneMainAction
+                if (getPlayerFlag(playerId, 'gaiaMineFollow', true) && !game.hasDoneMainAction
                     && !candidates.some(c => c.type === 'form_federation')) {
                     const isMyReadyGaia = (tid: string | undefined) => {
                         if (!tid) return false;
