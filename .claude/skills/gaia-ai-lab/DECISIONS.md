@@ -863,3 +863,15 @@
 
 ## 2026-07-07 버그수정: ore→token 연방이 소모될 bowl3 미회수 (커밋 bfc35ec)
 - 사용자: "제노스류 연방 시 토큰 바꾸고(ore→token) 3그릇 안 쓰고 연방 여전". fedWithK 경로(shortfall>0=토큰부족→bowl3 포함 전부 위성 소모)에 doomedBowl3Cashout 미부착 → 소모될 bowl3 가치 0회수. 수정: ore→token 뒤 doomedBowl3Cashout(spent, bowl1Extra=shortfall) 추가. 무변환 경로와 통일. 낭비회수라 측정불요.
+
+## 2026-07-07 기각(OFF): powerBeforeFedBurn — 실전 발동 희소(죽은 룰)
+- 사용자 전략: 연방이 bowl3를 위성으로 태우기 전 gain-7-credits/2-ore로 먼저 씀(bowl3 재활용+고가치 1.75c/파워 vs cashout 1c/파워).
+- 측정(40판): 발동 **3회뿐**(gain-2-ore). VP −0.31(노이즈), 행동델타 전부 노이즈(3회론 설명 불가). 조건(fed satellite가 bowl3 ≥4 소모 + p3≥4 + 파워액션 가능)이 실전에 거의 없음 — 대부분 연방은 bowl3를 그만큼 안 태움.
+- 판정: 기각(OFF). 이상은 옳으나 실용 빈도 미미 + fedWithK bowl3 cashout(bfc35ec)이 이미 소량 낭비 회수. 임계값 낮추면 연방 지연 리스크만 커짐. 코드 OFF 보존.
+
+## 2026-07-07 기각(OFF): expansionMineDrive — 광산 강제 7번째 실패 (확장 벽 = 평가기 문제 확정)
+- 사람 로그 전수: 광산 사람 ~14 vs 봇 8.3(57%)=진짜 벽. R2-4 페이스 미달(광산<2×R)이면 봇 자체 최고점 광산 직접-return(mineFirstExpansion −2.92와 차별: R1제외·페이스게이트·사거리반영 최고점·연방/연구 양보).
+- 측정(40판): **VP −4.08**(bWin35.9%, p0.21)·**광산 −0.90(강제했는데 감소!)**·총행동 −0.96·powerAct −0.33. 발동 106회.
+- ★결정적: 강제가 빌드오더 교란(이른 시점 차선 광산 → 이후 더 좋은 확장 차단) → 광산 경제 악화. 챔피언 9.19 vs 챌린저 8.29.
+- **판정: 기각(OFF). 광산/확장 강제 룰 7연속 실패**(mineFirstExpansion·mineKeepGate·creditIncomeTs·expansionMineDrive). **확장 벽은 직접-return 강제로 불가** — 봇 문제는 "광산 선택 안 함"이 아니라 게임 전체(위치·사거리·시퀀싱)가 광산을 뒷받침 못 함 = **평가기(가치함수) 문제.** gaiaMineFollow(투자 회수형)만 do-no-harm으로 예외 생존.
+- **다음: 모델 경로**(사용자 승인 "둘 다 순차" 2단계). 단 policyNet(정책 prior)는 MCTS가 덮으므로 실효 의문 — 진짜 레버는 **가치망(evaluator)**이 확장 포지션을 옳게 평가하게 하는 것(더 어려움). 정책망 59게임 재학습은 완료(선형 25.6%, 약함).

@@ -781,6 +781,27 @@ export class BotLogic {
                         return gaiaBuild;
                     }
                 }
+                // [flag: expansionMineDrive] 진짜 벽 공략(2026-07-07 사람 로그 전수: 광산 사람 ~14 vs 봇 ~8.3 = 봇이 57%뿐).
+                //   사람은 R1=인프라(TS 63%), R2-4=광산 스팸(액션의 25~42%, 라운드당 ~2채). 봇은 평가기가 확장을 저평가해 광산 후보
+                //   점수를 MCTS가 덮음(수차례 확인) → R2-4에 '페이스 미달'(광산<2×라운드)이면 봇 자체 최고점 광산을 직접-return 강제.
+                //   ★기각된 mineFirstExpansion(−2.92, 홈 뭉침)과 차별: ①R1 제외(인프라 우선) ②페이스 게이트(뒤처질 때만) ③봇 자체
+                //   스코어링 최상 광산(사거리·인접·연방연계 반영=홈뭉침 방지, navBeforeJump와 협응) ④연방/할인업글/확장연구 양보(앞 룰들이 선점).
+                //   자금 부족 시 findBuildActions가 후보 안 냄→스킵→mineCreditCombo/humanRule7C가 pre-fund→다음 루프 건설(사람 pre-fund 패턴).
+                if (getPlayerFlag(playerId, 'expansionMineDrive', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) >= 2 && (game.roundNumber ?? 1) <= 4
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && this.findDiscountedUpgradeAction(game, playerId) === null) {
+                    const mineCnt = getStructureCount(game, playerId, 'mine');
+                    const pace = 2 * (game.roundNumber ?? 1); // 사람 ~2채/라운드
+                    if (mineCnt < pace) {
+                        let bestMine: BotAction | undefined;
+                        try { bestMine = this.findBuildActions(game, playerId).find(a => a.type === 'build_mine'); } catch { }
+                        if (bestMine) {
+                            log(`Bot ${player.name} expansionMineDrive: 광산 강제 (mines${mineCnt}<pace${pace} R${game.roundNumber} tile=${(bestMine.params as any)?.tileId})`, 'game', game.id);
+                            return bestMine;
+                        }
+                    }
+                }
                 // [flag: mineCreditCombo] 크레딧기아 교정(2026-07-07 측정: C≤2&O≥2인데 빌드안함 25%, 그중 변환 13%뿐).
                 //   findBuildActions가 credits<2면 즉시 bail(광산 후보 0) → 광석 있어도 못 지음. 광석 잉여면 1O→1C로
                 //   부족분 메워 광산 건설(예비 광석 남김 → 광석기아 악화 방지). 변환해도 실제 지을 광산이 있을 때만(낭비 방지).
