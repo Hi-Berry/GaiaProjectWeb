@@ -660,6 +660,22 @@ export class BotLogic {
                     const ts = this.findUpgradeActions(game, playerId).find(u => u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station');
                     if (ts) { log(`Bot ${player.name} r1TsFirst: R1 교역소 업글 오프닝`, 'game', game.id); return ts; }
                 }
+                // [flag: expansionEngineOpen] 빌드오더 데이터(2026-07-07): 봇은 R1-3에 테라(0.19)·가이아(0.15)·가이아포머(0.17)를
+                //   사람(0.94/1.03/0.94)의 15~20%만 함 = 크레딧/사거리 엔진(TS·경제·내비 과투자)만 짓고 광석/확장 엔진을 통째 건너뜀
+                //   → 광산 못 늘려 광석기아 영구화(96점 갭·17% 기아의 단일 뿌리). 방치된 확장연구를 직접 강제(점수 nudge는 MCTS가 덮음).
+                //   가이아 우선(L1=가이아포머=확장 직결) → 테라(광석·행성 buildability). 연방/할인업글이 우선이면 양보. bal_tak은 가이아프로젝트 불가라 제외.
+                if (getPlayerFlag(playerId, 'expansionEngineOpen', true) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) <= 3 && (player.knowledge ?? 0) >= 4 && player.faction !== 'bal_tak'
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && this.findDiscountedUpgradeAction(game, playerId) === null) {
+                    const gaiaLvl = player.research?.gaiaProject ?? 0;
+                    const terraLvl = player.research?.terraforming ?? 0;
+                    const target: ResearchTrack | null = gaiaLvl < 1 ? 'gaiaProject' : (terraLvl < 1 ? 'terraforming' : null);
+                    if (target) {
+                        const act = this.advanceResearchAction(playerId, player, target);
+                        if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
+                    }
+                }
                 // [flag: lantidsEarlyPI] 란티다 정석: 조기(R3~)에 의회(PI)를 지어야 이후 기생광산마다 +2지식(사용자: "3라 정도 의회가 정석").
                 //   점수 가점으론 MCTS가 안 고름(실측 PI건설 0.37→0.36) → 직접 강제. TS 있고·PI 없고·감당되면 그 턴 메인액션으로 PI 업글.
                 //   (findUpgradeActions가 lantidsEarlyPI 게이트 우회로 PI 후보를 내주므로 여기서 집어 강제 실행.)
