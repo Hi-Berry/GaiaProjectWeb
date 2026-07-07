@@ -880,3 +880,9 @@
 - humanValueNet을 59게임 재학습하려 reconstructHumanFeatures→trainHumanValueNet 사용했으나, 그 파이프라인은 **매 결정 12902샘플·다른 피처셋**이라 evaluator.computeHumanValueVP의 **하드코딩 22피처(624 라운드말 스냅샷)와 정렬 불일치**. → predVP 쓰레기값 → K=1·K=0.1 **양쪽 동일 붕괴**(봇 즉시 패스, VP −61). 스케일 아닌 구조적 오류.
 - 조치: 원본 39게임 humanValueNet.json 복원(.39bak). humanValueBlendK 측정은 **무효**(잘못된 모델). 선형 value 블렌드 질문은 기존 "중립"(value-net-blend-neutral) 유지, 재논의 안 함.
 - 교훈: evaluator의 computeHumanValueVP는 자체 22피처 스펙 — 재학습하려면 **그 스펙과 동일한 피처**로 학습해야 함. Phase 1b MLP 가치망은 이 정렬을 반드시 맞춰 구현.
+
+## 2026-07-07 기각(OFF): policyPrior(MLP 정책망) — winner's curse + prior 무력 확정
+- Phase 1a: MLP 정책망(비선형, 검증 top-1 30.9%/top-3 59.9%, 선형 25.6% 대비 +5pt) 학습·통합(policyNetMLP.json, bot.ts policyProbs MLP forward).
+- 측정: **40판 VP +6.63(p=0.025 유의!)·확장 전방위↑** → **120판 VP −2.13(SE1.92, p0.27, bWin47%)·행동 무변(총 −0.03).** 40판 유의는 착시(winner's curse 재현 — 스킬 경고대로 소판 p≈0.05는 뒤집힘).
+- **판정: 기각(OFF).** ★확정: **정책 prior는 선형이든 비선형(MLP)이든 중립** — MCTS 가치함수가 최종 선택을 지배해 prior(탐색 방향)를 덮음. policyNetMLP.json 코드/모델은 보존(OFF), Phase2 자가대국 정책헤드로 재활용 가능.
+- **함의**: 사람 모방 *정책*은 한계. 진짜 레버 = **가치함수(리프 평가)**. + 정책망 데이터 천장(59게임서 top-1 31% 정체) = 모방 자체가 데이터 부족. → Phase 1b(가치망 정렬 재구현) → 안 되면 Phase 2(자가대국으로 가치함수 재학습, 데이터 자가생성).
