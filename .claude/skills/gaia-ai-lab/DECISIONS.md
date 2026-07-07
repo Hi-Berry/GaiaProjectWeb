@@ -886,3 +886,19 @@
 - 측정: **40판 VP +6.63(p=0.025 유의!)·확장 전방위↑** → **120판 VP −2.13(SE1.92, p0.27, bWin47%)·행동 무변(총 −0.03).** 40판 유의는 착시(winner's curse 재현 — 스킬 경고대로 소판 p≈0.05는 뒤집힘).
 - **판정: 기각(OFF).** ★확정: **정책 prior는 선형이든 비선형(MLP)이든 중립** — MCTS 가치함수가 최종 선택을 지배해 prior(탐색 방향)를 덮음. policyNetMLP.json 코드/모델은 보존(OFF), Phase2 자가대국 정책헤드로 재활용 가능.
 - **함의**: 사람 모방 *정책*은 한계. 진짜 레버 = **가치함수(리프 평가)**. + 정책망 데이터 천장(59게임서 top-1 31% 정체) = 모방 자체가 데이터 부족. → Phase 1b(가치망 정렬 재구현) → 안 되면 Phase 2(자가대국으로 가치함수 재학습, 데이터 자가생성).
+
+## 2026-07-07 세션 종합 결론 (밤샘 자율진행 정리) + Phase 2 플랜
+**오늘 채택(ON)**: humanRule7C+mineCreditCombo(크레딧기아 25→19%), shipActionBalance(**+1.92, 유일한 뚜렷 VP이득**), gaiaMineFollow(가이아포머 회수, do-no-harm), expansionEngineOpen. **버그수정**: fedWithK bowl3 회수, 어드민 턴롤백 prev스냅샷 유실.
+**오늘 기각**: creditIncomeTs, powerBeforeFedBurn(발동 3회), expansionMineDrive(−4.08), humanValueBlendK(무효-피처불일치), policyPrior 선형·MLP(40판+6.63 착시→120판−2.13).
+
+**확정된 벽 구조**:
+1. **강제 룰 = 전멸(7+)**. 확장은 강제로 못 늘림(빌드오더 교란). gaiaMineFollow(투자회수형)만 예외.
+2. **정책 prior = 중립(선형·비선형 모두)**. MCTS 가치함수가 최종선택 지배 → prior 묻힘.
+3. **선형 가치망 = 중립/약함**. 다중공선성.
+4. **모방 데이터 천장**: 59게임(4032결정)서 정책 top-1 31% 정체. 데이터 부족이 병목.
+→ **결론: quick 모방 win 소진. 봇 평균 ~75 유지(행동은 사람화). 진짜 레버 = 가치함수를 자가생성 데이터로 재학습.**
+
+**Phase 2 플랜(사람과 함께, 신중히)**:
+- 가치망 파이프라인이 2개(computeHumanValueVP 인라인22피처 / features.ts ValueNet)라 혼선 — 먼저 **배선 정리·문서화**(어느 net이 어느 consumer인지 1:1 확정) 후 손대기. 무인 금지(오늘 humanValueNet 무효 교훈).
+- 자가대국 루프: MCTS로 (state, MCTS방문분포, 최종결과) 생성 → 가치망(+정책헤드) 재학습 → 반복. valuenet-data.jsonl 인프라 활용. 매 iteration 챔피언 대비 head2head 게이팅.
+- policyNetMLP.json(top-3 60%)은 Phase2 정책헤드 초기값으로 재활용.
