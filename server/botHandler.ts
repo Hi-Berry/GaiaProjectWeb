@@ -498,6 +498,17 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     recordDecisionFeatures(game, currentPlayerId);
 
     const action = await BotLogic.getNextMove(game, currentPlayerId);
+    // [flag: ratioDiag] 계측(기본 OFF): 실제 턴마다 자원상태 + 고른 액션을 게임파일 로그. "크레딧 많은데 광석 없어
+    //   빌드 못 하고 패스/변환"(비율 막힘) 빈도를 정량화 — 액션 45% 갭의 원인 규명용. 순수 로깅, 행동 무변.
+    if (getPlayerFlag(currentPlayerId, 'ratioDiag', false) && game.currentPhase === 'main') {
+        const r = player as any;
+        // 업글은 타깃까지(mine→TS 구분: act=upgrade:trading_station). 광산 수 = 광석수입 엔진 크기.
+        const mineCount = game.map.filter(t => t.ownerId === currentPlayerId && t.structure === 'mine').length;
+        const actStr = action?.type === 'upgrade_structure'
+            ? `upgrade:${(action.params as any)?.target ?? '?'}`
+            : (action?.type ?? 'PASS');
+        log(`[RATIODIAG] R${game.roundNumber} ${player.faction} O${r.ore ?? 0} C${r.credits ?? 0} K${r.knowledge ?? 0} Q${r.qic ?? 0} P3${r.power3 ?? 0} mines${mineCount} main${game.hasDoneMainAction ? 1 : 0} act=${actStr}`, 'ratiodiag', game.id);
+    }
     if (!action) {
         if (game.currentPhase === 'main' && !player.hasPassed) {
             // Eclipse 소행성 대기 중인데 후보가 비면 패스하면 안 됨 (6C만 소모된 상태)

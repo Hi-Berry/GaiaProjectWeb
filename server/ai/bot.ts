@@ -4203,6 +4203,18 @@ export class BotLogic {
             if (tileId.startsWith('tech-inc-')) score -= 40;
         }
 
+        // [flag: techTileRankFix] 사용자 랭킹(2026-07-07): 4C > 4PW > 1o1P > 1K1C. 기존엔 income 타일 3종이
+        //   모두 획일 +120이라 봇이 광석기아인데도 1K1C(광석0)를 집는 등 비율문제를 악화(광석≤1&크레딧≥4 결정 17%).
+        //   income 타일을 종류별 차등 + 광석기아면 1o1p(광석) 상황 우대. 기술타일 선택은 점수-최대 직접픽이라 즉시 반영.
+        //   R5+은 income 자체가 가치 급감이라 제외(R≤4만).
+        if (getPlayerFlag(playerId, 'techTileRankFix', false) && round <= 4) {
+            const oreStarved = (player.ore ?? 0) <= 1;
+            if (tileId === 'tech-inc-4c') score += 20;                       // 4C = 보통 최상(유연한 크레딧수입)
+            else if (tileId === 'tech-act-4p') score += 30;                  // 4PW = 2순위(4p→1o/1q/기타 유연)
+            else if (tileId === 'tech-inc-1o-1p') score += oreStarved ? 45 : 0; // 광석수입 — 기아면 최상으로 끌어올림
+            else if (tileId === 'tech-inc-1k-1c') score -= 30;               // 1K1C = 필러(트랙전진용), 최하
+        }
+
         // 2-1. 고급 기술 타일 (adv-*): 건물·라운드·즉시 VP·자원 기반 세부 점수
         if (tileId.startsWith('adv-')) {
             score += this.scoreAdvancedTechTile(game, playerId, tileId, round, player);
