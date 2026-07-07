@@ -875,3 +875,8 @@
 - ★결정적: 강제가 빌드오더 교란(이른 시점 차선 광산 → 이후 더 좋은 확장 차단) → 광산 경제 악화. 챔피언 9.19 vs 챌린저 8.29.
 - **판정: 기각(OFF). 광산/확장 강제 룰 7연속 실패**(mineFirstExpansion·mineKeepGate·creditIncomeTs·expansionMineDrive). **확장 벽은 직접-return 강제로 불가** — 봇 문제는 "광산 선택 안 함"이 아니라 게임 전체(위치·사거리·시퀀싱)가 광산을 뒷받침 못 함 = **평가기(가치함수) 문제.** gaiaMineFollow(투자 회수형)만 do-no-harm으로 예외 생존.
 - **다음: 모델 경로**(사용자 승인 "둘 다 순차" 2단계). 단 policyNet(정책 prior)는 MCTS가 덮으므로 실효 의문 — 진짜 레버는 **가치망(evaluator)**이 확장 포지션을 옳게 평가하게 하는 것(더 어려움). 정책망 59게임 재학습은 완료(선형 25.6%, 약함).
+
+## 2026-07-07 무효/롤백: humanValueBlendK 재측정 (내 파이프라인 실수)
+- humanValueNet을 59게임 재학습하려 reconstructHumanFeatures→trainHumanValueNet 사용했으나, 그 파이프라인은 **매 결정 12902샘플·다른 피처셋**이라 evaluator.computeHumanValueVP의 **하드코딩 22피처(624 라운드말 스냅샷)와 정렬 불일치**. → predVP 쓰레기값 → K=1·K=0.1 **양쪽 동일 붕괴**(봇 즉시 패스, VP −61). 스케일 아닌 구조적 오류.
+- 조치: 원본 39게임 humanValueNet.json 복원(.39bak). humanValueBlendK 측정은 **무효**(잘못된 모델). 선형 value 블렌드 질문은 기존 "중립"(value-net-blend-neutral) 유지, 재논의 안 함.
+- 교훈: evaluator의 computeHumanValueVP는 자체 22피처 스펙 — 재학습하려면 **그 스펙과 동일한 피처**로 학습해야 함. Phase 1b MLP 가치망은 이 정렬을 반드시 맞춰 구현.
