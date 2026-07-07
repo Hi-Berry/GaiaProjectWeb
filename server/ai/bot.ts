@@ -117,15 +117,23 @@ type BotAction = {
     preActions?: BotAction[];
 };
 
-// ===== [정책망 prior] 사람 모방 학습 정책망(policyNet.json) 로드 — 알파고식 후보 prior용 =====
-let _policyNet: { labels: string[]; W: number[][]; featDim?: number } | null = null;
+// ===== [정책망 prior] 사람 모방 학습 정책망 로드 — 알파고식 후보 prior용 =====
+// MLP(policyNetMLP.json, arch:'mlp', 검증 top-1 30.9%/top-3 59.9%) 우선, 없으면 선형(policyNet.json, 25.6%) 폴백.
+type PolicyNet = { labels: string[]; featDim?: number; arch?: string;
+    W?: number[][]; // 선형: 19×(26+bias)
+    W1?: number[][]; b1?: number[]; W2?: number[][]; b2?: number[]; // MLP: W1 H×26, b1 H, W2 19×H, b2 19
+};
+let _policyNet: PolicyNet | null = null;
 let _policyTried = false;
-function loadPolicyNet(): { labels: string[]; W: number[][] } | null {
+function loadPolicyNet(): PolicyNet | null {
     if (_policyTried) return _policyNet;
     _policyTried = true;
     try {
-        _policyNet = JSON.parse(nodeFs.readFileSync('server/ai/policyNet.json', 'utf8'));
-    } catch { _policyNet = null; }
+        _policyNet = JSON.parse(nodeFs.readFileSync('server/ai/policyNetMLP.json', 'utf8'));
+    } catch {
+        try { _policyNet = JSON.parse(nodeFs.readFileSync('server/ai/policyNet.json', 'utf8')); }
+        catch { _policyNet = null; }
+    }
     return _policyNet;
 }
 const POLICY_NONPLANET = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'asteroid', 'proto', 'gaia']);
@@ -1865,8 +1873,17 @@ export class BotLogic {
             owned.length ? adj / owned.length : 0,
             1, // bias
         ];
-        const W = net.W;
-        const logit = W.map(w => { let s = 0; for (let d = 0; d < f.length; d++) s += w[d] * f[d]; return s; });
+        let logit: number[];
+        if (net.arch === 'mlp' && net.W1 && net.b1 && net.W2 && net.b2) {
+            // MLP forward: f26(bias 제외) → ReLU(W1·f26+b1) → W2·h+b2. 피처는 trainPolicyNetMLP.mjs와 동일(26-dim).
+            const f26 = f.slice(0, 26);
+            const b1 = net.b1, W1 = net.W1, b2 = net.b2, W2 = net.W2;
+            const h = W1.map((w, j) => { let s = b1[j]; for (let d = 0; d < 26; d++) s += w[d] * f26[d]; return s > 0 ? s : 0; }); // ReLU
+            logit = W2.map((w, k) => { let s = b2[k]; for (let j = 0; j < h.length; j++) s += w[j] * h[j]; return s; });
+        } else {
+            const W = net.W!;
+            logit = W.map(w => { let s = 0; for (let d = 0; d < f.length; d++) s += w[d] * f[d]; return s; });
+        }
         const mx = Math.max(...logit);
         const ex = logit.map(v => Math.exp(v - mx));
         const Z = ex.reduce((a, b) => a + b, 0) || 1;
