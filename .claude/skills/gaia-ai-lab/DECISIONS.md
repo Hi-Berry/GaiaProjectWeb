@@ -846,3 +846,10 @@
 - 측정(40판, 채택베이스[7C+mineCreditCombo]ON 위, weightsDiffer=false): VP −0.46(평탄) **but 의도행동 미발현** — TS **−0.23(오히려↓)**·tsEarly ±0.00(거의 발동 안 함)·총행동 −0.52·연구 −0.25. **광석기아 16→22.4%(악화)**(TS업글이 광석2 소모).
 - 판정: 기각(OFF). "행동 안 바뀌면 전략 무의미" 원칙 — 목표행동(TS/크레딧income↑) 미달성 + 광석기아 악화. 조건이 좁아 발동희소 + 발동시 광석소모 역효과.
 - ★★확정: **TS/변환-side 레버 6연속 실패**(mineKeepGate·mineFirstExpansion·techTileRankFix·creditIncomeTs 등). 크레딧기아를 income 구조로 고치려 해도 TS강제는 광석을 깎아 병목만 옮김. 스팟교정(humanRule7C/mineCreditCombo)은 do-no-harm 한계. **진짜 벽=확장(expansionEngineOpen 노선: 가이아포밍→가이아광산 건설 다운스트림 + 내비/경제 초반억제)**. 손규칙 클래스 종결, 확장/정책망 큰프로젝트로.
+
+## 2026-07-07 채택(ON): shipActionBalance — 자원밸런싱 정책의 직접-return 부활 (세션 최강 결과)
+- **근본원인 발견**: 사용자 자원밸런싱 정책(돈많으면 소비-확장/돈없으면 income 우주선액션)은 **이미 2026-06-15 `shipResourceBalance`(기본ON)로 코딩돼 있었으나 점수 nudge(+130/+90)**라 MCTS 평가기가 덮어(후보점수 무시 교훈) 행동에 안 나타남 = "제안 반영해도 봇이 안 따름"의 구조적 정체.
+- **수정**: humanRule2O/7C처럼 **직접-return** `shipActionBalance`. 돈≥9 → TF마스#3(3C→테라+광산)·이클립스#3(6C→소행성광산)=크레딧풍선→확장. 돈≤5 → 리벨#2(광산→TS,1O3P)·트왈#2(TS→연구소,2O3P)=무비용 엔진충전. findSpaceshipActions가 canUseShipAction+타깃 검증한 액션만. 연방/할인업글 우선.
+- **측정(weightsDiffer=false)**: 40판 VP +1.07(발동69) → **120판 VP +1.92(SE1.89, bWin54.6%, 발동211: TF마스#3=80·리벨#2=65·이클립스#3=53·트왈#2=13)**. shipAct +0.34·총행동 +0.47·광산 +0.05·가이아포머 +0.04(전부 중립~양성). 크레딧기아 19.1%·광석기아 18.0%.
+- **판정: ✅ 채택(ON)** — ★VP가 확정판에서 오히려 강해짐(+1.07→+1.92, mineCreditCombo 회귀와 반대) + 정책 실제발현(211회) + 사용자 정책 + 도메인옳음. **이 세션 최강 결과.** nudge→직접-return 교훈 재실증.
+- **함의**: 후보점수 nudge로 코딩된 다른 사용자 정책들도 같은 이유로 무력화됐을 가능성 — 행동 안 바뀌면 직접-return 전환 검토. shipResourceBalance nudge는 in-between 폴백으로 ON 유지(직접-return이 극단 케이스 선점).

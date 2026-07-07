@@ -686,6 +686,30 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: shipActionBalance] 사용자 자원밸런싱 정책(2026-07-07)의 직접-return판. ★기존 shipResourceBalance(기본ON)는
+                //   findSpaceshipActions 안에서 점수 nudge(broke+생성 +130 / rich+소비 +90)로 구현돼 있으나 그건 후보점수라 MCTS가
+                //   덮어버려(후보점수 nudge 무시 교훈 — humanRule2O·expansionEngineOpen과 동일 함정) 정책이 행동에 안 나타남(사용자:
+                //   "여전히 밸런싱 안 함"). 그래서 humanRule2O/7C처럼 직접-return으로 강제한다.
+                //   돈 많으면(≥9) 크레딧 소비-확장 우주선액션: TF마스#3(3C→테라스텝+광산)·이클립스#3(6C→소행성광산) = 크레딧풍선→확장 전환.
+                //   돈 없으면(≤5) 크레딧-무비용 income 우주선액션: 리벨#2(광산→TS, 1O3P)·트왈#2(TS→연구소, 2O3P) = 패스 대신 엔진충전.
+                //   연방/할인업글이 우선이면 양보(그 앞·자체 가드). findSpaceshipActions가 canUseShipAction+타깃선택까지 검증한 액션만 반환.
+                if (getPlayerFlag(playerId, 'shipActionBalance', true) && !game.hasDoneMainAction
+                    && (player.spaceshipsEntered || []).length > 0
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && this.findDiscountedUpgradeAction(game, playerId) === null) {
+                    const creditsSB = player.credits ?? 0;
+                    const shipActs = this.findSpaceshipActions(game, playerId);
+                    const typeOf = (a: BotAction) => game.map.find(t => t.id === (a.params as any)?.shipTileId)?.type;
+                    const pickShip = (type: string, idx: number) => shipActs.find(a => a.type === 'use_ship_action'
+                        && typeOf(a) === type && (a.params as any)?.actionIndex === idx);
+                    let chosenSB: BotAction | undefined;
+                    if (creditsSB >= 9) chosenSB = pickShip('ship_tf_mars', 3) || pickShip('ship_eclipse', 3);
+                    else if (creditsSB <= 5) chosenSB = pickShip('ship_rebellion', 2) || pickShip('ship_twilight', 2);
+                    if (chosenSB) {
+                        log(`Bot ${player.name} shipActionBalance: ${creditsSB >= 9 ? 'rich→spend' : 'poor→income'} ${typeOf(chosenSB)}#${(chosenSB.params as any).actionIndex} (C${creditsSB})`, 'game', game.id);
+                        return chosenSB;
+                    }
+                }
                 // [flag: r1TsFirst] R1 오프닝을 사람처럼 — 사람 R1 첫수 교역소업글 59% vs 봇 광산 65%.
                 //   사람은 R1에 수입엔진(TS→랩) 착수, 봇은 광산 흩뿌리기. TS 아직 없고 mine→TS 업글 가능하면 R1 첫 메인액션으로 강제.
                 //   (R2+ 확장 우선(Q5)과 구분 — R1만 엔진 착수.)
