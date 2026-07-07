@@ -726,6 +726,20 @@ export class BotLogic {
                         return { type: 'convert_resource', params: { type: '1ore-to-1credit' } };
                     }
                 }
+                // [flag: creditIncomeTs] 크레딧기아의 *구조적* 교정(2026-07-07 사람데이터): 사람은 크레딧빈곤+광석부자(C낮음/O높음)일 때
+                //   스팟크레딧이 아니라 mine→TS 업글로 **크레딧 수입**을 만든다(actionJournal: 그 사분면 교역소업글 19%). 봇은 스팟(7C/1O→1C)만
+                //   만져 매R 재기아 → income으로 끊는다. 사용자 휴리스틱("광산 3개면 교역소가 좋다")과 일치: 3번째+ 광산은 수입 정체라
+                //   TS로 바꿔도 광석수입 손실 없이 크레딧수입 획득(순이득). 조기(R≤4)·크레딧빈곤(≤4)·광석부자(≥5)·광산≥3·TS업글 감당가능 시 강제.
+                //   점수 nudge는 MCTS가 덮으므로 직접-return. 연방/할인업글/PI 우선이면 그 앞 룰들이 이미 처리(뒤에 둠).
+                if (getPlayerFlag(playerId, 'creditIncomeTs', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) <= 4
+                    && (player.credits ?? 0) <= 4 && (player.ore ?? 0) >= 5
+                    && getStructureCount(game, playerId, 'mine') >= 3
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && this.findDiscountedUpgradeAction(game, playerId) === null) {
+                    const ts = this.findUpgradeActions(game, playerId).find(u => u.type === 'upgrade_structure' && (u.params as any)?.target === 'trading_station');
+                    if (ts) { log(`Bot ${player.name} creditIncomeTs: mine→TS 크레딧수입 강제 (C${player.credits} O${player.ore} R${game.roundNumber})`, 'game', game.id); return ts; }
+                }
                 // [flag: lantidsEarlyPI] 란티다 정석: 조기(R3~)에 의회(PI)를 지어야 이후 기생광산마다 +2지식(사용자: "3라 정도 의회가 정석").
                 //   점수 가점으론 MCTS가 안 고름(실측 PI건설 0.37→0.36) → 직접 강제. TS 있고·PI 없고·감당되면 그 턴 메인액션으로 PI 업글.
                 //   (findUpgradeActions가 lantidsEarlyPI 게이트 우회로 PI 후보를 내주므로 여기서 집어 강제 실행.)
