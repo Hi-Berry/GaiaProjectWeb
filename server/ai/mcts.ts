@@ -28,6 +28,10 @@ export interface MCTSNode {
 export class MCTS {
     private static readonly C = Math.sqrt(2); // Exploration constant
     private static _policyPUCTw = 0;           // [policyPUCT] 정책 prior 가중치(search에서 flag로 설정, 0=off)
+    // [AZ POC] azAllNodePrior: 정책 prior를 root뿐 아니라 전 노드에 부여(정통 PUCT). search에서 flag로 설정.
+    private static _azAllNodePrior = false;
+    // [AZ POC] 마지막 search의 루트 자식 방문분포 π(자가대국 정책타깃 수집·방문기반 선택용). search가 채움.
+    static lastRootVisits: { action: any; visits: number; q: number }[] = [];
     /** tune-ai 등에서 런타임으로 짧게 쓰려면 setTimeMsOverride(1000) 호출 */
     private static _timeMsOverride: number | null = null;
     static setTimeMsOverride(ms: number | null): void {
@@ -76,7 +80,9 @@ export class MCTS {
         // 순서를 안 바꾸고 selection만 블렌드. 가중치 policyPUCTw로 스케일 조정(raw eval Q와 맞춤).
         // [정정 2026-06-27] 120판 격리서 +1.45(OFF유리) = 소표본 +2.8은 winner's curse였음. 정책망 PUCT는
         // 현 데이터(2147샘플)론 중립~약음성 → 기본 OFF로 되돌림. 인프라/정책망은 보존(1:3 데이터 크면 재시도).
-        if (getPlayerFlag(playerId, 'policyPUCT', false)) {
+        // [AZ POC] azAllNodePrior도 정책 prior를 켠다(단 root만이 아니라 expand에서 전 노드로 전파).
+        MCTS._azAllNodePrior = getPlayerFlag(playerId, 'azAllNodePrior', false);
+        if (getPlayerFlag(playerId, 'policyPUCT', false) || MCTS._azAllNodePrior) {
             MCTS._policyPUCTw = getPlayerFlag(playerId, 'policyPUCTw', 500);
             try { root.priorsMap = BotLogic.policyPriorMap(rootStore, playerId, possibleActions); } catch { /* 정책망 없으면 무시 */ }
         } else {
@@ -114,7 +120,10 @@ export class MCTS {
             // All expansions may have failed due to illegal transitions; fallback to safe candidate.
             return possibleActions[0] ?? null;
         }
-        const bestNode = this.bestChild(root);
+        // [AZ POC] 루트 자식 방문분포 π 기록(자가대국 정책타깃 수집·디버그용). 반환 시그니처 불변.
+        MCTS.lastRootVisits = root.children.map(c => ({ action: c.action, visits: c.visits, q: c.visits ? c.score / c.visits : 0 }));
+        // [AZ POC] azVisitSelect: 최종 선택을 평균Q(bestChild) 대신 방문수 argmax로(정통 AZ 방식).
+        const bestNode = getPlayerFlag(playerId, 'azVisitSelect', false) ? this.bestByVisits(root) : this.bestChild(root);
 
         // [flag: hybridSearch] 그리디(잘 튜닝된 eval)가 상위 후보를 먼저 거르고, 그 좋은 수들 사이에서만
         // 경량 다턴 search(simRollout)로 최종 선택. fastSearch 단독이 -30 참사난 건 부정확 모델을 100% 신뢰해
@@ -203,6 +212,16 @@ export class MCTS {
         return bestChild;
     }
 
+    // [AZ POC] 방문수 argmax(정통 AlphaZero 최종 선택). 동률 시 첫 최대.
+    private static bestByVisits(node: MCTSNode): MCTSNode {
+        let best: MCTSNode = node.children[0];
+        let bestV = -1;
+        for (const child of node.children) {
+            if (child.visits > bestV) { bestV = child.visits; best = child; }
+        }
+        return best;
+    }
+
     private static async expand(node: MCTSNode, playerId: string): Promise<MCTSNode | null> {
         if (node.untriedActions.length === 0) return null;
         const actionIndex = Math.floor(Math.random() * node.untriedActions.length);
@@ -236,6 +255,11 @@ export class MCTS {
         };
         // [policyPUCT] root 자식이면 정책망 prior 부여(root만 priorsMap 보유 → 깊은 노드는 prior 없음 = 순수 UCT).
         if (node.priorsMap) childNode.prior = node.priorsMap.get(action);
+        // [AZ POC] azAllNodePrior: 정책 prior를 전 노드로 전파 — 이 자식의 후보에도 priorsMap을 계산해 손자까지 PUCT.
+        //   (정책망 forward가 노드마다 돌아 비용↑ = MCTS 반복수↓ 트레이드오프. 정통 PUCT엔 필수.)
+        if (MCTS._azAllNodePrior && childNode.untriedActions.length > 0) {
+            try { childNode.priorsMap = BotLogic.policyPriorMap(newState, playerId, childNode.untriedActions); } catch { /* 무시 */ }
+        }
 
         node.children.push(childNode);
         return childNode;
@@ -245,6 +269,12 @@ export class MCTS {
         // [flag: fastSearch] Path A 벽돌B5: 경량 forward model(simModel/simRollout)로 R6까지 굴려 평가.
         // terminalRollout(진짜엔진 풀시뮬)이 비용으로 죽은 것 교정 — SimState 추출 1회 후 simRollout은 ~수만배 빠름.
         // 리프를 '진짜 최종VP 근사(내-최고상대)'로 평가해 eval 천장 우회 + 대량 반복 가능. 롤아웃 결정적이라 1회.
+        // [AZ POC] azValueLeaf: 6-step 그리디 롤아웃을 건너뛰고 확장된 노드의 정적 평가만 리프값으로 사용.
+        //   useValueNet과 함께 켜면 evaluateState가 가치망 예측을 반환 → 정통 AZ의 "가치망 리프"(롤아웃 없음).
+        //   단독으로 켜면 휴리스틱 정적평가(롤아웃 제거 효과만). 스케일은 기존 evaluateState와 동일(UCT-Q 호환).
+        if (getPlayerFlag(playerId, 'azValueLeaf', false)) {
+            return Evaluator.evaluateState(state, playerId);
+        }
         if (getPlayerFlag(playerId, 'fastSearch', false)) {
             try {
                 return simRollout(extractSimState(state, playerId));

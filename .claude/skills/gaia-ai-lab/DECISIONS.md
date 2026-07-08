@@ -922,3 +922,13 @@
 - ★확정: **자가대국 가치망 루프는 do-no-harm/중립 — ≈휴리스틱 수렴, 반복해도 안 오름.** 원인(추정): (a)가치망만 작게 blend(정책+가치 MCTS 통합 아님) (b)~75봇 self-play는 그 수준을 반영할뿐 초월 못함 (c)휴리스틱이 이미 강함 (d)40판 SE~3.2라 ±1-2 실효는 판별불가(340판/군 필요).
 - **성과(뱅킹)**: Phase2 파이프라인 검증·안전(배선정리·net일반화 val MAE9.8·해로움→중립). 라이브 봇은 순수 휴리스틱(모든 net 플래그 OFF) 유지=리스크0.
 - **진짜 120벽 돌파에 필요한 것(별도 대형 프로젝트)**: 정책+가치망을 MCTS PUCT+리프에 통합(작은 blend 아님) + 피처 확장(점수타일 컨텍스트) + 대규모 다-iteration 컴퓨트. 불확실. 지금은 뱅킹 권장.
+
+## 2026-07-08 AlphaZero POC (kill-gate): 가치망-in-MCTS = RED 확정, 정통 재작성 기각
+- 배경: "큰 결심"으로 정통 AZ 검토. 조사결과 현 MCTS는 단일플레이어·non-negamax·비정규화 휴리스틱리프라 정통 AZ=코어 재작성(수주·고위험). 그래서 저위험 POC(기존 MCTS 유지, azValueLeaf/azVisitSelect/azAllNodePrior 플래그, 전부 기본 OFF)로 go/no-go.
+- 측정(weightsDiffer=false):
+  - 전체조합 8판 **VP −19.38(bWin0%)**.
+  - 분해(8판): useValueNet −14.44 / +azValueLeaf −20.31 / **azVisitSelect +1.71(bWin71%)** / azAllNodePrior −1.19.
+  - azVisitSelect 40판 확정: **VP +0.35(p0.92)=중립**(8판 고점은 노이즈).
+- **판정: RED.** ★가치망이 킬러(−14~−20) — 휴리스틱 리프가 가치망보다 압도적. 정통 재작성해도 동일 가치망 수준이라 같은 벽 → **정통 AZ 재작성 기각(수주·고위험·불확실 정당화 불가).** azVisitSelect(방문선택, 정석)·azAllNodePrior 둘 다 중립 → OFF 파킹(코드 보존).
+- **누적 확정**: net-in-MCTS 전 접근(가치 blend/replace·정책 prior 선형/MLP·PUCT·자가대국 iteration·POC)이 **≈휴리스틱 천장**. 이 엔진(강한 휴리스틱+짧은 MCTS+단일플레이어 트리)에서 net은 휴리스틱을 못 넘음.
+- **다음 큰 지렛대 = Path B: 휴리스틱 가중치 진화**(aiWeights.json 40+가중치를 자가대국+사람벤치마크로 CMA-ES/진화 튜닝). net 대신 *강한 몸체(휴리스틱)를 직접* 강화. MCTS·net 안 건드림=저위험. 인프라 일부(aiWeights.candidate.json A/B) 존재.
