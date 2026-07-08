@@ -1447,7 +1447,8 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	const player = game.players[playerId];
 	if (!player) return;
 
-	const CONSOLIDATABLE_ACTIONS = ['Resource Convert', 'Burn 2 Power', 'Power Burn', 'Burn 2 Power (Itars)', 'Free Actions'];
+	// [2026-07-08 사용자] 발타크 포머→QIC도 프리액션 — 3번 하면 로그 3줄 나옴 → 다른 프리액션처럼 한 줄(×N) 중첩.
+	const CONSOLIDATABLE_ACTIONS = ['Resource Convert', 'Burn 2 Power', 'Power Burn', 'Burn 2 Power (Itars)', 'Free Actions', "Bal T'aks: 1 Gaiaformer → 1 QIC"];
 	const isConsolidatable = CONSOLIDATABLE_ACTIONS.includes(action);
 
 	const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
