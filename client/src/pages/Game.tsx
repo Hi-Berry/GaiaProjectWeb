@@ -5077,16 +5077,9 @@ export default function Game() {
                                   );
                                 }
 
-                                // BalTak Manual QIC Conversion (Info + Action)
-                                if (p.faction === 'bal_tak') {
-                                  if ((p.balTakGaiaformersUsedForQic ?? 0) > 0) {
-                                    actionNodes.push(
-                                      <span key="bal_tak-qic-info" className="px-1 py-0.5 rounded-[3px] text-[9px] border bg-teal-500/20 text-teal-300 border-teal-500/40 font-bold cursor-help" title="포머를 QIC 대신 사용한 누적 횟수">
-                                        포머→QIC:{p.balTakGaiaformersUsedForQic}회
-                                      </span>
-                                    );
-                                  }
-                                }
+                                // [2026-07-08 사용자] 발타크 '포머→QIC:N회' 정보배지 제거 — 스페셜 *액션* 영역에 정보-전용 배지가
+                                //   섞여 '포머→가이아 2회'처럼 액션/중복으로 오인(사용자 관찰). 포머 수는 상태 패널에 이미 표시.
+                                //   (변환은 프리액션 다이얼로그에만 둠 — 앞서 ResearchBoard 버튼 제거와 동일 취지.)
 
                                 if (actionNodes.length === 0) return null;
                                 return (
