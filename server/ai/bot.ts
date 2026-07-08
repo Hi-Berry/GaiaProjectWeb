@@ -242,6 +242,8 @@ export class BotLogic {
                 if (!targetTileId) return false;
                 const target = game.map.find(t => t.id === targetTileId);
                 if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return false;
+                // [버그수정 2026-07-08] 연구소 상한(3) 도달 시 후보 제외 — 서버가 거부하는 액션을 안 내게(매안 연구소 4개 버그).
+                if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return false;
                 return (player.ore ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
             }
             if (actionIndex === 3) {
@@ -260,6 +262,8 @@ export class BotLogic {
                 if (!tid) return false;
                 const target = game.map.find(t => t.id === tid || String(t.id) === tid);
                 if (!target || target.ownerId !== playerId || target.structure !== 'mine') return false;
+                // [버그수정 2026-07-08] 교역소 상한(4) 도달 시 후보 제외 (리벨 mine→TS, 우주선 경로 상한 누락 교정).
+                if (getStructureCount(game, playerId, 'trading_station') >= BUILDING_LIMITS.trading_station) return false;
                 return (player.ore ?? 0) >= 1 && (player.power3 ?? 0) >= 3;
             }
             if (actionIndex === 3) {

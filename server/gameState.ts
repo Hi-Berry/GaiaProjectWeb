@@ -3536,6 +3536,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!targetTileId) return;
 					const target = game.map.find(t => t.id === targetTileId);
 					if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return;
+					// [버그수정 2026-07-08 사용자: 매안 연구소 4개] 우주선(트왈라잇) TS→연구소도 건물 상한(3) 적용 — 일반 업글만 체크하던 누락 교정.
+					if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return;
 					{ const tok = shipPowerTokens(3);
 					if (player.ore < 2) return;
 					if (player.faction === 'taklons') { if (!canSpendTaklonsPower(player, 3, 3)) return; } else if (player.power3 < tok) return;
@@ -3598,6 +3600,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!tid) return;
 					const target = game.map.find(t => t.id === tid || String(t.id) === tid);
 					if (!target || target.ownerId !== playerId || target.structure !== 'mine') return;
+					// [버그수정 2026-07-08] 리벨리온 mine→TS도 교역소 상한(4) 적용 — 우주선 경로 상한 누락(트왈 연구소 버그와 동일 클래스).
+					if (getStructureCount(game, playerId, 'trading_station') >= BUILDING_LIMITS.trading_station) return;
 					{ const tok = shipPowerTokens(3);
 					if (player.ore < 1) return;
 					if (player.faction === 'taklons') { if (!canSpendTaklonsPower(player, 3, 3)) return; } else if (player.power3 < tok) return;
@@ -5757,7 +5761,8 @@ export function executeCoverAdvancedTechTile(
 		}
 		return '';
 	})();
-	addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}${immDesc ? ` · ${immDesc}` : ''}`);
+	// [버그수정 2026-07-08 사용자: 고급기술 로그에 덮인 일반/우주선 기술 이미지 표시] tileId 누락 → GameLog가 details 첫 id(커버타일)를 씀. 4405처럼 고급 tileId 전달.
+	addGameLog(game, playerId, 'Advanced Tech Tile', `Covered ${coverTileId} → ${pending.advancedTileId}${immDesc ? ` · ${immDesc}` : ''}`, pending.advancedTileId);
 	game.pendingTechTileSelection = null;
 	game.pendingAdvancedTechCover = null;
 	game.availableShipTechTileIds = undefined;
@@ -7667,6 +7672,8 @@ export function executeUseShipAction(
 			if (targetTileId == null) return false;
 			const target = game.map.find(t => t.id === targetTileId);
 			if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return false;
+			// [버그수정 2026-07-08 봇 경로] 트왈 TS→연구소 상한(3) — executeUseShipAction(봇)에도 적용(소켓과 중복구현이라 별도).
+			if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return false;
 			if (player.ore < 2) return false;
 			// 타클론: 브레인스톤 포함 소비(3그릇 3파워는 브레인 우선). 직접 power3 차감하면 브레인 무시 버그(사용자 관찰).
 			if (player.faction === 'taklons') {
@@ -7734,6 +7741,8 @@ export function executeUseShipAction(
 			if (!tid) return false;
 			const target = game.map.find(t => t.id === tid || String(t.id) === tid);
 			if (!target || target.ownerId !== playerId || target.structure !== 'mine') return false;
+			// [버그수정 2026-07-08 봇 경로] 리벨 mine→TS 교역소 상한(4) — executeUseShipAction에도 적용.
+			if (getStructureCount(game, playerId, 'trading_station') >= BUILDING_LIMITS.trading_station) return false;
 			if (player.ore < 1) return false;
 			// 타클론: 브레인스톤 포함 소비(3그릇 3파워는 브레인 우선). 직접 power3 차감하면 브레인 무시 버그(사용자 관찰).
 			if (player.faction === 'taklons') {
