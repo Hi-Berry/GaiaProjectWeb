@@ -1755,7 +1755,8 @@ export function applyAdvancedTechTilePassEffect(game: GaiaGameState, playerId: s
 			apply(tileId, fedCount * 3, '3 per federation');
 		}
 		else if (tileId === 'adv-pass-2vp-asteroid') {
-			const asteroidCount = game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length;
+			let asteroidCount = game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length;
+				if ((player as any).virtualMineAsteroid) asteroidCount += 1; // [버그수정 2026-07-08] 인공물 가상광산 소행성도 카운트(상태창/행성유형과 일관)
 			apply(tileId, asteroidCount * 2, '2 per asteroid');
 		}
 		else if (tileId === 'adv-pass-2vp-outer') {
