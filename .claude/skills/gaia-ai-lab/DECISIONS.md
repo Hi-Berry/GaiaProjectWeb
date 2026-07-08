@@ -910,3 +910,7 @@
 - 재학습 망 valueNetBlend w=0.15: **VP −2.12(SE4.31, bWin54%, p0.62) = 중립**(−9.44에서 대폭 개선). 행동 total −1.59 약간↓.
 - **판정: 파이프라인 작동·안전 확인. iteration 1 중립은 AlphaZero 정상**(현정책 반영≠초월). 개선은 다-iteration 점진. valueNet.json은 재학습본으로 갱신(inert, blend OFF). 구 net은 valueNet.OLD.json 백업.
 - **다음 결정**: 다-iteration 그라인드(self-play→재학습→반복, 각 ~2-3h, 점진·불확실)를 며칠 투자 vs 여기서 뱅킹. 배선 안전해져 무인 자동 iteration 가능.
+
+## TODO (보류, 사용자 요청 2026-07-08): 타클론 브레인→3크레딧 후보 추가
+- 갭: 봇은 브레인을 3P→1O(오레)·useBrain으로만 씀. `1brain-to-3credit`(브레인→3C) 프리액션은 서버엔 있으나 봇 후보에 없음 → "크레딧 기아 시 브레인 놀리지 말고 3C로" 선택을 안 함.
+- 할 일: 크레딧기아(C낮음)+브레인 bowl3 idle일 때 1brain-to-3credit 후보/직접-return 추가(humanRule7C/mineCreditCombo 계열). 플래그 게이트→head2head do-no-harm 측정. Phase2 루프 종료 후 착수.
