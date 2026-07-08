@@ -19,7 +19,12 @@ import { ValueNet } from '../server/ai/valueNet';
 import { FEATURE_DIM, FEATURE_NAMES } from '../server/ai/features';
 
 const DATA = process.env.VALUE_NET_DATA || 'data/human-features.jsonl';
-const OUT = process.env.OUT || 'server/ai/humanValueNet.json';
+// [배선수정 2026-07-08] 이 트레이너는 features.ts 33피처 ValueNet(시스템②)을 학습한다 → getValueNet가 읽는
+//   valueNet.json에 써야 한다. 기존 기본값 humanValueNet.json은 evaluator.computeHumanValueVP(시스템①,
+//   인라인 22피처, valueProbe.mjs가 학습)이 읽는 파일이라, 여기 쓰면 22피처 consumer가 33피처 모델을 읽어
+//   predVP 쓰레기→봇 붕괴(2026-07-07 무효사고). 두 시스템 분리: ①humanValueNet.json=22피처(valueProbe),
+//   ②valueNet.json=33피처 MLP(trainValueNet/trainHumanValueNet).
+const OUT = process.env.OUT || 'server/ai/valueNet.json';
 const EPOCHS = Number(process.env.EP) || 40;
 const MINVP = Number(process.env.MINVP) || 0; // 약한 사람게임 거르려면 올림(예: 100)
 const LR = 0.02;
