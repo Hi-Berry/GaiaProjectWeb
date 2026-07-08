@@ -437,6 +437,22 @@ export function GameBoard({
     }
   }, [isMyTurnForNotify, game.currentPhase, playerId]);
 
+  // [사용자 2026-07-08] 내 턴뿐 아니라 '파워 팝업(누수 충전 오퍼)'이 떠서 처리해야 할 때도 데스크톱 알림.
+  //   내 차례가 아니어도(상대 건설로 파워 충전 결정 대기) 놓치지 않게. 미응답 오퍼가 없음→있음 전환 시 1회.
+  const hasMyPowerOfferForNotify = !!playerId
+    && ((game as { pendingPowerOffers?: Array<{ responded?: boolean; targetPlayerId?: string }> }).pendingPowerOffers ?? [])
+      .some((o) => o && !o.responded && o.targetPlayerId === playerId);
+  const prevPowerOfferRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const prev = prevPowerOfferRef.current;
+    prevPowerOfferRef.current = hasMyPowerOfferForNotify;
+    if (prev === null) return; // 마운트 첫 렌더 오발 방지
+    if (!prev && hasMyPowerOfferForNotify && game.currentPhase !== 'gameEnd') {
+      const myName = playerId ? game.players[playerId]?.name : '';
+      fireTurnNotification('가이아 프로젝트 — 파워 충전 결정', `${myName ? myName + ', ' : ''}파워 충전 여부를 결정하세요.`);
+    }
+  }, [hasMyPowerOfferForNotify, game.currentPhase, playerId]);
+
   const currentPlayer = playerId ? game.players[playerId] : null;
   const isStartingPhase = game.currentPhase === 'startingMines' && currentPlayer && (currentPlayer.startingMinesPlaced || 0) < (currentPlayer.faction ? (FACTIONS.find(f => f.id === currentPlayer.faction)?.startingMines ?? 2) : 2);
   const faction = currentPlayer?.faction ? FACTIONS.find(f => f.id === currentPlayer.faction) : null;
