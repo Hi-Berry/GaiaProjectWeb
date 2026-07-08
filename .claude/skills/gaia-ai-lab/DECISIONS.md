@@ -902,3 +902,11 @@
 - 가치망 파이프라인이 2개(computeHumanValueVP 인라인22피처 / features.ts ValueNet)라 혼선 — 먼저 **배선 정리·문서화**(어느 net이 어느 consumer인지 1:1 확정) 후 손대기. 무인 금지(오늘 humanValueNet 무효 교훈).
 - 자가대국 루프: MCTS로 (state, MCTS방문분포, 최종결과) 생성 → 가치망(+정책헤드) 재학습 → 반복. valuenet-data.jsonl 인프라 활용. 매 iteration 챔피언 대비 head2head 게이팅.
 - policyNetMLP.json(top-3 60%)은 Phase2 정책헤드 초기값으로 재활용.
+
+## 2026-07-08 Phase 2 iteration 1: 가치망 재학습 파이프라인 작동 확인 (중립, 이론상 예상)
+- 배선정리 후: ①humanValueNet.json(22피처,valueProbe) ②valueNet.json(33피처MLP,trainValueNet/trainHumanValueNet→OUT수정). Phase2=②.
+- 기존 valueNet.json(6/8 구 self-play) valueNetBlend w=0.15: **VP −9.44(p0.001) 해로움** → 재학습 필수 확인.
+- 구 코퍼스 4.6M 백업 → 현 챔피언 자가대국 120판 신규수집(39,225샘플, VALUE_NET_COLLECT). trainValueNet 재학습: **val MAE 9.83 vs baseline 16.21 = 일반화 성공**(밤샘 human-only 실패와 대조 — 데이터 질/양이 관건이었음).
+- 재학습 망 valueNetBlend w=0.15: **VP −2.12(SE4.31, bWin54%, p0.62) = 중립**(−9.44에서 대폭 개선). 행동 total −1.59 약간↓.
+- **판정: 파이프라인 작동·안전 확인. iteration 1 중립은 AlphaZero 정상**(현정책 반영≠초월). 개선은 다-iteration 점진. valueNet.json은 재학습본으로 갱신(inert, blend OFF). 구 net은 valueNet.OLD.json 백업.
+- **다음 결정**: 다-iteration 그라인드(self-play→재학습→반복, 각 ~2-3h, 점진·불확실)를 며칠 투자 vs 여기서 뱅킹. 배선 안전해져 무인 자동 iteration 가능.
