@@ -30,6 +30,7 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     const [unread, setUnread] = useState(0);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
     const openRef = useRef(open);
     openRef.current = open;
     const selfIdRef = useRef(selfId);
@@ -42,6 +43,41 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     const listHeightRef = useRef(listHeight); listHeightRef.current = listHeight;
     useEffect(() => { try { localStorage.setItem('gaia-chat-w', String(width)); } catch { /* noop */ } }, [width]);
     useEffect(() => { try { localStorage.setItem('gaia-chat-h', String(listHeight)); } catch { /* noop */ } }, [listHeight]);
+
+    // 위치 드래그(미니뷰처럼) — 헤더를 잡고 이동, localStorage 보존. null이면 기본 좌하단 앵커 유지.
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+        try { const v = localStorage.getItem('gaia-chat-pos'); return v ? JSON.parse(v) : null; } catch { return null; }
+    });
+    const posRef = useRef(pos); posRef.current = pos;
+    const clampPos = (p: { x: number; y: number }) => {
+        const vw = window.innerWidth, vh = window.innerHeight, VIS = 80; // 최소 80px는 화면 안(다시 드래그 가능)
+        return { x: Math.max(0, Math.min(vw - VIS, p.x)), y: Math.max(0, Math.min(vh - VIS, p.y)) };
+    };
+    // 뷰포트 리사이즈 시 위치 클램프
+    useEffect(() => {
+        const onResize = () => setPos((p) => (p ? clampPos(p) : p));
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+    const startDrag = useCallback((e: React.PointerEvent) => {
+        // 헤더 내 버튼(닫기 등)에서 시작한 포인터다운은 드래그로 처리하지 않음
+        if ((e.target as HTMLElement).closest('button, input, textarea')) return;
+        e.preventDefault();
+        const sx = e.clientX, sy = e.clientY;
+        const rect = rootRef.current?.getBoundingClientRect();
+        const baseX = posRef.current?.x ?? rect?.left ?? 0;
+        const baseY = posRef.current?.y ?? rect?.top ?? 0;
+        const onMove = (ev: PointerEvent) => setPos(clampPos({ x: baseX + (ev.clientX - sx), y: baseY + (ev.clientY - sy) }));
+        const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            document.body.style.userSelect = '';
+            try { if (posRef.current) localStorage.setItem('gaia-chat-pos', JSON.stringify(posRef.current)); } catch { /* noop */ }
+        };
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+    }, []);
 
     const startResize = useCallback((e: React.PointerEvent, axis: 'w' | 'h' | 'both') => {
         e.preventDefault(); e.stopPropagation();
@@ -159,7 +195,17 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         m.faction ? FACTIONS.find((f) => f.id === m.faction)?.color ?? '#a1a1aa' : '#a1a1aa';
 
     return (
-        <div className="fixed bottom-3 z-[120] md:z-30 flex flex-col items-start" style={{ pointerEvents: 'none', left: anchorLeftPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
+        <div
+            ref={rootRef}
+            className="fixed z-[120] md:z-30 flex flex-col items-start"
+            style={{
+                pointerEvents: 'none',
+                // 드래그로 위치 지정됐으면 좌상단(left/top) 기준, 아니면 기본 좌하단 앵커(left/bottom)
+                ...(pos
+                    ? { left: pos.x, top: pos.y }
+                    : { left: anchorLeftPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }),
+            }}
+        >
             {open ? (
                 <div
                     /* 좌측 앵커(모바일 68px·데스크톱 336px)를 뺀 폭으로 우측에 8px 여백 → X 버튼이 화면 밖으로 안 나감 */
@@ -170,8 +216,15 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                     <div onPointerDown={(e) => startResize(e, 'h')} className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-primary/40 z-20" title="드래그: 높이 조절" />
                     <div onPointerDown={(e) => startResize(e, 'w')} className="absolute top-0 bottom-0 right-0 w-1.5 cursor-ew-resize hover:bg-primary/40 z-20" title="드래그: 너비 조절" />
                     <div onPointerDown={(e) => startResize(e, 'both')} className="absolute top-0 right-0 w-3 h-3 cursor-nesw-resize z-30" title="드래그: 크기 조절" />
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/60">
-                        <span className="text-xs font-black uppercase tracking-widest text-zinc-200">채팅</span>
+                    <div
+                        className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/60 cursor-grab active:cursor-grabbing select-none touch-none"
+                        onPointerDown={startDrag}
+                        onDoubleClick={() => { setPos(null); try { localStorage.removeItem('gaia-chat-pos'); } catch { /* noop */ } }}
+                        title="드래그: 위치 이동 · 더블클릭: 기본 위치로"
+                    >
+                        <span className="text-xs font-black uppercase tracking-widest text-zinc-200 flex items-center gap-1.5">
+                            <span className="text-zinc-500">⠿</span>채팅
+                        </span>
                         <button
                             type="button"
                             onClick={() => setOpen(false)}
