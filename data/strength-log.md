@@ -125,3 +125,5 @@ VP: ON 79.0 vs OFF 74.6 = **+4.4** (B승률 38.3%, p=0.071 거의유의). 좌석
 | noR1Gaiaformer (R1 조기포밍 억제) | 40판 VP +0.97, TS +0.49 | ✅채택 ON |
 | 고급기술 force-take (분석#1) | 이미 advTileAlways(ON)로 최대, 미소비 갭=엔진 벽 | 조사종결(재구현 불필요) |
 | taklonsBrainCredit (1B→3C pre-fund) | 40판 taklons강제 VP −2.03(SE4.01) | ❌기각 OFF(브레인 보존이 옳음) |
+| nevlasKnowledgeCycle (1P→1K 사이클, itars레시피) | 120판 nevlas강제: 자리 −5.8, 전체 −1.91 | ❌기각·revert |
+| tokenGainNeedGate (gain-2-tokens 낭비 차단) | 40판 VP −2.29, 총액션 −2.0/게임(액션갭 악화) | ❌기각·dormant |

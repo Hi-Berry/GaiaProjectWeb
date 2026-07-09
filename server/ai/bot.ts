@@ -1517,6 +1517,7 @@ export class BotLogic {
             candidates.push({ type: 'burn_power', params: { moveBrainToBowl3: true } });
         }
 
+
         // 8-1b. [flag: bescodsLateSpecial] 매안 트랙업을 botHandler 자동 선사용 대신 MCTS 후보로 —
         // 인에이블러(레벨 보너스 자원·사거리→이번 라운드 연구소/Nav2 등 콤보)면 MCTS가 일찍 잡고, 아니면
         // 자연히 뒤로 밀림(사용자 교정 2026-07-06: 무조건 첫턴도, 무조건 패스직전도 아닌 '판단'이 맞음).
@@ -4728,6 +4729,17 @@ export class BotLogic {
                         const slotsOpen = (game.twilightArtifactSlots ?? []).some(s => s != null);
                         const goingForArtifact = boardedTwi && slotsOpen && totalTokens < 6;
                         if (!goingForArtifact) score = -1;
+                    }
+                    // [flag: tokenGainNeedGate] 사용자관찰(2026-07-09): 봇이 usable bowl3 파워를 소모(cost 3)해 bowl1 토큰 2개로
+                    //   바꾸는 gain-2-tokens를 구체적 용처 없이 남발("파워 income을 못 셈→미리 태움. 실제론 토큰 많은데도 자주 눌러").
+                    //   토큰이 이미 넉넉(≥7=연방보너스 조건 밖)하면 이건 usable 파워 강등(bowl3→bowl1)+템포 손해라 순손해 →
+                    //   음수로 눌러 findPowerActions(score≥0만) + powerActionOverPass 강제 대상에서 제외. noR1TokenGain(R1 한정)의
+                    //   전 라운드 일반판. 인공물 추적(트와일라잇 탑승+슬롯) 시 토큰수집이 맞으므로 예외.
+                    if (getPlayerFlag(playerId, 'tokenGainNeedGate', false) && totalTokens >= 7) {
+                        const twiT = game.map.find(t => t.type === 'ship_twilight');
+                        const boardedTwiT = !!twiT && (player.spaceshipsEntered ?? []).includes(twiT.id);
+                        const slotsOpenT = (game.twilightArtifactSlots ?? []).some(s => s != null);
+                        if (!(boardedTwiT && slotsOpenT)) score = -1;
                     }
                     break;
                 case 'gain-2-steps': {

@@ -955,3 +955,18 @@
 - 구현: 브레인 bowl3 idle + 크레딧<4 + **+3C가 지금은 못하는 광산을 언락**(after&&!before 프로브, humanRule7C/mineCreditCombo 동형)이면 `1brain-to-3credit` 직접-return(프리액션, 메인 유지). tsc통과, 행동검증=실발동 확인(logs: "1B→3C 크레딧기아→광산 언락" 다수).
 - 측정(40판, **taklons 강제**paired, weightsDiffer=false): **VP −2.03(SE4.01, bWin43.2% 16:21, p=0.41).** 방향 음수·상방 없음.
 - 판정: ❌ 기각(기본 OFF 유지, 기능은 플래그 뒤 dormant=라이브 무영향). **원인**: 브레인은 bowl3에서 다음R 파워 3P로 유지 가치(>3C)라 MCTS의 "브레인 보존"이 대체로 옳음 — 내 mid-turn 강제가 그걸 덮어 손해. "강제 룰이 평가기를 덮으면 진다"(11+ 실패)와 일관. hang 3건은 taklons TURN-REVERT(다른셋 패스→마지막 무한리버트, 룰 발동 0회)·bal_tak pendingShipTechMine=기존, 룰 무관.
+
+## 2026-07-09 기각(revert): nevlasKnowledgeCycle — 네뷸라 지식-사이클(1P→가이아공간+1K) itars레시피 이식 실패
+- 분석에이전트 #1: 네뷸라=봇 최약체(56.1), 시그니처 액션 `1power-to-1k-gaiaformer`(PI 프리액션, bowl3 1개→+1K, 토큰은 다음R bowl1 복귀)를 봇이 전 게임 **0회** 사용(사람 5-14/게임). itarsBurnCandidate(+6.85)와 동일 레시피 권고: 재활용 토큰 액션을 MCTS 후보로 + 평가기가 gaiaformerPower 가치화.
+- 구현: bot.ts 후보 추가(PI+power3 게이트) + evaluator.ts nevlas gaiaformerPower=power1Value(플래그 격리). 행동검증=MCTS 실제 선택 확인(지식↑, 토큰 재활용).
+- 측정(forced nevlas paired, weightsDiffer=false):
+  - 1차(power3≥1): 전체 −6.65, nevlas자리 −2.6 → 마지막 토큰까지 강등=과용.
+  - 2차(보수 power3≥3+R≤4) 40판: 전체 −2.35, nevlas자리 **+2.4**(유망해 보임).
+  - **2차 120판 확정: 전체 −1.91(SE1.95,p=0.054), nevlas자리 A(OFF)68.3 vs B(ON)62.5 = −5.8.** 40판 +2.4는 winner's curse 노이즈.
+- 판정: ❌ 기각 + **코드 revert**(bot.ts 후보·evaluator.ts 분기 제거). **원인**: itars는 가이아토큰이 PI로 기술타일교환(큰 VP)이라 이득이었지만, nevlas 토큰은 bowl1 복귀뿐 → 순비용(bowl3 강등+재충전 2회)에 이득은 +1K뿐. 평가기에 억지 가치부여→MCTS 과용→손해. **교훈: "재활용 토큰" 레시피는 그 토큰의 *하방 페이오프*(itars=기술타일)가 있을 때만 이식됨. 페이오프 없는 종족엔 안 통함.** [[action-gap-is-expansion-wall]] 강제=평가기덮음=진다와 일관.
+
+## 2026-07-09 기각(flag OFF, dormant): tokenGainNeedGate — gain-2-tokens 낭비 차단이 오히려 액션갭 악화
+- 사용자관찰: 봇이 usable bowl3 파워를 소모(cost 3)해 bowl1 토큰 2개로 바꾸는 gain-2-tokens를 용처 없이 남발("파워 income 미인지→미리 태움"). 원인규명: gain-2-tokens 기본점수 160→findPowerActions[0]→powerActionOverPass가 패스 대신 강제(로그 확인).
+- 구현: totalTokens≥7(연방보너스 밖) & 인공물추적 아님이면 gain-2-tokens score=-1 → findPowerActions(score≥0만)·powerActionOverPass 강제서 제외. noR1TokenGain의 전 라운드 일반판.
+- 측정(40판, 전종족, weightsDiffer=false): **vpMargin −2.29(SE3.12, 승률53.8%, verdict=노이즈). 행동델타: powerAct 3.04→2.69(gain-2-tokens 감소 확인), 총액션 46.76→44.74 = −2.0/게임.**
+- 판정: ❌ 기각(flag OFF, 코드 dormant 유지). **핵심발견**: gain-2-tokens는 파워 비효율이 맞지만, 끊으면 봇이 "패스 대신 머무는" 액션을 잃어 **총 액션 −2/게임**(봇 #1 약점=액션갭 [[action-gap-is-expansion-wall]]). 파워 아끼기 < 액션 유지. 사용자 직관(국소 옳음)을 head2head가 교정한 사례. **재방문 여지**: 더 나은 대체 파워액션이 affordable할 때만 gain-2-tokens 배제(액션 유지+낭비 감소 양립)면 다를 수 있음.
