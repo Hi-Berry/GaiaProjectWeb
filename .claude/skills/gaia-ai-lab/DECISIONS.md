@@ -988,3 +988,10 @@
 - 측정(전종족, weightsDiffer=false): **40판 VP +6.56±3.15(p=0.037, 승률62.5%)·총행동 +2.48·전방위 활동↑** → **120판 VP −0.33±1.88(p=0.862, 52.1%)·총행동 +0.05·연방 +0.08(소멸).**
 - 판정: 기각(OFF). 40판 큰 양수+광범위 행동변화는 winner's curse 6번째(policyPrior +6.63→−2.13, geodensPiValue +5.47→−1.5, Path B +4.97→−0.22 등과 동일 패턴). 120판에선 연방 델타 +0.08로 근접-inert = ×1.9 증폭이 fed 페이스를 실질 못 바꿈.
 - ★근본: 연방 sprawl은 **흩어진 빌드**(확장 패턴)가 뿌리라 클러스터가 애초에 마감권(gap≤3)에 없음 → 평가기로 그 보상을 증폭해도 발동할 클러스터가 없어 무효. [[action-gap-is-expansion-wall]] 재확인. 연방 페이스는 확장(빌드 밀집도) 문제의 하류.
+
+## 2026-07-09 기각(revert): qicToOre — 사람 마이닝 최상위 후보였으나 QIC 옵션가치 과소평가로 손해
+- 마이닝(서브에이전트, 사람 actionJournal 64게임): 1위 후보. 광석 고갈+QIC 잉여 시 무료변환 1Q→1O로 임박한 광석-업글 감당. 사람 52/64게임(81%)·325회, 게이팅 qic≥2 90%/ore≤1 79%, 직후 광석빌드 72%. 봇은 1qic-to-1ore 전무.
+- 구현: upgradeConvertCombo(광석→크레딧) 미러링, mine→TS·TS→Lab·Lab→Aca 3경로에 순수 광석-병목(credits충분)만 프리액션 1Q→1O. tsc통과.
+- 측정(전종족, weightsDiffer=false): **40판 VP +0.59(교역소 +0.52·총행동 +1.48=의도발현)** → **120판 VP −1.78±1.92·승률 40.7%(p=0.043 유의 약화)·교역소 +0.03·총행동 −0.43(행동붕괴).**
+- 판정: 기각 + **코드 revert**. **★교훈: "프리액션=공짜"가 아님.** QIC는 사거리점프·연방·기술·QIC액션의 높은 옵션가치를 갖는데 evaluator가 QIC 예비 미래가치를 저평가 → 광석 소량 위해 QIC 과다 변환 → 옵션 상실로 순손해. MCTS가 결과상태 평가해도 evaluator의 QIC-blindness 때문에 과변환을 못 막음. [[value-net-blend-neutral]]·evaluator-wall과 일관.
+- ★세션 함의: 사람 81%-빈도 free-conversion do-no-harm 후보조차 evaluator 옵션가치 저평가로 실패 → free-conversion 마이닝 벤(#2 powerToQic도 동일 옵션가치 리스크). 남은 갭은 evaluator-bound 확정.
