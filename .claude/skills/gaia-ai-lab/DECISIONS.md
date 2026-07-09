@@ -944,3 +944,14 @@
 - 사용자: 봇이 R1에 가이아포머 조기 배치. 사람 R1=인프라(TS·내비), 포밍 R2+.
 - 측정(40판, weightsDiffer=false): VP +0.97(SE3.13, bWin49%, p0.76)=do-no-harm. 가이아포밍 −0.56(R1 억제 작동)·TS +0.49(사람 R1 패턴 근접)·총행동 +0.40.
 - 판정: ✅ 채택(ON) — 음수아님 + 도메인옳음(R1 조기포밍 억제) + 행동 사람화(R1 TS우선) + 사용자관찰. free project(즉시포밍) 예외 유지.
+
+## 2026-07-09 조사종결: 고급기술 "force-take"(분석#1)는 이미 최대(advTileAlways) — 미소비 갭=엔진 벽
+- 분석 에이전트 #1: 봇이 초록연방 벌지만 고급타일 전환 ~15%(사람 ~80%), 0.72 green/seat 미소비. "force-take" 권고.
+- **재확인 결과(코드+DECISIONS): 이미 구현·채택됨.** ①`select_advanced_tech_tile`은 `pendingTechTileSelection` 있을 때만 유효(자유 메인액션 아님, gameState 8504 검증) → 별도 강제 메인액션 불가. ②실제 선택부 `findTechTileAction`(bot.ts 4180-4204)에 `advTileAlways`(기본 ON, 2026-06-30 채택, 0.03→0.51)가 이미 "청구가능(초록+L4+미보유)이면 무조건 고급 우선". **선택 시점 전환율은 이미 최대.**
+- 남은 0.72 미소비 = "선택 문제"가 아니라 **트리거 생성 문제**(L4+ 상태에서 기술타일 획득 이벤트를 안 만듦) = greenForAdvTile 직접계측 기각(2026-06-29 "아카데미 트리거 강제 필요=실패전력")과 동일한 **엔진 벽**. [[action-gap-is-expansion-wall]]과 일관. 재litigate 안 함.
+
+## 2026-07-09 기각(OFF): taklonsBrainCredit — 크레딧기아 시 브레인 1B→3C 직접-return pre-fund
+- 사용자 요청("나중에 추가해줘"): 타클론이 브레인을 프리액션으로 3C 변환할지 봇이 판단 못함.
+- 구현: 브레인 bowl3 idle + 크레딧<4 + **+3C가 지금은 못하는 광산을 언락**(after&&!before 프로브, humanRule7C/mineCreditCombo 동형)이면 `1brain-to-3credit` 직접-return(프리액션, 메인 유지). tsc통과, 행동검증=실발동 확인(logs: "1B→3C 크레딧기아→광산 언락" 다수).
+- 측정(40판, **taklons 강제**paired, weightsDiffer=false): **VP −2.03(SE4.01, bWin43.2% 16:21, p=0.41).** 방향 음수·상방 없음.
+- 판정: ❌ 기각(기본 OFF 유지, 기능은 플래그 뒤 dormant=라이브 무영향). **원인**: 브레인은 bowl3에서 다음R 파워 3P로 유지 가치(>3C)라 MCTS의 "브레인 보존"이 대체로 옳음 — 내 mid-turn 강제가 그걸 덮어 손해. "강제 룰이 평가기를 덮으면 진다"(11+ 실패)와 일관. hang 3건은 taklons TURN-REVERT(다른셋 패스→마지막 무한리버트, 룰 발동 0회)·bal_tak pendingShipTechMine=기존, 룰 무관.

@@ -118,3 +118,10 @@ VP: ON 79.0 vs OFF 74.6 = **+4.4** (B승률 38.3%, p=0.071 거의유의). 좌석
 |--|--|--|
 | σ0.18 변이 6후보 vs defaults | CAND6 40판 +4.97 → 120판 −0.22(중립) | 미채택, winner's curse |
 핵심: defaults 국소최적, 랜덤 진화 못 넘음. AZ·Phase2·weight-tuning 3방향 다 ~75 천장 확정. 강화 일단락, 실전품질(버그/UX)로.
+
+### 2026-07-09 do-no-harm 사람관찰 교정 (option-2)
+| 실험 | 결과 | 판정 |
+|--|--|--|
+| noR1Gaiaformer (R1 조기포밍 억제) | 40판 VP +0.97, TS +0.49 | ✅채택 ON |
+| 고급기술 force-take (분석#1) | 이미 advTileAlways(ON)로 최대, 미소비 갭=엔진 벽 | 조사종결(재구현 불필요) |
+| taklonsBrainCredit (1B→3C pre-fund) | 40판 taklons강제 VP −2.03(SE4.01) | ❌기각 OFF(브레인 보존이 옳음) |

@@ -830,6 +830,27 @@ export class BotLogic {
                         return { type: 'convert_resource', params: { type: '1ore-to-1credit' } };
                     }
                 }
+                // [flag: taklonsBrainCredit] 사용자 요청(2026-07-06): 타클론이 브레인(3그릇)을 프리액션 1B→3C로 바꿔
+                //   크레딧기아를 풀지 봇이 판단 못함. 브레인이 bowl3에 idle이고 크레딧 부족(<4)인데 +3C가 *지금은 못 하는*
+                //   광산 건설을 언락하면 변환(mineCreditCombo의 광석 대신 브레인으로 pre-fund). 1B→3C는 브레인 3파워어치를
+                //   낭비 없이(3크레딧) 소비 → 이후 재충전 사이클 복귀(타클론 엔진). humanRule7C/mineCreditCombo의 unlock 프로브와
+                //   동형(실효 없는 변환 방지 — after&&!before). 브레인은 어차피 idle(계측 1.6~2.1/게임 놀림). 프리액션이라 메인 유지.
+                if (getPlayerFlag(playerId, 'taklonsBrainCredit', false) && !game.hasDoneMainAction
+                    && player.faction === 'taklons' && player.brainStoneBowl === 3 && !(player as any).brainStoneInGaia
+                    && (player.credits ?? 0) < 4) {
+                    const canBuildMine = () => {
+                        try { return this.findBuildActions(game, playerId).some(a => a.type === 'build_mine'); } catch { return false; }
+                    };
+                    const before = canBuildMine();
+                    const oldC = player.credits;
+                    player.credits = (oldC ?? 0) + 3;
+                    const after = canBuildMine();
+                    player.credits = oldC;
+                    if (after && !before) {
+                        log(`Bot ${player.name} taklonsBrainCredit: 1B→3C (크레딧기아 C${oldC}, 브레인 idle→광산 언락)`, 'game', game.id);
+                        return { type: 'convert_resource', params: { type: '1brain-to-3credit', useBrain: true } };
+                    }
+                }
                 // [flag: creditIncomeTs] 크레딧기아의 *구조적* 교정(2026-07-07 사람데이터): 사람은 크레딧빈곤+광석부자(C낮음/O높음)일 때
                 //   스팟크레딧이 아니라 mine→TS 업글로 **크레딧 수입**을 만든다(actionJournal: 그 사분면 교역소업글 19%). 봇은 스팟(7C/1O→1C)만
                 //   만져 매R 재기아 → income으로 끊는다. 사용자 휴리스틱("광산 3개면 교역소가 좋다")과 일치: 3번째+ 광산은 수입 정체라
