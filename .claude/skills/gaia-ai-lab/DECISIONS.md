@@ -977,3 +977,14 @@
 - 판정: ❌ 기각(inert). **원인**: 스왑은 즉시 페이오프(자원·VP·건물수 불변)가 없고 위치/연방 가치는 평가기가 모델링 못 해 MCTS가 무가치로 판단→미선택. [[action-gap-is-expansion-wall]] "후보로 열어도 평가기가 가치를 못 보면 안 골라진다"(taklonsBrainCredit·nevlasKnowledgeCycle과 동일 벽). Ambas는 이미 84.5(3위권 강종족)라 손해 0.
 - 처리: 코드는 **플래그 뒤 dormant**(기본 OFF, 라이브 무영향) 보존 — 사람이 봇 상대로 둘 때/향후 평가기가 위치가치 모델링 시 재활용 가능. challenger.flags {} 복귀.
 - ★교훈 재확인: 종족 시그니처 갭은 **즉시·확정 보상**(geodensNewType +3K)일 때만 MCTS가 집음. 위치/셋업형 시그니처는 평가기 벽에 막힘 — 후보 개방만으론 부족.
+
+## 2026-07-09 종족 랭킹 갱신 (챔피언 자가대국 120판, n=480)
+- 최약: **nevlas 62.1 · taklons 62.9** · darkanians 68.3 · ivits 69.4 · lantids 69.7 · geodens 70.8 · moweyip 71.2 · bal_tak 74.2 · hadsch 75.6 · itars 77.0 · terran 77.1 · firaks 77.4 · xenos 78.6 · space_giants 79.1 · ambas 79.1 · tinkeroids 82.9 · bescods 83.0 · **gleens 92.9(최강)**.
+- vs 옛 랭킹(2026-06-18): lantids 62→69.7·geodens 61→70.8 개선(확장 채택 효과), ambas 81.8→79.1. 최약 여전히 nevlas·taklons(파워엔진=확장/파워벽 종속, 시그니처픽 다 기각).
+- 사람 profile 대조(human-faction-profile.mjs, 사람 50게임): 사람 최강 lantids 205.8(순위1.4)·gleens 205.5, 최약 itars 95.8. 봇↔사람 최대 역전 = lantids(사람#1 vs 봇중위)이나 봇 개선돼 완화. nevlas 사람 170(순위1.9)·taklons 153(순위2.3)=사람도 최상은 아님.
+
+## 2026-07-09 기각(OFF): fedPacePush — winner's curse 6번째 (40판 +6.56 → 120판 −0.33)
+- 동기: #1 측정갭=연방 페이스(봇 1.29연방/5.48위성 vs 사람 4.17/1.55). 개수직접보상(−3.55 실패)·위성캡(−2.99 실패) 대신 승인 메커니즘(clusterFedBonus=가까운 클러스터 티어업으로 7파워 마감)을 인간페이스(R3:1/R4:2/R5+:3)보다 뒤질 때만 ×1.9 증폭. evaluator term, 미측정이었음.
+- 측정(전종족, weightsDiffer=false): **40판 VP +6.56±3.15(p=0.037, 승률62.5%)·총행동 +2.48·전방위 활동↑** → **120판 VP −0.33±1.88(p=0.862, 52.1%)·총행동 +0.05·연방 +0.08(소멸).**
+- 판정: 기각(OFF). 40판 큰 양수+광범위 행동변화는 winner's curse 6번째(policyPrior +6.63→−2.13, geodensPiValue +5.47→−1.5, Path B +4.97→−0.22 등과 동일 패턴). 120판에선 연방 델타 +0.08로 근접-inert = ×1.9 증폭이 fed 페이스를 실질 못 바꿈.
+- ★근본: 연방 sprawl은 **흩어진 빌드**(확장 패턴)가 뿌리라 클러스터가 애초에 마감권(gap≤3)에 없음 → 평가기로 그 보상을 증폭해도 발동할 클러스터가 없어 무효. [[action-gap-is-expansion-wall]] 재확인. 연방 페이스는 확장(빌드 밀집도) 문제의 하류.
