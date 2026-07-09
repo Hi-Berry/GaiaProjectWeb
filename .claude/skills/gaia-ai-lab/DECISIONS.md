@@ -932,3 +932,10 @@
 - **판정: RED.** ★가치망이 킬러(−14~−20) — 휴리스틱 리프가 가치망보다 압도적. 정통 재작성해도 동일 가치망 수준이라 같은 벽 → **정통 AZ 재작성 기각(수주·고위험·불확실 정당화 불가).** azVisitSelect(방문선택, 정석)·azAllNodePrior 둘 다 중립 → OFF 파킹(코드 보존).
 - **누적 확정**: net-in-MCTS 전 접근(가치 blend/replace·정책 prior 선형/MLP·PUCT·자가대국 iteration·POC)이 **≈휴리스틱 천장**. 이 엔진(강한 휴리스틱+짧은 MCTS+단일플레이어 트리)에서 net은 휴리스틱을 못 넘음.
 - **다음 큰 지렛대 = Path B: 휴리스틱 가중치 진화**(aiWeights.json 40+가중치를 자가대국+사람벤치마크로 CMA-ES/진화 튜닝). net 대신 *강한 몸체(휴리스틱)를 직접* 강화. MCTS·net 안 건드림=저위험. 인프라 일부(aiWeights.candidate.json A/B) 존재.
+
+## 2026-07-09 Path B 가중치 진화: 중립 (defaults 국소최적) — 강화 3방향 전부 천장 확정
+- 발견: aiWeights.json = defaults와 100% 동일(미튜닝). tuneAi fitness=자가대국avgVP(약함) → 대신 head2head candidate-vs-champion(gold) fitness로 진화.
+- 루프: 챔피언(defaults) 고정 + σ0.18 승수변이 후보 6개 각 40판 A/B. 결과: CAND1..5 = −6.75/−1.14/−2.40/−2.24/−3.14, **CAND6 +4.97**(최고).
+- CAND6 120판 확정: **VP −0.22(SE1.75, p0.90)=중립**. 40판 +4.97은 winner's curse + 6표본 최댓값 selection-bias였음(회귀 확정).
+- **판정: 중립. defaults가 σ변이 국소최적** — 단순 랜덤 진화론 hand-tuned defaults 못 넘음. 챔피언 미변경(채택 없음).
+- ★★**강화 3방향(AZ POC RED·Phase2 자가대국 중립·Path B 가중치진화 중립)이 독립적으로 봇 ~75 = 현 아키텍처+측정예산의 실용 천장을 확정.** net·self-play·weight-tuning 다 소진. 추가 강화엔 근본적 대형투자(교대트리 재작성+큰망+피처, 불확실) 필요. 현실적 가치=버그/UX/사람관찰 do-no-harm 교정.
