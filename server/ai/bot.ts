@@ -28,6 +28,7 @@ import {
     executeConvertResource,
     executeUseHadschHallasPIAction,
     executeBotBescodsAdvanceLowestTrack,
+    executeBotAmbasSwapPiMine,
     getAcademyLeftCount,
     getAcademyRightCount,
     executeEnterSpaceship,
@@ -102,6 +103,7 @@ type BotAction = {
     | 'convert_resource'
     | 'use_hadsch_hallas_pi_action'
     | 'bescods_advance_lowest'
+    | 'ambas_swap_pi_mine'
     | 'enter_spaceship'
     | 'use_tech_action'
     | 'use_special_action'
@@ -382,6 +384,8 @@ export class BotLogic {
                 return executeUseShipAction(io, game, playerId, action.params.shipTileId, action.params.actionIndex, action.params.targetTileId);
             case 'bescods_advance_lowest':
                 return executeBotBescodsAdvanceLowestTrack(io, game, playerId);
+            case 'ambas_swap_pi_mine':
+                return executeBotAmbasSwapPiMine(io, game, playerId, action.params.mineTileId);
             case 'enter_spaceship':
                 {
                     // [계측 SHIPREJ 2026-07-04] enter_spaceship 실패 155건/일 — 서버 거부사유(문자열)를 버리지 말고 로그
@@ -1526,6 +1530,20 @@ export class BotLogic {
             && !game.hasDoneMainAction
             && !player.usedSpecialActions?.includes('bescods-advance-lowest')) {
             candidates.push({ type: 'bescods_advance_lowest', params: {} });
+        }
+
+        // 8-1c. [flag: ambasSwap] Ambas 시그니처(PI↔광산 위치교체, 메인·1회용). 봇엔 이 능력을 여는 코드가 전무 →
+        //   사람 2.12/게임 vs 봇 0(자기 종족 시그니처 미사용). 강제/점수넛지(positional=실패패턴) 대신 각 광산과의 swap을
+        //   MCTS 후보로 열어 평가기가 개선되는 위치일 때만 고르게 함(itarsBurn/advTile 패턴). PI 보유 + 미사용일 때만.
+        if (player.faction === 'ambas' && getPlayerFlag(playerId, 'ambasSwap', false)
+            && !game.hasDoneMainAction
+            && !player.usedSpecialActions?.includes('ambas-swap-pi-mine')
+            && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+            for (const t of game.map) {
+                if (t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')) {
+                    candidates.push({ type: 'ambas_swap_pi_mine', params: { mineTileId: t.id } });
+                }
+            }
         }
 
         // 8-2. 우주선 입장 (Lost Fleet Ship)

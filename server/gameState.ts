@@ -8227,6 +8227,36 @@ export function executeBotBescodsAdvanceLowestTrack(
 	return true;
 }
 
+/** Bot용: Ambas 시그니처 — PI ↔ 광산 위치 교체(메인액션·1회용). 소켓 핸들러(ambas_swap_pi_mine)와 동일 로직.
+ *  봇엔 이 능력을 여는 코드가 아예 없어(사람 2.12/게임 vs 봇 0) getCandidateMoves가 후보로 열고 MCTS가 결정. */
+export function executeBotAmbasSwapPiMine(
+	io: SocketIOServer, game: ServerGameState,
+	playerId: string, mineTileId: string
+): boolean {
+	const player = game.players[playerId];
+	if (!player || player.faction !== 'ambas') return false;
+	if (game.hasDoneMainAction) return false;
+	if (player.usedSpecialActions?.includes('ambas-swap-pi-mine')) return false;
+
+	const piTile = game.map.find(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+	const mineTile = game.map.find(t => t.id === mineTileId && t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine'));
+	if (!piTile || !mineTile) return false;
+
+	saveActionStartState(game, playerId);
+	const prevPI = piTile.structure;
+	const prevMine = mineTile.structure;
+	piTile.structure = prevMine;
+	mineTile.structure = prevPI;
+	if (!player.usedSpecialActions) player.usedSpecialActions = [];
+	player.usedSpecialActions.push('ambas-swap-pi-mine');
+	game.hasDoneMainAction = true;
+	addGameLog(game, playerId, 'Ambas: Special', 'PI ↔ Mine 위치 교체', mineTileId);
+	log(`Bot ${player.name} (Ambas) swapped PI with Mine (${mineTileId})`, 'game', undefined, { simulation: (game as any).simulation });
+	clampPlayerResources(game);
+	io.to(game.id).emit('game_updated', game);
+	return true;
+}
+
 /** Bot용: 모웨이드 의회 보유 시 링 놓기 스페셜 자동 수행. 링이 없는 첫 번째 건물에 링 배치. */
 export function executeBotMoweyipPlaceRing(
 	io: SocketIOServer, game: ServerGameState,

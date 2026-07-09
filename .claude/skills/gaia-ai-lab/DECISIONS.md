@@ -970,3 +970,10 @@
 - 구현: totalTokens≥7(연방보너스 밖) & 인공물추적 아님이면 gain-2-tokens score=-1 → findPowerActions(score≥0만)·powerActionOverPass 강제서 제외. noR1TokenGain의 전 라운드 일반판.
 - 측정(40판, 전종족, weightsDiffer=false): **vpMargin −2.29(SE3.12, 승률53.8%, verdict=노이즈). 행동델타: powerAct 3.04→2.69(gain-2-tokens 감소 확인), 총액션 46.76→44.74 = −2.0/게임.**
 - 판정: ❌ 기각(flag OFF, 코드 dormant 유지). **핵심발견**: gain-2-tokens는 파워 비효율이 맞지만, 끊으면 봇이 "패스 대신 머무는" 액션을 잃어 **총 액션 −2/게임**(봇 #1 약점=액션갭 [[action-gap-is-expansion-wall]]). 파워 아끼기 < 액션 유지. 사용자 직관(국소 옳음)을 head2head가 교정한 사례. **재방문 여지**: 더 나은 대체 파워액션이 affordable할 때만 gain-2-tokens 배제(액션 유지+낭비 감소 양립)면 다를 수 있음.
+
+## 2026-07-09 기각(inert, flag OFF dormant): ambasSwap — MCTS가 시그니처 스왑을 0회 선택
+- 갭: Ambas 시그니처 `ambas_swap_pi_mine`(PI↔광산 위치교체, 메인·1회용)을 봇이 전 게임 0회 사용(사람 2.12/게임). 강제/점수nudge(실패패턴) 대신 각 광산과의 swap을 **MCTS 후보**로 열어 평가기가 개선 위치일 때만 고르게 함(itarsBurn/advTile 패턴). 사람 소켓 핸들러(ambas_swap_pi_mine)와 동일 로직 확인.
+- 측정(forced ambas 40판 paired, weightsDiffer=false): **★[ambas] ON 84.5 vs OFF 84.5 → Δ+0.00 (p=1.000). 스왑 실행 0회.** 게임이 ON/OFF 동일하게 진행 = 후보는 열렸으나 MCTS가 한 번도 선택 안 함.
+- 판정: ❌ 기각(inert). **원인**: 스왑은 즉시 페이오프(자원·VP·건물수 불변)가 없고 위치/연방 가치는 평가기가 모델링 못 해 MCTS가 무가치로 판단→미선택. [[action-gap-is-expansion-wall]] "후보로 열어도 평가기가 가치를 못 보면 안 골라진다"(taklonsBrainCredit·nevlasKnowledgeCycle과 동일 벽). Ambas는 이미 84.5(3위권 강종족)라 손해 0.
+- 처리: 코드는 **플래그 뒤 dormant**(기본 OFF, 라이브 무영향) 보존 — 사람이 봇 상대로 둘 때/향후 평가기가 위치가치 모델링 시 재활용 가능. challenger.flags {} 복귀.
+- ★교훈 재확인: 종족 시그니처 갭은 **즉시·확정 보상**(geodensNewType +3K)일 때만 MCTS가 집음. 위치/셋업형 시그니처는 평가기 벽에 막힘 — 후보 개방만으론 부족.
