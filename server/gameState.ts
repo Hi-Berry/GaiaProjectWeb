@@ -1229,6 +1229,7 @@ export function executeCancelEclipseResearch(io: SocketIOServer, game: ServerGam
 	}
 	game.hasDoneMainAction = false;
 	game.pendingEclipseResearch = null;
+	removeLastGameLogEntry(game, playerId, 'Eclipse: 2K+3P → Research'); // 취소한 액션의 placeholder 로그 제거(로그 잔류 버그)
 	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 	return true;
 }
@@ -1513,6 +1514,26 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	if (game.gameLog.length > 2000) {
 		game.gameLog.shift();
 	}
+}
+
+/**
+ * [로그 정합성] 액션 취소 핸들러(전체 리셋이 아니라 자원만 수동 환불하는 경로)가 방금 남긴 placeholder 로그 1줄을 제거한다.
+ * 안 지우면 취소한 액션이 로그에 그대로 남고(사용자: "이클립스 2K+3P 취소했는데 로그에 남아있음"), gameLogSeq를 함께
+ * 되돌리지 않으면 같은 턴의 이후 reset_turn이 seq기반 트림을 과다 계산해 정상 로그까지 지운다. base 스냅도 환불 후 값으로
+ * 재동기화해 다음 로그의 '변동량' 표시가 취소된 액션 기준으로 어긋나지 않게 한다.
+ * ※ pending 모달이 UI를 막아 placeholder가 항상 그 플레이어의 '마지막' 엔트리라는 전제 → action 이름이 안 맞으면 no-op(안전).
+ */
+function removeLastGameLogEntry(game: GaiaGameState, playerId: string, action: string): void {
+	if ((game as any).simulation) return; // addGameLog와 동일 가드 — sim에선 로그도 seq도 안 건드림
+	const gl = game.gameLog;
+	if (!gl || gl.length === 0) return;
+	const last = gl[gl.length - 1];
+	if (last.playerId !== playerId || last.action !== action) return;
+	gl.pop();
+	if (typeof (game as any).gameLogSeq === 'number') {
+		(game as any).gameLogSeq = Math.max(0, (game as any).gameLogSeq - 1);
+	}
+	resetLogSnapBase(game, playerId);
 }
 
 function getAiFeedbackFilePath(): string {
@@ -3906,6 +3927,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 메인 액션 사용 취소
 			game.hasDoneMainAction = false;
 			game.pendingEclipseResearch = null;
+			// [로그 잔류 버그수정] 취소인데 "Eclipse: 2K+3P → Research (choose track)" placeholder 로그가 남던 것 제거
+			//   (자원만 수동 환불하고 로그/seq는 안 건드려, 이후 다른 액션 로그와 함께 둘 다 남던 사용자 관찰).
+			removeLastGameLogEntry(game, playerId, 'Eclipse: 2K+3P → Research');
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
@@ -3925,7 +3949,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (shipState.usedActionBy) delete shipState.usedActionBy[3];
 			}
 			game.pendingEclipseAsteroidMine = null;
-			addGameLog(game, playerId, 'Eclipse: 6C 액션 취소', '6C 환불', pending.shipTileId);
+			// [로그 잔류 버그수정] 취소한 액션의 placeholder "Eclipse: 6C → Build mine on asteroid (select tile)" 제거
+			//   (기존엔 placeholder를 남긴 채 별도 '취소' 줄을 더해 '지었다 취소'처럼 보였음 — research 취소와 동일 처리).
+			removeLastGameLogEntry(game, playerId, 'Eclipse: 6C → Build mine on asteroid');
 			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		});
 
