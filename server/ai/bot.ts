@@ -3279,7 +3279,7 @@ export class BotLogic {
         // [flag: noR1Gaiaformer] 사용자 관찰(2026-07-09): 봇이 R1에 가이아포머를 놓고(성숙은 R2) 조기 커밋 —
         //   사람 R1은 인프라(TS·내비)이고 가이아포밍은 R2+. R1 포밍은 파워6+포머+사거리/QIC를 너무 일찍 묶음.
         //   R1엔 포머 배치 후보를 안 냄(포머는 R2+에 씀). free project(TF Mars 2P·보너스 즉시)는 예외(같은 턴 해소).
-        if ((game.roundNumber ?? 1) <= 1 && !isFreeProject && getPlayerFlag(playerId, 'noR1Gaiaformer', false)) return [];
+        if ((game.roundNumber ?? 1) <= 1 && !isFreeProject && getPlayerFlag(playerId, 'noR1Gaiaformer', true)) return [];
 
         if (!isFreeProject && totalPower < powerRequired) return [];
 
