@@ -995,3 +995,10 @@
 - 측정(전종족, weightsDiffer=false): **40판 VP +0.59(교역소 +0.52·총행동 +1.48=의도발현)** → **120판 VP −1.78±1.92·승률 40.7%(p=0.043 유의 약화)·교역소 +0.03·총행동 −0.43(행동붕괴).**
 - 판정: 기각 + **코드 revert**. **★교훈: "프리액션=공짜"가 아님.** QIC는 사거리점프·연방·기술·QIC액션의 높은 옵션가치를 갖는데 evaluator가 QIC 예비 미래가치를 저평가 → 광석 소량 위해 QIC 과다 변환 → 옵션 상실로 순손해. MCTS가 결과상태 평가해도 evaluator의 QIC-blindness 때문에 과변환을 못 막음. [[value-net-blend-neutral]]·evaluator-wall과 일관.
 - ★세션 함의: 사람 81%-빈도 free-conversion do-no-harm 후보조차 evaluator 옵션가치 저평가로 실패 → free-conversion 마이닝 벤(#2 powerToQic도 동일 옵션가치 리스크). 남은 갭은 evaluator-bound 확정.
+
+## 2026-07-10 기각(inert, revert): boosterPassVp — 확정 VP지만 평가기 결정 안 바뀜(중복)
+- 평가기 분석(서브에이전트): 평가기가 player.bonusTile 0참조 → 부스터 패스보너스(매R 확정 VP, 예 랩부스터+랩3=9VP) 무시. 동일 메커니즘 고급기술 pass타일(evaluator 965)은 크레딧함=직접 불일치. geodensNewType형 확정보상 저평가로 판단, #1 후보.
+- 구현: computeScore에 부스터 passBonus.type별 카운트 × vp × vpWeightLate × 0.5(adv-pass와 동일 스케일, 현재 R 1패스만 확정이라 ×1). tsc통과.
+- 측정(전종족 40판, weightsDiffer=false): **VP +0.00±3.04(p=1.000), 승률 47.5%. 행동 미미(연구소 +0.15·가이아광산 +0.20뿐, 총행동 −0.09).**
+- 판정: 기각(inert)+revert. 원인: 부스터 VP는 leaf 상태 오프셋이라 형제 수 간 차이가 marginal(빌드 1개=+1카운트)뿐 + 봇 빌드가 이미 부스터와 대충 정렬 → 명시적 크레딧이 결정 불변=중복. 정가로 Δ0이라 인플레는 왜곡위험(안 함). ambasSwap류 inert.
+- ★교훈: "확정 VP 저평가"라도 (a)marginal 신호가 작고 (b)기존 휴리스틱이 이미 그 방향이면 평가기 term은 inert. geodensNewType이 통한 건 봇이 *안 하던* 새유형 빌드를 크게 유도(+100 후보점수)했기 때문 — 이미 하는 걸 크레딧하는 건 무효.
