@@ -2696,13 +2696,50 @@ export class BotLogic {
         return null;
     }
 
+    /** [flag: qicShipBudget] R1-2 우주선용 QIC 예약량 — 사람은 시작 QIC를 입장·리벨리온 3Q에 아껴 R1부터 우주선
+     *  혜택을 받는데, 봇은 가이아 건설(1Q)·점프에 즉시 소진해 우주선이 늦음(사용자 관찰 2026-07-07).
+     *  ①미입장 우주선 중 최소 입장 거리 QIC ②이미 리벨리온 탑승 + 3정큐(기술타일) 미사용이면 3. 큰 쪽. */
+    private static computeShipQicReserve(game: ServerGameState, playerId: string): number {
+        const player = game.players[playerId];
+        const entered = player.spaceshipsEntered || [];
+        let reserve = 0;
+        // ① 미입장 우주선 최소 입장 QIC (사거리 내면 0 — 예약 불필요)
+        if (entered.length < 3 && (player.score || 0) >= (player.faction === 'bal_tak' ? 7 : 5)) {
+            const myPlanets = game.map.filter(t =>
+                (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+            if (myPlanets.length > 0) {
+                const baseRange = this.getEffectiveBaseRange(player);
+                let minNeed = Infinity;
+                for (const tile of game.map) {
+                    if (!['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].includes(tile.type || '')) continue;
+                    if (entered.includes(tile.id)) continue;
+                    const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+                    const need = dist > baseRange ? Math.ceil((dist - baseRange) / 2) : 0;
+                    if (need < minNeed) minNeed = need;
+                }
+                if (minNeed !== Infinity && minNeed <= 2) reserve = minNeed; // 3Q+짜리 원거리 입장까지 예약하진 않음
+            }
+        }
+        // ② 리벨리온 탑승 중 + 3정큐(기술타일 액션) 미사용 → 3Q 적립 보호
+        for (const shipId of entered) {
+            const tile = game.map.find(t => t.id === shipId);
+            if (tile?.type !== 'ship_rebellion') continue;
+            const used = game.spaceships?.[shipId]?.usedActionIndices || [];
+            if (!used.includes(1)) reserve = Math.max(reserve, 3);
+        }
+        return reserve;
+    }
+
     private static findBuildActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
         const walletQic = this.getSpendableQicForMineBuild(player);
-        const maxPayQicForMine =
-            player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic;
+        // [flag: qicShipBudget] R1-2엔 우주선용 QIC 예약분을 빼고 빌드에 지불 가능 — 중앙 게이트라 가이아 1Q·점프 전부 적용
+        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && game.roundNumber <= 2)
+            ? this.computeShipQicReserve(game, playerId) : 0;
+        const maxPayQicForMine = Math.max(0,
+            (player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic) - qicReserveForShips);
 
         /** 발타크 GF→QIC 프리액션 후 (선택) 파워/우주선 프리액션, 마지막에 광산 */
         const buildMineAction = (tileId: string, qicTotalForBalTak: number, ...extraPres: BotAction[]): BotAction => {
