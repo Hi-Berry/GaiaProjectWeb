@@ -3467,10 +3467,16 @@ export class BotLogic {
             }
 
             if (tile.type === 'asteroid') {
-                // [버그수정 2026-07-10 사용자 긴급] 무료광산(nextMineFreeFromShipTech/spaceshipFed3TfMineFree=2~3삽무료)을
-                //   소행성에 쓰면 이중 낭비 = ①무료 테라포밍은 소행성에 무의미(소행성은 테라 대신 가이아포머 소모)
-                //   ②귀한 무료-테라 광산을 진짜 테라필요 행성 대신 소행성에 버림 + 가이아포머까지 소모. "절대 안 할 짓"(사용자).
-                //   소행성은 Eclipse 6C 액션(asteroidMainCandidate)으로만 건설. findMineActions에선 소행성 후보 생성 안 함.
+                // [사용자 규칙 2026-07-10] 포머로 짓는 정상 소행성 콜로니는 유지(정당한 확장: 포머 1개 소모 + 1O2C + 거리QIC).
+                //   단 2삽/무료광산(isFree=nextMineFreeFromShipTech/spaceshipFed3TfMineFree)은 소행성에 쓰지 않는다 —
+                //   무료 테라포밍은 소행성에 무의미(소행성은 테라 대신 포머 소모)라 무료광산·포머 이중낭비("절대 안 할 짓").
+                //   → isFree면 스킵, non-free + 포머 보유일 때만 후보(자원은 함수 진입부 3420에서 1O2C 확인됨).
+                if (isFree || getEffectiveGaiaformers(player) <= 0) continue;
+                scored.push({
+                    action: { type: 'build_mine', params: { tileId: tile.id } },
+                    score: 105 - (dist * 10) + this.calculateFinalMissionBonus(game, playerId, tile),
+                    nq: neededQic, cov: -1 // 포머 소행성도 삽커버 필터 제외
+                });
                 continue;
             }
             
