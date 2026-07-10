@@ -200,8 +200,9 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
             className="fixed z-[120] md:z-30 flex flex-col items-start"
             style={{
                 pointerEvents: 'none',
-                // 드래그로 위치 지정됐으면 좌상단(left/top) 기준, 아니면 기본 좌하단 앵커(left/bottom)
-                ...(pos
+                // 드래그 위치는 '펼친 상태'에서만 적용. 접으면(작은 버튼) 항상 기본 좌하단 앵커로 복귀
+                //   (사용자 요청: 닫았을 때 원래 위치로). 드래그 pos는 state/localStorage에 보존돼 다시 펼치면 복원.
+                ...(pos && open
                     ? { left: pos.x, top: pos.y }
                     : { left: anchorLeftPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }),
             }}
