@@ -1048,3 +1048,9 @@
 - 측정(전종족, weightsDiffer=false): 40판 VP +0.33 [승률60%, 우주선액션 -0.11=미발동] → 120판 VP -3.03 +-1.69 [승률44.4%, p0.073], 우주선액션 +0.37[발동]·광산 -0.15·연구소 -0.12·총행동 -0.22.
 - 판정: 기각+revert. 40판 +0.33은 winner's curse[우주선액션 미발동 노이즈]. 120판서 실제 발동하니 우주선 income액션이 더 나은 빌드/업글을 대체 → -3.03. burnCap과 동일 = 강제 활동이 기존 좋은 수 밀어냄.
 - ★핵심 통찰: 봇 우주선 저활용은 vs-사람 문제지 자가대국 문제가 아님. 자가대국선 전원 봇이 저활용이라 "안 씀"이 비용이 아니고, 오히려 억지 사용이 자원 쓰며 손해. → 이 부류[vs-사람 실전 낭비]는 self-play head2head로 측정 불가[bot-vs-bot ~75 등가]. do-no-harm 채택[소행성 등]은 도메인 판단이 판관이지 self-play VP가 아님.
+
+## 2026-07-10 기각(OFF): shipEntryGate — 낭비-차단조차 self-play 음수 (vs-사람 갭 재확정)
+- 발견: 우주선 입장의 66%가 액션 없이 -5VP 순손실(shipEntryGate 주석). 이미 구현된 gate[R6 입장금지 + 미사용 우주선 있으면 추가입장 금지] 측정.
+- 측정(전종족 40판, weightsDiffer=false): VP -3.00 +-2.83[승률35.1%, p0.29], 총행동 -1.36[활동 감소].
+- 판정: 기각. force-use[shipUseBroad -3.03]와 방향 반대인 cut-waste인데도 음수. 자가대국선 그 "낭비" 입장/액션도 봇 활동의 일부라 자르면 액션갭 악화[burnCap과 동형].
+- ★★세션 결정적 결론: self-play perturbation 全종류 소진 확정 = force-use(-3.03)·cut-waste(-3.00)·cut-burn(-2.10)·fed증폭(-0.33)·변환(-1.78)·inert(boosterPassVp/ambasSwap/fedPacePush 40판허상). 봇=hand-tuned 국소최적[~75]. 실전 비효율(우주선저활용·과다번=66% 낭비)은 vs-사람 문제라 self-play head2head가 원천적으로 못 측정/개선. 자율 self-play 최적화 공간 완전 소진. 남은 진짜 레버 = 데이터확보(SUPABASE 키)→가치망 / vs-사람 평가 / 도메인-판단 실수교정[소행성류, self-play 무관].
