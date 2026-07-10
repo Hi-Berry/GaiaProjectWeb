@@ -1054,3 +1054,9 @@
 - 측정(전종족 40판, weightsDiffer=false): VP -3.00 +-2.83[승률35.1%, p0.29], 총행동 -1.36[활동 감소].
 - 판정: 기각. force-use[shipUseBroad -3.03]와 방향 반대인 cut-waste인데도 음수. 자가대국선 그 "낭비" 입장/액션도 봇 활동의 일부라 자르면 액션갭 악화[burnCap과 동형].
 - ★★세션 결정적 결론: self-play perturbation 全종류 소진 확정 = force-use(-3.03)·cut-waste(-3.00)·cut-burn(-2.10)·fed증폭(-0.33)·변환(-1.78)·inert(boosterPassVp/ambasSwap/fedPacePush 40판허상). 봇=hand-tuned 국소최적[~75]. 실전 비효율(우주선저활용·과다번=66% 낭비)은 vs-사람 문제라 self-play head2head가 원천적으로 못 측정/개선. 자율 self-play 최적화 공간 완전 소진. 남은 진짜 레버 = 데이터확보(SUPABASE 키)→가치망 / vs-사람 평가 / 도메인-판단 실수교정[소행성류, self-play 무관].
+
+## 2026-07-10 실행+정량기각: humanValueNet 재학습 — 64게임은 가치망 학습에 근본 부족(데이터 천장 정량증명)
+- goal 문자그대로 "사람 로그로 학습" 실제 실행: human-features.jsonl 10,266샘플(58게임, bot제외, 게임단위 split 누출없음)로 33피처 MLP(valueNet.json, 시스템②) 학습.
+- **결과: valMAE epoch0 26.7 → epoch39 33.3(과적합 증가), 상수예측 기준 24.9. 망이 상수보다 나쁨=일반화 실패.** 대조 Phase2 self-play망 valMAE 9.83(기준16.2, 39k~144k샘플). 
+- 판정: 블렌드 무의미(상수만도 못함→손해 확실), 측정 생략, valueNet.json 복원. **★데이터 천장 정량증명: 사람 64게임(1만샘플)은 가치망 일반화에 근본 부족(needs ~40k+ = 수백 게임).** 이전 "데이터가 진짜 레버" 결론을 실측 MAE로 확정. self-play망이 통한 건 순전히 데이터量.
+- 함의: 자율로 가치망을 개선하려면 **더 많은 사람게임(SUPABASE 키) 필수** — 이건 이제 정량근거 있는 요구지 추정 아님.
