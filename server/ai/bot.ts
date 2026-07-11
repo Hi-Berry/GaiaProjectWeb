@@ -742,6 +742,47 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: r1RebelCommit] 사용자(2026-07-11): 사람은 R1부터 계획적으로 3정큐를 만들어 리벨을 함 —
+                // 봇도 '게임당 1봇(러너 = 진입비용 최소·결정적 지정)'이 R1-2에 이 빌드를 커밋: ①미탑승이면 리벨리온
+                // 입장 직행 ②탑승 후엔 rebellionQicPlan(아래)이 정큐 조립을 이어받음. 3정큐는 라운드당 1회 공유라
+                // 남(사람 포함)이 먼저 쓰면 rebUnused=false로 자연히 양보.
+                // [v2 2026-07-11] v1(무조건 직행)은 콤보 −5.56 — QIC 태우는 원거리 입장이 R1 인프라를 밀어냄.
+                // '입장이 공짜(사거리 내, QIC 0)'일 때만 커밋 = 사람도 가까울 때 하는 빌드.
+                if (getPlayerFlag(playerId, 'r1RebelCommit', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) <= 2 && this.isRebelRunner(game, playerId)) {
+                    const rebT = game.map.find(t => t.type === 'ship_rebellion');
+                    if (rebT && !(player.spaceshipsEntered ?? []).includes(rebT.id) && (player.spaceshipsEntered ?? []).length < 3) {
+                        const entry = this.findSpaceshipEntryActions(game, playerId)
+                            .find(a => a.type === 'enter_spaceship' && (a.params as any)?.tileId === rebT.id
+                                && ((a.params as any)?.qicToUse ?? 0) === 0);
+                        if (entry) {
+                            log(`Bot ${player.name} r1RebelCommit: 러너 리벨리온 무료입장 직행 (R${game.roundNumber})`, 'game', game.id);
+                            return entry;
+                        }
+                    }
+                }
+                // [flag: rebellionQicPlan] 사용자(2026-07-11): "아무도 리벨리온 3정큐 빌드를 안 생각해서 그것만으로 쉽게 이김".
+                // 룰 확인: 우주선 액션은 매 라운드 리셋(gameState 7215) = 3Q→기술타일이 라운드당 반복 엔진.
+                // 사람 빌드: 리벨리온 탑승 + AI트랙(L1~5: +1/+1/+2/+2/+4Q) 등정 + 매라운드 3Q 소진. 봇에 빠진 조각 =
+                // 'Q 수입을 계획적으로 만들기' → 직접-return(점수 너지는 aiTrackQicEngine서 무효 확인): 탑승 중 + 3Q 미달 +
+                // 이번 AI 연구의 Q 보상으로 3Q가 완성되면 AI 연구 (연구+1~2Q → 3정큐 → 타일, 타일이 또 트랙 전진).
+                if (getPlayerFlag(playerId, 'rebellionQicPlan', true) && !game.hasDoneMainAction) {
+                    const rq = game.roundNumber ?? 1;
+                    const rebTile = game.map.find(t => t.type === 'ship_rebellion');
+                    const onReb = !!rebTile && (player.spaceshipsEntered ?? []).includes(rebTile.id);
+                    const rebUnused = !!rebTile && !(game.spaceships?.[rebTile.id]?.usedActionIndices ?? []).includes(1);
+                    const aiLvl = player.research?.artificialIntelligence ?? 0;
+                    const qNow = player.qic ?? 0;
+                    if (onReb && rebUnused && rq <= 5 && qNow < 3 && (player.knowledge ?? 0) >= 4 && aiLvl < 5
+                        && !(aiLvl === 4 && !getFederationEntries(player).some(fe => fe.isGreen))
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        const qGain = aiLvl < 2 ? 1 : (aiLvl < 4 ? 2 : 4);
+                        if (qNow + qGain >= 3) {
+                            log(`Bot ${player.name} rebellionQicPlan: AI연구로 3정큐 완성 (q${qNow}+${qGain}, AI L${aiLvl}→${aiLvl + 1})`, 'game', game.id);
+                            return this.advanceResearchAction(playerId, player, 'artificialIntelligence');
+                        }
+                    }
+                }
                 // [flag: humanRule2K] 파워배분 실측(2026-07-11): +2지식 파워액션 사람 0.31 vs 봇 0.03(10배) — 점수는
                 // 정상(200~300)인데 삽 콤보가 파워를 선소진해 못 누름. 사람 패턴: 지식 기아(<4)+파워 여유일 때 눌러
                 // 다음 연구를 연다. humanRule2O와 동일한 직접-return(평가기 우회) 계열, 연방/삽콤보보다 후순위.
@@ -6260,6 +6301,29 @@ export class BotLogic {
         if (idle < 1) return [];
         const drain = Math.min(idle, 6);
         return Array.from({ length: drain }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
+    /** [flag: r1RebelCommit] 게임당 1봇을 '리벨리온 러너'로 지정 — 3정큐는 라운드당 1회 공유(선착순)라
+     *  봇 셋이 경합하면 낭비. 이미 탑승한 봇이 있으면 그 봇(첫 번째), 없으면 진입 거리 QIC가 최소인 봇
+     *  (동률 = turnOrder 앞) — 결정적이라 매 호출 재계산해도 동일 봇. */
+    private static isRebelRunner(game: ServerGameState, playerId: string): boolean {
+        const reb = game.map.find(t => t.type === 'ship_rebellion');
+        if (!reb) return false;
+        const bots = (game.botPlayerIds ?? []).filter(b => game.players[b]?.faction);
+        if (!bots.includes(playerId)) return false;
+        const boarded = bots.filter(b => (game.players[b].spaceshipsEntered ?? []).includes(reb.id));
+        if (boarded.length) return boarded[0] === playerId;
+        let best: string | null = null, bestNeed = Infinity;
+        for (const b of (game.turnOrder ?? []).filter(id => bots.includes(id))) {
+            const p = game.players[b];
+            const myPl = game.map.filter(t => (t.ownerId === b && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === b));
+            if (!myPl.length) continue;
+            const rng = this.getEffectiveBaseRange(p);
+            const dist = Math.min(...myPl.map(t => getDistance(t, reb)));
+            const need = dist > rng ? Math.ceil((dist - rng) / 2) : 0;
+            if (need < bestNeed) { bestNeed = need; best = b; }
+        }
+        return best === playerId;
     }
 
     /** [flag: gaiaResearchUseGate] 가이아 L0→L1 연구가 '포머를 실제로 쓸 수 있는' 상황인지.
