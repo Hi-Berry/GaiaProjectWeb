@@ -2964,13 +2964,30 @@ export class BotLogic {
         return reserve;
     }
 
+    /** [flag: r1ExpandValve] 사거리 내 0스텝(무삽) 확장지 존재 여부 — 조기 가드 교집합의 기아 판정용 */
+    private static hasZeroStepExpansion(game: ServerGameState, playerId: string): boolean {
+        const player = game.players[playerId];
+        const myPl = game.map.filter(t => t.ownerId === playerId && t.structure);
+        if (!myPl.length) return true;
+        const rng = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+        return game.map.some(t => !t.ownerId && !t.structure && t.type
+            && !['space', 'deep_space', 'transdim', 'asteroid', 'gaia'].includes(t.type) && !t.type.startsWith('ship_')
+            && getTerraformStepsForFaction(game, player.faction!, t.type) === 0
+            && myPl.some(p => getDistance(p, t) <= rng));
+    }
+
     private static findBuildActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
         const credits = player.credits ?? 0;
         const walletQic = this.getSpendableQicForMineBuild(player);
+        // [flag: r1ExpandValve] 사용자 실관찰(2026-07-12 HH): R1 광산 0채·5O20C 패스 — 조기가드 교집합
+        // (3O삽 차단 + QIC예약 가이아 차단 + 0스텝 부재)이 광산 후보를 전멸시킴. 0스텝 확장지가 없으면 밸브:
+        // ①우주선 QIC 예약 해제(확장>우주선 계획) ②아래 삽 가드 1000→400 캡(후보 생존, 선택은 MCTS).
+        const expandValve = getPlayerFlag(playerId, 'r1ExpandValve', true)
+            && (game.roundNumber ?? 1) <= 2 && !this.hasZeroStepExpansion(game, playerId);
         // [flag: qicShipBudget] R1-2엔 우주선용 QIC 예약분을 빼고 빌드에 지불 가능 — 중앙 게이트라 가이아 1Q·점프 전부 적용
-        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && game.roundNumber <= 2)
+        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && game.roundNumber <= 2 && !expandValve)
             ? this.computeShipQicReserve(game, playerId) : 0;
         const maxPayQicForMine = Math.max(0,
             (player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic) - qicReserveForShips);
@@ -3487,7 +3504,8 @@ export class BotLogic {
                         //   그 광산이 컴파운드할 라운드가 적어 3오레 투자 대비 이득이 작음(안 짓는 게 나음). R3~4에도 차단 수준 페널티로
                         //   확장>업글/연구/저비용확장을 우선. (R5+는 종료 임박이라 유지 — 정체방지 목적.)
                         const midGuard = getPlayerFlag(playerId, 'midTerraformGuard', false) && round >= 3 && round <= 4 && player.faction !== 'darkanians';
-                        stepPenalty = (earlyGuard || midGuard) ? 1000 : 50;
+                        // [flag: r1ExpandValve] 0스텝 확장지 전무(기아)면 차단 1000→400 캡(후보 생존, −50 게이트 통과)
+                        stepPenalty = (earlyGuard || midGuard) ? (expandValve ? 400 : 1000) : 50;
                     } else {
                         // 3광물이면 약 -1000점, 6광물이면 약 -2000점 수준의 강력한 페널티 적용
                         stepPenalty = (terraformCost / 3) * 1000;
