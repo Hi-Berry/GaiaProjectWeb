@@ -650,6 +650,25 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: humanFedCommit] 사용자 목표(2026-07-12): "못해도 2개, 평균 3개". 셀프플레이에선 강제 형성이
+                // VP −2~4로 기각됐으나(재료 null 케이스), 사용자 명시 목표가 연방 수를 우선함 + 사람 게임은 리치
+                // 경제로 재료 여건이 다름 → 사람 있는 게임에서만: R4+에 연방<2면, R5+에 연방<3이면 플래너가 찾는
+                // 즉시 형성을 MCTS보다 우선. 플래너 품질게이트는 유지(무리수는 플래너가 안 냄). 셀프플레이 무오염.
+                if (getPlayerFlag(playerId, 'humanFedCommit', true) && !game.hasDoneMainAction) {
+                    const hasHumanOppF = (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+                    const rF = game.roundNumber ?? 1;
+                    if (hasHumanOppF && rF >= 4) {
+                        const myFedsF = getFederationEntries(player).length;
+                        const fedTargetF = rF >= 5 ? 3 : 2;
+                        if (myFedsF < fedTargetF) {
+                            const fedF = FederationPlanner.getBestFederationAction(game, playerId);
+                            if (fedF) {
+                                log(`Bot ${player.name} humanFedCommit: 연방 강제 형성 (feds ${myFedsF}<${fedTargetF}, R${rF})`, 'game', game.id);
+                                return { type: 'form_federation', params: fedF };
+                            }
+                        }
+                    }
+                }
                 // [flag: scriptedStrategy] 다턴 실행 우회: MCTS가 얕은 시야로 "지금 연방 형성"을 자주 놓침
                 // (로그: 연방1개 봇의 33%가 파워≥7인데 2번째 미형성). 형성 가능 + 연방<2면 MCTS 건너뛰고 즉시 형성.
                 if (getPlayerFlag(playerId, 'scriptedStrategy', false)) {
