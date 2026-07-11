@@ -1690,7 +1690,7 @@ export class BotLogic {
             // [flag: gaiaResearchUseGate] 사용자 관찰(2026-07-11): R1 가이아 L1 올리고 포머 방치 후 패스 — 배치
             // 요구파워(L1-2=6)와 사거리 내 트랜스딤을 아무도 체크 안 해 연구 4K가 증발. L0→L1은 '포머를 실제로
             // 쓸 수 있는' 상황에서만 후보로(그 외엔 나중에 조건 갖추면 자연히 후보 복귀).
-            const gaiaGate = getPlayerFlag(playerId, 'gaiaResearchUseGate', false)
+            const gaiaGate = getPlayerFlag(playerId, 'gaiaResearchUseGate', true)
                 && !this.gaiaResearchUsable(game, playerId);
             for (const track of tracks) {
                 if (gaiaGate && track === 'gaiaProject' && (player.research.gaiaProject ?? 0) === 0) continue;
