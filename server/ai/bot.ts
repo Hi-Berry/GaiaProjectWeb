@@ -5063,7 +5063,7 @@ export class BotLogic {
                 // [flag: shipEntryOption] 사용자 모델(2026-07-07): 우주선은 "지금 못 써도" 들어간다 — ①다음 라운드
                 // 수입으로 열리는 액션의 선점 옵션가치 ②입장 순번 충전(2·3번째 +2pw, 4번째 +3pw). 기존엔 현재 자원
                 // 기준 즉시가치만 매겨 '쓸 수 있을 때만' 입장하던 것 교정.
-                if (getPlayerFlag(playerId, 'shipEntryOption', false) && round <= 5) {
+                if (getPlayerFlag(playerId, 'shipEntryOption', true) && round <= 5) {
                     const inc = this.calculateExpectedRoundIncome(game, playerId);
                     const proj = {
                         ...player,
