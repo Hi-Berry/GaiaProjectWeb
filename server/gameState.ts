@@ -1317,7 +1317,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	for (const pid of Object.keys(game.players)) {
 		const p = game.players[pid];
 		if (!p) continue;
-		const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+		const sum = endgameLeftoverUnits(game, pid, p); // [룰 2026-07-11] 파워 자동 환산 포함
 		const vp = Math.floor(sum / 3);
 		if (vp > 0) addScore(game, pid, vp, 'remainingResources');
 	}
@@ -1703,7 +1703,7 @@ export function scoreTerminalStateForRollout(game: ServerGameState): void {
 	for (const pid of Object.keys(game.players)) {
 		const p = game.players[pid];
 		if (!p) continue;
-		const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+		const sum = endgameLeftoverUnits(game, pid, p);
 		const vp = Math.floor(sum / 3);
 		if (vp > 0) addScore(game, pid, vp, 'remainingResources');
 	}
@@ -1711,6 +1711,25 @@ export function scoreTerminalStateForRollout(game: ServerGameState): void {
 		const bid = game.players[pid]?.factionBidVp ?? 0;
 		if (bid > 0) addScore(game, pid, -bid, 'other', { source: '종족 비딩' });
 	}
+}
+
+/** [룰 2026-07-11 사용자 확정] 종료 잔여자원 정산 시 파워 자동 환산:
+ *  2그릇을 전부 번(2토큰→1개 3그릇행) → 3그릇 전체를 크레딧으로(기본 1C, 네뷸라 의회 보유 시 2C,
+ *  타클론 브레인스톤은 3C — 2그릇에 있으면 일반토큰 1개를 번 비용으로 쓰고 이동) 후 합산. /3은 호출부에서.
+ *  (기존엔 파워 미포함 → 플레이어가 패스 전 수동 변환 노가다를 해야 했음) */
+function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: PlayerState): number {
+	let sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+	const hasPI = game.map.some(t => t.ownerId === pid && t.structure === 'planetary_institute');
+	const rate = (p.faction === 'nevlas' && hasPI) ? 2 : 1;
+	let n2 = p.power2 ?? 0;
+	const n3 = p.power3 ?? 0;
+	let brainC = 0;
+	if (p.faction === 'taklons') {
+		if (p.brainStoneBowl === 3) brainC = 3;
+		else if (p.brainStoneBowl === 2 && n2 >= 1) { brainC = 3; n2 -= 1; } // 이동 번 비용: 일반토큰 1개
+	}
+	sum += (n3 + Math.floor(n2 / 2)) * rate + brainC;
+	return sum;
 }
 
 export function qualifiesForNewSectorRoundMission(game: GaiaGameState, playerId: string, tileId: string, sector?: number): boolean {

@@ -1106,6 +1106,11 @@ export class BotLogic {
         const player = game.players[playerId];
         if (!player) return null;
 
+        // [룰 2026-07-11] 종료 정산이 파워를 자동 환산(2그릇 번→3그릇→크레딧, 네뷸라PI 2C/타클론 브레인 3C)하므로
+        // R6 최종 패스 전 수동 변환은 무의미하거나 손해(3P→1O = 3C어치→1유닛). 이 함수의 목적(다음 라운드 준비)도
+        // R6엔 소멸 → 전체 스킵.
+        if ((game.roundNumber ?? 1) >= 6) return null;
+
         const overflowActions = this.getPassResourceOverflowCleanupActions(game, playerId, nextBonusTileId);
         if (overflowActions.length > 0) return overflowActions[0];
 
