@@ -234,6 +234,9 @@ export class BotLogic {
         // 실행 시엔 findSpaceshipActions가 부족분만큼 변환 preActions를 붙여 지갑을 먼저 채움.
         const qicAvail = (player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true))
             ? this.getAvailableQic(player) : (player.qic ?? 0);
+        // [flag: shipActionBurn] 번(2토큰→1P3) preActions가 실행 전에 붙으므로 유효 P3 = 현재 + floor(bowl2/2)
+        const p3Avail = (getPlayerFlag(playerId, 'shipActionBurn', false) && player.faction !== 'taklons')
+            ? (player.power3 ?? 0) + Math.floor((player.power2 ?? 0) / 2) : (player.power3 ?? 0);
 
         // --- Twilight ---
         if (shipTile.type === 'ship_twilight') {
@@ -246,7 +249,7 @@ export class BotLogic {
                 if (!target || target.ownerId !== playerId || target.structure !== 'trading_station') return false;
                 // [버그수정 2026-07-08] 연구소 상한(3) 도달 시 후보 제외 — 서버가 거부하는 액션을 안 내게(매안 연구소 4개 버그).
                 if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return false;
-                return (player.ore ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
+                return (player.ore ?? 0) >= 2 && p3Avail >= 3;
             }
             if (actionIndex === 3) {
                 return (player.knowledge ?? 0) >= 1;
@@ -266,7 +269,7 @@ export class BotLogic {
                 if (!target || target.ownerId !== playerId || target.structure !== 'mine') return false;
                 // [버그수정 2026-07-08] 교역소 상한(4) 도달 시 후보 제외 (리벨 mine→TS, 우주선 경로 상한 누락 교정).
                 if (getStructureCount(game, playerId, 'trading_station') >= BUILDING_LIMITS.trading_station) return false;
-                return (player.ore ?? 0) >= 1 && (player.power3 ?? 0) >= 3;
+                return (player.ore ?? 0) >= 1 && p3Avail >= 3;
             }
             if (actionIndex === 3) {
                 return (player.knowledge ?? 0) >= 2;
@@ -280,7 +283,7 @@ export class BotLogic {
                 return qicAvail >= 2;
             }
             if (actionIndex === 2) {
-                if ((player.power3 ?? 0) < 2) return false;
+                if (p3Avail < 2) return false;
                 if ((player.gaiaformers ?? 0) <= 0) return false;
                 // 2P→가이아 프로젝트(즉시 포밍) 후 이어질 가이아포머 배치가 실제로 가능해야 함
                 return this.findGaiaformerActions(game, playerId).length > 0;
@@ -309,7 +312,7 @@ export class BotLogic {
                 return qicAvail >= 2;
             }
             if (actionIndex === 2) {
-                return (player.knowledge ?? 0) >= 2 && (player.power3 ?? 0) >= 3;
+                return (player.knowledge ?? 0) >= 2 && p3Avail >= 3;
             }
             if (actionIndex === 3) {
                 if ((player.credits ?? 0) < 6) return false;
@@ -5055,10 +5058,29 @@ export class BotLogic {
                 if (hasUnusedShip) continue; // 이미 안 쓴 우주선 있으면 추가 입장 금지(적재 방지)
                 const hasTS = game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station');
                 const hasMine = game.map.some(t => t.ownerId === playerId && t.structure === 'mine');
-                const best = this.estimateBestShipActionValue(player, tile.type || '', hasTS, hasMine);
-                score = 50 + best * 0.5; // 입장은 다음 턴 사용 + -5VP라 액션가치의 절반 반영
+                let best = this.estimateBestShipActionValue(player, tile.type || '', hasTS, hasMine);
                 const occupantsP = shipState?.occupants?.length || 0;
-                if (occupantsP >= 1) score += 20; // 동반 입장 파워 충전 가산
+                // [flag: shipEntryOption] 사용자 모델(2026-07-07): 우주선은 "지금 못 써도" 들어간다 — ①다음 라운드
+                // 수입으로 열리는 액션의 선점 옵션가치 ②입장 순번 충전(2·3번째 +2pw, 4번째 +3pw). 기존엔 현재 자원
+                // 기준 즉시가치만 매겨 '쓸 수 있을 때만' 입장하던 것 교정.
+                if (getPlayerFlag(playerId, 'shipEntryOption', false) && round <= 5) {
+                    const inc = this.calculateExpectedRoundIncome(game, playerId);
+                    const proj = {
+                        ...player,
+                        ore: (player.ore || 0) + (inc.ore || 0),
+                        credits: (player.credits || 0) + (inc.credits || 0),
+                        knowledge: (player.knowledge || 0) + (inc.knowledge || 0),
+                        qic: (player.qic || 0) + (inc.qic || 0),
+                        power3: (player.power3 || 0) + Math.min(4, inc.powerCharge || 0),
+                    } as PlayerState;
+                    const bestNext = this.estimateBestShipActionValue(proj, tile.type || '', hasTS, hasMine);
+                    best = Math.max(best, bestNext * 0.75); // 다음 라운드 사용은 선점 이득 포함 0.75 할인
+                    const chargeAmt = occupantsP >= 3 ? 3 : occupantsP >= 1 ? 2 : 0;
+                    score = 50 + best * 0.5 + chargeAmt * 12; // 실제 충전량 비례
+                } else {
+                    score = 50 + best * 0.5; // 입장은 다음 턴 사용 + -5VP라 액션가치의 절반 반영
+                    if (occupantsP >= 1) score += 20; // 동반 입장 파워 충전 가산
+                }
 
                 // [flag: shipTechEntryValue] 우주선이 주는 '기술타일' 가치를 입장 결정에 반영.
                 // 데이터(사람 vs 봇 좌석당): Nav+1 획득 4.59 vs 0.09(50배!), Rebellion 관여 3.71 vs 0.70(5배).
@@ -5177,6 +5199,20 @@ export class BotLogic {
                 ? { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i }, preActions: pres }
                 : { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
         };
+        // [flag: shipActionBurn] R1 실측(사람 196석 vs 봇 72석): 우주선 액션 사람 1.30 vs 봇 0.25 — 입장은 동수인데
+        // p3>=3 게이트를 현재값으로만 체크해 R1 봇(p3=0)은 후보 자체가 안 생김. 사람은 bowl2를 번(2토큰→1P3)해서
+        // 할인 액션(Twilight TS→랩 2O3P 등)을 씀. 파워액션 번 콤보(3163)의 우주선판 — 부족분만큼 번 preActions.
+        // [v2] 전면 적용은 −4.14(후반 번 = 파워순환 손실 > 할인이득). 사람 패턴대로 R1-2 한정 + 번 후에도
+        // bowl2에 토큰 2+ 남을 때만(파워경제 보존). 대상도 엔진 업글형(TS→랩·광산→TS)만 — 아래 각 사이트에서 shipBurnOk로.
+        const shipBurn = getPlayerFlag(playerId, 'shipActionBurn', false) && player.faction !== 'taklons'
+            && (game.roundNumber ?? 1) <= 2;
+        const p3Now = player.power3 || 0;
+        const burnableP3 = Math.max(0, Math.floor(((player.power2 || 0) - 2) / 2)); // bowl2 예비 2 남김
+        const p3Eff = shipBurn ? p3Now + burnableP3 : p3Now;
+        const burnPres = (need: number): BotAction[] => {
+            const n = shipBurn ? Math.max(0, need - p3Now) : 0;
+            return n > 0 ? Array.from({ length: n }, () => ({ type: 'burn_power' as const, params: {} })) : [];
+        };
 
         for (const shipId of entered) {
             const shipTile = game.map.find(t => t.id === shipId);
@@ -5199,11 +5235,14 @@ export class BotLogic {
                     } else if (i === 1 && (player.qic || 0) >= 0) {
                         score = 230;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
-                    } else if (i === 2 && (player.ore || 0) >= 2 && (player.power3 || 0) >= 3) {
+                    } else if (i === 2 && (player.ore || 0) >= 2 && p3Eff >= 3) {
                         const ts = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station');
                         if (ts) {
                             score = 420; // 2O+3P → TS→Lab: 가이아 프로젝트 파워 액션 중 최상급 (연구소+기술타일 선점)
-                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
+                            const pres = burnPres(3);
+                            action = pres.length
+                                ? { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id }, preActions: pres }
+                                : { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: ts.id } };
                         }
                     } else if (i === 3) {
                         // 트왈라잇 1지식 → +3 Range(tempRangeBonus). 단, 그 사거리가 '실제로 새 대상을 여는' 경우만 켠다.
@@ -5220,7 +5259,7 @@ export class BotLogic {
                     } else if (i === 1) {
                         score = 250;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
-                    } else if (i === 2 && (player.ore || 0) >= 1 && (player.power3 || 0) >= 3) {
+                    } else if (i === 2 && (player.ore || 0) >= 1 && p3Eff >= 3) {
                         // [noFedTierUp] 리벨리온 mine→TS도 연방 우회 경로였음(사용자 관찰: 연방 광산을 이 액션으로 올림).
                         //   findUpgradeActions/할인경로처럼 비연방 광산 우선, noFedTierUp ON이면 연방 광산엔 폴백 안 함
                         //   (비연방 광산 없으면 이 액션 스킵 → 다른 우주선 액션/행동으로 연방 씨앗 보존).
@@ -5264,7 +5303,10 @@ export class BotLogic {
                         }
                         if (mine) {
                             score = 300; // Mine -> TS 업그레이드
-                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
+                            const presReb = burnPres(3);
+                            action = presReb.length
+                                ? { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id }, preActions: presReb }
+                                : { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i, targetTileId: mine.id } };
                         }
                     } else if (i === 3 && (player.knowledge || 0) >= 2) {
                         score = 250; // 2K -> 1Q 2C
@@ -5290,7 +5332,7 @@ export class BotLogic {
                         score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.power3 || 0) >= 2 && (player.gaiaformers || 0) > 0) {
-                        score = 340; // 가이아 프로젝트
+                        score = 340; // 가이아 프로젝트 (v2: 번 콤보는 엔진 업글형에만 — 여기는 제외)
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 3 && (player.credits || 0) >= 3) {
                         score = 380; // 3C -> 1TF: 테라포밍 효율적, 확장에 최고
@@ -5313,7 +5355,7 @@ export class BotLogic {
                         score = 200;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.knowledge || 0) >= 2 && (player.power3 || 0) >= 3) {
-                        score = 330; // 연구 전진: 매우 강력
+                        score = 330; // 연구 전진 (v2: 번 콤보는 엔진 업글형에만 — 여기는 제외)
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.knowledge || 0) >= 2) {
                         score = 230;
