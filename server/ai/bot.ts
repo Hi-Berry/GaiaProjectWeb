@@ -260,7 +260,12 @@ export class BotLogic {
         // --- Rebellion ---
         if (shipTile.type === 'ship_rebellion') {
             if (actionIndex === 1) {
-                return qicAvail >= 3;
+                if (qicAvail >= 3) return true;
+                // [flag: rebellionBurnQic] 번(≤2)+4P→1Q 변환으로 3정큐 완성하는 체인(preActions가 먼저 실행됨)
+                return getPlayerFlag(playerId, 'rebellionBurnQic', false) && player.faction !== 'taklons'
+                    && (player.qic ?? 0) === 2
+                    && ((player.power3 ?? 0) + Math.floor((player.power2 ?? 0) / 2)) >= 4
+                    && Math.max(0, 4 - (player.power3 ?? 0)) <= 2;
             }
             if (actionIndex === 2) {
                 const tid = targetTileId != null ? String(targetTileId) : '';
@@ -3169,6 +3174,12 @@ export class BotLogic {
                         // [버그수정 2026-07-04] burn 1회 = bowl3 +1뿐 — 기존엔 번 1개만 붙여 실행 시 "Insufficient Power 3"
                         // 277회/일 실패(→강제 pass 턴 낭비). 부족분(3-power3)만큼 번 반복 부착. 타클론은 브레인 회계 특수라 1회 유지.
                         const burns1 = player.faction === 'taklons' ? 1 : Math.max(1, 3 - power3);
+                        // [flag: earlyBurnGuard] 사용자 관찰(2026-07-11): R1에 번 3개(토큰 6개 소모)로 1삽을 사는 건
+                        // 파워순환 절반을 태우는 확정 손해 — 평가기가 토큰을 ~0으로 쳐서 MCTS가 거름망 없이 고름.
+                        // R1-2엔 번 1개(토큰 2개)까지만 허용.
+                        if (getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns1 >= 2) {
+                            // 콤보 미생성 (일반 경로/다른 후보로)
+                        } else {
                         const burnPres1: BotAction[] = Array.from({ length: burns1 }, () => ({
                             type: 'burn_power' as const,
                             params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -3182,6 +3193,7 @@ export class BotLogic {
                             })
                         });
                         continue;
+                        }
                     }
                 }
             }
@@ -3211,6 +3223,10 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         // [버그수정 2026-07-04] 위 gain-1-step과 동일 — 부족분(5-power3)만큼 번 반복 부착.
                         const burns2 = player.faction === 'taklons' ? 1 : Math.max(1, 5 - power3);
+                        // [flag: earlyBurnGuard] R1-2 번 2+개 콤보 차단 (위 gain-1-step과 동일 사유)
+                        if (getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns2 >= 2) {
+                            // 콤보 미생성
+                        } else {
                         const burnPres2: BotAction[] = Array.from({ length: burns2 }, () => ({
                             type: 'burn_power' as const,
                             params: { moveBrainToBowl3: player.faction === 'taklons' && player.brainStoneBowl === 2 ? true : undefined }
@@ -3224,6 +3240,7 @@ export class BotLogic {
                             })
                         });
                         continue;
+                        }
                     }
                 }
             }
@@ -5261,6 +5278,20 @@ export class BotLogic {
                     if (i === 1 && effShipQic >= 3) {
                         score = 380; // 기술 타일 획득: 최강 액션
                         action = shipQicAction(shipId, i, 3);
+                    } else if (i === 1 && getPlayerFlag(playerId, 'rebellionBurnQic', false)
+                        && player.faction !== 'taklons' && (player.qic || 0) === 2
+                        && ((player.power3 || 0) + Math.floor((player.power2 || 0) / 2)) >= 4) {
+                        // [flag: rebellionBurnQic] 사용자 룰(2026-07-11): QIC 2 + 번(≤2)로 4P 만들어 4P→1Q 변환
+                        // → 3정큐(기술타일) 완성은 번 2개 값을 하는 예외적 보상 — 이 체인만 정밀 허용.
+                        const burnsNeeded = Math.max(0, 4 - (player.power3 || 0));
+                        if (burnsNeeded <= 2) {
+                            score = 375;
+                            const chainPres: BotAction[] = [
+                                ...Array.from({ length: burnsNeeded }, () => ({ type: 'burn_power' as const, params: {} })),
+                                { type: 'convert_resource' as const, params: { type: '4power-to-1qic' } },
+                            ];
+                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i }, preActions: chainPres };
+                        }
                     } else if (i === 1) {
                         score = 250;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
