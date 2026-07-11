@@ -2882,6 +2882,20 @@ export class BotLogic {
             const used = game.spaceships?.[shipId]?.usedActionIndices || [];
             if (!used.includes(1)) reserve = Math.max(reserve, 3);
         }
+        // ③ [flag: rebelAdjacentQicHold] 미탑승이어도 리벨리온이 사거리 내(입장 0Q)면 R1-2엔 3정큐 라인 보호.
+        // 사용자 관찰(2026-07-11): 발타크가 리벨 인접 시작 + Q4 라인(연구소 1O1Q타일+가이아트랙)이 있는데
+        // R1에 가이아 건설로 Q를 던져 라인 사망 — 기존 ①은 입장비용(0)만 예약해 구멍.
+        if (getPlayerFlag(playerId, 'rebelAdjacentQicHold', true) && (game.roundNumber ?? 1) <= 2) {
+            const reb = game.map.find(t => t.type === 'ship_rebellion');
+            if (reb && !entered.includes(reb.id) && entered.length < 3) {
+                const myPl = game.map.filter(t =>
+                    (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+                if (myPl.length > 0) {
+                    const d = Math.min(...myPl.map(p => getDistance(p, reb)));
+                    if (d <= this.getEffectiveBaseRange(player)) reserve = Math.max(reserve, 3);
+                }
+            }
+        }
         return reserve;
     }
 
