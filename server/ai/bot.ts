@@ -901,8 +901,12 @@ export class BotLogic {
                 // 패스하기 직전 자원 변환 (Cleanup logic)
                 if (bestAction?.type === 'pass_round') {
                     // HH PI 변환(무료): 패스 전 남는 크레딧을 QIC/광석/지식으로. 봇 루프가 버퍼까지 반복 → 크레딧 풍선 해소.
-                    const hhConv = this.findHadschHallasConvert(game, playerId);
-                    if (hhConv) { log(`Bot ${player.name} HH PI convert before pass: ${(hhConv.params as any)?.actionId}`, 'game', game.id); return hhConv; }
+                    // [낭비수정 2026-07-07] R6 최종 패스 직전 변환은 잔여자원 VP 유닛을 3~4→1로 줄이는 확정 손해
+                    // (잔여자원 VP는 종류 무관 3유닛=1VP) → R6 제외. 메인액션 전 변환(위쪽)은 그 턴 활용 가능이라 유지.
+                    if ((game.roundNumber ?? 1) < 6) {
+                        const hhConv = this.findHadschHallasConvert(game, playerId);
+                        if (hhConv) { log(`Bot ${player.name} HH PI convert before pass: ${(hhConv.params as any)?.actionId}`, 'game', game.id); return hhConv; }
+                    }
                     // [flag: powerActionOverPass] 패스+1:1 파워변환 대신, 쓸만한 파워액션(findPowerActions: 점수≥0만, 베이스150+)이
                     // affordable하면 그걸 실행 = 생산적 턴(1:1 변환보다 훨씬 이득). MCTS가 파워액션 저평가해 0회 쓰던 것 일반교정
                     // (humanRule2O 일반판, 사용자 관찰). 토큰예비 가드로 연방용 토큰 드레인 방지.
