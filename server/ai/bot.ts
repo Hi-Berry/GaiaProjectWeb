@@ -771,14 +771,19 @@ export class BotLogic {
                     const rebTile = game.map.find(t => t.type === 'ship_rebellion');
                     const onReb = !!rebTile && (player.spaceshipsEntered ?? []).includes(rebTile.id);
                     const rebUnused = !!rebTile && !(game.spaceships?.[rebTile.id]?.usedActionIndices ?? []).includes(1);
+                    // [flag: twilightQicPlan] 트와일라잇 #1(3Q→연방보상)도 동형 엔진 — 브리지 조건에 합류
+                    const twiTile = getPlayerFlag(playerId, 'twilightQicPlan', false) ? game.map.find(t => t.type === 'ship_twilight') : null;
+                    const onTwi = !!twiTile && (player.spaceshipsEntered ?? []).includes(twiTile.id);
+                    const twiUnused = !!twiTile && !(game.spaceships?.[twiTile.id]?.usedActionIndices ?? []).includes(1);
+                    const engineReady = (onReb && rebUnused) || (onTwi && twiUnused);
                     const aiLvl = player.research?.artificialIntelligence ?? 0;
                     const qNow = player.qic ?? 0;
-                    if (onReb && rebUnused && rq <= 5 && qNow < 3 && (player.knowledge ?? 0) >= 4 && aiLvl < 5
+                    if (engineReady && rq <= 5 && qNow < 3 && (player.knowledge ?? 0) >= 4 && aiLvl < 5
                         && !(aiLvl === 4 && !getFederationEntries(player).some(fe => fe.isGreen))
                         && !candidates.some(c => c.type === 'form_federation')) {
                         // [flag: rebelPrepPlus ①] 사용자(2026-07-11): 1Q만 부족하면 리벨 3번(2K→1Q+2C)이 AI연구(4K)보다
                         // 싼 브리지 (같은 배, 다른 인덱스라 같은 라운드 사용 가능) — 이걸 먼저.
-                        if (getPlayerFlag(playerId, 'rebelPrepPlus', true) && qNow === 2 && (player.knowledge ?? 0) >= 2
+                        if (getPlayerFlag(playerId, 'rebelPrepPlus', true) && onReb && qNow === 2 && (player.knowledge ?? 0) >= 2
                             && !(game.spaceships?.[rebTile!.id]?.usedActionIndices ?? []).includes(3)) {
                             log(`Bot ${player.name} rebelPrepPlus: 리벨3번(2K→1Q2C) 브리지 → 3정큐`, 'game', game.id);
                             return { type: 'use_ship_action', params: { shipTileId: rebTile!.id, actionIndex: 3 } };
@@ -2904,24 +2909,27 @@ export class BotLogic {
             }
         }
         // ② 리벨리온 탑승 중 + 3정큐(기술타일 액션) 미사용 → 3Q 적립 보호
+        // [flag: twilightQicPlan] 트와일라잇 #1(3Q→연방보상 8~12VP, 라운드 반복)도 동형 3Q 엔진 — 동일 보호
         for (const shipId of entered) {
             const tile = game.map.find(t => t.id === shipId);
-            if (tile?.type !== 'ship_rebellion') continue;
+            const isEngine = tile?.type === 'ship_rebellion'
+                || (tile?.type === 'ship_twilight' && getPlayerFlag(playerId, 'twilightQicPlan', false));
+            if (!isEngine) continue;
             const used = game.spaceships?.[shipId]?.usedActionIndices || [];
             if (!used.includes(1)) reserve = Math.max(reserve, 3);
         }
-        // ③ [flag: rebelAdjacentQicHold] 미탑승이어도 리벨리온이 사거리 내(입장 0Q)면 R1-2엔 3정큐 라인 보호.
-        // 사용자 관찰(2026-07-11): 발타크가 리벨 인접 시작 + Q4 라인(연구소 1O1Q타일+가이아트랙)이 있는데
-        // R1에 가이아 건설로 Q를 던져 라인 사망 — 기존 ①은 입장비용(0)만 예약해 구멍.
-        if (getPlayerFlag(playerId, 'rebelAdjacentQicHold', true) && (game.roundNumber ?? 1) <= 2) {
-            const reb = game.map.find(t => t.type === 'ship_rebellion');
-            if (reb && !entered.includes(reb.id) && entered.length < 3) {
-                const myPl = game.map.filter(t =>
-                    (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
-                if (myPl.length > 0) {
-                    const d = Math.min(...myPl.map(p => getDistance(p, reb)));
-                    if (d <= this.getEffectiveBaseRange(player)) reserve = Math.max(reserve, 3);
-                }
+        // ③ [flag: rebelAdjacentQicHold] 미탑승이어도 3Q 엔진 배(리벨리온, twilightQicPlan이면 트와일라잇도)가
+        // 사거리 내(입장 0Q)면 R1-2엔 3Q 라인 보호. 사용자 관찰(2026-07-11): 발타크가 리벨 인접 시작 +
+        // Q4 라인이 있는데 R1에 가이아 건설로 Q를 던져 라인 사망 — 기존 ①은 입장비용(0)만 예약해 구멍.
+        if (getPlayerFlag(playerId, 'rebelAdjacentQicHold', true) && (game.roundNumber ?? 1) <= 2 && entered.length < 3) {
+            const engines = game.map.filter(t => t.type === 'ship_rebellion'
+                || (t.type === 'ship_twilight' && getPlayerFlag(playerId, 'twilightQicPlan', false)));
+            const myPl = game.map.filter(t =>
+                (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+            for (const eng of engines) {
+                if (entered.includes(eng.id) || !myPl.length) continue;
+                const d = Math.min(...myPl.map(p => getDistance(p, eng)));
+                if (d <= this.getEffectiveBaseRange(player)) { reserve = Math.max(reserve, 3); break; }
             }
         }
         return reserve;
