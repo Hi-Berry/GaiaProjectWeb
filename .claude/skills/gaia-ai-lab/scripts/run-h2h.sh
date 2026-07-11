@@ -24,6 +24,9 @@ FORCE_FACTION="${5:-}"
 echo "$FLAGS" > server/ai/challenger.flags.json
 echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS${FORCE_FACTION:+ | forceFaction=$FORCE_FACTION}"
 
+# 디스크 정리(사용자 승인 2026-07-11): final_state.json이 게임당 ~1.1MB로 누적(7.6GB 도달) → 7일 지난 것 자동 삭제
+find logs -name "*final_state.json" -mtime +7 -delete 2>/dev/null || true
+
 # 좀비(중단된 head2head 워커 서버) 정리 — 개발서버(watch)/Cursor는 보존.
 # Windows: 각 워커는 cmd.exe→node.exe(게임서버) 트리라 proc.kill()로 안 죽어 고아로 남음.
 kill_h2h_workers() {

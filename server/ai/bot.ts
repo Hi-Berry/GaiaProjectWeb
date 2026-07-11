@@ -1687,7 +1687,13 @@ export class BotLogic {
         }
         if ((player.knowledge ?? 0) >= 4 && !bankResearch) {
             const tracks = this.pickResearchTracks(game, player, playerId);
+            // [flag: gaiaResearchUseGate] 사용자 관찰(2026-07-11): R1 가이아 L1 올리고 포머 방치 후 패스 — 배치
+            // 요구파워(L1-2=6)와 사거리 내 트랜스딤을 아무도 체크 안 해 연구 4K가 증발. L0→L1은 '포머를 실제로
+            // 쓸 수 있는' 상황에서만 후보로(그 외엔 나중에 조건 갖추면 자연히 후보 복귀).
+            const gaiaGate = getPlayerFlag(playerId, 'gaiaResearchUseGate', false)
+                && !this.gaiaResearchUsable(game, playerId);
             for (const track of tracks) {
+                if (gaiaGate && track === 'gaiaProject' && (player.research.gaiaProject ?? 0) === 0) continue;
                 candidates.push(this.advanceResearchAction(playerId, player, track));
             }
             // [flag: allTracksResearch] per-candidate 데이터(18게임): 사람 연구수의 81%(52/64)가 지식 충분한데
@@ -1702,6 +1708,7 @@ export class BotLogic {
                     if (lvl === 4 && !getFederationEntries(player).some(f => f.isGreen)) continue;
                     if (player.faction === 'bal_tak' && track === 'navigation'
                         && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) continue;
+                    if (gaiaGate && track === 'gaiaProject' && lvl === 0) continue; // [flag: gaiaResearchUseGate]
                     candidates.push(this.advanceResearchAction(playerId, player, track));
                 }
             }
@@ -2902,7 +2909,7 @@ export class BotLogic {
             // 소행성: 모행성이 asteroid인 종족(틴커로이드/다카니안)만, 그리고 사용 가능한 가이아포머가 있을 때만 후보.
             // 서버 executeBuildMine은 소행성 건설에 항상 포머 1개를 요구·소모하므로, 포머 없이 후보로 내면
             // 건설이 실패하고 game_error가 방 전체에 브로드캐스트된다(사람 화면에 에러 누수).
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', false) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
+            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', true) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
             !t.type?.startsWith('ship_') &&
             // 남의 가이아 포머만 올라간 칸 / 아직 건설 타이밍이 아닌 칸은 표준 광산 후보에서 제외 (서버 executeBuildMine과 동일)
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
@@ -3565,7 +3572,7 @@ export class BotLogic {
             t.type !== 'space' && t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
             // 소행성은 포머가 있어야만 건설 가능(서버가 항상 포머 1개 요구·소모). 모행성이 asteroid라도 동일.
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', false) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
+            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', true) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
             !t.type?.startsWith('ship_') &&
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
@@ -4603,6 +4610,15 @@ export class BotLogic {
             else if (tileId === 'tech-act-4p') score += 30;                  // 4PW = 2순위(4p→1o/1q/기타 유연)
             else if (tileId === 'tech-inc-1o-1p') score += oreStarved ? 45 : 0; // 광석수입 — 기아면 최상으로 끌어올림
             else if (tileId === 'tech-inc-1k-1c') score -= 30;               // 1K1C = 필러(트랙전진용), 최하
+        }
+
+        // [flag: filler1k1cGuard] 사용자(2026-07-11): 1K1C = income 최하위 필러인데 봇이 자주 집음. 기각된
+        // techTileRankFix(-2.75)의 원인이던 '전면 페널티'(트랙전진 필러 용도 훼손)와 달리, 같은 풀에 더 나은
+        // 대안(4C/4P/1o1p)이 남아있을 때만 감점 — 대안이 없으면 필러로 정상 사용.
+        if (getPlayerFlag(playerId, 'filler1k1cGuard', false) && tileId === 'tech-inc-1k-1c' && round <= 4) {
+            const pool = (game.techTilesPool || []);
+            const betterAvail = pool.some(t => t && ['tech-inc-4c', 'tech-act-4p', 'tech-inc-1o-1p'].includes(t.id));
+            if (betterAvail) score -= 60;
         }
 
         // [flag: act4pPick] 파워엔진 진단(2026-07-11 사용자): 4P타일 보유 사람 42% vs 봇 10% — 점수가 income보다
@@ -6214,6 +6230,20 @@ export class BotLogic {
         if (idle < 1) return [];
         const drain = Math.min(idle, 6);
         return Array.from({ length: drain }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
+    /** [flag: gaiaResearchUseGate] 가이아 L0→L1 연구가 '포머를 실제로 쓸 수 있는' 상황인지.
+     *  요건: ①사거리+2(QIC 점프 여지) 내 미점유 트랜스딤 존재 ②총 파워 5+ (배치요구 6, 수입 감안). */
+    private static gaiaResearchUsable(game: ServerGameState, playerId: string): boolean {
+        const player = game.players[playerId];
+        if (!player || player.faction === 'bal_tak') return false;
+        const myPl = game.map.filter(t => t.ownerId === playerId && t.structure);
+        if (!myPl.length) return true;
+        const rng = this.getEffectiveBaseRange(player) + 2;
+        const td = game.map.some(t => t.type === 'transdim' && !t.structure && !t.hasGaiaformer
+            && myPl.some(p => getDistance(p, t) <= rng));
+        if (!td) return false;
+        return ((player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0)) >= 5;
     }
 
     /** advance_research 후보 생성 헬퍼: 그 전진이 충전을 유발하면(아무 트랙 L3 도달 +3PW, 경제 L5 +6PW,
