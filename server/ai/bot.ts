@@ -1540,8 +1540,13 @@ export class BotLogic {
             const guard = getPlayerFlag(playerId, 'oreFedGuard', true);
             // [사용자 관찰 2026-07-05] R6 관대(8)도 회수: 제노스가 막라에 광물 8개→토큰, 연방은 위성 4개만 사용
             // → 4토큰 증발 + 막라 미션 업글 액션(광물) 불가. R6도 예비 1개 유지, 상한 6.
+            // [flag: fedSatCapHuman] 연방목표(2026-07-12): 상한 완화는 셀프플레이에서 '연방 무효'(봇끼리는 리치
+            // 빈약 → 토큰이 안 쌓여 상한이 안 물림)였으나, 사람 게임은 리치 풍부(지불 8.7VP ≈ 토큰 17+ 순환)라
+            // 상한이 실제로 묾. humanPowerRace 패턴: 사람 있는 게임만 변환 +2/위성 상한 9 — 셀프플레이 무오염.
+            const fedHumanRelax = (getPlayerFlag(playerId, 'fedSatCapHuman', true)
+                && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length) ? 2 : 0;
             const maxK = guard
-                ? (_round >= 6 ? Math.min(Math.max(0, oreForFed - 1), 6) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4) : Math.min(oreForFed, 3))
+                ? (_round >= 6 ? Math.min(Math.max(0, oreForFed - 1), 6 + fedHumanRelax) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4 + fedHumanRelax) : Math.min(oreForFed, 3))
                 : (_round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6));
             const fedSubN = _round >= 4 ? 4 : 2;
             for (let k = 2; k <= maxK; k++) {
@@ -1553,7 +1558,8 @@ export class BotLogic {
                     // R3+: 다소 비싼 후보도 허용
                     if (_round === 3 && spent > 6) continue;
                     // [flag: oreFedGuard] R4-5도 위성 상한(기존 무제한) — R6 endgame만 예외
-                    if (guard && _round >= 4 && _round <= 5 && spent > 6) continue;
+                    // [flag: fedSatCapHuman] 사람 게임에선 9까지 (리치 풍부 환경에서만 물리는 제약)
+                    if (guard && _round >= 4 && _round <= 5 && spent > 6 + fedHumanRelax) continue;
                     if (!this.canSpendPowerTokensForStrategicAction(game, player, spent, k)) continue;
                     // [버그수정 2026-07-05] 기존엔 k개를 무조건 변환 — 연방이 위성 spent개만 쓰면 (k-부족분)토큰이
                     // 통째로 증발(사용자 관측: 8변환→4위성=4증발). 변환은 *부족분*(spent-보유토큰)만.
