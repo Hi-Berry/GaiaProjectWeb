@@ -771,8 +771,9 @@ export class BotLogic {
                     const rebTile = game.map.find(t => t.type === 'ship_rebellion');
                     const onReb = !!rebTile && (player.spaceshipsEntered ?? []).includes(rebTile.id);
                     const rebUnused = !!rebTile && !(game.spaceships?.[rebTile.id]?.usedActionIndices ?? []).includes(1);
-                    // [flag: twilightQicPlan] 트와일라잇 #1(3Q→연방보상)도 동형 엔진 — 브리지 조건에 합류
-                    const twiTile = getPlayerFlag(playerId, 'twilightQicPlan', false) ? game.map.find(t => t.type === 'ship_twilight') : null;
+                    // [flag: twilightQicPlan v2] 트와 #1(3Q→연방보상) — 사용자 타이밍 룰(R4+ 또는 기술연방 후)에서만 합류
+                    const twiTile = (getPlayerFlag(playerId, 'twilightQicPlan', true) && this.twilightTimingOk(game, player))
+                        ? game.map.find(t => t.type === 'ship_twilight') : null;
                     const onTwi = !!twiTile && (player.spaceshipsEntered ?? []).includes(twiTile.id);
                     const twiUnused = !!twiTile && !(game.spaceships?.[twiTile.id]?.usedActionIndices ?? []).includes(1);
                     const engineReady = (onReb && rebUnused) || (onTwi && twiUnused);
@@ -2913,7 +2914,8 @@ export class BotLogic {
         for (const shipId of entered) {
             const tile = game.map.find(t => t.id === shipId);
             const isEngine = tile?.type === 'ship_rebellion'
-                || (tile?.type === 'ship_twilight' && getPlayerFlag(playerId, 'twilightQicPlan', false));
+                || (tile?.type === 'ship_twilight' && getPlayerFlag(playerId, 'twilightQicPlan', true)
+                    && this.twilightTimingOk(game, player)); // [v2] R4+/기술연방 후에만 예약 — 조기 Q동결이 v1 -9.58 원인
             if (!isEngine) continue;
             const used = game.spaceships?.[shipId]?.usedActionIndices || [];
             if (!used.includes(1)) reserve = Math.max(reserve, 3);
@@ -2922,8 +2924,8 @@ export class BotLogic {
         // 사거리 내(입장 0Q)면 R1-2엔 3Q 라인 보호. 사용자 관찰(2026-07-11): 발타크가 리벨 인접 시작 +
         // Q4 라인이 있는데 R1에 가이아 건설로 Q를 던져 라인 사망 — 기존 ①은 입장비용(0)만 예약해 구멍.
         if (getPlayerFlag(playerId, 'rebelAdjacentQicHold', true) && (game.roundNumber ?? 1) <= 2 && entered.length < 3) {
-            const engines = game.map.filter(t => t.type === 'ship_rebellion'
-                || (t.type === 'ship_twilight' && getPlayerFlag(playerId, 'twilightQicPlan', false)));
+            // [v2] 트와는 인접 선보호(R1-2) 제외 — 사용자 룰상 트와 3정큐는 R4+라 조기 보호가 곧 Q동결
+            const engines = game.map.filter(t => t.type === 'ship_rebellion');
             const myPl = game.map.filter(t =>
                 (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
             for (const eng of engines) {
@@ -5429,7 +5431,9 @@ export class BotLogic {
                 let action: BotAction | null = null;
 
                 if (shipTile.type === 'ship_twilight') {
-                    if (i === 1 && effShipQic >= 3) {
+                    if (i === 1 && effShipQic >= 3
+                        && !(getPlayerFlag(playerId, 'twilightQicPlan', true) && !this.twilightTimingOk(game, player))) {
+                        // [flag: twilightQicPlan v2] 사용자 룰: 재수령은 R4+ 또는 기술연방 후 — 그 전엔 후보 제외(3Q 아낌)
                         score = 350; // 연방 보상 → 매우 강력
                         action = shipQicAction(shipId, i, 3);
                     } else if (i === 1 && (player.qic || 0) >= 0) {
@@ -6364,6 +6368,13 @@ export class BotLogic {
         if (idle < 1) return [];
         const drain = Math.min(idle, 6);
         return Array.from({ length: drain }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
+    /** [flag: twilightQicPlan v2] 사용자 룰(2026-07-11): 트와 3정큐(연방보상 재수령)는 R4+ 또는
+     *  기술연방(ship-fed-tech) 획득 후에만 노린다 — v1(-9.58)은 조기 예약/사용 압박이 원인. */
+    private static twilightTimingOk(game: ServerGameState, player: PlayerState): boolean {
+        if ((game.roundNumber ?? 1) >= 4) return true;
+        return getFederationEntries(player).some(e => e.rewardId === 'ship-fed-tech');
     }
 
     /** [flag: r1RebelCommit] 게임당 1봇을 '리벨리온 러너'로 지정 — 3정큐는 라운드당 1회 공유(선착순)라
