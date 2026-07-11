@@ -2303,7 +2303,7 @@ export class BotLogic {
                 // 기오덴4·피락스4·할라3). 사람 R1 랩∪의회 도달 86% vs 봇 76%(의회 0%). 기존 R1 절대차단 +
                 // R≤2 광산<5 게이트가 earlyPiAllowed 우대점수(+80)를 죽은 코드로 만들고 있었음 → 해당 종족만
                 // 광산 2+ 조건으로 개방(순수 후보 추가 — 선택은 MCTS/평가기).
-                const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', false) && mineCount >= 2
+                const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', true) && mineCount >= 2
                     && (earlyPiAllowed.includes(faction || '') || firaksPiReady || lantidsPiReady || hhPiReady);
                 if (round === 1 && !r1PiOpen) continue;
                 if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && round < 4) continue;
