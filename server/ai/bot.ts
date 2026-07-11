@@ -713,9 +713,35 @@ export class BotLogic {
                         return { type: 'use_power_action', params: { actionId: 'gain-2-ore', useBrain: player.faction === 'taklons' } };
                     }
                 }
+                // [flag: humanPowerRace] 프리미엄 파워액션(7C·2O·2K)은 라운드당 선착순 공유자원 — 실측: 사람이
+                // 7C 0.73/2K 0.33/석 선점 vs 봇 0.19/0.02(기권). 셀프플레이에선 아무도 안 집어 선점가치가 0으로
+                // 측정되는 구조적 사각지대(humanRule2K -2.42 기각의 원인) → **사람이 있는 게임에서만** 발동해
+                // 셀프플레이 측정 무오염 + 실전 경쟁. 검증 = 사용자 1:3.
+                if (getPlayerFlag(playerId, 'humanPowerRace', true) && !game.hasDoneMainAction) {
+                    const hasHumanOpp = (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+                    const rr2 = game.roundNumber ?? 1;
+                    if (hasHumanOpp && rr2 <= 4 && !candidates.some(c => c.type === 'form_federation')) {
+                        const p3r = player.power3 ?? 0;
+                        const nevHalf = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                        const canPay = (c: number) => nevHalf ? p3r >= Math.ceil(c / 2) : p3r >= c;
+                        const races: Array<[string, number, boolean]> = [
+                            ['gain-7-credits', 4, (player.credits ?? 0) <= 6],
+                            ['gain-2-ore', 4, (player.ore ?? 0) <= 3],
+                            ['gain-2-knowledge', 4, (player.knowledge ?? 0) < 4],
+                        ];
+                        for (const [id, cost, need] of races) {
+                            if (!need || !canPay(cost)) continue;
+                            const ra = game.powerActions.find(x => x.id === id && !x.isUsed);
+                            if (!ra) continue;
+                            log(`Bot ${player.name} humanPowerRace: ${id} 선점 (사람 경쟁 게임)`, 'game', game.id);
+                            return { type: 'use_power_action', params: { actionId: id, useBrain: player.faction === 'taklons' } };
+                        }
+                    }
+                }
                 // [flag: humanRule2K] 파워배분 실측(2026-07-11): +2지식 파워액션 사람 0.31 vs 봇 0.03(10배) — 점수는
                 // 정상(200~300)인데 삽 콤보가 파워를 선소진해 못 누름. 사람 패턴: 지식 기아(<4)+파워 여유일 때 눌러
                 // 다음 연구를 연다. humanRule2O와 동일한 직접-return(평가기 우회) 계열, 연방/삽콤보보다 후순위.
+                // [기각 2026-07-11: 셀프플레이 -2.42 — 선점가치 사각지대. humanPowerRace(사람게임 한정)로 대체.]
                 if (getPlayerFlag(playerId, 'humanRule2K', false) && !game.hasDoneMainAction) {
                     const rk = game.roundNumber ?? 1;
                     const p3k = player.power3 ?? 0, knowK = player.knowledge ?? 0;
