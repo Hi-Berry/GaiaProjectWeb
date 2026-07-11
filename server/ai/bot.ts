@@ -3277,9 +3277,17 @@ export class BotLogic {
                         const burns1 = player.faction === 'taklons' ? 1 : Math.max(1, 3 - power3);
                         // [flag: earlyBurnGuard] 사용자 관찰(2026-07-11): R1에 번 3개(토큰 6개 소모)로 1삽을 사는 건
                         // 파워순환 절반을 태우는 확정 손해 — 평가기가 토큰을 ~0으로 쳐서 MCTS가 거름망 없이 고름.
-                        // R1-2엔 번 1개(토큰 2개)까지만 허용.
-                        if (getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns1 >= 2) {
-                            // 콤보 미생성 (일반 경로/다른 후보로)
+                        // R1-2엔 번 1개(토큰 2개)까지만 허용. [기각 −4.92: 전면 차단은 광산 소멸]
+                        // [flag: burnComboLate] 차단 대신 '지연': R1-2 번2+ 콤보를 라운드 초반(내 메인액션 <2)엔
+                        // 미생성 — 리치/충전으로 p3가 차면 같은 라운드 후반에 더 적은 번으로 동일 광산 건설(광산 보존,
+                        // deferSafeBuild 계열 순서 재배열). 시뮬에선 게임로그 근사라 실결정 기준.
+                        const myMainsThisRound = (game.gameLog || []).filter(e =>
+                            (e as any).playerId === playerId && ((e as any).round ?? 0) === round
+                            && !/Free Actions|Selected|Charged|Bonus/.test((e as any).action || '')).length;
+                        const burnDefer1 = getPlayerFlag(playerId, 'burnComboLate', false)
+                            && round <= 2 && burns1 >= 2 && myMainsThisRound < 2;
+                        if ((getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns1 >= 2) || burnDefer1) {
+                            // 콤보 미생성 (일반 경로/다른 후보로; burnComboLate는 라운드 후반 재생성)
                         } else {
                         const burnPres1: BotAction[] = Array.from({ length: burns1 }, () => ({
                             type: 'burn_power' as const,
@@ -3324,8 +3332,13 @@ export class BotLogic {
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         // [버그수정 2026-07-04] 위 gain-1-step과 동일 — 부족분(5-power3)만큼 번 반복 부착.
                         const burns2 = player.faction === 'taklons' ? 1 : Math.max(1, 5 - power3);
-                        // [flag: earlyBurnGuard] R1-2 번 2+개 콤보 차단 (위 gain-1-step과 동일 사유)
-                        if (getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns2 >= 2) {
+                        // [flag: earlyBurnGuard] R1-2 번 2+개 콤보 차단 / [flag: burnComboLate] 라운드 초반 지연 (위와 동일)
+                        const myMains2 = (game.gameLog || []).filter(e =>
+                            (e as any).playerId === playerId && ((e as any).round ?? 0) === round
+                            && !/Free Actions|Selected|Charged|Bonus/.test((e as any).action || '')).length;
+                        const burnDefer2 = getPlayerFlag(playerId, 'burnComboLate', false)
+                            && round <= 2 && burns2 >= 2 && myMains2 < 2;
+                        if ((getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns2 >= 2) || burnDefer2) {
                             // 콤보 미생성
                         } else {
                         const burnPres2: BotAction[] = Array.from({ length: burns2 }, () => ({
