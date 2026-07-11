@@ -713,6 +713,20 @@ export class BotLogic {
                         return { type: 'use_power_action', params: { actionId: 'gain-2-ore', useBrain: player.faction === 'taklons' } };
                     }
                 }
+                // [flag: humanRule2K] 파워배분 실측(2026-07-11): +2지식 파워액션 사람 0.31 vs 봇 0.03(10배) — 점수는
+                // 정상(200~300)인데 삽 콤보가 파워를 선소진해 못 누름. 사람 패턴: 지식 기아(<4)+파워 여유일 때 눌러
+                // 다음 연구를 연다. humanRule2O와 동일한 직접-return(평가기 우회) 계열, 연방/삽콤보보다 후순위.
+                if (getPlayerFlag(playerId, 'humanRule2K', false) && !game.hasDoneMainAction) {
+                    const rk = game.roundNumber ?? 1;
+                    const p3k = player.power3 ?? 0, knowK = player.knowledge ?? 0;
+                    const twoK = game.powerActions.find(a => a.id === 'gain-2-knowledge' && !a.isUsed);
+                    const hasFedK = candidates.some(c => c.type === 'form_federation');
+                    // 지식 2~3(연구 4K에 1~2 부족) + 파워 넉넉(5+, 삽콤보 여지 보존) + R≤4(연구 가치 시기)
+                    if (twoK && rk <= 4 && knowK >= 2 && knowK < 4 && p3k >= 5 && !hasFedK) {
+                        log(`Bot ${player.name} humanRule2K: press 2K (know${knowK} p3${p3k})`, 'game', game.id);
+                        return { type: 'use_power_action', params: { actionId: 'gain-2-knowledge', useBrain: player.faction === 'taklons' } };
+                    }
+                }
                 // [flag: humanRule7C] humanRule2O의 크레딧판(사용자 관찰 2026-07-07): 봇이 크레딧기아인데 연방 전에 idle bowl3를
                 //   fedSpendBowl3로 1P→1C ×4(=4크레딧)만 뽑고 연방함. gain-7-credits(4파워→7크레딧=1.75C/파워)가 1P→1C(1C/파워)의
                 //   상위호환인데 안 씀("4p->7c 액션을 절대 안 함"). 평가기 nudge는 MCTS가 덮으므로 humanRule2O처럼 직접 return.
@@ -2350,7 +2364,10 @@ export class BotLogic {
                 // 아카데미는 너무 초반(1R)에는 과소비가 잦지만, 2~3R부터는 상황에 따라 허용
                 // 사용자 피드백: 1라 아카도 가능하면 좋음. (단, 시작 광산 2개 수준은 확보되어야 함)
                 // 광산 기반이 너무 없으면 억제 (1R은 예외적으로 허용 범위 확대)
-                if (round <= 3 && mineCount < 5 && round !== 1) continue;
+                // [flag: acadGateOpen] candidateProbe 갭 2위(172건): 사람은 광산 4개로도 R2-3 아카 직행하는데
+                // 이 게이트(R≤3 & 광산<5)가 후보를 차단. r1PiOpen과 동형 — 광산 3+면 개방(선택은 MCTS).
+                const acadOpen = getPlayerFlag(playerId, 'acadGateOpen', true) && mineCount >= 3;
+                if (round <= 3 && mineCount < 5 && round !== 1 && !acadOpen) continue;
 
                 // [사용자 피드백] 광산 건설보다 아카데미(고급 기술 타일 획득)를 우선하도록 대폭 상향
                 let score = 250;
@@ -2885,7 +2902,7 @@ export class BotLogic {
             // 소행성: 모행성이 asteroid인 종족(틴커로이드/다카니안)만, 그리고 사용 가능한 가이아포머가 있을 때만 후보.
             // 서버 executeBuildMine은 소행성 건설에 항상 포머 1개를 요구·소모하므로, 포머 없이 후보로 내면
             // 건설이 실패하고 game_error가 방 전체에 브로드캐스트된다(사람 화면에 에러 누수).
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
+            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', false) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
             !t.type?.startsWith('ship_') &&
             // 남의 가이아 포머만 올라간 칸 / 아직 건설 타이밍이 아닌 칸은 표준 광산 후보에서 제외 (서버 executeBuildMine과 동일)
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
@@ -3548,7 +3565,7 @@ export class BotLogic {
             t.type !== 'space' && t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
             // 소행성은 포머가 있어야만 건설 가능(서버가 항상 포머 1개 요구·소모). 모행성이 asteroid라도 동일.
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
+            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', false) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
             !t.type?.startsWith('ship_') &&
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
@@ -4587,6 +4604,11 @@ export class BotLogic {
             else if (tileId === 'tech-inc-1o-1p') score += oreStarved ? 45 : 0; // 광석수입 — 기아면 최상으로 끌어올림
             else if (tileId === 'tech-inc-1k-1c') score -= 30;               // 1K1C = 필러(트랙전진용), 최하
         }
+
+        // [flag: act4pPick] 파워엔진 진단(2026-07-11 사용자): 4P타일 보유 사람 42% vs 봇 10% — 점수가 income보다
+        // 한끗 낮아(+100 vs +120) 픽에서 항상 밀림. 4P = 매 라운드 +4충전 = 파워액션·리치 순환의 상류 엔진.
+        // 기각된 techTileRankFix(-2.75)의 실패 모드(1K1C 페널티→연구픽 훼손)를 피해 4P 단독 부스트만.
+        if (getPlayerFlag(playerId, 'act4pPick', false) && round <= 4 && tileId === 'tech-act-4p') score += 50;
 
         // 2-1. 고급 기술 타일 (adv-*): 건물·라운드·즉시 VP·자원 기반 세부 점수
         if (tileId.startsWith('adv-')) {
