@@ -717,8 +717,12 @@ export class BotLogic {
                 // 7C 0.73/2K 0.33/석 선점 vs 봇 0.19/0.02(기권). 셀프플레이에선 아무도 안 집어 선점가치가 0으로
                 // 측정되는 구조적 사각지대(humanRule2K -2.42 기각의 원인) → **사람이 있는 게임에서만** 발동해
                 // 셀프플레이 측정 무오염 + 실전 경쟁. 검증 = 사용자 1:3.
-                if (getPlayerFlag(playerId, 'humanPowerRace', true) && !game.hasDoneMainAction) {
-                    const hasHumanOpp = (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+                // [검증 절차(사용자 2026-07-11): 켜기 전에 셀프플레이 하한 측정 — 셀프플레이는 '아무도 안 뺏는 세계'라
+                // 선점 이득 0 + 비용(메인액션)만 측정되는 worst-case. 무해면 실전(경쟁)에선 이득만 가능. 음수면 조건 조임.
+                // humanPowerRaceForce = 측정용(hasHumanOpp 강제 true).]
+                if (getPlayerFlag(playerId, 'humanPowerRace', false) && !game.hasDoneMainAction) {
+                    const hasHumanOpp = getPlayerFlag(playerId, 'humanPowerRaceForce', false)
+                        || (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
                     const rr2 = game.roundNumber ?? 1;
                     if (hasHumanOpp && rr2 <= 4 && !candidates.some(c => c.type === 'form_federation')) {
                         const p3r = player.power3 ?? 0;
