@@ -4919,6 +4919,18 @@ export class BotLogic {
 
             if (isQic) {
                 if (qic < cost) continue;
+                // [flag: twilightQicSave] 사용자 룰(2026-07-12): R4-5에 트와 탑승 + 재수령(#1) 미사용이면,
+                // 저가치 QIC 액션(기술타일 제외)에 QIC를 써서 3Q 스택을 깨느니 재수령(8~12VP)이 이득.
+                // 예외: 트와 미탑승 / R6(마지막 라운드 자유 소비) / 지출 후에도 3Q 유지되면 허용.
+                if (getPlayerFlag(playerId, 'twilightQicSave', true) && action.id !== 'qic-action-tech') {
+                    const rTw = game.roundNumber ?? 1;
+                    if (rTw >= 4 && rTw <= 5 && qic - cost < 3) {
+                        const twi = game.map.find(t => t.type === 'ship_twilight');
+                        const onTwi = !!twi && (player.spaceshipsEntered ?? []).includes(twi.id);
+                        const twiReady = !!twi && !(game.spaceships?.[twi.id]?.usedActionIndices ?? []).includes(1);
+                        if (onTwi && twiReady) continue;
+                    }
+                }
             } else {
                 const need = effPowerCost(cost); // 네뷸라 의회 반값 반영
                 // 타클론: 브레인스톤(추가 파워)도 지출 가능 → 서버와 동일 헬퍼로 판정(p3만 보면 과소평가→조기패스)
