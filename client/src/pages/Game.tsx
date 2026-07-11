@@ -3122,10 +3122,8 @@ export default function Game() {
             if (game.map?.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right') && !used.includes('academy-qic')) {
               unusedAbilities.push(currentPlayer.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(1QIC)');
             }
-            // 4) 의회(PI) 액션 — 하드쉬 할라: 크레딧으로 자원 전환 (감당 가능한 것만)
-            (currentPlayer.hadschHallasPIActions ?? []).forEach(a => {
-              if (!a.isUsed && (currentPlayer.credits ?? 0) >= a.costCredits) unusedAbilities.push(`의회: ${a.label}`);
-            });
+            // 4) [제거 2026-07-07 사용자] 하드쉬 할라 의회 변환은 프리액션(반복 가능 변환)이지 1회용 특수액션이
+            //    아니므로 패스 경고 목록에 넣지 않는다 — HH 플레이어가 패스할 때마다 잔소리로 뜨던 문제.
             // 5) 종족 스페셜 액션 (PI 필요한 것은 PI 보유 시에만)
             if (currentPlayer.faction === 'bescods' && !used.includes('bescods-advance-lowest')) unusedAbilities.push('매안: 최저트랙+1');
             if (currentPlayer.faction === 'ivits' && !currentPlayer.usedIvitsSpaceStationThisRound) unusedAbilities.push('하이브: 우주정거장');
