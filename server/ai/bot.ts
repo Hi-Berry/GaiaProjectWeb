@@ -262,7 +262,7 @@ export class BotLogic {
             if (actionIndex === 1) {
                 if (qicAvail >= 3) return true;
                 // [flag: rebellionBurnQic] 번(≤2)+4P→1Q 변환으로 3정큐 완성하는 체인(preActions가 먼저 실행됨)
-                return getPlayerFlag(playerId, 'rebellionBurnQic', false) && player.faction !== 'taklons'
+                return getPlayerFlag(playerId, 'rebellionBurnQic', true) && player.faction !== 'taklons'
                     && (player.qic ?? 0) === 2
                     && ((player.power3 ?? 0) + Math.floor((player.power2 ?? 0) / 2)) >= 4
                     && Math.max(0, 4 - (player.power3 ?? 0)) <= 2;
@@ -2299,9 +2299,15 @@ export class BotLogic {
                 // 초반(1~2라) 의회는 거의 항상 과소비 → "광산 기반" 없으면 차단/강한 감점
                 // 단 피락스는 연구소가 있으면 의회를 조기 허용(다운그레이드 엔진 가동 — 광산 기반 게이트도 면제). R1은 모두 너무 이름.
                 const firaksPiReady = faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true) && myStructures.some(t => t.structure === 'research_lab');
-                if (round === 1) continue;
+                // [flag: r1PiOpen] 실측(2026-07-11): 사람 R1 의회 32건 — 전부 PI-파워 종족(스자7·란티다7·네뷸라6·
+                // 기오덴4·피락스4·할라3). 사람 R1 랩∪의회 도달 86% vs 봇 76%(의회 0%). 기존 R1 절대차단 +
+                // R≤2 광산<5 게이트가 earlyPiAllowed 우대점수(+80)를 죽은 코드로 만들고 있었음 → 해당 종족만
+                // 광산 2+ 조건으로 개방(순수 후보 추가 — 선택은 MCTS/평가기).
+                const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', false) && mineCount >= 2
+                    && (earlyPiAllowed.includes(faction || '') || firaksPiReady || lantidsPiReady || hhPiReady);
+                if (round === 1 && !r1PiOpen) continue;
                 if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
@@ -5278,7 +5284,7 @@ export class BotLogic {
                     if (i === 1 && effShipQic >= 3) {
                         score = 380; // 기술 타일 획득: 최강 액션
                         action = shipQicAction(shipId, i, 3);
-                    } else if (i === 1 && getPlayerFlag(playerId, 'rebellionBurnQic', false)
+                    } else if (i === 1 && getPlayerFlag(playerId, 'rebellionBurnQic', true)
                         && player.faction !== 'taklons' && (player.qic || 0) === 2
                         && ((player.power3 || 0) + Math.floor((player.power2 || 0) / 2)) >= 4) {
                         // [flag: rebellionBurnQic] 사용자 룰(2026-07-11): QIC 2 + 번(≤2)로 4P 만들어 4P→1Q 변환
