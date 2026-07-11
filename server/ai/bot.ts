@@ -559,7 +559,7 @@ export class BotLogic {
                     // [로그오염 수정 2026-07-05] MCTS 시뮬 클론도 이 경로를 타는데 simulation 가드가 없어
                     // 게임파일에 초당 수회 스팸(hang처럼 보임 + 진짜 원인 가림) → 가드 추가
                     log(`Bot ${player.name} must complete pending build with ${pendingBuilds.length} candidates...`, 'game', game.id, { simulation: (game as any).simulation });
-                    return await MCTS.search(game, playerId, pendingBuilds);
+                    return await this.mctsWithTimeout(game, playerId, pendingBuilds, 'pendingBuilds');
                 }
                 // 만약 건설할 곳이 없다면 무효 advance_tech 반복 대신 pending을 정리한다.
                 if (game.pendingShipTechMine?.playerId === playerId) return { type: 'skip_ship_tech_mine', params: {} };
@@ -1060,7 +1060,7 @@ export class BotLogic {
                     if (planned) { log(`Bot ${player.name} twoTurnPlan commit: ${planned.type}`, 'game', game.id); return planned; }
                 }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
-                const bestAction = await MCTS.search(game, playerId, candidates);
+                const bestAction = await this.mctsWithTimeout(game, playerId, candidates, 'main');
 
                 // 패스하기 직전 자원 변환 (Cleanup logic)
                 if (bestAction?.type === 'pass_round') {
@@ -1544,7 +1544,8 @@ export class BotLogic {
             // 빈약 → 토큰이 안 쌓여 상한이 안 물림)였으나, 사람 게임은 리치 풍부(지불 8.7VP ≈ 토큰 17+ 순환)라
             // 상한이 실제로 묾. humanPowerRace 패턴: 사람 있는 게임만 변환 +2/위성 상한 9 — 셀프플레이 무오염.
             const fedHumanRelax = (getPlayerFlag(playerId, 'fedSatCapHuman', true)
-                && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length) ? 2 : 0;
+                && ((game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
+                    || getPlayerFlag(playerId, 'fedSatCapHumanForce', false))) ? 2 : 0; // Force = 스모크 검증 전용
             const maxK = guard
                 ? (_round >= 6 ? Math.min(Math.max(0, oreForFed - 1), 6 + fedHumanRelax) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4 + fedHumanRelax) : Math.min(oreForFed, 3))
                 : (_round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6));
@@ -6386,6 +6387,29 @@ export class BotLogic {
         if (idle < 1) return [];
         const drain = Math.min(idle, 6);
         return Array.from({ length: drain }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1credit', useBrain: false } }));
+    }
+
+    /** [hang수정 2026-07-12] MCTS.search가 드물게 영영 미해결(오늘 전 배치에서 게임의 2~10%가 [HANG],
+     *  시그니처: "must complete pending build ..." 후 완전 침묵·예외 없음 = async 미해결. 이벤트루프는 살아있음).
+     *  근본원인(mcts.ts 내부)과 무관하게 하네스 방어: 15초 레이스 → 초과 시 후보[0] 그리디 폴백.
+     *  진짜 hang이 아니어도 15초 MCTS는 이미 비정상(정상 ≤6s)이라 폴백이 안전. */
+    private static async mctsWithTimeout(game: ServerGameState, playerId: string, candidates: BotAction[], tag: string): Promise<BotAction | null> {
+        const fallback = candidates[0] ?? null;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<BotAction | null>(resolve => {
+            timer = setTimeout(() => {
+                log(`[MCTS-TIMEOUT] ${tag}: 15s 초과 → 후보[0] 폴백 (${fallback?.type ?? 'null'})`, 'error', game.id);
+                resolve(fallback);
+            }, 15000);
+        });
+        try {
+            return await Promise.race([MCTS.search(game, playerId, candidates), timeout]);
+        } catch (e) {
+            log(`[MCTS-TIMEOUT] ${tag}: MCTS 예외 → 폴백: ${(e as Error)?.message}`, 'error', game.id);
+            return fallback;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
     }
 
     /** [flag: twilightQicPlan v2] 사용자 룰(2026-07-11): 트와 3정큐(연방보상 재수령)는 R4+ 또는
