@@ -776,10 +776,38 @@ export class BotLogic {
                     if (onReb && rebUnused && rq <= 5 && qNow < 3 && (player.knowledge ?? 0) >= 4 && aiLvl < 5
                         && !(aiLvl === 4 && !getFederationEntries(player).some(fe => fe.isGreen))
                         && !candidates.some(c => c.type === 'form_federation')) {
+                        // [flag: rebelPrepPlus ①] 사용자(2026-07-11): 1Q만 부족하면 리벨 3번(2K→1Q+2C)이 AI연구(4K)보다
+                        // 싼 브리지 (같은 배, 다른 인덱스라 같은 라운드 사용 가능) — 이걸 먼저.
+                        if (getPlayerFlag(playerId, 'rebelPrepPlus', true) && qNow === 2 && (player.knowledge ?? 0) >= 2
+                            && !(game.spaceships?.[rebTile!.id]?.usedActionIndices ?? []).includes(3)) {
+                            log(`Bot ${player.name} rebelPrepPlus: 리벨3번(2K→1Q2C) 브리지 → 3정큐`, 'game', game.id);
+                            return { type: 'use_ship_action', params: { shipTileId: rebTile!.id, actionIndex: 3 } };
+                        }
                         const qGain = aiLvl < 2 ? 1 : (aiLvl < 4 ? 2 : 4);
                         if (qNow + qGain >= 3) {
                             log(`Bot ${player.name} rebellionQicPlan: AI연구로 3정큐 완성 (q${qNow}+${qGain}, AI L${aiLvl}→${aiLvl + 1})`, 'game', game.id);
                             return this.advanceResearchAction(playerId, player, 'artificialIntelligence');
+                        }
+                    }
+                    // [flag: rebelPrepPlus ②] 엠바스식 Nav 선행 입장(사용자): 3Q를 이미 들고 있는데 리벨이 사거리 밖이면
+                    // QIC 점프 입장은 3정큐 스택 파괴 — Nav 연구 1레벨로 사거리 내가 되면 연구 먼저(무료 입장 + 3Q 보존).
+                    // navBeforeJump(채택)의 입장 버전.
+                    if (getPlayerFlag(playerId, 'rebelPrepPlus', true) && rebTile && !onReb
+                        && rq <= 3 && qNow >= 3 && (player.knowledge ?? 0) >= 4
+                        && (player.spaceshipsEntered ?? []).length < 3
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        const navLvl = player.research?.navigation ?? 0;
+                        const balBlock = player.faction === 'bal_tak' && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                        const myPl2 = game.map.filter(t => (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+                        if (navLvl < 5 && !balBlock && myPl2.length > 0
+                            && !(navLvl === 4 && !getFederationEntries(player).some(fe => fe.isGreen))) {
+                            const d2 = Math.min(...myPl2.map(p => getDistance(p, rebTile)));
+                            const rngNow = getRange(navLvl) + (player.navigationBonus || 0);
+                            const rngNext = getRange(navLvl + 1) + (player.navigationBonus || 0);
+                            if (d2 > rngNow && d2 <= rngNext) {
+                                log(`Bot ${player.name} rebelPrepPlus: Nav연구로 리벨 사거리 확보 (d${d2}, ${rngNow}→${rngNext}) — 3Q 보존 입장 준비`, 'game', game.id);
+                                return this.advanceResearchAction(playerId, player, 'navigation');
+                            }
                         }
                     }
                 }
