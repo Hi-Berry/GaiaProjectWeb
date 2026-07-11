@@ -730,7 +730,10 @@ export class Evaluator {
         else if (round === 3) fedRoundScale = 1.1;
         else if (round === 4) fedRoundScale = 1.35;
         else if (round >= 5) fedRoundScale = 1.5;
-        const fedScore = feds.length * w.federationValueEach * fedRoundScale;
+        // [flag: fedValueMult] 연방 코어 가치 직접 증폭(미검증 마지막 손잡이 — 항 추가/보조항 증폭과 달리 코어 가중치).
+        // 숫자 플래그(0=OFF, 1.5=×1.5). MCTS가 연방으로 이어지는 상태 전반을 더 선호하게.
+        const fedMult = getPlayerFlag(playerId, 'fedValueMult', 0);
+        const fedScore = feds.length * w.federationValueEach * (fedMult > 0 ? fedMult : 1) * fedRoundScale;
         score += fedScore;
         logDebug(`8) Federations: ${feds.length} * ${w.federationValueEach.toFixed(0)} * ${fedRoundScale.toFixed(2)} = +${fedScore.toFixed(1)}`);
 
