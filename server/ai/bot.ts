@@ -654,7 +654,44 @@ export class BotLogic {
                         }
                     }
                 }
-                // [flag: humanRule2O] 데이터 유래 규칙(사람 27게임): 사람은 '크레딧 부자 + 광석 뒤처짐 + 파워 보유'일 때
+                // [flag: earlyDigResearch] 실측(2026-07-07): 테라포밍 L1 도달 사람 R2.3(25명) vs 봇 R3.8(5명뿐),
+                // 가이아 L1 사람 R2.1 vs 봇 R3.5 — 삽·포머가 1.5R 늦어 지을 행성 풀이 작음(사용자 진단 ②) →
+                // 광산부족→LOW_POWER→연방부족의 상류. 평가기 nudge는 MCTS가 덮으므로(반복 확인) humanRule 계열
+                // 직접-return: R2-3, 지식 4+, 해당 트랙 L0이고 '그 연구가 실제로 여는 대상'이 있으면 연구 강제.
+                if (getPlayerFlag(playerId, 'earlyDigResearch', true) && !game.hasDoneMainAction) {
+                    const rr = game.roundNumber ?? 1;
+                    const know = player.knowledge ?? 0;
+                    const hasFedCand = candidates.some(c => c.type === 'form_federation');
+                    if (rr >= 2 && rr <= 3 && know >= 4 && !hasFedCand) {
+                        const myPl = game.map.filter(t => t.ownerId === playerId && t.structure);
+                        const rng = this.getEffectiveBaseRange(player);
+                        const nearEmpty = (pred: (t: HexTile) => boolean) => game.map.filter(t =>
+                            !t.ownerId && !t.structure && t.type && pred(t)
+                            && myPl.some(p => getDistance(p, t) <= rng + 2)).length;
+                        // 테라포밍 L0 + 1~2삽 행성 2+개 근처 → 삽 연구
+                        if ((player.research?.terraforming ?? 0) === 0 && player.faction !== 'gleens') {
+                            const digTargets = nearEmpty(t => {
+                                if (t.type === 'gaia' || t.type === 'transdim' || t.type === 'asteroid' || t.type!.startsWith('ship_') || t.type === 'space' || t.type === 'deep_space') return false;
+                                const st = getTerraformStepsForFaction(game, player.faction!, t.type!);
+                                return st >= 1 && st <= 2;
+                            });
+                            if (digTargets >= 2) {
+                                log(`Bot ${player.name} earlyDigResearch: terraforming L1 강제 (R${rr}, 1-2삽 대상 ${digTargets})`, 'game', game.id);
+                                return { type: 'advance_research', params: { trackId: 'terraforming' } };
+                            }
+                        }
+                        // 가이아 L0(포머 0) + 트랜스딤 근처 2+개 → 가이아 연구 (L1=포머 1개)
+                        if ((player.research?.gaiaProject ?? 0) === 0 && (player.gaiaformers ?? 0) === 0
+                            && player.faction !== 'bal_tak') {
+                            const tdTargets = nearEmpty(t => t.type === 'transdim' && !t.hasGaiaformer);
+                            if (tdTargets >= 2) {
+                                log(`Bot ${player.name} earlyDigResearch: gaiaProject L1 강제 (R${rr}, 트랜스딤 ${tdTargets})`, 'game', game.id);
+                                return { type: 'advance_research', params: { trackId: 'gaiaProject' } };
+                            }
+                        }
+                    }
+                }
+                // [flag: humanRule2O] 데이터 유래 규칙(사람 27게임): 사람은 '크레딧 부자 + 광석 뒤처짐 + 파워 보유' 일 때
                 // 2O 파워액션을 누른다(90회 관측: 평균 cred10.9·ore3.7·p3 4.8). 봇은 실전에서 이걸 0회(크레딧 풍선).
                 // 평가기 nudge는 무시되므로(어제 확인) MCTS 우회해 강제. 단 연방/연구(지식≥4)/할인업글이 우선.
                 if (getPlayerFlag(playerId, 'humanRule2O', true) && !game.hasDoneMainAction) {

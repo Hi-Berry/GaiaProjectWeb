@@ -737,7 +737,23 @@ export class Evaluator {
         // [flag: clusterFedBonus] 위성 없이 연방 가능한 밀집 클러스터 근접도 보상.
         // 멀리 떨어진 집을 위성으로 잇는 대신, 가까운 집들의 티어를 올려(파워↑) 7파워를 채우게 유도.
         // gap(필요파워-클러스터파워)이 작을수록 보상 → 인접 건물 업그레이드가 점수를 올림.
-        if (getPlayerFlag(playerId, 'clusterFedBonus', true)) {
+        // [flag: clusterFedGradient] 연방 병목 해부(2026-07-07, 2.2만 시드): 결정실패 0%, fed1 정체의 45%가
+        // SCATTERED(파워는 있는데 흩어짐), 배치 실측 사람 직접인접 31% vs 봇 21%. 기존 clusterFedBonus는
+        // gap≤3에서만 발동해 초반 배치(클러스터 3~4파워, gap 4+)엔 신호 0 — 흩뿌린 다음에야 보상이 켜짐.
+        // 전 구간 그라디언트: 최대 미연방 클러스터 파워에 비례 보상(req 캡) → 2번째 건물부터 군집이 점수가 됨.
+        if (getPlayerFlag(playerId, 'clusterFedGradient', false)) {
+            const required = getFederationRequiredPower(game, playerId);
+            // [v2 2026-07-07] v1(클러스터만 보상)은 연방 선언 순간 클러스터가 fedHexes로 빠져 보상 소멸
+            // → 선언 회피 인센티브(40판 실측: 연방 1.45→1.38 역행). 통합 지표 '연방화 파워 + 미연방 최대
+            // 클러스터'로 — 선언 시 클러스터→연방 전환이 점수 중립 이상이라 회피 유인 제거, 군집 신호는 유지.
+            const clusterPower = Math.min(bestUnfederatedClusterPower(game, playerId), required);
+            const unified = feds.length * required + clusterPower;
+            if (unified > 0) {
+                const gradScore = unified * 12 * fedRoundScale;
+                score += gradScore;
+                logDebug(`8b) ClusterGradient v2: fed ${feds.length}×${required} + cluster ${clusterPower} → +${gradScore.toFixed(1)}`);
+            }
+        } else if (getPlayerFlag(playerId, 'clusterFedBonus', true)) {
             const required = getFederationRequiredPower(game, playerId);
             const clusterPower = bestUnfederatedClusterPower(game, playerId);
             const gap = required - clusterPower;
