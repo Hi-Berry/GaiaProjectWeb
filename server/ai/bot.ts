@@ -720,7 +720,7 @@ export class BotLogic {
                 // [검증 절차(사용자 2026-07-11): 켜기 전에 셀프플레이 하한 측정 — 셀프플레이는 '아무도 안 뺏는 세계'라
                 // 선점 이득 0 + 비용(메인액션)만 측정되는 worst-case. 무해면 실전(경쟁)에선 이득만 가능. 음수면 조건 조임.
                 // humanPowerRaceForce = 측정용(hasHumanOpp 강제 true).]
-                if (getPlayerFlag(playerId, 'humanPowerRace', false) && !game.hasDoneMainAction) {
+                if (getPlayerFlag(playerId, 'humanPowerRace', true) && !game.hasDoneMainAction) {
                     const hasHumanOpp = getPlayerFlag(playerId, 'humanPowerRaceForce', false)
                         || (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
                     const rr2 = game.roundNumber ?? 1;
