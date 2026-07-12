@@ -3853,7 +3853,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);
 			} else if (art.id === 'art-7vp-virtual-asteroid') {
 				const geodensTypesBeforeArt = getPlayerPlanetTypesForGeodens(game, playerId);
-				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
+				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid', noLog: true }); // 전용 로그가 바로 아래 — 자동로그 중복 제거(사용자)
 				player.virtualMineAsteroid = true;
 				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상 — 실제/기생/잊혀진 광산과 동일(사용자 관찰)
@@ -3865,7 +3865,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArt);
 			} else if (art.id === 'art-7vp-virtual-proto') {
 				const geodensTypesBeforeArtProto = getPlayerPlanetTypesForGeodens(game, playerId);
-				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
+				addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto', noLog: true }); // 전용 로그가 바로 아래 — 자동로그 중복 제거(사용자)
 				player.virtualMineProto = true;
 				addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상(사용자 관찰)
@@ -9018,7 +9018,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);
 	} else if (art.id === 'art-7vp-virtual-asteroid') {
 		const geodensTypesBeforeArt = getPlayerPlanetTypesForGeodens(game, playerId);
-		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid' });
+		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Asteroid', noLog: true }); // 전용 로그가 바로 아래 — 자동로그 중복 제거(사용자)
 		player.virtualMineAsteroid = true;
 		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (asteroid)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상 — 실제/기생/잊혀진 광산과 동일(사용자 관찰)
@@ -9030,7 +9030,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeArt);
 	} else if (art.id === 'art-7vp-virtual-proto') {
 		const geodensTypesBeforeProto = getPlayerPlanetTypesForGeodens(game, playerId);
-		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto' });
+		addScore(game, playerId, 7, 'other', { source: 'Artifact: 7 VP + Proto', noLog: true }); // 전용 로그가 바로 아래 — 자동로그 중복 제거(사용자)
 		player.virtualMineProto = true;
 		addGameLog(game, playerId, 'Artifact: 7 VP + virtual mine (proto)', '', art.id);
 				applyRoundMissionScore(game, playerId, 'build_mine'); // 가상 광산도 '광산 건설' 라운드 미션(+2) 대상(사용자 관찰)
