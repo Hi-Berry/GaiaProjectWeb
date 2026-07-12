@@ -3172,7 +3172,7 @@ export class BotLogic {
             // 서버 지급)가 점수에 미반영 — 고정 260이라 일반 광산(300-350)에 항상 밀림. ②거리 앵커가
             // 기생광산 제외 — 서버(standard build myTiles)는 기생도 앵커로 인정. (기각된 lantidsParasiticPush는
             // '밀집 강제' 각도로 별개 — 이건 서버 룰 미러링 + 실지급 자원의 가치 반영.)
-            const parasiticPI = getPlayerFlag(playerId, 'lantidsParasiticPI', false);
+            const parasiticPI = getPlayerFlag(playerId, 'lantidsParasiticPI', true);
             const lantidsPIBuilt = parasiticPI && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
             const parasiticAnchors = parasiticPI
                 ? [...myPlanets, ...game.map.filter(t => t.parasiticMine?.ownerId === playerId)]
