@@ -573,9 +573,28 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             // (이 경로 = 결정 null 강제 패스가 '유령 라운드'의 실체였음. 자원 있는데 여기 오면 후보 생성 버그.)
             // [v3 진단] 재시도 후에도 null인 잔존 케이스(K4+·C20 등) 원인 특정용: 이 시점 후보 재산출 + 연구레벨 덤프
             let diagCands = -1;
-            try { diagCands = (BotLogic.getCandidateMoves(game, currentPlayerId) as any[]).length; } catch { /* 진단 실패 무시 */ }
+            let diagList: any[] = [];
+            try { diagList = BotLogic.getCandidateMoves(game, currentPlayerId) as any[]; diagCands = diagList.length; } catch { /* 진단 실패 무시 */ }
             const diagCur = game.turnOrder[game.currentPlayerIndex] === currentPlayerId ? 'me' : 'OTHER';
             log(`Bot ${player.name} has no valid action, forcing pass to advance turn (R${game.roundNumber} O${player.ore} C${player.credits} K${player.knowledge} Q${player.qic} P${player.power1}/${player.power2}/${player.power3} | cands=${diagCands} cur=${diagCur} res=${Object.values(player.research ?? {}).join('')})`, 'game', game.id);
+            // [유령라운드 v5 2026-07-13] 결정 null인데 후보는 존재(진단 v3 실측: cands 12~23, 원인 = getNextMove
+            // 체인 내 미상 null) → 어떤 후보든 패스(라운드 증발)보다 낫다. mctsWithTimeout 폴백과 같은 철학의
+            // 핸들러 레벨 최종 그물: 비-패스 후보[0]를 그리디 실행, 실패 시에만 패스로 폴스루.
+            const fb = diagList.find((c: any) => c.type !== 'pass_round') ?? null;
+            if (fb) {
+                let fbOk = true;
+                for (const pre of (fb.preActions ?? [])) {
+                    if (!await BotLogic.performAction(io, game, pre, currentPlayerId)) { fbOk = false; break; }
+                }
+                fbOk = fbOk && await BotLogic.performAction(io, game, { type: fb.type, params: fb.params }, currentPlayerId);
+                if (fbOk) {
+                    log(`Bot ${player.name} null-decision 그리디 폴백 실행: ${fb.type} (후보 ${diagCands}개 보존)`, 'game', game.id);
+                    resetBotProgress(game);
+                    setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
+                    return;
+                }
+                log(`Bot ${player.name} 그리디 폴백(${fb.type}) 실패 → 패스 진행`, 'error', game.id);
+            }
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
             if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }
             // [hang수정 2026-07-06] 패스마저 실패 = 막는 pending이 있다는 뜻(재시도해도 동일). 60회 재시도(≈30초)나
