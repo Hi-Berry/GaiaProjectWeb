@@ -2187,6 +2187,8 @@ export class BotLogic {
         // 오레 없어 패스. TS는 오레를 먹고 크레딧수입을 더 올려 비율을 *악화*시키므로, 이 상태에선 mine→TS를 강하게
         // 억제해 광산건설·오레 파워액션이 선택되게 한다(엔진의 오레 다리를 키움).
         let oreStarved = false;
+        // [flag: creditCapGuard] 크레딧 상한(30) 오버플로우 예약 상태 — 현금+다음R 수입이 상한 근접이면 크레딧 수입원 추가는 낭비 확대
+        let creditOverflow = false;
         if (getPlayerFlag(playerId, 'oreCreditBalance', true)) {
             const balExp = this.calculateExpectedRoundIncome(game, playerId);
             const oreInc = Math.max(0.5, balExp.ore ?? 0);
@@ -2194,6 +2196,13 @@ export class BotLogic {
             // [재튜닝 2026-06-18] 검증서 트리거가 너무 넓어 정상 TS→연구소 발판까지 막아 점수 -3.5 → 좁힘.
             // "수입 비율 악화" + "현재 크레딧 실제로 쟁여둠(≥12)" 둘 다일 때만 = 진짜 죽음의 나선만 잡음.
             oreStarved = (creditInc / oreInc) > 3.5 && credits >= 12;
+            // [flag: creditCapGuard] 사용자 관찰(2026-07-12): 연구소1+TS3인데 TS 증설+7C 액션 → 다다음R 수입 30 초과로 증발.
+            // 임계 캘리브레이션(사람 15,250결정): 사람 크레딧 p90=16 p95=19, ≥20C는 4%(비정상 구간) —
+            // "현금+다음R 수입 ≥21"(다음 라운드를 사람 p95 초과 상태로 시작 예약)이면 크레딧 수입원 증설은 낭비.
+            // 셀프플레이 40판 +6.06(p=0.027)→120판 −1.67 완전회귀(curse 9호) — 봇끼리는 평균 6.9C라 대부분 무발동.
+            // 실게임 문제(사용자 관측 30C 증발)는 실재 → 사람 게임 한정 가동(fedSatCapHuman 패턴, 120판이 하한 검증).
+            const hasHumanOppCap = (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+            creditOverflow = getPlayerFlag(playerId, 'creditCapGuard', true) && hasHumanOppCap && (credits + creditInc >= 21);
         }
 
         interface ScoredUpgrade {
@@ -2297,6 +2306,8 @@ export class BotLogic {
                     // [오레기아 가드] 다음 라운드 크레딧:오레 수입>3.5면 추가 TS는 오레를 먹고 크레딧수입만 더 올려
                     // 비율을 악화(=교역소 죽음의 나선). 첫 TS(연구소 발판) 외엔 강하게 억제 → 광산/오레 파워액션 우선.
                     if (oreStarved && !isFirstTS) score -= 220;
+                    // [flag: creditCapGuard] 상한 오버플로우 예약이면 크레딧 수입원(TS) 증설은 수입 증발 확대 — 강억제
+                    if (creditOverflow && !isFirstTS) score -= 260;
 
                     // [flag: hhPiRush] HH 부검(2026-07-03 fhhid49g, 33점): R2 TS 4연속(8O)→PI(4O6C) 광물 영영 못 모음
                     // → PI 없는 HH는 신용 사용처가 없어 26~30C 사장. 단 무조건 감점은 정상 TS 플레이도 깎아
@@ -5189,6 +5200,16 @@ export class BotLogic {
                     if (needStepsFirst) score -= getPlayerFlag(playerId, 'resourceActionSetup', false) ? 50 : 100;
                     // [오레기아] 이미 돈만 쌓이는데 또 크레딧 파워액션은 비율 악화 → 억제.
                     if (oreStarvedPow) score -= 150;
+                    // [flag: creditCapGuard] 사용자 관찰(2026-07-12): 크레딧 포화(연구소1+TS3)인데 7C까지 눌러
+                    // 상한(30) 오버플로우 예약. 임계 캘리브레이션(사람 15,250결정: ≥20C는 4% 비정상 구간):
+                    // ①7C 결과가 20C+면 사람 꼬리 밖 — 강억제 ②상한(30) 오버플로우 예약이면 후보 제외.
+                    // 셀프플레이 120판 회귀(curse 9호) → 사람 게임 한정 가동(위 creditOverflow 주석 참조).
+                    if (getPlayerFlag(playerId, 'creditCapGuard', true)
+                        && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length) {
+                        if (credits + 7 >= 20) score -= 200;
+                        const expCap = this.calculateExpectedRoundIncome(game, playerId);
+                        if (credits + 7 + (expCap.credits ?? 0) > 30) score = -1;
+                    }
                     break;
                 }
                 case 'gain-1-step': {
