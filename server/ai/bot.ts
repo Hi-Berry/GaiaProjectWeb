@@ -6719,7 +6719,12 @@ export class BotLogic {
             }, 15000);
         });
         try {
-            return await Promise.race([MCTS.search(game, playerId, candidates), timeout]);
+            const res = await Promise.race([MCTS.search(game, playerId, candidates), timeout]);
+            // [유령라운드 v4 2026-07-13] search가 예외/타임아웃 없이 null을 '반환'하면 race가 null로 풀려
+            // candidates[0] 폴백을 우회 → 후보 17-34개 있는데 결정 null → 강제 패스(잔존 유령의 실체,
+            // 진단 v3로 확정: cands=17~34 cur=me res=정상인데 null). null 반환도 폴백 적용.
+            if (res == null && fallback) log(`[MCTS-NULL] ${tag}: search null 반환 → 후보[0] 폴백 (${fallback.type})`, 'error', game.id);
+            return res ?? fallback;
         } catch (e) {
             log(`[MCTS-TIMEOUT] ${tag}: MCTS 예외 → 폴백: ${(e as Error)?.message}`, 'error', game.id);
             return fallback;
