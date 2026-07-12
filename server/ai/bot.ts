@@ -596,6 +596,14 @@ export class BotLogic {
                     if (builds.length > 0) return builds[0];
                 }
 
+                // [flag: hhConvertAfterMain] 실게임 복기(2026-07-12 ofhfvztt HH): R3 PI 건설(메인 소모) 직후
+                // 18C 든 채 end_turn — 변환 체크(~880)가 이 조기 반환 뒤라 '메인 후 무료 변환' 기회가 없어
+                // 한 라운드 지연(R3에 변환했으면 q4로 당라운드 3정큐 가능). 턴 종료 전 변환 소진.
+                if (getPlayerFlag(playerId, 'hhConvertAfterMain', true)) {
+                    const hhPost = this.findHadschHallasConvert(game, playerId);
+                    if (hhPost) { log(`Bot ${player.name} HH PI convert (post-main): ${(hhPost.params as any)?.actionId}`, 'game', game.id); return hhPost; }
+                }
+
                 // 그 외 추가 액션(예: 글린 네비게이션 보너스 사용 등 프리액션)을 할 게 있으면 수행
                 const special = this.findSpecialActions(game, playerId);
                 if (special.length > 0) return special[0];
@@ -1233,7 +1241,7 @@ export class BotLogic {
         // [flag: hhConvertMinimal] 사용자 관찰: 어제 채택한 HH 변환이 과함 — QIC를 8까지 쟁이고(qic<8) 크레딧 풍선을 무한
         //   배출해서, 이번 턴 3개만 쓸 건데 5개+를 미리 바꿔둠. 안 쓸 QIC는 죽은 크레딧과 다를 바 없고(개당 4C 지불) 오히려 손해.
         //   → 목표를 "필요한 만큼(~3)"으로 낮추고, 순수 풍선배출(QIC로 무한 전환)을 제거. 부족한 광석/지식 보충은 유지.
-        const minimal = getPlayerFlag(playerId, 'hhConvertMinimal', false);
+        const minimal = getPlayerFlag(playerId, 'hhConvertMinimal', true);
         const qicTarget = minimal ? 3 : 8;
         // QIC(연방·건설·가이아에 귀함): 목표 미만이고 크레딧 여유 있으면 전환
         if (qic < qicTarget && credits >= 4 + BUFFER) return { type: 'use_hadsch_hallas_pi_action', params: { actionId: 'hh-4c-1qic' } };
@@ -2919,8 +2927,9 @@ export class BotLogic {
         const player = game.players[playerId];
         const entered = player.spaceshipsEntered || [];
         let reserve = 0;
-        // ① 미입장 우주선 최소 입장 QIC (사거리 내면 0 — 예약 불필요)
-        if (entered.length < 3 && (player.score || 0) >= (player.faction === 'bal_tak' ? 7 : 5)) {
+        // ① 미입장 우주선 최소 입장 QIC (사거리 내면 0 — 예약 불필요) — 입장 예약은 R1-2에만 의미
+        if ((game.roundNumber ?? 1) <= 2
+            && entered.length < 3 && (player.score || 0) >= (player.faction === 'bal_tak' ? 7 : 5)) {
             const myPlanets = game.map.filter(t =>
                 (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
             if (myPlanets.length > 0) {
@@ -2987,7 +2996,12 @@ export class BotLogic {
         const expandValve = getPlayerFlag(playerId, 'r1ExpandValve', true)
             && (game.roundNumber ?? 1) <= 2 && !this.hasZeroStepExpansion(game, playerId);
         // [flag: qicShipBudget] R1-2엔 우주선용 QIC 예약분을 빼고 빌드에 지불 가능 — 중앙 게이트라 가이아 1Q·점프 전부 적용
-        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && game.roundNumber <= 2 && !expandValve)
+        // [flag: qicReserveAllRounds] 실게임 복기(ofhfvztt HH R5): 변환으로 q3 완성 후 3정큐 누르기 전에 다른
+        // 액션이 Q 소모 → 기회 소멸. 원인 = 호출부 R≤2 게이트가 ②(탑승 중 3Q 보호)까지 꺼버림(의도 불일치).
+        // 확장: 예약 계산을 전 라운드 호출하되 ①(입장 예약)만 내부에서 R1-2 한정 — 3Q 엔진 보호가 전 라운드 유지.
+        const reserveGate = getPlayerFlag(playerId, 'qicReserveAllRounds', true)
+            ? true : (game.roundNumber <= 2);
+        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && reserveGate && !expandValve)
             ? this.computeShipQicReserve(game, playerId) : 0;
         const maxPayQicForMine = Math.max(0,
             (player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic) - qicReserveForShips);
