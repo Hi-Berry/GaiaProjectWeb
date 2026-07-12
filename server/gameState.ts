@@ -1450,7 +1450,8 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	if (!player) return;
 
 	// [2026-07-08 사용자] 발타크 포머→QIC도 프리액션 — 3번 하면 로그 3줄 나옴 → 다른 프리액션처럼 한 줄(×N) 중첩.
-	const CONSOLIDATABLE_ACTIONS = ['Resource Convert', 'Burn 2 Power', 'Power Burn', 'Burn 2 Power (Itars)', 'Free Actions', "Bal T'aks: 1 Gaiaformer → 1 QIC"];
+	// [2026-07-12 사용자] 하드쉬할라 PI 변환(4C→1QIC 등)도 프리액션 반복 — 연사 시 줄마다 칸 소모 → ×N 중첩 대상에 추가
+	const CONSOLIDATABLE_ACTIONS = ['Resource Convert', 'Burn 2 Power', 'Power Burn', 'Burn 2 Power (Itars)', 'Free Actions', "Bal T'aks: 1 Gaiaformer → 1 QIC", 'Hadsch Hallas PI'];
 	const isConsolidatable = CONSOLIDATABLE_ACTIONS.includes(action);
 
 	const lastLog = game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
