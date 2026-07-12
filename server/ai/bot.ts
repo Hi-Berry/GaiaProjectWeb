@@ -2245,6 +2245,14 @@ export class BotLogic {
         // (비연방 타일 업글은 영향 없음 → 정상 income/연구소 업글은 그대로 유지)
         const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 450 : 0;
         const isFederated = (tileId: string) => fedHexes.includes(tileId);
+        // [flag: fedFreshTsFirst] 사용자 관찰(2026-07-13): 8O/10C로 새 할인(2O/3C) TS + 4/6 업글 둘 다 가능한데
+        // 연방 내 TS를 4/6으로 먼저 올림 — 연방 내 업글은 미래 연방 파워 0 기여라 '새 연방 재료(할인 TS)'가
+        // 이번 턴 우선이어야 함(안쪽 업글은 다음 턴에 해도 동일). 할인 TS가 실제로 가능할 때만 추가 감점.
+        const freshTsAvailable = getPlayerFlag(playerId, 'fedFreshTsFirst', true)
+            && ore >= 2 && credits >= 3
+            && myStructures.some(t => t.structure === 'mine' && !fedHexes.includes(t.id)
+                && hasNearbyPlayersForDiscount(game, t, playerId));
+        const fedDeferPenalty = (tileId: string) => (freshTsAvailable && fedHexes.includes(tileId)) ? 200 : 0;
 
         // 1. Mines -> Trading Stations
         if (ore >= 2 && credits >= 3) {
@@ -2434,7 +2442,7 @@ export class BotLogic {
                 if (round <= 3 && mineCount < 3) score -= isFirstLab ? 20 : 120; // 6에서 3으로 기준 완화
                 if (round <= 3 && tsCount < 2) score -= isFirstLab ? 10 : 80;
 
-                score -= fedPenalty(ts.id);
+                score -= fedPenalty(ts.id); score -= fedDeferPenalty(ts.id);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_research_lab');
                 score += this.calculateFinalMissionBonus(game, playerId, ts, 'research_lab');
                 // [flag: advTileOverL5] green+L4+좋은 고급타일(≥85) 보유 시 연구소 건설을 우대 — 이게 tech-gain을 트리거해
@@ -2533,7 +2541,7 @@ export class BotLogic {
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
-                score -= fedPenalty(ts.id);
+                score -= fedPenalty(ts.id); score -= fedDeferPenalty(ts.id);
                 // [flag: fedZoneStrategy] 의회(파워값 3)로 올려 구역 연방을 '닫거나' 위성을 줄일 수 있으면 강하게 우대
                 // — 먼 집까지 위성으로 잇지 말고 구역 내부 티어업으로 7파워 채우라는 전략(사용자 모델).
                 if (getPlayerFlag(playerId, 'fedZoneUpgrade', false) && round >= 4 && !game.simulation) {
@@ -2609,7 +2617,7 @@ export class BotLogic {
                     score -= 15;
                 }
 
-                score -= fedPenalty(lab.id);
+                score -= fedPenalty(lab.id); score -= fedDeferPenalty(lab.id);
                 // [flag: academyTypeChoice] 아카 타입 선택(사용자 룰): 기본 left(2지식 패시브 — 연구기아 봇에 유익).
                 // right(QIC 특수액션)는 ①리벨리온 우주선 입장(3정큐=3QIC 액션 연료 필요) 또는 ②R5+(후반엔 패시브지식 회수 라운드 적고 QIC 유연성↑)일 때만.
                 // 기존엔 항상 right만 지어 QIC 액션도 안 누르고(=아무것도 못 얻음) 지식도 못 받던 이중낭비.
