@@ -8512,6 +8512,10 @@ export function executeBotFederation(
 	const unitLabel = isIvits ? '우주정거장' : '위성';
 	// 한 줄 통합: 위성 수 텍스트 + 연방 보상 이미지(tileId=rewardId). 'reward: 라벨'·'+VP' 텍스트는 생략
 	addGameLog(game, playerId, 'Federation', `연방 형성 (${numEmpty} ${unitLabel})`, rewardId);
+	// [버그수정 2026-07-12 사용자 발견] 봇 연방 경로에 라운드미션(rs8 연방=5VP) 적용이 통째로 누락 —
+	// 사람은 소켓 경로(federation_select_reward)에서 받는데 봇만 못 받아 실게임에서 연방당 5VP 손해.
+	// addGameLog 뒤에 호출해 "(+5VP Round Federation)" 주석이 Federation 행에 병합되게 한다.
+	applyRoundMissionScore(game, playerId, 'federation');
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
 	io.to(game.id).emit('game_updated', game);
