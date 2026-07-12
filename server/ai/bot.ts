@@ -4625,7 +4625,7 @@ export class BotLogic {
         // 버리고 타일은 주므로(canBalTakAdvanceNavigation) Nav 트랙 밑 타일 = 전진 증발 = 순손해.
         // 예외: 7VP(tech-imm-7vp)·유형당1K(tech-imm-1k-planet)를 후반(R5+)에 먹는 것만 허용.
         // 서버는 같은 id가 여러 트랙에 있으면 '첫 매칭 트랙' 슬롯을 소모하므로 그 기준으로만 제외.
-        if (getPlayerFlag(playerId, 'balTakNavTileGate', false) && player.faction === 'bal_tak'
+        if (getPlayerFlag(playerId, 'balTakNavTileGate', true) && player.faction === 'bal_tak'
             && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
             const firstTrackOf = (id: string): string | null => {
                 for (const [trk, val] of Object.entries(game.techTilesByTrack)) {
