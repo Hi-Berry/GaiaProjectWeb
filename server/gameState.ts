@@ -1042,6 +1042,13 @@ function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string
 		const hasUnusedPowerAction = (game.powerActions ?? []).some(a => !a.isUsed);
 		if (hasUnusedPowerAction) perPowerValue += usefulRounds < 2 ? 0.35 : 0.2; // 후반일수록 '전환처 있음' 가중을 더 크게
 	}
+	// [flag: powerAcceptBudget] 저점 게임 실측(피락스 31점 파워차감 −13, 사람 215점도 −8): 수락 모델이
+	// 파워당 0.8VP를 가정하지만 전환 못 하는 봇의 실현 가치는 그 이하 — 누적 지불이 사람 상한(8VP)을
+	// 넘으면 추가 수락 기준을 강화(가치 40% 할인)해 저점 봇의 VP 출혈을 제한.
+	if (getPlayerFlag(targetPlayerId, 'powerAcceptBudget', false)) {
+		const paidSoFar = player.scoreBreakdown?.powerReceived ?? 0;
+		if (paidSoFar >= 8) perPowerValue *= 0.6;
+	}
 	return effective * perPowerValue >= vpCost;
 }
 
