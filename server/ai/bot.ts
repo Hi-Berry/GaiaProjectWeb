@@ -1343,18 +1343,25 @@ export class BotLogic {
 
         // 최소 운영자금 확보(다음 라운드에 광산/교역소를 올릴 수 있게): O/C가 너무 바닥일 때만
         if (hasIncoming) {
+            // [flag: cleanupIncomeAware] 사용자 관찰(2026-07-12): 4/0/1 + 충전수입 2뿐인데 1P→1C 후 패스 →
+            // 3/2/0 시작(2/2/1이 명백히 우위). 원인 = 이 분기가 '현재' O/C만 보고 다음 라운드 수입을 무시 —
+            // 수입으로 채워질 자원을 위해 그릇3 토큰(액션 사거리 자산)을 강등. 수입 합산 후에도 바닥일 때만 변환.
+            const incomeAware = getPlayerFlag(playerId, 'cleanupIncomeAware', true);
+            const expInc = incomeAware ? this.calculateExpectedRoundIncome(game, playerId, nextBonusTileId) : null;
+            const effOre = (player.ore ?? 0) + (expInc?.ore ?? 0);
+            const effCredits = (player.credits ?? 0) + (expInc?.credits ?? 0);
             // 네뷸라 의회: 오레 변환에 bowl-3 토큰 2개를 쓰는데, '3power-to-1ore'는 1O만 주고 1파워어치가 버려짐.
             // 같은 2토큰으로 1O+1C를 주는 '2power-to-1ore-1credit'을 써서 1C 낭비 방지 (사용자 관찰).
             const hasNevlasPI = player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
             const can3pOre = isTaklons
                 ? canSpendTaklonsPowerWithoutBrain(player, 3, 3) || canTaklonsSpendUsingBrain(player, 3, 3)
                 : (hasNevlasPI ? currentP3 >= 2 : currentP3 >= 3);
-            if (can3pOre && (player.ore ?? 0) < 1) {
+            if (can3pOre && (incomeAware ? effOre : (player.ore ?? 0)) < 1) {
                 const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
                 const oreType = hasNevlasPI ? '2power-to-1ore-1credit' : '3power-to-1ore';
                 return { type: 'convert_resource', params: { type: oreType, useBrain } };
             }
-            if (currentP3 >= 1 && (player.credits ?? 0) < 2) {
+            if (currentP3 >= 1 && (incomeAware ? effCredits : (player.credits ?? 0)) < 2) {
                 return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } };
             }
         }
@@ -1872,6 +1879,9 @@ export class BotLogic {
                     if (player.faction === 'bal_tak' && track === 'navigation'
                         && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) continue;
                     if (gaiaGate && track === 'gaiaProject' && lvl === 0) continue; // [flag: gaiaResearchUseGate]
+                    // [flag: lateResearchMerit] 이 경로는 점수를 안 봐서 R6 저메리트 상승이 그대로 후보화 — 동일 게이트
+                    if (getPlayerFlag(playerId, 'lateResearchMerit', false)
+                        && this.calculateResearchScore(game, player, playerId, track) <= -500) continue;
                     candidates.push(this.advanceResearchAction(playerId, player, track));
                 }
             }
@@ -4319,6 +4329,9 @@ export class BotLogic {
             }
 
             const score = this.calculateResearchScore(game, player, playerId, track);
+            // [flag: lateResearchMerit] -1000(불가/무가치 판정) 트랙이 트랙 수 부족 시 top-3에 새어들어
+            // 후보가 되던 누수 — 하드 제외.
+            if (getPlayerFlag(playerId, 'lateResearchMerit', false) && score <= -500) continue;
             scored.push({ track, score });
         }
 
@@ -4465,10 +4478,24 @@ export class BotLogic {
                 && countGreenFederations(player) >= 1) {
                 const advScore = this.scoreAdvancedTechTile(game, playerId, advOnTrack.id, round, player);
                 if (advScore > 0) {
+                    // [flag: lateResearchMerit] 선행 가점(×0.3)이 'L4 도달 불가능'한 상승에도 붙던 누수 —
+                    // 실측(80판): 저메리트 경제상승 R4 38·R5 53·R6 64건. 남은 라운드(라운드당 1상승 가정)로
+                    // L4 도달 가능할 때만 선행 가점.
+                    const l4Reachable = !getPlayerFlag(playerId, 'lateResearchMerit', false)
+                        || (4 - next) <= (6 - round);
                     if (next === 4) score += advScore;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
-                    else if (next < 4) score += advScore * 0.3; // L4로 가는 도중: 약한 선행 가점
+                    else if (next < 4 && l4Reachable) score += advScore * 0.3; // L4로 가는 도중: 약한 선행 가점
                     // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
                 }
+            }
+            // [flag: lateResearchMerit] R6 저메리트 상승(경계 L3+ 미도달 + 즉시보상 없음) = 4K를 태우고 얻는 게
+            // 0 (잔여 4K=1.33VP보다 나쁨) — 사용자 관찰(R3-5 경제/지식 과잉, 특히 R5-6). 후보에서 사실상 제거.
+            if (getPlayerFlag(playerId, 'lateResearchMerit', false) && round >= 6) {
+                const hasImmediate = next === 3 || (track === 'navigation' && (next === 1 || next === 3))
+                    || track === 'artificialIntelligence'
+                    || (track === 'terraforming' && (next === 1 || next === 4))
+                    || next === 5;
+                if (next < 3 && !hasImmediate) return -1000;
             }
         }
 
