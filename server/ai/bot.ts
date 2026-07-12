@@ -2232,6 +2232,15 @@ export class BotLogic {
                     const academyCount = myStructures.filter(t => t.structure === 'academy').length;
                     const isFirstTS = tsCount === 0 && labCountNow === 0 && academyCount === 0;
 
+                    // [flag: ts26BanEarly] 사용자 실험(2026-07-12): R1-2 비할인(2O/6C) TS는 '첫 TS' 제외 전면 금지
+                    //   — 인접 할인(3C) TS는 자유, 6C는 첫 엔진 발판(랩 경로)일 때만. 점수가 아닌 후보 미생성(하드).
+                    //   단독 40판 VP−1.27(기각) — 아낀 자원이 다른 낭비(번3+·2토큰액션)로 샜다는 사용자 가설로
+                    //   [flag: earlyWasteBan] 3종 묶음(6C TS + 번3+ + 2토큰액션) 재실험.
+                    if ((getPlayerFlag(playerId, 'ts26BanEarly', false) || getPlayerFlag(playerId, 'earlyWasteBan', true))
+                        && round <= 2 && !isDiscounted && !isFirstTS) {
+                        continue;
+                    }
+
                     // [flag: tsEarlyHardGate] 점수 패널티는 TS를 후보에서 못 잘라냄(top-5 안에 남아 MCTS 평가기가 결국 고름
                     //   → 측정상 초반 TS 타이밍 안 바뀜: TS(R1-2) 2.16→2.00, TS평균R 3.11→3.09). 그래서 점수가 아니라 하드 게이팅으로.
                     //   초반(R≤2)엔 good-case가 아니면 mine→TS 후보를 아예 '생성하지 않아' MCTS가 보지도 못하게 한다.
@@ -3486,7 +3495,9 @@ export class BotLogic {
                             && !/Free Actions|Selected|Charged|Bonus/.test((e as any).action || '')).length;
                         const burnDefer1 = getPlayerFlag(playerId, 'burnComboLate', false)
                             && round <= 2 && burns1 >= 2 && myMainsThisRound < 2;
-                        if ((getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns1 >= 2) || burnDefer1) {
+                        if ((getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns1 >= 2) || burnDefer1
+                            // [flag: earlyWasteBan] R1-2 번 3개+ 금지(사용자: 번2는 리벨리온류 보상이면 허용 — rebellionBurnQic는 별도 체인)
+                            || (getPlayerFlag(playerId, 'earlyWasteBan', true) && round <= 2 && burns1 >= 3 && player.faction !== 'itars')) {
                             // 콤보 미생성 (일반 경로/다른 후보로; burnComboLate는 라운드 후반 재생성)
                         } else {
                         const burnPres1: BotAction[] = Array.from({ length: burns1 }, () => ({
@@ -3538,7 +3549,9 @@ export class BotLogic {
                             && !/Free Actions|Selected|Charged|Bonus/.test((e as any).action || '')).length;
                         const burnDefer2 = getPlayerFlag(playerId, 'burnComboLate', false)
                             && round <= 2 && burns2 >= 2 && myMains2 < 2;
-                        if ((getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns2 >= 2) || burnDefer2) {
+                        if ((getPlayerFlag(playerId, 'earlyBurnGuard', false) && round <= 2 && burns2 >= 2) || burnDefer2
+                            // [flag: earlyWasteBan] R1-2 번 3개+ 금지 (위 gain-1-step과 동일)
+                            || (getPlayerFlag(playerId, 'earlyWasteBan', true) && round <= 2 && burns2 >= 3 && player.faction !== 'itars')) {
                             // 콤보 미생성
                         } else {
                         const burnPres2: BotAction[] = Array.from({ length: burns2 }, () => ({
@@ -5217,7 +5230,9 @@ export class BotLogic {
                     // [flag: noR1TokenGain] 사용자: R1엔 구체적 용처 없이 토큰추가(3파워→2토큰) 하는 게 아까움 — 초반엔 건설·확장·연구 우선.
                     //   단 예외: 인공물 획득은 6토큰 소모(gameState 8731)라, 트와일라잇 우주선 탑승 + 슬롯 있음 + 토큰<6이면
                     //   토큰 모으는 게 맞음(사용자 지적). 그 외엔 R1 score<0로 후보 제외(pre-pass 패스대체에도 안 뽑힘).
-                    if ((game.roundNumber ?? 1) === 1 && getPlayerFlag(playerId, 'noR1TokenGain', false)) {
+                    // [flag: earlyWasteBan] noR1TokenGain의 R1-2 확장판(사용자: 인공물 추적도 아닌데 2토큰 늘리기 금지)
+                    if (((game.roundNumber ?? 1) === 1 && getPlayerFlag(playerId, 'noR1TokenGain', false))
+                        || ((game.roundNumber ?? 1) <= 2 && getPlayerFlag(playerId, 'earlyWasteBan', true))) {
                         const twi = game.map.find(t => t.type === 'ship_twilight');
                         const boardedTwi = !!twi && (player.spaceshipsEntered ?? []).includes(twi.id);
                         const slotsOpen = (game.twilightArtifactSlots ?? []).some(s => s != null);
