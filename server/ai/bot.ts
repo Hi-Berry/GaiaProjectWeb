@@ -1855,7 +1855,7 @@ export class BotLogic {
             bankResearch = r <= 5 && next === 'research_track' && cur !== 'research_track'
                 && (player.knowledge ?? 0) < 12 && !hasL4;
         }
-        if ((player.knowledge ?? 0) >= 4 && !bankResearch) {
+        const addResearchCandidates = () => {
             const tracks = this.pickResearchTracks(game, player, playerId);
             // [flag: gaiaResearchUseGate] 사용자 관찰(2026-07-11): R1 가이아 L1 올리고 포머 방치 후 패스 — 배치
             // 요구파워(L1-2=6)와 사거리 내 트랜스딤을 아무도 체크 안 해 연구 4K가 증발. L0→L1은 '포머를 실제로
@@ -1885,6 +1885,14 @@ export class BotLogic {
                     candidates.push(this.advanceResearchAction(playerId, player, track));
                 }
             }
+        };
+        if ((player.knowledge ?? 0) >= 4 && !bankResearch) addResearchCandidates();
+        // [유령라운드 수정 2026-07-13] 뱅킹이 후보를 0으로 만들면 = 이 턴이 아니라 라운드 통째 패스(다른 액션이
+        // 전무한 상태) → 템포 1라운드 손실이 미션 +2~4VP를 초과. 실측(w7gmzwnz geodens): R5 O4C11K7로 즉시패스
+        // → R6에도 버스트 실패 → fed0 30점. 뱅킹은 '다른 할 일이 있을 때'만 유효 — 후보 0이면 해제.
+        if (candidates.length === 0 && bankResearch && (player.knowledge ?? 0) >= 4) {
+            if (!game.simulation) log(`Bot ${player.name} missionBankResearch 해제 — 뱅킹 시 후보 0(라운드 통째 패스 방지)`, 'game', game.id);
+            addResearchCandidates();
         }
 
         if (!game.simulation) {
