@@ -967,7 +967,12 @@ export class BotLogic {
                     && this.findDiscountedUpgradeAction(game, playerId) === null) {
                     const gaiaLvl = player.research?.gaiaProject ?? 0;
                     const terraLvl = player.research?.terraforming ?? 0;
-                    const target: ResearchTrack | null = gaiaLvl < 1 ? 'gaiaProject' : (terraLvl < 1 ? 'terraforming' : null);
+                    // [flag: gaiaResearchPlaceSync 연동] 이 직접-return이 gaiaResearchUseGate를 우회해 R1 가이아
+                    // 연구 → 포머 방치(실측 37%)의 주 공급원이었음. 가이아가 '지금 쓸 수 있는' 상태가 아니면
+                    // (R1 배치금지 포함) 테라포밍으로 폴백 — 확장연구 강제라는 취지는 유지.
+                    const gaiaOk = gaiaLvl < 1
+                        && !(getPlayerFlag(playerId, 'gaiaResearchUseGate', true) && !this.gaiaResearchUsable(game, playerId));
+                    const target: ResearchTrack | null = gaiaOk ? 'gaiaProject' : (terraLvl < 1 ? 'terraforming' : null);
                     if (target) {
                         const act = this.advanceResearchAction(playerId, player, target);
                         if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
@@ -1272,7 +1277,7 @@ export class BotLogic {
         // [flag: gaiaResearchPlaceSync] 미배치 포머 + 가이아 L1+ 상태에서 토큰을 소모하는 정리 변환(1P→1C 등)이
         // 배치 예산(레벨별 6/4/3 토큰)을 파먹으면 포머가 영영 못 나감(실측: 네블라스 토큰 6→1P→1C→5로 라인 사망).
         // 예산 이하로 떨어뜨리는 정리 변환은 스킵 — 배치가 끝나면(포머 소진) 자동 해제.
-        if (getPlayerFlag(playerId, 'gaiaResearchPlaceSync', false) && player.faction !== 'bal_tak') {
+        if (getPlayerFlag(playerId, 'gaiaResearchPlaceSync', true) && player.faction !== 'bal_tak') {
             const gl = player.research?.gaiaProject ?? 0;
             if (gl >= 1 && (player.gaiaformers ?? 0) > 0) {
                 const needTok = gl < 3 ? 6 : gl < 4 ? 4 : 3;
@@ -4606,6 +4611,29 @@ export class BotLogic {
         }
         if (uniqueTiles.length === 0) return null;
 
+        // [flag: balTakNavTileGate] 사용자 룰(2026-07-12): 발타크는 PI 없으면 Nav 전진 불가 — 서버는 전진만
+        // 버리고 타일은 주므로(canBalTakAdvanceNavigation) Nav 트랙 밑 타일 = 전진 증발 = 순손해.
+        // 예외: 7VP(tech-imm-7vp)·유형당1K(tech-imm-1k-planet)를 후반(R5+)에 먹는 것만 허용.
+        // 서버는 같은 id가 여러 트랙에 있으면 '첫 매칭 트랙' 슬롯을 소모하므로 그 기준으로만 제외.
+        if (getPlayerFlag(playerId, 'balTakNavTileGate', false) && player.faction === 'bal_tak'
+            && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+            const firstTrackOf = (id: string): string | null => {
+                for (const [trk, val] of Object.entries(game.techTilesByTrack)) {
+                    const arr = Array.isArray(val) ? val : (val ? [val] : []);
+                    if (arr.some((t: { id?: string } | null) => t?.id === id)) return trk;
+                }
+                return null;
+            };
+            const lateOk = (game.roundNumber ?? 1) >= 5;
+            const filtered = uniqueTiles.filter(t => firstTrackOf(t.id) !== 'navigation'
+                || (lateOk && (t.id === 'tech-imm-7vp' || t.id === 'tech-imm-1k-planet')));
+            // 전부 걸러지면 선택 진행을 위해 원본 유지(최소악 선택)
+            if (filtered.length > 0 && filtered.length < uniqueTiles.length) {
+                uniqueTiles.length = 0;
+                uniqueTiles.push(...filtered);
+            }
+        }
+
         // 동적 점수 계산을 통해 최적의 타일 선택
         let bestTile: TechTile = uniqueTiles[0];
         let maxScore = -Infinity;
@@ -6580,7 +6608,7 @@ export class BotLogic {
         // [flag: gaiaResearchPlaceSync] 실측(60판): R1 가이아 L1 연구 41건 중 15건(37%)이 R2까지 포머 미활용.
         // 원인 = 연구는 R1 허용인데 배치 후보는 noR1Gaiaformer가 R2+로 차단 → 한 라운드 어긋난 사이에
         // 토큰이 6 밑으로 새거나(정리변환) 트랜스딤 피격. 연구도 R2+로 동기화(연구→같은 라운드 배치).
-        if (getPlayerFlag(playerId, 'gaiaResearchPlaceSync', false)
+        if (getPlayerFlag(playerId, 'gaiaResearchPlaceSync', true)
             && (game.roundNumber ?? 1) <= 1 && getPlayerFlag(playerId, 'noR1Gaiaformer', true)) return false;
         const myPl = game.map.filter(t => t.ownerId === playerId && t.structure);
         if (!myPl.length) return true;
