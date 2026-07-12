@@ -35,6 +35,14 @@ function bescodsSpecialDeferred(game: ServerGameState, playerId: string): boolea
 }
 
 const botExecutingGames = new Set<string>();
+// [hang수정 2026-07-12 2dezwrnl] 락 획득 시각 — doBotTurn 내부 await가 영영 안 풀리는 부류(async 미해결,
+// MCTS는 15s 레이스로 방어됐지만 다른 await 지점은 무방비)에서 락이 영구 점유돼 게임 전체가 동결됨.
+// 45초(정상 상한: MCTS 15s + 지연 수초)를 넘긴 락은 죽은 루프로 간주하고 회수(steal)한다.
+const botExecutingSince = new Map<string, number>();
+// 주의: 이 상태들은 game 객체에 두면 안 됨 — game은 socket emit/MCTS 클론에서 JSON 직렬화되는데
+// Timeout은 순환 참조라 직렬화가 터져 게임 전체가 동결된다(스모크 12판 전멸로 실측). 모듈 Map으로 관리.
+const botLoopGen = new Map<string, number>();
+const botSelfCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** 어드민 롤백 등으로 게임 객체가 교체될 때, 진행 중이던 봇 루프 락을 해제해 새 게임에서 봇이 다시 시작될 수 있게 한다. */
 export function cancelBotExecution(gameId: string): void {
@@ -119,7 +127,14 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
 
     // Module level lock to prevent concurrent executions for the same game
     if (botExecutingGames.has(game.id)) {
-        return;
+        // [hang수정 2026-07-12 2dezwrnl] 죽은 루프가 잡은 락은 회수. 세대(gen)를 올려 좀비 루프의
+        // finally가 새 루프의 락을 지우지 못하게 한다. 회수 후 아래 월클록 워치독이 지문 무변화를
+        // 감지해 forceSkip → 게임 재개.
+        const heldMs = Date.now() - (botExecutingSince.get(game.id) ?? Date.now());
+        if (heldMs <= 45000) return;
+        botLoopGen.set(game.id, (botLoopGen.get(game.id) ?? 0) + 1);
+        botExecutingGames.delete(game.id);
+        log(`[LOCK-STEAL] bot loop lock held ${Math.round(heldMs / 1000)}s → 죽은 루프 간주, 회수 (gen=${botLoopGen.get(game.id)})`, 'error', game.id);
     }
 
     // Determine current player ID based on phase
@@ -203,6 +218,13 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
     }
 
     botExecutingGames.add(game.id);
+    botExecutingSince.set(game.id, Date.now());
+    const myGen = botLoopGen.get(game.id) ?? 0;
+    // [hang수정 2026-07-12] 동결 상태에선 소켓 이벤트도 안 와서 락 회수 기회 자체가 없음 → 지연 자가점검을
+    // 게임당 1개만 예약(멱등 — 정상 진행 중이면 진입 가드에서 그냥 빠져나감).
+    if (!botSelfCheckTimers.has(game.id)) {
+        botSelfCheckTimers.set(game.id, setTimeout(() => { botSelfCheckTimers.delete(game.id); executeBotTurnIfNeeded(io, game); }, 50000));
+    }
     game.isBotExecuting = true;
     try {
         await doBotTurn(io, game);
@@ -214,8 +236,11 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         log(`Bot turn EXCEPTION (loop 재스케줄): ${st}`, 'error', game.id);
         setTimeout(() => executeBotTurnIfNeeded(io, game), d(1000));
     } finally {
-        game.isBotExecuting = false;
-        botExecutingGames.delete(game.id);
+        // 락이 회수(steal)됐다면 이 finally는 좀비 루프의 것 — 새 루프의 락/플래그를 건드리면 안 됨.
+        if ((botLoopGen.get(game.id) ?? 0) === myGen) {
+            game.isBotExecuting = false;
+            botExecutingGames.delete(game.id);
+        }
     }
 }
 

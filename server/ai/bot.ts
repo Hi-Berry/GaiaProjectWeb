@@ -556,6 +556,11 @@ export class BotLogic {
                 const pendingBuilds = this.findBuildActionsWithPendingSteps(game, playerId);
                 if (pendingBuilds.length === 1) return pendingBuilds[0];
                 if (pendingBuilds.length > 1) {
+                    // [hang 근본수정 2026-07-12 2dezwrnl] 시뮬 클론이 여기서 MCTS를 또 돌림 — MCTS-in-MCTS 재귀.
+                    // 시뮬 내 await는 전부 즉시-resolve라 마이크로태스크만 폭주 → setTimeout(15s 레이스 포함)이
+                    // 실행 기회를 아예 못 얻어 워커 프로세스 통째 동결(2TF+Mine 획득 직후 5후보에서 재현).
+                    // main 경로(candidates.length>1의 isSimulate 분기)와 동일하게 시뮬에선 그리디 선택.
+                    if (isSimulate) return pendingBuilds[0];
                     // [로그오염 수정 2026-07-05] MCTS 시뮬 클론도 이 경로를 타는데 simulation 가드가 없어
                     // 게임파일에 초당 수회 스팸(hang처럼 보임 + 진짜 원인 가림) → 가드 추가
                     log(`Bot ${player.name} must complete pending build with ${pendingBuilds.length} candidates...`, 'game', game.id, { simulation: (game as any).simulation });
