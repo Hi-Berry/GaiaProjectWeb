@@ -571,7 +571,11 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             // [유령라운드 가시화 2026-07-13] game.id 없이 찍혀 워커 stdio로 증발하던 로그 — 게임 파일에 기록 + 자원 덤프
             // (이 경로 = 결정 null 강제 패스가 '유령 라운드'의 실체였음. 자원 있는데 여기 오면 후보 생성 버그.)
-            log(`Bot ${player.name} has no valid action, forcing pass to advance turn (R${game.roundNumber} O${player.ore} C${player.credits} K${player.knowledge} Q${player.qic} P${player.power1}/${player.power2}/${player.power3})`, 'game', game.id);
+            // [v3 진단] 재시도 후에도 null인 잔존 케이스(K4+·C20 등) 원인 특정용: 이 시점 후보 재산출 + 연구레벨 덤프
+            let diagCands = -1;
+            try { diagCands = (BotLogic.getCandidateMoves(game, currentPlayerId) as any[]).length; } catch { /* 진단 실패 무시 */ }
+            const diagCur = game.turnOrder[game.currentPlayerIndex] === currentPlayerId ? 'me' : 'OTHER';
+            log(`Bot ${player.name} has no valid action, forcing pass to advance turn (R${game.roundNumber} O${player.ore} C${player.credits} K${player.knowledge} Q${player.qic} P${player.power1}/${player.power2}/${player.power3} | cands=${diagCands} cur=${diagCur} res=${Object.values(player.research ?? {}).join('')})`, 'game', game.id);
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
             if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }
             // [hang수정 2026-07-06] 패스마저 실패 = 막는 pending이 있다는 뜻(재시도해도 동일). 60회 재시도(≈30초)나
