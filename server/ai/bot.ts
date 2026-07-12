@@ -3902,7 +3902,10 @@ export class BotLogic {
                 //   단 2삽/무료광산(isFree=nextMineFreeFromShipTech/spaceshipFed3TfMineFree)은 소행성에 쓰지 않는다 —
                 //   무료 테라포밍은 소행성에 무의미(소행성은 테라 대신 포머 소모)라 무료광산·포머 이중낭비("절대 안 할 짓").
                 //   → isFree면 스킵, non-free + 포머 보유일 때만 후보(자원은 함수 진입부 3420에서 1O2C 확인됨).
-                if (isFree || getEffectiveGaiaformers(player) <= 0) continue;
+                // [사용자 규칙 확장 2026-07-12] 같은 낭비가 pendingSteps 경로로도 재발: 1TF 보너스타일·TF Mars 3C·
+                //   1TF 파워액션으로 삽을 든 상태의 강제 건설에서 소행성을 고르면 삽 전부 증발 + 포머 파괴.
+                //   삽 대기 중(pendingSteps>0)에도 소행성 제외 — 소행성 콜로니는 삽 없는 일반 경로에서만.
+                if (isFree || pendingSteps > 0 || getEffectiveGaiaformers(player) <= 0) continue;
                 scored.push({
                     action: { type: 'build_mine', params: { tileId: tile.id } },
                     score: 105 - (dist * 10) + this.calculateFinalMissionBonus(game, playerId, tile),
