@@ -299,6 +299,16 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                         if (lvl >= 3 && rrd >= 5) (byPlayer[pid] ??= {}).resLateL3 = ((byPlayer[pid] ??= {}).resLateL3 || 0) + 1;
                     }
                 }
+                // HH PI 변환이 ×N 중첩으로 'Free Actions'에 병합됨(gameState 538b8dc) — detail에서 가중 집계.
+                // 단독 항목은 classifyAction('Hadsch Hallas PI')이 잡으므로 병합 항목만 여기서 센다(중복 방지).
+                if (/^Free Actions$/i.test(e.action || '')) {
+                    const hhm = _det.match(/[34]C→1(?:QIC|O|K)(?: ×(\d+))?/g);
+                    if (hhm) {
+                        let c = 0;
+                        for (const m of hhm) { const n = /×(\d+)/.exec(m); c += n ? +n[1] : 1; }
+                        (byPlayer[pid] ??= {}).hhConvert = ((byPlayer[pid] ??= {}).hhConvert || 0) + c;
+                    }
+                }
                 if (/Built Mine/i.test(e.action || '') && /on gaia\b/i.test(_det)) {
                     (byPlayer[pid] ??= {}).gaiaMine = ((byPlayer[pid] ??= {}).gaiaMine || 0) + 1;
                     const qm = /(\d+)QIC/.exec(_det);
