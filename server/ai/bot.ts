@@ -5463,7 +5463,7 @@ export class BotLogic {
 
     /** [flag: powerActionValue] 아직 입장 안 한 우주선에서 '지금 자원으로 쓸 수 있는 최고 액션' 추정 가치.
      *  입장 가치를 이 값으로 산정해, 효율 좋은 우주선은 적극 입장하되 쓸 액션 없는 우주선은 안 타게(−5VP 낭비 방지). */
-    private static estimateBestShipActionValue(player: PlayerState, shipType: string, hasTS: boolean, hasMine: boolean): number {
+    private static estimateBestShipActionValue(player: PlayerState, shipType: string, hasTS: boolean, hasMine: boolean, playerId?: string): number {
         const q = player.qic || 0, o = player.ore || 0, c = player.credits || 0, k = player.knowledge || 0, p3 = player.power3 || 0, gf = player.gaiaformers || 0;
         let best = 0;
         if (shipType === 'ship_twilight') {
@@ -5472,7 +5472,12 @@ export class BotLogic {
             if (o >= 2 && p3 >= 3 && hasTS) best = Math.max(best, 420);
             if (k >= 1) best = Math.max(best, 450);
         } else if (shipType === 'ship_rebellion') {
-            best = q >= 3 ? 380 : 250;
+            // [flag: rebelEntryBridge] 사용자 관찰(2026-07-12): 리벨 인접 + 2Q+2K인데 미탑승 — 탑승 후
+            // #3 브리지(2K→1Q2C) 또는 번+4P→1Q 체인(rebellionBurnQic)으로 3Q가 완성되는 라인인데 입장
+            // 가치가 지갑 q>=3만 380으로 봄. 가장 강한 브리지 1개까지 유효Q에 포함(보수적 — 이중 합산 금지).
+            const bridge1 = (playerId && getPlayerFlag(playerId, 'rebelEntryBridge', false)
+                && (k >= 2 || (p3 + Math.floor((player.power2 || 0) / 2)) >= 4)) ? 1 : 0;
+            best = (q + bridge1) >= 3 ? 380 : 250;
             if (o >= 1 && p3 >= 3 && hasMine) best = Math.max(best, 300);
         } else if (shipType === 'ship_tf_mars') {
             best = q >= 2 ? 320 : 200;
@@ -5557,7 +5562,7 @@ export class BotLogic {
                 if (hasUnusedShip) continue; // 이미 안 쓴 우주선 있으면 추가 입장 금지(적재 방지)
                 const hasTS = game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station');
                 const hasMine = game.map.some(t => t.ownerId === playerId && t.structure === 'mine');
-                let best = this.estimateBestShipActionValue(player, tile.type || '', hasTS, hasMine);
+                let best = this.estimateBestShipActionValue(player, tile.type || '', hasTS, hasMine, playerId);
                 const occupantsP = shipState?.occupants?.length || 0;
                 // [flag: shipEntryOption] 사용자 모델(2026-07-07): 우주선은 "지금 못 써도" 들어간다 — ①다음 라운드
                 // 수입으로 열리는 액션의 선점 옵션가치 ②입장 순번 충전(2·3번째 +2pw, 4번째 +3pw). 기존엔 현재 자원
@@ -5572,7 +5577,7 @@ export class BotLogic {
                         qic: (player.qic || 0) + (inc.qic || 0),
                         power3: (player.power3 || 0) + Math.min(4, inc.powerCharge || 0),
                     } as PlayerState;
-                    const bestNext = this.estimateBestShipActionValue(proj, tile.type || '', hasTS, hasMine);
+                    const bestNext = this.estimateBestShipActionValue(proj, tile.type || '', hasTS, hasMine, playerId);
                     best = Math.max(best, bestNext * 0.75); // 다음 라운드 사용은 선점 이득 포함 0.75 할인
                     const chargeAmt = occupantsP >= 3 ? 3 : occupantsP >= 1 ? 2 : 0;
                     score = 50 + best * 0.5 + chargeAmt * 12; // 실제 충전량 비례

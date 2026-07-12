@@ -6937,6 +6937,13 @@ export function executePassRound(
 ): boolean {
 	if (!game) return false;
 
+	// [GHOST-PASS 계측 2026-07-12] 유령 라운드 추적 — 실제 게임 객체에 대한 모든 패스(시도 포함)를 호출origin과
+	// 함께 무조건 기록. 재현: 봇이 결정로그 없이 패스 처리돼 라운드 통째 증발(40판 중 15건, fed0의 주범).
+	if (games.get(game.id) === game) {
+		const st = (new Error().stack ?? '').split('\n').slice(2, 4).map(s => s.trim().replace(/^at /, '')).join(' < ');
+		log(`[PASS-TRACE] ${game.players[playerId]?.name ?? playerId} R${game.roundNumber} idx=${game.currentPlayerIndex} cur=${game.turnOrder[game.currentPlayerIndex]} passed=${game.turnOrder.map(id => game.players[id]?.hasPassed ? 1 : 0).join('')} via ${st}`, 'game', game.id);
+	}
+
 	if (game.currentPhase !== 'main') return false;
 	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
 	if (game.hasDoneMainAction) {
