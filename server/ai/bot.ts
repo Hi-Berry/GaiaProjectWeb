@@ -2243,12 +2243,16 @@ export class BotLogic {
         // [사용자 피드백] 이미 연방에 속한 건물을 업그레이드하면 이미 형성된 연방의 파워만 7 초과로 낭비되고
         // 다음 연방 구성은 늦어짐. 페널티 70→300→450으로 상향해 연방 외부(새 연방용) 업글/확장을 우선.
         // (비연방 타일 업글은 영향 없음 → 정상 income/연구소 업글은 그대로 유지)
-        const fedPenalty = (tileId: string) => fedHexes.includes(tileId) ? 450 : 0;
+        // [flag: lastRoundFedFree] 사용자 관찰(2026-07-13): R6 종료 시 2O3C+3O5C 있으면 업글 체인으로 7VP 타일
+        // (잔여 13유닛=4.3VP 대비 순+3)인데 그냥 패스 — 연방 보존 스택(fedPenalty/noFedTierUp/fedDefer)의 근거
+        // '미래 연방 재료 보존'이 R6엔 소멸하는데 페널티만 남아 후보를 죽임. 마지막 라운드는 전부 해제.
+        const fedFreeNow = getPlayerFlag(playerId, 'lastRoundFedFree', true) && round >= 6;
+        const fedPenalty = (tileId: string) => (fedHexes.includes(tileId) && !fedFreeNow) ? 450 : 0;
         const isFederated = (tileId: string) => fedHexes.includes(tileId);
         // [flag: fedFreshTsFirst] 사용자 관찰(2026-07-13): 8O/10C로 새 할인(2O/3C) TS + 4/6 업글 둘 다 가능한데
         // 연방 내 TS를 4/6으로 먼저 올림 — 연방 내 업글은 미래 연방 파워 0 기여라 '새 연방 재료(할인 TS)'가
         // 이번 턴 우선이어야 함(안쪽 업글은 다음 턴에 해도 동일). 할인 TS가 실제로 가능할 때만 추가 감점.
-        const freshTsAvailable = getPlayerFlag(playerId, 'fedFreshTsFirst', true)
+        const freshTsAvailable = getPlayerFlag(playerId, 'fedFreshTsFirst', true) && !fedFreeNow
             && ore >= 2 && credits >= 3
             && myStructures.some(t => t.structure === 'mine' && !fedHexes.includes(t.id)
                 && hasNearbyPlayersForDiscount(game, t, playerId));
@@ -2659,7 +2663,12 @@ export class BotLogic {
         const upTarget = (c: ScoredUpgrade) => (c.action.params as any)?.target;
         const hasNonFedSameTarget = (c: ScoredUpgrade) =>
             candidates.some(o => !o.isFederated && upTarget(o) === upTarget(c));
-        const filtered = getPlayerFlag(playerId, 'noFedTierUp', true)
+        // [flag: lastRoundFedFree] R6엔 연방 필터도 해제 — 미래 연방이 없어 '연방 안 업글 = 낭비' 근거 소멸
+        // (7VP 타일 체인의 첫 계단인 연방 안 mine→TS가 이 필터에 죽던 것).
+        const fedFilterOffR6 = getPlayerFlag(playerId, 'lastRoundFedFree', true) && round >= 6;
+        const filtered = fedFilterOffR6
+            ? candidates
+            : getPlayerFlag(playerId, 'noFedTierUp', true)
             ? candidates.filter(c => {
                 if (!c.isFederated) return true;
                 if (!isEngineUpgrade(c)) return false;
