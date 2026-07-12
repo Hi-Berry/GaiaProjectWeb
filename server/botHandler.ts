@@ -554,6 +554,20 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
                 const spOk = executeBotBescodsAdvanceLowestTrack(io, game, currentPlayerId);
                 if (spOk) { setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); return; }
             }
+            // [유령라운드 v2 2026-07-13] 결정 null의 잔존 케이스(다카니안 K5·연구 5트랙 가능인데 후보 0) =
+            // 라운드 전환 직후 인덱스 race: getCandidateMoves의 드리프트 가드(내 턴 아님 → [])가 전환 완료 전에
+            // 평가됨. 즉시 패스 = 라운드 증발 → 1회 재시도(전환 완료 대기) 후에도 null이면 진짜 후보 없음으로 패스.
+            {
+                const g = game as any;
+                if (!g._nullDecisionRetry) g._nullDecisionRetry = {};
+                if ((g._nullDecisionRetry[currentPlayerId] ?? 0) < 1) {
+                    g._nullDecisionRetry[currentPlayerId] = 1;
+                    log(`Bot ${player.name} null decision → 1회 재시도 (전환 race 의심, R${game.roundNumber})`, 'game', game.id);
+                    setTimeout(() => executeBotTurnIfNeeded(io, game), d(400));
+                    return;
+                }
+                g._nullDecisionRetry[currentPlayerId] = 0;
+            }
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             // [유령라운드 가시화 2026-07-13] game.id 없이 찍혀 워커 stdio로 증발하던 로그 — 게임 파일에 기록 + 자원 덤프
             // (이 경로 = 결정 null 강제 패스가 '유령 라운드'의 실체였음. 자원 있는데 여기 오면 후보 생성 버그.)
@@ -597,6 +611,8 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (success) {
         if (feedbackEntry) addBotFeedbackLog(game, currentPlayerId, feedbackEntry);
         log(`Bot ${player.name} successfully executed ${action.type}`, 'game', game.id);
+        // [유령라운드 v2] 정상 액션 성공 시 null-결정 재시도 카운터 리셋(라운드마다 1회 재시도 보장)
+        if ((game as any)._nullDecisionRetry) (game as any)._nullDecisionRetry[currentPlayerId] = 0;
         resetBotProgress(game);
         setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
     } else {
