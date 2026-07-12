@@ -4743,6 +4743,33 @@ export class BotLogic {
      * 고급 기술 타일 점수: vp-build(남은 건설·업그레이드 파이프라인), vp-research(~30VP 상당),
      * 패스(남은 라운드·누적 상향), imm(즉시 VP), 자원형(자원 가치 환산).
      */
+    /** [flag: advPassGrowth] 패스 고급타일의 성장 투영 — 사람은 '지금 개수'가 아니라 '앞으로 늘릴 개수'로 산다
+     *  (실게임 4판: 2vp-asteroid 52·3vp-fed 42·3vp-lab 33 — 전부 취득 후 성장분). 현재 개수 평가만으로는
+     *  구조적 저평가 → 남은 라운드와 성장 여지(TS→랩 재료, 빈 소행성, 연방 페이스)만큼 보수적으로 가산. */
+    private static advPassProj(game: ServerGameState, playerId: string, current: number, kind: 'lab' | 'fed' | 'asteroid' | 'type', passesLeft: number): number {
+        if (!getPlayerFlag(playerId, 'advPassGrowth', false) || passesLeft < 2) return current;
+        const player = game.players[playerId];
+        switch (kind) {
+            case 'lab': {
+                // TS가 랩 재료 — TS 보유 + 랩 슬롯 여유만큼 1~2개 성장 기대
+                const ts = game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length;
+                return current + Math.min(2, ts, passesLeft - 1) * 0.8;
+            }
+            case 'fed': {
+                // 사람 페이스 ~라운드당 0.5연방 — 보수적으로 절반만
+                return current + Math.min(2, (passesLeft - 1) * 0.5);
+            }
+            case 'asteroid': {
+                // 빈 소행성이 존재하고 포머 확보 경로가 있으면 성장 기대(사람 실측: 취득 후 소행성 적극 건설)
+                const empty = game.map.filter(t => t.type === 'asteroid' && !t.ownerId && !t.structure).length;
+                const formerPath = getEffectiveGaiaformers(player) > 0 || (player.research?.gaiaProject ?? 0) >= 1;
+                return current + (formerPath ? Math.min(2, empty, passesLeft - 1) : 0);
+            }
+            case 'type':
+                return current + Math.min(1.5, passesLeft * 0.4);
+        }
+    }
+
     private static scoreAdvancedTechTile(game: ServerGameState, playerId: string, tileId: string, round: number, player: PlayerState): number {
         let s = 45;
 
@@ -4810,13 +4837,13 @@ export class BotLogic {
             const expectedQic = Math.max(1, 1 + Math.floor(passesLeft / 2));
             s += 4 * expectedQic;
         } else if (tileId === 'adv-pass-1vp-type') {
-            s += planetTypes.size * 1 * passRamp;
+            s += this.advPassProj(game, playerId, planetTypes.size, 'type', passesLeft) * 1 * passRamp;
         } else if (tileId === 'adv-pass-3vp-lab') {
-            s += labCount * 3 * passRamp;
+            s += this.advPassProj(game, playerId, labCount, 'lab', passesLeft) * 3 * passRamp;
         } else if (tileId === 'adv-pass-3vp-fed') {
-            s += fedCount * 3 * passRamp;
+            s += this.advPassProj(game, playerId, fedCount, 'fed', passesLeft) * 3 * passRamp;
         } else if (tileId === 'adv-pass-2vp-asteroid') {
-            s += asteroidCount * 2 * passRamp;
+            s += this.advPassProj(game, playerId, asteroidCount, 'asteroid', passesLeft) * 2 * passRamp;
         } else if (tileId === 'adv-pass-2vp-outer') {
             s += outerPass * 2 * passRamp;
         } else if (tileId === 'adv-imm-1o-sector') {
@@ -5475,6 +5502,15 @@ export class BotLogic {
             // [flag: balTakShipQic] 발타크 입장 거리 QIC를 포머 변환으로 충당(부족분 preActions는 아래 act에서)
             const balTakEntry = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true);
             if (neededQic > (balTakEntry ? this.getAvailableQic(player) : qic)) continue;
+            // [flag: rebelEntryFareGuard] 사용자 관찰(2026-07-12): 3Q(3정큐 스택)를 원거리 리벨리온 입장비로
+            // 전소 — 도착 즉시 잔여 0Q라 탑승 목적(3Q→기술타일)이 사망. QIC 예약(③)은 건설만 막고 입장비는
+            // 안 막던 구멍. 입장비 2Q+ 이고 입장 후 잔여 <3Q면 3Q엔진 배(#1 미사용 리벨/타이밍된 트와) 입장
+            // 후보 제외 — 1Q 입장은 탑승 후 2K→1Q 브리지로 복구 가능해 허용.
+            if (getPlayerFlag(playerId, 'rebelEntryFareGuard', true) && neededQic >= 2 && (qic - neededQic) < 3) {
+                const isEngineShip = tile.type === 'ship_rebellion'
+                    || (tile.type === 'ship_twilight' && this.twilightTimingOk(game, player));
+                if (isEngineShip && !(game.spaceships?.[tile.id]?.usedActionIndices || []).includes(1)) continue;
+            }
 
             // 기존 200(의회급)은 명시적 과보정이라 봇이 우주선에 과탑승 → 확장(광산) 메인액션 잠식
             // → 연방/연구 미달성의 한 원인이었다. head2head에서 낮출수록 +방향(우주선 입장의 66%가 미사용).
