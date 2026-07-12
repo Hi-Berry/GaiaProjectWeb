@@ -6262,7 +6262,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	}
 
 	if (tile.type === 'proto') {
-		addScore(game, playerId, 6, 'other', { source: 'Proto Planet' });
+		// noLog: 바로 아래 전용 로그가 +6VP를 이미 표기 — addScore 자동로그("+6VP (Proto Planet)")는 중복(사용자)
+		addScore(game, playerId, 6, 'other', { source: 'Proto Planet', noLog: true });
 		addGameLog(game, playerId, 'Built Mine on Proto', `+6 VP (3 terraforming required)`, tileId);
 	}
 
