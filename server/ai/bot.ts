@@ -4488,14 +4488,20 @@ export class BotLogic {
                     // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
                 }
             }
-            // [flag: lateResearchMerit] R6 저메리트 상승(경계 L3+ 미도달 + 즉시보상 없음) = 4K를 태우고 얻는 게
-            // 0 (잔여 4K=1.33VP보다 나쁨) — 사용자 관찰(R3-5 경제/지식 과잉, 특히 R5-6). 후보에서 사실상 제거.
-            if (getPlayerFlag(playerId, 'lateResearchMerit', false) && round >= 6) {
-                const hasImmediate = next === 3 || (track === 'navigation' && (next === 1 || next === 3))
+            // [flag: lateResearchMerit] 후반 저메리트 상승 차단 — 사용자 관찰 2건: ①R6 저메리트(경계 L3+ 미도달
+            // + 즉시보상 없음) = 4K 태우고 얻는 게 0(잔여 4K=1.33VP보다 나쁨) ②R5에 L2까지만 올리고 자원 소모 —
+            // 종료 L3(+4VP) '사다리'는 완주 자금이 있어야 가치인데 1-ply라 완주 가능성을 안 봄(다턴 계산 부재).
+            // 사다리 완주 판정(결정론): 남은 지식(현재-4 + R5면 다음 라운드 지식수입)으로 L3까지 추가 상승
+            // ((3-next)×4K) 자금이 가능해야 허용. R6에 8K+ 보유로 2연속 상승 L3 완주하는 경우는 futureK가 커버.
+            if (getPlayerFlag(playerId, 'lateResearchMerit', false) && round >= 5 && next < 3) {
+                const hasImmediate = (track === 'navigation' && next === 1)
                     || track === 'artificialIntelligence'
-                    || (track === 'terraforming' && (next === 1 || next === 4))
-                    || next === 5;
-                if (next < 3 && !hasImmediate) return -1000;
+                    || (track === 'terraforming' && next === 1);
+                if (!hasImmediate) {
+                    const expK = round === 5 ? (this.calculateExpectedRoundIncome(game, playerId).knowledge ?? 0) : 0;
+                    const futureK = (player.knowledge ?? 0) - 4 + expK;
+                    if (futureK < (3 - next) * 4) return -1000;
+                }
             }
         }
 
