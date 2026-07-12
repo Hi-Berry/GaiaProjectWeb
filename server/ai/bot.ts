@@ -5978,6 +5978,7 @@ export class BotLogic {
         if (!player) return 0;
 
         let score = 50;
+        let vpNow: number | null = null; // 순수 VP형 인공물의 즉시 VP ([flag: artifactVpFloor] 판정용)
         if (artifactId === 'art-income-2p3') {
             // 매 수익마다 3그릇에 2토큰을 직접 넣어 주므로 초중반 최상위 인공물로 평가한다.
             score += game.roundNumber <= 2 ? 360 : game.roundNumber <= 3 ? 300 : game.roundNumber <= 4 ? 220 : game.roundNumber <= 5 ? 120 : 40;
@@ -5998,19 +5999,32 @@ export class BotLogic {
             const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
             if (player.virtualMineAsteroid) types.add('asteroid');
             if (player.virtualMineProto) types.add('proto');
-            score += (3 + types.size) * (game.roundNumber >= 5 ? 24 : 12);
+            vpNow = 3 + types.size;
+            score += vpNow * (game.roundNumber >= 5 ? 24 : 12);
         } else if (artifactId === 'art-vp-bridge') {
             const bridgeSectors = [11, 12, 13, 14, 15, 16, 17, 18];
             const count = bridgeSectors.filter(s => game.map.some(t => t.sector === s && t.ownerId === playerId && t.structure)).length;
-            score += count * 3 * (game.roundNumber >= 5 ? 24 : 12);
+            vpNow = count * 3;
+            score += vpNow * (game.roundNumber >= 5 ? 24 : 12);
         } else if (artifactId === 'art-vp-gaia') {
-            score += ((player.research?.gaiaProject ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
+            vpNow = (player.research?.gaiaProject ?? 0) * 3;
+            score += vpNow * (game.roundNumber >= 5 ? 24 : 12);
         } else if (artifactId === 'art-vp-science') {
-            score += ((player.research?.science ?? 0) * 3) * (game.roundNumber >= 5 ? 24 : 12);
+            vpNow = (player.research?.science ?? 0) * 3;
+            score += vpNow * (game.roundNumber >= 5 ? 24 : 12);
         } else if (artifactId === 'art-vp-tracks3') {
             const tracks = (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as ResearchTrack[])
                 .filter(t => (player.research?.[t] ?? 0) >= 3).length;
-            score += (tracks * 3) * (game.roundNumber >= 5 ? 24 : 12);
+            vpNow = tracks * 3;
+            score += vpNow * (game.roundNumber >= 5 ? 24 : 12);
+        }
+
+        // [flag: artifactVpFloor] 사용자 룰(2026-07-12): 순수 VP형 인공물은 6토큰(=위성 재료)을 태우므로
+        // 9VP 이상을 노리거나 토큰이 정말 남아돌 때만 — 3VP짜리 타이밍에 집착해 위성을 전소하는 낭비 차단.
+        // '남아돎' = 구매 후에도 토큰 10+ (연방 위성 5~7개 여유). 자원/수익형 인공물은 엔진 가치라 제외.
+        if (vpNow != null && getPlayerFlag(playerId, 'artifactVpFloor', true)) {
+            const totTok = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+            if (vpNow < 9 && totTok - 6 < 10) return -1;
         }
 
         return score;
