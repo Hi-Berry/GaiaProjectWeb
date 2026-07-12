@@ -2966,13 +2966,20 @@ export class BotLogic {
         // Q4 라인이 있는데 R1에 가이아 건설로 Q를 던져 라인 사망 — 기존 ①은 입장비용(0)만 예약해 구멍.
         if (getPlayerFlag(playerId, 'rebelAdjacentQicHold', true) && (game.roundNumber ?? 1) <= 2 && entered.length < 3) {
             // [v2] 트와는 인접 선보호(R1-2) 제외 — 사용자 룰상 트와 3정큐는 R4+라 조기 보호가 곧 Q동결
+            // [flag: rebelReachQicHold] 사용자 관찰(2026-07-12 스페이스자이언트): 리벨 3거리 + '+3사거리'
+            // 부스터 보유 = 이번 턴 입장 가능인데, 도달 판정이 부스터를 켜기 전 사거리만 봐서 홀드가 안 걸림
+            // → 2Q를 가이아 광산에 유출, 입장 후 2K→1Q 브리지로 완성되던 3정큐 라인 사망.
+            // 보너스타일 range_3 미사용분(+3)까지 도달로 간주해 같은 보호를 적용.
+            const boosterExtra = (getPlayerFlag(playerId, 'rebelReachQicHold', true)
+                && !player.usedBonusAction && !player.rangeBonusActive
+                && ALL_BONUS_TILES.find(t => t.id === player.bonusTile)?.specialAction === 'range_3') ? 3 : 0;
             const engines = game.map.filter(t => t.type === 'ship_rebellion');
             const myPl = game.map.filter(t =>
                 (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
             for (const eng of engines) {
                 if (entered.includes(eng.id) || !myPl.length) continue;
                 const d = Math.min(...myPl.map(p => getDistance(p, eng)));
-                if (d <= this.getEffectiveBaseRange(player)) { reserve = Math.max(reserve, 3); break; }
+                if (d <= this.getEffectiveBaseRange(player) + boosterExtra) { reserve = Math.max(reserve, 3); break; }
             }
         }
         return reserve;
