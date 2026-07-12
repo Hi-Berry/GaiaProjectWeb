@@ -604,7 +604,7 @@ export class BotLogic {
                 // [flag: hhConvertAfterMain] 실게임 복기(2026-07-12 ofhfvztt HH): R3 PI 건설(메인 소모) 직후
                 // 18C 든 채 end_turn — 변환 체크(~880)가 이 조기 반환 뒤라 '메인 후 무료 변환' 기회가 없어
                 // 한 라운드 지연(R3에 변환했으면 q4로 당라운드 3정큐 가능). 턴 종료 전 변환 소진.
-                if (getPlayerFlag(playerId, 'hhConvertAfterMain', true) && !getPlayerFlag(playerId, 'hhJitConvert', false)) {
+                if (getPlayerFlag(playerId, 'hhConvertAfterMain', true) && !getPlayerFlag(playerId, 'hhJitConvert', true)) {
                     const hhPost = this.findHadschHallasConvert(game, playerId);
                     if (hhPost) { log(`Bot ${player.name} HH PI convert (post-main): ${(hhPost.params as any)?.actionId}`, 'game', game.id); return hhPost; }
                 }
@@ -1082,7 +1082,7 @@ export class BotLogic {
                 }
                 // HH PI 변환(무료): 메인액션 전에 남는 크레딧을 QIC 등으로 미리 보충 → 그 턴 건설/연방에 QIC 활용. 루프가 버퍼까지 반복.
                 // [flag: hhJitConvert] 사용자 룰: 미리 바꾸지 말 것 — 필요분은 각 후보의 preActions가 쓰기 직전 변환.
-                if (!getPlayerFlag(playerId, 'hhJitConvert', false)) {
+                if (!getPlayerFlag(playerId, 'hhJitConvert', true)) {
                     const hhConvPre = this.findHadschHallasConvert(game, playerId);
                     if (hhConvPre) { log(`Bot ${player.name} HH PI convert (pre-action): ${(hhConvPre.params as any)?.actionId}`, 'game', game.id); return hhConvPre; }
                 }
@@ -2801,7 +2801,7 @@ export class BotLogic {
      *  발타크 GF→QIC preActions와 동일 패턴. PI 보유 + 변환 후에도 creditsFloor(액션 크레딧비용+버퍼) 이상 남을 때만. */
     private static hhConvertPreActionsForQicShortfall(game: ServerGameState, playerId: string, walletQic: number, totalQicNeeded: number, creditsFloor: number): BotAction[] {
         const player = game.players[playerId];
-        if (player?.faction !== 'hadsch_hallas' || !getPlayerFlag(playerId, 'hhJitConvert', false)) return [];
+        if (player?.faction !== 'hadsch_hallas' || !getPlayerFlag(playerId, 'hhJitConvert', true)) return [];
         const n = Math.max(0, totalQicNeeded - walletQic);
         if (n <= 0) return [];
         if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return [];
@@ -2812,7 +2812,7 @@ export class BotLogic {
     /** [flag: hhJitConvert] HH가 크레딧으로 즉석 변환 가능한 QIC 수 (후보 생성용 가상 지갑) */
     private static hhConvertibleQic(game: ServerGameState, playerId: string, creditsFloor: number): number {
         const player = game.players[playerId];
-        if (player?.faction !== 'hadsch_hallas' || !getPlayerFlag(playerId, 'hhJitConvert', false)) return 0;
+        if (player?.faction !== 'hadsch_hallas' || !getPlayerFlag(playerId, 'hhJitConvert', true)) return 0;
         if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return 0;
         return Math.floor(Math.max(0, (player.credits ?? 0) - creditsFloor) / 4);
     }
@@ -3168,13 +3168,23 @@ export class BotLogic {
                 !t.type?.startsWith('ship_')
             );
 
+            // [flag: lantidsParasiticPI] 사용자 관찰(2026-07-12): 의회 후 기생 0회. 갭 ①의회 +2K(기생당,
+            // 서버 지급)가 점수에 미반영 — 고정 260이라 일반 광산(300-350)에 항상 밀림. ②거리 앵커가
+            // 기생광산 제외 — 서버(standard build myTiles)는 기생도 앵커로 인정. (기각된 lantidsParasiticPush는
+            // '밀집 강제' 각도로 별개 — 이건 서버 룰 미러링 + 실지급 자원의 가치 반영.)
+            const parasiticPI = getPlayerFlag(playerId, 'lantidsParasiticPI', false);
+            const lantidsPIBuilt = parasiticPI && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+            const parasiticAnchors = parasiticPI
+                ? [...myPlanets, ...game.map.filter(t => t.parasiticMine?.ownerId === playerId)]
+                : myPlanets;
             for (const tile of parasiticTargets) {
-                const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
+                const dist = Math.min(...parasiticAnchors.map(p => getDistance(p, tile)));
                 const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
                 if (neededQicForRange > maxPayQicForMine) continue;
                 if (neededQicForRange > 1 && round <= 4) continue;
 
                 let score = 260 - neededQicForRange * (round <= 3 ? 220 : 120);
+                if (lantidsPIBuilt) score += 100; // 의회 +2K/기생 = 지식엔진 실지급분
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
@@ -4668,7 +4678,12 @@ export class BotLogic {
         // value-aware: ≥85(정말 좋은 것)만 강제, 나쁜 고급은 기존대로 표준과 정상 비교.
         // [flag: advTileAlways] 사용자 모델: 고급타일은 거의 항상 기본보다 가치 큼 → 청구 가능하면(초록+L4+미보유) 무조건 우선.
         //   기존 임계(≥70/기본초과)가 봇이 '딸 수 있는데 기본 집는'(사용자가 1:3에서 수없이 관찰) 원인. 실제 결정부 직접 교정.
-        const advPreferred = !!bestAdv && (getPlayerFlag(playerId, 'advTileAlways', true)
+        // [flag: advTileValueFloor] 사용자 관찰(2026-07-12): 외각 0개인데 '패스당 외각×2VP' 고급타일을 먹음 —
+        // advTileAlways가 점수 무관 강제라 조건부 가치 0짜리도 선택됨. 고급타일 비용(초록 연방 토큰 + 표준타일
+        // 1개 커버=혜택 영구상실)을 생각하면 한계가치(베이스 45 초과분)가 최소한은 있어야 함. <12면 아예 안 집음.
+        const advMarginal = bestAdv ? bestAdv.score - 45 : 0;
+        const advWorthless = getPlayerFlag(playerId, 'advTileValueFloor', false) && advMarginal < 12;
+        const advPreferred = !!bestAdv && !advWorthless && (getPlayerFlag(playerId, 'advTileAlways', true)
             || bestAdv.score > maxScore
             || (getPlayerFlag(playerId, 'advTileOverL5', true) && bestAdv.score >= 70));
         if (bestAdv && advPreferred) {
