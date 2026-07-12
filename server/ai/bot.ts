@@ -4682,7 +4682,7 @@ export class BotLogic {
         // advTileAlways가 점수 무관 강제라 조건부 가치 0짜리도 선택됨. 고급타일 비용(초록 연방 토큰 + 표준타일
         // 1개 커버=혜택 영구상실)을 생각하면 한계가치(베이스 45 초과분)가 최소한은 있어야 함. <12면 아예 안 집음.
         const advMarginal = bestAdv ? bestAdv.score - 45 : 0;
-        const advWorthless = getPlayerFlag(playerId, 'advTileValueFloor', false) && advMarginal < 12;
+        const advWorthless = getPlayerFlag(playerId, 'advTileValueFloor', true) && advMarginal < 12;
         const advPreferred = !!bestAdv && !advWorthless && (getPlayerFlag(playerId, 'advTileAlways', true)
             || bestAdv.score > maxScore
             || (getPlayerFlag(playerId, 'advTileOverL5', true) && bestAdv.score >= 70));
