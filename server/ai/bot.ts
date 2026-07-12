@@ -604,7 +604,7 @@ export class BotLogic {
                 // [flag: hhConvertAfterMain] 실게임 복기(2026-07-12 ofhfvztt HH): R3 PI 건설(메인 소모) 직후
                 // 18C 든 채 end_turn — 변환 체크(~880)가 이 조기 반환 뒤라 '메인 후 무료 변환' 기회가 없어
                 // 한 라운드 지연(R3에 변환했으면 q4로 당라운드 3정큐 가능). 턴 종료 전 변환 소진.
-                if (getPlayerFlag(playerId, 'hhConvertAfterMain', true)) {
+                if (getPlayerFlag(playerId, 'hhConvertAfterMain', true) && !getPlayerFlag(playerId, 'hhJitConvert', false)) {
                     const hhPost = this.findHadschHallasConvert(game, playerId);
                     if (hhPost) { log(`Bot ${player.name} HH PI convert (post-main): ${(hhPost.params as any)?.actionId}`, 'game', game.id); return hhPost; }
                 }
@@ -1076,7 +1076,8 @@ export class BotLogic {
                     if (pi) { log(`Bot ${player.name} lantidsEarlyPI: R${game.roundNumber} 의회 강제 오프닝`, 'game', game.id); return pi; }
                 }
                 // HH PI 변환(무료): 메인액션 전에 남는 크레딧을 QIC 등으로 미리 보충 → 그 턴 건설/연방에 QIC 활용. 루프가 버퍼까지 반복.
-                {
+                // [flag: hhJitConvert] 사용자 룰: 미리 바꾸지 말 것 — 필요분은 각 후보의 preActions가 쓰기 직전 변환.
+                if (!getPlayerFlag(playerId, 'hhJitConvert', false)) {
                     const hhConvPre = this.findHadschHallasConvert(game, playerId);
                     if (hhConvPre) { log(`Bot ${player.name} HH PI convert (pre-action): ${(hhConvPre.params as any)?.actionId}`, 'game', game.id); return hhConvPre; }
                 }
@@ -1267,6 +1268,18 @@ export class BotLogic {
         // R6 최종 패스 전 수동 변환은 무의미하거나 손해(3P→1O = 3C어치→1유닛). 이 함수의 목적(다음 라운드 준비)도
         // R6엔 소멸 → 전체 스킵.
         if ((game.roundNumber ?? 1) >= 6) return null;
+
+        // [flag: gaiaResearchPlaceSync] 미배치 포머 + 가이아 L1+ 상태에서 토큰을 소모하는 정리 변환(1P→1C 등)이
+        // 배치 예산(레벨별 6/4/3 토큰)을 파먹으면 포머가 영영 못 나감(실측: 네블라스 토큰 6→1P→1C→5로 라인 사망).
+        // 예산 이하로 떨어뜨리는 정리 변환은 스킵 — 배치가 끝나면(포머 소진) 자동 해제.
+        if (getPlayerFlag(playerId, 'gaiaResearchPlaceSync', false) && player.faction !== 'bal_tak') {
+            const gl = player.research?.gaiaProject ?? 0;
+            if (gl >= 1 && (player.gaiaformers ?? 0) > 0) {
+                const needTok = gl < 3 ? 6 : gl < 4 ? 4 : 3;
+                const totTok = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+                if (totTok <= needTok) return null;
+            }
+        }
 
         const overflowActions = this.getPassResourceOverflowCleanupActions(game, playerId, nextBonusTileId);
         if (overflowActions.length > 0) return overflowActions[0];
@@ -2778,6 +2791,27 @@ export class BotLogic {
         return Array.from({ length: n }, () => ({ type: 'bal_tak_gaiaformer_to_qic' as const, params: {} }));
     }
 
+    /** [flag: hhJitConvert] HH: 지갑 QIC를 넘어서는 필요분만큼 4C→1QIC 변환 preActions — 사용자 룰(2026-07-12):
+     *  "미리 바꿔두지 말고 쓰기 직전에 바꿔라"(그 사이 턴에 무슨 일이 생길지 모름 = 크레딧 유동성 보존).
+     *  발타크 GF→QIC preActions와 동일 패턴. PI 보유 + 변환 후에도 creditsFloor(액션 크레딧비용+버퍼) 이상 남을 때만. */
+    private static hhConvertPreActionsForQicShortfall(game: ServerGameState, playerId: string, walletQic: number, totalQicNeeded: number, creditsFloor: number): BotAction[] {
+        const player = game.players[playerId];
+        if (player?.faction !== 'hadsch_hallas' || !getPlayerFlag(playerId, 'hhJitConvert', false)) return [];
+        const n = Math.max(0, totalQicNeeded - walletQic);
+        if (n <= 0) return [];
+        if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return [];
+        if ((player.credits ?? 0) - n * 4 < creditsFloor) return [];
+        return Array.from({ length: n }, () => ({ type: 'use_hadsch_hallas_pi_action' as const, params: { actionId: 'hh-4c-1qic' } }));
+    }
+
+    /** [flag: hhJitConvert] HH가 크레딧으로 즉석 변환 가능한 QIC 수 (후보 생성용 가상 지갑) */
+    private static hhConvertibleQic(game: ServerGameState, playerId: string, creditsFloor: number): number {
+        const player = game.players[playerId];
+        if (player?.faction !== 'hadsch_hallas' || !getPlayerFlag(playerId, 'hhJitConvert', false)) return 0;
+        if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return 0;
+        return Math.floor(Math.max(0, (player.credits ?? 0) - creditsFloor) / 4);
+    }
+
     /** 잊혀진 행성 등 가이아포머→QIC 전환이 앞에 붙을 수 있는 흐름용(발타크 가상 QIC 포함) */
     private static getAvailableQic(player: any): number {
         let q = player.qic ?? 0;
@@ -3015,13 +3049,16 @@ export class BotLogic {
             ? true : (game.roundNumber <= 2);
         const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && reserveGate && !expandValve)
             ? this.computeShipQicReserve(game, playerId) : 0;
+        // [flag: hhJitConvert] HH 가상 지갑: 크레딧 즉석 변환분 포함(크레딧 플로어 5 = 광산 2C + 버퍼 3)
+        const hhExtraQicForMine = this.hhConvertibleQic(game, playerId, 5);
         const maxPayQicForMine = Math.max(0,
-            (player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic) - qicReserveForShips);
+            (player.faction === 'bal_tak' ? walletQic + getEffectiveGaiaformers(player) : walletQic + hhExtraQicForMine) - qicReserveForShips);
 
-        /** 발타크 GF→QIC 프리액션 후 (선택) 파워/우주선 프리액션, 마지막에 광산 */
+        /** 발타크 GF→QIC / HH 4C→1QIC(쓰기 직전) 프리액션 후 (선택) 파워/우주선 프리액션, 마지막에 광산 */
         const buildMineAction = (tileId: string, qicTotalForBalTak: number, ...extraPres: BotAction[]): BotAction => {
             const bal = this.balTakGaiaformerPreActionsForQicShortfall(player, walletQic, qicTotalForBalTak);
-            const pres = [...bal, ...extraPres];
+            const hh = this.hhConvertPreActionsForQicShortfall(game, playerId, walletQic, qicTotalForBalTak, 5);
+            const pres = [...bal, ...hh, ...extraPres];
             return pres.length
                 ? { type: 'build_mine', params: { tileId }, preActions: pres }
                 : { type: 'build_mine', params: { tileId } };
@@ -3379,6 +3416,32 @@ export class BotLogic {
             //   스텝-콤보 후보를 억제해 range 뒤엔 직접 빌드만 하게. gleens는 nav보너스라 동일.
             const rangeBoostActive = getPlayerFlag(playerId, 'rangeBuildOnly', true)
                 && !!(player.rangeBonusActive || player.tempRangeBonus || player.gleensNavBonusActive);
+            // [flag: tfBonusCombo] 사용자 관찰(2026-07-12): 1TF 보너스타일을 놀리면서 1QIC(사거리)로 모행성을
+            // 지음. 사용자 룰: 어차피 QIC를 던질 거면 모행성 대신 1스텝 행성에 1TF를 써서 지어라 — 부스터는
+            // 그 라운드 안 쓰면 증발하고, 모행성은 나중에 언제든 0스텝으로 지을 수 있어 보존이 이득.
+            // 원인: 파워액션(3P→1삽)·TF Mars(3C→1삽)는 삽+건설 콤보 후보가 있는데 보너스타일 1TF만 없어서
+            // (부스터 켜기와 건설이 별개 후보 = 1-ply 그리디가 연결 못 봄) 공짜 삽이 후보 경쟁에서 빠짐.
+            // 티어 설계: 베이스 340 → 같은 QIC 지불이면 TF콤보(340−0.8·페널티)가 모행성(300−페널티)을 이기고,
+            // 0QIC 사거리 내에서는 모행성(350)이 근소 우위 유지(안전).
+            if (remainingSteps === 1 && !rangeBoostActive && getPlayerFlag(playerId, 'tfBonusCombo', true)
+                && !player.usedBonusAction && !player.rangeBonusActive
+                && ALL_BONUS_TILES.find(t => t.id === player.bonusTile)?.specialAction === 'terraform_step'
+                && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {
+                let score = 340 - (qicPenalty * 0.8) + bridgeheadBonus;
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
+                score += this.calculateFinalMissionBonus(game, playerId, tile);
+                score += this.calculateAdjacencyBonus(game, playerId, tile);
+                score += this.calculateFederationScore(game, playerId, tile);
+                score += earlyRushBonus + expansionDesire + overExpansionPenalty + rangeBonusValue;
+                scored.push({
+                    tile,
+                    score,
+                    action: buildMineAction(tile.id, neededQicForRange, {
+                        type: 'use_bonus_action', params: { actionId: 'terraform_step' }
+                    })
+                });
+                continue;
+            }
             // 파워 액션 콤보: 3P→1삽 (gain-1-step, cost 3P) — 이어서 이 타일에 광산 가능할 때만
             if (remainingSteps === 1 && !rangeBoostActive) {
                 const stepAction = game.powerActions.find(a => a.id === 'gain-1-step' && !a.isUsed);
@@ -5477,9 +5540,12 @@ export class BotLogic {
         // [flag: balTakShipQic] 발타크 유효 QIC = 지갑 + 미사용 포머(무료 변환) — QIC 우주선 액션(리벨리온
         // 3정큐=기술타일 등)을 포머 변환으로 지불하는 콤보가 후보에 없던 갭(사용자 지적). 부족분만 변환 preActions.
         const balTakShip = player.faction === 'bal_tak' && getPlayerFlag(playerId, 'balTakShipQic', true);
-        const effShipQic = balTakShip ? this.getAvailableQic(player) : (player.qic || 0);
+        // [flag: hhJitConvert] HH도 크레딧 즉석 변환분을 유효 QIC로(3정큐 등) — 부족분은 preActions로 쓰기 직전 변환
+        const effShipQic = balTakShip ? this.getAvailableQic(player)
+            : (player.qic || 0) + this.hhConvertibleQic(game, playerId, 3);
         const shipQicAction = (shipId: string, i: number, qicCost: number): BotAction => {
-            const pres = balTakShip ? this.balTakGaiaformerPreActionsForQicShortfall(player, player.qic || 0, qicCost) : [];
+            const pres = balTakShip ? this.balTakGaiaformerPreActionsForQicShortfall(player, player.qic || 0, qicCost)
+                : this.hhConvertPreActionsForQicShortfall(game, playerId, player.qic || 0, qicCost, 3);
             return pres.length
                 ? { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i }, preActions: pres }
                 : { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
@@ -6511,6 +6577,11 @@ export class BotLogic {
     private static gaiaResearchUsable(game: ServerGameState, playerId: string): boolean {
         const player = game.players[playerId];
         if (!player || player.faction === 'bal_tak') return false;
+        // [flag: gaiaResearchPlaceSync] 실측(60판): R1 가이아 L1 연구 41건 중 15건(37%)이 R2까지 포머 미활용.
+        // 원인 = 연구는 R1 허용인데 배치 후보는 noR1Gaiaformer가 R2+로 차단 → 한 라운드 어긋난 사이에
+        // 토큰이 6 밑으로 새거나(정리변환) 트랜스딤 피격. 연구도 R2+로 동기화(연구→같은 라운드 배치).
+        if (getPlayerFlag(playerId, 'gaiaResearchPlaceSync', false)
+            && (game.roundNumber ?? 1) <= 1 && getPlayerFlag(playerId, 'noR1Gaiaformer', true)) return false;
         const myPl = game.map.filter(t => t.ownerId === playerId && t.structure);
         if (!myPl.length) return true;
         const rng = this.getEffectiveBaseRange(player) + 2;
