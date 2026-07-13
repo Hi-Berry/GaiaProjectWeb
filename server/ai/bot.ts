@@ -2598,9 +2598,13 @@ export class BotLogic {
                 // 광산 2+ 조건으로 개방(순수 후보 추가 — 선택은 MCTS/평가기).
                 const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', true) && mineCount >= 2
                     && (earlyPiAllowed.includes(faction || '') || firaksPiReady || lantidsPiReady || hhPiReady);
+                // [flag: piGateOpen] 리프로브 실측(라이브 PI 갭 40건): R2-3 비허용 종족이 광산 4~10개 기반으로
+                // PI를 지음(bescods 3·xenos 3·itars 2·ambas·terran·darkanians) — round<4 게이트가 종족 무관 차단.
+                // 광산 4+ & R2+면 개방 (acadGateOpen·r1PiOpen 동형: 순수 후보 개방, 선택은 MCTS).
+                const piGateOpen = getPlayerFlag(playerId, 'piGateOpen', true) && round >= 2 && mineCount >= 4;
                 if (round === 1 && !r1PiOpen) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !piGateOpen && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen && !piGateOpen) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
