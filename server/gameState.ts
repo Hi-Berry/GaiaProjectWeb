@@ -4210,6 +4210,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const after = tokensRemaining - 4;
 				game.itarsGaiaformerRemainingAfterTech = after;
 				game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'itars_pi_exchange' };
+				// [룰 2026-07-13 사용자 확정] 아이타 의회 교환에서도 (탑승한 배의) 우주선 기술타일 선택 가능 —
+				// 연구소/아카데미/리벨리온 획득과 동일 풀. 이 필드가 없으면 UI 미표시 + 선택 검증 거부.
+				game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 				addGameLog(game, playerId, 'Itars PI', '4 tokens → 1 Tech Tile (choose tile + track)');
 				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 				return;
@@ -5547,6 +5550,9 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			log(`Ship Tech Tile ${techTileId} is out of stock.`, 'game', undefined, { simulation: (game as any).simulation });
 			return;
 		}
+		// [룰 2026-07-13] 아이타 의회 교환에서 우주선 타일을 골랐는지 — 이 분기는 조기 반환하므로 아래(5700대)의
+		// 잔여 토큰 체인을 여기서도 수행해야 함(누락 시 잔여 토큰 증발 + helperProceed 미호출 = 액션 페이즈 동결).
+		const wasItarsExchange = game.pendingTechTileSelection?.structureType === 'itars_pi_exchange';
 		game.shipTechPool[techTileId]--;
 
 		if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
@@ -5569,6 +5575,25 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			game.pendingShipTechMine = { playerId };
 		} else {
 			game.pendingShipTechTrackAdvance = { playerId };
+		}
+		// [룰 2026-07-13 사용자 확정] 아이타 교환에서 온 선택이면 잔여 토큰 체인 이어가기 —
+		// 우주선 후속 pending(트랙전진/광산)은 '내 턴 아닐 때' 해소를 이미 지원(6860대 주석)하므로 공존 가능.
+		if (wasItarsExchange) {
+			const remainingItars = game.itarsGaiaformerRemainingAfterTech ?? 0;
+			game.itarsGaiaformerRemainingAfterTech = undefined;
+			log(`[ITARS-CHAIN] ${player.name} ship-tech done, remaining=${remainingItars} (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
+			if (remainingItars >= 4) {
+				game.pendingItarsGaiaformerExchange = { playerId, tokensRemaining: remainingItars };
+			} else {
+				player.power1 = (player.power1 || 0) + remainingItars;
+				if (remainingItars > 0) addGameLog(game, playerId, 'Itars PI', `${remainingItars} tokens → Bowl 1`);
+				try {
+					helperProceedAfterItarsGaiaformerOrTerran(io, game);
+				} catch (e) {
+					log(`[ITARS-CHAIN] helperProceed(ship-tech) EXCEPTION: ${(e as Error)?.stack || e}`, 'error', game.id);
+					executeBotTurnIfNeeded(io, game).catch(() => { /* 위에서 로깅됨 */ });
+				}
+			}
 		}
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return;
@@ -8340,6 +8365,8 @@ export function executeBotItarsGaiaformerExchange(
 		const after = tokensRemaining - 4;
 		game.itarsGaiaformerRemainingAfterTech = after;
 		game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'itars_pi_exchange' };
+		// [룰 2026-07-13 사용자 확정] 봇 경로도 우주선 기술타일을 교환 풀에 포함(소켓 경로 4212와 대칭)
+		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 		addGameLog(game, playerId, 'Bot: Itars PI', '4 tokens → Tech Tile exchange');
 		clampPlayerResources(game);
 		io.to(game.id).emit('game_updated', game);
