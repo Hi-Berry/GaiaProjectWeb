@@ -978,6 +978,19 @@ export class BotLogic {
                         if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
                     }
                 }
+                // [flag: balTakGaiaFirst] 사용자 관찰(2026-07-13): 발타크가 R1에 4K로 테라 L1(+2O 일회성)을 올림 —
+                // 포머 = 매라 1QIC 반복 수입(사용자 확정 산수)이라 가이아 L2/L3(+1포머씩)가 일회성 2O를 지배.
+                // MCTS 시뮬이 즉시자원(2O→연구소 사슬)을 과대평가해 후보 1순위(가이아 245 vs 테라 143)를 뒤집음
+                // → expansionEngineOpen 패턴의 직접-return으로 강제. 연방/할인업글 우선 양보, R≤3·gaia<3 한정.
+                if (getPlayerFlag(playerId, 'balTakGaiaFirst', false) && player.faction === 'bal_tak'
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 3 && (player.knowledge ?? 0) >= 4
+                    && (player.research?.gaiaProject ?? 0) < 3
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && this.findDiscountedUpgradeAction(game, playerId) === null) {
+                    const act = this.advanceResearchAction(playerId, player, 'gaiaProject');
+                    log(`Bot ${player.name} balTakGaiaFirst: 가이아 연구 강제(포머=QIC 수입, R${game.roundNumber})`, 'game', game.id);
+                    return act;
+                }
                 // [flag: gaiaMineFollow] 사람데이터(2026-07-07 로그): 가이아포머 배치→가이아 광산 건설 = 100%(62% 같은 라운드).
                 //   봇은 expansionEngineOpen로 가이아포밍은 2.2배 늘었으나 그 위 광산 건설 다운스트림이 약함(광산 −0.34) =
                 //   확장 sink 누락(가이아 행성 만들고 방치 → 템포 손실). 내 가이아포머가 완성된(pendingGaiaformerTiles) 행성에
