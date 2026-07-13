@@ -1030,7 +1030,12 @@ export class BotLogic {
                     // (R1 배치금지 포함) 테라포밍으로 폴백 — 확장연구 강제라는 취지는 유지.
                     const gaiaOk = gaiaLvl < 1
                         && !(getPlayerFlag(playerId, 'gaiaResearchUseGate', true) && !this.gaiaResearchUsable(game, playerId));
-                    const target: ResearchTrack | null = gaiaOk ? 'gaiaProject' : (terraLvl < 1 ? 'terraforming' : null);
+                    // [회귀수정 2026-07-14 사용자 관찰] gaiaResearchPlaceSync(R1 가이아 차단)와 결합 시 R1에 K4+
+                    // 봇 전원이 테라 폴백으로 쏠림(사람 첫연구: nav41%/gaia32%/terra11% — 정반대). 테라 폴백은
+                    // '가이아를 못 쓰는 상황'용이지 'R1 타이밍 대기'용이 아님 → R1엔 강제하지 않고 일반 후보
+                    // (humanResearchPrior: nav+95/gaia+85 shaping)에 맡김. R2+부터만 폴백.
+                    const target: ResearchTrack | null = gaiaOk ? 'gaiaProject'
+                        : ((game.roundNumber ?? 1) >= 2 && terraLvl < 1 ? 'terraforming' : null);
                     if (target) {
                         const act = this.advanceResearchAction(playerId, player, target);
                         if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
