@@ -147,6 +147,22 @@ export async function analyzeDecision(snapshot: ServerGameState, targetId: strin
     };
 }
 
+/** 실제 게임 로그에서 (게임, 라운드, 플레이어)의 첫 실질 액션 라벨 추출 — 그리디 '정책'이 아니라
+ *  실제 봇(MCTS)의 선택과 대조해야 진짜 후회. */
+function actualFirstAction(gameId: string, round: number, playerId: string): string | null {
+    try {
+        const f = path.join(process.cwd(), 'logs', `game_${gameId}_final_state.json`);
+        if (!fs.existsSync(f)) return null;
+        const g = JSON.parse(fs.readFileSync(f, 'utf8'));
+        for (const e of (g.gameLog ?? [])) {
+            if (e.playerId !== playerId || (e.round ?? 0) !== round) continue;
+            if (/Free Actions|Charged|Selected Bonus|Bescods Special|Income/.test(e.action ?? '')) continue;
+            return `${e.action}|${(e.details ?? '').slice(0, 40)}`;
+        }
+    } catch { /* 없으면 null */ }
+    return null;
+}
+
 // ── CLI 드라이버 ──────────────────────────────────────────────────────────
 async function main() {
     const dir = path.join(process.cwd(), 'logs', 'cf-snapshots');
@@ -163,7 +179,8 @@ async function main() {
             if (r) {
                 results.push(r);
                 if (r.regret >= 5) {
-                    console.log(`[REGRET ${r.regret.toFixed(0)}] ${r.game} R${r.round} ${r.faction}: 정책 ${r.policy.vp} vs ${r.branches.map(b => `${b.label}=${b.vp ?? 'X'}`).join(' | ')}`);
+                    const actual = actualFirstAction(r.game, r.round, r.targetId) ?? '?';
+                    console.log(`[REGRET ${r.regret.toFixed(0)}] ${r.game} R${r.round} ${r.faction}: 정책 ${r.policy.vp} vs ${r.branches.map(b => `${b.label}=${b.vp ?? 'X'}`).join(' | ')} ∥ 실제수: ${actual}`);
                 }
             }
         }
