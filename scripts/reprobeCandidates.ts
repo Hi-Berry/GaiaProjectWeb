@@ -17,7 +17,12 @@
  */
 import fs from 'fs';
 import { BotLogic } from '../server/ai/bot';
+import { setPlayerVariant } from '../server/ai/variant';
 import { INITIAL_POWER_ACTIONS } from '../shared/gameConfig';
+
+// --flags '{"x":true}' : 모든 프로브 플레이어에 플래그 적용 후 재채점 (수정 전/후 갭 비교용)
+const flagArgIdx = process.argv.indexOf('--flags');
+const PROBE_FLAGS: Record<string, boolean | number> | null = flagArgIdx > 0 ? JSON.parse(process.argv[flagArgIdx + 1]) : null;
 
 const DIR = 'data/human-games';
 const DETAILS = process.argv.includes('--details');
@@ -97,6 +102,8 @@ function matchNow(e: Any, cands: Any[], geom: Map<string, Any>): { cls: string, 
 const files = fs.readdirSync(DIR).filter(f => f.endsWith('.json'));
 const stat: Record<string, { total: number, hit: number, samples: string[] }> = {};
 const calib: Record<string, { both: number, liveOnly: number, nowOnly: number, neither: number }> = {};
+const astWhy: Record<string, number> = {};
+const astSamples: Record<string, string[]> = {};
 let decisions = 0, errors = 0;
 
 for (const f of files) {
@@ -150,6 +157,7 @@ for (const f of files) {
             playerFederationHexes: {}, availableBonusTiles: g.availableBonusTiles || [],
             federationPool: g.federationPool || {},
         };
+        if (PROBE_FLAGS) setPlayerVariant(pid, { flags: PROBE_FLAGS });
         let cands: Any[] = [];
         try { cands = BotLogic.getCandidateMoves(game, pid) as Any[]; } catch (err) {
             errors++;
@@ -169,6 +177,27 @@ for (const f of files) {
         else cal.neither++;
         const s = (stat[res.cls] = stat[res.cls] || { total: 0, hit: 0, samples: [] });
         s.total++; if (res.hit) s.hit++;
+        // 소행성 갭 원인 분류 (라이브 갭 ∧ 리프로브 갭 = 고신뢰 케이스만)
+        if (res.cls === 'asteroid_mine' && !res.hit && !live.hit) {
+            const me = players[pid];
+            const tile = byId.get(e.tileId);
+            const myPl = map.filter((t: Any) => t.ownerId === pid && t.structure);
+            const hexDist = (a: Any, b: Any) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+            const dist = (tile && myPl.length) ? Math.min(...myPl.map((p: Any) => hexDist(p, tile))) : 99;
+            const navLvl = me.research?.navigation ?? 0;
+            const range = [1, 1, 2, 2, 3, 4, 4][Math.min(navLvl, 6)] ?? 1; // getRange 근사
+            const needQic = Math.max(0, Math.ceil((dist - range) / 2));
+            const anyAstCand = cands.some((c: Any) => byId.get((c.params || c).tileId)?.type === 'asteroid' && c.type === 'build_mine');
+            const why =
+                anyAstCand ? '소행성 후보 있음(다른 타일) = 타일 선택 차이' :
+                me.gaiaformers < 1 ? '포머 0(근사)' :
+                (me.ore ?? 0) < 1 || (me.credits ?? 0) < 2 ? '자원 부족(1O2C)' :
+                needQic > (me.qic ?? 0) ? `QIC 부족(필요${needQic} 보유${me.qic})` :
+                needQic > 1 && (e.round ?? 1) <= 4 ? 'R≤4 2Q+ 원거리 게이트' :
+                cands.some((c: Any) => c.type === 'build_mine') ? '다른 광산은 후보 = 탑N/점수컷' : '광산 후보 0(기타 게이트)';
+            astWhy[why] = (astWhy[why] || 0) + 1;
+            if ((astSamples[why] = astSamples[why] || []).length < 3) astSamples[why].push(`R${e.round} ${me.faction} d${dist} nav${navLvl} gf${me.gaiaformers} O${me.ore}C${me.credits}Q${me.qic}`);
+        }
         else if (s.samples.length < 8) {
             const tile = byId.get(e.tileId) || {};
             const r = (e.playerBefore || {}).resources || {};
@@ -189,6 +218,11 @@ console.log('  liveOnly(당시커버→리프로브갭) = 재구성 위양성 �
 for (const [k, v] of Object.entries(calib)) {
     const falsePos = v.liveOnly / Math.max(1, v.both + v.liveOnly);
     console.log(`  ${k.padEnd(16)} both ${String(v.both).padStart(4)} | liveOnly ${String(v.liveOnly).padStart(4)} (위양성률 ${(falsePos * 100).toFixed(0)}%) | nowOnly ${String(v.nowOnly).padStart(3)} | neither ${String(v.neither).padStart(4)}`);
+}
+console.log('\n소행성 갭 원인 (라이브∧리프로브 교집합):');
+for (const [k, v] of Object.entries(astWhy).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${k}: ${v}`);
+    (astSamples[k] || []).forEach(sm => console.log('     ·', sm));
 }
 console.log('\n주의: asteroid/gaia 관련은 포머 재구성 근사(중신뢰). form_federation/우주선/파워액션은 판정 제외.');
 process.exit(0); // index.ts 순환 임포트로 HTTP 서버가 떠 있어 명시 종료 필요

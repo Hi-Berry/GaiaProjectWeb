@@ -3177,7 +3177,11 @@ export class BotLogic {
             return alt ? [alt] : [];
         }
 
-        if (ore < 1 || credits < 2) {
+        // [flag: asteroidCandOpen] 서버 룰(리프로브 확정 2026-07-13): 소행성 광산 비용 = 포머 1개 + 거리 QIC뿐 —
+        // 1O2C를 청구하지 않음(executeBuildMine 소행성 분기). 기존 조기 반환이 자원기아 시 소행성 후보까지 죽여
+        // 사람 소행성 건설 34건이 후보에 없던 룰 불일치. 기아여도 소행성 전용 패스는 계속 진행.
+        const resStarved = ore < 1 || credits < 2;
+        if (resStarved && !getPlayerFlag(playerId, 'asteroidCandOpen', true)) {
             // Ore/Credit 부족 시에도 Eclipse 6C 소행성이나 파워 콤보 가능한지 확인
             const alt = this.findAlternativeBuildAction(game, playerId);
             return alt ? [alt] : [];
@@ -3258,7 +3262,7 @@ export class BotLogic {
 
         const scored: ScoredCandidate[] = [];
 
-        if (player.faction === 'lantids') {
+        if (player.faction === 'lantids' && !resStarved) { // 기생광산은 표준 비용(1O2C) — 기아 시 제외
             const parasiticTargets = game.map.filter(t =>
                 t.ownerId &&
                 t.ownerId !== playerId &&
@@ -3314,6 +3318,8 @@ export class BotLogic {
         }
 
         for (const tile of candidates) {
+            // [flag: asteroidCandOpen] 자원기아 패스: 1O2C가 안 드는 소행성만 후보화(그 외는 서버가 거부할 후보)
+            if (resStarved && tile.type !== 'asteroid') continue;
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
 
@@ -3494,6 +3500,24 @@ export class BotLogic {
                     });
                     continue;
                 }
+            }
+
+            // [flag: asteroidCandOpen] 비-홈 소행성은 테라 스텝 0이라 아래 continue에 걸려 후보가 영영 안 생김 —
+            // asteroidAnyFaction(7/11)이 필터만 열고 점수 분기가 없던 갭(리프로브 실측: 사람 소행성 118건 중
+            // 봇 후보 존재 3건뿐의 근본 원인; 3480행 비-홈 페널티는 도달불가 죽은 코드였음). 홈 분기 미러 + 포머 기회비용.
+            if (tile.type === 'asteroid' && getPlayerFlag(playerId, 'asteroidCandOpen', true)) {
+                let score = (neededQicForRange === 0 ? 330 : 280) - qicPenalty + bridgeheadBonus;
+                const transdimLeft = game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer);
+                score -= (transdimLeft && round <= 4) ? 140 : 25; // 포머 소모 기회비용(미래 가이아 vs idle 전환)
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
+                score += this.calculateFinalMissionBonus(game, playerId, tile);
+                score += earlyRushBonus + expansionDesire + overExpansionPenalty;
+                score += this.calculateAdjacencyBonus(game, playerId, tile);
+                score += this.calculateFederationScore(game, playerId, tile);
+                score += this.calculateThreatScore(game, playerId, tile);
+                score += rangeBonusValue;
+                scored.push({ tile, score, action: buildMineAction(tile.id, neededQicForRange) });
+                continue;
             }
 
             // 타종 행성 (테라포밍 필요)
@@ -3807,6 +3831,23 @@ export class BotLogic {
                 results.push(act);
                 if (results.length >= 4) break; // 3->4개로 상향
             }
+        }
+
+        // [flag: asteroidCandOpen] 소행성 예약 슬롯: 리프로브 실측(사람 소행성 갭 118건 중 56건 = 탑4 컷에 밀림).
+        // 탑4에 소행성이 없으면 최고점 소행성 1개를 추가(순수 후보 개방 — 선택은 MCTS, r1PiOpen 계열).
+        if (getPlayerFlag(playerId, 'asteroidCandOpen', true)
+            && !results.some(a => game.map.find(t => t.id === (a.params as any)?.tileId)?.type === 'asteroid')) {
+            const bestAst = scored.find(s => (s as any).tile?.type === 'asteroid');
+            if (bestAst) {
+                const key = JSON.stringify(bestAst.action);
+                if (!seenActions.has(key)) { seenActions.add(key); results.push(bestAst.action); }
+            }
+        }
+
+        // [flag: asteroidCandOpen] 자원기아 패스였다면 기존 동작(Eclipse 6C/파워콤보 대안)도 병합
+        if (resStarved) {
+            const alt = this.findAlternativeBuildAction(game, playerId);
+            if (alt) { const key = JSON.stringify(alt); if (!seenActions.has(key)) results.push(alt); }
         }
 
         return results;
