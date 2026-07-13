@@ -18,10 +18,21 @@ const OUT = process.env.OUT || 'server/ai/valueNet.json';
 const LAMBDA = Number(process.env.LAMBDA) || 50;
 const C = 1000; // ReLU 항등 오프셋
 
+// MASK=1: 자원 스톡·점수 피처를 학습에서 제거(컬럼 0화 → λ>0에서 w=0) — '부자 상태 → 높은 VP' 교란
+// (블렌드/리프 −33.7의 자원보유 편향 원인)을 차단하고 엔진 구성만으로 예측. 수입(inc*)은 엔진 출력이라 유지.
+const MASK = process.env.MASK === '1';
+const MASKED = new Set(['score', 'ore', 'credits', 'knowledge', 'qic', 'power1', 'power2', 'power3', 'brainBowl',
+    'scoreVsMaxOpp', 'scoreVsMeanOpp', 'convertiblePower', 'totalTokens']);
+
 async function main() {
     const rows: { y: number, g: string, f: number[] }[] = [];
     for await (const line of readline.createInterface({ input: fs.createReadStream(DATA) })) {
         try { const j = JSON.parse(line); if (j?.f?.length === FEATURE_DIM) rows.push(j); } catch { /* skip */ }
+    }
+    if (MASK) {
+        const maskIdx = FEATURE_NAMES.map((n, i) => MASKED.has(n) ? i : -1).filter(i => i >= 0);
+        for (const r of rows) for (const i of maskIdx) r.f[i] = 0;
+        console.log(`MASK=1: ${maskIdx.length}개 피처 제거(${[...MASKED].join(',')})`);
     }
     const games = [...new Set(rows.map(r => r.g))];
     const valG = new Set(games.filter((_, i) => i % 5 === 0));
