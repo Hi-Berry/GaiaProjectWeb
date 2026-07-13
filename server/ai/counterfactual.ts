@@ -130,11 +130,21 @@ export async function analyzeDecision(snapshot: ServerGameState, targetId: strin
     } catch { return null; }
     if (cands.length < 2) return null;
 
-    const policyVp = await playoutWithOverride(snapshot, targetId, null);
+    // CF_SAMPLES=N이면 브랜치당 N회 재생 평균(그리디 재생의 확률성 완화 — 검증 모드)
+    const SAMPLES = Math.max(1, parseInt(process.env.CF_SAMPLES ?? '1', 10) || 1);
+    const avgPlayout = async (ov: BotAction | null): Promise<number | null> => {
+        const vals: number[] = [];
+        for (let i = 0; i < SAMPLES; i++) {
+            const v = await playoutWithOverride(snapshot, targetId, ov);
+            if (v != null) vals.push(v);
+        }
+        return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    };
+    const policyVp = await avgPlayout(null);
     if (policyVp == null) return null;
     const branches: BranchResult[] = [];
     for (const c of cands.slice(0, topK)) {
-        const vp = await playoutWithOverride(snapshot, targetId, c);
+        const vp = await avgPlayout(c);
         branches.push({ label: label(c), type: c.type, vp });
     }
     const valid = branches.filter(b => b.vp != null) as { label: string; type: string; vp: number }[];
