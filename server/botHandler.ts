@@ -46,7 +46,13 @@ const botSelfCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** 어드민 롤백 등으로 게임 객체가 교체될 때, 진행 중이던 봇 루프 락을 해제해 새 게임에서 봇이 다시 시작될 수 있게 한다. */
 export function cancelBotExecution(gameId: string): void {
+    // 세대(gen)를 올려, 옛 게임 객체를 붙든 채 아직 살아있는 루프의 finally가
+    // 새 게임에서 시작된 루프의 락을 지우지 못하게 한다(락 스틸과 동일한 보호).
+    botLoopGen.set(gameId, (botLoopGen.get(gameId) ?? 0) + 1);
     botExecutingGames.delete(gameId);
+    botExecutingSince.delete(gameId);
+    const timer = botSelfCheckTimers.get(gameId);
+    if (timer) { clearTimeout(timer); botSelfCheckTimers.delete(gameId); }
 }
 
 // 봇 턴 사이 지연(ms). 기본은 데모/디버깅 가시성용. 자기대국/head-to-head 하니스에서는

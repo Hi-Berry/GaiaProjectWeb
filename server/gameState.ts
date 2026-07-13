@@ -7068,11 +7068,14 @@ export function executePassRound(
 				}
 				if (researchBonus > 0) addScore(game, pid, researchBonus, 'researchTracks');
 			}
-			// 남은 자원 (O, C, QIC, K) 합 3당 1 VP
+			// 남은 자원 (O, C, QIC, K + 파워 자동 환산) 합 3당 1 VP
+			// [버그수정 2026-07-13] 1607ea9 룰(파워 자동 환산)이 롤아웃/강제종료에만 적용되고 실게임 종료
+			// 경로만 구식 합산이었음 — 봇 R6 정리변환 스킵(bot.ts)이 이 자동 환산을 전제하므로 여기 누락 시
+			// 봇이 실게임에서만 판당 1~3VP 손실 + 롤아웃 평가와 실정산 불일치.
 			for (const pid of Object.keys(game.players)) {
 				const p = game.players[pid];
 				if (!p) continue;
-				const sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+				const sum = endgameLeftoverUnits(game, pid, p);
 				const vp = Math.floor(sum / 3);
 				if (vp > 0) addScore(game, pid, vp, 'remainingResources');
 			}
