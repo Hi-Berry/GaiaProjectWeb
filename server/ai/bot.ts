@@ -3199,7 +3199,7 @@ export class BotLogic {
             // 소행성: 모행성이 asteroid인 종족(틴커로이드/다카니안)만, 그리고 사용 가능한 가이아포머가 있을 때만 후보.
             // 서버 executeBuildMine은 소행성 건설에 항상 포머 1개를 요구·소모하므로, 포머 없이 후보로 내면
             // 건설이 실패하고 game_error가 방 전체에 브로드캐스트된다(사람 화면에 에러 누수).
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', true) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
+            (t.type !== 'asteroid' || (!(getPlayerFlag(playerId, 'balTakAsteroidR6Only', false) && player.faction === 'bal_tak' && (game.roundNumber ?? 1) < 6) && (homeType === 'asteroid' || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', true) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) >= 1)) &&
             !t.type?.startsWith('ship_') &&
             // 남의 가이아 포머만 올라간 칸 / 아직 건설 타이밍이 아닌 칸은 표준 광산 후보에서 제외 (서버 executeBuildMine과 동일)
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
@@ -3389,6 +3389,11 @@ export class BotLogic {
                 }
 
                 let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
+                // [flag: gaiaBaseQicCost] 사용자 관찰(2026-07-13): 봇이 2QIC 가이아 광산을 과애호 — 가이아 기본
+                // QIC(일반1/확장종족2)가 지불 검사만 되고 점수에선 0원(사거리 QIC만 페널티). QIC 기회비용
+                // (3정큐 재료·연방·트와 재수령, 연구보상 환산 q×18)을 28/개로 차감. 성숙 포머(alreadyFormed)는
+                // base 0이라 자동 면제, 글린은 광석 지불이라 제외. qicPenalty와 분리 — 교두보 0화에 안 쓸림.
+                if (getPlayerFlag(playerId, 'gaiaBaseQicCost', false) && !isGleens) score -= gaiaBaseQic * 28;
                 if (alreadyFormed) score += 400; // 성숙한 가이아포머는 반드시 건설(투자 낭비 방지) — 최우선 처리
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia', tile);
@@ -3916,7 +3921,7 @@ export class BotLogic {
             t.type !== 'space' && t.type !== 'deep_space' &&
             t.type !== 'transdim' &&
             // 소행성은 포머가 있어야만 건설 가능(서버가 항상 포머 1개 요구·소모). 모행성이 asteroid라도 동일.
-            (t.type !== 'asteroid' || ((homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', true) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
+            (t.type !== 'asteroid' || (!(getPlayerFlag(playerId, 'balTakAsteroidR6Only', false) && player.faction === 'bal_tak' && (game.roundNumber ?? 1) < 6) && (homeType === 'asteroid' || isFree || (getPlayerFlag(playerId, 'asteroidAnyFaction', true) && (getPlayerFlag(playerId, 'asteroidEarly', true) || game.roundNumber >= 5 || !game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer)))) && getEffectiveGaiaformers(player) > 0)) &&
             !t.type?.startsWith('ship_') &&
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
