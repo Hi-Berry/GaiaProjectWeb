@@ -6548,11 +6548,16 @@ export class BotLogic {
         // 사용자 모델: "상대 있는 곳/중앙으로 가서 파워 받을 준비". 봇은 보통 자기영역만 안전 확장해 이 핵심을 놓침.
         const taklonsLeech = game.players[playerId]?.faction === 'taklons' && getPlayerFlag(playerId, 'taklonsPowerPos', false);
 
+        // [flag: oppAdjacencyValue] 사용자 관찰(2026-07-13): 봇이 구석 점프 광산 → 아무도 안 인접 → 6C TS 반복.
+        // 상대 인접의 실가치 = ①미래 mine→TS 3C 할인 예약(+3C) ②매라운드 파워 리치 스트림 ③사람 학습 가중치
+        // dOpp −0.85(상대 근접 선호 실측). 기존 +20은 군집(+50)·베이스(300) 대비 반올림 오차 — 45/22로 상향.
+        // ※ 리치 가치는 셀프플레이서 안 잡힘(buildNearShipOpp −1.76 전례) → do-no-harm 확인 + 실게임 판정.
+        const oppAdjBoost = getPlayerFlag(playerId, 'oppAdjacencyValue', false);
         for (const neighbor of neighbors) {
-            // 다른 플레이어 건물 인접 (파워 수신용)
+            // 다른 플레이어 건물 인접 (파워 수신용 + TS 할인 예약)
             if (neighbor.ownerId && neighbor.ownerId !== playerId) {
-                if (neighbor.structure === 'mine' || neighbor.structure === 'trading_station') bonus += taklonsLeech ? 55 : 20;
-                else if (neighbor.structure) bonus += taklonsLeech ? 28 : 10;
+                if (neighbor.structure === 'mine' || neighbor.structure === 'trading_station') bonus += taklonsLeech ? 55 : (oppAdjBoost ? 45 : 20);
+                else if (neighbor.structure) bonus += taklonsLeech ? 28 : (oppAdjBoost ? 22 : 10);
             }
 
             // 내 건물 인접 (군집화 및 위성 절약) - 대폭 상향. 단 이미 연방인 이웃은 제외(닫힌 연방 부풀리기 방지).
