@@ -104,6 +104,10 @@ const stat: Record<string, { total: number, hit: number, samples: string[] }> = 
 const calib: Record<string, { both: number, liveOnly: number, nowOnly: number, neither: number }> = {};
 const astWhy: Record<string, number> = {};
 const astSamples: Record<string, string[]> = {};
+const piWhy: Record<string, number> = {};
+const piSamples: Record<string, string[]> = {};
+const acadWhy: Record<string, number> = {};
+const acadSamples: Record<string, string[]> = {};
 let decisions = 0, errors = 0;
 
 for (const f of files) {
@@ -177,6 +181,25 @@ for (const f of files) {
         else cal.neither++;
         const s = (stat[res.cls] = stat[res.cls] || { total: 0, hit: 0, samples: [] });
         s.total++; if (res.hit) s.hit++;
+        // PI/아카데미 갭 원인 분류 (라이브 갭 ∧ 리프로브 갭)
+        if ((res.cls === 'upgrade_pi' || res.cls === 'upgrade_academy') && !res.hit && !live.hit) {
+            const me = players[pid];
+            const isPi = res.cls === 'upgrade_pi';
+            const mineCnt = map.filter((t: Any) => t.ownerId === pid && (t.structure === 'mine' || t.structure === 'lost_planet_mine')).length;
+            const needO = isPi ? 4 : 6, needC = 6;
+            const anySame = cands.some((c: Any) => c.type === 'upgrade_structure' && (isPi ? (c.params || c).target === 'planetary_institute' : String((c.params || c).target || '').startsWith('academy')));
+            const r = e.round ?? 1;
+            const why =
+                anySame ? '동종 후보 있음(타일 차이)' :
+                (me.ore ?? 0) < needO || (me.credits ?? 0) < needC ? `자원 부족(${needO}O${needC}C)` :
+                isPi && r < 4 ? `R${r}<4 종족 게이트` :
+                !isPi && r <= 3 && mineCnt < 3 ? `R≤3 광산${mineCnt}<3 게이트` :
+                `기타(R${r} 광산${mineCnt})`;
+            const W = isPi ? piWhy : acadWhy;
+            W[why] = (W[why] || 0) + 1;
+            const S = isPi ? piSamples : acadSamples;
+            if ((S[why] = S[why] || []).length < 3) S[why].push(`R${r} ${me.faction} 광산${mineCnt} O${me.ore}C${me.credits}`);
+        }
         // 소행성 갭 원인 분류 (라이브 갭 ∧ 리프로브 갭 = 고신뢰 케이스만)
         if (res.cls === 'asteroid_mine' && !res.hit && !live.hit) {
             const me = players[pid];
@@ -223,6 +246,13 @@ console.log('\n소행성 갭 원인 (라이브∧리프로브 교집합):');
 for (const [k, v] of Object.entries(astWhy).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${k}: ${v}`);
     (astSamples[k] || []).forEach(sm => console.log('     ·', sm));
+}
+for (const [nm, W, S] of [['PI', piWhy, piSamples], ['아카데미', acadWhy, acadSamples]] as Array<[string, Record<string, number>, Record<string, string[]>]>) {
+    console.log(`\n${nm} 갭 원인 (라이브∧리프로브 교집합):`);
+    for (const [k, v] of Object.entries(W).sort((a, b) => b[1] - a[1])) {
+        console.log(`  ${k}: ${v}`);
+        (S[k] || []).forEach(sm => console.log('     ·', sm));
+    }
 }
 console.log('\n주의: asteroid/gaia 관련은 포머 재구성 근사(중신뢰). form_federation/우주선/파워액션은 판정 제외.');
 process.exit(0); // index.ts 순환 임포트로 HTTP 서버가 떠 있어 명시 종료 필요

@@ -2511,7 +2511,22 @@ export class BotLogic {
 
         // 3. Trading Stations -> Planetary Institute
         const hasPI = myStructures.some(t => t.structure === 'planetary_institute');
-        if (ore >= 4 && credits >= 6 && !hasPI) {
+        // [flag: upgradeOreConvert] 사람 실측(저널 델타): 아카 225건 중 43건(19%)이 3P→1O·1Q→1O 변환으로 광석을
+        // 채워 완납 — 저널 스냅샷이 턴시작이라 '저지불'로 보였던 것의 실체. 봇은 지갑 광석만 봐서 이 후보가 없음.
+        // 광석 갭 ≤2를 파워(3P→1O, 타클론 제외)·여유 QIC(1Q→1O, 예비 1 보존)로 채우는 preActions — PI/아카 공용.
+        const oreConvertPre = (gap: number): BotAction[] | null => {
+            if (!getPlayerFlag(playerId, 'upgradeOreConvert', true) || gap <= 0 || gap > 2 || player.faction === 'taklons') return null;
+            const pre: BotAction[] = [];
+            let p3 = player.power3 ?? 0, q = player.qic ?? 0;
+            for (let i = 0; i < gap; i++) {
+                if (p3 >= 3) { pre.push({ type: 'convert_resource', params: { type: '3power-to-1ore' } }); p3 -= 3; }
+                else if (q >= 2) { pre.push({ type: 'convert_resource', params: { type: '1qic-to-1ore' } }); q -= 1; }
+                else return null;
+            }
+            return pre;
+        };
+        const piOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 4 - ore)) : null;
+        if (((ore >= 4 && credits >= 6) || piOrePre) && !hasPI) {
             // [버그수정 2026-07-05: bescods 트리] 매안은 TS→PI를 서버가 거부(6197), 전용 경로=연구소→PI(6224).
             // 봇에 매안 분기가 없어 표준 TS→PI만 시도→항상 실패→매안은 의회를 영영 못 지었음(사용자 관찰).
             const tsList = player.faction === 'bescods'
@@ -2604,7 +2619,9 @@ export class BotLogic {
                 candidates.push({
                     id: `pi-${ts.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } },
+                    action: piOrePre
+                        ? { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' }, preActions: piOrePre }
+                        : { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } },
                     isFederated: isFederated(ts.id),
                 });
             }
@@ -2618,7 +2635,8 @@ export class BotLogic {
         const acadConvertPre: BotAction[] | undefined = acadCombo
             ? Array.from({ length: acadCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
             : undefined;
-        if (((ore >= 6 && credits >= 6) || acadCombo) && academyCount < 2) {
+        const acadOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 6 - ore)) : null;
+        if (((ore >= 6 && credits >= 6) || acadCombo || acadOrePre) && academyCount < 2) {
             // [버그수정 2026-07-05: bescods 트리] 매안 전용 TS→아카(서버 6234)도 아카 소스로 — 봇에 분기가 없어
             // 매안이 교역소에서 아카 직행을 영영 못 썼음(사용자 관찰). 표준 연구소→아카는 매안도 유효라 둘 다.
             const labList = player.faction === 'bescods'
@@ -2673,11 +2691,12 @@ export class BotLogic {
                 const acadTarget = getPlayerFlag(playerId, 'academyTypeChoice', true)
                     ? (((game.roundNumber ?? 1) >= 5 || onRebellion) ? 'academy_right' : 'academy_left')
                     : 'academy_right';
+                const acadPre = acadConvertPre ?? acadOrePre ?? undefined; // [flag: upgradeOreConvert] 광석 갭은 3P→1O/1Q→1O로
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
-                    action: acadConvertPre
-                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget }, preActions: acadConvertPre }
+                    action: acadPre
+                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget }, preActions: acadPre }
                         : { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget } },
                     isFederated: isFederated(lab.id),
                 });
