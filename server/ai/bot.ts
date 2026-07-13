@@ -985,7 +985,7 @@ export class BotLogic {
                 // [v2 사용자 정교화 2026-07-13] "발타크는 늘 가이아 트랙 우선(포머=게임 최고 자원 QIC 생성).
                 // 예외: 아카데미 지으려는데 2O 부족할 때만 삽(테라 L1, +2O) 한 칸" — 포머는 L1·L3·L4에 나오므로
                 // L4까지 강제(3포머 = 매라 3QIC), R≤4(수입 라운드 잔존). 아카데미 자금 예외 시 일반 경로로 양보.
-                if (getPlayerFlag(playerId, 'balTakGaiaFirst', false) && player.faction === 'bal_tak'
+                if (getPlayerFlag(playerId, 'balTakGaiaFirst', true) && player.faction === 'bal_tak'
                     && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 4 && (player.knowledge ?? 0) >= 4
                     && (player.research?.gaiaProject ?? 0) < 4
                     && !candidates.some(c => c.type === 'form_federation')
@@ -2329,7 +2329,7 @@ export class BotLogic {
                     //   단독 40판 VP−1.27(기각) — 아낀 자원이 다른 낭비(번3+·2토큰액션)로 샜다는 사용자 가설로
                     //   [flag: earlyWasteBan] 3종 묶음(6C TS + 번3+ + 2토큰액션) 재실험.
                     if ((getPlayerFlag(playerId, 'ts26BanEarly', false) || getPlayerFlag(playerId, 'earlyWasteBan', true))
-                        && round <= 2 && !isDiscounted && !isFirstTS) {
+                        && round <= 2 && !isDiscounted && (!isFirstTS || getPlayerFlag(playerId, 'firstTs6cBan', false))) {
                         continue;
                     }
 
