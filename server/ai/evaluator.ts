@@ -528,7 +528,13 @@ export class Evaluator {
             score += structExpansionScore;
         }
 
-        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length;
+        // [flag: lantidsParasiticEval] 사용자 지적(2026-07-13): "기생 능력이 좋은데 전혀 계산 못하는 것 아니냐" — 적중.
+        // 서버는 기생광산을 광산 수입(getEffectiveMineCount)·연방 파워 1·미션 카운트에 정식 산입하는데, 평가기는
+        // ownerId 필터만 써서 기생 등장 0회 = 시뮬이 기생을 지어도 상태가치 증가 0 → 후보점수를 올려도(패리티 기각,
+        // 행동 무변화) MCTS가 안 고르던 근본 원인. 광산 자산가치(structureMine = 수입 스트림)에 기생을 산입해 미러링.
+        const parasiticMines = (player.faction === 'lantids' && getPlayerFlag(playerId, 'lantidsParasiticEval', true))
+            ? game.map.filter(t => t.parasiticMine?.ownerId === playerId).length : 0;
+        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length + parasiticMines;
         const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
         const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
         const piCount = myStructures.filter(t => t.structure === 'planetary_institute').length;
