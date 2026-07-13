@@ -1005,15 +1005,24 @@ export class BotLogic {
                 // 아카 대신 연구소 2개 — 아카 재료(연구소)가 연방 안이면 fedPenalty(-450)가 아카 후보를 top5 밖으로
                 // 밀어냄. 사람 룰: 큰건물 미션 라운드엔 아카/의회 직행(미션 5VP가 연방보존 가치를 압도). 직접-return,
                 // 연방 후보가 있으면 양보, 비연방 연구소 우선(없으면 연방 안 것도 허용 — 미션이 우선).
+                // [v2 사용자 교정] ①연방 안 건물 폴백 제거(비연방만 — 없으면 안 함) ②의회(TS→PI 4O6C)도 직행
+                // 후보(의회 미보유 시 아카보다 우선 — 종족 능력 해금 + 같은 미션 5VP).
                 if (getPlayerFlag(playerId, 'bigMissionBigFirst', false) && !game.hasDoneMainAction
                     && game.roundScoringTiles?.[(game.roundNumber ?? 1) - 1]?.triggerType === 'build_big_building'
                     && !candidates.some(c => c.type === 'form_federation')) {
-                    const myAcadCnt = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
+                    const fedHexesB: string[] = (game as any).playerFederationHexes?.[playerId] || [];
                     const oreB = player.ore ?? 0, credB = player.credits ?? 0;
+                    const hasPIB = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (!hasPIB && oreB >= 4 && credB >= 6) {
+                        const tsPick = game.map.find(t => t.ownerId === playerId && t.structure === 'trading_station' && !fedHexesB.includes(t.id));
+                        if (tsPick) {
+                            log(`Bot ${player.name} bigMissionBigFirst: 큰건물 미션 라운드 의회 직행 (${tsPick.id})`, 'game', game.id);
+                            return { type: 'upgrade_structure', params: { tileId: tsPick.id, target: 'planetary_institute' } };
+                        }
+                    }
+                    const myAcadCnt = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
                     if (myAcadCnt < 2 && oreB >= 6 && credB >= 6) {
-                        const fedHexesB: string[] = (game as any).playerFederationHexes?.[playerId] || [];
-                        const labs = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab');
-                        const labPick = labs.find(t => !fedHexesB.includes(t.id)) ?? labs[0];
+                        const labPick = game.map.find(t => t.ownerId === playerId && t.structure === 'research_lab' && !fedHexesB.includes(t.id));
                         if (labPick) {
                             const onReb = (player.spaceshipsEntered || []).some(id => game.map.find(t => t.id === id)?.type === 'ship_rebellion');
                             const tgt = ((game.roundNumber ?? 1) >= 5 || onReb) ? 'academy_right' : 'academy_left';
