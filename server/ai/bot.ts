@@ -3263,9 +3263,39 @@ export class BotLogic {
             }
         }
 
+        // [flag: chainReachDefer] 사용자 관찰(2026-07-13 엠바스): 4K로 Nav2 올리고 가이아1(0Q)→가이아1 기점으로
+        // 가이아2(0Q) 체인이면 2채를 QIC 없이 짓는데, 3거리 가이아2에 2QIC를 선지불. 기존 navBeforeJump 가드는
+        // '기존 건물 기준'으로만 절약을 판정해 체인(새 광산=새 앵커)을 못 봄. QIC점프 대상 T에 대해:
+        // (지식≥4면 Nav-up 가정한) 사거리로 0Q 건설 가능한 다른 타일 Z가 있고 Z→T가 그 사거리 내면 점프 유보
+        // (Z 먼저 → T는 다음에 0Q). 싼 Z만 인정: 가이아(기본QIC 지불가능)/모행성/0스텝.
+        const chainDefer = getPlayerFlag(playerId, 'chainReachDefer', false);
+        let chainRange = range;
+        let chainZeroTiles: HexTile[] = [];
+        if (chainDefer) {
+            const navLvl = player.research?.navigation ?? 0;
+            if ((player.knowledge ?? 0) >= 4 && navLvl < 5
+                && !(player.faction === 'bal_tak' && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute'))) {
+                let nl = navLvl + 1;
+                while (nl <= 5 && getRange(nl) <= getRange(navLvl)) nl++;
+                if (nl <= 5) chainRange = Math.max(range, getRange(nl) + (player.navigationBonus || 0));
+            }
+            chainZeroTiles = candidates.filter(t => {
+                const d0 = Math.min(...myPlanets.map(p => getDistance(p, t)));
+                if (d0 > chainRange) return false;
+                if (t.type === homeType) return getTerraformStepsForFaction(game, player.faction!, t.type!) === 0;
+                if (t.type === 'gaia') return getGaiaBaseQic(player.faction || '') <= walletQic || player.faction === 'gleens';
+                return t.type != null && getTerraformStepsForFaction(game, player.faction!, t.type!) === 0;
+            });
+        }
+
         for (const tile of candidates) {
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
+            // [flag: chainReachDefer] Z 경유 체인으로 0Q 도달 가능한 QIC점프는 유보
+            if (chainDefer && neededQicForRange > 0
+                && chainZeroTiles.some(z => z.id !== tile.id && getDistance(z, tile) <= chainRange)) {
+                continue;
+            }
 
             let qicPenalty = neededQicForRange * 60; // 사용자 피드백: 거리(QIC) 페널티 2배 상향
             let bridgeheadBonus = 0;
