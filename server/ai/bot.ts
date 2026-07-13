@@ -83,7 +83,7 @@ import {
     canSpendTaklonsPowerWithoutBrain,
 } from '@shared/gameConfig';
 
-type BotAction = {
+export type BotAction = {
     type: 'build_mine' | 'upgrade_structure' | 'advance_research' | 'pass_round'
     | 'charge_power' | 'place_starting_mine' | 'select_faction' | 'select_bonus'
     | 'end_turn'

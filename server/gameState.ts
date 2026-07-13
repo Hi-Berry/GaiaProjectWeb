@@ -7217,6 +7217,16 @@ export function executePassRound(
 
 		if (Object.values(game.players).every(p => p.hasPassed)) {
 			game.roundNumber++;
+			// [반사실 복기 2026-07-13] AI_ROUND_SNAPSHOTS=1이면 라운드 시작 전체상태를 덤프 — 오프라인
+			// counterfactual 리플레이(수 롤백→대안 강제→터미널 비교)의 기점. R2-5만(R1 셋업/R6 직전은 제외).
+			if (process.env.AI_ROUND_SNAPSHOTS === '1' && game.roundNumber >= 2 && game.roundNumber <= 5 && !(game as any).simulation) {
+				try {
+					const dir = path.join(process.cwd(), 'logs', 'cf-snapshots');
+					fs.mkdirSync(dir, { recursive: true });
+					const { gameLog: _gl, ...rest } = game as any;
+					fs.writeFileSync(path.join(dir, `${game.id}_r${game.roundNumber}.json`), JSON.stringify(rest));
+				} catch { /* 스냅샷 실패는 게임에 무영향 */ }
+			}
 			(game as any).incomePhaseAppliedThisRound = false;
 			(game as any).firstMainActionDoneThisRound = false; // 새 라운드: 액션 진행 플래그 리셋(시작플레이어 더블턴 가드)
 			game.powerActions.forEach(a => { a.isUsed = false; (a as any).usedByPlayerId = undefined; (a as any).usedByPlayerName = undefined; });
