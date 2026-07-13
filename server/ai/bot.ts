@@ -3281,7 +3281,7 @@ export class BotLogic {
         // '기존 건물 기준'으로만 절약을 판정해 체인(새 광산=새 앵커)을 못 봄. QIC점프 대상 T에 대해:
         // (지식≥4면 Nav-up 가정한) 사거리로 0Q 건설 가능한 다른 타일 Z가 있고 Z→T가 그 사거리 내면 점프 유보
         // (Z 먼저 → T는 다음에 0Q). 싼 Z만 인정: 가이아(기본QIC 지불가능)/모행성/0스텝.
-        const chainDefer = getPlayerFlag(playerId, 'chainReachDefer', false);
+        const chainDefer = getPlayerFlag(playerId, 'chainReachDefer', true);
         let chainRange = range;
         let chainZeroTiles: HexTile[] = [];
         if (chainDefer) {
