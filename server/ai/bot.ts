@@ -702,7 +702,7 @@ export class BotLogic {
                 // [flag: researchYieldBuild] 반사실 복기(2026-07-14, 122결정): 최대 후회 패턴 = 연구 직접-return이
                 // 강한 건설(의회 +36VP·포머 배치 +27VP·성숙가이아)보다 먼저 실행돼 선점. 연구 강제는 의회/아카
                 // 가능·성숙 포머 광산·포머 배치 가능 상태에선 양보(그 건설들이 반사실 실측 우위).
-                const strongBuildNow = getPlayerFlag(playerId, 'researchYieldBuild', false) && (() => {
+                const strongBuildNow = getPlayerFlag(playerId, 'researchYieldBuild', true) && (() => {
                     try {
                         if (this.findUpgradeActions(game, playerId).some(a => {
                             const t = (a.params as any)?.target ?? '';
