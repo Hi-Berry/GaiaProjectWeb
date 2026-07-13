@@ -734,6 +734,48 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: geodensDigCycle] 사용자 모델(2026-07-13): 기오덴 = "삽/거리 올려 빠른 확장 → 광석 →
+                // K(+3K 새유형) → 다시 삽/거리" 순환. 실측(기오덴강제 20판): 상위7 삽+거리 합 7.4 vs 하위7 4.9,
+                // 경제/과학은 무차이 — 순환 지속이 승부. earlyDigResearch(L0→L1 한정)의 기오덴 연장:
+                // PI 보유 + 새 유형 1-2삽 대상이 남아있는 동안 삽 L3까지, 거리는 '새 유형이 새로 열릴 때' L4까지.
+                // 새 유형 광산의 +3K = 연구비 4K의 75% 리베이트라 이 연구는 실질 염가(즉시·확정 보상 클래스).
+                if (getPlayerFlag(playerId, 'geodensDigCycle', true) && player.faction === 'geodens'
+                    && !game.hasDoneMainAction) {
+                    const rg = game.roundNumber ?? 1;
+                    const hasPIg = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (hasPIg && rg >= 2 && rg <= 4 && (player.knowledge ?? 0) >= 4
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        const myTypesG = getPlayerPlanetTypesForGeodens(game, playerId);
+                        const myPlG = game.map.filter(t => t.ownerId === playerId && t.structure);
+                        const rngG = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+                        const newTypeDigTargets = (maxDist: number) => game.map.filter(t =>
+                            !t.ownerId && !t.structure && t.type
+                            && !['space', 'deep_space', 'transdim', 'asteroid', 'gaia'].includes(t.type) && !t.type.startsWith('ship_')
+                            && !myTypesG.has(t.type)
+                            && getTerraformStepsForFaction(game, player.faction!, t.type) >= 1
+                            && getTerraformStepsForFaction(game, player.faction!, t.type) <= 2
+                            && myPlG.some(p => getDistance(p, t) <= maxDist)).length;
+                        const terraG = player.research?.terraforming ?? 0;
+                        if (terraG < 3 && newTypeDigTargets(rngG + 2) >= 2) {
+                            const act = this.advanceResearchAction(playerId, player, 'terraforming');
+                            if (act) {
+                                log(`Bot ${player.name} geodensDigCycle: 삽 L${terraG + 1} (새유형 1-2삽 ${newTypeDigTargets(rngG + 2)}개, R${rg})`, 'game', game.id);
+                                return act;
+                            }
+                        }
+                        const navG = player.research?.navigation ?? 0;
+                        if (navG < 4) {
+                            const rngNextG = getRange(navG + 1) + (player.navigationBonus || 0);
+                            if (newTypeDigTargets(rngNextG + 2) > newTypeDigTargets(rngG + 2)) {
+                                const act = this.advanceResearchAction(playerId, player, 'navigation');
+                                if (act) {
+                                    log(`Bot ${player.name} geodensDigCycle: 거리 L${navG + 1} (새유형 신규 개방, R${rg})`, 'game', game.id);
+                                    return act;
+                                }
+                            }
+                        }
+                    }
+                }
                 // [flag: humanRule2O] 데이터 유래 규칙(사람 27게임): 사람은 '크레딧 부자 + 광석 뒤처짐 + 파워 보유' 일 때
                 // 2O 파워액션을 누른다(90회 관측: 평균 cred10.9·ore3.7·p3 4.8). 봇은 실전에서 이걸 0회(크레딧 풍선).
                 // 평가기 nudge는 무시되므로(어제 확인) MCTS 우회해 강제. 단 연방/연구(지식≥4)/할인업글이 우선.
@@ -3246,6 +3288,12 @@ export class BotLogic {
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
                 score += rangeBonusValue;
+                // [flag: lantidsParasiticAdj] 사용자 관찰(2026-07-13): PI 이후에도 기생 1.78회/판 — 일반 광산은
+                // 인접 보너스(내 건물 +50/이웃, 상대 +20)를 받는데 기생 후보만 이 항목이 빠져 인접 좋은 일반
+                // 광산(400+)에 구조적으로 밀림. 기생은 정의상 상대 행성 위(리치 포지션)라 같은 기준 적용이 정합.
+                if (getPlayerFlag(playerId, 'lantidsParasiticAdj', false)) {
+                    score += this.calculateAdjacencyBonus(game, playerId, tile);
+                }
 
                 // [flag: lantidsParasiticPush] 상대 밀집 지역(주변 dist≤2에 상대 건물 多)에 기생 우대 →
                 // 점프 한 번으로 이후 기생 타깃 다수 확보(사용자 모델: 밀집지역 의회+점프+기생4가 최상 스타트).
