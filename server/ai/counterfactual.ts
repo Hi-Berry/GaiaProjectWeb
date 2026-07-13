@@ -147,20 +147,40 @@ export async function analyzeDecision(snapshot: ServerGameState, targetId: strin
     };
 }
 
-/** 실제 게임 로그에서 (게임, 라운드, 플레이어)의 첫 실질 액션 라벨 추출 — 그리디 '정책'이 아니라
- *  실제 봇(MCTS)의 선택과 대조해야 진짜 후회. */
-function actualFirstAction(gameId: string, round: number, playerId: string): string | null {
+/** 실제 게임 로그에서 (게임, 라운드, 플레이어)의 라운드 내 전체 실질 액션 — '첫 수'만 보면 같은 라운드
+ *  나중 턴의 행동(연방 등)을 누락으로 오인(fedWhenOffered 기각 교훈). 순서차이 vs 진짜 누락을 분리. */
+function actualRoundActions(gameId: string, round: number, playerId: string): string[] {
+    const out: string[] = [];
     try {
         const f = path.join(process.cwd(), 'logs', `game_${gameId}_final_state.json`);
-        if (!fs.existsSync(f)) return null;
+        if (!fs.existsSync(f)) return out;
         const g = JSON.parse(fs.readFileSync(f, 'utf8'));
         for (const e of (g.gameLog ?? [])) {
             if (e.playerId !== playerId || (e.round ?? 0) !== round) continue;
             if (/Free Actions|Charged|Selected Bonus|Bescods Special|Income/.test(e.action ?? '')) continue;
-            return `${e.action}|${(e.details ?? '').slice(0, 40)}`;
+            out.push(`${e.action}|${(e.details ?? '').slice(0, 40)}`);
         }
-    } catch { /* 없으면 null */ }
-    return null;
+    } catch { /* 없으면 빈 배열 */ }
+    return out;
+}
+
+/** 브랜치 액션이 라운드 내 실제 행동 목록에 (느슨히) 존재하는지 — 유형 키워드 매칭 */
+function branchDoneInRound(branch: BranchResult, realActs: string[]): boolean {
+    const t = branch.type;
+    const pat = t === 'build_mine' ? /Built (Parasitic )?Mine/
+        : t === 'form_federation' ? /^Federation/
+        : t === 'place_gaiaformer' ? /Placed Gaiaformer/
+        : t === 'upgrade_structure' ? (branch.label.includes('academy') ? /Upgraded to Academy/
+            : branch.label.includes('planetary') ? /Planetary Institute|Upgraded to PI/i
+            : branch.label.includes('research_lab') ? /Upgraded to Research Lab/
+            : /Upgraded to Trading Station/)
+        : t === 'advance_research' ? new RegExp('Advanced Research\\|' + (branch.label.split(':')[1] ?? ''))
+        : t === 'enter_spaceship' ? /Entered Ship/
+        : t === 'use_ship_action' ? /Rebellion:|Twilight:|Eclipse:|TF Mars:/
+        : t === 'use_power_action' ? /Power Action/
+        : null;
+    if (!pat) return false;
+    return realActs.some(a => pat.test(a));
 }
 
 // ── CLI 드라이버 ──────────────────────────────────────────────────────────
@@ -179,8 +199,11 @@ async function main() {
             if (r) {
                 results.push(r);
                 if (r.regret >= 5) {
-                    const actual = actualFirstAction(r.game, r.round, r.targetId) ?? '?';
-                    console.log(`[REGRET ${r.regret.toFixed(0)}] ${r.game} R${r.round} ${r.faction}: 정책 ${r.policy.vp} vs ${r.branches.map(b => `${b.label}=${b.vp ?? 'X'}`).join(' | ')} ∥ 실제수: ${actual}`);
+                    const realActs = actualRoundActions(r.game, r.round, r.targetId);
+                    const best = r.branches.filter(b => b.vp != null).sort((a, b) => (b.vp ?? 0) - (a.vp ?? 0))[0];
+                    const orderDiff = best ? branchDoneInRound(best, realActs) : false;
+                    (r as any)._orderDiff = orderDiff;
+                    console.log(`[REGRET-${orderDiff ? 'ORDER' : 'TRUE'} ${r.regret.toFixed(0)}] ${r.game} R${r.round} ${r.faction}: 정책 ${r.policy.vp} vs ${r.branches.map(b => `${b.label}=${b.vp ?? 'X'}`).join(' | ')} ∥ 실제(라운드): ${realActs.slice(0, 3).join(' / ') || '?'}`);
                 }
             }
         }
@@ -188,7 +211,7 @@ async function main() {
     // 수 유형별 집계: 정책이 고르지 않았지만 더 좋았던 대안 유형
     const agg: Record<string, { n: number; sum: number }> = {};
     for (const r of results) {
-        if (r.regret < 5) continue;
+        if (r.regret < 5 || (r as any)._orderDiff) continue; // 순서차이는 집계 제외 — 진짜 누락만
         const best = r.branches.filter(b => b.vp != null).sort((a, b) => (b.vp ?? 0) - (a.vp ?? 0))[0];
         if (!best) continue;
         const a = agg[best.type] ??= { n: 0, sum: 0 };
