@@ -992,6 +992,17 @@ export class BotLogic {
                         if (act) { log(`Bot ${player.name} expansionEngineOpen: 확장연구 ${target} 강제(R${game.roundNumber})`, 'game', game.id); return act; }
                     }
                 }
+                // [flag: fedWhenOffered] 반사실 복기 2회전(2026-07-14, 245결정): 연방 후보가 존재하는데 다른 수를
+                // 둔 후회 10회·평균 17.7VP(예: HH R4 연방 90 vs 아카 51). buildOrderPlanner(−4.14)와 구분: 그건
+                // 라운드 목표로 '없는 연방을 강제'했고, 이건 '이미 제안된(품질게이트 통과) 연방'을 R4+에 즉시 수령.
+                if (getPlayerFlag(playerId, 'fedWhenOffered', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) >= 4) {
+                    const fedCand = candidates.find(c => c.type === 'form_federation');
+                    if (fedCand) {
+                        log(`Bot ${player.name} fedWhenOffered: R${game.roundNumber} 연방 후보 즉시 수령`, 'game', game.id);
+                        return fedCand;
+                    }
+                }
                 // [flag: balTakGaiaFirst] 사용자 관찰(2026-07-13): 발타크가 R1에 4K로 테라 L1(+2O 일회성)을 올림 —
                 // 포머 = 매라 1QIC 반복 수입(사용자 확정 산수)이라 가이아 L2/L3(+1포머씩)가 일회성 2O를 지배.
                 // MCTS 시뮬이 즉시자원(2O→연구소 사슬)을 과대평가해 후보 1순위(가이아 245 vs 테라 143)를 뒤집음
