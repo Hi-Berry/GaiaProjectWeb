@@ -59,9 +59,24 @@ export class FederationPlanner {
 
         if (myStructures.length === 0) return [];
 
+        // [flag: ivitsFedCumulative] 사용자 관찰(2026-07-13 e28xbh42): 이비츠 건물 21파워+정거장 6인데 연방 1개.
+        // 서버 정본(computeFederationPreview)은 이비츠 요구파워(7×n 누적)를 '기존 연방 헥스를 시드에 포함한 전체'로
+        // 판정 — 기존 연방(≥7)이 있으면 신규는 차액(~7)만 필요한데, 플래너가 연방 밖 건물만으로 전액(14/21)을
+        // 요구해 이중 청구 → 후보 미생성이 2번째 토큰 실종의 원인. 요구치를 차액으로 보정.
+        let effRequired = requiredPower;
+        if (isIvits && fedHexes.length > 0 && getPlayerFlag(playerId, 'ivitsFedCumulative', true)) {
+            const fedPlanetIds = new Set(game.map
+                .filter(t => fedHexes.includes(t.id)
+                    && ((t.ownerId === playerId && t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId))
+                .map(t => t.id));
+            // 4번째 인자 fedHexes: 기존 연방 내 우주정거장(파워 1)도 서버 시드와 동일하게 합산
+            const existingFedPower = getFederationBuildingPower(game, playerId, fedPlanetIds, fedHexes);
+            effRequired = Math.max(1, requiredPower - existingFedPower);
+        }
+
         // Check if total power is enough
         const allMyPlanetIds = new Set(myStructures.map(t => t.id));
-        if (getFederationBuildingPower(game, playerId, allMyPlanetIds) < requiredPower) {
+        if (getFederationBuildingPower(game, playerId, allMyPlanetIds) < effRequired) {
             return []; // Can't form even if we connect ALL buildings
         }
 
@@ -71,7 +86,7 @@ export class FederationPlanner {
         const results: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number, score: number }[] = [];
 
         for (const startTile of myStructures) {
-            const result = this.tryFormFederationFrom(game, playerId, startTile, requiredPower, availableTokens);
+            const result = this.tryFormFederationFrom(game, playerId, startTile, effRequired, availableTokens);
             if (!result) continue;
 
             // [flag: fedMax5Buildings] 사용자 정책(2026-06-29): 마지막 라운드(R6) 아니면 연방에 건물 5개 초과 금지.
@@ -347,6 +362,10 @@ export class FederationPlanner {
         const initialComponent = getPlanetConnectedComponent(game, playerId, startTile.id);
         initialComponent.forEach(id => selectedPlanetIds.add(id));
 
+        // [flag: ivitsFedCumulative] 서버 연결성(computeIvitsFederationConnected)은 기존 연방 칸을 통과 가능
+        // 통로로 인정 — BFS도 동일하게 무비용 커넥터로 쓴다(선택/위성비용엔 미포함).
+        const fedConnector = isIvits && getPlayerFlag(playerId, 'ivitsFedCumulative', true);
+
         let currentPower = getFederationBuildingPower(game, playerId, selectedPlanetIds);
         if (currentPower >= requiredPower) {
             // [flag: fedMinTrim] 연결 컴포넌트가 이미 7 이상이면 통째로 묶지 말고 "딱 7 넘는 최소 연결 부분집합"만
@@ -374,6 +393,12 @@ export class FederationPlanner {
         initialComponent.forEach(pid => {
             const tile = game.map.find(t => t.id === pid)!;
             getNeighbors(game.map, tile).forEach(n => {
+                // [flag: ivitsFedCumulative] 기존 연방 칸 = 무비용 통로 (선택에 안 넣음 → path 비움)
+                if (fedConnector && fedHexes.includes(n.id) && !visited.has(n.id)) {
+                    queue.push({ currentHexId: n.id, path: [], cost: 0 });
+                    visited.add(n.id);
+                    return;
+                }
                 // Ivits: 우주정거장 타일은 토큰 비용 없이 파워 계산에 포함될 수 있어야 함.
                 if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
                     queue.push({ currentHexId: n.id, path: [n.id], cost: 0 });
@@ -467,7 +492,10 @@ export class FederationPlanner {
 
                 for (const t of currentFedTiles) {
                     getNeighbors(game.map, t).forEach(n => {
-                        if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
+                        if (fedConnector && fedHexes.includes(n.id) && !visited.has(n.id)) {
+                            queue.push({ currentHexId: n.id, path: [], cost: 0 });
+                            visited.add(n.id);
+                        } else if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
                             queue.push({ currentHexId: n.id, path: [n.id], cost: 0 });
                             visited.add(n.id);
                         } else if (isEmptyHex(n) && !visited.has(n.id)) {
@@ -483,7 +511,11 @@ export class FederationPlanner {
             } else {
                 // Expand from this empty hex to other empty hexes
                 getNeighbors(game.map, currentTile).forEach(n => {
-                    if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
+                    if (fedConnector && fedHexes.includes(n.id) && !visited.has(n.id)) {
+                        // 기존 연방 칸 통과: 지금까지의 위성 path는 유지, 연방 칸 자체는 선택 안 함
+                        queue.push({ currentHexId: n.id, path: [...path], cost });
+                        visited.add(n.id);
+                    } else if (isIvits && n.spaceStation?.ownerId === playerId && !visited.has(n.id)) {
                         // 우주정거장 타일은 비용 없이 확장
                         queue.push({ currentHexId: n.id, path: [...path, n.id], cost: cost });
                         visited.add(n.id);
