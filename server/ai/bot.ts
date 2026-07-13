@@ -982,14 +982,24 @@ export class BotLogic {
                 // 포머 = 매라 1QIC 반복 수입(사용자 확정 산수)이라 가이아 L2/L3(+1포머씩)가 일회성 2O를 지배.
                 // MCTS 시뮬이 즉시자원(2O→연구소 사슬)을 과대평가해 후보 1순위(가이아 245 vs 테라 143)를 뒤집음
                 // → expansionEngineOpen 패턴의 직접-return으로 강제. 연방/할인업글 우선 양보, R≤3·gaia<3 한정.
+                // [v2 사용자 정교화 2026-07-13] "발타크는 늘 가이아 트랙 우선(포머=게임 최고 자원 QIC 생성).
+                // 예외: 아카데미 지으려는데 2O 부족할 때만 삽(테라 L1, +2O) 한 칸" — 포머는 L1·L3·L4에 나오므로
+                // L4까지 강제(3포머 = 매라 3QIC), R≤4(수입 라운드 잔존). 아카데미 자금 예외 시 일반 경로로 양보.
                 if (getPlayerFlag(playerId, 'balTakGaiaFirst', false) && player.faction === 'bal_tak'
-                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 3 && (player.knowledge ?? 0) >= 4
-                    && (player.research?.gaiaProject ?? 0) < 3
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 4 && (player.knowledge ?? 0) >= 4
+                    && (player.research?.gaiaProject ?? 0) < 4
                     && !candidates.some(c => c.type === 'form_federation')
                     && this.findDiscountedUpgradeAction(game, playerId) === null) {
-                    const act = this.advanceResearchAction(playerId, player, 'gaiaProject');
-                    log(`Bot ${player.name} balTakGaiaFirst: 가이아 연구 강제(포머=QIC 수입, R${game.roundNumber})`, 'game', game.id);
-                    return act;
+                    const academyFunding = (player.research?.terraforming ?? 0) === 0
+                        && (player.ore ?? 0) >= 4 && (player.ore ?? 0) < 6 && (player.credits ?? 0) >= 6
+                        && game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab')
+                        && game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length < 2;
+                    if (!academyFunding) {
+                        const act = this.advanceResearchAction(playerId, player, 'gaiaProject');
+                        log(`Bot ${player.name} balTakGaiaFirst: 가이아 연구 강제(포머=QIC 수입, R${game.roundNumber})`, 'game', game.id);
+                        return act;
+                    }
+                    log(`Bot ${player.name} balTakGaiaFirst: 아카데미 자금 예외(O${player.ore}<6, 테라 L1 +2O 허용)`, 'game', game.id);
                 }
                 // [flag: gaiaMineFollow] 사람데이터(2026-07-07 로그): 가이아포머 배치→가이아 광산 건설 = 100%(62% 같은 라운드).
                 //   봇은 expansionEngineOpen로 가이아포밍은 2.2배 늘었으나 그 위 광산 건설 다운스트림이 약함(광산 −0.34) =
