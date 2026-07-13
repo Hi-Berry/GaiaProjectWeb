@@ -699,7 +699,21 @@ export class BotLogic {
                 // 가이아 L1 사람 R2.1 vs 봇 R3.5 — 삽·포머가 1.5R 늦어 지을 행성 풀이 작음(사용자 진단 ②) →
                 // 광산부족→LOW_POWER→연방부족의 상류. 평가기 nudge는 MCTS가 덮으므로(반복 확인) humanRule 계열
                 // 직접-return: R2-3, 지식 4+, 해당 트랙 L0이고 '그 연구가 실제로 여는 대상'이 있으면 연구 강제.
-                if (getPlayerFlag(playerId, 'earlyDigResearch', true) && !game.hasDoneMainAction) {
+                // [flag: researchYieldBuild] 반사실 복기(2026-07-14, 122결정): 최대 후회 패턴 = 연구 직접-return이
+                // 강한 건설(의회 +36VP·포머 배치 +27VP·성숙가이아)보다 먼저 실행돼 선점. 연구 강제는 의회/아카
+                // 가능·성숙 포머 광산·포머 배치 가능 상태에선 양보(그 건설들이 반사실 실측 우위).
+                const strongBuildNow = getPlayerFlag(playerId, 'researchYieldBuild', false) && (() => {
+                    try {
+                        if (this.findUpgradeActions(game, playerId).some(a => {
+                            const t = (a.params as any)?.target ?? '';
+                            return t === 'planetary_institute' || String(t).startsWith('academy');
+                        })) return true;
+                        if ((player.pendingGaiaformerTiles?.length ?? 0) > 0) return true; // 성숙 포머 = 즉시 광산
+                        if (this.findGaiaformerActions(game, playerId).length > 0) return true; // 포머 배치 가능
+                    } catch { /* 판정 실패 시 양보 안 함 */ }
+                    return false;
+                })();
+                if (getPlayerFlag(playerId, 'earlyDigResearch', true) && !game.hasDoneMainAction && !strongBuildNow) {
                     const rr = game.roundNumber ?? 1;
                     const know = player.knowledge ?? 0;
                     const hasFedCand = candidates.some(c => c.type === 'form_federation');
@@ -961,7 +975,7 @@ export class BotLogic {
                 //   사람(0.94/1.03/0.94)의 15~20%만 함 = 크레딧/사거리 엔진(TS·경제·내비 과투자)만 짓고 광석/확장 엔진을 통째 건너뜀
                 //   → 광산 못 늘려 광석기아 영구화(96점 갭·17% 기아의 단일 뿌리). 방치된 확장연구를 직접 강제(점수 nudge는 MCTS가 덮음).
                 //   가이아 우선(L1=가이아포머=확장 직결) → 테라(광석·행성 buildability). 연방/할인업글이 우선이면 양보. bal_tak은 가이아프로젝트 불가라 제외.
-                if (getPlayerFlag(playerId, 'expansionEngineOpen', true) && !game.hasDoneMainAction
+                if (getPlayerFlag(playerId, 'expansionEngineOpen', true) && !game.hasDoneMainAction && !strongBuildNow
                     && (game.roundNumber ?? 1) <= 3 && (player.knowledge ?? 0) >= 4 && player.faction !== 'bal_tak'
                     && !candidates.some(c => c.type === 'form_federation')
                     && this.findDiscountedUpgradeAction(game, playerId) === null) {
