@@ -217,7 +217,10 @@ function cloneGameForTurnStartSnapshot(game: ServerGameState): ServerGameState {
 /** Reset/턴 시작 스냅샷 1건 — 라이브 game.turnStartState를 통째로 붙이면 타 플레이어·옛 fullGameState 참조가 섞여 멀티플레이에서 잘못 복구될 수 있음 */
 // [per-candidate 학습] 사람 결정시점의 '가능했던 후보 수' 캡처용 훅(DI로 BotLogic.getCandidateMoves 주입 — 순환참조 회피).
 // index.ts에서 setHumanCandidateHook로 주입. 사람 게임 학습데이터에 (선택한 수 + 대안 후보)를 남겨 per-candidate 정책 가능.
-let _humanCandidateHook: ((game: ServerGameState, playerId: string) => any[]) | null = null;
+// var(호이스팅): 단독 tsx 진입(counterfactual 등)에서 순환 import 시 index.ts가 이 모듈 초기화 전에
+// setHumanCandidateHook을 호출해도 TDZ 에러가 안 나게 — let이면 ReferenceError(실측).
+// eslint-disable-next-line no-var
+var _humanCandidateHook: ((game: ServerGameState, playerId: string) => any[]) | null = null;
 export function setHumanCandidateHook(fn: (game: ServerGameState, playerId: string) => any[]): void {
 	_humanCandidateHook = fn;
 }

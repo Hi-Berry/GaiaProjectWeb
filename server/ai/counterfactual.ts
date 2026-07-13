@@ -18,6 +18,21 @@ import { applyRolloutIncome } from './rolloutIncome';
 
 const dummyIo = { to: () => ({ emit: () => { /* noop */ } }) } as any;
 
+/** 스냅샷 정규화 — 덤프 시점이 roundNumber++ 직후(전원 hasPassed·수입 미적용)라 라운드 시작 상태로 보정 */
+function normalizeSnapshot(raw: ServerGameState): ServerGameState {
+    const s = StateCloner.cloneGameStateForSimulation(raw);
+    (s as any).simulation = true;
+    const order: string[] = s.turnOrder ?? Object.keys(s.players);
+    for (const pid of order) {
+        if (!s.players[pid]) continue;
+        s.players[pid].hasPassed = false;
+        applyRolloutIncome(s, pid);
+    }
+    s.currentPlayerIndex = 0;
+    s.hasDoneMainAction = false;
+    return s;
+}
+
 /** 스냅샷에서 대상의 이번 라운드 첫 결정을 override로 강제하고 터미널까지 그리디 재생 → 대상 최종 VP */
 export async function playoutWithOverride(
     snapshot: ServerGameState,
@@ -26,8 +41,7 @@ export async function playoutWithOverride(
 ): Promise<number | null> {
     let s: ServerGameState;
     try {
-        s = StateCloner.cloneGameStateForSimulation(snapshot);
-        (s as any).simulation = true;
+        s = normalizeSnapshot(snapshot);
     } catch { return null; }
 
     const order: string[] = s.turnOrder ?? Object.keys(s.players);
@@ -106,9 +120,14 @@ const label = (a: BotAction) => `${a.type}${(a.params as any)?.trackId ? ':' + (
 export async function analyzeDecision(snapshot: ServerGameState, targetId: string, topK = 3): Promise<DecisionAnalysis | null> {
     const p = snapshot.players[targetId];
     if (!p) return null;
-    // 후보는 '대상의 관점' 스냅샷에서 산출 (라운드 시작 = 아직 아무도 안 움직임이라 근사 타당)
+    // 후보는 '대상의 관점' 정규화 스냅샷에서 산출 (드리프트 가드 회피: 인덱스를 대상에게 맞춤)
     let cands: BotAction[] = [];
-    try { cands = BotLogic.getCandidateMoves(snapshot as ServerGameState, targetId).filter(c => c.type !== 'pass_round'); } catch { return null; }
+    try {
+        const view = normalizeSnapshot(snapshot);
+        const orderV: string[] = view.turnOrder ?? Object.keys(view.players);
+        view.currentPlayerIndex = Math.max(0, orderV.indexOf(targetId));
+        cands = BotLogic.getCandidateMoves(view, targetId).filter(c => c.type !== 'pass_round');
+    } catch { return null; }
     if (cands.length < 2) return null;
 
     const policyVp = await playoutWithOverride(snapshot, targetId, null);
@@ -165,6 +184,7 @@ async function main() {
     console.log(`\n총 결정 ${results.length}개, 후회≥5VP: ${results.filter(r => r.regret >= 5).length}개, 평균 후회 ${(results.reduce((s, r) => s + r.regret, 0) / Math.max(1, results.length)).toFixed(2)}VP`);
 }
 
-if (require.main === module) {
-    main().catch(e => { console.error(e); process.exit(1); });
+// tsx ESM에선 require.main이 없어 미실행(실측) → env 트리거. index import 부작용으로 서버가 떠 있으므로 명시적 exit.
+if (process.env.CF_RUN === '1') {
+    main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
 }
