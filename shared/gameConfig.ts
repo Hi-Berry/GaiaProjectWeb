@@ -2194,8 +2194,17 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
 
 /** 특정 미션에 대해 특정 플레이어가 획득할 VP 계산 (순위 기반) */
 export function getFinalMissionVp(game: { turnOrder: string[]; players: Record<string, any>; map: any[]; satellites?: any; playerFederationHexes?: any }, playerId: string, missionId: string): number {
+  return getFinalMissionVpProjected(game, playerId, missionId, null);
+}
+
+/** getFinalMissionVp와 동일한 순위/동률 정산에서 내 미션 값만 myValueOverride로 가정했을 때의 VP.
+ *  "지금 +N 진행하면 순위 VP가 실제로 오르는가"(추월 가능성) 판정용 — null이면 실제 값 사용. */
+export function getFinalMissionVpProjected(game: { turnOrder: string[]; players: Record<string, any>; map: any[]; satellites?: any; playerFederationHexes?: any }, playerId: string, missionId: string, myValueOverride: number | null): number {
   const POINTS = [18, 12, 6];
-  const values = game.turnOrder.map(pid => ({ playerId: pid, value: getFinalMissionValue(game as any, pid, missionId) }));
+  const values = game.turnOrder.map(pid => ({
+    playerId: pid,
+    value: (pid === playerId && myValueOverride != null) ? myValueOverride : getFinalMissionValue(game as any, pid, missionId),
+  }));
   const withValue = values.filter(v => v.value > 0).sort((a, b) => b.value - a.value);
   if (withValue.length === 0) return 0;
 

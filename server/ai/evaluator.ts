@@ -1,5 +1,5 @@
 import { ServerGameState, getPlanetConnectedComponent, getFederationBuildingPower, getFederationRequiredPower } from '../gameState';
-import { getFederationEntries, getFinalMissionVp, getFinalMissionValue, countGreenFederations } from '@shared/gameConfig';
+import { getFederationEntries, getFinalMissionVp, getFinalMissionValue, getFinalMissionVpProjected, countGreenFederations } from '@shared/gameConfig';
 import { getPlayerVariant, getPlayerFlag } from './variant';
 import { ValueNet } from './valueNet';
 import { extractFeatures } from './features';
@@ -901,7 +901,17 @@ export class Evaluator {
                 let ownVal = 0;
                 try { ownVal = getFinalMissionValue(game as any, playerId, fid); } catch { ownVal = 0; }
                 // projVp(0~18)를 주신호로, ownVal은 연속적 진척 신호로 약하게 가산
-                finalBonus += (projVp * 3.0 + ownVal * 2.5) * finalScaling;
+                let gradient = ownVal * 2.5;
+                // [flag: finalMissionRankAware] 사용자 관찰(2026-07-13): 이 그라디언트가 "다음 등수 추월 유도"
+                // 목적인데 추월 가능성을 안 봄 — 4위 확정(R5+·낙관 지평으로도 VP 불변)이면 원시 진행 보상 제거.
+                // projVp>0(이미 득점 순위)면 방어 가치가 있어 유지. [v2] R4 포함은 40판 −2.16 → R5+만.
+                if (projVp === 0 && round >= 5 && getPlayerFlag(playerId, 'finalMissionRankAware', true)) {
+                    try {
+                        const horizon = (7 - round) * 2;
+                        if (getFinalMissionVpProjected(game as any, playerId, fid, ownVal + horizon) === 0) gradient = 0;
+                    } catch { /* 판정 실패 시 기존 동작 유지 */ }
+                }
+                finalBonus += (projVp * 3.0 + gradient) * finalScaling;
             }
         }
         if (finalBonus > 0) {

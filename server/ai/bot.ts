@@ -81,6 +81,8 @@ import {
     GLEENS_FEDERATION_REWARD,
     canTaklonsSpendUsingBrain,
     canSpendTaklonsPowerWithoutBrain,
+    getFinalMissionValue,
+    getFinalMissionVpProjected,
 } from '@shared/gameConfig';
 
 type BotAction = {
@@ -6379,6 +6381,29 @@ export class BotLogic {
         return futureBonus;
     }
 
+    /** [flag: finalMissionRankAware] 이 미션에서 내 순위 VP가 아직 오를 수 있는지 — 낙관적 지평(남은 라운드
+     *  ×2 진행, 이번 라운드 포함)으로도 VP 불변이면 false(추격 불가 확정 = 진행 보너스 무의미). R1-4는 순위가
+     *  유동적이라 항상 true. [v2] R4 포함(v1)은 40판 −2.16 — 사용자 장면(R6 외곽 0→1, 4위 확정)에 맞춰 R5+만.
+     *  후보 타일마다 호출되므로 (플레이어·미션·상태)별 메모 — 상태 키는 gameLog 길이
+     *  (액션마다 증가; 시뮬 클론도 분기 시 로그가 자라 키가 갈림). 값·키 모두 평범한 데이터라 직렬화 무해. */
+    private static finalMissionClimbable(game: ServerGameState, playerId: string, missionId: string): boolean {
+        if (!getPlayerFlag(playerId, 'finalMissionRankAware', true)) return true;
+        const round = game.roundNumber ?? 1;
+        if (round < 5) return true;
+        const g = game as any;
+        const stateKey = `${round}:${game.gameLog?.length ?? 0}`;
+        if (g._fmClimbMemo?.stateKey !== stateKey) g._fmClimbMemo = { stateKey, vals: {} };
+        const entryKey = `${playerId}:${missionId}`;
+        const cached = g._fmClimbMemo.vals[entryKey];
+        if (cached !== undefined) return cached;
+        const myVal = getFinalMissionValue(game, playerId, missionId);
+        const horizon = (7 - round) * 2; // R4:6 R5:4 R6:2 — 관대한 지평(차단은 확실할 때만)
+        const val = getFinalMissionVpProjected(game, playerId, missionId, myVal + horizon)
+            > getFinalMissionVpProjected(game, playerId, missionId, myVal);
+        g._fmClimbMemo.vals[entryKey] = val;
+        return val;
+    }
+
     private static calculateFinalMissionBonus(game: ServerGameState, playerId: string, tile: HexTile, structure?: string): number {
         let totalBonus = 0;
         const player = game.players[playerId];
@@ -6396,6 +6421,10 @@ export class BotLogic {
             : ((game.finalScoringTiles || []).map(m => m.id));
 
         for (const missionId of missionIds) {
+            // [flag: finalMissionRankAware] 사용자 관찰(2026-07-13): 외곽 미션 0개·상대 4/5/6인데 R6에 1개
+            // 만들러 감 — 순위제(18/12/6)라 순위를 못 바꾸는 진행은 VP 0인데 고정 +25가 무조건 붙던 것.
+            // R4+에 "남은 라운드 낙관 진행(라운드당 +2)으로도 내 미션 VP가 못 오르면" 그 미션 보너스 0.
+            if (!this.finalMissionClimbable(game, playerId, missionId)) continue;
             switch (missionId) {
                 case 'fm_total_structures': totalBonus += 5; break;
                 case 'fm_planet_types':
