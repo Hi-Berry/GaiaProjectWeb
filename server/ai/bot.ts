@@ -1001,6 +1001,27 @@ export class BotLogic {
                     }
                     log(`Bot ${player.name} balTakGaiaFirst: 아카데미 자금 예외(O${player.ore}<6, 테라 L1 +2O 허용)`, 'game', game.id);
                 }
+                // [flag: bigMissionBigFirst] 사용자 관찰(2026-07-13 엠바스): 큰건물 미션(5VP) 라운드 + 자원 풍족인데
+                // 아카 대신 연구소 2개 — 아카 재료(연구소)가 연방 안이면 fedPenalty(-450)가 아카 후보를 top5 밖으로
+                // 밀어냄. 사람 룰: 큰건물 미션 라운드엔 아카/의회 직행(미션 5VP가 연방보존 가치를 압도). 직접-return,
+                // 연방 후보가 있으면 양보, 비연방 연구소 우선(없으면 연방 안 것도 허용 — 미션이 우선).
+                if (getPlayerFlag(playerId, 'bigMissionBigFirst', false) && !game.hasDoneMainAction
+                    && game.roundScoringTiles?.[(game.roundNumber ?? 1) - 1]?.triggerType === 'build_big_building'
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const myAcadCnt = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
+                    const oreB = player.ore ?? 0, credB = player.credits ?? 0;
+                    if (myAcadCnt < 2 && oreB >= 6 && credB >= 6) {
+                        const fedHexesB: string[] = (game as any).playerFederationHexes?.[playerId] || [];
+                        const labs = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab');
+                        const labPick = labs.find(t => !fedHexesB.includes(t.id)) ?? labs[0];
+                        if (labPick) {
+                            const onReb = (player.spaceshipsEntered || []).some(id => game.map.find(t => t.id === id)?.type === 'ship_rebellion');
+                            const tgt = ((game.roundNumber ?? 1) >= 5 || onReb) ? 'academy_right' : 'academy_left';
+                            log(`Bot ${player.name} bigMissionBigFirst: 큰건물 미션 라운드 아카 직행 (${labPick.id})`, 'game', game.id);
+                            return { type: 'upgrade_structure', params: { tileId: labPick.id, target: tgt } };
+                        }
+                    }
+                }
                 // [flag: gaiaMineFollow] 사람데이터(2026-07-07 로그): 가이아포머 배치→가이아 광산 건설 = 100%(62% 같은 라운드).
                 //   봇은 expansionEngineOpen로 가이아포밍은 2.2배 늘었으나 그 위 광산 건설 다운스트림이 약함(광산 −0.34) =
                 //   확장 sink 누락(가이아 행성 만들고 방치 → 템포 손실). 내 가이아포머가 완성된(pendingGaiaformerTiles) 행성에
