@@ -3391,9 +3391,9 @@ export class BotLogic {
                 let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
                 // [flag: gaiaBaseQicCost] 사용자 관찰(2026-07-13): 봇이 2QIC 가이아 광산을 과애호 — 가이아 기본
                 // QIC(일반1/확장종족2)가 지불 검사만 되고 점수에선 0원(사거리 QIC만 페널티). QIC 기회비용
-                // (3정큐 재료·연방·트와 재수령, 연구보상 환산 q×18)을 28/개로 차감. 성숙 포머(alreadyFormed)는
+                // (3정큐 재료·연방·트와 재수령, 연구보상 환산 q×18)을 45/개로 차감(28은 미션·교두보 스택에 묻혀 무행동 — 실측). 성숙 포머(alreadyFormed)는
                 // base 0이라 자동 면제, 글린은 광석 지불이라 제외. qicPenalty와 분리 — 교두보 0화에 안 쓸림.
-                if (getPlayerFlag(playerId, 'gaiaBaseQicCost', false) && !isGleens) score -= gaiaBaseQic * 28;
+                if (getPlayerFlag(playerId, 'gaiaBaseQicCost', false) && !isGleens) score -= gaiaBaseQic * 45;
                 if (alreadyFormed) score += 400; // 성숙한 가이아포머는 반드시 건설(투자 낭비 방지) — 최우선 처리
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_gaia', tile);
