@@ -7,6 +7,7 @@
  */
 import type { ServerGameState } from '../gameState';
 import type { PlayerState } from '@shared/gameConfig';
+import { getNextRoundIncomePreview } from '@shared/gameConfig';
 
 const RESEARCH_TRACKS = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const;
 
@@ -18,6 +19,10 @@ export const FEATURE_NAMES: string[] = [
     'federations', 'techTiles', 'gaiaformers', 'shipsEntered', 'planetsOwned',
     'distinctPlanetTypes', 'gaiaPlanets',
     'scoreVsMaxOpp', 'scoreVsMeanOpp', 'structsVsMeanOpp', 'researchSumVsMeanOpp',
+    // [v3 2026-07-13] 롤아웃 신호 흡수용 — azValueLeaf 셀에서 롤아웃 제거가 −5.9였던 원인(템포/자원 스트림)을
+    // 정적 피처로: 다음 라운드 수입(엔진의 실측 출력)과 자원 유동성(전환 가능 파워·연방 재료 토큰).
+    'incOre', 'incCredits', 'incKnowledge', 'incQic', 'incPowerCharge',
+    'convertiblePower', 'totalTokens',
 ];
 export const FEATURE_DIM = FEATURE_NAMES.length;
 
@@ -75,6 +80,13 @@ export function extractFeatures(game: ServerGameState, playerId: string): number
 
     const bowl = p.brainStoneBowl ?? 0;
 
+    // [v3] 다음 라운드 수입 — 재구성 pseudo-game(간이 map/players)에서도 안전하게: 실패 시 0 벡터.
+    let inc = { ore: 0, credits: 0, knowledge: 0, qic: 0, powerCharge: 0 };
+    try {
+        const pv = getNextRoundIncomePreview(playerId, game as any);
+        inc = { ore: pv.ore, credits: pv.credits, knowledge: pv.knowledge, qic: pv.qic, powerCharge: pv.powerCharge };
+    } catch { /* 재구성 상태 미비 시 0 */ }
+
     return [
         round / 6, remainingRounds / 6,
         (p.score ?? 0) / 100, (p.ore ?? 0) / 15, (p.credits ?? 0) / 20, (p.knowledge ?? 0) / 15,
@@ -87,5 +99,7 @@ export function extractFeatures(game: ServerGameState, playerId: string): number
         sc.distinctTypes / 8, sc.gaiaPlanets / 6,
         ((p.score ?? 0) - maxOpp) / 40, ((p.score ?? 0) - meanOpp) / 40,
         (sc.total - meanOppStructs) / 8, (researchSum(p) - meanOppResearch) / 12,
+        inc.ore / 8, inc.credits / 15, inc.knowledge / 8, inc.qic / 3, inc.powerCharge / 12,
+        ((p.power3 ?? 0) + Math.floor((p.power2 ?? 0) / 2)) / 12, ((p.power1 ?? 0) + (p.power2 ?? 0) + (p.power3 ?? 0)) / 16,
     ];
 }

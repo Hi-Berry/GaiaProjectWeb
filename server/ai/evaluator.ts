@@ -1,5 +1,5 @@
 import { ServerGameState, getPlanetConnectedComponent, getFederationBuildingPower, getFederationRequiredPower } from '../gameState';
-import { getFederationEntries, getFinalMissionVp, getFinalMissionValue, countGreenFederations } from '@shared/gameConfig';
+import { getFederationEntries, getFinalMissionVp, getFinalMissionValue, getFinalMissionVpProjected, countGreenFederations } from '@shared/gameConfig';
 import { getPlayerVariant, getPlayerFlag } from './variant';
 import { ValueNet } from './valueNet';
 import { extractFeatures } from './features';
@@ -528,7 +528,13 @@ export class Evaluator {
             score += structExpansionScore;
         }
 
-        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length;
+        // [flag: lantidsParasiticEval] 사용자 지적(2026-07-13): "기생 능력이 좋은데 전혀 계산 못하는 것 아니냐" — 적중.
+        // 서버는 기생광산을 광산 수입(getEffectiveMineCount)·연방 파워 1·미션 카운트에 정식 산입하는데, 평가기는
+        // ownerId 필터만 써서 기생 등장 0회 = 시뮬이 기생을 지어도 상태가치 증가 0 → 후보점수를 올려도(패리티 기각,
+        // 행동 무변화) MCTS가 안 고르던 근본 원인. 광산 자산가치(structureMine = 수입 스트림)에 기생을 산입해 미러링.
+        const parasiticMines = (player.faction === 'lantids' && getPlayerFlag(playerId, 'lantidsParasiticEval', true))
+            ? game.map.filter(t => t.parasiticMine?.ownerId === playerId).length : 0;
+        const mineCount = myStructures.filter(t => t.structure === 'mine' || t.structure === 'lost_planet_mine').length + parasiticMines;
         const tsCount = myStructures.filter(t => t.structure === 'trading_station').length;
         const labCount = myStructures.filter(t => t.structure === 'research_lab').length;
         const piCount = myStructures.filter(t => t.structure === 'planetary_institute').length;
@@ -901,7 +907,17 @@ export class Evaluator {
                 let ownVal = 0;
                 try { ownVal = getFinalMissionValue(game as any, playerId, fid); } catch { ownVal = 0; }
                 // projVp(0~18)를 주신호로, ownVal은 연속적 진척 신호로 약하게 가산
-                finalBonus += (projVp * 3.0 + ownVal * 2.5) * finalScaling;
+                let gradient = ownVal * 2.5;
+                // [flag: finalMissionRankAware] 사용자 관찰(2026-07-13): 이 그라디언트가 "다음 등수 추월 유도"
+                // 목적인데 추월 가능성을 안 봄 — 4위 확정(R5+·낙관 지평으로도 VP 불변)이면 원시 진행 보상 제거.
+                // projVp>0(이미 득점 순위)면 방어 가치가 있어 유지. [v2] R4 포함은 40판 −2.16 → R5+만.
+                if (projVp === 0 && round >= 5 && getPlayerFlag(playerId, 'finalMissionRankAware', true)) {
+                    try {
+                        const horizon = (7 - round) * 2;
+                        if (getFinalMissionVpProjected(game as any, playerId, fid, ownVal + horizon) === 0) gradient = 0;
+                    } catch { /* 판정 실패 시 기존 동작 유지 */ }
+                }
+                finalBonus += (projVp * 3.0 + gradient) * finalScaling;
             }
         }
         if (finalBonus > 0) {

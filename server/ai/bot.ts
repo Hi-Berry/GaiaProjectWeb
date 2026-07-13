@@ -81,6 +81,8 @@ import {
     GLEENS_FEDERATION_REWARD,
     canTaklonsSpendUsingBrain,
     canSpendTaklonsPowerWithoutBrain,
+    getFinalMissionValue,
+    getFinalMissionVpProjected,
 } from '@shared/gameConfig';
 
 export type BotAction = {
@@ -742,6 +744,48 @@ export class BotLogic {
                             if (tdTargets >= 2) {
                                 log(`Bot ${player.name} earlyDigResearch: gaiaProject L1 강제 (R${rr}, 트랜스딤 ${tdTargets})`, 'game', game.id);
                                 return { type: 'advance_research', params: { trackId: 'gaiaProject' } };
+                            }
+                        }
+                    }
+                }
+                // [flag: geodensDigCycle] 사용자 모델(2026-07-13): 기오덴 = "삽/거리 올려 빠른 확장 → 광석 →
+                // K(+3K 새유형) → 다시 삽/거리" 순환. 실측(기오덴강제 20판): 상위7 삽+거리 합 7.4 vs 하위7 4.9,
+                // 경제/과학은 무차이 — 순환 지속이 승부. earlyDigResearch(L0→L1 한정)의 기오덴 연장:
+                // PI 보유 + 새 유형 1-2삽 대상이 남아있는 동안 삽 L3까지, 거리는 '새 유형이 새로 열릴 때' L4까지.
+                // 새 유형 광산의 +3K = 연구비 4K의 75% 리베이트라 이 연구는 실질 염가(즉시·확정 보상 클래스).
+                if (getPlayerFlag(playerId, 'geodensDigCycle', true) && player.faction === 'geodens'
+                    && !game.hasDoneMainAction) {
+                    const rg = game.roundNumber ?? 1;
+                    const hasPIg = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (hasPIg && rg >= 2 && rg <= 4 && (player.knowledge ?? 0) >= 4
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        const myTypesG = getPlayerPlanetTypesForGeodens(game, playerId);
+                        const myPlG = game.map.filter(t => t.ownerId === playerId && t.structure);
+                        const rngG = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+                        const newTypeDigTargets = (maxDist: number) => game.map.filter(t =>
+                            !t.ownerId && !t.structure && t.type
+                            && !['space', 'deep_space', 'transdim', 'asteroid', 'gaia'].includes(t.type) && !t.type.startsWith('ship_')
+                            && !myTypesG.has(t.type)
+                            && getTerraformStepsForFaction(game, player.faction!, t.type) >= 1
+                            && getTerraformStepsForFaction(game, player.faction!, t.type) <= 2
+                            && myPlG.some(p => getDistance(p, t) <= maxDist)).length;
+                        const terraG = player.research?.terraforming ?? 0;
+                        if (terraG < 3 && newTypeDigTargets(rngG + 2) >= 2) {
+                            const act = this.advanceResearchAction(playerId, player, 'terraforming');
+                            if (act) {
+                                log(`Bot ${player.name} geodensDigCycle: 삽 L${terraG + 1} (새유형 1-2삽 ${newTypeDigTargets(rngG + 2)}개, R${rg})`, 'game', game.id);
+                                return act;
+                            }
+                        }
+                        const navG = player.research?.navigation ?? 0;
+                        if (navG < 4) {
+                            const rngNextG = getRange(navG + 1) + (player.navigationBonus || 0);
+                            if (newTypeDigTargets(rngNextG + 2) > newTypeDigTargets(rngG + 2)) {
+                                const act = this.advanceResearchAction(playerId, player, 'navigation');
+                                if (act) {
+                                    log(`Bot ${player.name} geodensDigCycle: 거리 L${navG + 1} (새유형 신규 개방, R${rg})`, 'game', game.id);
+                                    return act;
+                                }
                             }
                         }
                     }
@@ -2545,7 +2589,22 @@ export class BotLogic {
 
         // 3. Trading Stations -> Planetary Institute
         const hasPI = myStructures.some(t => t.structure === 'planetary_institute');
-        if (ore >= 4 && credits >= 6 && !hasPI) {
+        // [flag: upgradeOreConvert] 사람 실측(저널 델타): 아카 225건 중 43건(19%)이 3P→1O·1Q→1O 변환으로 광석을
+        // 채워 완납 — 저널 스냅샷이 턴시작이라 '저지불'로 보였던 것의 실체. 봇은 지갑 광석만 봐서 이 후보가 없음.
+        // 광석 갭 ≤2를 파워(3P→1O, 타클론 제외)·여유 QIC(1Q→1O, 예비 1 보존)로 채우는 preActions — PI/아카 공용.
+        const oreConvertPre = (gap: number): BotAction[] | null => {
+            if (!getPlayerFlag(playerId, 'upgradeOreConvert', true) || gap <= 0 || gap > 2 || player.faction === 'taklons') return null;
+            const pre: BotAction[] = [];
+            let p3 = player.power3 ?? 0, q = player.qic ?? 0;
+            for (let i = 0; i < gap; i++) {
+                if (p3 >= 3) { pre.push({ type: 'convert_resource', params: { type: '3power-to-1ore' } }); p3 -= 3; }
+                else if (q >= 2) { pre.push({ type: 'convert_resource', params: { type: '1qic-to-1ore' } }); q -= 1; }
+                else return null;
+            }
+            return pre;
+        };
+        const piOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 4 - ore)) : null;
+        if (((ore >= 4 && credits >= 6) || piOrePre) && !hasPI) {
             // [버그수정 2026-07-05: bescods 트리] 매안은 TS→PI를 서버가 거부(6197), 전용 경로=연구소→PI(6224).
             // 봇에 매안 분기가 없어 표준 TS→PI만 시도→항상 실패→매안은 의회를 영영 못 지었음(사용자 관찰).
             const tsList = player.faction === 'bescods'
@@ -2617,9 +2676,13 @@ export class BotLogic {
                 // 광산 2+ 조건으로 개방(순수 후보 추가 — 선택은 MCTS/평가기).
                 const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', true) && mineCount >= 2
                     && (earlyPiAllowed.includes(faction || '') || firaksPiReady || lantidsPiReady || hhPiReady);
+                // [flag: piGateOpen] 리프로브 실측(라이브 PI 갭 40건): R2-3 비허용 종족이 광산 4~10개 기반으로
+                // PI를 지음(bescods 3·xenos 3·itars 2·ambas·terran·darkanians) — round<4 게이트가 종족 무관 차단.
+                // 광산 4+ & R2+면 개방 (acadGateOpen·r1PiOpen 동형: 순수 후보 개방, 선택은 MCTS).
+                const piGateOpen = getPlayerFlag(playerId, 'piGateOpen', true) && round >= 2 && mineCount >= 4;
                 if (round === 1 && !r1PiOpen) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen) continue;
+                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !piGateOpen && round < 4) continue;
+                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen && !piGateOpen) continue;
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
@@ -2638,7 +2701,9 @@ export class BotLogic {
                 candidates.push({
                     id: `pi-${ts.id}`,
                     score,
-                    action: { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } },
+                    action: piOrePre
+                        ? { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' }, preActions: piOrePre }
+                        : { type: 'upgrade_structure', params: { tileId: ts.id, target: 'planetary_institute' } },
                     isFederated: isFederated(ts.id),
                 });
             }
@@ -2652,7 +2717,8 @@ export class BotLogic {
         const acadConvertPre: BotAction[] | undefined = acadCombo
             ? Array.from({ length: acadCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
             : undefined;
-        if (((ore >= 6 && credits >= 6) || acadCombo) && academyCount < 2) {
+        const acadOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 6 - ore)) : null;
+        if (((ore >= 6 && credits >= 6) || acadCombo || acadOrePre) && academyCount < 2) {
             // [버그수정 2026-07-05: bescods 트리] 매안 전용 TS→아카(서버 6234)도 아카 소스로 — 봇에 분기가 없어
             // 매안이 교역소에서 아카 직행을 영영 못 썼음(사용자 관찰). 표준 연구소→아카는 매안도 유효라 둘 다.
             const labList = player.faction === 'bescods'
@@ -2707,11 +2773,12 @@ export class BotLogic {
                 const acadTarget = getPlayerFlag(playerId, 'academyTypeChoice', true)
                     ? (((game.roundNumber ?? 1) >= 5 || onRebellion) ? 'academy_right' : 'academy_left')
                     : 'academy_right';
+                const acadPre = acadConvertPre ?? acadOrePre ?? undefined; // [flag: upgradeOreConvert] 광석 갭은 3P→1O/1Q→1O로
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
-                    action: acadConvertPre
-                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget }, preActions: acadConvertPre }
+                    action: acadPre
+                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget }, preActions: acadPre }
                         : { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget } },
                     isFederated: isFederated(lab.id),
                 });
@@ -3211,7 +3278,11 @@ export class BotLogic {
             return alt ? [alt] : [];
         }
 
-        if (ore < 1 || credits < 2) {
+        // [flag: asteroidCandOpen] 서버 룰(리프로브 확정 2026-07-13): 소행성 광산 비용 = 포머 1개 + 거리 QIC뿐 —
+        // 1O2C를 청구하지 않음(executeBuildMine 소행성 분기). 기존 조기 반환이 자원기아 시 소행성 후보까지 죽여
+        // 사람 소행성 건설 34건이 후보에 없던 룰 불일치. 기아여도 소행성 전용 패스는 계속 진행.
+        const resStarved = ore < 1 || credits < 2;
+        if (resStarved && !getPlayerFlag(playerId, 'asteroidCandOpen', true)) {
             // Ore/Credit 부족 시에도 Eclipse 6C 소행성이나 파워 콤보 가능한지 확인
             const alt = this.findAlternativeBuildAction(game, playerId);
             return alt ? [alt] : [];
@@ -3292,7 +3363,7 @@ export class BotLogic {
 
         const scored: ScoredCandidate[] = [];
 
-        if (player.faction === 'lantids') {
+        if (player.faction === 'lantids' && !resStarved) { // 기생광산은 표준 비용(1O2C) — 기아 시 제외
             const parasiticTargets = game.map.filter(t =>
                 t.ownerId &&
                 t.ownerId !== playerId &&
@@ -3322,6 +3393,12 @@ export class BotLogic {
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
                 score += rangeBonusValue;
+                // [flag: lantidsParasiticAdj] 사용자 관찰(2026-07-13): PI 이후에도 기생 1.78회/판 — 일반 광산은
+                // 인접 보너스(내 건물 +50/이웃, 상대 +20)를 받는데 기생 후보만 이 항목이 빠져 인접 좋은 일반
+                // 광산(400+)에 구조적으로 밀림. 기생은 정의상 상대 행성 위(리치 포지션)라 같은 기준 적용이 정합.
+                if (getPlayerFlag(playerId, 'lantidsParasiticAdj', false)) {
+                    score += this.calculateAdjacencyBonus(game, playerId, tile);
+                }
 
                 // [flag: lantidsParasiticPush] 상대 밀집 지역(주변 dist≤2에 상대 건물 多)에 기생 우대 →
                 // 점프 한 번으로 이후 기생 타깃 다수 확보(사용자 모델: 밀집지역 의회+점프+기생4가 최상 스타트).
@@ -3367,6 +3444,8 @@ export class BotLogic {
         }
 
         for (const tile of candidates) {
+            // [flag: asteroidCandOpen] 자원기아 패스: 1O2C가 안 드는 소행성만 후보화(그 외는 서버가 거부할 후보)
+            if (resStarved && tile.type !== 'asteroid') continue;
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
             // [flag: chainReachDefer] Z 경유 체인으로 0Q 도달 가능한 QIC점프는 유보
@@ -3557,6 +3636,24 @@ export class BotLogic {
                     });
                     continue;
                 }
+            }
+
+            // [flag: asteroidCandOpen] 비-홈 소행성은 테라 스텝 0이라 아래 continue에 걸려 후보가 영영 안 생김 —
+            // asteroidAnyFaction(7/11)이 필터만 열고 점수 분기가 없던 갭(리프로브 실측: 사람 소행성 118건 중
+            // 봇 후보 존재 3건뿐의 근본 원인; 3480행 비-홈 페널티는 도달불가 죽은 코드였음). 홈 분기 미러 + 포머 기회비용.
+            if (tile.type === 'asteroid' && getPlayerFlag(playerId, 'asteroidCandOpen', true)) {
+                let score = (neededQicForRange === 0 ? 330 : 280) - qicPenalty + bridgeheadBonus;
+                const transdimLeft = game.map.some(t2 => t2.type === 'transdim' && !t2.structure && !t2.hasGaiaformer);
+                score -= (transdimLeft && round <= 4) ? 140 : 25; // 포머 소모 기회비용(미래 가이아 vs idle 전환)
+                score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
+                score += this.calculateFinalMissionBonus(game, playerId, tile);
+                score += earlyRushBonus + expansionDesire + overExpansionPenalty;
+                score += this.calculateAdjacencyBonus(game, playerId, tile);
+                score += this.calculateFederationScore(game, playerId, tile);
+                score += this.calculateThreatScore(game, playerId, tile);
+                score += rangeBonusValue;
+                scored.push({ tile, score, action: buildMineAction(tile.id, neededQicForRange) });
+                continue;
             }
 
             // 타종 행성 (테라포밍 필요)
@@ -3870,6 +3967,23 @@ export class BotLogic {
                 results.push(act);
                 if (results.length >= 4) break; // 3->4개로 상향
             }
+        }
+
+        // [flag: asteroidCandOpen] 소행성 예약 슬롯: 리프로브 실측(사람 소행성 갭 118건 중 56건 = 탑4 컷에 밀림).
+        // 탑4에 소행성이 없으면 최고점 소행성 1개를 추가(순수 후보 개방 — 선택은 MCTS, r1PiOpen 계열).
+        if (getPlayerFlag(playerId, 'asteroidCandOpen', true)
+            && !results.some(a => game.map.find(t => t.id === (a.params as any)?.tileId)?.type === 'asteroid')) {
+            const bestAst = scored.find(s => (s as any).tile?.type === 'asteroid');
+            if (bestAst) {
+                const key = JSON.stringify(bestAst.action);
+                if (!seenActions.has(key)) { seenActions.add(key); results.push(bestAst.action); }
+            }
+        }
+
+        // [flag: asteroidCandOpen] 자원기아 패스였다면 기존 동작(Eclipse 6C/파워콤보 대안)도 병합
+        if (resStarved) {
+            const alt = this.findAlternativeBuildAction(game, playerId);
+            if (alt) { const key = JSON.stringify(alt); if (!seenActions.has(key)) results.push(alt); }
         }
 
         return results;
@@ -6492,6 +6606,29 @@ export class BotLogic {
         return futureBonus;
     }
 
+    /** [flag: finalMissionRankAware] 이 미션에서 내 순위 VP가 아직 오를 수 있는지 — 낙관적 지평(남은 라운드
+     *  ×2 진행, 이번 라운드 포함)으로도 VP 불변이면 false(추격 불가 확정 = 진행 보너스 무의미). R1-4는 순위가
+     *  유동적이라 항상 true. [v2] R4 포함(v1)은 40판 −2.16 — 사용자 장면(R6 외곽 0→1, 4위 확정)에 맞춰 R5+만.
+     *  후보 타일마다 호출되므로 (플레이어·미션·상태)별 메모 — 상태 키는 gameLog 길이
+     *  (액션마다 증가; 시뮬 클론도 분기 시 로그가 자라 키가 갈림). 값·키 모두 평범한 데이터라 직렬화 무해. */
+    private static finalMissionClimbable(game: ServerGameState, playerId: string, missionId: string): boolean {
+        if (!getPlayerFlag(playerId, 'finalMissionRankAware', true)) return true;
+        const round = game.roundNumber ?? 1;
+        if (round < 5) return true;
+        const g = game as any;
+        const stateKey = `${round}:${game.gameLog?.length ?? 0}`;
+        if (g._fmClimbMemo?.stateKey !== stateKey) g._fmClimbMemo = { stateKey, vals: {} };
+        const entryKey = `${playerId}:${missionId}`;
+        const cached = g._fmClimbMemo.vals[entryKey];
+        if (cached !== undefined) return cached;
+        const myVal = getFinalMissionValue(game, playerId, missionId);
+        const horizon = (7 - round) * 2; // R4:6 R5:4 R6:2 — 관대한 지평(차단은 확실할 때만)
+        const val = getFinalMissionVpProjected(game, playerId, missionId, myVal + horizon)
+            > getFinalMissionVpProjected(game, playerId, missionId, myVal);
+        g._fmClimbMemo.vals[entryKey] = val;
+        return val;
+    }
+
     private static calculateFinalMissionBonus(game: ServerGameState, playerId: string, tile: HexTile, structure?: string): number {
         let totalBonus = 0;
         const player = game.players[playerId];
@@ -6509,6 +6646,10 @@ export class BotLogic {
             : ((game.finalScoringTiles || []).map(m => m.id));
 
         for (const missionId of missionIds) {
+            // [flag: finalMissionRankAware] 사용자 관찰(2026-07-13): 외곽 미션 0개·상대 4/5/6인데 R6에 1개
+            // 만들러 감 — 순위제(18/12/6)라 순위를 못 바꾸는 진행은 VP 0인데 고정 +25가 무조건 붙던 것.
+            // R4+에 "남은 라운드 낙관 진행(라운드당 +2)으로도 내 미션 VP가 못 오르면" 그 미션 보너스 0.
+            if (!this.finalMissionClimbable(game, playerId, missionId)) continue;
             switch (missionId) {
                 case 'fm_total_structures': totalBonus += 5; break;
                 case 'fm_planet_types':
