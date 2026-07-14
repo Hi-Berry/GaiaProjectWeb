@@ -927,6 +927,24 @@ export class BotLogic {
                             return this.advanceResearchAction(playerId, player, 'artificialIntelligence');
                         }
                     }
+                    // [flag: rebel3qLadder] 사람/봇 데이터(2026-07-14, 사람 125석 vs 봇 192석): 사람은 3Q타일을 R1부터
+                    // 매라운드 구매(55/52/49/41/41/40), 봇은 R1 0회·R4-5 몰림(0/6/13/25/26/20) — 승선은 봇도 R1이 최다(46회)라
+                    // 병목은 탑승이 아니라 '3Q 조립 사다리'가 좁음: 기존 브리지(#3 2K→1Q2C)가 q==2 && K≥4(AI연구 게이트 안) 한정.
+                    // 확장: 탑승+타일미사용+q<3+#3미사용이면 ①q2·K≥2(연구 전제 불요) ②q1·K≥2·번4P가능(→q2, 다음턴 번체인 마감)
+                    // ③q<3·K≥5(정큐 수입 엔진 — 사람은 가용 라운드 거의 전부 #3 사용, 봇 ~50%). 라운드당 1회(usedActionIndices 가드).
+                    if (getPlayerFlag(playerId, 'rebel3qLadder', false) && onReb && rebTile && rebUnused
+                        && qNow < 3
+                        && !(game.spaceships?.[rebTile.id]?.usedActionIndices ?? []).includes(3)
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        const kL = player.knowledge ?? 0;
+                        const burnable = player.faction !== 'taklons'
+                            && ((player.power3 ?? 0) + Math.floor((player.power2 ?? 0) / 2)) >= 4
+                            && Math.max(0, 4 - (player.power3 ?? 0)) <= 2;
+                        if ((qNow === 2 && kL >= 2) || (qNow === 1 && kL >= 2 && burnable) || (qNow < 3 && kL >= 5)) {
+                            log(`Bot ${player.name} rebel3qLadder: 리벨3번(2K→1Q2C) q${qNow}→${qNow + 1} (K${kL})`, 'game', game.id);
+                            return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 3 } };
+                        }
+                    }
                     // [flag: rebelPrepPlus ②] 엠바스식 Nav 선행 입장(사용자): 3Q를 이미 들고 있는데 리벨이 사거리 밖이면
                     // QIC 점프 입장은 3정큐 스택 파괴 — Nav 연구 1레벨로 사거리 내가 되면 연구 먼저(무료 입장 + 3Q 보존).
                     // navBeforeJump(채택)의 입장 버전.
@@ -2167,7 +2185,31 @@ export class BotLogic {
         let candidatePool = candidates;
         if (player.tempRangeBonus || player.rangeBonusActive || player.gleensNavBonusActive) {
             const RANGE_USING = new Set(['build_mine', 'place_gaiaformer', 'enter_spaceship', 'place_ivits_space_station', 'place_lost_planet']);
-            const rangeOnly = candidates.filter(c => RANGE_USING.has(c.type));
+            let rangeOnly = candidates.filter(c => RANGE_USING.has(c.type));
+            // [flag: rangeBonusFarOnly] 사용자 처방(2026-07-14): "3거리 쓰고 바로 옆 1nav에 건설" — 부스터 활성 중
+            // 부스터 없이도 닿는 타깃에 지으면 서버가 보너스를 무조건 소모(executeBuildMine 6145-6147) = 낭비.
+            // 부스터가 '실제로 여는' 타깃(부스터 OFF 후보군에 없는 것)만 남긴다. 전부 근거리뿐이면(먼 타깃 소멸 등)
+            // 기존 폴백 유지 — 턴이 막히는 일은 없음. rangeBoosterUnlocksTarget(활성화 게이트)의 사용 단계 미러.
+            if (getPlayerFlag(playerId, 'rangeBonusFarOnly', true) && rangeOnly.length > 0) {
+                const saved = { t: player.tempRangeBonus, r: player.rangeBonusActive, g: player.gleensNavBonusActive };
+                player.tempRangeBonus = false; player.rangeBonusActive = false; player.gleensNavBonusActive = false;
+                const without = new Set<string>();
+                try {
+                    for (const a of this.findBuildActions(game, playerId)) { const t = (a as any).params?.tileId; if (t) without.add(`b:${t}`); }
+                    for (const a of this.findBuildActionsWithPendingSteps(game, playerId)) { const t = (a as any).params?.tileId; if (t) without.add(`b:${t}`); }
+                    for (const a of this.findGaiaformerActions(game, playerId)) { const t = (a as any).params?.tileId; if (t) without.add(`b:${t}`); }
+                    for (const a of this.findSpaceshipEntryActions(game, playerId)) { const t = (a as any).params?.shipTileId ?? (a as any).params?.tileId; if (t) without.add(`s:${t}`); }
+                } finally {
+                    player.tempRangeBonus = saved.t; player.rangeBonusActive = saved.r; player.gleensNavBonusActive = saved.g;
+                }
+                const far = rangeOnly.filter(c => {
+                    const p = (c as any).params || {};
+                    if (c.type === 'enter_spaceship') return !without.has(`s:${p.shipTileId ?? p.tileId}`);
+                    if (c.type === 'build_mine' || c.type === 'place_gaiaformer') return !without.has(`b:${p.tileId}`);
+                    return true; // lost planet/ivits 정거장은 보수적으로 유지
+                });
+                if (far.length > 0) rangeOnly = far;
+            }
             if (rangeOnly.length > 0) candidatePool = rangeOnly;
             else {
                 // [진단 RANGE-WASTE] 사거리 부스터가 활성인데 쓸 사거리 액션이 0개 = 보너스 낭비 확정 순간.
