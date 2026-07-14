@@ -4737,7 +4737,10 @@ export class BotLogic {
             // (A) 엔드게임 트랙 VP: 종료 시 L3/4/5 = 4/8/12점(절대). 스텝이 L3+ 넘으면 +4 확정VP — 라운드 무관.
             //   막라운드에 저트랙 한 칸 올려 L3 찍는 게 최고수(사용자 예: Nav1/Eco2 → 4K를 Eco에 = Eco3 = +4VP).
             const endVp = (l: number) => (l >= 5 ? 12 : l >= 4 ? 8 : l >= 3 ? 4 : 0);
-            const VP_UNIT = 15; // 1VP ≈ 15점(새 행성=15 스케일). 측정/1:3로 보정.
+            // [flag: endgameTrackVp] 사용자 관찰(2026-07-14): R6 3정큐 트랙 선택이 Terra/Eco L2(→L3 = +4VP 확정)
+            // 대신 과학 L0→L1(가치 0)을 고름 — 과학 기본점수 (6-0)×22=132가 라운드 무관 고정이라 종료보너스
+            // 60(4VP×15)을 이김. R6엔 수입 라운드가 0이라 확정 VP가 항상 우위 → 종료 임계 가중 2배(60→132+).
+            const VP_UNIT = (getPlayerFlag(playerId, 'endgameTrackVp', true) && round >= 6) ? 33 : 15; // 1VP ≈ 15점(새 행성=15 스케일). 측정/1:3로 보정.
             score += (endVp(next) - endVp(level)) * VP_UNIT;
             // (B) 즉시 도달보상 자원가치(받는 즉시 = 라운드 무관, R6에도 액션 연료/전환으로 유효).
             //   공통 L3 +3충전, nav L1/3 +1Q, AI L1/2 +1Q·L3/4 +2Q·L5 +4Q, terra L1/4 +2O, eco L5 +3O6C6P, sci L5 +9K.
