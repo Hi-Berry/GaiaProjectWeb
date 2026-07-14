@@ -6554,6 +6554,11 @@ export class BotLogic {
                     break;
             }
             passBonusValue = count * (tile.passBonus?.vp || 0);
+            // [flag: bonusPassZeroMalus] 사용자 관찰(2026-07-14): 큰건물 0개인데 4pw+큰건물 부스터를 2C+1Q보다
+            // 먼저 집음 — bonusTileHumanW(7/5)의 파워 ×2.5가 4pw 부스터를 정적 10점(> 2c-1q 7점)으로 만들어
+            // 보드 상태 무관 항상 우선이 된 과교정. 패스VP 대상이 0개면 부스터 정체성 절반이 죽은 것 → −4
+            // (큰건물 1개부터는 +4VP로 자연 복귀. 0랩에 1k-lab 부스터 등 동일 케이스 일괄 교정).
+            if (getPlayerFlag(playerId, 'bonusPassZeroMalus', true) && count === 0) passBonusValue -= 4;
         }
 
         // 다음 라운드 파워 수입 예측:
