@@ -4054,7 +4054,7 @@ export class BotLogic {
                 // 서버 자동지급이라 MCTS 시뮬이 좋게 봄) 노리고 연방 안/인접에 막 지음(사용자 관찰). 업글엔
                 // fedPenalty 450이 있는데 건설엔 상응 감점이 없던 비대칭 교정 — 흡수 건설을 금지하진 않되
                 // 연구/파워액션 등과의 경쟁에서 후순위로. R6은 해제(미래 연방 재료 개념 소멸, lastRoundFedFree 동일).
-                else if (getPlayerFlag(playerId, 'fedAbsorbBuildPenalty', false)
+                else if (getPlayerFlag(playerId, 'fedAbsorbBuildPenalty', true)
                     && !(getPlayerFlag(playerId, 'lastRoundFedFree', true) && (game.roundNumber ?? 1) >= 6)) {
                     for (const s of scored) {
                         const t = (s as any).tile;
