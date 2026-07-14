@@ -2749,6 +2749,11 @@ export class BotLogic {
                     // [flag: firaksDowngrade] 피락스: 연구소+의회면 매 라운드 다운그레이드(랩→TS+연구) 엔진 → 의회 조기 우선.
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
                     if (hasLab) score += round <= 3 ? 140 : 60;
+                    // [flag: firaksPiPriority] 실측 트레이스(2026-07-15): 봇이 랩을 이미 갖고도 R1-2에 배 입장(TF Mars,
+                    // 점수 150-450)/광산을 PI(30+140=170)보다 먼저 골라 PI가 R3+로 밀림(R2이내 22.5%). 랩 보유 = PI가
+                    // 다운그레이드 엔진의 마지막 조각이므로 R≤2엔 배/광산보다 우선해야 함. 강제 아님(점수 넛지) — 자금 안 되면
+                    // 후보 미생성이라 발동 안 함(firaksPiFunding이 자금 채움). mine-hold(+3.90 채택)와 동계열.
+                    if (hasLab && round <= 2 && getPlayerFlag(playerId, 'firaksPiPriority', true)) score += 180;
                 } else if (lantidsPiReady) {
                     // 란티다: 기생 타겟 있으면 조기 PI 강력 우대(각 후속 기생 = +2지식). 타겟 많을수록 더.
                     score += round <= 2 ? 60 : 90;
