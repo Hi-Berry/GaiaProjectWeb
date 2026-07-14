@@ -4740,6 +4740,15 @@ export class BotLogic {
                     const remainingIncomes = Math.max(0, 6 - round); // R1=5 … R5=1 … R6=0
                     if (level < 4) score += (6 - level) * 20 * (remainingIncomes / 5); // 반복수입: 남은 징수 비례
                     if (round <= 2) score += 35; // 초반 경제 우대(남은 징수 많음)
+                    // [flag: firaksEcoPlan] 사용자 플랜(2026-07-14): 파이락 R1 = 랩 + 경제 2칸 → R2 수입(Eco L2 =
+                    // +1O2C2P/라운드)으로 의회 자금 조달 → R2 PI → 다운그레이드 엔진. 변환 조달(v1/v2 −6.9/−10.8
+                    // 기각)과 달리 수입 라인이라 자원을 안 태움. 연구 점수 부스트라 무료 기술타일 트랙 선택
+                    // (pickResearchTracks[0])에도 동일 적용 — 랩 타일로 경제 진행하는 사람 수순 재현.
+                    if (getPlayerFlag(playerId, 'firaksEcoPlan', true) && player.faction === 'firaks'
+                        && round <= 2 && level < 2
+                        && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+                        score += 80;
+                    }
                 } else {
                     score += (6 - level) * 20; // 상향 (15 -> 20)
                     if (round <= 2) score += 35; // 초반 경제 대폭 우대
