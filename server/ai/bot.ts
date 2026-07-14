@@ -4045,9 +4045,22 @@ export class BotLogic {
         if (getPlayerFlag(playerId, 'noBuildAdjFed', true)) {
             const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
             if (fedHexes.length > 0) {
-                const adjToFed = (t: HexTile) => game.map.some(n => fedHexes.includes(n.id) && getDistance(n, t) === 1);
+                // '연방에 이미 포함된 칸'(dist 0) 자체도 인접과 동급으로 처리 (사용자 관찰 2026-07-14: 다카니안이 연방 내부에 막 지음)
+                const inFed = (t: HexTile) => fedHexes.includes(t.id);
+                const adjToFed = (t: HexTile) => inFed(t) || game.map.some(n => fedHexes.includes(n.id) && getDistance(n, t) === 1);
                 const nonAdj = scored.filter(s => (s as any).tile && !adjToFed((s as any).tile));
                 if (nonAdj.length > 0) { scored.length = 0; scored.push(...nonAdj); } // 비인접 대안 있으면 연방인접 후보 제거
+                // [flag: fedAbsorbBuildPenalty] 비인접 대안이 없으면 위 필터가 무력 → 다카니안이 PI 트리거(+1K+2C,
+                // 서버 자동지급이라 MCTS 시뮬이 좋게 봄) 노리고 연방 안/인접에 막 지음(사용자 관찰). 업글엔
+                // fedPenalty 450이 있는데 건설엔 상응 감점이 없던 비대칭 교정 — 흡수 건설을 금지하진 않되
+                // 연구/파워액션 등과의 경쟁에서 후순위로. R6은 해제(미래 연방 재료 개념 소멸, lastRoundFedFree 동일).
+                else if (getPlayerFlag(playerId, 'fedAbsorbBuildPenalty', false)
+                    && !(getPlayerFlag(playerId, 'lastRoundFedFree', true) && (game.roundNumber ?? 1) >= 6)) {
+                    for (const s of scored) {
+                        const t = (s as any).tile;
+                        if (t && adjToFed(t)) s.score -= inFed(t) ? 300 : 150;
+                    }
+                }
             }
         }
 
