@@ -1706,7 +1706,10 @@ export class BotLogic {
                 //   위성 지불은 bowl1→2→3 순이라 남는 bowl3는 idle. 연방 전에 그 idle bowl3를 프리액션(1P→1C)으로 미리 써서
                 //   가치(크레딧)를 뽑는다. 1P→1C는 bowl3→bowl1로 토큰을 되돌리므로(제거X) 위성 지불 총량엔 영향 없음(안전).
                 // [flag: bowl3CashoutOre] 위성이 소모할 bowl3 deficit도 먼저 변환해 회수(순이득, 사용자 룰) — idle 변환에 선행
-                const fedDoomed = getPlayerFlag(playerId, 'bowl3CashoutOre', true)
+                // [flag: ivitsFedPowerFix] 이비츠 위성 = QIC 지불이라 토큰 소모 자체가 없음 — 이 회수(및 아래
+                // fedSpendBowl3의 idle 배출)는 근거 부재로 액션 연료만 태움(사용자 관찰: 연방 전 3pw 정리). 면제.
+                const ivitsNoPowerDrain = player.faction === 'ivits' && getPlayerFlag(playerId, 'ivitsFedPowerFix', true);
+                const fedDoomed = (getPlayerFlag(playerId, 'bowl3CashoutOre', true) && !ivitsNoPowerDrain)
                     ? this.doomedBowl3CashoutPreActions(player, spent, playerId) : [];
                 const fedBowl3Pre = [...fedDoomed, ...this.fedSpendBowl3PreActions(playerId, player, spent)];
                 candidates.push(fedBowl3Pre.length
@@ -4606,12 +4609,31 @@ export class BotLogic {
 
         // 1. 기본 트랙 가치 (동적 계산)
         switch (track) {
-            case 'terraforming':
+            case 'terraforming': {
                 score += (6 - level) * 12;
                 if (round <= 3) score += 25;
                 // [사용자 전략] 아카데미 빌드 시 테라포밍 1단계 우선
                 if (level === 0 && round <= 2) score += 30;
+                // [flag: terraDynamicScore] 사용자 관찰(2026-07-14): Terra2/Nav2에서 계속 Nav만 올림 — Nav는
+                // '새로 닿는 행성 ×15' 동적 가점이 있는데 Terra는 정적뿐이라 비대칭(삽이 싸지면 지을 수 있게
+                // 되는 행성의 가치를 못 봄). Nav와 대칭 이식: 사거리+2 내 삽 필요(1-3스텝) 미점유 행성 수 ×
+                // 스텝당 절감 광석(비용 레벨차) × 6, 캡 90. L3(1광석/삽) 도달이 자연히 최대 가점.
+                if (getPlayerFlag(playerId, 'terraDynamicScore', false) && level < 5) {
+                    const costNow = getTerraformCost(level);
+                    const costNext = getTerraformCost(level + 1);
+                    if (costNext < costNow && player.faction) {
+                        const rngT = BotLogic.getEffectiveBaseRange(player) + 2;
+                        const digTargets = game.map.filter(t =>
+                            !t.ownerId && !t.structure && t.type
+                            && !['space', 'deep_space', 'transdim', 'asteroid', 'gaia'].includes(t.type) && !t.type.startsWith('ship_')
+                            && getTerraformStepsForFaction(game, player.faction!, t.type) >= 1
+                            && getTerraformStepsForFaction(game, player.faction!, t.type) <= 3
+                            && myStructures.some(s => getDistance(s, t) <= rngT)).length;
+                        score += Math.min(90, digTargets * (costNow - costNext) * 6);
+                    }
+                }
                 break;
+            }
             case 'navigation':
                 // 발타크는 PI가 없으면 항해 트랙을 올릴 수 없음
                 if (faction === 'bal_tak') {
@@ -6983,6 +7005,10 @@ export class BotLogic {
     private static fedSpendBowl3PreActions(playerId: string, player: PlayerState, spentTokens: number): BotAction[] {
         if (!getPlayerFlag(playerId, 'fedSpendBowl3', true)) return [];
         if (player.faction === 'taklons') return [];
+        // [flag: ivitsFedPowerFix] 사용자 관찰(2026-07-14): 이비츠가 연방 전에 bowl3를 1P→1C로 정리 — 이비츠
+        // 위성은 QIC 지불이라 토큰이 전혀 안 소모되는데, 이 계산식(spent−p1−p2)이 전 bowl3를 idle로 오판해
+        // 액션 연료를 헐값(1C)에 배출하던 것. 근거(위성 소모분 회수) 자체가 이비츠엔 부재 → 면제.
+        if (player.faction === 'ivits' && getPlayerFlag(playerId, 'ivitsFedPowerFix', true)) return [];
         const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
         const bowl3UsedBySat = Math.max(0, (spentTokens ?? 0) - p1 - p2);
         const idle = Math.max(0, p3 - bowl3UsedBySat);
