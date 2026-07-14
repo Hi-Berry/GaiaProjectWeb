@@ -5884,7 +5884,13 @@ export class BotLogic {
             // 전소 — 도착 즉시 잔여 0Q라 탑승 목적(3Q→기술타일)이 사망. QIC 예약(③)은 건설만 막고 입장비는
             // 안 막던 구멍. 입장비 2Q+ 이고 입장 후 잔여 <3Q면 3Q엔진 배(#1 미사용 리벨/타이밍된 트와) 입장
             // 후보 제외 — 1Q 입장은 탑승 후 2K→1Q 브리지로 복구 가능해 허용.
-            if (getPlayerFlag(playerId, 'rebelEntryFareGuard', true) && neededQic >= 2 && (qic - neededQic) < 3) {
+            // [flag: shipEntryFloor] R4+에 아직 2척 미만이면 3Q 라인 보호보다 입장 자체(사용자 목표 "못해도 2척")가
+            // 우선 — 초반(R1-3)은 기존 가드 유지(3Q 전소 방지의 핵심 구간).
+            const fareFloorBypass = getPlayerFlag(playerId, 'shipEntryFloor', true)
+                && (player.spaceshipsEntered ?? []).length < 2 && (game.roundNumber ?? 1) >= 4
+                && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length; // 사람게임 한정(curse 12호)
+            if (getPlayerFlag(playerId, 'rebelEntryFareGuard', true) && neededQic >= 2 && (qic - neededQic) < 3
+                && !fareFloorBypass) {
                 const isEngineShip = tile.type === 'ship_rebellion'
                     || (tile.type === 'ship_twilight' && this.twilightTimingOk(game, player));
                 if (isEngineShip && !(game.spaceships?.[tile.id]?.usedActionIndices || []).includes(1)) continue;
@@ -5899,7 +5905,14 @@ export class BotLogic {
                 // 좋은 액션 있으면 적극 입장(본판 파워액션 이김), 없으면 낮게(타고 안 쓰는 -5VP 낭비 방지).
                 if (round >= 6) continue; // 막판 입장은 액션 쓸 턴이 없어 순손실
                 const hasUnusedShip = entered.some(id => ((game.spaceships?.[id]?.usedActionIndices?.length ?? 0) < 1));
-                if (hasUnusedShip) continue; // 이미 안 쓴 우주선 있으면 추가 입장 금지(적재 방지)
+                // [flag: shipEntryFloor] 사용자 목표(2026-07-14): "못해도 2척, 왠만하면 3척". 실게임에서 1척 고정
+                // 봇 증가(7/12~: 12석 중 4석 등) — 사람이 공유 액션을 선점하면 봇의 첫 배가 '미사용'으로 남아
+                // 이 게이트에 계속 걸리는 구조(셀프플레이엔 없는 사람게임 패턴). 2척 미만이면 적재방지 게이트 면제.
+                // [120판 curse 12호] 셀프플레이 40판 +6.89 유의 → 120판 −1.36·승률 39.3% 유의 음수 반전. 셀프플레이(입장
+                // 2.3, 병목 부재)에선 억지 2척째가 낭비 — 병목(사람 선점→미사용 고착)이 있는 사람 게임에서만 발동.
+                const entryFloor = getPlayerFlag(playerId, 'shipEntryFloor', true) && entered.length < 2
+                    && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+                if (hasUnusedShip && !entryFloor) continue; // 이미 안 쓴 우주선 있으면 추가 입장 금지(적재 방지)
                 const hasTS = game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station');
                 const hasMine = game.map.some(t => t.ownerId === playerId && t.structure === 'mine');
                 let best = this.estimateBestShipActionValue(player, tile.type || '', hasTS, hasMine, playerId);
