@@ -6909,7 +6909,10 @@ export class BotLogic {
         // 상대 인접의 실가치 = ①미래 mine→TS 3C 할인 예약(+3C) ②매라운드 파워 리치 스트림 ③사람 학습 가중치
         // dOpp −0.85(상대 근접 선호 실측). 기존 +20은 군집(+50)·베이스(300) 대비 반올림 오차 — 45/22로 상향.
         // ※ 리치 가치는 셀프플레이서 안 잡힘(buildNearShipOpp −1.76 전례) → do-no-harm 확인 + 실게임 판정.
-        const oppAdjBoost = getPlayerFlag(playerId, 'oppAdjacencyValue', false);
+        // [판정 2026-07-14] 40판 승률 52.5% / VP −1.69±3.70 = 방향 상충 노이즈(do-no-harm 통과) →
+        // 사전 등록대로 사람게임 한정 채택(creditCapGuard 패턴). 셀프플레이 지표는 불변.
+        const oppAdjBoost = getPlayerFlag(playerId, 'oppAdjacencyValue', true)
+            && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
         for (const neighbor of neighbors) {
             // 다른 플레이어 건물 인접 (파워 수신용 + TS 할인 예약)
             if (neighbor.ownerId && neighbor.ownerId !== playerId) {
