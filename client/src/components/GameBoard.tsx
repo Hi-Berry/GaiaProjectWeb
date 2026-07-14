@@ -165,6 +165,26 @@ const getDistance = (a: { q: number; r: number }, b: { q: number; r: number }) =
 };
 
 // 건물 렌더링 함수 - 새로 생성된 종족별 건물 PNG 에셋 적용
+/** [2026-07-14 사용자] 임의 hex로 PNG 본체를 물들이는 CSS 틴트 체인 (grayscale→sepia(황갈 기준)→hue-rotate→saturate).
+ *  sepia(1)의 기준 색상 hue≈40° 이므로 목표 hue-40으로 회전. 무채색(흰/회색)은 밝기만 조절. */
+const bodyTintFilter = (hex: string): string => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return '';
+  const r = parseInt(m[1].slice(0, 2), 16) / 255, g = parseInt(m[1].slice(2, 4), 16) / 255, b = parseInt(m[1].slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  const d = max - min;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  if (h < 0) h += 360;
+  if (sat < 0.15) return `grayscale(1) brightness(${0.6 + l * 1.2})`; // 흰/회색 계열
+  return `grayscale(1) sepia(1) saturate(${Math.max(2, sat * 9).toFixed(1)}) hue-rotate(${Math.round(h - 40)}deg) brightness(${(0.75 + l * 0.7).toFixed(2)})`;
+};
+
 const renderStructure = (structureType: StructureType, color: string, ownerColor?: string, outlineOverride?: string) => {
   // color 헥스코드(ownerColor 우선)로 원래 종족(행성) 이름을 역추적하여 파일명으로 활용
   // [2026-07-14 사용자] outlineOverride: 건물 본체(이미지)는 종족색 유지, 외곽 글로우만 이 색으로 —
@@ -185,7 +205,8 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
           style={{
             pointerEvents: 'none',
             // 종족 색 외곽 글로우(누구 것인지 표시) + 어두운 외곽선(어떤 행성색에서도 분리)
-            filter: `drop-shadow(0 0 0.55px ${edgeColor}) drop-shadow(0 0 0.55px ${edgeColor}) drop-shadow(0 0 0.25px rgba(0,0,0,0.9))`,
+            // [오버라이드 v2] 지정 색이면 본체도 틴트
+            filter: `${outlineOverride ? bodyTintFilter(outlineOverride) + ' ' : ''}drop-shadow(0 0 0.55px ${edgeColor}) drop-shadow(0 0 0.55px ${edgeColor}) drop-shadow(0 0 0.25px rgba(0,0,0,0.9))`,
           }}
         />
       </g>
@@ -234,9 +255,9 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
           pointerEvents: 'none',
           // 색감 강한 맵에서 건물이 묻히는 문제 → 건물 모양을 따라가는 테두리.
           // 어두운 외곽선(밝은 행성에서 분리) + 옅은 흰 후광(어두운 행성에서 분리)으로 어떤 행성색에서도 도드라지게.
-          // [오버라이드] 색 겹침 대응: 외곽 후광을 사용자 지정 색으로 강조(본체 이미지는 종족색 그대로).
+          // [오버라이드 v2] 안개 글로우 대신 본체 자체를 틴트(사용자: "안개처럼 휘감김" → 본체 색 교체).
           filter: outlineOverride
-            ? `drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.7px ${outlineOverride}) drop-shadow(0 0 0.7px ${outlineOverride}) drop-shadow(0 0 0.5px ${outlineOverride})`
+            ? `${bodyTintFilter(outlineOverride)} drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.85px rgba(255,255,255,0.45))`
             : 'drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.85px rgba(255,255,255,0.45))',
         }}
       />
