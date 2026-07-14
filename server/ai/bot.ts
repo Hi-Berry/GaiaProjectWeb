@@ -6957,7 +6957,7 @@ export class BotLogic {
         // [flag: placementPolicy] 사람 22판(656 빌드결정)에서 학습한 배치 정책(placementPolicy.json, top1 17.8% vs random 5%).
         // 8-피처 선형 랭커: dOwn −3.57(압도적 밀집), adjOwn +1.20, dProto −0.98, dOpp −0.85(상대근접=2/3 싼TS), newType −0.81…
         // isolatedTSPenalty(추측 −150)의 데이터-정밀 대체. ON이면 그걸 끄고 학습점수를 씀.
-        if (getPlayerFlag(playerId, 'placementPolicy', false)) {
+        if (getPlayerFlag(playerId, 'placementPolicy', true)) {
             // 비싼 계산(맵 전수 filter)이라 MCTS 롤아웃(game.simulation)에선 생략 — root 결정에만 적용(GC 폭주 방지).
             if (!game.simulation) bonus += this.calculatePlacementPolicyScore(game, playerId, tile) * 60;
         } else if (getPlayerFlag(playerId, 'isolatedTSPenalty', true) && game.roundNumber <= 4) {
