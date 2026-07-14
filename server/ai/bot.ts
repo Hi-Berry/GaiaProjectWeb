@@ -790,6 +790,32 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: firaksEngineRush] 사람 빌드오더 실측(2026-07-14, 사람 파이락 11석): 성공 공식 = R1-2에
+                // 랩+의회 완성 → 다운그레이드 5-6회/판 → 186-220점 (미완성 판은 33-73점). 봇은 랩 R1.5인데
+                // PI R3.7(R2 이내 완성 1/31석) → 다운 0.94회 — 능력 엔진이 늦게 가동. R≤2에 자금 되는 즉시
+                // 랩→PI 순서로 직접-return (upgradeOreConvert 광석 갭 변환은 후보 preActions가 처리).
+                if (getPlayerFlag(playerId, 'firaksEngineRush', false) && player.faction === 'firaks'
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const hasPIf = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (!hasPIf) {
+                        const upsF = candidates.filter(c => c.type === 'upgrade_structure');
+                        const labF = game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab');
+                        if (labF) {
+                            const piUp = upsF.find(c => (c.params as any)?.target === 'planetary_institute');
+                            if (piUp) {
+                                log(`Bot ${player.name} firaksEngineRush: 의회 직행 (랩 보유, R${game.roundNumber}) — 다운그레이드 엔진 가동`, 'game', game.id);
+                                return piUp;
+                            }
+                        } else {
+                            const labUp = upsF.find(c => (c.params as any)?.target === 'research_lab');
+                            if (labUp) {
+                                log(`Bot ${player.name} firaksEngineRush: 연구소 직행 (R${game.roundNumber}) — 의회 전 단계`, 'game', game.id);
+                                return labUp;
+                            }
+                        }
+                    }
+                }
                 // [flag: humanRule2O] 데이터 유래 규칙(사람 27게임): 사람은 '크레딧 부자 + 광석 뒤처짐 + 파워 보유' 일 때
                 // 2O 파워액션을 누른다(90회 관측: 평균 cred10.9·ore3.7·p3 4.8). 봇은 실전에서 이걸 0회(크레딧 풍선).
                 // 평가기 nudge는 무시되므로(어제 확인) MCTS 우회해 강제. 단 연방/연구(지식≥4)/할인업글이 우선.
