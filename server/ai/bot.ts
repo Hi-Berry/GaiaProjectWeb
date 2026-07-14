@@ -5255,6 +5255,14 @@ export class BotLogic {
                 score += 40 + (types * 15);
             }
             if (tileId.startsWith('tech-inc-')) score -= 40;
+            // [flag: lateTilePref] 사용자 관찰(2026-07-14): R6에 big-4str를 1O1Q보다 먼저 집음 — 원인은 선호가
+            // 아니라 R5+에서 big-4str·act-4p·1o-1q가 전부 0점 동점 → 목록 순서(엄격 >)가 픽을 결정하던 사고.
+            // lastRoundFedFree가 R6 타일 획득을 부활시키며 노출 증가. 서열: 즉시자원(1O1Q, 정산+사용) >
+            // 4P액션(마지막 1회 사용 가능) > big-4str(연방 파워 잠재 — 0 유지, 연방 가능 판은 여전히 경쟁 가능).
+            if (getPlayerFlag(playerId, 'lateTilePref', true)) {
+                if (tileId === 'tech-imm-1o-1q') score += 20;
+                if (tileId === 'tech-act-4p') score += 10;
+            }
         }
 
         // [flag: techTileRankFix] 사용자 랭킹(2026-07-07): 4C > 4PW > 1o1P > 1K1C. 기존엔 income 타일 3종이
