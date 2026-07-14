@@ -4046,7 +4046,7 @@ export class BotLogic {
         // TS(1.3/석)→랩(0.57)→PI(0.86)에 몰빵이 성공 공식(186-220점). 봇은 R1-2 광산 3.29/석 = 3O6C 누수로
         // PI 자금 병목(firaksEngineRush 기각에서 규명). 사용자 처방 "광산 건설을 적당히" — PI 전 R≤2 광산 후보
         // 일괄 감점(금지 아님: 미션/군집 초대박이면 MCTS가 여전히 선택 가능). 경제연구 강제는 사람 신호 약해(1/7) 보류.
-        if (getPlayerFlag(playerId, 'firaksMineHold', false) && player.faction === 'firaks'
+        if (getPlayerFlag(playerId, 'firaksMineHold', true) && player.faction === 'firaks'
             && (game.roundNumber ?? 1) <= 2
             && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
             for (const s of scored) s.score -= 260;
