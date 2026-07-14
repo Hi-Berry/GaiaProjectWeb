@@ -817,6 +817,20 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: taklonsPowerFirst] 사용자 처방(2026-07-14): 순환 예측(6차 음수)이 안 되면 최소한
+                // '브레인 bowl3 + 파워액션 가능이면 그것부터'. 관찰: 브레인+1PW(=4파워) 두고 교역소 짓고
+                // 담턴에 파워액션 — 순서 교정은 자기 경제 중립이고 공유 슬롯 선점만 이득(순수 순서 손해 제거).
+                // findPowerActions는 점수≥0 가치액션만 반환(브레인 지불 affordability 포함).
+                if (getPlayerFlag(playerId, 'taklonsPowerFirst', true) && player.faction === 'taklons'
+                    && !game.hasDoneMainAction && player.brainStoneBowl === 3 && !player.brainStoneInGaia
+                    && (game.roundNumber ?? 1) <= 5
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const paFirst = this.findPowerActions(game, playerId)[0];
+                    if (paFirst) {
+                        log(`Bot ${player.name} taklonsPowerFirst: 브레인 bowl3 → 파워액션 선실행 (${(paFirst.params as any)?.actionId})`, 'game', game.id);
+                        return paFirst;
+                    }
+                }
                 // [flag: humanRule2O] 데이터 유래 규칙(사람 27게임): 사람은 '크레딧 부자 + 광석 뒤처짐 + 파워 보유' 일 때
                 // 2O 파워액션을 누른다(90회 관측: 평균 cred10.9·ore3.7·p3 4.8). 봇은 실전에서 이걸 0회(크레딧 풍선).
                 // 평가기 nudge는 무시되므로(어제 확인) MCTS 우회해 강제. 단 연방/연구(지식≥4)/할인업글이 우선.
