@@ -242,6 +242,8 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
 interface GameBoardProps {
   game: GaiaGameState;
   playerId: string | null;
+  /** [2026-07-14 사용자] 플레이어별 보드 표시 색 오버라이드(로컬) — 건물·위성·잊혀진 행성·우주정거장·기생광산에만 적용 */
+  colorOverrides?: Record<string, string>;
   onPlaceStartingMine: (tileId: string, factionId?: string) => void;
   onBuildMine: (tileId: string, useGaiaformer?: boolean) => void;
   onUpgrade: (tileId: string, target: StructureType | 'academy_left' | 'academy_right') => void;
@@ -310,6 +312,7 @@ interface GameBoardProps {
 export function GameBoard({
   game,
   playerId,
+  colorOverrides,
   onPlaceStartingMine,
   onBuildMine,
   onUpgrade,
@@ -1232,7 +1235,7 @@ export function GameBoard({
 
                 const owner = tile.ownerId ? game.players[tile.ownerId] : null;
                 const ownerFaction = (owner && owner.faction) ? FACTIONS.find(f => f.id === owner.faction) : null;
-                const structureColor = ownerFaction?.color || '#fff';
+                const structureColor = (tile.ownerId && colorOverrides?.[tile.ownerId]) || ownerFaction?.color || '#fff';
 
 
 
@@ -1408,7 +1411,7 @@ export function GameBoard({
                       );
                     })()}
 
-                    {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color)}
+                    {hasStructure && renderStructure(tile.structure!, structureColor, (tile.ownerId && colorOverrides?.[tile.ownerId]) || ownerFaction?.color)}
 
                     {/* 란티다 기생 광산 */}
                     {tile.parasiticMine && (() => {
@@ -1416,7 +1419,7 @@ export function GameBoard({
                       const parasiticFac = parasiticOwner?.faction ? FACTIONS.find(f => f.id === parasiticOwner.faction) : null;
                       return (
                         <g transform="translate(1.8, 1.8)">
-                          {renderStructure('mine', parasiticFac?.color ?? '#888')}
+                          {renderStructure('mine', colorOverrides?.[tile.parasiticMine!.ownerId] || parasiticFac?.color || '#888')}
                         </g>
                       );
                     })()}
@@ -1429,7 +1432,7 @@ export function GameBoard({
                         : satelliteOwnerIds
                           .map(ownerId => {
                             const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
-                            return fac ? { key: ownerId, color: fac.color } : null;
+                            return fac ? { key: ownerId, color: colorOverrides?.[ownerId] || fac.color } : null;
                           })
                           .filter((x): x is { key: string; color: string } => x !== null);
                       if (sats.length === 0) return null;
@@ -1463,7 +1466,7 @@ export function GameBoard({
                       }).join(' ');
                       return (
                         <g>
-                          <polygon points={gearPoints} fill={ssFac?.color ?? '#888'} stroke="#000" strokeWidth="0.15" opacity="0.95" />
+                          <polygon points={gearPoints} fill={colorOverrides?.[tile.spaceStation!.ownerId] || ssFac?.color || '#888'} stroke="#000" strokeWidth="0.15" opacity="0.95" />
                         </g>
                       );
                     })()}

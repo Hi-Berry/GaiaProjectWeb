@@ -193,6 +193,22 @@ export default function Game() {
   });
   /** 도크 로그의 최신/라운드 점프 툴바 표시 (Game Log 타이틀 클릭으로 토글, 기본 숨김) */
   const [logToolsOpen, setLogToolsOpen] = useState(false);
+  // [2026-07-14 사용자] 플레이어 색 로컬 오버라이드 — 색이 겹칠 때 보드의 건물·위성·잊혀진 행성 색만 바꿔 봄
+  // (로그/텍스트 등은 원래 종족색 유지). 기기 로컬 저장, '기본값'으로 언제든 복귀.
+  const [playerColorOverrides, setPlayerColorOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(`player-color-overrides-${params.matchID}`) || '{}'); } catch { return {}; }
+  });
+  const [colorPickerFor, setColorPickerFor] = useState<string | null>(null);
+  const OVERRIDE_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff'];
+  const setPlayerColor = (pid: string, color: string | null) => {
+    setPlayerColorOverrides(prev => {
+      const next = { ...prev };
+      if (color) next[pid] = color; else delete next[pid];
+      try { localStorage.setItem(`player-color-overrides-${params.matchID}`, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    setColorPickerFor(null);
+  };
   const adjustLogDockHeight = (delta: number) => {
     setLogDockHeightVh((prev) => {
       const next = Math.min(LOG_DOCK_MAX_VH, Math.max(LOG_DOCK_MIN_VH, prev + delta));
@@ -2600,6 +2616,7 @@ export default function Game() {
           <GameBoard
             game={game}
             playerId={playerId}
+            colorOverrides={playerColorOverrides}
             hoveredPlayerId={hoveredPlayerId}
             onPlaceStartingMine={(tileId, factionId) => {
               const player = game.players[playerId!];
@@ -4451,7 +4468,40 @@ export default function Game() {
                               </span>
 
                               <div className="flex items-center gap-1 md:gap-1.5 min-w-0 flex-1">
-                                <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: faction?.color ?? '#666' }} />
+                                {/* [2026-07-14 사용자] 색 동그라미 클릭 → 보드(건물·위성·잊혀진 행성) 색 오버라이드 선택 */}
+                                <div className="relative flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setColorPickerFor(colorPickerFor === id ? null : id); }}
+                                    className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full block hover:scale-150 transition-transform ${playerColorOverrides[id] ? 'ring-1 ring-white/70' : ''}`}
+                                    style={{ backgroundColor: playerColorOverrides[id] ?? faction?.color ?? '#666' }}
+                                    title="클릭: 보드 표시 색 변경 (건물·위성·잊혀진 행성)"
+                                  />
+                                  {colorPickerFor === id && (
+                                    <div className="absolute z-50 top-4 left-0 p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40" onClick={(e) => e.stopPropagation()}>
+                                      <div className="text-[10px] text-zinc-400 mb-1.5">보드 표시 색 (나에게만 적용)</div>
+                                      <div className="grid grid-cols-6 gap-1 mb-1.5">
+                                        {OVERRIDE_COLORS.map((c) => (
+                                          <button
+                                            key={c}
+                                            type="button"
+                                            onClick={() => setPlayerColor(id, c)}
+                                            className={`w-4 h-4 rounded-full border ${playerColorOverrides[id] === c ? 'border-white ring-1 ring-white' : 'border-white/20 hover:border-white/60'}`}
+                                            style={{ backgroundColor: c }}
+                                          />
+                                        ))}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setPlayerColor(id, null)}
+                                        className="w-full py-1 rounded text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 flex items-center justify-center gap-1.5"
+                                      >
+                                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: faction?.color ?? '#666' }} />
+                                        기본값으로
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                                 <span className="truncate font-medium text-xs md:text-sm text-zinc-200">
                                   {game.currentPhase === 'factionBidding' && faction && p.selectedTurnOrder != null && (
                                     <span className="text-zinc-500 font-mono tabular-nums mr-1">[{p.selectedTurnOrder}]</span>
