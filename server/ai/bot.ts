@@ -930,9 +930,10 @@ export class BotLogic {
                     // [flag: rebel3qLadder] 사람/봇 데이터(2026-07-14, 사람 125석 vs 봇 192석): 사람은 3Q타일을 R1부터
                     // 매라운드 구매(55/52/49/41/41/40), 봇은 R1 0회·R4-5 몰림(0/6/13/25/26/20) — 승선은 봇도 R1이 최다(46회)라
                     // 병목은 탑승이 아니라 '3Q 조립 사다리'가 좁음: 기존 브리지(#3 2K→1Q2C)가 q==2 && K≥4(AI연구 게이트 안) 한정.
-                    // 확장: 탑승+타일미사용+q<3+#3미사용이면 ①q2·K≥2(연구 전제 불요) ②q1·K≥2·번4P가능(→q2, 다음턴 번체인 마감)
-                    // ③q<3·K≥5(정큐 수입 엔진 — 사람은 가용 라운드 거의 전부 #3 사용, 봇 ~50%). 라운드당 1회(usedActionIndices 가드).
-                    if (getPlayerFlag(playerId, 'rebel3qLadder', false) && onReb && rebTile && rebUnused
+                    // v1(엔진 모드 q<3·K≥5 포함) 40판: 발동 88회 중 74%가 미완성 변환(q0→1 등) → 2K 드레인이 광산 −0.75,
+                    // VP −0.82. 구매 조기화는 성공(R≤3 누적 6→20). v2 = '이번 라운드 3Q 완성'이 보이는 브리지만:
+                    // ①q2·K≥2 → #3로 즉시 3Q ②q1·K≥2·번4P 가능 → #3 후 번체인 마감. 라운드당 1회(usedActionIndices 가드).
+                    if (getPlayerFlag(playerId, 'rebel3qLadder', true) && onReb && rebTile && rebUnused
                         && qNow < 3
                         && !(game.spaceships?.[rebTile.id]?.usedActionIndices ?? []).includes(3)
                         && !candidates.some(c => c.type === 'form_federation')) {
@@ -940,7 +941,7 @@ export class BotLogic {
                         const burnable = player.faction !== 'taklons'
                             && ((player.power3 ?? 0) + Math.floor((player.power2 ?? 0) / 2)) >= 4
                             && Math.max(0, 4 - (player.power3 ?? 0)) <= 2;
-                        if ((qNow === 2 && kL >= 2) || (qNow === 1 && kL >= 2 && burnable) || (qNow < 3 && kL >= 5)) {
+                        if ((qNow === 2 && kL >= 2) || (qNow === 1 && kL >= 2 && burnable)) {
                             log(`Bot ${player.name} rebel3qLadder: 리벨3번(2K→1Q2C) q${qNow}→${qNow + 1} (K${kL})`, 'game', game.id);
                             return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 3 } };
                         }
