@@ -4392,9 +4392,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 				restoredGame.turnStartState = currentTurnStartState;
 				restoredGame.prevTurnStartState = currentPrevTurnStartState; // 스냅샷엔 안 담으므로 라이브에서 복원
 				// [메모리] 스냅샷에서 gameLog/humanActionJournal을 제외했으므로(buildFreeActionUndoSnapshot) 라이브에서 재부착.
-				// 자원 상태는 스냅샷(프리액션 직전)으로 정확히 되돌아가고, 로그/저널은 라이브 것을 유지(되돌린 프리액션
-				// 로그 한 줄이 남는 경미한 표시 차이는 허용 — OOM 회피가 우선). 아래 addGameLog가 'Undo' 줄을 덧붙임.
-				restoredGame.gameLog = game.gameLog;
+				// [버그수정 2026-07-14 사용자] 기존엔 라이브 로그를 그대로 붙여 되돌린 액션 로그가 잔류('Used Tech
+				// Action' 등이 리셋 반복 시 3중 누적). 스냅샷의 gameLogSeq(단조 카운터, 100캡 shift 무관)로
+				// '스냅샷 이후 추가된 줄 수'를 구해 꼬리에서 잘라 상태와 로그를 일치시킨다(reset_turn과 동일 방식).
+				{
+					const liveSeq = (game as any).gameLogSeq;
+					const snapSeq = (restoredGame as any).gameLogSeq;
+					let liveLog = (game.gameLog || []) as NonNullable<GaiaGameState['gameLog']>;
+					if (typeof liveSeq === 'number' && typeof snapSeq === 'number') {
+						const added = Math.max(0, Math.min(liveLog.length, liveSeq - snapSeq));
+						liveLog = liveLog.slice(0, liveLog.length - added);
+					}
+					restoredGame.gameLog = liveLog;
+				}
 				restoredGame.humanActionJournal = game.humanActionJournal;
 				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등

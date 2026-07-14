@@ -2626,8 +2626,8 @@ export class BotLogic {
         // [flag: upgradeOreConvert] 사람 실측(저널 델타): 아카 225건 중 43건(19%)이 3P→1O·1Q→1O 변환으로 광석을
         // 채워 완납 — 저널 스냅샷이 턴시작이라 '저지불'로 보였던 것의 실체. 봇은 지갑 광석만 봐서 이 후보가 없음.
         // 광석 갭 ≤2를 파워(3P→1O, 타클론 제외)·여유 QIC(1Q→1O, 예비 1 보존)로 채우는 preActions — PI/아카 공용.
-        const oreConvertPre = (gap: number): BotAction[] | null => {
-            if (!getPlayerFlag(playerId, 'upgradeOreConvert', true) || gap <= 0 || gap > 2 || player.faction === 'taklons') return null;
+        const oreConvertPre = (gap: number, gapCap = 2): BotAction[] | null => {
+            if (!getPlayerFlag(playerId, 'upgradeOreConvert', true) || gap <= 0 || gap > gapCap || player.faction === 'taklons') return null;
             const pre: BotAction[] = [];
             let p3 = player.power3 ?? 0, q = player.qic ?? 0;
             for (let i = 0; i < gap; i++) {
@@ -2637,7 +2637,12 @@ export class BotLogic {
             }
             return pre;
         };
-        const piOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 4 - ore)) : null;
+        // [flag: firaksPiFunding] 파이락 엔진 자금 v2(직접-return v1은 −6.40 기각 — 병목은 후보 미생성=자금):
+        // 사람은 R1-2에 TS→랩→PI(9O14C)를 변환으로 조달해 다운그레이드 엔진 가동(성공 판 186-220점).
+        // 파이락 R≤2 + 랩 보유(firaksPiReady) 시 PI 광석 갭 변환 상한 2→4 — 후보만 존재시키고 선택은 MCTS.
+        const firaksPiGapCap = (getPlayerFlag(playerId, 'firaksPiFunding', false) && player.faction === 'firaks'
+            && round <= 2 && myStructures.some(t => t.structure === 'research_lab')) ? 4 : 2;
+        const piOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 4 - ore), firaksPiGapCap) : null;
         if (((ore >= 4 && credits >= 6) || piOrePre) && !hasPI) {
             // [버그수정 2026-07-05: bescods 트리] 매안은 TS→PI를 서버가 거부(6197), 전용 경로=연구소→PI(6224).
             // 봇에 매안 분기가 없어 표준 TS→PI만 시도→항상 실패→매안은 의회를 영영 못 지었음(사용자 관찰).
