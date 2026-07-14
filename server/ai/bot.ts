@@ -618,12 +618,8 @@ export class BotLogic {
                 // [flag: taklonsSpendIdleBrain] ★올바른 훅: 메인액션 후 턴종료 직전 = 브레인 idle이 실제 생기는 지점.
                 //   타클론 브레인이 bowl3에 놀고 있으면 3P→1O(useBrain)로 써서 재활용(매턴 쓰고 충전복귀=타클론 엔진, 사용자).
                 //   이전 시도는 pre-pass에만 넣어(패스때만) idle을 못 잡았음. 여기선 end_turn 전마다 발동 → 실제 idle 감소.
-                // [flag: taklonsBrainHuman] 사람게임 한정 브레인 순환(위 1910대 번들과 한 쌍 — 근거 동일).
-                // R6 제외: 종료정산(2026-07-13 룰)이 bowl3 브레인을 3C로 환산하므로 R6 지출(1O=구 3C 미만)은 손해.
-                const takBrainHumanIdle = getPlayerFlag(playerId, 'taklonsBrainHuman', true) && player.faction === 'taklons'
-                    && (game.roundNumber ?? 1) < 6
-                    && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
-                if ((getPlayerFlag(playerId, 'taklonsSpendIdleBrain', false) || takBrainHumanIdle) && player.faction === 'taklons'
+                // [철회 2026-07-14] taklonsBrainHuman 맹목 지출(1O)은 커플링 콤보로 대체 — 원 플래그(OFF)만 보존.
+                if (getPlayerFlag(playerId, 'taklonsSpendIdleBrain', false) && player.faction === 'taklons'
                     && player.brainStoneBowl === 3 && !player.brainStoneInGaia) {
                     log(`Bot ${player.name} taklonsSpendIdleBrain(turn-end): 브레인 3P→1O 재활용`, 'game', game.id);
                     return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain: true } };
@@ -1915,12 +1911,8 @@ export class BotLogic {
         // [flag: taklonsBrainBurn] 타클론 브레인스톤이 bowl2에 있으면 놀리지 말고 bowl3로 올려 활용(파워액션/1O·3C 변환).
         //   타클론 번(브레인 in 2): 일반토큰 1개 소모 + 브레인→bowl3. 평가기가 이미 브레인 bowl3(2.5)>bowl2(1.2)로 봐서
         //   후보만 열면 MCTS가 옮김(아이타 번과 같은 템플릿). 브레인 in 2 + bowl2 일반토큰 ≥1(번 성립) 조건.
-        // [flag: taklonsBrainHuman] 셀프플레이 5차 전부 기각("브레인 아껴라")이나 사람 실측(2026-07-14, 6석)이
-        // 반증: 사람 B+T 번 6.2/석·VP 153 vs 봇 0.2/석·VP 58 — 사람 게임은 리치 풍부라 지출한 브레인이 재충전돼
-        // 순환 경제가 성립(셀프플레이는 충전 기근이라 측정 불가 사각지대 = humanPowerRace 동형). 사람게임 한정 발동.
-        const takBrainHuman = getPlayerFlag(playerId, 'taklonsBrainHuman', true) && player.faction === 'taklons'
-            && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
-        if ((getPlayerFlag(playerId, 'taklonsBrainBurn', false) || takBrainHuman) && player.faction === 'taklons'
+        // [철회 2026-07-14] taklonsBrainHuman 비커플링 번은 taklonsBrainCombo(번+사용 커플링, 사람게임 한정)로 대체.
+        if (getPlayerFlag(playerId, 'taklonsBrainBurn', false) && player.faction === 'taklons'
             && player.brainStoneBowl === 2 && (player.power2 ?? 0) >= 1) {
             candidates.push({ type: 'burn_power', params: { moveBrainToBowl3: true } });
         }
@@ -5499,6 +5491,7 @@ export class BotLogic {
         const effPowerCost = (c: number) => hasNevlasPI ? Math.ceil(c / 2) : c;
 
         const scored: { id: string, score: number }[] = [];
+        const brainBurnIds = new Set<string>(); // [flag: taklonsBrainCombo] B+T 번 preAction이 필요한 액션
 
         // 광산/교역소 수: 스텝 vs 자원(2O/7C) 우선순위 판단용 (서버 executeBuildMine과 동일하게 getStructureCount 사용)
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
@@ -5541,7 +5534,21 @@ export class BotLogic {
                 const affordable = player.faction === 'taklons'
                     ? (canSpendTaklonsPowerWithoutBrain(player, 3, need) || canTaklonsSpendUsingBrain(player, 3, need))
                     : p3 >= need;
-                if (!affordable) continue;
+                // [flag: taklonsBrainCombo] 사용자 방향 교정(2026-07-14): 브레인 활용의 진짜 수정 = '번+사용 커플링'
+                // (7/2 기록의 미시도 해법). 브레인이 2그릇이면 B+T 번(일반토큰 1개 소모, 브레인→3그릇=+3파워)으로
+                // 이 파워액션이 열릴 때, 번을 preActions로 묶어 한 후보로 — 옮기고 안 쓰는 hoarding(−2.4)과 달리
+                // 같은 턴에 즉시 사용이 보장됨. 사람 패턴(B+T 6.2/석)의 셀프플레이 성립형.
+                if (!affordable) {
+                    // [6차 실측] 커플링조차 셀프플레이 −9.0(충전 기근에서 bowl2 토큰 소모가 더 큰 손해) →
+                    // 사람게임 한정(리치 풍부 = 재충전 성립). 셀프플레이 검증 불가 축 확정 — 판정은 1:3.
+                    const comboOk = getPlayerFlag(playerId, 'taklonsBrainCombo', true)
+                        && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
+                        && player.faction === 'taklons' && player.brainStoneBowl === 2
+                        && (player.power2 ?? 0) >= 2 // 브레인 외 일반토큰 1개(번 비용) 여유
+                        && ((player.power3 ?? 0) + 3) >= need;
+                    if (!comboOk) continue;
+                    brainBurnIds.add(action.id);
+                }
             }
 
             const ore = player.ore || 0;
@@ -5734,7 +5741,9 @@ export class BotLogic {
         // 상위 3개 후보 반환
         const useBrain = player.faction === 'taklons';
         // 상위 5개 후보 반환하여 파워 액션 탐색 다양화
-        return validActions.slice(0, 5).map(s => ({ type: 'use_power_action', params: { actionId: s.id, useBrain } }));
+        return validActions.slice(0, 5).map(s => brainBurnIds.has(s.id)
+            ? { type: 'use_power_action' as const, params: { actionId: s.id, useBrain: true }, preActions: [{ type: 'burn_power' as const, params: { moveBrainToBowl3: true } }] }
+            : { type: 'use_power_action' as const, params: { actionId: s.id, useBrain } });
     }
 
     private static getPowerTokenReserve(game: ServerGameState, player: PlayerState): number {
@@ -6315,7 +6324,7 @@ export class BotLogic {
 
     private static calculateTwilightFederationRewardScore(game: ServerGameState, playerId: string): number {
         const bestRewardId = this.getBestTwilightFederationRewardId(game, playerId);
-        return bestRewardId ? this.calculateTwilightFederationRewardScoreForId(game, bestRewardId) : 0;
+        return bestRewardId ? this.calculateTwilightFederationRewardScoreForId(game, bestRewardId, playerId) : 0;
     }
 
     private static getBestTwilightFederationRewardId(game: ServerGameState, playerId: string): string | null {
@@ -6325,7 +6334,7 @@ export class BotLogic {
         let bestRewardId: string | null = null;
         let bestScore = 0;
         for (const fed of getFederationEntries(player)) {
-            const score = this.calculateTwilightFederationRewardScoreForId(game, fed.rewardId);
+            const score = this.calculateTwilightFederationRewardScoreForId(game, fed.rewardId, playerId);
             if (score > bestScore) {
                 bestScore = score;
                 bestRewardId = fed.rewardId;
@@ -6335,7 +6344,7 @@ export class BotLogic {
         return bestRewardId;
     }
 
-    private static calculateTwilightFederationRewardScoreForId(game: ServerGameState, rewardId: string): number {
+    private static calculateTwilightFederationRewardScoreForId(game: ServerGameState, rewardId: string, playerId?: string): number {
         const normalReward = FEDERATION_REWARDS.find(r => r.id === rewardId)
             || (rewardId === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined);
         const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
@@ -6343,7 +6352,13 @@ export class BotLogic {
         let score = 0;
         if (normalReward) {
             const reward = normalReward as any;
-            score += (reward.vp ?? 0) * (game.roundNumber >= 5 ? 24 : 18);
+            // [flag: twilightVpLate] 사용자 관찰(2026-07-14): 12VP 보상은 사람은 R6 아니면 잘 안 집는데 봇이
+            // 재수령에서 너무 일찍 가져감 — 12×18=216이 R1부터 자원 보상(~100-180, 복리)을 압도하던 것.
+            // 순수 VP형(자원 없음)은 R4까지 ×8로 할인(자원 보상이 이기게), R5+엔 원래 가중(막판 VP 우위) 복귀.
+            const pureVp = (reward.vp ?? 0) > 0 && !(reward.ore || reward.credits || reward.knowledge || reward.qic || reward.powerTokens);
+            const vpLate = playerId ? getPlayerFlag(playerId, 'twilightVpLate', false) : false;
+            const vpW = game.roundNumber >= 5 ? 24 : (pureVp && vpLate ? 8 : 18);
+            score += (reward.vp ?? 0) * vpW;
             score += (reward.ore ?? 0) * 28;
             score += (reward.credits ?? 0) * 7;
             score += (reward.knowledge ?? 0) * 24;
