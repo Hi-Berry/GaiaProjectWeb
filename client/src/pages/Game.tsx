@@ -177,11 +177,12 @@ export default function Game() {
     const saved = localStorage.getItem('is-sidebar-open');
     return saved !== null ? saved === 'true' : true;
   });
-  const LOG_TEXT_SCALES = [1, 1.5, 2] as const;
-  const [logTextScale, setLogTextScale] = useState<(typeof LOG_TEXT_SCALES)[number]>(() => {
+  // [2026-07-14 사용자] 로그 배율: 프리셋(×100/150/200 버튼) → 볼륨바식 슬라이더(100%~300% 연속 조절)
+  const LOG_SCALE_MIN = 1, LOG_SCALE_MAX = 3;
+  const [logTextScale, setLogTextScale] = useState<number>(() => {
     const saved = localStorage.getItem('game-log-text-scale');
     const n = saved ? parseFloat(saved) : 1;
-    return LOG_TEXT_SCALES.includes(n as (typeof LOG_TEXT_SCALES)[number]) ? n as (typeof LOG_TEXT_SCALES)[number] : 1;
+    return Number.isFinite(n) ? Math.min(LOG_SCALE_MAX, Math.max(LOG_SCALE_MIN, n)) : 1;
   });
   // 데스크톱 사이드바 도킹 로그 높이(vh). 줄이면 플레이어 상태(4번째 등)가 더 보임.
   const LOG_DOCK_MIN_VH = 16;
@@ -5114,21 +5115,25 @@ export default function Game() {
                   {logToolsOpen ? <ChevronUp className="w-3 h-3 opacity-60" /> : <ChevronDown className="w-3 h-3 opacity-60" />}
                 </button>
                 <div className="flex items-center gap-1">
-                  {LOG_TEXT_SCALES.map((scale) => (
-                    <Button
-                      key={scale}
-                      type="button"
-                      variant={logTextScale === scale ? 'default' : 'outline'}
-                      size="sm"
-                      className={`h-6 px-1.5 text-[10px] font-black leading-none ${logTextScale === scale ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
-                      onClick={() => {
-                        setLogTextScale(scale);
-                        localStorage.setItem('game-log-text-scale', String(scale));
+                  {/* [2026-07-14 사용자] 로그 배율 슬라이더(볼륨바식): 100%~300% 연속 조절 */}
+                  <div className="flex items-center gap-1.5 px-1" title="로그 배율 (100%~300%)">
+                    <input
+                      type="range"
+                      min={LOG_SCALE_MIN}
+                      max={LOG_SCALE_MAX}
+                      step={0.05}
+                      value={logTextScale}
+                      onChange={(e) => {
+                        const v = Math.min(LOG_SCALE_MAX, Math.max(LOG_SCALE_MIN, parseFloat(e.target.value) || 1));
+                        setLogTextScale(v);
+                        localStorage.setItem('game-log-text-scale', String(v));
                       }}
-                    >
-                      *{scale * 100}
-                    </Button>
-                  ))}
+                      className="w-20 h-1.5 cursor-pointer accent-blue-500"
+                    />
+                    <span className="text-[10px] font-black text-zinc-300 tabular-nums w-9 text-right">
+                      {Math.round(logTextScale * 100)}%
+                    </span>
+                  </div>
                   {/* 로그창 높이 조절 (줄이면 플레이어 상태가 더 보임) */}
                   <div className="flex items-center ml-1 border-l border-white/10 pl-1">
                     <Button
