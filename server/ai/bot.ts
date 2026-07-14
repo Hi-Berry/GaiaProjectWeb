@@ -2699,7 +2699,7 @@ export class BotLogic {
         // [flag: firaksPiFunding] 파이락 엔진 자금 v2(직접-return v1은 −6.40 기각 — 병목은 후보 미생성=자금):
         // 사람은 R1-2에 TS→랩→PI(9O14C)를 변환으로 조달해 다운그레이드 엔진 가동(성공 판 186-220점).
         // 파이락 R≤2 + 랩 보유(firaksPiReady) 시 PI 광석 갭 변환 상한 2→4 — 후보만 존재시키고 선택은 MCTS.
-        const firaksPiGapCap = (getPlayerFlag(playerId, 'firaksPiFunding', false) && player.faction === 'firaks'
+        const firaksPiGapCap = (getPlayerFlag(playerId, 'firaksPiFunding', true) && player.faction === 'firaks'
             && round <= 2 && myStructures.some(t => t.structure === 'research_lab')) ? 4 : 2;
         const piOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 4 - ore), firaksPiGapCap) : null;
         if (((ore >= 4 && credits >= 6) || piOrePre) && !hasPI) {
@@ -4042,6 +4042,16 @@ export class BotLogic {
         // [flag: noBuildAdjFed] 사용자: 이미 닫힌 연방에 '딱 붙여' 새로 짓는 것도 아까움 — 연방은 형성 시 1회 점수라
         //   거기 건물을 보태도 이득 없고, 그 건물로 새 연방을 못 씀. 다른 곳(연방 비인접) 건설이 가능하면 그쪽으로.
         //   noInflateFed는 군집보너스만 0으로 깎아 MCTS가 무시 → 후보 필터로 '연방 인접' 후보를 제거(비인접 대안 있을 때만=결정적).
+        // [flag: firaksMineHold] 사람 파이락 실측(2026-07-14, 7석): R1 광산 0.29/석(6/7이 0개) — 자금을 전부
+        // TS(1.3/석)→랩(0.57)→PI(0.86)에 몰빵이 성공 공식(186-220점). 봇은 R1-2 광산 3.29/석 = 3O6C 누수로
+        // PI 자금 병목(firaksEngineRush 기각에서 규명). 사용자 처방 "광산 건설을 적당히" — PI 전 R≤2 광산 후보
+        // 일괄 감점(금지 아님: 미션/군집 초대박이면 MCTS가 여전히 선택 가능). 경제연구 강제는 사람 신호 약해(1/7) 보류.
+        if (getPlayerFlag(playerId, 'firaksMineHold', false) && player.faction === 'firaks'
+            && (game.roundNumber ?? 1) <= 2
+            && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+            for (const s of scored) s.score -= 260;
+        }
+
         if (getPlayerFlag(playerId, 'noBuildAdjFed', true)) {
             const fedHexes: string[] = (game as any).playerFederationHexes?.[playerId] || [];
             if (fedHexes.length > 0) {
