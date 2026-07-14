@@ -199,7 +199,12 @@ export default function Game() {
     try { return JSON.parse(localStorage.getItem(`player-color-overrides-${params.matchID}`) || '{}'); } catch { return {}; }
   });
   const [colorPickerFor, setColorPickerFor] = useState<string | null>(null);
-  const OVERRIDE_COLORS = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff'];
+  const OVERRIDE_COLORS = [
+    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
+    '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
+    '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#b91c1c',
+    '#ffffff', '#d4d4d8', '#78716c', '#facc15', '#4ade80', '#93c5fd',
+  ];
   const setPlayerColor = (pid: string, color: string | null) => {
     setPlayerColorOverrides(prev => {
       const next = { ...prev };

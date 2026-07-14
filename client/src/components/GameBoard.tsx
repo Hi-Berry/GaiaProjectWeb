@@ -165,14 +165,16 @@ const getDistance = (a: { q: number; r: number }, b: { q: number; r: number }) =
 };
 
 // 건물 렌더링 함수 - 새로 생성된 종족별 건물 PNG 에셋 적용
-const renderStructure = (structureType: StructureType, color: string, ownerColor?: string) => {
+const renderStructure = (structureType: StructureType, color: string, ownerColor?: string, outlineOverride?: string) => {
   // color 헥스코드(ownerColor 우선)로 원래 종족(행성) 이름을 역추적하여 파일명으로 활용
+  // [2026-07-14 사용자] outlineOverride: 건물 본체(이미지)는 종족색 유지, 외곽 글로우만 이 색으로 —
+  // 건물은 PNG(색이름_타입.png)라 임의 hex 본체 교체 불가(titanium 폴백=검게 보이던 버그의 원인).
   const targetColorHex = (ownerColor || color || '').toUpperCase();
 
   // 잊혀진 행성 광산: 전용 이미지(/map/lost_planet.png)를 칸 가운데 출력 + 외곽을 소유자(종족) 색으로 살짝 글로우
   if (structureType === 'lost_planet_mine') {
     const sizeL = 7;
-    const edgeColor = targetColorHex || '#888';
+    const edgeColor = outlineOverride || targetColorHex || '#888';
     return (
       <g transform={`translate(${-sizeL / 2}, ${-sizeL / 2})`}>
         <image
@@ -232,7 +234,10 @@ const renderStructure = (structureType: StructureType, color: string, ownerColor
           pointerEvents: 'none',
           // 색감 강한 맵에서 건물이 묻히는 문제 → 건물 모양을 따라가는 테두리.
           // 어두운 외곽선(밝은 행성에서 분리) + 옅은 흰 후광(어두운 행성에서 분리)으로 어떤 행성색에서도 도드라지게.
-          filter: 'drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.85px rgba(255,255,255,0.45))',
+          // [오버라이드] 색 겹침 대응: 외곽 후광을 사용자 지정 색으로 강조(본체 이미지는 종족색 그대로).
+          filter: outlineOverride
+            ? `drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.7px ${outlineOverride}) drop-shadow(0 0 0.7px ${outlineOverride}) drop-shadow(0 0 0.5px ${outlineOverride})`
+            : 'drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.22px rgba(0,0,0,0.95)) drop-shadow(0 0 0.85px rgba(255,255,255,0.45))',
         }}
       />
     </g>
@@ -1235,7 +1240,8 @@ export function GameBoard({
 
                 const owner = tile.ownerId ? game.players[tile.ownerId] : null;
                 const ownerFaction = (owner && owner.faction) ? FACTIONS.find(f => f.id === owner.faction) : null;
-                const structureColor = (tile.ownerId && colorOverrides?.[tile.ownerId]) || ownerFaction?.color || '#fff';
+                const structureColor = ownerFaction?.color || '#fff';
+                const structOutline = tile.ownerId ? colorOverrides?.[tile.ownerId] : undefined;
 
 
 
@@ -1411,7 +1417,7 @@ export function GameBoard({
                       );
                     })()}
 
-                    {hasStructure && renderStructure(tile.structure!, structureColor, (tile.ownerId && colorOverrides?.[tile.ownerId]) || ownerFaction?.color)}
+                    {hasStructure && renderStructure(tile.structure!, structureColor, ownerFaction?.color, structOutline)}
 
                     {/* 란티다 기생 광산 */}
                     {tile.parasiticMine && (() => {
@@ -1419,7 +1425,7 @@ export function GameBoard({
                       const parasiticFac = parasiticOwner?.faction ? FACTIONS.find(f => f.id === parasiticOwner.faction) : null;
                       return (
                         <g transform="translate(1.8, 1.8)">
-                          {renderStructure('mine', colorOverrides?.[tile.parasiticMine!.ownerId] || parasiticFac?.color || '#888')}
+                          {renderStructure('mine', parasiticFac?.color || '#888', undefined, colorOverrides?.[tile.parasiticMine!.ownerId])}
                         </g>
                       );
                     })()}
