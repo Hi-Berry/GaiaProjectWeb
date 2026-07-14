@@ -618,7 +618,12 @@ export class BotLogic {
                 // [flag: taklonsSpendIdleBrain] ★올바른 훅: 메인액션 후 턴종료 직전 = 브레인 idle이 실제 생기는 지점.
                 //   타클론 브레인이 bowl3에 놀고 있으면 3P→1O(useBrain)로 써서 재활용(매턴 쓰고 충전복귀=타클론 엔진, 사용자).
                 //   이전 시도는 pre-pass에만 넣어(패스때만) idle을 못 잡았음. 여기선 end_turn 전마다 발동 → 실제 idle 감소.
-                if (getPlayerFlag(playerId, 'taklonsSpendIdleBrain', false) && player.faction === 'taklons'
+                // [flag: taklonsBrainHuman] 사람게임 한정 브레인 순환(위 1910대 번들과 한 쌍 — 근거 동일).
+                // R6 제외: 종료정산(2026-07-13 룰)이 bowl3 브레인을 3C로 환산하므로 R6 지출(1O=구 3C 미만)은 손해.
+                const takBrainHumanIdle = getPlayerFlag(playerId, 'taklonsBrainHuman', true) && player.faction === 'taklons'
+                    && (game.roundNumber ?? 1) < 6
+                    && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+                if ((getPlayerFlag(playerId, 'taklonsSpendIdleBrain', false) || takBrainHumanIdle) && player.faction === 'taklons'
                     && player.brainStoneBowl === 3 && !player.brainStoneInGaia) {
                     log(`Bot ${player.name} taklonsSpendIdleBrain(turn-end): 브레인 3P→1O 재활용`, 'game', game.id);
                     return { type: 'convert_resource', params: { type: '3power-to-1ore', useBrain: true } };
@@ -1910,7 +1915,12 @@ export class BotLogic {
         // [flag: taklonsBrainBurn] 타클론 브레인스톤이 bowl2에 있으면 놀리지 말고 bowl3로 올려 활용(파워액션/1O·3C 변환).
         //   타클론 번(브레인 in 2): 일반토큰 1개 소모 + 브레인→bowl3. 평가기가 이미 브레인 bowl3(2.5)>bowl2(1.2)로 봐서
         //   후보만 열면 MCTS가 옮김(아이타 번과 같은 템플릿). 브레인 in 2 + bowl2 일반토큰 ≥1(번 성립) 조건.
-        if (getPlayerFlag(playerId, 'taklonsBrainBurn', false) && player.faction === 'taklons'
+        // [flag: taklonsBrainHuman] 셀프플레이 5차 전부 기각("브레인 아껴라")이나 사람 실측(2026-07-14, 6석)이
+        // 반증: 사람 B+T 번 6.2/석·VP 153 vs 봇 0.2/석·VP 58 — 사람 게임은 리치 풍부라 지출한 브레인이 재충전돼
+        // 순환 경제가 성립(셀프플레이는 충전 기근이라 측정 불가 사각지대 = humanPowerRace 동형). 사람게임 한정 발동.
+        const takBrainHuman = getPlayerFlag(playerId, 'taklonsBrainHuman', true) && player.faction === 'taklons'
+            && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length;
+        if ((getPlayerFlag(playerId, 'taklonsBrainBurn', false) || takBrainHuman) && player.faction === 'taklons'
             && player.brainStoneBowl === 2 && (player.power2 ?? 0) >= 1) {
             candidates.push({ type: 'burn_power', params: { moveBrainToBowl3: true } });
         }
