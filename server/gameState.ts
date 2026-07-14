@@ -8981,7 +8981,8 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	log(`Player ${player.name} placed Gaiaformer on Transdim, moved ${powerToMove} power tokens to Gaiaformer area${qicText}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	if (fromTFMars && isBonusGaia) {
-		addGameLog(game, playerId, 'Bonus: Gaia Project', 'Action completed', 'bonus-gaia');
+		// [로그 UI 2026-07-14 사용자] 'Action completed' 중복 로그 제거 — 바로 위 'Placed Gaiaformer' 전용
+		// 로그가 이미 배치를 표기(스킵 케이스의 'skipped'는 유일한 기록이라 유지).
 		game.hasDoneMainAction = true;
 	} else if (!fromTFMars) {
 		game.hasDoneMainAction = true;
