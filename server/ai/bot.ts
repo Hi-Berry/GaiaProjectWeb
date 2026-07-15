@@ -4961,7 +4961,7 @@ export class BotLogic {
             // 일회성 보상 대신 L4의 매라운드 수입(경제 2C2O2P≈28점/R, 과학 4K≈28점/R)이 '정지'되는
             // 트레이드인데 점수가 즉시보상+종료VP만 합산하고 정지분을 차감 안 함. 남은 징수 횟수만큼 차감
             // → R5+(잔여 수입 ≤1회)엔 자연히 원래대로 등정.
-            if (getPlayerFlag(playerId, 'ecoSciL5Late', false) && next === 5 && round < 5
+            if (getPlayerFlag(playerId, 'ecoSciL5Late', true) && next === 5 && round < 5
                 && (track === 'economy' || track === 'science')) {
                 score -= Math.max(0, 6 - round) * 28;
             }
