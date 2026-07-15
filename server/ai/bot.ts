@@ -2,6 +2,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import * as nodeFs from 'fs';
 import {
     ServerGameState,
+    isTrackLevel5Taken,
     executeBuildMine,
     executeFiraksDowngrade,
     executeUpgradeStructure,
@@ -821,6 +822,59 @@ export class BotLogic {
                 // 사람 파이락 루프 = 다운(무비용 연구 전진, 라운드 1회) ↔ TS→랩 재건(3O5C, 기술타일 재수확).
                 // 봇은 다운 후보만 있고(1.43/판) 재건 연결이 없어 루프 단절. ①다운 가능하면 최우선(연방 다음)
                 // ②다운 사용 후 랩 0 + 3O5C면 재건 직접-return. firaksEngineRush(-6.9)와 달리 후보가 실존하는 직접-return.
+                // [flag: advClaimDrive] 사용자 관찰(2026-07-15): R6에 12VP 연방 먹고 고급타일 자격이 생겼는데
+                // 안 먹음. 실측(120게임): 480석 중 222석(46%)이 '초록+L4+미클레임 adv' 상태로 종료(adv 보유 26석).
+                // 원인 = 클레임은 트리거(랩/아카 건설·리벨 3Q)의 기술타일 선택에서만 가능한데 R5-6에 트리거 부재.
+                // 자격+좋은 adv(≥60) 시 트리거 직접-return: ①리벨 3Q(탑승·미사용·3Q) ②랩 건설 ③아카 건설.
+                // 선택 단계의 adv 우선은 advTileAlways/OverL5가 이미 처리 — 여기선 문만 연다(순서강제 클래스).
+                // [사용자 보완 2026-07-15] 초록은 L4→5 승급에도 소모 — 초록 1개 + L5 후보 존재 시 adv가
+                // '정말 좋은 것'(≥85, advTileOverL5 기준)일 때만 트리거 강제, 아니면 L5에 양보.
+                // 반대로 adv 길이 없으면(점수 미달·트리거 부재) R6에 초록을 썩히지 말고 L5 직행.
+                if (process.env.ADVCLAIM_DIAG && !game.hasDoneMainAction && (game.roundNumber ?? 1) >= 5
+                    && countGreenFederations(player) >= 1) {
+                    try {
+                        const rebD = game.map.find(t => t.type === 'ship_rebellion');
+                        nodeFs.appendFileSync('data/advclaim-diag.jsonl', JSON.stringify({
+                            r: game.roundNumber, fac: player.faction, greens: countGreenFederations(player),
+                            adv: Math.round(this.bestClaimableAdvScore(game, playerId)),
+                            fed: candidates.some(c => c.type === 'form_federation'),
+                            lab: candidates.some(c => c.type === 'upgrade_structure' && (((c.params as any)?.target === 'research_lab') || String((c.params as any)?.target ?? '').startsWith('academy'))),
+                            reb: !!(rebD && (player.spaceshipsEntered ?? []).includes(rebD.id) && !(game.spaceships?.[rebD.id]?.usedActionIndices ?? []).includes(1) && (player.qic ?? 0) >= 3),
+                            l5: candidates.some(c => c.type === 'advance_research' && (player.research?.[(c.params as any)?.trackId as ResearchTrack] ?? 0) === 4),
+                            k: player.knowledge ?? 0, ore: player.ore ?? 0, cr: player.credits ?? 0,
+                        }) + '\n');
+                    } catch { /* diag only */ }
+                }
+                if (getPlayerFlag(playerId, 'advClaimDrive', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) >= 5
+                    && countGreenFederations(player) >= 1
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const greensAC = countGreenFederations(player);
+                    const advScoreAC = this.bestClaimableAdvScore(game, playerId);
+                    const l5Cand = candidates.find(c => c.type === 'advance_research'
+                        && (player.research?.[(c.params as any)?.trackId as ResearchTrack] ?? 0) === 4);
+                    const advWinsGreen = greensAC >= 2 || !l5Cand || advScoreAC >= 85;
+                    if (advScoreAC >= 60 && advWinsGreen) {
+                        const rebT2 = game.map.find(t => t.type === 'ship_rebellion');
+                        if (rebT2 && (player.spaceshipsEntered ?? []).includes(rebT2.id)
+                            && !(game.spaceships?.[rebT2.id]?.usedActionIndices ?? []).includes(1)
+                            && (player.qic ?? 0) >= 3) {
+                            log(`Bot ${player.name} advClaimDrive: 리벨 3Q 트리거 → 고급타일 클레임 (R${game.roundNumber})`, 'game', game.id);
+                            return { type: 'use_ship_action', params: { shipTileId: rebT2.id, actionIndex: 1 } };
+                        }
+                        const labTrig = candidates.find(c => c.type === 'upgrade_structure'
+                            && ((c.params as any)?.target === 'research_lab' || String((c.params as any)?.target ?? '').startsWith('academy')));
+                        if (labTrig) {
+                            log(`Bot ${player.name} advClaimDrive: ${(labTrig.params as any)?.target} 건설 트리거 → 고급타일 클레임 (R${game.roundNumber})`, 'game', game.id);
+                            return labTrig;
+                        }
+                        // 트리거 후보 부재 — 아래 L5 폴백으로
+                    }
+                    if (l5Cand && (game.roundNumber ?? 1) >= 6) {
+                        log(`Bot ${player.name} advClaimDrive: 초록→L5 승급 (${(l5Cand.params as any)?.trackId}, adv ${Math.round(advScoreAC)}점은 양보/불가, R${game.roundNumber})`, 'game', game.id);
+                        return l5Cand;
+                    }
+                }
                 // [flag: upgradeBeforeFed] 사용자 관찰(2026-07-15): 봇이 연방 형성 → 같은 라운드에 그 연방 안
                 // 건물을 업글 — 순서만 바꾸면(업글 먼저 → 파워값 상승 → 연방) 같은 연방을 위성 덜 쓰고 만듦.
                 // 계획된 연방에 포함될 타일의 업글 후보가 있고, what-if로 위성 절약이 확인되면 업글 선실행
@@ -4781,10 +4835,12 @@ export class BotLogic {
             const level = player.research[track] ?? 0;
             if (level >= 5) continue;
 
-            // 5단계 상승 시 연방 토큰 필요
+            // 5단계 상승 시 연방 토큰 필요 + L5 선점(트랙당 1명, 서버 1210행과 동일 룰) — 선점된 트랙을
+            // 후보로 내면 서버 거부 → 무진행 → 조기 패스(advClaimDrive v2 총행동 −3.6 사고의 원인).
             if (level === 4) {
                 const feds = getFederationEntries(player);
                 if (!feds.some(f => f.isGreen)) continue;
+                if (isTrackLevel5Taken(game, track, playerId)) continue;
             }
 
             const score = this.calculateResearchScore(game, player, playerId, track);

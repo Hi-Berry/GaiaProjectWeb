@@ -6883,7 +6883,7 @@ export function executeFiraksDowngrade(game: ServerGameState, playerId: string, 
 	return true;
 }
 
-function isTrackLevel5Taken(game: ServerGameState, track: ResearchTrack, excludePlayerId: string): boolean {
+export function isTrackLevel5Taken(game: ServerGameState, track: ResearchTrack, excludePlayerId: string): boolean {
 	return Object.entries(game.players).some(([pid, p]) => pid !== excludePlayerId && (p.research?.[track] ?? 0) >= 5);
 }
 
