@@ -825,21 +825,25 @@ export class BotLogic {
                 // 건물을 업글 — 순서만 바꾸면(업글 먼저 → 파워값 상승 → 연방) 같은 연방을 위성 덜 쓰고 만듦.
                 // 계획된 연방에 포함될 타일의 업글 후보가 있고, what-if로 위성 절약이 확인되면 업글 선실행
                 // (연방은 다음 턴 — 같은 라운드). 순서 교정 클래스(3연승 동형) + 정확 what-if라 추측 없음.
-                // [v2 2026-07-15] v1(-4.28 기각)의 결함 = 업글 가치 무확인: 비싼 아카/의회(6O6C)까지 위성 1개
-                // 아끼자고 강제. v2 = 사용자 묘사 케이스만 — 싼 광산→TS(2O3C, 파워 1→2)에 한정 + 절약 ≥1 확인.
-                if (getPlayerFlag(playerId, 'upgradeBeforeFed', false) && !game.hasDoneMainAction) {
+                // [v3 2026-07-15] v1(혼합 −4.28)·v2(광산→TS 한정 −5.28) 기각 — 단 의회/아카(TS→3파워) 셀은
+                // 후보 구성상 격리 측정된 적 없음(사용자 지적). v3 = 의회/아카 업글만 + 절약 확인 + 대상 로깅.
+                if (getPlayerFlag(playerId, 'upgradeBeforeFed', true) && !game.hasDoneMainAction) {
                     const fedCand = candidates.find(c => c.type === 'form_federation');
                     if (fedCand) {
                         const plannedIds = new Set<string>(((fedCand.params as any)?.selectedPlanetIds ?? []) as string[]);
-                        const upsInFed = candidates.filter(c => c.type === 'upgrade_structure'
-                            && plannedIds.has((c.params as any)?.tileId)
-                            && (c.params as any)?.target === 'trading_station');
-                        if (upsInFed.length > 0 && (player.ore ?? 0) >= 2 && (player.credits ?? 0) >= 3) {
+                        const upsInFed = candidates.filter(c => {
+                            if (c.type !== 'upgrade_structure' || !plannedIds.has((c.params as any)?.tileId)) return false;
+                            const t = String((c.params as any)?.target ?? '');
+                            return t === 'planetary_institute' || t.startsWith('academy');
+                        });
+                        if (upsInFed.length > 0) {
                             const beforeTok = this.getBestFederationSpentTokens(game, playerId);
                             for (const up of upsInFed) {
-                                const afterTok = this.getBestFederationSpentTokensAfterUpgrade(game, playerId, (up.params as any).tileId, 'trading_station');
+                                const tgtRaw = String((up.params as any)?.target ?? '');
+                                const tgt = (tgtRaw.startsWith('academy') ? 'academy' : 'planetary_institute') as 'academy' | 'planetary_institute';
+                                const afterTok = this.getBestFederationSpentTokensAfterUpgrade(game, playerId, (up.params as any).tileId, tgt);
                                 if (beforeTok != null && afterTok != null && afterTok < beforeTok) {
-                                    log(`Bot ${player.name} upgradeBeforeFed v2: 광산→TS 선실행(위성 ${beforeTok}→${afterTok}) 후 연방 (R${game.roundNumber})`, 'game', game.id);
+                                    log(`Bot ${player.name} upgradeBeforeFed v3: ${tgt} 선실행(위성 ${beforeTok}→${afterTok}) 후 연방 (R${game.roundNumber})`, 'game', game.id);
                                     return up;
                                 }
                             }
