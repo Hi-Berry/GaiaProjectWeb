@@ -6679,8 +6679,25 @@ export class BotLogic {
             if (rewardId === 'ship-fed-4vp1q2o') score += 42 + 2 * 28;
             if (rewardId === 'ship-fed-8vp8c') score += 8 * 7;
             if (rewardId === 'ship-fed-7vp3p2t') score += 3 * 18 + 2 * 28;
-            if (rewardId === 'ship-fed-mine-free') score += game.roundNumber <= 4 ? 220 : 90;
-            if (rewardId === 'ship-fed-3tf-mine') score += game.roundNumber <= 4 ? 260 : 110;
+            // [룰수정 2026-07-15] 사용자 관찰: 3TF 무료광산 보상을 받고 안 지음 — 닿는 건설 타깃이 0인데도
+            // 고정 가산(+260)으로 집던 것. 무료광산 계열은 what-if(플래그+삽 임시 세팅 → 후보 실존)로 확인해
+            // 타깃 0이면 가산 없이 다른 보상(VP/자원)이 이기게 한다(죽은 보상 회피, 5565행 ship-tech 동형).
+            if (rewardId === 'ship-fed-mine-free' || rewardId === 'ship-fed-3tf-mine') {
+                let mineUsable = true;
+                const pRw = playerId ? game.players[playerId] : null;
+                if (pRw) {
+                    const oldFedFree = pRw.spaceshipFed3TfMineFree, oldTechFree = pRw.nextMineFreeFromShipTech;
+                    const oldSteps = pRw.pendingTerraformSteps || 0;
+                    if (rewardId === 'ship-fed-3tf-mine') { pRw.spaceshipFed3TfMineFree = true; pRw.pendingTerraformSteps = oldSteps + 3; }
+                    else pRw.nextMineFreeFromShipTech = true;
+                    mineUsable = this.findBuildActionsWithPendingSteps(game, playerId!).length > 0;
+                    pRw.spaceshipFed3TfMineFree = oldFedFree; pRw.nextMineFreeFromShipTech = oldTechFree; pRw.pendingTerraformSteps = oldSteps;
+                }
+                if (mineUsable) {
+                    if (rewardId === 'ship-fed-mine-free') score += game.roundNumber <= 4 ? 220 : 90;
+                    else score += game.roundNumber <= 4 ? 260 : 110;
+                }
+            }
         }
 
         return score;
