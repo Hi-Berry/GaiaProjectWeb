@@ -3739,6 +3739,17 @@ export class BotLogic {
                 const isGleens = player.faction === 'gleens';
                 const gaiaBaseQic = alreadyFormed ? 0 : getGaiaBaseQic(player.faction || '');
                 const totalQicNeeded = (isGleens && !alreadyFormed) ? neededQicForRange : neededQicForRange + gaiaBaseQic;
+                // [flag: earlyGaiaQicCap] 사람 실측(2026-07-15, R1-2 가이아 광산): 사람 2QIC+ 7%(포머 경유 70%)
+                // vs 봇 44% — 초반 QIC 2개 전소 점프가 전게임 QIC 기아(리벨 3Q·타일·연방)의 상류(기보복기 1호).
+                // R1-2엔 총 QIC(기본+거리) 2+ 가이아 직접 건설 후보 미생성 — 포머 경유(0QIC)·1QIC는 그대로.
+                // [120판 curse 13호] 40판 +7.55 p=0.020 → 120판 −2.29 회귀(행동은 유지: 2Q+가이아 −0.50).
+                // 셀프플레이 메타에선 낭비 점프도 확장가치 > 차단(midTerraformGuard 교훈 계열) — 사람게임 한정
+                // (creditCapGuard 동일 프로필: 사람 실측 7% vs 봇 44%가 실게임 신호, QIC 대체 용처는 사람 경쟁 환경에 실재).
+                if (getPlayerFlag(playerId, 'earlyGaiaQicCap', true) && (game.roundNumber ?? 1) <= 2
+                    && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
+                    && !alreadyFormed && totalQicNeeded >= 2) {
+                    continue;
+                }
 
                 if (isGleens && !alreadyFormed) {
                     if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
