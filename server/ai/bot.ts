@@ -4902,6 +4902,18 @@ export class BotLogic {
             if (next === 5 && Object.entries(game.players).some(([pid, p]) => pid !== playerId && (p.research?.[track] ?? 0) >= 5)) {
                 return -1000;
             }
+            // [flag: researchFinishL3] 사용자 관찰("R3에 경제 한 칸 같은 걸 좋아함") + 실측(80점+ 좌석):
+            // 사람 L3+ 완주 4.0트랙 vs 봇 1.9트랙 — 봇도 4.5트랙을 건드리지만 (6-레벨) 공식의 새트랙 우대로
+            // L1-2 그루터기를 양산. 완주 가중: L1-2(다음 스텝이 임계 접근)는 가점, R2+에 미완주 트랙을 두고
+            // 새 트랙(L0) 시작은 감점 — 차단이 아닌 서열 교정(lateResearchMerit 차단식 −4.11과 구분).
+            if (getPlayerFlag(playerId, 'researchFinishL3', false)) {
+                if (level === 1 || level === 2) score += 25;
+                else if (level === 0 && round >= 2
+                    && (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const)
+                        .some(t => { const l = player.research?.[t] ?? 0; return l >= 1 && l <= 2; })) {
+                    score -= 30;
+                }
+            }
             // (A) 엔드게임 트랙 VP: 종료 시 L3/4/5 = 4/8/12점(절대). 스텝이 L3+ 넘으면 +4 확정VP — 라운드 무관.
             //   막라운드에 저트랙 한 칸 올려 L3 찍는 게 최고수(사용자 예: Nav1/Eco2 → 4K를 Eco에 = Eco3 = +4VP).
             const endVp = (l: number) => (l >= 5 ? 12 : l >= 4 ? 8 : l >= 3 ? 4 : 0);
