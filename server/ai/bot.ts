@@ -2425,6 +2425,22 @@ export class BotLogic {
             }
         }
 
+        // [flag: lantidsParasiteWindow] 사용자 지시(2026-07-15): 기생의 발판/가교 가치를 근사 점수로 넣지 말고
+        // 롤아웃이 직접 판정하게 하라. MCTS는 상위 TOP_N(8)만 롤아웃하므로 기생 후보가 9위 밖이면 체인 탐색
+        // 기회가 0 — 최고 기생 후보 1개를 창 안(4번째)으로 이동(점수 인플레 없음, 판정은 롤아웃+평가기 몫).
+        if (player.faction === 'lantids' && getPlayerFlag(playerId, 'lantidsParasiteWindow', true)) {
+            const isParasite = (c: BotAction) => {
+                if (c.type !== 'build_mine') return false;
+                const t = game.map.find(m => m.id === (c.params as any)?.tileId);
+                return !!(t && t.ownerId && t.ownerId !== playerId && t.structure);
+            };
+            const pIdx = uniqueCandidates.findIndex(isParasite);
+            if (pIdx >= 8) {
+                const [pCand] = uniqueCandidates.splice(pIdx, 1);
+                uniqueCandidates.splice(Math.min(4, uniqueCandidates.length), 0, pCand);
+            }
+        }
+
         // [flag: candReorder] 우주선/인공물/고급기술 후보를 앞으로 끌어올려 MCTS 롤아웃(candidates.slice(0,TOP_N))
         // starvation 완화. 고가치 연방(form_federation)은 맨 앞 유지, 나머지는 안정 정렬로 우선순위 버킷만 전진.
         if (getPlayerFlag(playerId, 'candReorder', false)) {
