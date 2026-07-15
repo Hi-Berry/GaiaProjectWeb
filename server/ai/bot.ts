@@ -821,6 +821,31 @@ export class BotLogic {
                 // 사람 파이락 루프 = 다운(무비용 연구 전진, 라운드 1회) ↔ TS→랩 재건(3O5C, 기술타일 재수확).
                 // 봇은 다운 후보만 있고(1.43/판) 재건 연결이 없어 루프 단절. ①다운 가능하면 최우선(연방 다음)
                 // ②다운 사용 후 랩 0 + 3O5C면 재건 직접-return. firaksEngineRush(-6.9)와 달리 후보가 실존하는 직접-return.
+                // [flag: upgradeBeforeFed] 사용자 관찰(2026-07-15): 봇이 연방 형성 → 같은 라운드에 그 연방 안
+                // 건물을 업글 — 순서만 바꾸면(업글 먼저 → 파워값 상승 → 연방) 같은 연방을 위성 덜 쓰고 만듦.
+                // 계획된 연방에 포함될 타일의 업글 후보가 있고, what-if로 위성 절약이 확인되면 업글 선실행
+                // (연방은 다음 턴 — 같은 라운드). 순서 교정 클래스(3연승 동형) + 정확 what-if라 추측 없음.
+                if (getPlayerFlag(playerId, 'upgradeBeforeFed', false) && !game.hasDoneMainAction) {
+                    const fedCand = candidates.find(c => c.type === 'form_federation');
+                    if (fedCand) {
+                        const plannedIds = new Set<string>(((fedCand.params as any)?.selectedPlanetIds ?? []) as string[]);
+                        const upsInFed = candidates.filter(c => c.type === 'upgrade_structure'
+                            && plannedIds.has((c.params as any)?.tileId)
+                            && ['trading_station', 'academy', 'planetary_institute'].includes(String((c.params as any)?.target ?? '').replace(/^academy_.*/, 'academy')));
+                        if (upsInFed.length > 0) {
+                            const beforeTok = this.getBestFederationSpentTokens(game, playerId);
+                            for (const up of upsInFed) {
+                                const tgtRaw = String((up.params as any)?.target ?? '');
+                                const tgt = (tgtRaw.startsWith('academy') ? 'academy' : tgtRaw) as 'trading_station' | 'academy' | 'planetary_institute';
+                                const afterTok = this.getBestFederationSpentTokensAfterUpgrade(game, playerId, (up.params as any).tileId, tgt);
+                                if (beforeTok != null && afterTok != null && afterTok < beforeTok) {
+                                    log(`Bot ${player.name} upgradeBeforeFed: 업글 선실행(위성 ${beforeTok}→${afterTok}) 후 연방 (R${game.roundNumber})`, 'game', game.id);
+                                    return up;
+                                }
+                            }
+                        }
+                    }
+                }
                 // [flag: firaksPiPriority] 사용자 목표(2026-07-15): PI 평균 R2 이하. 실측(ON 20석): 랩은 14/20이
                 // R1 완성인데 R2에 4O6C가 모여도 MCTS가 의회 대신 딴 걸 골라 R3-5로 밀림(지연 그룹과 R2 그룹의
                 // 차이는 오프닝이 아니라 'R2 의회 최우선' 여부뿐). 후보 실존+순서 강제 클래스(taklonsPowerFirst·
@@ -4932,6 +4957,14 @@ export class BotLogic {
             else if (track === 'economy' && next === 5) { o += 3; c += 6; pw += 6; }
             else if (track === 'science' && next === 5) kn += 9;
             score += q * 18 + o * 8 + c * 4 + pw * 4 + kn * 7;
+            // [flag: ecoSciL5Late] 사용자 관찰(2026-07-15): 경제/지식 꼭대기를 R5 이전에 먹어버림 — L5는
+            // 일회성 보상 대신 L4의 매라운드 수입(경제 2C2O2P≈28점/R, 과학 4K≈28점/R)이 '정지'되는
+            // 트레이드인데 점수가 즉시보상+종료VP만 합산하고 정지분을 차감 안 함. 남은 징수 횟수만큼 차감
+            // → R5+(잔여 수입 ≤1회)엔 자연히 원래대로 등정.
+            if (getPlayerFlag(playerId, 'ecoSciL5Late', false) && next === 5 && round < 5
+                && (track === 'economy' || track === 'science')) {
+                score -= Math.max(0, 6 - round) * 28;
+            }
             // (H) 이 트랙 위에 '좋은' 미보유 고급타일이 있으면, 그 타일 품질(scoreAdvancedTechTile)에 비례해
             //   L4 자격을 만드는 상승을 우대(사용자 지적: 좋은 고급타일 먹을 수 있어도 보너스가 없었음).
             //   청구엔 트랙 L4 + 초록연방 소모가 필요 → 초록연방 보유 시에만. 정액 +110/+30 근사(advTechChain·시너지)의 값-인지 대체.
