@@ -909,6 +909,21 @@ export class BotLogic {
                 // 차이는 오프닝이 아니라 'R2 의회 최우선' 여부뿐). 후보 실존+순서 강제 클래스(taklonsPowerFirst·
                 // firaksLoopDrive 2연승 동형): 의회 후보가 자금상 실존하면 직접-return. (firaksEngineRush −6.9는
                 // 후보 부재 상태의 랩 강제가 주범 — 이건 존재하는 의회 후보의 순서만 당김.)
+                // [flag: darkTsFirst] 사용자 관찰(2026-07-15): 다카니안이 R1에 광산만 3-4개 짓고 패스.
+                // 실측: R1 TS 확보율 다카니안 48% vs 타종족 94-100%, VP 최하위(74.5). 원인 = 7색 1스텝(2O 고정)
+                // 광산 후보가 많아 시작 7O를 광산에 전소(색행성 3O/개) → TS(2O6C) 불가 → 기술 엔진 미진입.
+                // 후보 실존+순서 강제: R1-2 & TS 0 & TS 업글 후보 실존 시 TS 직접-return(광산은 잔여 광석으로).
+                if (getPlayerFlag(playerId, 'darkTsFirst', true) && player.faction === 'darkanians'
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && getStructureCount(game, playerId, 'trading_station') === 0) {
+                    const tsFirst = this.findUpgradeActions(game, playerId)
+                        .find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'trading_station');
+                    if (tsFirst) {
+                        log(`Bot ${player.name} darkTsFirst: TS 최우선 (기술 엔진 진입, R${game.roundNumber})`, 'game', game.id);
+                        return tsFirst;
+                    }
+                }
                 // [flag: geodensPiAfterAcademy] 사용자 관찰(2026-07-15): 기오덴이 아카데미를 이미 지었으면
                 // 2번째 TS 업그레이드는 의회여야 하는데 연구소를 지음(랩→아카 라인 완료 후 2번째 랩은 가치 하락 —
                 // 의회 4O6C = 파워토큰·수입·연방파워3·종족능력). firaksPiPriority와 동형(후보 실존+순서 강제):
