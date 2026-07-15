@@ -3676,6 +3676,16 @@ export class BotLogic {
                     score += this.calculateAdjacencyBonus(game, playerId, tile);
                 }
 
+                // [flag: lantidsFedCluster] 진단(2026-07-15): lantids 연방 1.32 vs 상위권 2.45 — 기생 5.1개가
+                // 상대 클러스터 따라 흩어져 연방으로 안 묶임(최하위 68.9의 주범). 기각된 Push(상대 밀집 우대)와
+                // 반대로 '내 파워 클러스터 근접'(dist≤2 내 자산 수)을 우대 — 연방 묶임 가능한 기생만 가치.
+                if (getPlayerFlag(playerId, 'lantidsFedCluster', true)) {
+                    const nearbyOwn = game.map.filter(t =>
+                        t.id !== tile.id && getDistance(t, tile) <= 2
+                        && ((t.ownerId === playerId && t.structure) || t.parasiticMine?.ownerId === playerId)
+                    ).length;
+                    score += Math.min(120, nearbyOwn * 40) - (nearbyOwn === 0 ? 80 : 0);
+                }
                 // [flag: lantidsParasiticPush] 상대 밀집 지역(주변 dist≤2에 상대 건물 多)에 기생 우대 →
                 // 점프 한 번으로 이후 기생 타깃 다수 확보(사용자 모델: 밀집지역 의회+점프+기생4가 최상 스타트).
                 if (getPlayerFlag(playerId, 'lantidsParasiticPush', false)) {
