@@ -821,6 +821,23 @@ export class BotLogic {
                 // 사람 파이락 루프 = 다운(무비용 연구 전진, 라운드 1회) ↔ TS→랩 재건(3O5C, 기술타일 재수확).
                 // 봇은 다운 후보만 있고(1.43/판) 재건 연결이 없어 루프 단절. ①다운 가능하면 최우선(연방 다음)
                 // ②다운 사용 후 랩 0 + 3O5C면 재건 직접-return. firaksEngineRush(-6.9)와 달리 후보가 실존하는 직접-return.
+                // [flag: firaksPiPriority] 사용자 목표(2026-07-15): PI 평균 R2 이하. 실측(ON 20석): 랩은 14/20이
+                // R1 완성인데 R2에 4O6C가 모여도 MCTS가 의회 대신 딴 걸 골라 R3-5로 밀림(지연 그룹과 R2 그룹의
+                // 차이는 오프닝이 아니라 'R2 의회 최우선' 여부뿐). 후보 실존+순서 강제 클래스(taklonsPowerFirst·
+                // firaksLoopDrive 2연승 동형): 의회 후보가 자금상 실존하면 직접-return. (firaksEngineRush −6.9는
+                // 후보 부재 상태의 랩 강제가 주범 — 이건 존재하는 의회 후보의 순서만 당김.)
+                if (getPlayerFlag(playerId, 'firaksPiPriority', true) && player.faction === 'firaks'
+                    && !game.hasDoneMainAction
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
+                    && game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab')) {
+                    const piNow = this.findUpgradeActions(game, playerId)
+                        .find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'planetary_institute');
+                    if (piNow) {
+                        log(`Bot ${player.name} firaksPiPriority: 의회 최우선 (랩 보유, R${game.roundNumber}) — 다운그레이드 엔진 개통`, 'game', game.id);
+                        return piNow;
+                    }
+                }
                 if (getPlayerFlag(playerId, 'firaksLoopDrive', true) && player.faction === 'firaks'
                     && !game.hasDoneMainAction
                     && !candidates.some(c => c.type === 'form_federation')
