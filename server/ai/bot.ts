@@ -817,6 +817,30 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: firaksLoopDrive] 사용자 목표(2026-07-15): "매라운드 3O5C 재건하며 다운그레이드" —
+                // 사람 파이락 루프 = 다운(무비용 연구 전진, 라운드 1회) ↔ TS→랩 재건(3O5C, 기술타일 재수확).
+                // 봇은 다운 후보만 있고(1.43/판) 재건 연결이 없어 루프 단절. ①다운 가능하면 최우선(연방 다음)
+                // ②다운 사용 후 랩 0 + 3O5C면 재건 직접-return. firaksEngineRush(-6.9)와 달리 후보가 실존하는 직접-return.
+                if (getPlayerFlag(playerId, 'firaksLoopDrive', true) && player.faction === 'firaks'
+                    && !game.hasDoneMainAction
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+                    const fdLoop = this.findFiraksDowngradeAction(game, playerId);
+                    if (fdLoop) {
+                        log(`Bot ${player.name} firaksLoopDrive: 다운그레이드 (무비용 연구, R${game.roundNumber})`, 'game', game.id);
+                        return fdLoop;
+                    }
+                    if ((player.usedSpecialActions ?? []).includes('firaks-downgrade')
+                        && !game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab')
+                        && (player.ore ?? 0) >= 3 && (player.credits ?? 0) >= 5) {
+                        const labRebuild = this.findUpgradeActions(game, playerId)
+                            .find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'research_lab');
+                        if (labRebuild) {
+                            log(`Bot ${player.name} firaksLoopDrive: 랩 재건 3O5C (기술타일 재수확, R${game.roundNumber})`, 'game', game.id);
+                            return labRebuild;
+                        }
+                    }
+                }
                 // [flag: taklonsPowerFirst] 사용자 처방(2026-07-14): 순환 예측(6차 음수)이 안 되면 최소한
                 // '브레인 bowl3 + 파워액션 가능이면 그것부터'. 관찰: 브레인+1PW(=4파워) 두고 교역소 짓고
                 // 담턴에 파워액션 — 순서 교정은 자기 경제 중립이고 공유 슬롯 선점만 이득(순수 순서 손해 제거).
