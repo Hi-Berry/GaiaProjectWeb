@@ -5044,8 +5044,18 @@ export class BotLogic {
                 }
                 break;
             case 'science':
-                score += (6 - level) * 22; // 복구 및 상향 (12 -> 22)
-                if (round <= 3) score += 30; // 초반 과학은 엔진의 핵심
+                // [flag: sciIncomeScale] 사용자 관찰(2026-07-15): R6에 12K 들고 Eco1/Sci0 → Eco3+Sci2 만들고
+                // 패스 — Eco L4(+8VP)가 정답인데 과학 저레벨에 분산. 원인 = 경제는 '남은 징수 비례' 스케일이
+                // 들어갔는데(researchValueModel) 과학은 옛 고정 공식이라 R6 Sci0→1이 132점 = Eco3→4 종료보너스
+                // (+4VP=132)와 동점. 과학 지식수입도 남은 징수 0이면 가치 0 — 경제와 동일 스케일 적용.
+                if (getPlayerFlag(playerId, 'sciIncomeScale', true) && getPlayerFlag(playerId, 'researchValueModel', true)) {
+                    const remainingIncomesSci = Math.max(0, 6 - round);
+                    score += (6 - level) * 22 * (remainingIncomesSci / 5);
+                    if (round <= 3) score += 30;
+                } else {
+                    score += (6 - level) * 22; // 복구 및 상향 (12 -> 22)
+                    if (round <= 3) score += 30; // 초반 과학은 엔진의 핵심
+                }
                 if (level >= 3) score += 15;
                 break;
         }
