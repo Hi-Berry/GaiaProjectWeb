@@ -1052,7 +1052,7 @@ function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string
 	// 할인이 이른 라운드까지 물들임. 할인 취지 = '전환 못 하는 후반 출혈 차단' → 가드 ON이면 활용 라운드
 	// 3+ 남은 시점(≈R4 이전, 미패스)엔 할인 미적용.
 	if (getPlayerFlag(targetPlayerId, 'powerAcceptBudget', true)
-		&& (!getPlayerFlag(targetPlayerId, 'powerBudgetRoundGuard', false) || usefulRounds <= 2)) {
+		&& (!getPlayerFlag(targetPlayerId, 'powerBudgetRoundGuard', true) || usefulRounds <= 2)) {
 		const paidSoFar = player.scoreBreakdown?.powerReceived ?? 0;
 		if (paidSoFar >= 8) perPowerValue *= 0.6;
 	}
