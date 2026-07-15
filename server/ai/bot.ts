@@ -909,6 +909,22 @@ export class BotLogic {
                 // 차이는 오프닝이 아니라 'R2 의회 최우선' 여부뿐). 후보 실존+순서 강제 클래스(taklonsPowerFirst·
                 // firaksLoopDrive 2연승 동형): 의회 후보가 자금상 실존하면 직접-return. (firaksEngineRush −6.9는
                 // 후보 부재 상태의 랩 강제가 주범 — 이건 존재하는 의회 후보의 순서만 당김.)
+                // [flag: geodensPiAfterAcademy] 사용자 관찰(2026-07-15): 기오덴이 아카데미를 이미 지었으면
+                // 2번째 TS 업그레이드는 의회여야 하는데 연구소를 지음(랩→아카 라인 완료 후 2번째 랩은 가치 하락 —
+                // 의회 4O6C = 파워토큰·수입·연방파워3·종족능력). firaksPiPriority와 동형(후보 실존+순서 강제):
+                // 아카 보유 + 의회 미보유 + 의회 후보 실존 시 직접-return.
+                if (getPlayerFlag(playerId, 'geodensPiAfterAcademy', false) && player.faction === 'geodens'
+                    && !game.hasDoneMainAction
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
+                    && game.map.some(t => t.ownerId === playerId && t.structure === 'academy')) {
+                    const piGeo = this.findUpgradeActions(game, playerId)
+                        .find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'planetary_institute');
+                    if (piGeo) {
+                        log(`Bot ${player.name} geodensPiAfterAcademy: 의회 최우선 (아카 보유, R${game.roundNumber})`, 'game', game.id);
+                        return piGeo;
+                    }
+                }
                 if (getPlayerFlag(playerId, 'firaksPiPriority', true) && player.faction === 'firaks'
                     && !game.hasDoneMainAction
                     && !candidates.some(c => c.type === 'form_federation')
@@ -3820,6 +3836,16 @@ export class BotLogic {
                 if (getPlayerFlag(playerId, 'earlyGaiaQicCap', true) && (game.roundNumber ?? 1) <= 2
                     && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
                     && !alreadyFormed && totalQicNeeded >= 2) {
+                    continue;
+                }
+                // [flag: qicMineLabGate] 사용자 관찰(2026-07-15): "R1에 1QIC 광산 안 지으면 연구소 지을 수
+                // 있는데 계속 그걸 날리고 감" — 실측: R1-2 QIC 가이아 광산 봇 91% vs 사람 48%, 'QIC광산 짓고
+                // R2까지 랩 없음' 봇 13% vs 사람 4%. 연구소 라인 미완(랩 0 + TS 보유 = 랩 업글이 다음 수)인
+                // 동안 QIC 소모 가이아 직건 후보 제외 — 랩 완성 후엔 해제(사람도 48%는 지음). 포머 경유(0QIC) 무관.
+                if (getPlayerFlag(playerId, 'qicMineLabGate', true) && (game.roundNumber ?? 1) <= 2
+                    && !alreadyFormed && totalQicNeeded >= 1
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab')
+                    && game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) {
                     continue;
                 }
 
