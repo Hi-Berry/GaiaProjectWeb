@@ -913,7 +913,7 @@ export class BotLogic {
                 // 2번째 TS 업그레이드는 의회여야 하는데 연구소를 지음(랩→아카 라인 완료 후 2번째 랩은 가치 하락 —
                 // 의회 4O6C = 파워토큰·수입·연방파워3·종족능력). firaksPiPriority와 동형(후보 실존+순서 강제):
                 // 아카 보유 + 의회 미보유 + 의회 후보 실존 시 직접-return.
-                if (getPlayerFlag(playerId, 'geodensPiAfterAcademy', false) && player.faction === 'geodens'
+                if (getPlayerFlag(playerId, 'geodensPiAfterAcademy', true) && player.faction === 'geodens'
                     && !game.hasDoneMainAction
                     && !candidates.some(c => c.type === 'form_federation')
                     && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
@@ -5988,9 +5988,15 @@ export class BotLogic {
                     // gain-1-step(3P)을 쓰도록 후보에서 제외(score<0 → 필터됨)하여 5P 낭비 방지.
                     const opensExtra = tfTiles2.some((tid: string) => !tfTiles1.has(tid));
                     const gain1Available = game.powerActions.some(a => a.id === 'gain-1-step' && !a.isUsed);
+                    // [룰수정 2026-07-15] 사용자 관찰(타클론): 부스터 1TF가 미사용인데 3P 삽이 소진됐다고 5P 2삽
+                    // 폴백으로 1스텝 땅을 지음 — 공짜 부스터 삽이 같은 일을 하므로 지배당하는 낭비. 부스터 1TF가
+                    // 살아 있고 1스텝 목표가 있으면(tfTiles1) 5P 폴백 금지(부스터 콤보 tfBonusCombo가 그 빌드를 담당).
+                    const boosterTfFree = !player.usedBonusAction && !player.rangeBonusActive
+                        && ALL_BONUS_TILES.find(t => t.id === player.bonusTile)?.specialAction === 'terraform_step'
+                        && tfTiles1.size > 0;
                     // 2스텝 필요 타일(opensExtra)이 있으면 1스텝 땅 유무와 무관하게 5P 제공.
-                    // 1스텝 땅만 있으면 3P(gain-1-step)를 우선하고, 3P가 소진돼 없을 때만 5P를 폴백으로 허용.
-                    if (!usesTerraforming || (!opensExtra && gain1Available)) {
+                    // 1스텝 땅만 있으면 3P(gain-1-step)·공짜 부스터 1TF를 우선, 둘 다 없을 때만 5P를 폴백으로 허용.
+                    if (!usesTerraforming || (!opensExtra && (gain1Available || boosterTfFree))) {
                         score = -1000;
                     } else {
                         score = 180; // 유저 피드백: Geodens/Xenos 외엔 잘 안씀
