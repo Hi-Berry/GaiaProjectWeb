@@ -2177,8 +2177,23 @@ export class BotLogic {
             // 쓸 수 있는' 상황에서만 후보로(그 외엔 나중에 조건 갖추면 자연히 후보 복귀).
             const gaiaGate = getPlayerFlag(playerId, 'gaiaResearchUseGate', true)
                 && !this.gaiaResearchUsable(game, playerId);
+            // [flag: lateLowStepGate] 사용자 관찰(2026-07-15, 재보고): "R3-4에 경제 한칸 올리고 더는 안 올림" —
+            // 실측: 고립 경제1칸(1회·최종≤2) 봇 33% vs 사람 3%(사람은 0 아니면 L4-5 쌍봉), 전원 4K 유료·R5-6 집중.
+            // 경제/과학 L≤1→≤2는 수입 전용인데 남은 징수 0-2회면 4K 대비 순손실 + 종료보너스(L3+) 미달 그루터기.
+            // researchFinishL3(점수 nudge, 무시당함·기각)와 달리 유료 후보 생성에서 하드 제외(가이아게이트 동형).
+            // 미션 예외 없음(사용자 2026-07-15): 연구미션 +2VP는 트랙 불문 — 더 나은 트랙을 올려도 받으므로
+            // 저가치 스텝의 정당화가 못 됨.
+            // [v2] R4+ 일괄 차단은 120판 VP −1.59(승률 51.8%, 40판 −1.80과 방향 일관) — R4는 징수 2회 남아
+            // 수입가치 실재 추정 → R5+(징수 0-1회, 근사 순수 소각 셀)로 축소.
+            const lowStepGate = (track: ResearchTrack): boolean => {
+                if (!getPlayerFlag(playerId, 'lateLowStepGate', false)) return false;
+                if (track !== 'economy' && track !== 'science') return false;
+                if ((game.roundNumber ?? 1) < 5) return false;
+                return (player.research[track] ?? 0) + 1 <= 2;
+            };
             for (const track of tracks) {
                 if (gaiaGate && track === 'gaiaProject' && (player.research.gaiaProject ?? 0) === 0) continue;
+                if (lowStepGate(track)) continue;
                 candidates.push(this.advanceResearchAction(playerId, player, track));
             }
             // [flag: allTracksResearch] per-candidate 데이터(18게임): 사람 연구수의 81%(52/64)가 지식 충분한데
@@ -2191,9 +2206,12 @@ export class BotLogic {
                     const lvl = player.research[track] ?? 0;
                     if (lvl >= 5) continue;
                     if (lvl === 4 && !getFederationEntries(player).some(f => f.isGreen)) continue;
+                    // L5 선점 체크 — pickResearchTracks와 동일 룰(서버 1210행 정합, 유령 후보 방지)
+                    if (lvl === 4 && isTrackLevel5Taken(game, track, playerId)) continue;
                     if (player.faction === 'bal_tak' && track === 'navigation'
                         && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) continue;
                     if (gaiaGate && track === 'gaiaProject' && lvl === 0) continue; // [flag: gaiaResearchUseGate]
+                    if (lowStepGate(track)) continue; // [flag: lateLowStepGate] 동일 게이트(이 경로도 유료 후보)
                     // [flag: lateResearchMerit] 이 경로는 점수를 안 봐서 R6 저메리트 상승이 그대로 후보화 — 동일 게이트
                     if (getPlayerFlag(playerId, 'lateResearchMerit', false)
                         && this.calculateResearchScore(game, player, playerId, track) <= -500) continue;
