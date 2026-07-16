@@ -924,6 +924,21 @@ export class BotLogic {
                         return tsFirst;
                     }
                 }
+                // [flag: taklonsPiCommit] 실측(2026-07-16): 봇 타클론 49석 중 21석(43%)이 PI 미건설(사람 6/6 건설,
+                // 평균 R4.3). 타이밍이 아니라 커밋 자체가 문제 — 자금이 생겨도 MCTS가 계속 딴 걸 골라 영영 밀림.
+                // PI = 토큰수입+브레인 엔진 강화라 타클론 필수 건물. firaksPiPriority 동형: R≤4 & PI 미보유 &
+                // PI 후보 실존(자금 포함) 시 직접-return.
+                if (getPlayerFlag(playerId, 'taklonsPiCommit', false) && player.faction === 'taklons'
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 4
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+                    const piTak = this.findUpgradeActions(game, playerId)
+                        .find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'planetary_institute');
+                    if (piTak) {
+                        log(`Bot ${player.name} taklonsPiCommit: 의회 최우선 (R${game.roundNumber}) — 브레인 엔진 커밋`, 'game', game.id);
+                        return piTak;
+                    }
+                }
                 // [flag: geodensPiAfterAcademy] 사용자 관찰(2026-07-15): 기오덴이 아카데미를 이미 지었으면
                 // 2번째 TS 업그레이드는 의회여야 하는데 연구소를 지음(랩→아카 라인 완료 후 2번째 랩은 가치 하락 —
                 // 의회 4O6C = 파워토큰·수입·연방파워3·종족능력). firaksPiPriority와 동형(후보 실존+순서 강제):
