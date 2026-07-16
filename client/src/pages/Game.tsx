@@ -123,6 +123,21 @@ export default function Game() {
   const [game, setGame] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(gameId ? getStoredPlayerId(gameId) : null);
   const [isSpectator, setIsSpectator] = useState(false);
+  // [다른 기기 이어하기] 방 한정 이름/비번으로 좌석 복귀 폼 상태
+  const [rejoinName, setRejoinName] = useState(() => localStorage.getItem('gaia-playerName') || '');
+  const [rejoinPw, setRejoinPw] = useState('');
+  const [rejoinMsg, setRejoinMsg] = useState('');
+  const handleAccountRejoin = async () => {
+    if (!gameId || !rejoinName.trim() || !rejoinPw) { setRejoinMsg('이름과 비밀번호를 입력하세요.'); return; }
+    try {
+      const res = await GameClient.accountRejoin(gameId, rejoinName.trim(), rejoinPw);
+      storePlayerId(gameId, res.playerId);
+      localStorage.setItem('gaia-playerName', rejoinName.trim());
+      window.location.reload(); // 저장된 playerId로 정상 재접속 부트
+    } catch (e: any) {
+      setRejoinMsg(e?.message || '이어하기에 실패했습니다.');
+    }
+  };
   const [pendingAction, setPendingAction] = useState<PotentialAction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2223,6 +2238,27 @@ export default function Game() {
           >
             나가기
           </Button>
+        </div>,
+        document.body
+      )}
+
+      {/* [다른 기기 이어하기] 좌석도 관전 ID도 없는 기기에서 게임을 열면, 방 한정 이름/비번으로 내 좌석 복귀 */}
+      {!playerId && !isSpectator && !loading && game && String(game.currentPhase) !== 'lobby' && typeof document !== 'undefined' && createPortal(
+        <div className="fixed left-1/2 top-16 z-[130] w-[min(92vw,20rem)] -translate-x-1/2 rounded-xl border border-emerald-400/30 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur-md">
+          <div className="mb-1 text-xs font-black text-emerald-300">내 자리로 이어하기</div>
+          <div className="mb-2 text-[10px] leading-snug text-zinc-500">참가할 때 쓴 이름과 (이 방 한정) 비밀번호를 입력하세요. 비밀번호를 안 걸었다면 원래 기기에서만 조작할 수 있습니다.</div>
+          <input value={rejoinName} onChange={(e) => setRejoinName(e.target.value)} placeholder="이름"
+            className="mb-1.5 w-full rounded border border-white/10 bg-zinc-900/70 px-2 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-emerald-500/60 focus:outline-none" />
+          <input type="password" value={rejoinPw} onChange={(e) => setRejoinPw(e.target.value)} placeholder="비밀번호"
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleAccountRejoin(); }}
+            className="mb-2 w-full rounded border border-white/10 bg-zinc-900/70 px-2 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-emerald-500/60 focus:outline-none" />
+          {rejoinMsg && <div className="mb-2 text-[10px] text-red-400">{rejoinMsg}</div>}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void handleAccountRejoin()}
+              className="flex-1 rounded border border-emerald-400/40 bg-emerald-500/20 px-2 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/30">이어하기</button>
+            <button type="button" onClick={() => setLocation('/')}
+              className="rounded border border-white/10 bg-zinc-800/60 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700/60">로비로</button>
+          </div>
         </div>,
         document.body
       )}

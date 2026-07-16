@@ -5,6 +5,7 @@ import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './index';
+import { setSeatPassword, findSeatByPassword } from './accounts';
 import { StateCloner } from './ai/stateCloner';
 import type {
 	GaiaGameState,
@@ -2640,9 +2641,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback({ games: gameList });
 		});
 
-		socket.on('create_game', ({ playerName }, callback) => {
+		socket.on('create_game', ({ playerName, password }, callback) => {
 			const gameId = generateGameId();
 			const playerId = generatePlayerId();
+			// [방 한정 좌석 비번(선택)] 방장 좌석도 다른 기기 이어하기 지원
+			if (password) setSeatPassword(gameId, playerId, playerName, password);
 
 			// Shuffle bonus tiles
 			const shuffledBonusTiles = [...ALL_BONUS_TILES].sort(() => Math.random() - 0.5);
@@ -2777,7 +2780,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback({ gameId, playerId, game });
 		});
 
-		socket.on('join_game', ({ gameId, playerName }, callback) => {
+		socket.on('join_game', ({ gameId, playerName, password }, callback) => {
 			const game = games.get(gameId);
 			if (!game || Object.keys(game.players).length >= game.maxPlayers || game.currentPhase !== 'lobby') {
 				callback({ error: 'Cannot join game' }); return;
@@ -2787,9 +2790,22 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.turnOrder.push(playerId);
 			playerGameMap.set(playerId, gameId);
 			socketToPlayerMap.set(socket.id, playerId);
+			// [방 한정 좌석 비번(선택)] 걸어두면 다른 기기에서 같은 방 + 같은 이름/비번으로 이 좌석에 복귀 가능
+			if (password) setSeatPassword(gameId, playerId, playerName, password);
 			socket.join(gameId);
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 			callback({ gameId, playerId, game });
+		});
+
+		/** 다른 기기에서 이름/비번으로 좌석 복귀 (방 한정 일회용 비번) — playerId를 돌려주면
+		 *  클라이언트가 localStorage에 심고 rejoin_game으로 정상 재접속. */
+		socket.on('account_rejoin', ({ gameId, playerName, password }, callback) => {
+			const game = games.get(gameId);
+			if (!game) { callback({ error: '게임을 찾을 수 없습니다.' }); return; }
+			if (!password) { callback({ error: '비밀번호를 입력하세요.' }); return; }
+			const seatId = findSeatByPassword(gameId, playerName, password);
+			if (!seatId || !game.players[seatId]) { callback({ error: '이름/비밀번호가 맞는 자리가 없습니다 (참가할 때 비밀번호를 걸었어야 합니다).' }); return; }
+			callback({ gameId, playerId: seatId, playerName: game.players[seatId].name });
 		});
 
 		/** 방장 전용: 플레이어 슬롯 추가 (한 컴퓨터에서 교대로 조작하는 4인플용) */

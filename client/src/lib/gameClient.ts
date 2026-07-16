@@ -71,20 +71,31 @@ export const GameClient = {
     });
   },
 
-  createGame(playerName: string): Promise<{ gameId: string; playerId: string; game: GameState }> {
+  createGame(playerName: string, password?: string): Promise<{ gameId: string; playerId: string; game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('create_game', { playerName }, (response: any) => {
+      s.emit('create_game', { playerName, password: password || undefined }, (response: any) => {
         if (response.error) reject(new Error(response.error));
         else resolve(response);
       });
     });
   },
 
-  joinGame(gameId: string, playerName: string): Promise<{ gameId: string; playerId: string; game: GameState }> {
+  joinGame(gameId: string, playerName: string, password?: string): Promise<{ gameId: string; playerId: string; game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('join_game', { gameId, playerName }, (response: any) => {
+      s.emit('join_game', { gameId, playerName, password: password || undefined }, (response: any) => {
+        if (response.error) reject(new Error(response.error));
+        else resolve(response);
+      });
+    });
+  },
+
+  /** 방 한정 이름/비번으로 좌석 복귀(다른 기기 이어하기) — 참가 시 비번을 걸었던 좌석의 playerId를 받는다 */
+  accountRejoin(gameId: string, playerName: string, password: string): Promise<{ gameId: string; playerId: string; playerName: string }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('account_rejoin', { gameId, playerName, password }, (response: any) => {
         if (response.error) reject(new Error(response.error));
         else resolve(response);
       });

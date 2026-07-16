@@ -46,6 +46,7 @@ export default function Lobby() {
   const [joining, setJoining] = useState<string | null>(null);
   const [watching, setWatching] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('gaia-playerName') || '');
+  const [joinPassword, setJoinPassword] = useState(''); // 방 한정 좌석 비번(선택) — 다른 기기 이어하기용
   const [connected, setConnected] = useState(false);
   const { toast } = useToast();
 
@@ -110,7 +111,7 @@ export default function Lobby() {
       setCreating(true);
       localStorage.setItem('gaia-playerName', playerName);
 
-      const { gameId, playerId } = await GameClient.createGame(playerName);
+      const { gameId, playerId } = await GameClient.createGame(playerName, joinPassword.trim() || undefined);
 
       localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
 
@@ -146,7 +147,7 @@ export default function Lobby() {
       setJoining(gameId);
       localStorage.setItem('gaia-playerName', playerName);
 
-      const { playerId } = await GameClient.joinGame(gameId, playerName);
+      const { playerId } = await GameClient.joinGame(gameId, playerName, joinPassword.trim() || undefined);
 
       localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
 
@@ -221,6 +222,14 @@ export default function Lobby() {
                 className="flex-1"
                 data-testid="input-player-name"
               />
+              <Input
+                type="password"
+                placeholder="비밀번호 (선택)"
+                value={joinPassword}
+                onChange={(e) => setJoinPassword(e.target.value)}
+                className="w-40"
+                data-testid="input-join-password"
+              />
               <Button
                 onClick={handleCreateGame}
                 disabled={creating || !playerName.trim() || !connected}
@@ -229,6 +238,9 @@ export default function Lobby() {
                 <Plus className="w-4 h-4 mr-2" />
                 {creating ? 'Creating...' : 'Create Game'}
               </Button>
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              비밀번호를 걸어두면 다른 기기(폰 등)에서 같은 방에 같은 이름/비밀번호로 이어할 수 있습니다 — 이 방에서만 쓰는 일회용 비밀번호입니다.
             </div>
           </CardContent>
         </Card>
