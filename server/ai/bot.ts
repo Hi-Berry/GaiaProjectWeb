@@ -5060,6 +5060,15 @@ export class BotLogic {
                 break;
             case 'gaiaProject':
                 score += (6 - level) * 8;
+                // [flag: gaiaThroughput] 실측(2026-07-16): 가이아연구 L1 그루터기 46%(110/240석), 가이아광산
+                // 봇 1.39 vs 사람 3.08 — 행성 수 = 연방 재료('연방 3개 기본'의 상류). 원인 = 기본 배수 8이
+                // 경제(20)/과학(22)의 1/3이라 진입(게이트) 후 심화가 항상 경쟁 탈락. 포머 엔진이 실가동 가능
+                // (사거리 내 배치가능 트랜스딤 — 게이트와 동일 판정)할 때만 심화(L1→4)를 수입트랙급으로 상향,
+                // 남은 라운드 비례(막판 심화는 무가치).
+                if (getPlayerFlag(playerId, 'gaiaThroughput', false) && level >= 1 && level <= 3
+                    && round <= 4 && this.gaiaResearchUsable(game, playerId)) {
+                    score += 12 * (6 - level) * (Math.max(0, 6 - round) / 5);
+                }
                 if (faction === 'terran' || faction === 'itars') score += 40;
                 // [사용자 피드백] 발타크는 가이아포머가 곧 QIC(거리 및 가이아행성 확장력)이므로 가이아 포머 트랙을 최우선으로 올림
                 if (faction === 'bal_tak') score += 120;
