@@ -316,15 +316,52 @@ function TechViewSelector() {
   );
 }
 
+/** 다른 기기로 이어하기: 좌석 소유권(localStorage playerId)을 ?as= 링크로 옮긴다 (Game.tsx의 파라미터 처리와 한 쌍) */
+function ContinueOnDeviceSection({ gameId, playerId }: { gameId: string; playerId: string }) {
+  const [msg, setMsg] = useState('');
+  const link = `${window.location.origin}/game/${gameId}?as=${playerId}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setMsg('복사됐습니다 — 폰/다른 기기 브라우저에 붙여넣어 열면 이 자리 그대로 이어집니다.');
+    } catch {
+      setMsg(link); // 클립보드 불가(비보안 컨텍스트 등) 시 링크 자체를 표시
+    }
+  };
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-400">
+        다른 기기로 이어하기
+      </h3>
+      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold text-zinc-200">이어하기 링크 복사</div>
+          <div className="text-[9px] leading-snug break-all text-zinc-500">
+            {msg || '컴퓨터↔폰 이동용. 링크를 아는 사람은 이 자리를 조작할 수 있으니 같이 하는 사람에게만 공유하세요.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={copy}
+          className="shrink-0 rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-200 hover:bg-emerald-500/25"
+        >
+          링크 복사
+        </button>
+      </div>
+    </section>
+  );
+}
+
 interface GameUiHelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   gameId?: string;
+  playerId?: string | null;
   showTaklonsBrain?: boolean;
   taklonsBrainPriority?: boolean;
 }
 
-export function GameUiHelpDialog({ open, onOpenChange, gameId, showTaklonsBrain, taklonsBrainPriority }: GameUiHelpDialogProps) {
+export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTaklonsBrain, taklonsBrainPriority }: GameUiHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100">
@@ -341,6 +378,7 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, showTaklonsBrain,
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
           <div className="hidden md:block"><NotifyToggle /></div>
           <div className="md:hidden"><TechViewSelector /></div>
+          {gameId && playerId && <ContinueOnDeviceSection gameId={gameId} playerId={playerId} />}
           <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
             <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 / 종족</h3>
             <div className="flex items-center justify-between gap-3 px-2 py-1.5">

@@ -1675,7 +1675,7 @@ export function GameBoard({
           </div>
         </div>
 
-        <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} />
+        <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} />
 
       </div>
 

@@ -110,6 +110,16 @@ export default function Game() {
   const { toast } = useToast();
 
   const gameId = params.matchID;
+  // [다른 기기로 이어하기] ?as=<playerId> — 좌석 소유권이 localStorage 귀속이라 기기 이동이 불가하던 것을,
+  // 링크에 playerId를 실어 처음 여는 기기의 localStorage에 심는 방식으로 해결(도움말의 '이어하기 링크 복사'와 한 쌍).
+  // 주소창에서는 즉시 제거(북마크/공유 시 재노출 방지).
+  if (gameId && typeof window !== 'undefined') {
+    const asId = new URLSearchParams(window.location.search).get('as');
+    if (asId) {
+      storePlayerId(gameId, asId);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }
   const [game, setGame] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(gameId ? getStoredPlayerId(gameId) : null);
   const [isSpectator, setIsSpectator] = useState(false);
