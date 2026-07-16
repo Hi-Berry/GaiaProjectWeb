@@ -58,6 +58,7 @@ const HELP_COLUMNS: HelpSection[][] = [
       items: [
         { label: '보너스', description: '패스 후 선택 패널' },
         { label: '로그', description: '모바일: 우하단 버튼으로 상태창↔로그 토글' },
+        { label: '로그%', description: '로그창 상단 슬라이더로 글자 크기 100~300%' },
         { label: '미니창', description: '핀·드래그·리사이즈' },
         { label: 'Income', description: '수익 선택' },
       ],
@@ -92,6 +93,7 @@ const HELP_COLUMNS: HelpSection[][] = [
       title: '오른쪽 상태창',
       items: [
         { label: '클릭', description: '연방·기술·스페셜' },
+        { label: '색상●', description: '이름 옆 동그라미 클릭 — 건물·위성 색 변경 (기본값 복원 가능, 내 화면만)' },
         { label: '우클릭', description: '프리액션 자원 변환 O→C·K→C·Q→O' },
         { label: 'hover', description: '맵 강조' },
         { label: '드래그', description: '너비 조절' },
