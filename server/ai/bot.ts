@@ -2812,7 +2812,15 @@ export class BotLogic {
                 : undefined;
             const tsList = myStructures.filter(t => t.structure === 'trading_station');
             const labCount = labCountNow;
+            // [flag: labSpread] 사용자 관찰(2026-07-16): "건설할 때 연구소 3개가 딱 붙어있는 경우가 너무 흔함" —
+            // 랩 트리플 클러스터는 연방 하나에 통째로 묶여 아카 씨앗·다음 연방 씨앗이 소멸(fedLabKeepOut의 상류).
+            // 기존 랩 2+개와 dist≤2로 붙는 TS는, 덜 붙는 대안 TS가 있으면 랩 후보에서 제외(하드 필터).
+            const labSpreadOn = getPlayerFlag(playerId, 'labSpread', false);
+            const existingLabs = labSpreadOn ? myStructures.filter(t => t.structure === 'research_lab') : [];
+            const labsNear = (t: { q?: number, r?: number }) => existingLabs.filter(l => getDistance(l as any, t as any) <= 2).length;
             for (const ts of tsList) {
+                if (labSpreadOn && existingLabs.length >= 2 && labsNear(ts) >= 2
+                    && tsList.some(o => o.id !== ts.id && labsNear(o) < 2)) continue;
                 // 연구소는 최소 1개는 필요(기술 타일 + 트랙 전진으로 확장 가능해짐).
                 // 다만 광산 기반 없이 너무 빨리 뛰면 망하므로 "첫 연구소"만 완화된 조건으로 허용.
                 const isFirstLab = labCount === 0;

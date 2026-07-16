@@ -158,7 +158,19 @@ export class FederationPlanner {
                 const seeds = this.cannibalizedSeedCount(game, playerId, result.selectedPlanetIds, requiredPower);
                 cannibalPenalty = seeds * 140;
             }
-            const score = rewardScore - satCost - cannibalPenalty;
+            // [flag: fedLabKeepOut] 사용자 룰(2026-07-16): "연방할 때 랩 3개를 다 묶으면 나중에 아카 업글이 손해."
+            // 연방에 묶인 랩은 ①아카 업글 시 +1pw가 완성 연방 안에서 증발 ②noFedTierUp 필터가 연방 랩→아카를
+            // 후보에서 제외해 아카 경로가 R6까지 봉쇄됨. 플랜 대안 중 랩을 덜 포함하는 구성을 선호(개당 −70,
+            // 위성 2~4개 추가 감수 수준의 소프트 페널티 — 랩이 7파워에 필수면 보상이 커버). R6은 미래 업글 없어 미적용.
+            let labLockPenalty = 0;
+            if (getPlayerFlag(playerId, 'fedLabKeepOut', true) && round < 6) {
+                const labsIn = result.selectedPlanetIds.filter(id => {
+                    const t = game.map.find(m => m.id === id);
+                    return t?.ownerId === playerId && t.structure === 'research_lab';
+                }).length;
+                labLockPenalty = labsIn * 70;
+            }
+            const score = rewardScore - satCost - cannibalPenalty - labLockPenalty;
             results.push({ ...result, score });
         }
 
