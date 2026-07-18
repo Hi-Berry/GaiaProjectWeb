@@ -108,7 +108,7 @@
    Content가 아니라 그걸 감싸는 [data-radix-popper-content-wrapper]가 위치를 잡으므로, Content에 붙인 .gp-detail-mobile을
    :has로 스코프해 그 wrapper만 좌상단 고정으로 강제. zoom은 Content 좌상단부터 자라 오른쪽으로만 넘침(사용자: 상태창 가려도 됨). */
 [data-radix-popper-content-wrapper]:has(> .gp-detail-mobile) {
-  left: 8px !important;
+  left: var(--gp-detail-left, 8px) !important;
   top: var(--gp-detail-top, 56px) !important;
   right: auto !important;
   bottom: auto !important;

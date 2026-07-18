@@ -4556,11 +4556,16 @@ export default function Game() {
                           role="button"
                           tabIndex={0}
                           onClickCapture={(e) => {
-                            // 모바일: 상세 팝오버가 좌상단 고정(짤림방지)이라 세로 위치를 클릭한 행 Y로 맞춘다(원래 위치 근처).
+                            // 모바일: 상세 팝오버 위치를 직접 계산. 세로=클릭한 행 Y, 가로=상태창 왼쪽에 자연스럽게 붙임.
+                            //   폭(288px×zoom)만큼 왼쪽에 두되, 화면 밖으로 나가면 8px로만 클램프(불필요하게 끝까지 안 보냄).
                             if (isMobileViewport) {
-                              const y = e.currentTarget.getBoundingClientRect().top;
-                              const clamped = Math.min(Math.max(8, y), window.innerHeight - 120);
-                              document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(clamped)}px`);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const top = Math.min(Math.max(8, rect.top), window.innerHeight - 120);
+                              const zoom = playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom);
+                              const popW = 288 * zoom; // w-72(288px) × zoom (padding 포함=border-box)
+                              const left = Math.max(8, rect.left - popW - 4); // 상태창 왼쪽에 4px 간격, 넘치면 8px 클램프
+                              document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(top)}px`);
+                              document.documentElement.style.setProperty('--gp-detail-left', `${Math.round(left)}px`);
                             }
                           }}
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
