@@ -3578,10 +3578,10 @@ export default function Game() {
                     animate={{ y: 0, x: '-50%', opacity: 1 }}
                     exit={{ y: -50, x: '-50%', opacity: 0 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="fixed top-24 left-1/2 z-[65] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
-                    style={isMobileViewport ? ({ zoom: 0.78 } as CSSProperties) : undefined}
+                    className="fixed top-24 left-1/2 z-[65] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                    style={isMobileViewport ? ({ zoom: 0.82 } as CSSProperties) : undefined}
                   >
-                    <div className="flex items-center gap-3 border-r border-white/10 pr-4">
+                    <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
                       <div className="flex flex-col shrink-0 mr-2">
                         <h3 className="text-blue-400 font-black uppercase tracking-tighter text-[9px] leading-none">
                           Power Offer
@@ -3602,7 +3602,7 @@ export default function Game() {
                     </div>
 
                     {currentPlayer?.faction === 'taklons' && (
-                      <div className="flex items-center gap-2 border-r border-white/10 pr-4">
+                      <div className="flex items-center gap-2 md:border-r md:border-white/10 md:pr-4">
                         <Button
                           size="sm"
                           variant="ghost"
