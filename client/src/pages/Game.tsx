@@ -4555,6 +4555,14 @@ export default function Game() {
                         <div
                           role="button"
                           tabIndex={0}
+                          onClickCapture={(e) => {
+                            // 모바일: 상세 팝오버가 좌상단 고정(짤림방지)이라 세로 위치를 클릭한 행 Y로 맞춘다(원래 위치 근처).
+                            if (isMobileViewport) {
+                              const y = e.currentTarget.getBoundingClientRect().top;
+                              const clamped = Math.min(Math.max(8, y), window.innerHeight - 120);
+                              document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(clamped)}px`);
+                            }
+                          }}
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
                         >
                           {/* Left: Main info, Buildings, Resources */}
