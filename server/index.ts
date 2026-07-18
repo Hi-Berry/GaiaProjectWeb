@@ -159,15 +159,17 @@ process.on('uncaughtException', (err) => {
 });
 
 // 메모리 사용량 로그 — 기존엔 10초마다 무조건 찍어 로그를 도배했다(사용자: "메모리 로그 너무 많아 보기 힘듦").
-// 개선: 30초마다 확인하되, RSS가 직전 기록 대비 ±25MB 이상 움직였을 때(=누수/급증 신호)나 5분에 한 번(하트비트)만 출력.
-// 환경변수로 조정: LOG_MEMORY=off(끄기) · LOG_MEMORY=all(예전처럼 매번) · 미설정=스마트(변화+하트비트).
+// 핵심: 확인은 '자주'(3초), 출력만 '선별적'. 폴링을 느리게 하면 빠른 누수(예: 5MB/초)가 폴링 전에 터져 로그가 한 줄도 안 남는다(사용자 지적).
+//  → 3초마다 체크해서 ①RSS가 직전 출력 대비 ±20MB 이동(누수/급증 신호) ②직전 출력 대비 절대치 급변 ③5분 하트비트 중 하나면 출력.
+//  빠른 누수: 3초마다 +15MB씩 쌓이다 20MB 넘는 순간부터 매 폴링 출력 → 터지기 전 궤적이 남는다. 정상: 하트비트만.
+// 환경변수: LOG_MEMORY=off(끄기) · LOG_MEMORY=all(3초마다 매번) · 미설정=스마트.
 {
   const mode = (process.env.LOG_MEMORY || 'smart').toLowerCase();
   if (mode !== 'off') {
     let lastRssMb = 0;
     let lastEmit = 0;
     const HEARTBEAT_MS = 5 * 60 * 1000;
-    const DELTA_MB = 25;
+    const DELTA_MB = 20;
     setInterval(() => {
       const m = process.memoryUsage();
       const rssMb = m.rss / 1024 / 1024;
@@ -181,7 +183,7 @@ process.on('uncaughtException', (err) => {
         `Memory usage: RSS=${rssMb.toFixed(2)}MB, HeapTotal=${(m.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(m.heapUsed / 1024 / 1024).toFixed(2)}MB, External=${(m.external / 1024 / 1024).toFixed(2)}MB`,
         "system",
       );
-    }, mode === 'all' ? 10000 : 30000);
+    }, 3000);
   }
 }
 
