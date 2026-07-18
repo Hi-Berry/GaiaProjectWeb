@@ -1619,10 +1619,12 @@ export function GameBoard({
           {/* 기존 상태창 토글 / 줌 컨트롤 — 모바일에선 Menu 버튼으로 토글(기본 숨김), 데스크톱은 항상 표시 */}
           <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>
             {onToggleSidebar && (
+              // 모바일에선 숨김 — 상단 Menu 버튼(X 토글)과 아이콘이 겹쳐 'X+Menu 2개'로 보이던 문제(사용자).
+              // 모바일 상태창은 splitActive로 항상 표시돼 이 토글이 사실상 불필요. 데스크톱만 노출.
               <Button
                 size="icon"
                 variant="secondary"
-                className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
+                className="hidden md:inline-flex rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
                 onClick={onToggleSidebar}
                 data-testid="button-toggle-sidebar"
               >
