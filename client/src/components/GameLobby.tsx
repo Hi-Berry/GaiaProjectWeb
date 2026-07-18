@@ -58,7 +58,8 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    // 좌하단 고정 채팅 버튼(~60px)이 맨 아래 힌트 텍스트를 가리지 않도록 모바일에서 하단 여백 확보(사용자 관찰)
+    <div className="min-h-screen bg-background p-8 pb-24 md:pb-8">
       <div className="max-w-2xl mx-auto space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight font-orbitron">
