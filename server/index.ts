@@ -158,12 +158,30 @@ process.on('uncaughtException', (err) => {
   log(`Uncaught Exception thrown: ${err.message}\n${err.stack}`, 'error');
 });
 
-// Log memory usage every 10 seconds to help debug potential memory leaks
-setInterval(() => {
-  const memoryUsage = process.memoryUsage();
-  log(
-    `Memory usage: RSS=${(memoryUsage.rss / 1024 / 1024).toFixed(2)}MB, HeapTotal=${(memoryUsage.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)}MB, External=${(memoryUsage.external / 1024 / 1024).toFixed(2)}MB`,
-    "system",
-  );
-}, 10000);
+// 메모리 사용량 로그 — 기존엔 10초마다 무조건 찍어 로그를 도배했다(사용자: "메모리 로그 너무 많아 보기 힘듦").
+// 개선: 30초마다 확인하되, RSS가 직전 기록 대비 ±25MB 이상 움직였을 때(=누수/급증 신호)나 5분에 한 번(하트비트)만 출력.
+// 환경변수로 조정: LOG_MEMORY=off(끄기) · LOG_MEMORY=all(예전처럼 매번) · 미설정=스마트(변화+하트비트).
+{
+  const mode = (process.env.LOG_MEMORY || 'smart').toLowerCase();
+  if (mode !== 'off') {
+    let lastRssMb = 0;
+    let lastEmit = 0;
+    const HEARTBEAT_MS = 5 * 60 * 1000;
+    const DELTA_MB = 25;
+    setInterval(() => {
+      const m = process.memoryUsage();
+      const rssMb = m.rss / 1024 / 1024;
+      const now = Date.now();
+      const moved = Math.abs(rssMb - lastRssMb) >= DELTA_MB;
+      const heartbeat = now - lastEmit >= HEARTBEAT_MS;
+      if (mode !== 'all' && !moved && !heartbeat) return;
+      lastRssMb = rssMb;
+      lastEmit = now;
+      log(
+        `Memory usage: RSS=${rssMb.toFixed(2)}MB, HeapTotal=${(m.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(m.heapUsed / 1024 / 1024).toFixed(2)}MB, External=${(m.external / 1024 / 1024).toFixed(2)}MB`,
+        "system",
+      );
+    }, mode === 'all' ? 10000 : 30000);
+  }
+}
 
