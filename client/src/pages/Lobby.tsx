@@ -206,6 +206,10 @@ export default function Lobby() {
           </Badge>
         </div>
 
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-200">
+          서버는 주기적으로 오전 업데이트 진행됩니다. 진행 중이던 게임이 종료되니 참고 부탁드립니다.
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
