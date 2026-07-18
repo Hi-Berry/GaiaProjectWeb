@@ -103,3 +103,15 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
+
+/* 모바일: 상태창 상세 팝오버(zoom 확대)가 Radix 팝퍼 wrapper의 transform 위치잡기로 화면 왼쪽으로 짤리던 문제.
+   Content가 아니라 그걸 감싸는 [data-radix-popper-content-wrapper]가 위치를 잡으므로, Content에 붙인 .gp-detail-mobile을
+   :has로 스코프해 그 wrapper만 좌상단 고정으로 강제. zoom은 Content 좌상단부터 자라 오른쪽으로만 넘침(사용자: 상태창 가려도 됨). */
+[data-radix-popper-content-wrapper]:has(> .gp-detail-mobile) {
+  left: 8px !important;
+  top: 56px !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  max-width: none !important;
+}

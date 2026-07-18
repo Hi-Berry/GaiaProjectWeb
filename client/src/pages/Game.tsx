@@ -4878,7 +4878,7 @@ export default function Game() {
                           /* 모바일: 확대(zoom) 시 Radix가 zoom을 모르고 좌측(side=left)에 위치를 잡아 화면 왼쪽으로 짤림.
                              → !important로 위치를 강제(좌측 8px 고정·transform 제거·상단 고정). zoom은 좌상단서 자라므로
                              오른쪽으로만 넘침(상태창 가려도 됨=사용자 요청). 세로 스크롤 허용. */
-                          className={`w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2 ${isMobileViewport ? '!left-2 !right-auto !top-16 !bottom-auto ![transform:none] max-h-[80vh] overflow-y-auto' : ''}`}
+                          className={`w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2 ${isMobileViewport ? 'gp-detail-mobile max-h-[80vh] overflow-y-auto' : ''}`}
                           style={{ zoom: isMobileViewport ? playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom) : playerDetailScale }}
                         >
                           {!hasPlayerDetailContent && (
