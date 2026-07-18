@@ -6833,6 +6833,11 @@ export function executeSelectBonus(
 		game.currentPhase = 'main';
 		game.roundNumber = 1;
 		(game as any).incomePhaseAppliedThisRound = false;
+		// [버그수정 2026-07-15] 라운드1 income 스킵(사용자: 종족 비딩 켜고 시작 시 시작 자원만 있고 R1 수입 증발).
+		// 원인: helperTriggerIncomePhase 맨 앞 `if (pendingIncomeOrder) return`인데, 여기선 incomePhaseAppliedThisRound만
+		// 리셋하고 pendingIncomeOrder는 안 지워 → 셋업/비딩이 남긴 잔재가 있으면 R1 수입이 통째로 스킵됨.
+		// R1 진입은 income 실행 직전이라 pendingIncomeOrder는 반드시 null이어야 정상 → 여기서 함께 정리(잔재 방어).
+		game.pendingIncomeOrder = null;
 		game.currentPlayerIndex = 0;
 		game.pendingBonusSelection = null;
 		for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
