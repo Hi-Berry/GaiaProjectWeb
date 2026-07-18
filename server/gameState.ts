@@ -72,7 +72,7 @@ import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './bot
 import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVariant } from './ai/variant';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -2943,6 +2943,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) { callback({ error: 'Game not found' }); return; }
 			callback({ game });
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
+		});
+
+		// [진행 중 로그 다운로드] 관전자/플레이어가 게임 끝나기 전에 분석용 스냅샷을 받음 (최종 저장과 동일 포맷, 비파괴).
+		socket.on('export_game_snapshot', ({ gameId }: { gameId: string }, callback?: (r: { payload?: unknown; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			try {
+				const payload = buildLiveSnapshot(game as ServerGameState);
+				callback?.({ payload });
+			} catch (e) {
+				log(`export_game_snapshot failed: ${(e as Error)?.message}`, 'error', gameId);
+				callback?.({ error: '스냅샷 생성 실패' });
+			}
 		});
 
 		socket.on('submit_ai_feedback', ({ gameId, actionId, rating, expertMove, reason, tags }, callback) => {

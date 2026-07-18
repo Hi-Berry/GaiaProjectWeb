@@ -122,6 +122,17 @@ export const GameClient = {
     });
   },
 
+  // 진행 중 게임의 분석용 로그 스냅샷 받기 (최종 저장과 동일 포맷)
+  exportGameSnapshot(gameId: string): Promise<{ payload: any }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('export_game_snapshot', { gameId }, (response: any) => {
+        if (response.error) reject(new Error(response.error));
+        else resolve(response);
+      });
+    });
+  },
+
   rejoinGame(gameId: string, playerId: string): Promise<{ game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();

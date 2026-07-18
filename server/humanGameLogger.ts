@@ -173,6 +173,12 @@ function takeFullGameLog(gameId?: string): FullGameLogEntry[] {
   return arr;
 }
 
+/** 진행 중 스냅샷용: fullGameLog를 비우지 않고 복사만(반복 다운로드 가능). */
+function peekFullGameLog(gameId?: string): FullGameLogEntry[] {
+  if (!gameId) return [];
+  return [...(fullGameLogs.get(gameId) ?? [])];
+}
+
 function buildPayload(game: GaiaGameState & {
   id?: string;
   createdAt?: number;
@@ -201,6 +207,40 @@ function buildPayload(game: GaiaGameState & {
     fullGameLog: takeFullGameLog(game.id),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
+  };
+}
+
+/**
+ * 진행 중(미완료) 게임의 분석용 스냅샷을 최종 저장과 동일한 포맷으로 생성 — 비파괴(fullGameLog peek).
+ * 관전자/호스트가 게임 끝나기 전에 다운로드해 버그 분석에 쓰기 위함. buildPayload와 동일 필드 + inProgress 표식.
+ */
+export function buildLiveSnapshot(game: GaiaGameState & {
+  id?: string;
+  createdAt?: number;
+  humanActionJournal?: HumanActionJournalEntry[];
+  botPlayerIds?: string[];
+}): HumanGamePayload & { inProgress: true; snapshotAt: string } {
+  const rankedIds = Object.keys(game.players).sort((a, b) => (game.players[b].score ?? 0) - (game.players[a].score ?? 0));
+  const players: HumanGamePayload['players'] = {};
+  rankedIds.forEach((playerId, index) => {
+    players[playerId] = { ...(summarizePlayer(game.players[playerId])!), rank: index + 1 };
+  });
+  const now = new Date().toISOString();
+  return {
+    version: 1,
+    gameId: game.id ?? 'unknown',
+    createdAt: game.createdAt,
+    completedAt: now, // 진행 중 스냅샷 시각(파일명/정렬용) — 실제 종료 아님(inProgress로 구분)
+    roundNumber: game.roundNumber ?? 0,
+    players,
+    turnOrder: [...(game.turnOrder ?? [])],
+    gameLog: game.gameLog ?? [],
+    actionJournal: game.humanActionJournal ?? [],
+    fullGameLog: peekFullGameLog(game.id),
+    botPlayerIds: [...(game.botPlayerIds ?? [])],
+    map: game.map ?? [],
+    inProgress: true,
+    snapshotAt: now,
   };
 }
 

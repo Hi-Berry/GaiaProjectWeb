@@ -138,6 +138,24 @@ export default function Game() {
       setRejoinMsg(e?.message || '이어하기에 실패했습니다.');
     }
   };
+  const handleDownloadSnapshot = async () => {
+    if (!gameId) return;
+    try {
+      const { payload } = await GameClient.exportGameSnapshot(gameId);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `snapshot_r${payload?.roundNumber ?? 0}_${gameId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: '로그 저장됨', description: `라운드 ${payload?.roundNumber ?? 0} 스냅샷 (진행 중)` });
+    } catch (e: any) {
+      toast({ title: '로그 저장 실패', description: e?.message || '스냅샷을 받지 못했습니다.', variant: 'destructive' });
+    }
+  };
   const [pendingAction, setPendingAction] = useState<PotentialAction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2227,6 +2245,15 @@ export default function Game() {
         <div className="fixed left-3 top-14 bottom-auto md:top-auto md:bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
           <Eye className="w-3.5 h-3.5 shrink-0" />
           <span>관전 중</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white"
+            onClick={() => void handleDownloadSnapshot()}
+            title="진행 중 게임의 분석용 로그(JSON)를 지금 상태 그대로 내려받기"
+          >
+            로그 저장
+          </Button>
           <Button
             variant="outline"
             size="sm"
