@@ -5383,6 +5383,25 @@ export default function Game() {
         </button>
       )}
 
+      {/* 모바일 프리액션 버튼 — 내 턴(본게임)에만 좌하단에 노출. 모바일엔 'f' 단축키가 없어 프리액션 진입 수단이 없던 것 보완(사용자 요청).
+          누르면 프리액션 다이얼로그(자원/파워 변환)를 연다. */}
+      {game && isMobileViewport && !isSpectator && isMyTurn && game.currentPhase === 'main' && (
+        <button
+          type="button"
+          aria-label="프리액션"
+          title="프리액션 (자원·파워 변환)"
+          onClick={() => setIsFreeActionsOpen(true)}
+          className="md:hidden fixed left-3 z-[116] h-11 rounded-full border border-emerald-400/40 bg-emerald-600/90 px-3 text-white text-xs font-black shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center gap-1.5 active:scale-95 transition-transform"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem + 3.75rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
+          }}
+        >
+          <FlaskConical className="w-4 h-4" />
+          <span>프리액션</span>
+        </button>
+      )}
+
       {/* 모바일 전용 — Info(좌하단, 보드 3페이지 오버레이) + 로그(우하단, 상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
           세로(portrait)에선 정보창이 상시 표시라 i 버튼 숨김(토글 불필요). 데스크톱은 좌측 미니뷰/도킹 로그 사용(md:hidden). */}
       {game && !portraitMobile && (
