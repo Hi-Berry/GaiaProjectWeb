@@ -3607,8 +3607,8 @@ export default function Game() {
                           size="sm"
                           variant="ghost"
                           className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferBrainFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
-                          onClick={() => { setPowerOfferBrainFirst(true); setPowerOfferPiAddFirst(false); }}
-                          title="브레인 스톤 우선 수령 (켜면 PI 1st는 꺼짐)"
+                          onClick={() => setPowerOfferBrainFirst(prev => { const next = !prev; if (next) setPowerOfferPiAddFirst(false); return next; })}
+                          title="브레인 스톤 우선 수령 토글 (켜면 PI 1st는 꺼짐)"
                         >
                           Brain First
                         </Button>
