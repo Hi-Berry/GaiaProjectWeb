@@ -158,11 +158,11 @@ process.on('uncaughtException', (err) => {
   log(`Uncaught Exception thrown: ${err.message}\n${err.stack}`, 'error');
 });
 
-// 메모리 사용량 로그 — 기존엔 10초마다 무조건 찍어 로그를 도배했다(사용자: "메모리 로그 너무 많아 보기 힘듦").
-// 핵심: 확인은 '자주'(3초), 출력만 '선별적'. 폴링을 느리게 하면 빠른 누수(예: 5MB/초)가 폴링 전에 터져 로그가 한 줄도 안 남는다(사용자 지적).
-//  → 3초마다 체크해서 ①RSS가 직전 출력 대비 ±20MB 이동(누수/급증 신호) ②직전 출력 대비 절대치 급변 ③5분 하트비트 중 하나면 출력.
-//  빠른 누수: 3초마다 +15MB씩 쌓이다 20MB 넘는 순간부터 매 폴링 출력 → 터지기 전 궤적이 남는다. 정상: 하트비트만.
-// 환경변수: LOG_MEMORY=off(끄기) · LOG_MEMORY=all(3초마다 매번) · 미설정=스마트.
+// 메모리 사용량 로그 — 기존엔 10초마다 '무조건' 찍어 로그를 도배했다(사용자: "메모리 로그 너무 많아 보기 힘듦").
+// 고친 핵심은 폴링 속도가 아니라 '출력 게이팅'이다. 폴링은 원래대로 10초 유지(더 자주 만들 이유 없음).
+//  10초마다 체크해서 ①RSS가 직전 출력 대비 ±20MB 이동(누수/급증 신호) ②5분 하트비트 중 하나면 출력.
+//  5MB/초 누수: 10초에 +50MB → 임계(20MB) 넘어 매 폴링(10초)마다 출력 → 터지기 전 궤적이 남는다. 정상: 하트비트만.
+// 환경변수: LOG_MEMORY=off(끄기) · LOG_MEMORY=all(10초마다 매번) · 미설정=스마트.
 {
   const mode = (process.env.LOG_MEMORY || 'smart').toLowerCase();
   if (mode !== 'off') {
@@ -183,7 +183,7 @@ process.on('uncaughtException', (err) => {
         `Memory usage: RSS=${rssMb.toFixed(2)}MB, HeapTotal=${(m.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(m.heapUsed / 1024 / 1024).toFixed(2)}MB, External=${(m.external / 1024 / 1024).toFixed(2)}MB`,
         "system",
       );
-    }, 3000);
+    }, 10000);
   }
 }
 
