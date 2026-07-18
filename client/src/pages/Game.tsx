@@ -5566,14 +5566,14 @@ export default function Game() {
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: -50, x: '-50%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-20 z-[130] flex items-center gap-4 p-2 px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+            className="fixed top-20 z-[130] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
             style={{
               left: isSidebarOpen ? `calc((100% - ${effectiveSidebarWidth}px) / 2)` : '50%',
-              ...(isMobileViewport ? { zoom: 0.78 } : {}),
+              ...(isMobileViewport ? { zoom: 0.82 } : {}),
             }}
           >
             {/* Title & Costs (Left Side) */}
-            <div className="flex items-center gap-3 border-r border-white/10 pr-4">
+            <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
               <div className="flex flex-col shrink-0 mr-2">
                 <h3 className="text-yellow-500 font-black uppercase tracking-tighter text-[9px] leading-none">
                   {pendingAction ? 'Confirm Action' : 'Turn Management'}
