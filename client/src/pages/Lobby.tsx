@@ -218,12 +218,12 @@ export default function Lobby() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Input
                 placeholder="Enter your name"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                className="flex-1"
+                className="w-full sm:flex-1"
                 data-testid="input-player-name"
               />
               <Input
@@ -231,13 +231,14 @@ export default function Lobby() {
                 placeholder="비밀번호 (선택)"
                 value={joinPassword}
                 onChange={(e) => setJoinPassword(e.target.value)}
-                className="w-40"
+                className="w-full sm:w-40"
                 data-testid="input-join-password"
               />
               <Button
                 onClick={handleCreateGame}
                 disabled={creating || !playerName.trim() || !connected}
                 data-testid="button-create-game"
+                className="w-full sm:w-auto shrink-0"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 {creating ? 'Creating...' : 'Create Game'}
