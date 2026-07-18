@@ -328,6 +328,8 @@ interface GameBoardProps {
   onTogglePlayerDetailScale?: () => void;
   /** 모바일: 맵 우측 세로 컨트롤 컬럼 표시 여부 (Menu 버튼 토글). 데스크톱은 항상 표시 */
   mobileControlsOpen?: boolean;
+  /** 모바일: 맵 컨트롤 컬럼 토글(연방구현 버튼 옆 Menu 버튼) */
+  onToggleMobileControls?: () => void;
   /** 모바일 뷰포트 여부 — 타일/우주선 디테일 패널을 상태창과 같은 크기로 축소 */
   isMobileViewport?: boolean;
   /** 모바일에서 디테일 패널 폭(=상태창 폭). 내용은 256px 디자인폭을 zoom으로 축소 */
@@ -382,6 +384,7 @@ export function GameBoard({
   isSidebarOpen = false,
   sidebarWidth = 0,
   onToggleSidebar,
+  onToggleMobileControls,
   playerDetailScale = 1,
   onTogglePlayerDetailScale,
   mobileControlsOpen = false,
@@ -1598,6 +1601,20 @@ export function GameBoard({
               </Button>
             );
           })()}
+
+          {/* 모바일 Menu 버튼 — 연방구현 버튼 오른쪽. 맵 우측 세로 컨트롤 토글(사용자 요청: 하단→상단 이동) */}
+          {onToggleMobileControls && (
+            <Button
+              size="icon"
+              variant="secondary"
+              className="md:hidden rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
+              onClick={onToggleMobileControls}
+              aria-label={mobileControlsOpen ? '맵 컨트롤 숨기기' : '맵 컨트롤 보기'}
+              title="맵 컨트롤 (상태창·배율·줌)"
+            >
+              {mobileControlsOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </Button>
+          )}
 
           {/* 기존 상태창 토글 / 줌 컨트롤 — 모바일에선 Menu 버튼으로 토글(기본 숨김), 데스크톱은 항상 표시 */}
           <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>

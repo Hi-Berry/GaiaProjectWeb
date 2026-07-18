@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playEndSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -2923,6 +2923,7 @@ export default function Game() {
               });
             }}
             mobileControlsOpen={isMapControlsOpen}
+            onToggleMobileControls={() => setIsMapControlsOpen((prev) => !prev)}
             isMobileViewport={isMobileViewport}
             mobilePanelWidth={effectiveSidebarWidth}
           />
@@ -4286,6 +4287,7 @@ export default function Game() {
       <div
         className={`
         z-[80]
+        ${isMobileViewport ? 'pt-[22px]' : ''}
         transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         ${splitActive
@@ -5398,22 +5400,21 @@ export default function Game() {
         </button>
       )}
 
-      {/* 모바일 프리액션 버튼 — 내 턴(본게임)에만 좌하단에 노출. 모바일엔 'f' 단축키가 없어 프리액션 진입 수단이 없던 것 보완(사용자 요청).
-          누르면 프리액션 다이얼로그(자원/파워 변환)를 연다. */}
+      {/* 모바일 프리액션 버튼 — 내 턴(본게임)에만 노출. 좌하단 채팅 옆(메뉴 자리)에 아이콘만·원형(채팅/메뉴와 동일 크기).
+          모바일엔 'f' 단축키가 없어 진입 수단이 없던 것 보완(사용자). 누르면 프리액션 다이얼로그(자원/파워 변환). */}
       {game && isMobileViewport && !isSpectator && isMyTurn && game.currentPhase === 'main' && (
         <button
           type="button"
           aria-label="프리액션"
           title="프리액션 (자원·파워 변환)"
           onClick={() => setIsFreeActionsOpen(true)}
-          className="md:hidden fixed left-3 z-[116] h-11 rounded-full border border-emerald-400/40 bg-emerald-600/90 px-3 text-white text-xs font-black shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center gap-1.5 active:scale-95 transition-transform"
+          className="md:hidden fixed bottom-3 z-[116] h-12 w-12 rounded-full border border-emerald-400/50 bg-emerald-600/90 text-white shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
           style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem + 3.75rem)',
-            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem + 3.5rem)',
           }}
         >
-          <FlaskConical className="w-4 h-4" />
-          <span>프리액션</span>
+          <RefreshCw className="w-5 h-5" />
         </button>
       )}
 
@@ -5434,43 +5435,34 @@ export default function Game() {
           {isInfoOpen ? <X className="w-5 h-5" /> : <Info className="w-5 h-5" />}
         </button>
       )}
-      {game && (
-        <button
-          type="button"
-          aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
-          title={isLogPanelOpen ? '상태창' : '게임 로그'}
-          onClick={() => { setIsLogPanelOpen((prev) => !prev); setIsInfoOpen(false); }}
-          className="md:hidden fixed bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
-          style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem + 7rem)',
-          }}
+      {/* 모바일 로그 버튼 삭제(사용자 요청) → 우측 패널 상단의 상태창/로그 탭으로 전환. Menu 버튼도 GameBoard 상단으로 이동됨.
+          좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
+      {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
+        <div
+          className="md:hidden fixed right-0 z-[113] flex text-[9px] font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10"
+          style={{ top: splitActive ? '50%' : 0, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
         >
-          {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-        </button>
-      )}
-      {/* 모바일 Menu 버튼 — 좌하단 채팅 옆(로그 왼쪽). 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 보였다 안 보이게 토글.
-          기존 우하단이 상태창 4번째 플레이어 정보를 가려 좌측으로 이동(사용자 요청). */}
-      {game && (
-        <button
-          type="button"
-          aria-label={isMapControlsOpen ? '맵 컨트롤 숨기기' : '맵 컨트롤 보기'}
-          title="맵 컨트롤 (상태창·배율·줌)"
-          onClick={() => setIsMapControlsOpen((prev) => !prev)}
-          className="md:hidden fixed bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-amber-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
-          style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem + 3.5rem)',
-          }}
-        >
-          {isMapControlsOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+          <button
+            type="button"
+            onClick={() => { setIsLogPanelOpen(false); setIsInfoOpen(false); }}
+            className={`flex-1 py-1 ${!isLogPanelOpen ? 'bg-blue-500/25 text-blue-100' : 'bg-zinc-900/95 text-zinc-500'}`}
+          >
+            상태창
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsLogPanelOpen(true); setIsInfoOpen(false); }}
+            className={`flex-1 py-1 border-l border-white/10 ${isLogPanelOpen ? 'bg-blue-500/25 text-blue-100' : 'bg-zinc-900/95 text-zinc-500'}`}
+          >
+            로그
+          </button>
+        </div>
       )}
 
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && isLogPanelOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'right-0 bottom-0 top-1/2 border-t border-l border-border' : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          className={`md:hidden fixed z-[110] pt-[22px] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'right-0 bottom-0 top-1/2 border-t border-l border-border' : 'top-0 bottom-0 right-0 border-l border-border'}`}
           style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
         >
           <div
