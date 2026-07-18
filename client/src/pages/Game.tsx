@@ -5425,26 +5425,27 @@ export default function Game() {
           aria-label={isLogPanelOpen ? '상태창으로 돌아가기' : '게임 로그 열기'}
           title={isLogPanelOpen ? '상태창' : '게임 로그'}
           onClick={() => { setIsLogPanelOpen((prev) => !prev); setIsInfoOpen(false); }}
-          className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          className="md:hidden fixed bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-blue-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
           style={{
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-            right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem + 7rem)',
           }}
         >
           {isLogPanelOpen ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
         </button>
       )}
-      {/* 모바일 Menu 버튼 — 로그 버튼 왼쪽. 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 보였다 안 보이게 토글 */}
+      {/* 모바일 Menu 버튼 — 좌하단 채팅 옆(로그 왼쪽). 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 보였다 안 보이게 토글.
+          기존 우하단이 상태창 4번째 플레이어 정보를 가려 좌측으로 이동(사용자 요청). */}
       {game && (
         <button
           type="button"
           aria-label={isMapControlsOpen ? '맵 컨트롤 숨기기' : '맵 컨트롤 보기'}
           title="맵 컨트롤 (상태창·배율·줌)"
           onClick={() => setIsMapControlsOpen((prev) => !prev)}
-          className="md:hidden fixed right-3 bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-amber-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          className="md:hidden fixed bottom-3 z-[115] h-12 w-12 rounded-full border border-white/15 bg-zinc-900/90 text-amber-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
           style={{
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-            right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem + 3.5rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem + 3.5rem)',
           }}
         >
           {isMapControlsOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
