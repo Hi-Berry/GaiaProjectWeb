@@ -1684,24 +1684,26 @@ export function GameBoard({
       {
         selectedTile && !isFederationMode && (
           <div
-            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out"
+            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out flex flex-col"
             style={isMobileViewport && mobilePanelWidth ? { width: mobilePanelWidth } : undefined}
           >
-            {/* 닫기 — 이 패널이 맵 오른쪽을 가려 클릭을 막으므로, 닫아서 맵을 바로 누를 수 있게 함 */}
-            <button
-              type="button"
-              onClick={() => setSelectedTile(null)}
-              title="닫기 (맵 클릭 가능)"
-              className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 text-sm font-bold leading-none"
-            >
-              ✕
-            </button>
-            {/* 내용 래퍼: 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
+            {/* 닫기 — X를 상단 단독 헤더 행으로 분리(축소 안 됨=탭 쉬움). 내용/버튼이 X와 같은 높이에 있어 모바일서 오클릭나던 문제 해결(사용자 요청: 내용 전체를 X 밑으로) */}
+            <div className="shrink-0 flex justify-end p-1.5 border-b border-border/60 bg-card">
+              <button
+                type="button"
+                onClick={() => setSelectedTile(null)}
+                title="닫기 (맵 클릭 가능)"
+                className="w-8 h-8 flex items-center justify-center rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 text-base font-bold leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            {/* 내용 래퍼: X 헤더 아래를 채움(flex-1). 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
             <div
-              className="h-full overflow-y-auto p-4 space-y-4"
+              className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
               style={isMobileViewport && mobilePanelWidth ? ({ width: 256, height: `${(25600 / mobilePanelWidth)}%`, zoom: mobilePanelWidth / 256 } as CSSProperties) : undefined}
             >
-            <h3 className="font-semibold capitalize pr-8">
+            <h3 className="font-semibold capitalize">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
             </h3>
             <p className="text-sm text-muted-foreground">
