@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playEndSound } from '@/lib/audio';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -473,6 +473,21 @@ export default function Game() {
   const [aiFeedbackSubmitting, setAiFeedbackSubmitting] = useState(false);
   const [selectedAiFeedbackActionId, setSelectedAiFeedbackActionId] = useState<string | null>(null);
   const [isAdminModeOpen, setIsAdminModeOpen] = useState(false);
+  // 관리자 해금(Ctrl+Alt+A) 여부 — 진행 중 로그 스냅샷 다운로드 등 관리자 전용 UI 노출 게이트
+  const [isAdmin, setIsAdmin] = useState(false);
+  // 모바일 전체모드(브라우저 fullscreen) 상태 — 전체모드 아닐 때만 좌상단 진입 버튼 노출
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    onFsChange();
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+  const enterFullscreen = () => {
+    const el = document.documentElement as any;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen;
+    if (req) { try { req.call(el); } catch { /* noop */ } }
+  };
 
   const lastResizeWidthRef = useRef<number>(340);
   const lastResizeHeightRef = useRef<number>(500);
@@ -570,6 +585,7 @@ export default function Game() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
+        setIsAdmin(true);
         setIsAdminModeOpen(true);
         return;
       }
@@ -2245,15 +2261,17 @@ export default function Game() {
         <div className="fixed left-3 top-14 bottom-auto md:top-auto md:bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
           <Eye className="w-3.5 h-3.5 shrink-0" />
           <span>관전 중</span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white"
-            onClick={() => void handleDownloadSnapshot()}
-            title="진행 중 게임의 분석용 로그(JSON)를 지금 상태 그대로 내려받기"
-          >
-            로그 저장
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white"
+              onClick={() => void handleDownloadSnapshot()}
+              title="[관리자] 진행 중 게임의 분석용 로그(JSON)를 지금 상태 그대로 내려받기"
+            >
+              로그 저장
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -2884,13 +2902,14 @@ export default function Game() {
               if (!gameId || !pendingTwilightTSUpgrade) return;
               GameClient.useShipAction(gameId, pendingTwilightTSUpgrade, 2, tileId);
               setPendingTwilightTSUpgrade(null);
-              toast({ title: 'Twilight 액션', description: '2: 2O+3P → TS→Lab', variant: 'default' });
+              // 모바일: 확인 토스트가 End Turn 버튼을 가려 진행을 느리게 함 → PC에서만 표시(사용자 요청)
+              if (!isMobileViewport) toast({ title: 'Twilight 액션', description: '2: 2O+3P → TS→Lab', variant: 'default' });
             }}
             onRebellionMineToTS={(tileId) => {
               if (!gameId || !pendingRebellionMineToTS) return;
               GameClient.useShipAction(gameId, pendingRebellionMineToTS, 2, tileId);
               setPendingRebellionMineToTS(null);
-              toast({ title: 'Rebellion 액션', description: '2: 1O+3P → M→TS', variant: 'default' });
+              if (!isMobileViewport) toast({ title: 'Rebellion 액션', description: '2: 1O+3P → M→TS', variant: 'default' });
             }}
             isSidebarOpen={isSidebarOpen}
             sidebarWidth={isSidebarOpen ? effectiveSidebarWidth : 0}
@@ -3908,7 +3927,7 @@ export default function Game() {
                 </AlertDialogHeader>
                 <div className="grid grid-cols-2 gap-3 py-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-300 text-sm">1 QIC (4)</span>
+                    <span className="text-zinc-400 text-sm">1 <span className="font-bold text-green-400">QIC</span> (4)</span>
                     <div className="flex items-center gap-1">
                       <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setTerranCouncilChoice(c => ({ ...c, qic: Math.max(0, c.qic - 1) }))}>−</Button>
                       <span className="w-6 text-center text-white font-mono">{terranCouncilChoice.qic}</span>
@@ -3916,7 +3935,7 @@ export default function Game() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-300 text-sm">1 K (4)</span>
+                    <span className="text-zinc-400 text-sm">1 <span className="font-bold text-blue-400">K</span> (4)</span>
                     <div className="flex items-center gap-1">
                       <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setTerranCouncilChoice(c => ({ ...c, knowledge: Math.max(0, c.knowledge - 1) }))}>−</Button>
                       <span className="w-6 text-center text-white font-mono">{terranCouncilChoice.knowledge}</span>
@@ -3924,7 +3943,7 @@ export default function Game() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-300 text-sm">1 O (3)</span>
+                    <span className="text-zinc-400 text-sm">1 <span className="font-bold text-zinc-100">O</span> (3)</span>
                     <div className="flex items-center gap-1">
                       <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setTerranCouncilChoice(c => ({ ...c, ore: Math.max(0, c.ore - 1) }))}>−</Button>
                       <span className="w-6 text-center text-white font-mono">{terranCouncilChoice.ore}</span>
@@ -3932,7 +3951,7 @@ export default function Game() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-300 text-sm">1 C (1)</span>
+                    <span className="text-zinc-400 text-sm">1 <span className="font-bold text-yellow-400">C</span> (1)</span>
                     <div className="flex items-center gap-1">
                       <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setTerranCouncilChoice(c => ({ ...c, credits: Math.max(0, c.credits - 1) }))}>−</Button>
                       <span className="w-6 text-center text-white font-mono">{terranCouncilChoice.credits}</span>
@@ -5345,6 +5364,23 @@ export default function Game() {
           onOpenChange={setIsAdminModeOpen}
           game={game}
         />
+      )}
+
+      {/* 모바일 전체모드 진입 버튼 — 좌상단, 전체모드 아닐 때만(사용자 요청). 전체모드는 시스템 UI를 접어 세로 공간 확보. */}
+      {game && isMobileViewport && !isFullscreen && (
+        <button
+          type="button"
+          aria-label="전체 화면"
+          title="전체 화면으로 보기"
+          onClick={enterFullscreen}
+          className="md:hidden fixed left-3 top-3 z-[116] h-9 w-9 rounded-full border border-white/15 bg-zinc-900/90 text-zinc-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          style={{
+            top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
+          }}
+        >
+          <Maximize className="w-5 h-5" />
+        </button>
       )}
 
       {/* 모바일 전용 — Info(좌하단, 보드 3페이지 오버레이) + 로그(우하단, 상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
