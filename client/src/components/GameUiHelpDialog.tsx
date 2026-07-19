@@ -414,7 +414,7 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
                 onClick={() => { onOpenChange(false); onOpenAdmin(); }}
                 className="rounded-md border border-white/15 bg-zinc-900/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400 hover:text-white hover:border-white/30"
               >
-                관리자 모드 (Ctrl+Alt+A)
+                관리자 모드
               </button>
             </div>
           )}
