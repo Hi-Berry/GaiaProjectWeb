@@ -3084,9 +3084,7 @@ export default function Game() {
                   ✕
                 </Button>
               </div>
-              <div className="flex-1 overflow-auto rounded-2xl shadow-inner bg-black/20 p-2 custom-scrollbar">
-                {/* 모바일: 데스크톱 폭 레이아웃을 좁은 화면에 욱여넣어 트랙명/우주선 설명이 찌부·잘리던 것 → 읽을 수 있는 최소폭(680px) 두고 가로 스크롤(사용자) */}
-                <div className="min-w-[680px] md:min-w-0">
+              <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-2 custom-scrollbar">
                 <ResearchBoard
                   game={game}
                   playerId={playerId}
@@ -3127,7 +3125,6 @@ export default function Game() {
                   onResetTurn={() => { if (gameId) GameClient.resetTurn(gameId); }}
                   onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId, { fromOverlay: true })}
                 />
-                </div>
               </div>
             </div>
           </div>
