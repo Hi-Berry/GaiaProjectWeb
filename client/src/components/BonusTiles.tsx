@@ -189,7 +189,8 @@ export function BonusTiles({
               isMini
                 ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide justify-between gap-1.5 px-1 pb-1'
                 : isSelectionMode
-                  ? 'grid w-full grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] gap-3 justify-items-center'
+                  // 모바일: 4열 고정 + 좁은 간격 → 7개(4+3) 2줄로(사용자 요청). sm+ 부터는 auto-fill로 폭에 맞게.
+                  ? 'grid w-full grid-cols-4 gap-1.5 sm:grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] sm:gap-3 justify-items-center'
                   : 'flex flex-wrap gap-3'
             }
           >
