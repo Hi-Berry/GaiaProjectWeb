@@ -1602,29 +1602,13 @@ export function GameBoard({
             );
           })()}
 
-          {/* 모바일 Menu 버튼 — 연방구현 버튼 오른쪽. 맵 우측 세로 컨트롤 토글(사용자 요청: 하단→상단 이동) */}
-          {onToggleMobileControls && (
-            <Button
-              size="icon"
-              variant="secondary"
-              className="md:hidden rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
-              onClick={onToggleMobileControls}
-              aria-label={mobileControlsOpen ? '맵 컨트롤 숨기기' : '맵 컨트롤 보기'}
-              title="맵 컨트롤 (상태창·배율·줌)"
-            >
-              {mobileControlsOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </Button>
-          )}
-
-          {/* 기존 상태창 토글 / 줌 컨트롤 — 모바일에선 Menu 버튼으로 토글(기본 숨김), 데스크톱은 항상 표시 */}
-          <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>
+          {/* 상태창 토글 / 줌 컨트롤 — 모바일에서도 항상 표시(사용자 요청: 별도 Menu 토글 버튼 제거, 기존 상태창 토글 버튼 유지) */}
+          <div className="flex flex-col gap-2 relative">
             {onToggleSidebar && (
-              // 모바일에선 숨김 — 상단 Menu 버튼(X 토글)과 아이콘이 겹쳐 'X+Menu 2개'로 보이던 문제(사용자).
-              // 모바일 상태창은 splitActive로 항상 표시돼 이 토글이 사실상 불필요. 데스크톱만 노출.
               <Button
                 size="icon"
                 variant="secondary"
-                className="hidden md:inline-flex rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
+                className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
                 onClick={onToggleSidebar}
                 data-testid="button-toggle-sidebar"
               >
