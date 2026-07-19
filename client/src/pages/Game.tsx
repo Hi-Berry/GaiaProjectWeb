@@ -194,6 +194,8 @@ export default function Game() {
   const [isBonusSelectionPanelExpanded, setIsBonusSelectionPanelExpanded] = useState(true);
   /** L 키: 게임 로그 오버레이 (평소에는 UI 없음) */
   const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
+  // 모바일 로그: 라운드/플레이어 필터 툴바 표시 여부. 기본 꺼짐(상시 노출이 불편, 사용자) — 로그 탭 옆 + 버튼으로 토글.
+  const [logFilterOpen, setLogFilterOpen] = useState(false);
   /** 모바일 Info 오버레이: 3페이지(0=기술타일, 1=우주선, 2=라운드/보너스) 스와이프 */
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [infoPage, setInfoPage] = useState(0);
@@ -5456,6 +5458,18 @@ export default function Game() {
           >
             로그
           </button>
+          {/* 로그 필터(라운드/플레이어) 토글 — 로그 탭일 때만. 기본 꺼짐(상시 노출 불편, 사용자). +로 켜고 끔 */}
+          {isLogPanelOpen && (
+            <button
+              type="button"
+              aria-label="로그 필터 켜기/끄기"
+              title="라운드·플레이어 필터 켜기/끄기"
+              onClick={() => setLogFilterOpen((v) => !v)}
+              className={`shrink-0 w-7 py-1 border-l border-white/10 leading-none ${logFilterOpen ? 'bg-blue-500/40 text-white' : 'bg-zinc-900/95 text-zinc-400'}`}
+            >
+              {logFilterOpen ? '−' : '+'}
+            </button>
+          )}
         </div>
       )}
 
@@ -5478,6 +5492,7 @@ export default function Game() {
                 <GameLog
                   game={game}
                   hideHeader
+                  showToolbar={logFilterOpen}
                   className="w-full"
                   maxHeight="none"
                   textScale={logTextScale}
