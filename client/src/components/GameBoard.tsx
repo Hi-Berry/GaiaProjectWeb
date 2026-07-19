@@ -1602,7 +1602,8 @@ export function GameBoard({
             );
           })()}
 
-          {/* 모바일 메뉴 여닫기 토글(Menu/X) — 연방구현 버튼 옆. 이 X로 아래 컨트롤 스택을 닫는다. 데스크톱은 스택 항상 표시라 숨김. */}
+          {/* 모바일: 메뉴 토글 + 컨트롤을 한 세로줄로 — 토글(맨 위, 상시)만 보이고 누르면 아래로 펼침. 버튼 1개로 여닫기(사용자 요청). 데스크톱은 토글 숨김·컨트롤 상시 */}
+          <div className="flex flex-col gap-2 items-end">
           {onToggleMobileControls && (
             <Button
               size="icon"
@@ -1616,18 +1617,18 @@ export function GameBoard({
             </Button>
           )}
 
-          {/* 상태창 토글 / 줌 컨트롤 — 모바일은 위 Menu 토글로 열고 닫음(기본 닫힘), 데스크톱은 항상 표시 */}
+          {/* 줌·격자·도움말 등 — 모바일은 위 토글로 열고 닫음(기본 닫힘), 데스크톱은 항상 표시 */}
           <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>
             {onToggleSidebar && (
               <Button
                 size="icon"
                 variant="secondary"
-                className={`rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2 ${isSidebarOpen ? 'text-blue-300' : 'text-zinc-400'}`}
+                // 상태창 토글은 모바일에서 숨김 — 메뉴 토글(Menu/X)과 중복 버튼으로 보이던 문제(사용자). 데스크톱만 노출.
+                className={`hidden md:inline-flex rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2 ${isSidebarOpen ? 'text-blue-300' : 'text-zinc-400'}`}
                 onClick={onToggleSidebar}
                 data-testid="button-toggle-sidebar"
                 title="상태창 보이기/숨기기"
               >
-                {/* 메뉴 여닫기 토글(Menu/X)과 구분되게 패널 아이콘 사용(사용자: X 눌러도 메뉴 안 닫히던 혼동 해소) */}
                 <PanelRight className="w-4 h-4" />
               </Button>
             )}
@@ -1691,6 +1692,7 @@ export function GameBoard({
             <div className="bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-zinc-300 text-center shadow-xl">
               {Math.round(zoom * 100)}%
             </div>
+          </div>
           </div>
         </div>
 
