@@ -359,9 +359,11 @@ interface GameUiHelpDialogProps {
   playerId?: string | null;
   showTaklonsBrain?: boolean;
   taklonsBrainPriority?: boolean;
+  /** 관리자 모드 진입(모바일용 — PC는 Ctrl+Alt+A 단축키) */
+  onOpenAdmin?: () => void;
 }
 
-export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTaklonsBrain, taklonsBrainPriority }: GameUiHelpDialogProps) {
+export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTaklonsBrain, taklonsBrainPriority, onOpenAdmin }: GameUiHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100">
@@ -404,6 +406,18 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
               </div>
             ))}
           </div>
+          {/* 관리자 모드 진입 — 모바일은 키보드 단축키(Ctrl+Alt+A)를 쓸 수 없어 버튼 제공(사용자). PC에도 노출 무방. */}
+          {onOpenAdmin && (
+            <div className="mt-2 border-t border-white/10 pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => { onOpenChange(false); onOpenAdmin(); }}
+                className="rounded-md border border-white/15 bg-zinc-900/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400 hover:text-white hover:border-white/30"
+              >
+                관리자 모드 (Ctrl+Alt+A)
+              </button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

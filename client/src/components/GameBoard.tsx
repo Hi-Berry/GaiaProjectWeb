@@ -330,6 +330,8 @@ interface GameBoardProps {
   mobileControlsOpen?: boolean;
   /** 모바일: 맵 컨트롤 컬럼 토글(연방구현 버튼 옆 Menu 버튼) */
   onToggleMobileControls?: () => void;
+  /** 관리자 모드 진입 — 도움말 다이얼로그 하단 버튼(모바일용, PC는 Ctrl+Alt+A) */
+  onOpenAdmin?: () => void;
   /** 모바일 뷰포트 여부 — 타일/우주선 디테일 패널을 상태창과 같은 크기로 축소 */
   isMobileViewport?: boolean;
   /** 모바일에서 디테일 패널 폭(=상태창 폭). 내용은 256px 디자인폭을 zoom으로 축소 */
@@ -385,6 +387,7 @@ export function GameBoard({
   sidebarWidth = 0,
   onToggleSidebar,
   onToggleMobileControls,
+  onOpenAdmin,
   playerDetailScale = 1,
   onTogglePlayerDetailScale,
   mobileControlsOpen = false,
@@ -1696,7 +1699,7 @@ export function GameBoard({
           </div>
         </div>
 
-        <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} />
+        <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
 
       </div>
 

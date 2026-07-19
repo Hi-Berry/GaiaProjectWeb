@@ -2926,6 +2926,7 @@ export default function Game() {
             }}
             mobileControlsOpen={isMapControlsOpen}
             onToggleMobileControls={() => setIsMapControlsOpen((prev) => !prev)}
+            onOpenAdmin={() => { setIsAdmin(true); setIsAdminModeOpen(true); }}
             isMobileViewport={isMobileViewport}
             mobilePanelWidth={effectiveSidebarWidth}
           />
