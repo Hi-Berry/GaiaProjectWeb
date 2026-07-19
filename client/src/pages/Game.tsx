@@ -2976,9 +2976,10 @@ export default function Game() {
                 </div>
               </button>
               {isBonusSelectionPanelExpanded && (
-                <div className="px-4 sm:px-6 pb-6 pt-2 max-h-[45vh] overflow-y-auto border-t border-white/5 custom-scrollbar bg-black/20 w-full min-w-0">
-                  {/* 모바일: 다른 패널처럼 비율 축소(zoom-fill: 내부 폭 보정 후 zoom → 빈 공간 없이 타일만 작아짐) */}
-                  <div style={isMobileViewport ? ({ width: `${100 / 0.62}%`, zoom: 0.62 } as CSSProperties) : undefined}>
+                <div className="px-3 sm:px-6 pb-6 pt-2 max-h-[45vh] overflow-y-auto border-t border-white/5 custom-scrollbar bg-black/20 w-full min-w-0">
+                  {/* 이 패널은 하단 풀폭 바라 사이드바용 zoom-fill이 불필요(오히려 폭 초과로 짤림, 사용자 관찰).
+                      BonusTiles 그리드(auto-fill minmax 5.25rem)가 폭을 그대로 꽉 채우고 넘치면 다음 줄로 감. */}
+                  <div className="w-full">
                     <BonusTiles
                       game={game}
                       playerId={playerId}
