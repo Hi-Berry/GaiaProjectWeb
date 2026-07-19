@@ -188,10 +188,9 @@ export function BonusTiles({
             className={
               isMini
                 ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide justify-between gap-1.5 px-1 pb-1'
-                : isSelectionMode
-                  // 모바일: 4열 고정 + 좁은 간격 → 7개(4+3) 2줄로(사용자 요청). sm+ 부터는 auto-fill로 폭에 맞게.
-                  ? 'grid w-full grid-cols-4 gap-1.5 sm:grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] sm:gap-3 justify-items-center'
-                  : 'flex flex-wrap gap-3'
+                // 선택/대기 무관하게 동일 그리드 유지 — 선택하면(내 턴 종료) 레이아웃이 flex-wrap로 바뀌어 3-3-1로 흐트러지던 것 방지(사용자).
+                // 모바일: 4열 고정 + 좁은 간격 → 7개(4+3) 2줄. sm+ 부터는 auto-fill로 폭에 맞게.
+                : 'grid w-full grid-cols-4 gap-1.5 sm:grid-cols-[repeat(auto-fill,minmax(5.25rem,1fr))] sm:gap-3 justify-items-center'
             }
           >
             {/* Available Bonus Tiles */}
