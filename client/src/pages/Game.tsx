@@ -4073,19 +4073,19 @@ export default function Game() {
         {game && game.turnOrder[game.currentPlayerIndex] === playerId && currentPlayer && (
           <>
             {(currentPlayer.pendingTerraformSteps ?? 0) > 0 && (
-              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] px-4 py-3 rounded-lg bg-orange-950/90 border border-orange-500/50 text-orange-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[116] px-4 py-3 rounded-lg bg-orange-950/90 border border-orange-500/50 text-orange-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
                 <span>테라포밍 액션 사용 중 ({currentPlayer.pendingTerraformSteps}단계 남음)</span>
                 <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
               </div>
             )}
             {(currentPlayer.rangeBonusActive || currentPlayer.tempRangeBonus) && (
-              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] px-4 py-3 rounded-lg bg-purple-950/90 border border-purple-500/50 text-purple-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[116] px-4 py-3 rounded-lg bg-purple-950/90 border border-purple-500/50 text-purple-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
                 <span>+3 거리 보너스 적용 중</span>
                 <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
               </div>
             )}
             {currentPlayer.gleensNavBonusActive && (
-              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] px-4 py-3 rounded-lg bg-green-950/90 border border-green-500/50 text-green-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[116] px-4 py-3 rounded-lg bg-green-950/90 border border-green-500/50 text-green-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
                 <span>글린 특수 액션: +2 거리 적용 중</span>
                 <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
               </div>
