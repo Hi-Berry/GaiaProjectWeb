@@ -2939,8 +2939,8 @@ export default function Game() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`absolute bottom-0 left-0 right-0 border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[120] ${isSidebarOpen ? 'max-md:!right-[var(--sidebar-w)]' : ''}`}
-              style={isSidebarOpen ? ({ ['--sidebar-w' as string]: `${effectiveSidebarWidth}px` } as CSSProperties) : undefined}
+              // 보너스 선택 중엔 선택이 우선이라 모바일에서도 패널을 풀폭으로(상태창을 피해 좌측 2열로 좁던 것 → 폭 전부 사용, 사용자 관찰)
+              className="absolute bottom-0 left-0 right-0 border-t border-white/10 bg-zinc-950/95 backdrop-blur flex flex-col shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] z-[130]"
             >
               <button
                 type="button"
