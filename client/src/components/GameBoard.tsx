@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3 } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight } from 'lucide-react';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import { fireTurnNotification } from '@/lib/turnNotify';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
@@ -1602,17 +1602,33 @@ export function GameBoard({
             );
           })()}
 
-          {/* 상태창 토글 / 줌 컨트롤 — 모바일에서도 항상 표시(사용자 요청: 별도 Menu 토글 버튼 제거, 기존 상태창 토글 버튼 유지) */}
-          <div className="flex flex-col gap-2 relative">
+          {/* 모바일 메뉴 여닫기 토글(Menu/X) — 연방구현 버튼 옆. 이 X로 아래 컨트롤 스택을 닫는다. 데스크톱은 스택 항상 표시라 숨김. */}
+          {onToggleMobileControls && (
+            <Button
+              size="icon"
+              variant="secondary"
+              className="md:hidden rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
+              onClick={onToggleMobileControls}
+              aria-label={mobileControlsOpen ? '맵 컨트롤 닫기' : '맵 컨트롤 열기'}
+              title="맵 컨트롤 (상태창·배율·줌) 열기/닫기"
+            >
+              {mobileControlsOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </Button>
+          )}
+
+          {/* 상태창 토글 / 줌 컨트롤 — 모바일은 위 Menu 토글로 열고 닫음(기본 닫힘), 데스크톱은 항상 표시 */}
+          <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>
             {onToggleSidebar && (
               <Button
                 size="icon"
                 variant="secondary"
-                className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2"
+                className={`rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur mb-2 ${isSidebarOpen ? 'text-blue-300' : 'text-zinc-400'}`}
                 onClick={onToggleSidebar}
                 data-testid="button-toggle-sidebar"
+                title="상태창 보이기/숨기기"
               >
-                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                {/* 메뉴 여닫기 토글(Menu/X)과 구분되게 패널 아이콘 사용(사용자: X 눌러도 메뉴 안 닫히던 혼동 해소) */}
+                <PanelRight className="w-4 h-4" />
               </Button>
             )}
             {onTogglePlayerDetailScale && (
