@@ -3049,6 +3049,11 @@ export class BotLogic {
                     if (round === 1 && !r1PiOpen) continue;
                     if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !piGateOpen && round < 4) continue;
                     if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen && !piGateOpen) continue;
+                } else if (getPlayerFlag(playerId, 'piR1HumanOnly', true) && round === 1 && !r1PiOpen) {
+                    // [flag: piR1HumanOnly] 사용자 관찰(2026-07-20): piGateWide가 R1까지 열어 발타크 등 전 종족이
+                    // R1 의회(480석 중 발타크 25·스자 26·암바스 17…) — 사람 R1 의회는 PI-파워 종족 6개뿐(32건 실측).
+                    // R1은 사람 실측 목록(r1PiOpen)만, 전면 개방은 R2+부터.
+                    continue;
                 }
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
