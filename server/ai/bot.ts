@@ -2379,22 +2379,25 @@ export class BotLogic {
             // 부스터 없이도 닿는 타깃에 지으면 서버가 보너스를 무조건 소모(executeBuildMine 6145-6147) = 낭비.
             // 부스터가 '실제로 여는' 타깃(부스터 OFF 후보군에 없는 것)만 남긴다. 전부 근거리뿐이면(먼 타깃 소멸 등)
             // 기존 폴백 유지 — 턴이 막히는 일은 없음. rangeBoosterUnlocksTarget(활성화 게이트)의 사용 단계 미러.
+            // [v2 2026-07-20] 기존 판정(부스트 ON/OFF 후보목록 집합 차이)은 후보가 상위 5개 슬라이스라
+            // 부스트로 점수가 변하면 '기본 사거리로 닿는 근거리'도 차집합에 들어와 오판(사용자 재현: 트와일라잇
+            // 1K 누르고 Nav2로 닿는 2거리 행성에 건설 = 1K 소각). 실제 거리 기반으로 교체 — 내 앵커(건물·기생·
+            // 정거장)에서 최단거리가 '부스트 제외 기본 사거리'를 초과하는 타깃만 부스트 사용처로 인정.
             if (getPlayerFlag(playerId, 'rangeBonusFarOnly', true) && rangeOnly.length > 0) {
-                const saved = { t: player.tempRangeBonus, r: player.rangeBonusActive, g: player.gleensNavBonusActive };
-                player.tempRangeBonus = false; player.rangeBonusActive = false; player.gleensNavBonusActive = false;
-                const without = new Set<string>();
-                try {
-                    for (const a of this.findBuildActions(game, playerId)) { const t = (a as any).params?.tileId; if (t) without.add(`b:${t}`); }
-                    for (const a of this.findBuildActionsWithPendingSteps(game, playerId)) { const t = (a as any).params?.tileId; if (t) without.add(`b:${t}`); }
-                    for (const a of this.findGaiaformerActions(game, playerId)) { const t = (a as any).params?.tileId; if (t) without.add(`b:${t}`); }
-                    for (const a of this.findSpaceshipEntryActions(game, playerId)) { const t = (a as any).params?.shipTileId ?? (a as any).params?.tileId; if (t) without.add(`s:${t}`); }
-                } finally {
-                    player.tempRangeBonus = saved.t; player.rangeBonusActive = saved.r; player.gleensNavBonusActive = saved.g;
-                }
+                const baseNoBoost = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+                const anchors = game.map.filter(t =>
+                    (t.ownerId === playerId && t.structure) || t.parasiticMine?.ownerId === playerId
+                    || (t.spaceStation as any)?.ownerId === playerId);
+                const needsBoost = (targetTileId: string | undefined): boolean => {
+                    if (!targetTileId || anchors.length === 0) return true; // 판정 불가 시 보수적 유지
+                    const t = game.map.find(m => m.id === targetTileId);
+                    if (!t) return true;
+                    return Math.min(...anchors.map(a => getDistance(a, t))) > baseNoBoost;
+                };
                 const far = rangeOnly.filter(c => {
                     const p = (c as any).params || {};
-                    if (c.type === 'enter_spaceship') return !without.has(`s:${p.shipTileId ?? p.tileId}`);
-                    if (c.type === 'build_mine' || c.type === 'place_gaiaformer') return !without.has(`b:${p.tileId}`);
+                    if (c.type === 'enter_spaceship') return needsBoost(p.shipTileId ?? p.tileId);
+                    if (c.type === 'build_mine' || c.type === 'place_gaiaformer') return needsBoost(p.tileId);
                     return true; // lost planet/ivits 정거장은 보수적으로 유지
                 });
                 if (far.length > 0) rangeOnly = far;
@@ -6941,13 +6944,24 @@ export class BotLogic {
         };
 
         const prev = (player as any)[flag];
-        (player as any)[flag] = false;
-        const without = targetIds();
         (player as any)[flag] = true;
         const withBoost = targetIds();
         (player as any)[flag] = prev;
 
-        return Array.from(withBoost).some((id) => !without.has(id));
+        // [v2 2026-07-20] 기존(ON/OFF 집합 차이)은 상위 N 슬라이스 구성 변화로 근거리도 '열린 것'으로 오판
+        // (사용자 재현: 1K 누르고 기본 사거리 내 건설). 부스트 켠 후보 중 실제 거리가 '부스트 제외 기본
+        // 사거리'를 초과하는 타깃이 있을 때만 true — 사용 단계 필터(rangeBonusFarOnly v2)와 동일 기준.
+        const baseNoBoost = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+        const anchors = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) || t.parasiticMine?.ownerId === playerId
+            || (t.spaceStation as any)?.ownerId === playerId);
+        if (anchors.length === 0) return false;
+        return Array.from(withBoost).some((id) => {
+            const tileId = id.slice(2); // 'b:'/'s:' 프리픽스 제거
+            const t = game.map.find(m => m.id === tileId);
+            if (!t) return false;
+            return Math.min(...anchors.map(a => getDistance(a, t))) > baseNoBoost;
+        });
     }
 
     private static isPlanetHex(tile: HexTile): boolean {
