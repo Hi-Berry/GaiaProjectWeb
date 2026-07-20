@@ -15,8 +15,10 @@ import {
     executeConvertResource,
     getLegalEclipseAsteroidMineTileIds,
     executeEclipseBuildAsteroidMine,
-    forceSkipStuckBotTurn
+    forceSkipStuckBotTurn,
+    hasActiveHumanGame
 } from './gameState';
+import { MCTS } from './ai/mcts';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
 import { recordDecisionFeatures } from './ai/valueData';
@@ -130,6 +132,15 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
     // 어드민 롤백 등으로 무효화된(교체 전) 게임 객체를 붙든 옛 봇 루프는 더 진행하지 않음
     if ((game as any).botCanceled) return;
     if (!game.botPlayerIds || game.botPlayerIds.length === 0) return;
+
+    // [사람 우선 스로틀 2026-07-20] 봇 전용 방(관전용 AI 대전)이 사람 방과 동시 진행이면 MCTS 예산을 400ms로
+    // 축소 — 봇 방 수당 수 초 연산이 이벤트 루프를 점유해 사람 방이 렉(사용자). mcts.ts의 25ms yield와 한 쌍.
+    // 400ms = head2head 측정 표준 예산(채택/기각 판정 전부 이 세기 기준)이라 관전용 대전 품질도 검증된 수준.
+    // 사람이 직접 봇과 싸우는 방(사람 1+봇 N)은 봇 전용이 아니므로 스로틀 대상 아님 — 항상 풀 예산.
+    if (!(game as any).simulation) {
+        const isBotOnly = (game.botPlayerIds?.length ?? 0) >= Object.keys(game.players).length;
+        MCTS.setBotOnlyCap(isBotOnly && hasActiveHumanGame(game.id) ? 400 : null);
+    }
 
     // Module level lock to prevent concurrent executions for the same game
     if (botExecutingGames.has(game.id)) {

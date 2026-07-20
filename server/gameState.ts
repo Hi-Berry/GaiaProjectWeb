@@ -105,6 +105,18 @@ export interface ServerGameState extends GaiaGameState {
 
 
 const games = new Map<string, ServerGameState>();
+/** [사람 우선 스로틀 2026-07-20] 사람이 참여한 진행 중 게임이 (지정 게임 외에) 존재하는가 —
+ *  봇 전용 방의 MCTS가 이벤트 루프를 점유해 사람 방이 렉 걸리는 문제(사용자)의 판별용. */
+export function hasActiveHumanGame(exceptGameId?: string): boolean {
+	for (const [id, g] of Array.from(games.entries())) {
+		if (id === exceptGameId) continue;
+		if ((g as any).simulation) continue;
+		if (g.currentPhase === 'lobby' || g.currentPhase === 'gameEnd') continue;
+		const bots = new Set(g.botPlayerIds || []);
+		if (Object.keys(g.players).some(pid => !bots.has(pid))) return true;
+	}
+	return false;
+}
 const playerGameMap = new Map<string, string>();
 const socketToPlayerMap = new Map<string, string>();
 const socketToSpectatorMap = new Map<string, string>();

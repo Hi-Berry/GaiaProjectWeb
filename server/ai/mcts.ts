@@ -37,6 +37,11 @@ export class MCTS {
     static setTimeMsOverride(ms: number | null): void {
         MCTS._timeMsOverride = ms;
     }
+    /** [사람 우선 스로틀] 봇 전용 방이 사람 방과 동시 진행 중일 때 탐색 예산 상한(ms). botHandler가 매 결정 전 세팅. */
+    private static _botOnlyCapMs: number | null = null;
+    static setBotOnlyCap(ms: number | null): void {
+        MCTS._botOnlyCapMs = ms;
+    }
     /** 환경 변수 MCTS_TIME_MS(숫자)로 오버라이드 가능. 기본 3초. _timeMsOverride 있으면 우선 */
     private static get MAX_TIME_MS(): number {
         if (MCTS._timeMsOverride != null) return MCTS._timeMsOverride;
@@ -93,9 +98,19 @@ export class MCTS {
         let iterations = 0;
 
         // 좌석별 think-time 배수(head-to-head로 "더 깊은 탐색=더 강함" 측정용). 기본 1.0.
-        const timeBudget = this.MAX_TIME_MS * getPlayerFlag(playerId, 'mctsTimeMul', 1);
+        let timeBudget = this.MAX_TIME_MS * getPlayerFlag(playerId, 'mctsTimeMul', 1);
+        // [사람 우선 스로틀] 사람 방 동시 진행 시 봇 전용 방 예산 축소(렉 완화 — botHandler가 세팅)
+        if (MCTS._botOnlyCapMs != null) timeBudget = Math.min(timeBudget, MCTS._botOnlyCapMs);
 
+        // [렉 수정 2026-07-20] 루프 내 await는 전부 즉시-resolve 마이크로태스크라 소켓 이벤트(매크로태스크)가
+        // 탐색 내내 굶음 → 다른 방 사람 플레이가 수백 ms씩 렉(사용자). 25ms마다 setImmediate로 이벤트 루프 양보
+        // (결정당 ~16회, 탐색 손실 무시 수준).
+        let lastYield = startTime;
         while (Date.now() - startTime < timeBudget) {
+            if (Date.now() - lastYield >= 25) {
+                await new Promise<void>(r => setImmediate(r));
+                lastYield = Date.now();
+            }
             let node = this.selectNode(root);
 
             // Limit depth
