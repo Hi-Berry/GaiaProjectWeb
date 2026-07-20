@@ -2448,6 +2448,44 @@ export class BotLogic {
             }
         }
 
+        // [flag: fedLastCall] 사용자 정책(2026-07-20): "연방은 다른 액션들을 하다가 — 3P 토큰 파워액션, 랩 건설,
+        // 가이아 L2 통과 +3토큰, AI 트랙 QIC 등이 토큰을 공짜로 만들어줌 — 더 할 게 없어지는 '마지막 기회'에 형성.
+        // 단 연방이 고급타일을 여는 경우(초록 0 + 좋은 adv 자격)는 앞당겨 보상 자원도 먼저 받기."
+        // 연방은 미뤄도 소멸하지 않고 위성 비용은 내려가기만 함 → 생산 액션이 남아 있으면 연방 후보를 이번 턴
+        // 보류, 대안이 소진되면(패스/변환/턴종료만 남음) 자동 복귀. fedR6ConvCap(광석 강제변환 캡)의 상류 해법.
+        // [v3] R5+ 한정: v2 계측 — R6 연방 0.40(챔피언 0.30) + 액션 +0.87로 후반 메커니즘은 완성됐으나,
+        // R1-5 중반 연방까지 미뤄져 총 연방 −0.17(중반 연방 보상의 복리 가치 손실). 사용자 사례도 후반(R6 광석
+        // 소각·막판 타이밍) — 중반 연방은 기존대로 즉시, 미루기는 R5+만.
+        if (getPlayerFlag(playerId, 'fedLastCall', true)
+            && (game.roundNumber ?? 1) >= 5
+            && uniqueCandidates.some(c => c.type === 'form_federation')) {
+            const productive = uniqueCandidates.some(c =>
+                c.type !== 'form_federation' && c.type !== 'pass_round'
+                && c.type !== 'convert_resource' && c.type !== 'end_turn');
+            const advUrgent = countGreenFederations(player) === 0
+                && this.bestClaimableAdvScore(game, playerId) >= 60;
+            if (productive && !advUrgent) {
+                // [v2] 번(burn) 가드: 40판 계측 — 미루기로 R6 액션 +0.64/석 성공했지만 R6 연방 0.38→0.26 증발.
+                // 원인 = 미루는 동안 번 낀 콤보가 토큰을 태워 보류 중인 연방의 위성 지불력이 잠식(사용자 예시 A 재발).
+                // 보류 연방의 최소 위성 수요 밑으로 토큰을 태우는 후보는 함께 제외 — 그런 후보뿐이면 지금이 마지막 기회.
+                const fedNeed = Math.min(...uniqueCandidates
+                    .filter(c => c.type === 'form_federation')
+                    .map(c => ((c.params as any)?.spentTokens ?? 99) as number));
+                const brainTok = (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) ? 1 : 0;
+                const totalTok = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0) + brainTok;
+                const deferred = uniqueCandidates.filter(c => {
+                    if (c.type === 'form_federation') return false;
+                    const burns = (c.preActions ?? []).filter(p => p.type === 'burn_power').length;
+                    return burns === 0 || totalTok - burns >= fedNeed;
+                });
+                if (deferred.some(c => c.type !== 'pass_round' && c.type !== 'convert_resource' && c.type !== 'end_turn')) {
+                    uniqueCandidates.length = 0;
+                    uniqueCandidates.push(...deferred);
+                }
+                // 번 없는 생산 후보가 없으면 보류 해제(연방 후보 유지) = 마지막 기회 감지
+            }
+        }
+
         // [flag: lantidsParasiteWindow] 사용자 지시(2026-07-15): 기생의 발판/가교 가치를 근사 점수로 넣지 말고
         // 롤아웃이 직접 판정하게 하라. MCTS는 상위 TOP_N(8)만 롤아웃하므로 기생 후보가 9위 밖이면 체인 탐색
         // 기회가 0 — 최고 기생 후보 1개를 창 안(4번째)으로 이동(점수 인플레 없음, 판정은 롤아웃+평가기 몫).
