@@ -5662,8 +5662,11 @@ export default function Game() {
                 </>
               )}
 
-              {/* Reset/End Turn (Integrated inside bar) */}
-              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (
+              {/* Reset/End Turn (Integrated inside bar)
+                  [잠금 버그 수정 2026-07-20] 삽 대기(pendingTerraformSteps>0) 조건이 버튼을 아예 숨겨서,
+                  삽을 들었는데 지을 곳이 없으면(광석 0 등) 탈출 불가 40분 잠금(실서버 로그 rohrigdp).
+                  서버 end_turn은 삽 대기를 허용하므로 버튼을 항상 노출하고, 삽이 남았으면 확인만 받는다. */}
+              {game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId) && (
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="outline"
@@ -5678,6 +5681,8 @@ export default function Game() {
                     className="h-7 px-4 bg-green-600 text-white hover:bg-green-500 text-[10px] font-black uppercase tracking-tight shadow-lg border-b-2 border-green-800"
                     onClick={async () => {
                       if (gameId) {
+                        const pendSteps = game.players[playerId!]?.pendingTerraformSteps ?? 0;
+                        if (pendSteps > 0 && !window.confirm(`테라포밍 ${pendSteps}단계가 남아 있습니다. 사용하지 않고 턴을 종료할까요?`)) return;
                         try {
                           await GameClient.endTurn(gameId);
                         } catch (e: any) {
