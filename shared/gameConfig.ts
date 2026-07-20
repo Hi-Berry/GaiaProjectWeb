@@ -1060,7 +1060,9 @@ export function getNextRoundIncomePreview(
   }
   const leftAcademyCount = structures.filter(t => t.structure === 'academy' && t.academyType === 'left').length;
   if (leftAcademyCount > 0) {
-    result.knowledge += STRUCTURE_INCOME.academy.left * leftAcademyCount; // 보통 1개지만 확장성 고려
+    // 아이타 지식 아카데미는 3K (server/gameState.ts 실제 지급과 동일)
+    const kPerLeft = player.faction === 'itars' ? 3 : STRUCTURE_INCOME.academy.left;
+    result.knowledge += kPerLeft * leftAcademyCount; // 보통 1개지만 확장성 고려
   }
 
   const econLevel = player.research?.economy ?? 0;

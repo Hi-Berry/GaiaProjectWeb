@@ -6531,7 +6531,7 @@ export function executeUpgradeStructure(
 		tile.structure = 'academy';
 		tile.academyType = target === 'academy_left' ? 'left' : 'right';
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left' ? '6O, 6C (2K 수익)' : '6O, 6C (1QIC 액션)', tileId);
+		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left' ? `6O, 6C (${player.faction === 'itars' ? 3 : 2}K 수익)` : '6O, 6C (1QIC 액션)', tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
