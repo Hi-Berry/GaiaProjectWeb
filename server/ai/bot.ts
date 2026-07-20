@@ -1964,8 +1964,13 @@ export class BotLogic {
             const fedHumanRelax = (getPlayerFlag(playerId, 'fedSatCapHuman', true)
                 && ((game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
                     || getPlayerFlag(playerId, 'fedSatCapHumanForce', false))) ? 2 : 0; // Force = 스모크 검증 전용
+            // [flag: fedR6ConvCap] 사용자 1순위(2026-07-20): "연방이 좋다고 보이면 온갖 손실을 하며 연방" —
+            // 실측: R6 연방 중 광석→토큰 동반 사람 14%(평균 2.0개) vs 봇 58%(3.4개). R6 광석 = 미션·건설·잔여
+            // 가치라 3개+ 태우면 보상(7-12VP)을 숨은 비용이 잠식. 사람 상한(≤3)으로 변환 캡 — 비싼 연방 후보만
+            // 소멸, 싼 연방(변환 ≤3)은 유지.
+            const r6ConvCap = getPlayerFlag(playerId, 'fedR6ConvCap', true) ? 3 : 6 + fedHumanRelax;
             const maxK = guard
-                ? (_round >= 6 ? Math.min(Math.max(0, oreForFed - 1), 6 + fedHumanRelax) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4 + fedHumanRelax) : Math.min(oreForFed, 3))
+                ? (_round >= 6 ? Math.min(Math.max(0, oreForFed - 1), r6ConvCap) : _round >= 4 ? Math.min(Math.max(0, oreForFed - 1), 4 + fedHumanRelax) : Math.min(oreForFed, 3))
                 : (_round >= 4 ? Math.min(oreForFed, 8) : Math.min(oreForFed, 6));
             const fedSubN = _round >= 4 ? 4 : 2;
             for (let k = 2; k <= maxK; k++) {
