@@ -6239,6 +6239,9 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 	// Standard Build
 	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
+	// [계측 2026-07-20] 사용자 관찰("+3거리 누르고 기본 사거리 안에 건설 = 1K 낭비") 현장 포착용 —
+	// 부스트 소모량을 기억해 두고, 건설 거리가 부스트 없이도 닿았으면 diagRangeWaste에 기록(행동 무변경).
+	const rangeBoostSpent = (player.tempRangeBonus ? 3 : 0) + (player.rangeBonusActive ? 3 : 0) + (player.gleensNavBonusActive ? 2 : 0);
 	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
 	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
 	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
@@ -6249,6 +6252,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	}
 
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
+	if (rangeBoostSpent > 0 && minDist <= baseRange - rangeBoostSpent) {
+		const entry = { kind: 'boosted-build-within-base-range', player: player.name, isBot: !!game.botPlayerIds?.includes(playerId), round: game.roundNumber, tileId, minDist, baseRangeWithoutBoost: baseRange - rangeBoostSpent, boost: rangeBoostSpent };
+		(game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+		(game as any).diagRangeWaste.push(entry);
+		log(`[RANGE-WASTE-BUILD] ${JSON.stringify(entry)}`, 'game', game.id);
+	}
 	let neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
 
 	// 가이아포머로 미리 포밍해 둔(즉시포밍) 행성에 광산을 짓는지 여부.
