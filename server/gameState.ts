@@ -8985,7 +8985,9 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	let powerToMove = 0;
 
 	const pendingGaia = game.pendingTFMarsGaiaProject;
-	const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia';
+	// [버그수정 2026-07-20] 소유자 미확인: 다른 플레이어의 pending('bonus-gaia')이 남아 있으면 내 일반 배치가
+	// 무료 즉포로 오판(반대로 pending이 어긋나면 즉포가 유료 오판될 수도) — playerId 일치까지 요구.
+	const isBonusGaia = pendingGaia?.shipTileId === 'bonus-gaia' && pendingGaia?.playerId === playerId;
 	const immediateBuildable = fromTFMars || isBonusGaia;
 
 	if (!immediateBuildable) {
