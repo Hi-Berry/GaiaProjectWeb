@@ -3002,7 +3002,8 @@ export default function Game() {
                 <div className="flex items-center gap-4">
                   <Gift className="w-5 h-5 text-primary" />
                   <h2 className="text-xl font-black uppercase tracking-widest text-white">Tactical Overview</h2>
-                  <Badge className="bg-primary/20 text-primary border-primary/20">Hotkey: E</Badge>
+                  {/* 모바일엔 키보드가 없어 단축키 안내가 무의미 — md+ 에서만 표시 (사용자 요청, R창과 동일) */}
+                  <Badge className="hidden md:inline-flex bg-primary/20 text-primary border-primary/20">Hotkey: E</Badge>
                 </div>
                 <Button
                   variant="ghost"
@@ -3069,7 +3070,8 @@ export default function Game() {
               <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-2xl border border-white/5 shadow-2xl">
                 <div className="flex items-center gap-4">
                   <h2 className="text-xl font-black uppercase tracking-widest text-white">Research & Technology</h2>
-                  <Badge className="bg-primary/20 text-primary border-primary/20">Hotkey: R</Badge>
+                  {/* 모바일엔 키보드가 없어 단축키 안내가 무의미 — md+ 에서만 표시 (사용자 요청) */}
+                  <Badge className="hidden md:inline-flex bg-primary/20 text-primary border-primary/20">Hotkey: R</Badge>
                 </div>
                 <Button
                   variant="ghost"
