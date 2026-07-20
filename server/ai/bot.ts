@@ -2998,9 +2998,15 @@ export class BotLogic {
                 // PI를 지음(bescods 3·xenos 3·itars 2·ambas·terran·darkanians) — round<4 게이트가 종족 무관 차단.
                 // 광산 4+ & R2+면 개방 (acadGateOpen·r1PiOpen 동형: 순수 후보 개방, 선택은 MCTS).
                 const piGateOpen = getPlayerFlag(playerId, 'piGateOpen', true) && round >= 2 && mineCount >= 4;
-                if (round === 1 && !r1PiOpen) continue;
-                if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !piGateOpen && round < 4) continue;
-                if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen && !piGateOpen) continue;
+                // [flag: piGateWide] 94게임 리프로브(2026-07-20): 사람 PI 79건 중 봇 후보 부재 84.8%, 그 72%가
+                // 이 R1-3 게이트들 — 사람은 전 종족이 광산 1~7 기반으로 조기 PI(스자 광산1, 기오덴 광산1, 매안
+                // 광산2, 암바스 광산2, 제노스·테란…). 기존 개방(r1PiOpen 종족제한·piGateOpen 광산4+)도 39건을
+                // 남김 → 자금 실존 시 후보 무조건 개방(순수 후보 개방 — 선택은 MCTS/평가기, acadGateOpen 동형).
+                if (!getPlayerFlag(playerId, 'piGateWide', true)) {
+                    if (round === 1 && !r1PiOpen) continue;
+                    if (!earlyPiAllowed.includes(faction || '') && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !piGateOpen && round < 4) continue;
+                    if (round <= 2 && mineCount < 5 && !firaksPiReady && !lantidsPiReady && !hhPiReady && !geodensPiReady && !bescodsPiReady && !r1PiOpen && !piGateOpen) continue;
+                }
 
                 if (faction === 'geodens' && this.shouldGeodenBuildPI(game, playerId)) score += 30;
 
