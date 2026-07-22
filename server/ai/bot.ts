@@ -6958,10 +6958,14 @@ export class BotLogic {
         const refill = artifactId === 'art-income-2p3' ? 2 : 0;
         for (let n = need; n <= Math.min(6, ore); n++) {
             if (!this.canSpendPowerTokensForStrategicAction(game, player, 6, n, refill)) continue;
+            // [낭비수정 2026-07-22 사용자 관찰: (0,0,3)에서 3그릇 토큰이 인공물 6토큰 소모에 생으로 갈림]
+            // 연방 ore→token 경로(2026-07-07 수정)와 동일한 누락 — 이 경로도 소모될 bowl3를 먼저
+            // 1P→1C/3P→1O로 환수(토큰은 bowl1로 돌아와 6토큰 지불에 그대로 쓰임 = 순이득).
+            const cashout = this.doomedBowl3CashoutPreActions(player, 6, playerId, n);
             results.push({
                 type: 'take_twilight_artifact',
                 params: { artifactId },
-                preActions: Array.from({ length: n }, () => oneConvert)
+                preActions: [...Array.from({ length: n }, () => oneConvert), ...cashout]
             });
         }
         return results;
