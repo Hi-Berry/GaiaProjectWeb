@@ -400,14 +400,22 @@ export async function submitToScoreSite(game: GaiaGameState & {
   }
 
   const endpoint = url.replace(/\/+$/, '') + '/api/submit-game';
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Gaia-Token': token },
-    body: JSON.stringify({ game_id: game.id, players }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Score site submit failed: ${res.status} ${body}`);
+  // 점수사이트가 응답 없이 멈춰도 promise가 무한 대기하지 않도록 10초 타임아웃(매달린 소켓 누적 방지).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Gaia-Token': token },
+      body: JSON.stringify({ game_id: game.id, players }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Score site submit failed: ${res.status} ${body}`);
+    }
+    log(`Score submitted to score site: ${game.id}`, 'system', game.id);
+  } finally {
+    clearTimeout(timer);
   }
-  log(`Score submitted to score site: ${game.id}`, 'system', game.id);
 }
