@@ -265,7 +265,13 @@ export class FederationPlanner {
                     const remaining = Math.max(1, 7 - (game.roundNumber ?? 1)); // 남은 라운드(이번 포함) 근사
                     const horizon = Math.min(3, remaining); // 최대 3라운드치만 반영(과대평가 방지)
                     const creditSupply = credits + creditIncome * horizon;
-                    score -= creditSupply >= 45 ? 50 : creditSupply >= 25 ? 25 : 0;
+                    // [flag: fedCredit6CStarve] 기존엔 '돈 남으면 감점'만 있어 돈 기아여도 2O(+2)가 항상 이김(사용자 관찰:
+                    // 극심한 크레딧 기아 중에도 광석연방 선택). 기아(잔고+수익 합산 여유 ≤18)면 6C를 2O 위로 올림.
+                    if (getPlayerFlag(playerId, 'fedCredit6CStarve', true) && creditSupply <= 18) {
+                        score += creditSupply <= 10 ? 50 : 30;
+                    } else {
+                        score -= creditSupply >= 45 ? 50 : creditSupply >= 25 ? 25 : 0;
+                    }
                 } else {
                     score += 2;
                 }
