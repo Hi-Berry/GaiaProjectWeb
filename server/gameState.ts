@@ -1054,7 +1054,11 @@ function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string
 	// 파워를 활용할 수 있는 라운드 수 (패스했으면 이번 라운드엔 못 쓰고 다음 라운드 충전분만)
 	const usefulRounds = Math.max(0, 6 - round) + (player.hasPassed ? 0 : 1);
 	// 파워 1개의 대략 가치(VP 환산): 게임이 많이 남을수록 높게. 받는 파워×가치 ≥ 깎이는 VP 면 수락.
-	let perPowerValue = usefulRounds >= 4 ? 0.8 : usefulRounds >= 2 ? 0.5 : 0.25;
+	// [flag: leechHumanPay] 103게임 실측(2026-07-22): 리치 지불 사람 평균 10.0VP(p50 10, p90 17) vs 봇 7.9VP —
+	// 사람이 ~2VP 더 지불하며, 지불량-점수 관계는 사람 중립·봇 소폭 양(+4). 사용자 지시("봇끼리도 더 받아봐"):
+	// 중·후반 파워 가치 상향(0.5→0.65, 0.25→0.35) + 예산 임계 8→12(사람 p50 위로) 캘리브레이션.
+	const leechCalib = getPlayerFlag(targetPlayerId, 'leechHumanPay', false);
+	let perPowerValue = usefulRounds >= 4 ? 0.8 : usefulRounds >= 2 ? (leechCalib ? 0.65 : 0.5) : (leechCalib ? 0.35 : 0.25);
 	// [사용자 관찰 2026-06-14] 후반에 무작정 거절 말 것 — 받은 파워를 '쓸 곳'(미사용 파워액션)이 있고
 	// 아직 패스 안 했으면 실질 전환 가치가 있으므로 파워 가치를 상향해 수락 쪽으로 (전환처 없으면 기존대로 보수적).
 	if (getPlayerFlag(targetPlayerId, 'smartPowerAccept', true) && !player.hasPassed) {
@@ -1070,7 +1074,7 @@ function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string
 	if (getPlayerFlag(targetPlayerId, 'powerAcceptBudget', true)
 		&& (!getPlayerFlag(targetPlayerId, 'powerBudgetRoundGuard', true) || usefulRounds <= 2)) {
 		const paidSoFar = player.scoreBreakdown?.powerReceived ?? 0;
-		if (paidSoFar >= 8) perPowerValue *= 0.6;
+		if (paidSoFar >= (leechCalib ? 12 : 8)) perPowerValue *= 0.6; // [flag: leechHumanPay] 사람 p50(10) 위로 완화
 	}
 	return effective * perPowerValue >= vpCost;
 }
