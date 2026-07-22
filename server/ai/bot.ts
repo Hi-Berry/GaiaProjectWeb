@@ -2765,7 +2765,7 @@ export class BotLogic {
         const fedDeferPenalty = (tileId: string) => (freshTsAvailable && fedHexes.includes(tileId)) ? 200 : 0;
 
         // 1. Mines -> Trading Stations
-        if (ore >= 2 && (credits >= 3 || getPlayerFlag(playerId, 'tsConvertCombo', false))) {
+        if (ore >= 2 && (credits >= 3 || getPlayerFlag(playerId, 'tsConvertCombo', true))) {
             const mines = myStructures.filter(t => t.structure === 'mine');
             for (const mine of mines) {
                 const isDiscounted = hasNearbyPlayersForDiscount(game, mine, playerId);
@@ -2774,7 +2774,7 @@ export class BotLogic {
                 // (1O→1C)·bowl3 파워(1P→1C)로 크레딧 갭 1~3을 메꾸고 TS 업글(대부분 할인 3C). 랩/아카에만 있던
                 // upgradeConvertCombo의 TS판(순수 후보 개방 — 선택은 MCTS). 타클론은 브레인 회계 특수라 제외.
                 let tsFundPre: BotAction[] | null = null;
-                if (credits < cost && getPlayerFlag(playerId, 'tsConvertCombo', false) && player.faction !== 'taklons') {
+                if (credits < cost && getPlayerFlag(playerId, 'tsConvertCombo', true) && player.faction !== 'taklons') {
                     const gap = cost - credits;
                     if (gap <= 3) {
                         const pre: BotAction[] = [];
