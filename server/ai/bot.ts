@@ -924,6 +924,42 @@ export class BotLogic {
                         return tsFirst;
                     }
                 }
+                // [flag: lantidsPiRush] 103게임 진단(2026-07-22): 사람 란티다 R1 의회 83%(평균 R1.7, 광산→TS→PI 체인,
+                // 평균 165VP) vs 봇 PI 평균 R3.55·R1-2는 25%뿐(72VP, 종족 꼴찌) — r1PiCalib103으로 후보는 열렸으나
+                // MCTS가 안 고름. 기생 수는 5.4≈사람 5.3으로 동일한데 PI가 늦어 기생 +2K 엔진의 절반을 버림.
+                // darkTsFirst 동형(후보 실존+순서 강제): R≤2 & PI 미보유 시 ①PI 후보 실존(자금 포함)이면 PI 직접-return
+                // ②TS가 없으면 TS 직접-return(체인 선행). firaksPiPriority(−6.40)·taklonsPiCommit(−1.70) 기각 이력
+                // 주의 — 란티다는 기생 엔진 커플링이라 가치 구조가 다름. 측정으로 판정.
+                // [v2 사용자 모델(2026-07-22)]: 맹목 강제가 아니라 사람의 판단 재현 — "의회를 지었을 때 1QIC(+2 사거리)로
+                // 기생 타겟(상대 점유 행성) 2개 이상에 갈 수 있나"를 보고 러시 여부 결정. 타겟 <2면 러시 안 함(일반 플레이).
+                if (getPlayerFlag(playerId, 'lantidsPiRush', false) && player.faction === 'lantids'
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
+                    && (() => {
+                        const anchorsLan = game.map.filter(t =>
+                            (t.ownerId === playerId && t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId);
+                        const reachLan = this.getEffectiveBaseRange(player) + ((player.qic ?? 0) >= 1 ? 2 : 0);
+                        const paraTargets = game.map.filter(t =>
+                            t.ownerId && t.ownerId !== playerId && t.structure && t.structure !== 'ship'
+                            && !t.parasiticMine && !String(t.type || '').startsWith('ship_')
+                            && anchorsLan.some(a => getDistance(a, t) <= reachLan)).length;
+                        return paraTargets >= 2;
+                    })()) {
+                    const upsLan = this.findUpgradeActions(game, playerId);
+                    const piLan = upsLan.find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'planetary_institute');
+                    if (piLan) {
+                        log(`Bot ${player.name} lantidsPiRush: 의회 최우선 (R${game.roundNumber}) — 기생 +2K 엔진 조기 가동`, 'game', game.id);
+                        return piLan;
+                    }
+                    if (getStructureCount(game, playerId, 'trading_station') === 0) {
+                        const tsLan = upsLan.find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'trading_station');
+                        if (tsLan) {
+                            log(`Bot ${player.name} lantidsPiRush: TS 선행 (R${game.roundNumber}) — 광산→TS→PI 체인`, 'game', game.id);
+                            return tsLan;
+                        }
+                    }
+                }
                 // [flag: taklonsPiCommit] 실측(2026-07-16): 봇 타클론 49석 중 21석(43%)이 PI 미건설(사람 6/6 건설,
                 // 평균 R4.3). 타이밍이 아니라 커밋 자체가 문제 — 자금이 생겨도 MCTS가 계속 딴 걸 골라 영영 밀림.
                 // PI = 토큰수입+브레인 엔진 강화라 타클론 필수 건물. firaksPiPriority 동형: R≤4 & PI 미보유 &
