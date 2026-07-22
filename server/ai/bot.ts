@@ -3097,7 +3097,33 @@ export class BotLogic {
             ? Array.from({ length: acadCreditGap }, () => ({ type: 'convert_resource' as const, params: { type: '1ore-to-1credit' } }))
             : undefined;
         const acadOrePre = credits >= 6 ? oreConvertPre(Math.max(0, 6 - ore)) : null;
-        if (((ore >= 6 && credits >= 6) || acadCombo || acadOrePre) && academyCount < 2) {
+        // [flag: acadFundV2] 103게임 리프로브: 아카 갭 1위 '자원부족(6O6C) 29건' — 기존 조달이 못 덮는 두 케이스:
+        // ①광석갭 3(oreConvertPre 캡 2 초과) ②광석갭+크레딧갭 혼합(acadCombo는 광석잉여 전제, acadOrePre는 credits≥6 전제).
+        // 광석갭≤3은 3P→1O/1Q→1O(예비 1Q 보존), 크레딧갭은 잔여 bowl3 1P→1C → 잉여광석 1O→1C 순으로 혼합 충당(타클론 제외).
+        let acadFundPre: BotAction[] | null = null;
+        if (getPlayerFlag(playerId, 'acadFundV2', false) && !acadConvertPre && !acadOrePre
+            && !(ore >= 6 && credits >= 6) && player.faction !== 'taklons') {
+            const oreGap = Math.max(0, 6 - ore);
+            const credGap = Math.max(0, 6 - credits);
+            if (oreGap <= 3) {
+                const pre: BotAction[] = [];
+                let p3 = player.power3 ?? 0, q = player.qic ?? 0;
+                let oreSurplus = Math.max(0, ore - 6);
+                let ok = true;
+                for (let i = 0; i < oreGap && ok; i++) {
+                    if (p3 >= 3) { pre.push({ type: 'convert_resource', params: { type: '3power-to-1ore' } }); p3 -= 3; }
+                    else if (q >= 2) { pre.push({ type: 'convert_resource', params: { type: '1qic-to-1ore' } }); q -= 1; }
+                    else ok = false;
+                }
+                for (let i = 0; i < credGap && ok; i++) {
+                    if (p3 >= 1) { pre.push({ type: 'convert_resource', params: { type: '1power-to-1credit' } }); p3 -= 1; }
+                    else if (oreSurplus > 0) { pre.push({ type: 'convert_resource', params: { type: '1ore-to-1credit' } }); oreSurplus--; }
+                    else ok = false;
+                }
+                if (ok && pre.length > 0) acadFundPre = pre;
+            }
+        }
+        if (((ore >= 6 && credits >= 6) || acadCombo || acadOrePre || acadFundPre) && academyCount < 2) {
             // [버그수정 2026-07-05: bescods 트리] 매안 전용 TS→아카(서버 6234)도 아카 소스로 — 봇에 분기가 없어
             // 매안이 교역소에서 아카 직행을 영영 못 썼음(사용자 관찰). 표준 연구소→아카는 매안도 유효라 둘 다.
             const labList = player.faction === 'bescods'
@@ -3152,7 +3178,7 @@ export class BotLogic {
                 const acadTarget = getPlayerFlag(playerId, 'academyTypeChoice', true)
                     ? (((game.roundNumber ?? 1) >= 5 || onRebellion) ? 'academy_right' : 'academy_left')
                     : 'academy_right';
-                const acadPre = acadConvertPre ?? acadOrePre ?? undefined; // [flag: upgradeOreConvert] 광석 갭은 3P→1O/1Q→1O로
+                const acadPre = acadConvertPre ?? acadOrePre ?? acadFundPre ?? undefined; // [flag: upgradeOreConvert/acadFundV2] 광석·크레딧 갭 변환 조달
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
