@@ -2765,12 +2765,29 @@ export class BotLogic {
         const fedDeferPenalty = (tileId: string) => (freshTsAvailable && fedHexes.includes(tileId)) ? 200 : 0;
 
         // 1. Mines -> Trading Stations
-        if (ore >= 2 && credits >= 3) {
+        if (ore >= 2 && (credits >= 3 || getPlayerFlag(playerId, 'tsConvertCombo', false))) {
             const mines = myStructures.filter(t => t.structure === 'mine');
             for (const mine of mines) {
                 const isDiscounted = hasNearbyPlayersForDiscount(game, mine, playerId);
                 const cost = isDiscounted ? 3 : 6;
-                if (credits >= cost) {
+                // [flag: tsConvertCombo] 103게임 TS 갭 원인 1위 '자원 부족(2O3C) 50건/신뢰갭 91건' — 사람은 광석 잉여
+                // (1O→1C)·bowl3 파워(1P→1C)로 크레딧 갭 1~3을 메꾸고 TS 업글(대부분 할인 3C). 랩/아카에만 있던
+                // upgradeConvertCombo의 TS판(순수 후보 개방 — 선택은 MCTS). 타클론은 브레인 회계 특수라 제외.
+                let tsFundPre: BotAction[] | null = null;
+                if (credits < cost && getPlayerFlag(playerId, 'tsConvertCombo', false) && player.faction !== 'taklons') {
+                    const gap = cost - credits;
+                    if (gap <= 3) {
+                        const pre: BotAction[] = [];
+                        let oreSur = ore - 2, p3 = player.power3 ?? 0, ok = true;
+                        for (let i = 0; i < gap; i++) {
+                            if (oreSur > 0) { pre.push({ type: 'convert_resource', params: { type: '1ore-to-1credit' } }); oreSur--; }
+                            else if (p3 > 0) { pre.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: false } }); p3--; }
+                            else { ok = false; break; }
+                        }
+                        if (ok && pre.length > 0) tsFundPre = pre;
+                    }
+                }
+                if (credits >= cost || tsFundPre) {
                     // [사용자 피드백] TS 점수도 전반적으로 광산보다 높게 유지하여 연구소로 가는 발판을 마련함
                     let score = isDiscounted ? 200 : 50;
 
@@ -2895,7 +2912,9 @@ export class BotLogic {
                     candidates.push({
                         id: `ts-${mine.id}`,
                         score,
-                        action: { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' } },
+                        action: tsFundPre
+                            ? { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' }, preActions: tsFundPre }
+                            : { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' } },
                         isFederated: isFederated(mine.id),
                     });
                 }

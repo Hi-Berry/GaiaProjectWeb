@@ -108,6 +108,8 @@ const piWhy: Record<string, number> = {};
 const piSamples: Record<string, string[]> = {};
 const acadWhy: Record<string, number> = {};
 const acadSamples: Record<string, string[]> = {};
+const tsWhy: Record<string, number> = {};
+const tsSamples: Record<string, string[]> = {};
 let decisions = 0, errors = 0;
 
 for (const f of files) {
@@ -200,6 +202,30 @@ for (const f of files) {
             const S = isPi ? piSamples : acadSamples;
             if ((S[why] = S[why] || []).length < 3) S[why].push(`R${r} ${me.faction} 광산${mineCnt} O${me.ore}C${me.credits}`);
         }
+        // TS 갭 원인 분류 (라이브 갭 ∧ 리프로브 갭) — 신뢰클래스(위양성 22%) 최대 갭(103게임 213건)의 레버 발굴용
+        if (res.cls === 'upgrade_ts' && !res.hit && !live.hit) {
+            const me = players[pid];
+            const tile = byId.get(e.tileId);
+            const r = e.round ?? 1;
+            const mineCnt = map.filter((t: Any) => t.ownerId === pid && (t.structure === 'mine' || t.structure === 'lost_planet_mine')).length;
+            const tsCnt = map.filter((t: Any) => t.ownerId === pid && t.structure === 'trading_station').length;
+            const hexDist = (a: Any, b: Any) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+            // 할인 여부 근사: 상대 건물/기생광산 2칸 이내 (서버 hasNearbyPlayersForDiscount와 동일 기준)
+            const discounted = !!tile && map.some((t: Any) =>
+                ((t.ownerId && t.ownerId !== pid && t.structure && t.structure !== 'ship') || (t.parasiticMine && t.parasiticMine.ownerId !== pid))
+                && hexDist(t, tile) <= 2);
+            const needC = discounted ? 3 : 6;
+            const anySameTs = cands.some((c: Any) => c.type === 'upgrade_structure' && (c.params || c).target === 'trading_station');
+            const mineIsMine = !!tile && tile.ownerId === pid && tile.structure === 'mine';
+            const why =
+                tsCnt >= 4 ? 'TS 한도(4)' :
+                !mineIsMine ? '재구성 불일치(그 타일이 내 광산 아님)' :
+                ((me.ore ?? 0) < 2 || (me.credits ?? 0) < needC) ? `자원 부족(2O${needC}C)` :
+                anySameTs ? '동종 후보 있음(타일 차이)' :
+                `기타(R${r} 광산${mineCnt} TS${tsCnt})`;
+            tsWhy[why] = (tsWhy[why] || 0) + 1;
+            if ((tsSamples[why] = tsSamples[why] || []).length < 4) tsSamples[why].push(`R${r} ${me.faction} 광산${mineCnt} TS${tsCnt} O${me.ore}C${me.credits}${discounted ? ' 할인' : ''}`);
+        }
         // 소행성 갭 원인 분류 (라이브 갭 ∧ 리프로브 갭 = 고신뢰 케이스만)
         if (res.cls === 'asteroid_mine' && !res.hit && !live.hit) {
             const me = players[pid];
@@ -247,7 +273,7 @@ for (const [k, v] of Object.entries(astWhy).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${k}: ${v}`);
     (astSamples[k] || []).forEach(sm => console.log('     ·', sm));
 }
-for (const [nm, W, S] of [['PI', piWhy, piSamples], ['아카데미', acadWhy, acadSamples]] as Array<[string, Record<string, number>, Record<string, string[]>]>) {
+for (const [nm, W, S] of [['PI', piWhy, piSamples], ['아카데미', acadWhy, acadSamples], ['TS', tsWhy, tsSamples]] as Array<[string, Record<string, number>, Record<string, string[]>]>) {
     console.log(`\n${nm} 갭 원인 (라이브∧리프로브 교집합):`);
     for (const [k, v] of Object.entries(W).sort((a, b) => b[1] - a[1])) {
         console.log(`  ${k}: ${v}`);
