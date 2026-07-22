@@ -8411,11 +8411,25 @@ export function executeBotMoweyipPlaceRing(
 	if (player.usedSpecialActions?.includes('moweyip-place-ring')) return false;
 	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return false;
 
-	// 링이 없는 본인 건물 중 첫 번째 선택 (ship 제외)
-	const targetTile = game.map.find(
+	// 링 대상 스코어링(기존 '첫 번째 건물'은 이미 연방된 건물에 낭비 — 사용자 관찰):
+	// ①미연방 건물 우선(+2 파워가 향후 연방 7파워에 기여 — 연방 완료 건물이면 그 가치가 죽음)
+	// ②상대 건물 인접(2칸) 많을수록 우대(상대가 근처에 지을 때 파워 수신 +2 실현 가능성)
+	const fedHexes = new Set(game.playerFederationHexes?.[playerId] || []);
+	const ringCandidates = game.map.filter(
 		t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && !t.moweyipRing
 	);
-	if (!targetTile) return false;
+	if (ringCandidates.length === 0) return false;
+	let targetTile = ringCandidates[0];
+	let bestScore = -Infinity;
+	for (const t of ringCandidates) {
+		let s = fedHexes.has(t.id) ? 0 : 100;
+		for (const o of game.map) {
+			const oppBuilding = o.ownerId && o.ownerId !== playerId && o.structure && o.structure !== 'ship';
+			const oppParasite = o.parasiticMine?.ownerId && o.parasiticMine.ownerId !== playerId;
+			if ((oppBuilding || oppParasite) && getDistance(t, o) <= 2) s += 10;
+		}
+		if (s > bestScore) { bestScore = s; targetTile = t; }
+	}
 
 	targetTile.moweyipRing = true;
 	if (!player.usedSpecialActions) player.usedSpecialActions = [];
