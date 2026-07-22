@@ -169,6 +169,32 @@ export default function Lobby() {
     }
   };
 
+  /** [다른 기기 이어하기] 진행 중 게임에 이 기기 좌석(localStorage)이 없을 때 —
+   *  이름+비번이 채워져 있으면 로비에서 바로 좌석 복귀(account_rejoin), 아니면 게임 페이지의 이어하기 폼으로 보냄. */
+  const handleLobbyRejoin = async (gameId: string) => {
+    if (!playerName.trim() || !joinPassword.trim()) {
+      setLocation(`/game/${gameId}`); // 게임 페이지에서 '내 자리로 이어하기'(이름/비번) 폼이 뜸
+      return;
+    }
+    try {
+      setJoining(gameId);
+      const { playerId } = await GameClient.accountRejoin(gameId, playerName.trim(), joinPassword.trim());
+      localStorage.setItem('gaia-playerName', playerName.trim());
+      localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
+      localStorage.removeItem(`gaia-${gameId}-spectatorId`); // 관전으로 열었던 기기도 좌석으로 전환
+      toast({ title: '이어하기', description: '내 자리로 복귀했습니다.' });
+      setLocation(`/game/${gameId}`);
+    } catch (error: any) {
+      toast({
+        title: '이어하기 실패',
+        description: error?.message || '이름/비밀번호가 맞는 자리가 없습니다 (참가할 때 비밀번호를 걸었어야 합니다).',
+        variant: 'destructive',
+      });
+    } finally {
+      setJoining(null);
+    }
+  };
+
   const handleWatchGame = async (gameId: string) => {
     try {
       setWatching(gameId);
@@ -368,6 +394,19 @@ export default function Lobby() {
                           >
                             <LogIn className="w-4 h-4 mr-2" />
                             이어하기
+                          </Button>
+                        ) : isStarted && !isFinished ? (
+                          // 이 기기에 좌석이 없는 진행 중 게임: 위 이름/비번으로 좌석 복귀 시도(비번 없인 게임 페이지 폼으로)
+                          <Button
+                            variant="outline"
+                            className="border-green-600/50 text-green-500 hover:bg-green-600/10"
+                            disabled={joining === game.id || !connected}
+                            onClick={() => handleLobbyRejoin(game.id)}
+                            data-testid={`button-rejoin-pw-${game.id}`}
+                            title="위 이름/비밀번호 칸을 채우면 내 자리로 바로 복귀합니다 (참가할 때 비밀번호를 걸었던 좌석만)"
+                          >
+                            <LogIn className="w-4 h-4 mr-2" />
+                            {joining === game.id ? '복귀 중...' : '이어하기'}
                           </Button>
                         ) : (
                           <Button
