@@ -72,7 +72,7 @@ import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './bot
 import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVariant } from './ai/variant';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -388,6 +388,13 @@ export function saveFinalGameState(game: ServerGameState) {
 			exportHumanGameDataset(game).catch((error) => {
 				log(`Failed to export human game dataset: ${error}`, 'error', game.id);
 				game.humanActionJournalExported = false;
+			});
+		}
+		// 4인 전원 사람게임이면 점수사이트(PythonAnywhere)에 자동 제출(fire-and-forget). 멱등 가드로 1회만.
+		if (!(game as any).scoreSiteSubmitted) {
+			(game as any).scoreSiteSubmitted = true;
+			submitToScoreSite(game).catch((error) => {
+				log(`Failed to submit to score site: ${error}`, 'error', game.id);
 			});
 		}
 	} catch (error) {
