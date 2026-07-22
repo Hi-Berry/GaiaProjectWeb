@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -3088,46 +3088,54 @@ export default function Game() {
                 </Button>
               </div>
               <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-2 custom-scrollbar">
-                <ResearchBoard
-                  game={game}
-                  playerId={playerId}
-                  onUsePowerAction={(actionId) => handleUsePowerAction(actionId, { closeResearchOverlay: true })}
-                  onUseHadschHallasPIAction={(actionId) => {
-                    if (game.hasDoneMainAction) return;
-                    GameClient.useHadschHallasPIAction(gameId!, actionId);
-                  }}
-                  onUseBalTakGaiaformerToQic={() => {
+                {(() => {
+                  const boardProps: Omit<ComponentProps<typeof ResearchBoard>, 'isMini' | 'section'> = {
+                    game,
+                    playerId,
+                    onUsePowerAction: (actionId) => handleUsePowerAction(actionId, { closeResearchOverlay: true }),
+                    onUseHadschHallasPIAction: (actionId) => {
+                      if (game.hasDoneMainAction) return;
+                      GameClient.useHadschHallasPIAction(gameId!, actionId);
+                    },
                     // 프리액션: 메인 액션 후에도 사용 가능
-                    GameClient.useBalTakGaiaformerToQic(gameId!);
-                  }}
-                  onGainTechTile={(tileId) => GameClient.gainTechTile(gameId!, tileId)}
-                  onUseTechAction={(tileId) => {
-                    if (!isMyTurn || game.currentPhase !== 'main') {
-                      toast({ title: '사용 불가', description: '내 턴 메인 단계에서만 사용할 수 있습니다.', variant: 'destructive' });
-                      return;
-                    }
-                    if (game.hasDoneMainAction) {
-                      toast({ title: '사용 불가', description: '이미 메인 액션을 사용했습니다.', variant: 'destructive' });
-                      return;
-                    }
-                    GameClient.useTechAction(gameId!, tileId);
-                  }}
-                  onAdvanceTech={(trackId) => handleResearchAdvanceTech(trackId, { closeResearchOverlay: true })}
-                  onSelectTechTile={(techTileId, trackId) => {
+                    onUseBalTakGaiaformerToQic: () => { GameClient.useBalTakGaiaformerToQic(gameId!); },
+                    onGainTechTile: (tileId) => GameClient.gainTechTile(gameId!, tileId),
+                    onUseTechAction: (tileId) => {
+                      if (!isMyTurn || game.currentPhase !== 'main') {
+                        toast({ title: '사용 불가', description: '내 턴 메인 단계에서만 사용할 수 있습니다.', variant: 'destructive' });
+                        return;
+                      }
+                      if (game.hasDoneMainAction) {
+                        toast({ title: '사용 불가', description: '이미 메인 액션을 사용했습니다.', variant: 'destructive' });
+                        return;
+                      }
+                      GameClient.useTechAction(gameId!, tileId);
+                    },
+                    onAdvanceTech: (trackId) => handleResearchAdvanceTech(trackId, { closeResearchOverlay: true }),
                     // 오버레이 R창에서 선택한 경우: 자동 닫기/열기 동작하도록 플래그 OFF
-                    selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: false });
-                  }}
-                  onSelectAdvancedTechTile={(advancedTileId, trackId) => { if (gameId) GameClient.selectAdvancedTechTile(gameId, advancedTileId, trackId); }}
-                  onConfirmAdvancedTechCover={(coverTileId) => { if (gameId) GameClient.confirmAdvancedTechCover(gameId, coverTileId); }}
-                  onTakeTwilightArtifact={(artifactId) => { if (gameId) GameClient.takeTwilightArtifact(gameId, artifactId); }}
-                  onUseAcademyQic={() => {
-                    if (game.hasDoneMainAction) return;
-                    if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
-                  }}
-                  onEndTurn={() => { if (gameId) GameClient.endTurn(gameId); setIsResearchOpen(false); }}
-                  onResetTurn={() => { if (gameId) GameClient.resetTurn(gameId); }}
-                  onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId, { fromOverlay: true })}
-                />
+                    onSelectTechTile: (techTileId, trackId) => { selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: false }); },
+                    onSelectAdvancedTechTile: (advancedTileId, trackId) => { if (gameId) GameClient.selectAdvancedTechTile(gameId, advancedTileId, trackId); },
+                    onConfirmAdvancedTechCover: (coverTileId) => { if (gameId) GameClient.confirmAdvancedTechCover(gameId, coverTileId); },
+                    onTakeTwilightArtifact: (artifactId) => { if (gameId) GameClient.takeTwilightArtifact(gameId, artifactId); },
+                    onUseAcademyQic: () => {
+                      if (game.hasDoneMainAction) return;
+                      if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
+                    },
+                    onEndTurn: () => { if (gameId) GameClient.endTurn(gameId); setIsResearchOpen(false); },
+                    onResetTurn: () => { if (gameId) GameClient.resetTurn(gameId); },
+                    onUseShipAction: (shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId, { fromOverlay: true }),
+                  };
+                  // [모바일, 사용자 관찰] 풀 보드는 6열 고정이라 좁은 화면에서 트랙 잘림·타일 크기 불일치·
+                  // 인공물 넘침이 계속됨("미니뷰에서는 잘 보임") → 오버레이도 모바일에선 미니뷰를 화면폭에
+                  // 맞춰 스케일해 렌더(고정 미니 패널의 MiniScaledContent와 동일 방식).
+                  return isMobileViewport ? (
+                    <MiniScaledContent panelWidth={Math.min(window.innerWidth - 56, 520)}>
+                      <ResearchBoard {...boardProps} isMini={true} section="all" />
+                    </MiniScaledContent>
+                  ) : (
+                    <ResearchBoard {...boardProps} />
+                  );
+                })()}
               </div>
             </div>
           </div>

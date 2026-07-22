@@ -202,14 +202,6 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     const pendingEclipseTrack = game.pendingEclipseResearch?.playerId === playerId;
     const pendingAdvancedCover = game.pendingAdvancedTechCover?.playerId === playerId ? game.pendingAdvancedTechCover : null;
 
-    // [모바일, 사용자 관찰] 풀 보드(비-미니)의 6열 트랙 그리드가 좁은 화면에서 가로로 잘리고,
-    // 우주선 섹션은 카드 내부(액션 스트립·인공물)가 좌우로 넘침. 트랙/우주선 섹션만 zoom으로 균일 축소
-    // (상단 타일 선택 영역은 3열로 접혀 문제 없음 — 그대로 둠). zoom은 레이아웃 폭을 1/zoom로 넓혀 잡은 뒤 축소.
-    const fullBoardZoom = !isMini && typeof window !== 'undefined' && window.innerWidth < 768
-        ? Math.max(0.4, Math.min(1, (window.innerWidth - 56) / 880))
-        : 1;
-    const fullBoardZoomStyle = fullBoardZoom < 1 ? ({ zoom: fullBoardZoom } as React.CSSProperties) : undefined;
-
     const handleTrackClick = (trackId: ResearchTrack) => {
         if (selectedTileIdNeedingTrack && onSelectTechTile) {
             onSelectTechTile(selectedTileIdNeedingTrack, trackId);
@@ -949,7 +941,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                         </>)}
                     </div>
                 ) : (
-                    <div className={`grid grid-cols-6 gap-3`} style={fullBoardZoomStyle}>
+                    <div className={`grid grid-cols-6 gap-3`}>
                         {RESEARCH_TRACKS.map((track) => {
                             const navBlocked = track.id === 'navigation' && !balTakCanAdvanceNav;
                             return (
@@ -1418,7 +1410,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                         {game.spaceships && Object.keys(game.spaceships).length > 0 && (() => {
                             const byShip = game.spaceshipFederationByShip || {};
                             return (
-                                <div className="space-y-4 pt-4 border-t border-white/5" style={fullBoardZoomStyle}>
+                                <div className="space-y-4 pt-4 border-t border-white/5">
                                     <h4 className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Spaceships (3 actions each)</h4>
                                     <div className="grid grid-cols-2 gap-4">
                                         {['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'].map((shipType) => {
