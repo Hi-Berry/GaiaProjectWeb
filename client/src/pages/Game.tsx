@@ -4248,11 +4248,13 @@ export default function Game() {
                     </div>
                   )}
                 </div>
-                <AlertDialogFooter className="flex justify-between">
+                {/* 모바일: AlertDialogFooter 기본값(flex-col-reverse)이 Undo를 풀폭으로 늘리고 Finish만 작게 만들던 문제(사용자 관찰)
+                    — flex-row로 고정해 모바일에서도 좌 Undo / 우 Finish 가로 배치. */}
+                <AlertDialogFooter className="flex-row items-center justify-between sm:justify-between gap-2">
                   {pending.appliedItems && pending.appliedItems.length > 0 && (
                     <Button
                       variant="outline"
-                      className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                      className="shrink-0 bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
                       onClick={() => {
                         if (gameId) {
                           GameClient.undoIncomeItem(gameId);
@@ -4265,7 +4267,7 @@ export default function Game() {
                   <div className="flex gap-2 ml-auto">
                     {pending.incomeItems.length === 0 && (
                       <AlertDialogAction
-                        className="bg-green-600 hover:bg-green-500 text-white font-bold"
+                        className="bg-green-600 hover:bg-green-500 text-white font-bold px-6"
                         onClick={(e) => {
                           e.preventDefault();
                           if (gameId) {
