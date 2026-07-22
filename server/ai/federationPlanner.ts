@@ -267,7 +267,12 @@ export class FederationPlanner {
                     const creditSupply = credits + creditIncome * horizon;
                     // [flag: fedCredit6CStarve] 기존엔 '돈 남으면 감점'만 있어 돈 기아여도 2O(+2)가 항상 이김(사용자 관찰:
                     // 극심한 크레딧 기아 중에도 광석연방 선택). 기아(잔고+수익 합산 여유 ≤18)면 6C를 2O 위로 올림.
-                    if (getPlayerFlag(playerId, 'fedCredit6CStarve', true) && creditSupply <= 18) {
+                    // [v2 사용자 관찰(2026-07-22): 돈 충분 + 할인TS(2O3C) 2개 짓는 라운드에 돈연방] 절대 임계만 보면
+                    // 광석이 실제 병목인 라운드에도 '돈 기아'로 오판 — 광석 여유(3C/1O 환산)보다 돈이 상대적으로
+                    // 더 궁할 때만 기아 보정(그 라운드 지출 계획의 근사 = 어느 자원이 더 결핍인가).
+                    const oreIncome = getNextRoundIncomePreview(playerId, game as any).ore;
+                    const oreSupplyEq = 3 * ((player?.ore ?? 0) + oreIncome * horizon);
+                    if (getPlayerFlag(playerId, 'fedCredit6CStarve', true) && creditSupply <= 18 && creditSupply < oreSupplyEq) {
                         score += creditSupply <= 10 ? 50 : 30;
                     } else {
                         score -= creditSupply >= 45 ? 50 : creditSupply >= 25 ? 25 : 0;
