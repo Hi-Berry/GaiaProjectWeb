@@ -932,7 +932,12 @@ export class BotLogic {
                 // 주의 — 란티다는 기생 엔진 커플링이라 가치 구조가 다름. 측정으로 판정.
                 // [v2 사용자 모델(2026-07-22)]: 맹목 강제가 아니라 사람의 판단 재현 — "의회를 지었을 때 1QIC(+2 사거리)로
                 // 기생 타겟(상대 점유 행성) 2개 이상에 갈 수 있나"를 보고 러시 여부 결정. 타겟 <2면 러시 안 함(일반 플레이).
-                if (getPlayerFlag(playerId, 'lantidsPiRush', false) && player.faction === 'lantids'
+                // [flag: lantidsPiRushHuman] v2 기각(120판 −4.56 p=0.045)의 원인 = 봇끼리 리치 기근 환경. 사람 실측
+                // (12석 83% R1 PI, 165VP)은 리치 풍부 환경의 정답이므로 fedSatCapHuman 패턴으로 '사람 있는 게임'에서만
+                // 발동 — 셀프플레이 무오염, 실전(사람 게임)만 사람 정합. 발동 여부는 v1/v2 프로브로 행동 검증 완료.
+                const lanRushHumanGame = getPlayerFlag(playerId, 'lantidsPiRushHuman', true)
+                    && ((game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length);
+                if ((getPlayerFlag(playerId, 'lantidsPiRush', false) || lanRushHumanGame) && player.faction === 'lantids'
                     && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
                     && !candidates.some(c => c.type === 'form_federation')
                     && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
