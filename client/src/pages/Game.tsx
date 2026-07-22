@@ -3832,12 +3832,12 @@ export default function Game() {
                         className="bg-zinc-800 border-zinc-600 h-24 px-4"
                         onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
                       >
-                        <div className="flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center gap-1">
                           {imgUrl ? (
-                            <img src={imgUrl} alt={reward.label} className="h-[52px] w-auto object-contain" />
-                          ) : (
-                            <span className="font-bold">{reward.label}</span>
-                          )}
+                            <img src={imgUrl} alt={reward.label} className="h-[46px] w-auto object-contain" />
+                          ) : null}
+                          {/* 이미지 오인 클릭 방지: 항상 라벨 병기 (사용자 관찰: 고른 것과 다른 보상이 들어왔다는 혼동) */}
+                          <span className="font-bold text-[10px]">{reward.label}</span>
                           <span className="text-zinc-500 text-[10px]">({remaining} left)</span>
                         </div>
                       </Button>
@@ -3854,12 +3854,12 @@ export default function Game() {
                         className="bg-cyan-950/50 border-cyan-500/50 h-24 px-4"
                         onClick={() => GameClient.federationSelectReward(gameId, reward.id)}
                       >
-                        <div className="flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center gap-1">
                           {imgUrl ? (
-                            <img src={imgUrl} alt={reward.label} className="h-[52px] w-auto object-contain" />
-                          ) : (
-                            <span className="font-bold">🚀 {reward.label}</span>
-                          )}
+                            <img src={imgUrl} alt={reward.label} className="h-[46px] w-auto object-contain" />
+                          ) : null}
+                          {/* 이미지 오인 클릭 방지: 항상 라벨 병기 + 우주선 표시 */}
+                          <span className="font-bold text-[10px] text-cyan-300">🚀 {reward.label}</span>
                         </div>
                       </Button>
                     );
