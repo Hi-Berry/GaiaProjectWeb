@@ -7174,7 +7174,7 @@ export class BotLogic {
             }
             if (tile.triggerType === 'new_sector') {
                 const mySectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure).map(t => t.sector));
-                if (buildTile.sector != null && !mySectors.has(buildTile.sector)) return tile.vp * W;
+                if (buildTile.sector != null && buildTile.sector !== 90 && !mySectors.has(buildTile.sector)) return tile.vp * W; // 가운데 전략 헥스(90)는 섹터 아님(서버 룰 미러)
             }
         }
 

@@ -1765,6 +1765,7 @@ export function qualifiesForNewSectorRoundMission(game: GaiaGameState, playerId:
 	if (!tile) return false;
 	const sec = sector ?? tile.sector;
 	if (sec == null || sec === undefined) return false;
+	if (sec === 90) return false; // 가운데 전략 헥스(우주선·소행성·원시·빈칸, sector 90)는 섹터가 아님 — 새 섹터/브릿지 점수 대상 제외(사용자 관찰)
 	const hadStructureInThisSector = game.map.some(t => t.sector === sec && tileOccupiesSector(t, playerId));
 	const isNewSector = !hadStructureInThisSector;
 	const isBridgeSector = sec >= 11 && sec <= 18;
@@ -5942,7 +5943,7 @@ export function executePlaceLostPlanet(io: SocketIOServer, game: ServerGameState
 	// 다카니안 의회: 잊혀진 행성도 신규 섹터/외각이면 1K 2C.
 	const hadStructureInThisSectorLP = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
 	const hadStructureInOuterLP = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
-	const isNewSectorLP = !hadStructureInThisSectorLP;
+	const isNewSectorLP = tile.sector !== 90 && !hadStructureInThisSectorLP; // 가운데 전략 헥스(90)는 섹터 아님
 	const isNewOuterSectorLP = OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterLP;
 	const darkaniansPiBonusLP = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (isNewSectorLP || isNewOuterSectorLP);
 
@@ -6217,7 +6218,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		// 다카니안 의회: 소행성 무료 건설(포머 파괴)도 신규 섹터/외각이면 1K 2C — 이 분기는 표준 경로(아래)를 안 타서 누락됐었음(사용자 관찰).
 		const hadStructureInThisSectorAst = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
 		const hadStructureInOuterAst = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
-		const darkaniansPiBonusAst = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (!hadStructureInThisSectorAst || (OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterAst));
+		const darkaniansPiBonusAst = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && ((tile.sector !== 90 && !hadStructureInThisSectorAst) || (OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuterAst));
 		tile.structure = 'mine';
 		tile.ownerId = playerId;
 		tile.destroyedGaiaformer = true; // 가이아포머 파괴 상태 저장
@@ -6339,7 +6340,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
 	const hadStructureInThisSector = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
 	const hadStructureInOuter = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
-	const isNewSector = !hadStructureInThisSector;
+	const isNewSector = tile.sector !== 90 && !hadStructureInThisSector; // 가운데 전략 헥스(90)는 섹터 아님
 	const isNewOuterSector = OUTER_SECTORS.includes(tile.sector) && !hadStructureInOuter;
 	const darkaniansPiNewSectorBonus = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (isNewSector || isNewOuterSector);
 	const rm7QualifyMine = qualifiesForNewSectorRoundMission(game, playerId, tileId);
@@ -7788,7 +7789,7 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 	const geodensTypesBeforeEclipse = getPlayerPlanetTypesForGeodens(game, playerId);
 	const ecHadInThisSector = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
 	const ecHadInOuter = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
-	const darkaniansPiBonusEclipse = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (!ecHadInThisSector || (OUTER_SECTORS.includes(tile.sector) && !ecHadInOuter));
+	const darkaniansPiBonusEclipse = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && ((tile.sector !== 90 && !ecHadInThisSector) || (OUTER_SECTORS.includes(tile.sector) && !ecHadInOuter));
 	tile.structure = 'mine';
 	tile.ownerId = playerId;
 	game.pendingEclipseAsteroidMine = null;

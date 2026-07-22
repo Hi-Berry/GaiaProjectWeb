@@ -882,7 +882,7 @@ export class Evaluator {
                 // [라운드미션 커버리지 2026-06-15] 평가기에 누락됐던 new_planet_type/new_sector 추가
                 // (이 라운드 점수일 때 봇이 새 타입/섹터 확장을 정렬하도록).
                 else if (trigger === 'new_planet_type') roundBonus += new Set(myStructures.map(t => t.type).filter(Boolean)).size * mission.vp * 1.4;
-                else if (trigger === 'new_sector') roundBonus += new Set(myStructures.map(t => t.sector)).size * mission.vp * 1.4;
+                else if (trigger === 'new_sector') roundBonus += new Set(myStructures.map(t => t.sector).filter(s => s !== 90)).size * mission.vp * 1.4; // 가운데 전략 헥스(90)는 섹터 아님(서버 룰 미러)
             }
         }
         if (roundBonus > 0) {
