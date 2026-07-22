@@ -4058,6 +4058,13 @@ export default function Game() {
             Ship Tech (2TF+Mine): 맵에서 <span className="font-bold text-orange-300">행성을 클릭</span>하여 광산 건설
           </div>
         )}
+        {/* 우주선 연방 보상(무한거리 무료광산): 안내가 전혀 없어 '클릭해도 무반응'으로 보이던 문제(사용자 관찰) + 지을 곳 없을 때(광산 8개 한도 등) 포기 탈출구 */}
+        {game.pendingSpaceshipFedMine && game.pendingSpaceshipFedMine.playerId === playerId && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-sky-500/50 text-sky-300 text-sm font-medium shadow-lg flex items-center gap-2">
+            연방 보상: 맵에서 <span className="font-bold text-sky-200">빈 행성을 클릭</span>해 무료 광산 배치 (무한거리 · 소행성 제외 · 테라포밍/가이아 비용만 청구)
+            <Button variant="ghost" size="sm" className="text-sky-400 hover:text-white shrink-0" onClick={() => gameId && GameClient.skipSpaceshipFedMine(gameId)}>배치 포기</Button>
+          </div>
+        )}
         {/* Twilight 액션2 / Rebellion 액션2: 맵에서 보라 테두리 건물 클릭으로 선택 */}
         {(pendingTwilightTSUpgrade || pendingRebellionMineToTS) && (
           <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-violet-500/50 text-violet-300 text-sm font-medium shadow-lg flex items-center gap-2">

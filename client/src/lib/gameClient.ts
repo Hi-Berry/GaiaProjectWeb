@@ -566,6 +566,12 @@ export const GameClient = {
     s.emit('cancel_eclipse_asteroid_mine', { gameId });
   },
 
+  /** 우주선 연방 보상 무료광산 배치 포기 — 지을 곳이 없을 때(광산 8개 한도 등) 데드락 탈출 */
+  skipSpaceshipFedMine(gameId: string) {
+    const s = getSocket();
+    s.emit('skip_spaceship_fed_mine', { gameId });
+  },
+
   eclipseAdvanceTrack(gameId: string, trackId: ResearchTrack) {
     const s = getSocket();
     s.emit('eclipse_advance_track', { gameId, trackId });

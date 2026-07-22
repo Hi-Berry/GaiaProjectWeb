@@ -4804,6 +4804,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 		});
 
+		/** 우주선 연방 보상 무료광산 배치 포기 — 지을 곳이 없을 때(광산 8개 한도·빈 행성 없음) 배치도 턴종료도
+		 *  불가한 데드락 탈출구(사용자 관찰). 보상은 소멸하고 턴 종료가 가능해진다. */
+		socket.on('skip_spaceship_fed_mine', ({ gameId }: { gameId: string }) => {
+			const game = games.get(gameId); if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (game.pendingSpaceshipFedMine?.playerId !== playerId) return;
+			game.pendingSpaceshipFedMine = null;
+			addGameLog(game, playerId, 'Spaceship Fed', '무료 광산 배치 포기');
+			io.to(gameId).emit('game_updated', game);
+		});
+
 		// 파이락(Firaks) Special: 의회 보유 시 연구소 1개→교역소 다운그레이드 + 아무 트랙 1칸 (라운드당 1회)
 		socket.on('firaks_downgrade', ({ gameId, tileId, trackId }: { gameId: string; tileId: string; trackId: ResearchTrack }) => {
 			const game = games.get(gameId); if (!game) return;
@@ -6027,12 +6038,18 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// Spaceship Fed Mine
 	if (game.pendingSpaceshipFedMine?.playerId === playerId) {
 		const unbuildable = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
+		// [사용자 관찰 2026-07-22: "클릭해도 아무 반응 없음"] 조용한 거부(debugLog만)를 사람에겐 에러 토스트로 안내
+		const notifyReject = (msg: string) => {
+			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', msg);
+		};
 		if (unbuildable.includes(tile.type) || tile.structure !== null) {
 			debugLog(game, `executeBuildMine failed (Spaceship Fed): Tile ${tileId} is unbuildable (${tile.type}) or has structure (${tile.structure})`, 'error');
+			notifyReject(tile.structure !== null ? '연방 보상 광산은 건물이 없는 행성에만 지을 수 있습니다.' : '연방 보상 광산은 행성에만 지을 수 있습니다 (빈 우주/우주선 불가).');
 			return false;
 		}
 		if (tile.type === 'asteroid') {
 			debugLog(game, `executeBuildMine failed (Spaceship Fed): Cannot build on asteroid directly`, 'error');
+			notifyReject('연방 보상 광산은 소행성에는 지을 수 없습니다.');
 			return false;
 		}
 		// [사용자 룰 C, 2026-06-29] 무한거리 무료광산: 기본 광산비용(1O2C)·거리QIC는 면제하되,
