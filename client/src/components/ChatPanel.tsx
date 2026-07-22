@@ -159,6 +159,9 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     // 라이브 메시지 수신
     useEffect(() => {
         const unsub = GameClient.onChatMessage((m) => {
+            // [방 격리, 사용자 관찰: 한 방 채팅이 모든 방에 보임] 방을 옮긴 소켓이 이전 방에 남아있을 수 있어
+            // 서버가 실어주는 gameId로 현재 방 메시지만 표시 (gameId 없는 구버전 메시지는 통과).
+            if ((m as any).gameId && (m as any).gameId !== gameId) return;
             merge([m]);
             // 내가 보낸 메시지(낙관적 표시 후 서버 echo)는 안 읽음 카운트/사운드에서 제외
             if (m.senderId === selfIdRef.current) return;
@@ -166,7 +169,7 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
             playChatSound();
         });
         return () => { unsub(); }; // cleanup은 void 반환이어야 함(unsub은 Socket을 반환하므로 감쌈)
-    }, [merge]);
+    }, [merge, gameId]);
 
     // 열려 있으면 안 읽음 초기화 + 맨 아래로 스크롤
     useEffect(() => {

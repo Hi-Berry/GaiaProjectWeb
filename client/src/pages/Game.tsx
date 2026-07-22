@@ -2933,8 +2933,9 @@ export default function Game() {
         </div>
 
         {/* Dashboards Area: 제거 (라운드 보드를 오버레이로 이동함). 관전자에게는 보너스 선택 패널 비표시 */}
+        {/* 좌석 없는 뷰어(이어하기 실패로 열람만 하는 기기 등)에게도 비표시 — playerId가 이 게임의 좌석일 때만(사용자 관찰: 이어하기 실패인데 보너스 선택창) */}
         <AnimatePresence>
-          {isBonusSelectionPhase && !isSpectator && (
+          {isBonusSelectionPhase && !isSpectator && !!playerId && !!game.players[playerId] && (
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
@@ -5890,8 +5891,9 @@ export default function Game() {
       <GameEndScoreModal />
 
       {/* 인게임 채팅 — 하단 좌측, 최상위 레이어. 참가자/관전자만 노출 */}
+      {/* 관전자 selfId = 관전 ID: 서버 echo의 senderId와 일치해야 낙관적 메시지가 교체됨(불일치 시 채팅이 2번씩 보임 — 사용자 관찰) */}
       {game && gameId && (isSpectator || (!!playerId && !!game.players[playerId])) && (
-        <ChatPanel gameId={gameId} game={game} canChat={true} selfId={playerId} infoButtonHidden={portraitMobile} />
+        <ChatPanel gameId={gameId} game={game} canChat={true} selfId={playerId ?? (isSpectator ? getStoredSpectatorId(gameId) : null)} infoButtonHidden={portraitMobile} />
       )}
     </div>
   );

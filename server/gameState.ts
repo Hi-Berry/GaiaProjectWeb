@@ -1408,6 +1408,15 @@ function generateGameId(): string {
 	return Math.random().toString(36).substring(2, 10);
 }
 
+/** 소켓을 게임 방에 넣기 전, 이전에 참여한 '다른 게임' 방에서 제거.
+ *  방을 넘나든 소켓이 이전 방에 남아 그 방의 채팅/업데이트를 계속 받던 문제(사용자 관찰: 채팅이 모든 방에 보임). */
+function joinGameRoom(socket: { id: string; rooms: Set<string>; join: (r: string) => void; leave: (r: string) => void }, gameId: string) {
+	for (const r of Array.from(socket.rooms)) {
+		if (r !== socket.id && r !== gameId && games.has(r)) socket.leave(r);
+	}
+	socket.join(gameId);
+}
+
 function generatePlayerId(): string {
 	return 'p_' + Math.random().toString(36).substring(2, 12);
 }
@@ -2790,7 +2799,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.hostSocketId = socket.id;
 			playerGameMap.set(playerId, gameId);
 			socketToPlayerMap.set(socket.id, playerId);
-			socket.join(gameId);
+			joinGameRoom(socket, gameId);
 
 			log(`Game created: ${gameId} by ${playerName}`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, playerId, game });
@@ -2808,7 +2817,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			socketToPlayerMap.set(socket.id, playerId);
 			// [방 한정 좌석 비번(선택)] 걸어두면 다른 기기에서 같은 방 + 같은 이름/비번으로 이 좌석에 복귀 가능
 			if (password) setSeatPassword(gameId, playerId, playerName, password);
-			socket.join(gameId);
+			joinGameRoom(socket, gameId);
 			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
 			callback({ gameId, playerId, game });
 		});
@@ -2896,7 +2905,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.spectatorIds?.includes(playerId)) {
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
-				socket.join(gameId);
+				joinGameRoom(socket, gameId);
 				callback({ game });
 				return;
 			}
@@ -2915,13 +2924,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			socketToPlayerMap.set(socket.id, playerId);
 			playerGameMap.set(playerId, gameId);
-			socket.join(gameId);
+			joinGameRoom(socket, gameId);
 			clampPlayerResources(game);
 
 			if (wasAway) {
 				const name = game.players[playerId].name;
 				const msg = {
 					id: generatePlayerId(),
+					gameId,
 					senderId: 'system',
 					name: '시스템',
 					faction: null,
@@ -2949,7 +2959,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.spectatorIds.push(spectatorId);
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
-			socket.join(gameId);
+			joinGameRoom(socket, gameId);
 			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
 		});
@@ -4390,8 +4400,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// 재접속/관전자 히스토리 복원을 위해 게임 상태에 최근 100개만 보관(전체 game_updated는 보내지 않음).
 		socket.on('send_chat', ({ gameId, text }: { gameId: string; text: string }) => {
 			const game = games.get(gameId); if (!game) return;
-			const playerId = socketToPlayerMap.get(socket.id);
-			const spectatorId = socketToSpectatorMap.get(socket.id);
+			// [방 격리, 사용자 관찰] 소켓의 좌석/관전 ID가 '이 게임'의 것일 때만 인정 — 방을 옮긴 소켓의
+			// 이전 방 신원으로 다른 방에 채팅되는 것 방지.
+			const rawPlayerId = socketToPlayerMap.get(socket.id);
+			const rawSpectatorId = socketToSpectatorMap.get(socket.id);
+			const playerId = rawPlayerId && game.players[rawPlayerId] ? rawPlayerId : undefined;
+			const spectatorId = rawSpectatorId && game.spectatorIds?.includes(rawSpectatorId) ? rawSpectatorId : undefined;
 			const senderId = playerId || spectatorId;
 			if (!senderId) return; // 이 게임에 속하지 않은 소켓은 무시
 			if (typeof text !== 'string') return;
@@ -4400,6 +4414,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const player = playerId ? game.players[playerId] : undefined;
 			const msg = {
 				id: generatePlayerId(),
+				gameId, // 클라이언트가 현재 방 메시지만 표시하도록 (방 격리)
 				senderId,
 				name: player?.name ?? '관전자',
 				faction: player?.faction ?? null,
@@ -5553,6 +5568,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 							const name = game.players[playerId].name;
 							const msg = {
 								id: generatePlayerId(),
+								gameId,
 								senderId: 'system',
 								name: '시스템',
 								faction: null,
