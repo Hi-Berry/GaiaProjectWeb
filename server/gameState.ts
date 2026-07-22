@@ -1016,14 +1016,17 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 		// 이타르(Itars) 의회 보유 시: 파워 수신 대신 가이아 구역에 파워 토큰 1개 추가 가능 (상시 선택)
 		// 여기서는 일단 일반적인 파워 수신 가능 여부만 체크하고, 실제 처리 시 이타르 룰 적용
 		// 단, 수신 가능한 파워가 0이면 오퍼 자체를 만들지 않음
-		if (potentialGain === 0 && targetPlayer.faction !== 'itars') continue;
+		// 타클론 의회(PI) 보유 시: 풀파워(충전 여력 0)여도 수락하면 토큰 +1(그릇1)이라 오퍼를 띄워야 함(사용자 관찰).
+		const taklonsPI = targetPlayer.faction === 'taklons'
+			&& game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+		if (potentialGain === 0 && targetPlayer.faction !== 'itars' && !taklonsPI) continue;
 
 		const actualGain = Math.min(maxPower, potentialGain);
 
-		// 이타르의 경우 실제 수신량이 0이라도 가이아 토큰을 위해 오퍼를 띄워야 할 수도 있으나, 
-		// 원칙적으로 '파워 수신' 행위가 가능해야 점수 깎는 오퍼가 성립함. 
+		// 이타르의 경우 실제 수신량이 0이라도 가이아 토큰을 위해 오퍼를 띄워야 할 수도 있으나,
+		// 원칙적으로 '파워 수신' 행위가 가능해야 점수 깎는 오퍼가 성립함.
 		// 일단 수신 가능 파워가 0이면 오퍼 생략 (사용자 요청 사항)
-		if (actualGain === 0) continue;
+		if (actualGain === 0 && !taklonsPI) continue;
 
 		const maxAffordable = Math.min(actualGain, targetPlayer.score + 1);
 		const vpCost = Math.max(0, maxAffordable - 1);

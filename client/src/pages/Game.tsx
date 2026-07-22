@@ -3601,6 +3601,13 @@ export default function Game() {
                           <span className="text-lg font-black text-blue-400 leading-none">+{offer.amount}</span>
                           <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Power</span>
                         </div>
+                        {/* 타클론 의회: 수락 시 토큰 +1(그릇1) — 풀파워(+0 Power)여도 수락 가치가 있음을 표시 */}
+                        {currentPlayer?.faction === 'taklons' && game.map.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
+                          <div className="flex flex-col items-center">
+                            <span className="text-lg font-black text-amber-400 leading-none">+1</span>
+                            <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Token (PI)</span>
+                          </div>
+                        )}
                         <div className="flex flex-col items-center">
                           <span className={`text-lg font-black leading-none ${vpTooLow ? 'text-red-500' : 'text-zinc-300'}`}>{offer.vpCost}</span>
                           <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">VP Cost</span>
