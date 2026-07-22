@@ -1,0 +1,132 @@
+﻿node.exe : DATABASE_URL not set. defaulting to in-memory storage.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (DATABASE_URL no...memory storage.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[DBG] 2026-06-28_6cte1q4l.json R1 Upgraded to Trading Station → 후보 4개: upgrade_structure,build_mine,bescods_advance_lowest
+[DBG] 2026-06-28_6cte1q4l.json R1 Upgraded to Research Lab → 후보 5개: upgrade_structure,build_mine,bescods_advance_lowest
+[DBG] 2026-06-28_6cte1q4l.json R1 Built Mine → 후보 5개: upgrade_structure,build_mine,bescods_advance_lowest
+리프로브 결정 3684 | 상태조립 오류 0
+
+클래스별 (오늘 코드 기준):
+  build_mine       총 1252 | 커버  265 | ★갭  987 (78.8%)
+  upgrade_ts       총  700 | 커버  487 | ★갭  213 (30.4%)
+  upgrade_lab      총  338 | 커버  168 | ★갭  170 (50.3%)
+  upgrade_academy  총  193 | 커버   82 | ★갭  111 (57.5%)
+  asteroid_mine    총  205 | 커버  118 | ★갭   87 (42.4%)
+  upgrade_pi       총   91 | 커버   22 | ★갭   69 (75.8%)
+  advance_research 총  862 | 커버  822 | ★갭   40 (4.6%)
+  parasitic_mine   총   43 | 커버   23 | ★갭   20 (46.5%)
+
+캘리브레이션 (라이브캡처=당시코드 vs 리프로브=오늘코드):
+  liveOnly(당시커버→리프로브갭) = 재구성 위양성 의심 | nowOnly(당시갭→오늘커버) = 채택이 닫은 갭
+  upgrade_ts       both  445 | liveOnly  122 (위양성률 22%) | nowOnly  42 | neither   91
+  upgrade_lab      both  149 | liveOnly   96 (위양성률 39%) | nowOnly  19 | neither   74
+  build_mine       both  234 | liveOnly  439 (위양성률 65%) | nowOnly  31 | neither  548
+  advance_research both  755 | liveOnly    8 (위양성률 1%) | nowOnly  67 | neither   32
+  asteroid_mine    both   43 | liveOnly   26 (위양성률 38%) | nowOnly  75 | neither   61
+  upgrade_pi       both   11 | liveOnly   15 (위양성률 58%) | nowOnly  11 | neither   54
+  upgrade_academy  both   66 | liveOnly   62 (위양성률 48%) | nowOnly  16 | neither   49
+  parasitic_mine   both   21 | liveOnly    6 (위양성률 22%) | nowOnly   2 | neither   14
+
+소행성 갭 원인 (라이브∧리프로브 교집합):
+  소행성 후보 있음(다른 타일) = 타일 선택 차이: 33
+     · R5 space_giants d2 nav2 gf3 O0C0Q1
+     · R4 bescods d2 nav1 gf1 O8C11Q1
+     · R2 lantids d2 nav1 gf1 O6C9Q0
+  광산 후보 0(기타 게이트): 12
+     · R6 space_giants d1 nav5 gf3 O1C4Q3
+     · R5 xenos d1 nav1 gf3 O1C6Q1
+     · R3 ivits d0 nav0 gf3 O6C4Q3
+  자원 부족(1O2C): 7
+     · R5 nevlas d3 nav4 gf3 O0C10Q0
+     · R6 bescods d3 nav2 gf3 O2C0Q1
+     · R2 firaks d2 nav1 gf1 O0C6Q0
+  QIC 부족(필요1 보유0): 6
+     · R4 nevlas d3 nav2 gf1 O5C4Q0
+     · R6 xenos d2 nav1 gf3 O6C5Q0
+     · R1 ivits d2 nav0 gf1 O3C5Q0
+  QIC 부족(필요49 보유2): 1
+     · R1 ivits d99 nav0 gf1 O6C15Q2
+  다른 광산은 후보 = 탑N/점수컷: 1
+     · R2 ivits d2 nav0 gf3 O3C8Q2
+  QIC 부족(필요2 보유1): 1
+     · R3 firaks d4 nav1 gf3 O2C14Q1
+
+PI 갭 원인 (라이브∧리프로브 교집합):
+  R1<4 종족 게이트: 30
+     · R1 space_giants 광산1 O5C10
+     · R1 bescods 광산2 O4C10
+     · R1 geodens 광산1 O7C12
+  자원 부족(4O6C): 5
+     · R2 darkanians 광산2 O4C3
+     · R5 moweyip 광산6 O2C17
+     · R6 terran 광산7 O1C17
+  R3<4 종족 게이트: 3
+     · R3 bescods 광산6 O9C11
+     · R3 bescods 광산3 O4C8
+     · R3 xenos 광산7 O10C7
+  기타(R6 광산9): 3
+     · R6 terran 광산9 O11C25
+     · R6 terran 광산9 O8C18
+     · R6 terran 광산9 O6C23
+  기타(R4 광산7): 2
+     · R4 taklons 광산7 O8C11
+     · R4 xenos 광산7 O6C10
+  기타(R5 광산8): 2
+     · R5 ambas 광산8 O14C7
+     · R5 ambas 광산8 O9C11
+  기타(R5 광산6): 2
+     · R5 gleens 광산6 O14C12
+     · R5 xenos 광산6 O6C9
+  기타(R5 광산10): 1
+     · R5 taklons 광산10 O9C22
+  R2<4 종족 게이트: 1
+     · R2 xenos 광산7 O8C10
+  동종 후보 있음(타일 차이): 1
+     · R3 terran 광산3 O4C9
+  기타(R4 광산5): 1
+     · R4 moweyip 광산5 O6C14
+  기타(R6 광산8): 1
+     · R6 terran 광산8 O6C9
+  기타(R4 광산9): 1
+     · R4 gleens 광산9 O9C10
+  기타(R5 광산9): 1
+     · R5 gleens 광산9 O6C6
+
+아카데미 갭 원인 (라이브∧리프로브 교집합):
+  자원 부족(6O6C): 29
+     · R5 bescods 광산6 O3C10
+     · R5 taklons 광산7 O6C5
+     · R5 darkanians 광산9 O4C8
+  동종 후보 있음(타일 차이): 5
+     · R5 bescods 광산8 O13C16
+     · R5 bescods 광산5 O6C19
+     · R6 ivits 광산7 O8C30
+  R≤3 광산2<3 게이트: 5
+     · R2 xenos 광산2 O8C12
+     · R2 ivits 광산2 O6C7
+     · R2 moweyip 광산2 O7C13
+  기타(R5 광산8): 2
+     · R5 ivits 광산8 O10C18
+     · R5 ivits 광산8 O7C13
+  기타(R5 광산5): 1
+     · R5 bescods 광산5 O7C12
+  기타(R5 광산9): 1
+     · R5 bescods 광산9 O6C8
+  기타(R2 광산4): 1
+     · R2 terran 광산4 O6C14
+  기타(R3 광산3): 1
+     · R3 nevlas 광산3 O6C8
+  R≤3 광산0<3 게이트: 1
+     · R2 tinkeroids 광산0 O6C11
+  R≤3 광산1<3 게이트: 1
+     · R2 ivits 광산1 O7C12
+  기타(R6 광산4): 1
+     · R6 lantids 광산4 O6C8
+  기타(R4 광산8): 1
+     · R4 ivits 광산8 O9C12
+
+주의: asteroid/gaia 관련은 포머 재구성 근사(중신뢰). form_federation/우주선/파워액션은 판정 제외.

@@ -3035,8 +3035,15 @@ export class BotLogic {
                 // 기오덴4·피락스4·할라3). 사람 R1 랩∪의회 도달 86% vs 봇 76%(의회 0%). 기존 R1 절대차단 +
                 // R≤2 광산<5 게이트가 earlyPiAllowed 우대점수(+80)를 죽은 코드로 만들고 있었음 → 해당 종족만
                 // 광산 2+ 조건으로 개방(순수 후보 추가 — 선택은 MCTS/평가기).
-                const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', true) && mineCount >= 2
-                    && (earlyPiAllowed.includes(faction || '') || firaksPiReady || lantidsPiReady || hhPiReady);
+                // [flag: r1PiCalib103] 103게임 리캘리브레이션(2026-07-22): 사람 R1 의회 50건의 당시 광산수는 0~2
+                // (대부분 1 — 시작광산→TS 업글 후라 구조적으로 1) → 기존 mineCount>=2 게이트가 사람 패턴을 거의
+                // 전부 차단. 광산 게이트 제거 + 실측 종족 확장(darkanians 3·itars 3건; bescods 1건은 노이즈로 제외).
+                const r1Calib = getPlayerFlag(playerId, 'r1PiCalib103', true);
+                const r1PiFactions = r1Calib
+                    ? [...earlyPiAllowed, 'lantids', 'firaks', 'hadsch_hallas', 'darkanians', 'itars']
+                    : earlyPiAllowed;
+                const r1PiOpen = getPlayerFlag(playerId, 'r1PiOpen', true) && (r1Calib || mineCount >= 2)
+                    && (r1PiFactions.includes(faction || '') || firaksPiReady || lantidsPiReady || hhPiReady);
                 // [flag: piGateOpen] 리프로브 실측(라이브 PI 갭 40건): R2-3 비허용 종족이 광산 4~10개 기반으로
                 // PI를 지음(bescods 3·xenos 3·itars 2·ambas·terran·darkanians) — round<4 게이트가 종족 무관 차단.
                 // 광산 4+ & R2+면 개방 (acadGateOpen·r1PiOpen 동형: 순수 후보 개방, 선택은 MCTS).
