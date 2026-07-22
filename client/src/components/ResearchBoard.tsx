@@ -29,6 +29,9 @@ interface ResearchBoardProps {
     isMini?: boolean;
     /** 미니뷰에서 표시할 섹션: 'all'(전체) | 'tech'(트랙+풀 기술타일) | 'ships'(파워액션+우주선). 모바일 3페이지 Info 오버레이용 */
     section?: 'all' | 'tech' | 'ships';
+    /** 펜딩 선택 안내 블록(기술 타일/트랙/고급커버/이클립스) 표시 여부. 기본 = !isMini.
+     *  모바일 R 오버레이는 미니뷰 렌더지만 이 안내가 필요해 true로 넘김(사용자 관찰: 미니 전환 후 안내 소실). */
+    showPendingSelections?: boolean;
 }
 
 const SHIP_NAMES: Record<string, string> = {
@@ -182,9 +185,10 @@ const POWER_ACTION_BTN = {
     panelAvailable: 'bg-amber-950/50 hover:bg-amber-900/55 border-amber-500/45 hover:border-amber-400/65',
 };
 
-export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all' }: ResearchBoardProps) {
+export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all', showPendingSelections }: ResearchBoardProps) {
     const showTech = section !== 'ships';
     const showShips = section !== 'tech';
+    const showPending = showPendingSelections ?? !isMini; // 펜딩 안내 블록 — 모바일 R 오버레이(미니 렌더)는 true로 켬
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
 
@@ -222,7 +226,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
             )}
             <CardContent className={`${isMini ? 'p-0 space-y-0' : 'p-4 space-y-8'}`}>
                 {/* 메인 액션 완료 후, 기술/트랙 등 선택할 게 없을 때만 턴 종료 버튼 표시 */}
-                {!isMini && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && !pendingEclipseTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
+                {showPending && playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId && game.hasDoneMainAction && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && game.pendingTFMarsGaiaProject?.playerId !== playerId && game.pendingLostPlanet?.playerId !== playerId && !pendingTech && !pendingAdvancedCover && !pendingShipTrack && !pendingAdvTechTrack && !pendingEclipseTrack && (!game.players[playerId]?.pendingTerraformSteps || game.players[playerId].pendingTerraformSteps === 0) && (onEndTurn || onResetTurn) && (
                     <div className="p-3 rounded-xl border border-green-500/40 bg-green-500/10 mb-4">
                         <p className="text-[10px] text-zinc-400 mb-2 font-medium">메인 액션을 완료했습니다. 행동을 확정(Turn End)하거나 취소(Reset)할 수 있습니다.</p>
                         <div className="flex gap-2">
@@ -249,7 +253,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </div>
                 )}
                 {/* 기술 타일 선택 (R창 내, 팝업 없음) */}
-                {pendingTech && onSelectTechTile && !isMini && (
+                {pendingTech && onSelectTechTile && showPending && (
                     <div className="space-y-3 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-yellow-400">
                             {selectedTileIdNeedingTrack ? '올릴 기술 라인을 클릭해주세요' : '기술 타일을 선택하세요'}
@@ -443,7 +447,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 )}
 
                 {/* 고급 기술 타일: 덮을 일반 타일 선택 */}
-                {pendingAdvancedCover && onConfirmAdvancedTechCover && currentPlayer && !isMini && (
+                {pendingAdvancedCover && onConfirmAdvancedTechCover && currentPlayer && showPending && (
                     <div className="space-y-3 p-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-cyan-400">덮을 일반 기술 타일을 선택하세요</h4>
                         <p className="text-[9px] text-zinc-400">선택한 타일은 고급 타일에 의해 덮이며, 수입·액션·큰건물 보너스가 적용되지 않습니다.</p>
@@ -476,7 +480,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 )}
 
                 {/* Eclipse 2K+3P: 올릴 트랙 선택 */}
-                {pendingEclipseTrack && !isMini && (
+                {pendingEclipseTrack && showPending && (
                     <div className="space-y-3 p-3 rounded-xl border border-violet-500/30 bg-violet-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-violet-400">Eclipse: 연구 트랙 선택</h4>
                         <p className="text-[9px] text-zinc-400">2K+3P 지불됨 — 아래 트랙 또는 6개 라인 중 하나를 클릭하세요.</p>
@@ -505,7 +509,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                 )}
 
                 {/* 우주선 기술 타일 / 고급 기술 타일 획득 후: 올릴 트랙 선택 (6개 중 1개) */}
-                {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && !isMini && (
+                {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && showPending && (
                     <div className="space-y-3 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400">올릴 기술 라인을 클릭하세요</h4>
                         <p className="text-[9px] text-zinc-400">{pendingAdvTechTrack ? '고급 기술 타일 보상' : '우주선 기술 타일 보상'} — 6개 트랙 중 하나를 선택하세요.</p>

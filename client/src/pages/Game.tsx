@@ -3130,7 +3130,8 @@ export default function Game() {
                   // 맞춰 스케일해 렌더(고정 미니 패널의 MiniScaledContent와 동일 방식).
                   return isMobileViewport ? (
                     <MiniScaledContent panelWidth={Math.min(window.innerWidth - 56, 520)}>
-                      <ResearchBoard {...boardProps} isMini={true} section="all" />
+                      {/* showPendingSelections: 미니 렌더지만 오버레이 목적상 '타일/트랙을 선택하세요' 안내 블록 필요(사용자 관찰) */}
+                      <ResearchBoard {...boardProps} isMini={true} section="all" showPendingSelections={true} />
                     </MiniScaledContent>
                   ) : (
                     <ResearchBoard {...boardProps} />
