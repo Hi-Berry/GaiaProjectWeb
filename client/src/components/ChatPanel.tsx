@@ -82,14 +82,23 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     const startResize = useCallback((e: React.PointerEvent, axis: 'w' | 'h' | 'both') => {
         e.preventDefault(); e.stopPropagation();
         const sx = e.clientX, sy = e.clientY, sw = widthRef.current, sh = listHeightRef.current;
+        // 드래그 위치 모드(pos, top 앵커)에서 상단 핸들로 높이를 바꾸면 아래변이 움직이던 문제(사용자 관찰):
+        // 늘어난 만큼 y를 올려 '아래변 고정 + 윗변이 커서를 따라오게' 보정.
+        // 기본 좌하단 앵커(pos=null, CSS bottom 고정)는 원래 그렇게 동작하므로 보정 불필요.
+        const baseY = posRef.current?.y ?? null;
         const onMove = (ev: PointerEvent) => {
             if (axis !== 'h') setWidth(Math.max(220, Math.min(window.innerWidth * 0.9, sw + (ev.clientX - sx))));
-            if (axis !== 'w') setListHeight(Math.max(60, Math.min(window.innerHeight * 0.85, sh - (ev.clientY - sy))));
+            if (axis !== 'w') {
+                const newH = Math.max(60, Math.min(window.innerHeight * 0.85, sh - (ev.clientY - sy)));
+                setListHeight(newH);
+                if (baseY != null) setPos((p) => (p ? { x: p.x, y: Math.max(0, baseY + (sh - newH)) } : p));
+            }
         };
         const onUp = () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
             document.body.style.userSelect = '';
+            try { if (posRef.current) localStorage.setItem('gaia-chat-pos', JSON.stringify(posRef.current)); } catch { /* noop */ }
         };
         document.body.style.userSelect = 'none';
         window.addEventListener('pointermove', onMove);
