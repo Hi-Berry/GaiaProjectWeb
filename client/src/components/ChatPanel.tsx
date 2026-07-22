@@ -45,20 +45,27 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     useEffect(() => { try { localStorage.setItem('gaia-chat-h', String(listHeight)); } catch { /* noop */ } }, [listHeight]);
 
     // 위치 드래그(미니뷰처럼) — 헤더를 잡고 이동, localStorage 보존. null이면 기본 좌하단 앵커 유지.
-    const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
-        try { const v = localStorage.getItem('gaia-chat-pos'); return v ? JSON.parse(v) : null; } catch { return null; }
-    });
-    const posRef = useRef(pos); posRef.current = pos;
     const clampPos = (p: { x: number; y: number }) => {
         const vw = window.innerWidth, vh = window.innerHeight, VIS = 80; // 최소 80px는 화면 안(다시 드래그 가능)
         return { x: Math.max(0, Math.min(vw - VIS, p.x)), y: Math.max(0, Math.min(vh - VIS, p.y)) };
     };
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+        // [사용자 관찰: 모바일에서 채팅 열면 패널·버튼이 통째로 사라짐] 저장된 pos가 현재(더 작은) 뷰포트
+        // 밖이면 열리는 순간 화면 밖으로 나감 — 로드 시점에도 클램프(기존엔 window resize 이벤트에서만).
+        try { const v = localStorage.getItem('gaia-chat-pos'); return v ? clampPos(JSON.parse(v)) : null; } catch { return null; }
+    });
+    const posRef = useRef(pos); posRef.current = pos;
     // 뷰포트 리사이즈 시 위치 클램프
     useEffect(() => {
         const onResize = () => setPos((p) => (p ? clampPos(p) : p));
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
+    // 펼칠 때도 클램프 — 접힌 동안 뷰포트가 변했거나(모바일 회전·주소창 축소) 다른 탭이 pos를 저장했을 수 있음
+    useEffect(() => {
+        if (open) setPos((p) => (p ? clampPos(p) : p));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
     const startDrag = useCallback((e: React.PointerEvent) => {
         // 헤더 내 버튼(닫기 등)에서 시작한 포인터다운은 드래그로 처리하지 않음
         if ((e.target as HTMLElement).closest('button, input, textarea')) return;
