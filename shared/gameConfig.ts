@@ -2277,10 +2277,12 @@ export function findTrackByTileId(byTrack: Partial<Record<ResearchTrack, TechTil
 /** 교역소 건설 시 거리 2 이내 다른 플레이어 건물이 있으면 3C 할인 (표시/비용 계산용) */
 export function hasNearbyPlayersForTradingDiscount(map: HexTile[], tile: HexTile, sourcePlayerId: string): boolean {
   for (const other of map) {
-    if (!other.structure || other.structure === 'ship') continue;
-    if (other.ownerId === sourcePlayerId || !other.ownerId) continue;
     if (getDistance(tile, other) > 2) continue;
-    return true;
+    // 일반 건물 (우주선 제외)
+    if (other.structure && other.structure !== 'ship' && other.ownerId && other.ownerId !== sourcePlayerId) return true;
+    // 란티다 기생 광산 — 내 행성 위 기생광산이라도 상대 건물이므로 할인 대상 (서버 hasNearbyPlayersForDiscount와 정합)
+    const pmOwner = other.parasiticMine?.ownerId;
+    if (pmOwner && pmOwner !== sourcePlayerId) return true;
   }
   return false;
 }
