@@ -2448,21 +2448,35 @@ export class BotLogic {
                 });
                 if (far.length > 0) rangeOnly = far;
                 else {
-                    // [진단 RANGE-NEAR-WASTE] 부스터 활성인데 '부스터가 실제 여는' far 타깃이 후보에 0개 =
-                    // 활성화(rangeBoosterUnlocksTarget는 findBuildActions 전체로 판정)와 사용(top-N candidates)의
-                    // 불일치로 far가 top-N에서 빠진 순간 → 근거리 타깃에 부스터 증발(사용자 관찰: base로 닿는 기생에 1K+3).
-                    try {
-                        const near = rangeOnly.filter(c => (c.type === 'build_mine' || c.type === 'place_gaiaformer')).map(c => (c as any).params?.tileId).filter(Boolean);
-                        const entry = {
-                            kind: 'near-waste', player: player.name, round: (game as any).roundNumber,
-                            active: { range: !!player.rangeBonusActive, gleens: !!player.gleensNavBonusActive, temp: !!player.tempRangeBonus },
-                            baseRange: getRange(player.research.navigation || 0) + (player.navigationBonus || 0),
-                            nearBuildTargets: near,
-                        };
-                        (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
-                        (game as any).diagRangeWaste.push(entry);
-                        log(`[RANGE-NEAR-WASTE] ${JSON.stringify(entry)}`, 'game', game.id);
-                    } catch { /* diag 실패 무시 */ }
+                    // [flag: twilightRangeForceFar] 사용자 관찰(2026-07-23, 사람게임 3회): 부스터를 켜게 만든 far 타깃이
+                    // top-N candidates에서 빠지면(활성화는 findBuildActions 전체로 판정, 사용은 top-N) far가 비어
+                    // base로 닿는 근거리에 부스터 증발. 액션을 없애는 대신(1K+3은 먼 타깃엔 유효), findBuildActions에서
+                    // '부스트 없인 못 닿는' far 빌드를 직접 끌어와 후보로 강제 → 켠 부스터를 반드시 그 far에 쓰게 함.
+                    const forceFar = getPlayerFlag(playerId, 'twilightRangeForceFar', false);
+                    let injected: BotAction[] = [];
+                    if (forceFar) {
+                        injected = this.findBuildActions(game, playerId).filter(c => {
+                            if (c.type !== 'build_mine' && c.type !== 'place_gaiaformer') return false;
+                            return needsBoost((c as any).params?.tileId);
+                        });
+                    }
+                    if (injected.length > 0) {
+                        rangeOnly = injected; // 켠 부스터를 far 빌드에 사용(증발 방지)
+                    } else {
+                        // [진단 RANGE-NEAR-WASTE] far가 findBuildActions에도 없음(부스터로도 못 닿거나 자원부족) = 진짜 증발 순간 기록.
+                        try {
+                            const near = rangeOnly.filter(c => (c.type === 'build_mine' || c.type === 'place_gaiaformer')).map(c => (c as any).params?.tileId).filter(Boolean);
+                            const entry = {
+                                kind: 'near-waste', player: player.name, round: (game as any).roundNumber,
+                                active: { range: !!player.rangeBonusActive, gleens: !!player.gleensNavBonusActive, temp: !!player.tempRangeBonus },
+                                baseRange: getRange(player.research.navigation || 0) + (player.navigationBonus || 0),
+                                nearBuildTargets: near,
+                            };
+                            (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+                            (game as any).diagRangeWaste.push(entry);
+                            log(`[RANGE-NEAR-WASTE] ${JSON.stringify(entry)}`, 'game', game.id);
+                        } catch { /* diag 실패 무시 */ }
+                    }
                 }
             }
             if (rangeOnly.length > 0) candidatePool = rangeOnly;
@@ -6673,18 +6687,11 @@ export class BotLogic {
                     } else if (i === 3) {
                         // 트왈라잇 1지식 → +3 Range(tempRangeBonus). 단, 그 사거리가 '실제로 새 대상을 여는' 경우만 켠다.
                         // 아니면 1K만 버리고 엉뚱한 액션을 하는 낭비(사용자 관찰) → 낮은 점수로 사실상 비활성.
-                        // [flag: twilightRangeStandaloneOff] 사용자 관찰(2026-07-23, 사람게임 3회): rangeBoosterUnlocksTarget는
-                        // findBuildActions(전체)로 far 타깃 존재만 보고 +3을 켜는데, 그 far가 top-N 후보에서 빠지면 봇이 base로
-                        // 닿는 근거리(기생)를 지어 1K가 증발(활성화-사용 분리). 독립 활성화를 끄면 +3이 꼭 필요한 far는 QIC(빌드에
-                        // 이미 번들됨)로 닿고, 투기적 1K 소각 자체가 사라짐. self-play엔 거의 안 나므로(무해검증) 실전에서만 이득.
-                        if (getPlayerFlag(playerId, 'twilightRangeStandaloneOff', false)) {
-                            score = 0; action = null;
-                        } else {
-                            const rangeHelps = (player.knowledge || 0) >= 1 && !player.tempRangeBonus
-                                && this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus');
-                            score = rangeHelps ? 450 : 0;
-                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
-                        }
+                        // 액션 자체는 유지(먼 타깃이 1K 값어치할 때 필요) — 증발은 아래 rangeBonusFarOnly의 forceFar 가드로 막음.
+                        const rangeHelps = (player.knowledge || 0) >= 1 && !player.tempRangeBonus
+                            && this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus');
+                        score = rangeHelps ? 450 : 0;
+                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
                     if (i === 1 && effShipQic >= 3) {
