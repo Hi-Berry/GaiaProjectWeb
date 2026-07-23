@@ -2447,6 +2447,23 @@ export class BotLogic {
                     return true; // lost planet/ivits 정거장은 보수적으로 유지
                 });
                 if (far.length > 0) rangeOnly = far;
+                else {
+                    // [진단 RANGE-NEAR-WASTE] 부스터 활성인데 '부스터가 실제 여는' far 타깃이 후보에 0개 =
+                    // 활성화(rangeBoosterUnlocksTarget는 findBuildActions 전체로 판정)와 사용(top-N candidates)의
+                    // 불일치로 far가 top-N에서 빠진 순간 → 근거리 타깃에 부스터 증발(사용자 관찰: base로 닿는 기생에 1K+3).
+                    try {
+                        const near = rangeOnly.filter(c => (c.type === 'build_mine' || c.type === 'place_gaiaformer')).map(c => (c as any).params?.tileId).filter(Boolean);
+                        const entry = {
+                            kind: 'near-waste', player: player.name, round: (game as any).roundNumber,
+                            active: { range: !!player.rangeBonusActive, gleens: !!player.gleensNavBonusActive, temp: !!player.tempRangeBonus },
+                            baseRange: getRange(player.research.navigation || 0) + (player.navigationBonus || 0),
+                            nearBuildTargets: near,
+                        };
+                        (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+                        (game as any).diagRangeWaste.push(entry);
+                        log(`[RANGE-NEAR-WASTE] ${JSON.stringify(entry)}`, 'game', game.id);
+                    } catch { /* diag 실패 무시 */ }
+                }
             }
             if (rangeOnly.length > 0) candidatePool = rangeOnly;
             else {
