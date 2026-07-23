@@ -1318,3 +1318,12 @@
 - 120판 확인(champion=ON vs challenger=OFF, forced firaks): **파이락 좌석 ON 86.3 vs OFF 91.2 = Δ−4.87**(p≈0.256) — 40판 +5.20에서 **부호 반전(winner's curse)**. 행동은 여전히 정합(PI평균R ON 2.59<OFF 2.93 조기, 경제상승 ON 1.48>OFF 1.00). (주의: 이 120판은 merge가 런 도중 발생 — 워커 캐시로 대부분 pre-merge지만 소폭 오염 가능. 단 −4.87 크기+동일 패턴 3연속으로 결론 확실.)
 - 최종 판정: **self-play 상시ON 기각**(−4.87, firaksEngineRush −6.9·firaksNavHold −3.2·lantidsPiRush −4.56와 동일 [[ai-greedy-ceiling]] — 봇끼리 리치 기근이라 조기 경제/PI 커밋 회수 불가). 단 행동 검증됨+도메인 정답+사람 정석이므로 **사람게임 한정으로 재게이팅**(lantidsParaEngineHuman·leechHumanPay 패턴): 봇전용 게임엔 비활성(−4.87 무해), 실게임에서만 발동 → 판정은 실게임 관찰(파이락 R1-2 경제 2칸·PI 조기·최종 VP). firaksEcoRushForce=검증용.
 - 교훈 재확인: 40판 +5.2 첫측정은 winner's curse였다 — n=20 큰 양수는 믿지 말 것(스킬 원칙 #3). 잔여 파이락 큐: #2 아카가 유일 랩 태움(firaksLabLock 확장), #3 기오덴 Nav1→2(navLookaheadTier 미검증).
+
+## 2026-07-24 기각(OFF dormant, 노이즈 음수): `firaksDowngradeExpand` — 다운 무비용연구를 Nav→확장에
+- 사용자(2026-07-24): 파이락 다운그레이드 연구는 무비용 → Nav 올려 확장이 이득. 발견: findFiraksDowngradeAction의 pref가 Nav 꼴찌 + "고레벨 트랙 완성 우선"이라 공짜 연구가 확장에 안 감.
+- 수정: Nav<4 & 실사거리 느는 다음 레벨이 새 미점유 행성 열면 다운 연구를 Nav 우선.
+- 측정(forced firaks 40판): 파이락 좌석 ON 82.5 vs OFF 84.4 = Δ−1.85(p≈0.787 노이즈). 자원 희생 없는데도 이득 없음 = "연구→빌드 미전환" 벽(terraGaiaExpandEval −4.97·gaiaThroughput 동류 — Nav 올려도 새 광산 안 지음). 도메인 옳으나 self-play 무이득 → OFF dormant. 연방 전환율(botHumanGap #1) 고친 뒤 재검토 가치(확장이 연방재료).
+
+## 2026-07-24 [진단] botHumanGap.mjs — 봇 #1 체계 약점 = 연방 (전 종족 −1.4~−2.6)
+- 112게임 사람로그 분석: 연방 봇 1.5 vs 사람 3-4(18종족 예외없음). 판당 ~20-30VP 갭. 부차: 아카 −0.3~−1.3, 광산 과다 +1.3~+2.5, 유휴자원 多.
+- ★반증: 봇 광산이 사람보다 많음(6-7 vs 4-6) = 재료 있는데 연방 전환 실패(humanFedCommit 기각 사유 "재료null"이 실데이터로 반증). [[federation-gap-1-vs-3]]
