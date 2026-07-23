@@ -2328,6 +2328,12 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 	// 수익 단계가 모두 끝난 후 가이아 포머 파워 토큰 복귀
 	// 테란: 기본 능력으로 2그릇으로 복귀. 의회 있으면 추가로 토큰 수만큼 해택 선택.
 	// 그 외 종족: 1그릇으로 복귀
+	// [버그수정 2026-07-23 사용자 관찰: 아이타 라운드 중 번한 토큰이 가이아영역에서 사라짐] 이 복귀는 라운드당 1회여야
+	// 하는데 가드가 없었음 — helperTriggerIncomePhase가 라운드 중(수익 완료·대기자 없음 상태)에 재호출되면 여기까지
+	// 흘러와 그 라운드에 새로 번한 gaiaformerPower를 또 쓸어버림(다음 라운드 복귀분이 조기 소진). 라운드당 1회 가드.
+	// 이미 이 라운드에 복귀 처리했으면 재진입은 아무것도 안 함(라운드는 이미 진행 중/대기 선택 중이므로 진행은 다른 경로가 담당).
+	if ((game as any).gaiaformerReturnDoneThisRound) return;
+	(game as any).gaiaformerReturnDoneThisRound = true;
 	const terranCouncilQueue: { playerId: string; tokenCount: number }[] = [];
 	Object.entries(game.players).forEach(([pId, player]) => {
 		if (!player.gaiaformerPower || player.gaiaformerPower <= 0) return;
@@ -6908,6 +6914,7 @@ export function executeSelectBonus(
 		game.currentPhase = 'main';
 		game.roundNumber = 1;
 		(game as any).incomePhaseAppliedThisRound = false;
+		(game as any).gaiaformerReturnDoneThisRound = false; // 라운드당 1회 가이아 복귀 가드 리셋
 		game.currentPlayerIndex = 0;
 		game.pendingBonusSelection = null;
 		for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
@@ -7364,6 +7371,7 @@ export function executePassRound(
 				} catch { /* 스냅샷 실패는 게임에 무영향 */ }
 			}
 			(game as any).incomePhaseAppliedThisRound = false;
+			(game as any).gaiaformerReturnDoneThisRound = false; // 라운드당 1회 가이아 복귀 가드 리셋
 			(game as any).firstMainActionDoneThisRound = false; // 새 라운드: 액션 진행 플래그 리셋(시작플레이어 더블턴 가드)
 			game.powerActions.forEach(a => { a.isUsed = false; (a as any).usedByPlayerId = undefined; (a as any).usedByPlayerName = undefined; });
 			Object.values(game.players).forEach(p => {
