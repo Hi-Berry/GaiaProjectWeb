@@ -1009,11 +1009,13 @@ export class BotLogic {
                     }
                 }
                 // [flag: firaksEcoRush] 사용자 R1 정석(2026-07-23): 파이락 R1 = 랩(기술타일) + 경제 2칸 → R2 수입으로
-                // 의회 자금. 실측(방금 40판): 파이락 봇이 Nav 4-5로 끝나고 경제는 안 올려 자금 부족 → PI 지연. Nav 억제
-                // (firaksNavHold −3.2)는 남는 자원이 건물로 새고 경제↓였음 → 경제를 '능동적으로' 강제해야 함. 지식(4K)만
-                // 쓰는 수입 라인이라 firaksLoopDrive(+4.10) 동형(자원 안 태우는 순서강제), firaksEngineRush(−6.9 자원소모
-                // 강제)와 대조. R≤2 & PI 미보유 & 경제<2 & 지식 여유(후보 실존) 시 경제 상승 직접-return.
-                if (getPlayerFlag(playerId, 'firaksEcoRush', true) && player.faction === 'firaks'
+                // 의회 자금. 행동 검증됨(PI평균R 조기·경제 상승). 단 self-play VP: 40판 +5.20 → 120판 −4.87(winner's curse
+                // 부호반전 — firaksEngineRush −6.9·firaksNavHold −3.2·lantidsPiRush −4.56와 동일 [[ai-greedy-ceiling]]:
+                // 봇끼리는 리치 기근이라 조기-PI/경제 커밋을 회수 못 함). 도메인 정답+사람정석이므로 self-play 상시ON 대신
+                // 사람게임 한정(lantidsParaEngineHuman·leechHumanPay 패턴) — 봇전용 게임엔 비활성(−4.87 무해), 실게임 판정.
+                const firaksEcoHuman = (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
+                    || getPlayerFlag(playerId, 'firaksEcoRushForce', false); // Force = 검증 전용
+                if (getPlayerFlag(playerId, 'firaksEcoRush', true) && firaksEcoHuman && player.faction === 'firaks'
                     && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
                     && !candidates.some(c => c.type === 'form_federation')
                     && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
