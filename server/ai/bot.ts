@@ -3857,7 +3857,13 @@ export class BotLogic {
                 // [flag: lantidsParaEngine] 사용자 관찰+실측(2026-07-23): 사람 란티다는 PI 전 기생 0.15 → PI 후 5.77개
                 //   (각 +2K), 봇은 거꾸로 PI 전 2.22(지식보너스 낭비) → PI 후 1.00(대신 일반 1스텝 광산 3.11).
                 //   ①PI 후: 기생을 일반 1스텝 광산보다 확실히 우선(대폭 상향) ②PI 전(조기): 기생 억제해 PI 먼저.
-                if (getPlayerFlag(playerId, 'lantidsParaEngine', false)) {
+                // [lantidsParaEngineHuman] 120판 격리: 행동은 사람쪽 이동(PI후 기생 1.0→2.1, 일반광산 3.1→1.6)했으나
+                //   VP −1.02(노이즈). 봇 PI가 늦어 "PI→기생" 창이 짧고 약봇이 +2K를 VP로 못 바꿔 self-play는 보상 안 함
+                //   (lantidsPiRush −4.56와 같은 벽). 정석이 맞으니 lantidsPiRushHuman·leechHumanPay처럼 사람 게임 한정 ON.
+                const paraEngineOn = getPlayerFlag(playerId, 'lantidsParaEngine', false)
+                    || (getPlayerFlag(playerId, 'lantidsParaEngineHuman', true)
+                        && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length);
+                if (paraEngineOn) {
                     if (lantidsPIBuilt) score += 180;        // PI 후 기생-기생이 정석 — 일반 광산(~350-450)을 확실히 상회
                     else if (round <= 3) score -= 120;       // PI 전 조기 기생은 +2K 손실 → 뒤로(하드블록 아닌 감점)
                 }
