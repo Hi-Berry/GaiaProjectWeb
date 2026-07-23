@@ -1337,3 +1337,9 @@
 - 실측(사람로그 파이락 봇 3좌석): ppziurl 37점 = R3에 유일 랩→아카(PI 전) → 다운엔진 연료(랩) 소각, PI R5·랩재건 R6까지 다운 거의 0회. 사용자 관찰("연구소 짓고 의회 안 짓고 아카 짓는 판") 재현.
 - firaksLabLock(2번째 랩 금지)이 랩→아카는 안 막던 구멍. 가드: 파이락 & PI미보유 & 랩≤1이면 아카 후보 스킵(랩 보존).
 - ★self-play 측정 안 함: 이번 세션 n=20 좌석측정 2/2 winner's curse 반전(firaksEcoRush·navLookaheadTier) 확인 → 파이락 희소 좌석 40판은 노이즈라 검증력 없음. firaksLabLock 전례처럼 **do-no-harm 로직(엔진 연료 파괴 방지)으로 채택**, 실게임(파이락 봇 다운 횟수·최종VP) 관찰로 판정. 과장 없음 — measured win 아님, 관측손해 방지 가드.
+
+## 2026-07-24 정정→채택(ON, global): `navLookaheadTier` — 앞의 "기각(−3.78)"은 측정 교란이었음 (사용자 지적)
+- ★방법론 오류 발견(사용자 질문 "40 되는데 120 안 되는 이유 있지 않나?"): 앞의 40판(global)과 120판(내가 geodens-gated로 바꿈)은 **다른 실험**이었음 — gated는 geodens 상대봇의 nav도 바뀌어 좌석비교가 오염.
+- 깨끗한 재측정(동일 global 조건, 판수만 차이): 40판 geodens +11.35/전체 −2.74 → **120판 geodens +5.33/전체 +4.06(p=0.050, 승률48.3% 중립)**. 부호 유지+정상 회귀 = winner's curse 아님. tier-skip 보정(getRange 0·1→range1 묶임을 실사거리 느는 레벨까지 lookahead)은 도메인 옳은 버그수정.
+- 판정: 명확 양수 방향(VP)+도메인 정답 → **전 종족 기본 ON 채택**. firaksEcoRush(120 −4.87)도 머지-중-측정 교란이라 재확인 가치(human-gate라 무해하나 global 가능성).
+- ★세션 교훈 갱신: 앞서 "n=20 2/2 winner's curse"는 **과잉 결론** — 실은 confirm 런에서 내가 조건을 바꾼 교란. 진짜 원칙 = confirm은 판수 외 모든 조건 고정. [[federation-gap-1-vs-3]]

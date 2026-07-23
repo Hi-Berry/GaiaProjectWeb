@@ -5285,13 +5285,12 @@ export class BotLogic {
                 //   getRange는 0·1→1, 2·3→2로 tier가 둘씩 묶여, nav0에서 level+1만 보면 range가 안 늘어(getRange(1)=1)
                 //   '항해 올려도 새 땅 0개'로 오판 → 항해를 미루고 QIC로 점프 → 뒤늦게 nav2. 자매함수 willNavResearchSaveQIC는
                 //   이미 '실제 range가 느는 다음 레벨까지' 보도록 고쳐졌으나(1648~), 이 점수기엔 미적용이었음. 동일 수정 이식.
-                //   [측정 2026-07-24] geodens 고정 40판: 좌석 ON 103.6 vs OFF 92.3 = +11.35(p≈0.085) — 단 global은
-                //   전체 −2.74(타 종족 nav 교란). 기오덴 dig-cycle(새 유형 사거리 확장)에 특히 큰 이득이라 기오덴 한정.
-                //   navLookaheadTierAll = 전 종족 적용(검증/실험용). 120확인 후 기오덴 기본 ON 예정.
+                //   [측정 2026-07-24] ★채택(global). 깨끗한 apples-to-apples(동일 global 조건, 판수만 차이):
+                //   40판 geodens +11.35/전체 −2.74 → 120판 geodens +5.33/전체 +4.06(p=0.050). 부호 유지+회귀(정상).
+                //   초기 기각(gated 120 −3.78)은 winner's curse가 아니라 '게이팅으로 상대봇 nav도 바뀐' 교란이었음
+                //   (사용자 지적으로 발견). tier-skip 보정은 도메인 옳은 버그수정 → 전 종족 기본 ON.
                 let navNextLvl = level + 1;
-                const navLookahead = (faction === 'geodens' && getPlayerFlag(playerId, 'navLookaheadTier', false))
-                    || getPlayerFlag(playerId, 'navLookaheadTierAll', false);
-                if (navLookahead) {
+                if (getPlayerFlag(playerId, 'navLookaheadTier', true)) {
                     while (navNextLvl <= 5 && getRange(navNextLvl) <= getRange(level)) navNextLvl++;
                     if (navNextLvl > 5) navNextLvl = 5;
                 }
