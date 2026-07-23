@@ -7659,6 +7659,10 @@ export class BotLogic {
         if (player.faction === 'ivits' && getPlayerFlag(playerId, 'ivitsFedPowerFix', true)) return [];
         const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
         const bowl3UsedBySat = Math.max(0, (spentTokens ?? 0) - p1 - p2);
+        // [버그수정 2026-07-23 사용자 관찰] 연방이 bowl3를 전혀 안 소모하면(0위성, 또는 위성을 bowl1/2로 완납)
+        // '남는 bowl3=idle 배출'의 근거(위성 소모분 회수)가 없음 — 멀쩡한 파워를 1C에 헐값 배출. 이비츠(QIC위성)
+        // 전용이던 면제를 'bowl3 미소모' 전 경우로 일반화. bowl3 소모가 실제 있을 때만 그 위 잉여를 회수.
+        if (bowl3UsedBySat < 1) return [];
         const idle = Math.max(0, p3 - bowl3UsedBySat);
         if (idle < 1) return [];
         const drain = Math.min(idle, 6);
