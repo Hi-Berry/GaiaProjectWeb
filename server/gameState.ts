@@ -2492,6 +2492,26 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 	});
 }
 
+/** Itars PI 교환 체인 재개: 남은 가이아 토큰이 4+면 다음 교환 창, 아니면 그릇1 복귀 후 액션단계 진행.
+ *  (기술타일 선택 후·또는 2TF+광산 타일의 광산·트랙 완료 후 호출) */
+export function resumeItarsExchangeChain(io: SocketIOServer, game: GaiaGameState, playerId: string, remaining: number) {
+	const player = game.players[playerId];
+	game.itarsGaiaformerRemainingAfterTech = undefined;
+	if (remaining >= 4) {
+		game.pendingItarsGaiaformerExchange = { playerId, tokensRemaining: remaining };
+	} else {
+		if (player) player.power1 = (player.power1 || 0) + remaining;
+		if (remaining > 0) addGameLog(game, playerId, 'Itars PI', `${remaining} tokens → Bowl 1`);
+		try {
+			helperProceedAfterItarsGaiaformerOrTerran(io, game);
+		} catch (e) {
+			log(`[ITARS-CHAIN] resume helperProceed EXCEPTION: ${(e as Error)?.stack || e}`, 'error', game.id);
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { /* 위에서 로깅됨 */ });
+		}
+	}
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+}
+
 export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, game: GaiaGameState) {
 	const terranQueue = game.terranCouncilQueueAfterItars;
 	game.terranCouncilQueueAfterItars = undefined;
@@ -5679,6 +5699,14 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		// 우주선 후속 pending(트랙전진/광산)은 '내 턴 아닐 때' 해소를 이미 지원(6860대 주석)하므로 공존 가능.
 		if (wasItarsExchange) {
 			const remainingItars = game.itarsGaiaformerRemainingAfterTech ?? 0;
+			// [BUGFIX 2026-07-23 log-confirmed 5i3rsaz3 R4] ship-tech-2tf-mine: place mine + advance track first.
+			// Running the exchange chain now makes pendingShipTechMine and the next exchange collide (user rolled back).
+			// Mine case: defer (keep remaining) and resume via resumeItarsExchangeChain after mine+track complete.
+			if (game.pendingShipTechMine?.playerId === playerId) {
+				(game as any).itarsExchangeResumeAfterShipMine = true;
+				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				return;
+			}
 			game.itarsGaiaformerRemainingAfterTech = undefined;
 			log(`[ITARS-CHAIN] ${player.name} ship-tech done, remaining=${remainingItars} (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
 			if (remainingItars >= 4) {
@@ -7026,6 +7054,16 @@ export function executeAdvanceTech(
 		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
 
 		// 2TF+Mine 관련 순서 조정을 위해 기존 로직 제거 (이제 광산 건설 완료 시 트랙 전진이 트리거됨)
+
+		// [BUGFIX 2026-07-23] Itars PI 교환으로 받은 2TF+광산 타일: 광산 배치 → 트랙 전진이 끝난 지금,
+		// 이연해 둔 잔여 토큰 교환 체인을 재개(다음 4토큰 교환 or 그릇1 복귀 후 액션단계 진행).
+		if ((game as any).itarsExchangeResumeAfterShipMine) {
+			(game as any).itarsExchangeResumeAfterShipMine = false;
+			const remainingItars = game.itarsGaiaformerRemainingAfterTech ?? 0;
+			log(`[ITARS-CHAIN] ${player.name} 2TF+Mine 광산·트랙 완료 — 잔여 ${remainingItars} 체인 재개 (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
+			resumeItarsExchangeChain(io, game, playerId, remainingItars);
+			return true;
+		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
