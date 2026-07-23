@@ -5175,7 +5175,7 @@ export class BotLogic {
         // 무의미. VP 원천만 계산: ①연구트랙 라운드미션(전진 시 즉시 +vp) ②adv-vp-research 타일(+2/전진)
         // ③L4→L5 도달(초록연방 有·미선점 = 잊혀진행성/L5 즉시보상 근사 +4). 그 외(sci→1 등)는 0에 가깝게(잔여자원
         // 소량만) → 무료 전진이 VP 나는 트랙으로 가고, 4K 헛전진도 방지. 모든 종족 R6 공통.
-        if ((round ?? 1) >= 6 && getPlayerFlag(playerId, 'lastRoundResearchVp', false)) {
+        if ((round ?? 1) >= 6 && getPlayerFlag(playerId, 'lastRoundResearchVp', true)) {
             let vp = 0;
             const rm = game.roundScoringTiles?.[(round ?? 1) - 1];
             if (rm?.triggerType === 'research_track') vp += rm.vp;
