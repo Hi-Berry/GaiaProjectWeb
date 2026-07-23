@@ -2462,6 +2462,12 @@ export class BotLogic {
                     }
                     if (injected.length > 0) {
                         rangeOnly = injected; // 켠 부스터를 far 빌드에 사용(증발 방지)
+                        try {
+                            const tgts = injected.map(c => (c as any).params?.tileId).filter(Boolean);
+                            (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+                            (game as any).diagRangeWaste.push({ kind: 'forcefar', player: player.name, round: (game as any).roundNumber, farTargets: tgts });
+                            log(`[RANGE-FORCEFAR] ${player.name} R${(game as any).roundNumber} 부스터→far 강제: ${JSON.stringify(tgts)}`, 'game', game.id);
+                        } catch { /* diag 실패 무시 */ }
                     } else {
                         // [진단 RANGE-NEAR-WASTE] far가 findBuildActions에도 없음(부스터로도 못 닿거나 자원부족) = 진짜 증발 순간 기록.
                         try {
