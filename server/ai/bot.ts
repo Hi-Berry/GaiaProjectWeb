@@ -3854,6 +3854,13 @@ export class BotLogic {
 
                 let score = 260 - neededQicForRange * (round <= 3 ? 220 : 120);
                 if (lantidsPIBuilt) score += 100; // 의회 +2K/기생 = 지식엔진 실지급분
+                // [flag: lantidsParaEngine] 사용자 관찰+실측(2026-07-23): 사람 란티다는 PI 전 기생 0.15 → PI 후 5.77개
+                //   (각 +2K), 봇은 거꾸로 PI 전 2.22(지식보너스 낭비) → PI 후 1.00(대신 일반 1스텝 광산 3.11).
+                //   ①PI 후: 기생을 일반 1스텝 광산보다 확실히 우선(대폭 상향) ②PI 전(조기): 기생 억제해 PI 먼저.
+                if (getPlayerFlag(playerId, 'lantidsParaEngine', false)) {
+                    if (lantidsPIBuilt) score += 180;        // PI 후 기생-기생이 정석 — 일반 광산(~350-450)을 확실히 상회
+                    else if (round <= 3) score -= 120;       // PI 전 조기 기생은 +2K 손실 → 뒤로(하드블록 아닌 감점)
+                }
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
