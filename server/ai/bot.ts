@@ -6673,10 +6673,18 @@ export class BotLogic {
                     } else if (i === 3) {
                         // 트왈라잇 1지식 → +3 Range(tempRangeBonus). 단, 그 사거리가 '실제로 새 대상을 여는' 경우만 켠다.
                         // 아니면 1K만 버리고 엉뚱한 액션을 하는 낭비(사용자 관찰) → 낮은 점수로 사실상 비활성.
-                        const rangeHelps = (player.knowledge || 0) >= 1 && !player.tempRangeBonus
-                            && this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus');
-                        score = rangeHelps ? 450 : 0;
-                        action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                        // [flag: twilightRangeStandaloneOff] 사용자 관찰(2026-07-23, 사람게임 3회): rangeBoosterUnlocksTarget는
+                        // findBuildActions(전체)로 far 타깃 존재만 보고 +3을 켜는데, 그 far가 top-N 후보에서 빠지면 봇이 base로
+                        // 닿는 근거리(기생)를 지어 1K가 증발(활성화-사용 분리). 독립 활성화를 끄면 +3이 꼭 필요한 far는 QIC(빌드에
+                        // 이미 번들됨)로 닿고, 투기적 1K 소각 자체가 사라짐. self-play엔 거의 안 나므로(무해검증) 실전에서만 이득.
+                        if (getPlayerFlag(playerId, 'twilightRangeStandaloneOff', false)) {
+                            score = 0; action = null;
+                        } else {
+                            const rangeHelps = (player.knowledge || 0) >= 1 && !player.tempRangeBonus
+                                && this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus');
+                            score = rangeHelps ? 450 : 0;
+                            action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
+                        }
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
                     if (i === 1 && effShipQic >= 3) {
