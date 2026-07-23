@@ -5170,6 +5170,22 @@ export class BotLogic {
 
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
 
+        // [flag: lastRoundResearchVp] 사용자 관찰(2026-07-23): R6에 1O3K 무료 전진을 아무 VP 없는 sci 0→1에 낭비.
+        // R6(마지막 라운드)엔 트랙 전진이 '실제 VP를 낳을 때만' 가치 — 일반 트랙점수(수익/엔진 가치)는 게임이 끝나
+        // 무의미. VP 원천만 계산: ①연구트랙 라운드미션(전진 시 즉시 +vp) ②adv-vp-research 타일(+2/전진)
+        // ③L4→L5 도달(초록연방 有·미선점 = 잊혀진행성/L5 즉시보상 근사 +4). 그 외(sci→1 등)는 0에 가깝게(잔여자원
+        // 소량만) → 무료 전진이 VP 나는 트랙으로 가고, 4K 헛전진도 방지. 모든 종족 R6 공통.
+        if ((round ?? 1) >= 6 && getPlayerFlag(playerId, 'lastRoundResearchVp', false)) {
+            let vp = 0;
+            const rm = game.roundScoringTiles?.[(round ?? 1) - 1];
+            if (rm?.triggerType === 'research_track') vp += rm.vp;
+            if ((player.techTiles ?? []).includes('adv-vp-research') && !(player.coveredTechTiles ?? []).includes('adv-vp-research')) vp += 2;
+            if (level === 4 && getFederationEntries(player).some(f => f.isGreen) && !isTrackLevel5Taken(game, track, playerId)) {
+                vp += 4; // L5 즉시보상(잊혀진행성/보상) 근사
+            }
+            return vp > 0 ? vp * 100 : 5; // VP 없으면 잔여자원 소량(5)만 — VP 트랙(100+)이 확실히 이김
+        }
+
         // 1. 기본 트랙 가치 (동적 계산)
         switch (track) {
             case 'terraforming': {
