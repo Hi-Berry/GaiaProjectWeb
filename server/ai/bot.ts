@@ -1008,14 +1008,11 @@ export class BotLogic {
                         return piNow;
                     }
                 }
-                // [flag: firaksEcoRush] 사용자 R1 정석(2026-07-23): 파이락 R1 = 랩(기술타일) + 경제 2칸 → R2 수입으로
-                // 의회 자금. 행동 검증됨(PI평균R 조기·경제 상승). 단 self-play VP: 40판 +5.20 → 120판 −4.87(winner's curse
-                // 부호반전 — firaksEngineRush −6.9·firaksNavHold −3.2·lantidsPiRush −4.56와 동일 [[ai-greedy-ceiling]]:
-                // 봇끼리는 리치 기근이라 조기-PI/경제 커밋을 회수 못 함). 도메인 정답+사람정석이므로 self-play 상시ON 대신
-                // 사람게임 한정(lantidsParaEngineHuman·leechHumanPay 패턴) — 봇전용 게임엔 비활성(−4.87 무해), 실게임 판정.
-                const firaksEcoHuman = (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
-                    || getPlayerFlag(playerId, 'firaksEcoRushForce', false); // Force = 검증 전용
-                if (getPlayerFlag(playerId, 'firaksEcoRush', true) && firaksEcoHuman && player.faction === 'firaks'
+                // [flag: firaksEcoRush] ★채택(global). 사용자 R1 정석(2026-07-23): 파이락 R1 = 랩(기술타일) + 경제 2칸
+                // → R2 수입으로 의회 자금. 지식(4K)만 쓰는 수입 라인 순서강제(firaksLoopDrive +4.10 동형).
+                // 측정: 40판 firaks좌석 +5.20 → 첫 120판 −4.87(★머지-중-측정 오염, 사용자 지적으로 발견) → clean 120판
+                // 재측정 +4.42(머지 후 안정코드, 40판과 일관 양수). 오염 제거하니 실제 개선 확인 → 사람게임 한정 해제, 전 종족 ON.
+                if (getPlayerFlag(playerId, 'firaksEcoRush', true) && player.faction === 'firaks'
                     && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
                     && !candidates.some(c => c.type === 'form_federation')
                     && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')

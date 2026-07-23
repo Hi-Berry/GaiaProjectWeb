@@ -1343,3 +1343,8 @@
 - 깨끗한 재측정(동일 global 조건, 판수만 차이): 40판 geodens +11.35/전체 −2.74 → **120판 geodens +5.33/전체 +4.06(p=0.050, 승률48.3% 중립)**. 부호 유지+정상 회귀 = winner's curse 아님. tier-skip 보정(getRange 0·1→range1 묶임을 실사거리 느는 레벨까지 lookahead)은 도메인 옳은 버그수정.
 - 판정: 명확 양수 방향(VP)+도메인 정답 → **전 종족 기본 ON 채택**. firaksEcoRush(120 −4.87)도 머지-중-측정 교란이라 재확인 가치(human-gate라 무해하나 global 가능성).
 - ★세션 교훈 갱신: 앞서 "n=20 2/2 winner's curse"는 **과잉 결론** — 실은 confirm 런에서 내가 조건을 바꾼 교란. 진짜 원칙 = confirm은 판수 외 모든 조건 고정. [[federation-gap-1-vs-3]]
+
+## 2026-07-24 정정→채택(ON, global): `firaksEcoRush` — 첫 120판 −4.87은 머지-중-측정 오염이었음
+- 사용자 방법론 지적(navLookaheadTier와 동일 패턴): 첫 120판 −4.87은 원격 20커밋 머지 도중 돌아 챔피언 코드가 런 중 바뀐 오염. clean 재측정(머지 후 안정코드, 판수 외 조건 고정): **firaks 좌석 B(ON) 90.9 vs A(OFF) 86.5 = +4.42** (40판 +5.20과 일관 양수, 120게임 완주 n=60/60).
+- 판정: 오염 제거하니 실제 개선 확인 → 사람게임 한정 해제, **전 종족 기본 ON**. (navLookaheadTier +5.33에 이어 사용자 질문이 살린 2번째 개선.)
+- ★교훈 확정: 이번 세션 "winner's curse 반전"으로 기각했던 firaksEcoRush·navLookaheadTier 둘 다 **실은 내 confirm-런 오염**(머지 중 측정·게이팅 변경)이었음. n=20 노이즈 주의는 유효하나, confirm은 반드시 판수 외 전 조건 고정.
