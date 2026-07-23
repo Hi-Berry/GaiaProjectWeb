@@ -1008,6 +1008,23 @@ export class BotLogic {
                         return piNow;
                     }
                 }
+                // [flag: firaksEcoRush] 사용자 R1 정석(2026-07-23): 파이락 R1 = 랩(기술타일) + 경제 2칸 → R2 수입으로
+                // 의회 자금. 실측(방금 40판): 파이락 봇이 Nav 4-5로 끝나고 경제는 안 올려 자금 부족 → PI 지연. Nav 억제
+                // (firaksNavHold −3.2)는 남는 자원이 건물로 새고 경제↓였음 → 경제를 '능동적으로' 강제해야 함. 지식(4K)만
+                // 쓰는 수입 라인이라 firaksLoopDrive(+4.10) 동형(자원 안 태우는 순서강제), firaksEngineRush(−6.9 자원소모
+                // 강제)와 대조. R≤2 & PI 미보유 & 경제<2 & 지식 여유(후보 실존) 시 경제 상승 직접-return.
+                if (getPlayerFlag(playerId, 'firaksEcoRush', true) && player.faction === 'firaks'
+                    && !game.hasDoneMainAction && (game.roundNumber ?? 1) <= 2
+                    && !candidates.some(c => c.type === 'form_federation')
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')
+                    && (player.research?.economy ?? 0) < 2) {
+                    const ecoAdv = candidates.find(c => c.type === 'advance_research'
+                        && (c.params as any)?.trackId === 'economy');
+                    if (ecoAdv) {
+                        log(`Bot ${player.name} firaksEcoRush: 경제 상승 (경제 L${player.research?.economy ?? 0}→${(player.research?.economy ?? 0) + 1}, R${game.roundNumber}) — PI 자금 라인`, 'game', game.id);
+                        return ecoAdv;
+                    }
+                }
                 if (getPlayerFlag(playerId, 'firaksLoopDrive', true) && player.faction === 'firaks'
                     && !game.hasDoneMainAction
                     && !candidates.some(c => c.type === 'form_federation')
@@ -5152,6 +5169,17 @@ export class BotLogic {
                 if (faction === 'bal_tak') {
                     const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
                     if (!hasPI) return -1000;
+                }
+                // [flag: firaksNavHold] 사용자 관찰(2026-07-23): 파이락이 랩+경제(=PI 자금)로 가야 하는데 Nav를
+                // 자꾸 올려 PI를 못 지음. 파이락은 다운그레이드 루프+기술타일로 이기는 엔진 종족이라 사거리 가치가
+                // 낮음. PI 미보유 동안, 진짜 확장 불가(닿는 빈 행성 ≤1)가 아니면 Nav를 강하게 미뤄 경제/랩/PI 우선.
+                // firaksEngineRush(-6.9 순서강제, 자금부재)와 달리 '자금 누수(Nav)' 차단 — firaksEcoPlan/PiFunding 정합.
+                if (getPlayerFlag(playerId, 'firaksNavHold', false) && faction === 'firaks'
+                    && !game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+                    const rngNowF = BotLogic.getEffectiveBaseRange(player);
+                    const reachEmptyF = game.map.filter(t => !t.ownerId && BotLogic.isPlanetHex(t)
+                        && myStructures.some(s => getDistance(s, t) <= rngNowF)).length;
+                    if (reachEmptyF > 1) return -200; // 확장 여력 있으면 Nav 미룸(경제/랩/PI 자금 우선)
                 }
                 score += (6 - level) * 10;
                 // [동적 분석] 항해를 올렸을 때 새로 닿는 행성이 있는가?
