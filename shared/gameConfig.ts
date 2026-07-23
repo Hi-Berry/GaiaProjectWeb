@@ -918,7 +918,7 @@ export const FACTIONS: Faction[] = [
     piIncome: { power: 4, tokens: 1 }
   },
   {
-    id: 'moweyip', name: 'Moweyip', homePlanet: 'proto', color: PLANET_COLORS.proto,
+    id: 'moweyip', name: 'Moweyds', homePlanet: 'proto', color: PLANET_COLORS.proto,
     startingTech: { gaiaProject: 1 },
     startingResources: { ore: 6, knowledge: 5, credits: 15, qic: 2 },
     startingPower: { bowl1: 4, bowl2: 4, bowl3: 0 },
