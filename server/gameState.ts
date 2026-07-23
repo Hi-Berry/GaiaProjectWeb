@@ -2335,6 +2335,12 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 	// 수익 단계가 모두 끝난 후 가이아 포머 파워 토큰 복귀
 	// 테란: 기본 능력으로 2그릇으로 복귀. 의회 있으면 추가로 토큰 수만큼 해택 선택.
 	// 그 외 종족: 1그릇으로 복귀
+	// [버그수정 2026-07-23 사용자 관찰: 아이타 라운드 중 번한 토큰이 가이아영역에서 사라짐] 이 복귀는 라운드당 1회여야
+	// 하는데 가드가 없었음 — helperTriggerIncomePhase가 라운드 중(수익 완료·대기자 없음 상태)에 재호출되면 여기까지
+	// 흘러와 그 라운드에 새로 번한 gaiaformerPower를 또 쓸어버림(다음 라운드 복귀분이 조기 소진). 라운드당 1회 가드.
+	// 이미 이 라운드에 복귀 처리했으면 재진입은 아무것도 안 함(라운드는 이미 진행 중/대기 선택 중이므로 진행은 다른 경로가 담당).
+	if ((game as any).gaiaformerReturnDoneThisRound) return;
+	(game as any).gaiaformerReturnDoneThisRound = true;
 	const terranCouncilQueue: { playerId: string; tokenCount: number }[] = [];
 	Object.entries(game.players).forEach(([pId, player]) => {
 		if (!player.gaiaformerPower || player.gaiaformerPower <= 0) return;
@@ -2491,6 +2497,26 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (StartNewRoundTurn): ${err}`, 'error');
 	});
+}
+
+/** Itars PI 교환 체인 재개: 남은 가이아 토큰이 4+면 다음 교환 창, 아니면 그릇1 복귀 후 액션단계 진행.
+ *  (기술타일 선택 후·또는 2TF+광산 타일의 광산·트랙 완료 후 호출) */
+export function resumeItarsExchangeChain(io: SocketIOServer, game: GaiaGameState, playerId: string, remaining: number) {
+	const player = game.players[playerId];
+	game.itarsGaiaformerRemainingAfterTech = undefined;
+	if (remaining >= 4) {
+		game.pendingItarsGaiaformerExchange = { playerId, tokensRemaining: remaining };
+	} else {
+		if (player) player.power1 = (player.power1 || 0) + remaining;
+		if (remaining > 0) addGameLog(game, playerId, 'Itars PI', `${remaining} tokens → Bowl 1`);
+		try {
+			helperProceedAfterItarsGaiaformerOrTerran(io, game);
+		} catch (e) {
+			log(`[ITARS-CHAIN] resume helperProceed EXCEPTION: ${(e as Error)?.stack || e}`, 'error', game.id);
+			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { /* 위에서 로깅됨 */ });
+		}
+	}
+	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 }
 
 export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, game: GaiaGameState) {
@@ -5680,6 +5706,14 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		// 우주선 후속 pending(트랙전진/광산)은 '내 턴 아닐 때' 해소를 이미 지원(6860대 주석)하므로 공존 가능.
 		if (wasItarsExchange) {
 			const remainingItars = game.itarsGaiaformerRemainingAfterTech ?? 0;
+			// [BUGFIX 2026-07-23 log-confirmed 5i3rsaz3 R4] ship-tech-2tf-mine: place mine + advance track first.
+			// Running the exchange chain now makes pendingShipTechMine and the next exchange collide (user rolled back).
+			// Mine case: defer (keep remaining) and resume via resumeItarsExchangeChain after mine+track complete.
+			if (game.pendingShipTechMine?.playerId === playerId) {
+				(game as any).itarsExchangeResumeAfterShipMine = true;
+				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				return;
+			}
 			game.itarsGaiaformerRemainingAfterTech = undefined;
 			log(`[ITARS-CHAIN] ${player.name} ship-tech done, remaining=${remainingItars} (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
 			if (remainingItars >= 4) {
@@ -6915,6 +6949,7 @@ export function executeSelectBonus(
 		game.currentPhase = 'main';
 		game.roundNumber = 1;
 		(game as any).incomePhaseAppliedThisRound = false;
+		(game as any).gaiaformerReturnDoneThisRound = false; // 라운드당 1회 가이아 복귀 가드 리셋
 		game.currentPlayerIndex = 0;
 		game.pendingBonusSelection = null;
 		for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
@@ -7026,6 +7061,16 @@ export function executeAdvanceTech(
 		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
 
 		// 2TF+Mine 관련 순서 조정을 위해 기존 로직 제거 (이제 광산 건설 완료 시 트랙 전진이 트리거됨)
+
+		// [BUGFIX 2026-07-23] Itars PI 교환으로 받은 2TF+광산 타일: 광산 배치 → 트랙 전진이 끝난 지금,
+		// 이연해 둔 잔여 토큰 교환 체인을 재개(다음 4토큰 교환 or 그릇1 복귀 후 액션단계 진행).
+		if ((game as any).itarsExchangeResumeAfterShipMine) {
+			(game as any).itarsExchangeResumeAfterShipMine = false;
+			const remainingItars = game.itarsGaiaformerRemainingAfterTech ?? 0;
+			log(`[ITARS-CHAIN] ${player.name} 2TF+Mine 광산·트랙 완료 — 잔여 ${remainingItars} 체인 재개 (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
+			resumeItarsExchangeChain(io, game, playerId, remainingItars);
+			return true;
+		}
 
 		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
 		return true;
@@ -7371,6 +7416,7 @@ export function executePassRound(
 				} catch { /* 스냅샷 실패는 게임에 무영향 */ }
 			}
 			(game as any).incomePhaseAppliedThisRound = false;
+			(game as any).gaiaformerReturnDoneThisRound = false; // 라운드당 1회 가이아 복귀 가드 리셋
 			(game as any).firstMainActionDoneThisRound = false; // 새 라운드: 액션 진행 플래그 리셋(시작플레이어 더블턴 가드)
 			game.powerActions.forEach(a => { a.isUsed = false; (a as any).usedByPlayerId = undefined; (a as any).usedByPlayerName = undefined; });
 			Object.values(game.players).forEach(p => {

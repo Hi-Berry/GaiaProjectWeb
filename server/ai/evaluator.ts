@@ -508,6 +508,18 @@ export class Evaluator {
                 score += navExpand;
                 logDebug(`4b) Nav-for-expansion: nav${navLvl}*130*${presenceMult.toFixed(1)} = +${navExpand.toFixed(0)}`);
             }
+            // [flag: terraGaiaExpandEval] 103게임 부검(2026-07-22): 망한봇 vs 잘한봇의 확장 격차는 nav가 아니라
+            // (nav 3.39≈3.53 동일) terra(0.92→1.55)·gaia(0.80→1.67)·가이아광산(0.68→1.38). 그런데 평가기 확장
+            // 인에이블러 보상은 navExpandEval(nav만) 뿐 — 봇이 nav만 펌핑하고 실제 행성 여는 terra/gaia 루트엔
+            // 크레딧 0. nav 대응물로 terra/gaia 레벨을 확장가로 평가(작은보드·초반 한정, 빌드연결 유지 위해 게이트 동일).
+            // gaiaThroughput(연구가격 인하) 기각 사유 '빌드 미연결'과 차별: board<6일 때만=다음 빌드 여는 국면.
+            if (getPlayerFlag(playerId, 'terraGaiaExpandEval', false) && round <= 4 && myStructures.length < 6) {
+                const terraLvl = Math.min(player.research.terraforming ?? 0, 2);
+                const gaiaLvl = Math.min(player.research.gaiaProject ?? 0, 2);
+                const tgExpand = (terraLvl + gaiaLvl) * 80 * presenceMult;
+                score += tgExpand;
+                logDebug(`4c) TerraGaia-for-expansion: (t${terraLvl}+g${gaiaLvl})*80*${presenceMult.toFixed(1)} = +${tgExpand.toFixed(0)}`);
+            }
         }
 
         // 확장(광산 10개 이상)에 대한 추가 보너스

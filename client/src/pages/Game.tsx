@@ -190,6 +190,8 @@ export default function Game() {
   const [firaksDowngradeLabTileId, setFiraksDowngradeLabTileId] = useState<string | null>(null);
   /** 모웨이드(Moweyip) Special: 링 놓기 — 본인 건물 클릭 시 링 배치 */
   const [moweyipPlaceRingMode, setMoweyipPlaceRingMode] = useState(false);
+  /** 아이타 4토큰 교환 타일 확정 전 확인창 (수익 단계라 되돌리기가 없어 클릭 즉시 커밋되던 것 — 확인 한 단계 추가) */
+  const [itarsTileConfirm, setItarsTileConfirm] = useState<{ techTileId: string; trackId?: string; fromMini?: boolean } | null>(null);
   /** 보너스 타일 선택 단계에서 패널 접기/펼치기 (맵 보면서 선택 가능) */
   const [isBonusSelectionPanelExpanded, setIsBonusSelectionPanelExpanded] = useState(true);
   /** L 키: 게임 로그 오버레이 (평소에는 UI 없음) */
@@ -1054,8 +1056,15 @@ export default function Game() {
     };
   }, [game?.pendingPowerOffers, playerId, isSpectator]);
 
-  const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean }) => {
+  const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean; confirmed?: boolean }) => {
     if (!gameId || !game || !playerId) return;
+
+    // [사용자 요청] 아이타 4토큰 교환 타일은 수익 단계라 되돌리기가 없어 클릭 즉시 확정됨 → 확인창 한 단계 추가.
+    // (탑승 안 한 우주선 타일 등 사전 차단은 확인 후 실제 커밋 시 그대로 적용되므로 여기선 확인만.)
+    if (!options?.confirmed && game.pendingTechTileSelection?.structureType === 'itars_pi_exchange') {
+      setItarsTileConfirm({ techTileId, trackId, fromMini: options?.fromMini });
+      return;
+    }
 
     // 탑승하지 않은 우주선의 기술 타일은 선택 불가 — 에러만 띄우고 전송하지 않음(턴이 넘어가지 않게).
     // (서버에서도 방어하지만, 잘못 클릭 시 턴을 잃지 않도록 클라이언트에서 먼저 차단)
@@ -3921,6 +3930,47 @@ export default function Game() {
                     onClick={() => gameId && GameClient.itarsGaiaformerExchangeChoice(gameId, true)}
                   >
                     4개 제거하고 기술 타일 가져오기
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
+
+        {/* 아이타 4토큰 교환: 타일 확정 전 확인창 (수익 단계라 되돌리기 없음 → 오클릭 방지) */}
+        {itarsTileConfirm && gameId && (() => {
+          const t = ALL_TECH_TILES.find(x => x.id === itarsTileConfirm.techTileId)
+            || SHIP_TECH_TILES.find(x => x.id === itarsTileConfirm.techTileId);
+          const label = t?.label || itarsTileConfirm.techTileId;
+          const desc = (t as { description?: string } | undefined)?.description;
+          return (
+            <AlertDialog open={true} onOpenChange={() => { }}>
+              <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider">기술 타일 확정</AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    <span className="font-bold text-amber-300">{label}</span> 타일을 가져올까요? (4토큰 소모)
+                    {desc ? <span className="block mt-1 text-[11px] text-zinc-400">{desc}</span> : null}
+                    <span className="block mt-2 text-[11px] text-zinc-500">수익 단계라 확정 후에는 되돌릴 수 없습니다.</span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <Button
+                    variant="outline"
+                    className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                    onClick={() => setItarsTileConfirm(null)}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
+                    onClick={() => {
+                      const pick = itarsTileConfirm;
+                      setItarsTileConfirm(null);
+                      selectTechTileWithLevel5Confirm(pick.techTileId, pick.trackId, { fromMini: pick.fromMini, confirmed: true });
+                    }}
+                  >
+                    확정
                   </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>

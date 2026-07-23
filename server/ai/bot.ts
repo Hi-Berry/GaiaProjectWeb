@@ -2464,6 +2464,43 @@ export class BotLogic {
                     return true; // lost planet/ivits 정거장은 보수적으로 유지
                 });
                 if (far.length > 0) rangeOnly = far;
+                else {
+                    // [flag: twilightRangeForceFar] 사용자 관찰(2026-07-23, 사람게임 3회): 부스터를 켜게 만든 far 타깃이
+                    // top-N candidates에서 빠지면(활성화는 findBuildActions 전체로 판정, 사용은 top-N) far가 비어
+                    // base로 닿는 근거리에 부스터 증발. 액션을 없애는 대신(1K+3은 먼 타깃엔 유효), findBuildActions에서
+                    // '부스트 없인 못 닿는' far 빌드를 직접 끌어와 후보로 강제 → 켠 부스터를 반드시 그 far에 쓰게 함.
+                    const forceFar = getPlayerFlag(playerId, 'twilightRangeForceFar', false);
+                    let injected: BotAction[] = [];
+                    if (forceFar) {
+                        injected = this.findBuildActions(game, playerId).filter(c => {
+                            if (c.type !== 'build_mine' && c.type !== 'place_gaiaformer') return false;
+                            return needsBoost((c as any).params?.tileId);
+                        });
+                    }
+                    if (injected.length > 0) {
+                        rangeOnly = injected; // 켠 부스터를 far 빌드에 사용(증발 방지)
+                        try {
+                            const tgts = injected.map(c => (c as any).params?.tileId).filter(Boolean);
+                            (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+                            (game as any).diagRangeWaste.push({ kind: 'forcefar', player: player.name, round: (game as any).roundNumber, farTargets: tgts });
+                            log(`[RANGE-FORCEFAR] ${player.name} R${(game as any).roundNumber} 부스터→far 강제: ${JSON.stringify(tgts)}`, 'game', game.id);
+                        } catch { /* diag 실패 무시 */ }
+                    } else {
+                        // [진단 RANGE-NEAR-WASTE] far가 findBuildActions에도 없음(부스터로도 못 닿거나 자원부족) = 진짜 증발 순간 기록.
+                        try {
+                            const near = rangeOnly.filter(c => (c.type === 'build_mine' || c.type === 'place_gaiaformer')).map(c => (c as any).params?.tileId).filter(Boolean);
+                            const entry = {
+                                kind: 'near-waste', player: player.name, round: (game as any).roundNumber,
+                                active: { range: !!player.rangeBonusActive, gleens: !!player.gleensNavBonusActive, temp: !!player.tempRangeBonus },
+                                baseRange: getRange(player.research.navigation || 0) + (player.navigationBonus || 0),
+                                nearBuildTargets: near,
+                            };
+                            (game as any).diagRangeWaste = (game as any).diagRangeWaste || [];
+                            (game as any).diagRangeWaste.push(entry);
+                            log(`[RANGE-NEAR-WASTE] ${JSON.stringify(entry)}`, 'game', game.id);
+                        } catch { /* diag 실패 무시 */ }
+                    }
+                }
             }
             if (rangeOnly.length > 0) candidatePool = rangeOnly;
             else {
@@ -3871,6 +3908,19 @@ export class BotLogic {
 
                 let score = 260 - neededQicForRange * (round <= 3 ? 220 : 120);
                 if (lantidsPIBuilt) score += 100; // 의회 +2K/기생 = 지식엔진 실지급분
+                // [flag: lantidsParaEngine] 사용자 관찰+실측(2026-07-23): 사람 란티다는 PI 전 기생 0.15 → PI 후 5.77개
+                //   (각 +2K), 봇은 거꾸로 PI 전 2.22(지식보너스 낭비) → PI 후 1.00(대신 일반 1스텝 광산 3.11).
+                //   ①PI 후: 기생을 일반 1스텝 광산보다 확실히 우선(대폭 상향) ②PI 전(조기): 기생 억제해 PI 먼저.
+                // [lantidsParaEngineHuman] 120판 격리: 행동은 사람쪽 이동(PI후 기생 1.0→2.1, 일반광산 3.1→1.6)했으나
+                //   VP −1.02(노이즈). 봇 PI가 늦어 "PI→기생" 창이 짧고 약봇이 +2K를 VP로 못 바꿔 self-play는 보상 안 함
+                //   (lantidsPiRush −4.56와 같은 벽). 정석이 맞으니 lantidsPiRushHuman·leechHumanPay처럼 사람 게임 한정 ON.
+                const paraEngineOn = getPlayerFlag(playerId, 'lantidsParaEngine', false)
+                    || (getPlayerFlag(playerId, 'lantidsParaEngineHuman', true)
+                        && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length);
+                if (paraEngineOn) {
+                    if (lantidsPIBuilt) score += 180;        // PI 후 기생-기생이 정석 — 일반 광산(~350-450)을 확실히 상회
+                    else if (round <= 3) score -= 120;       // PI 전 조기 기생은 +2K 손실 → 뒤로(하드블록 아닌 감점)
+                }
                 score += this.calculateRoundScoringBonus(game, playerId, 'build_mine', tile);
                 score += this.calculateFinalMissionBonus(game, playerId, tile);
                 score += this.calculateFederationScore(game, playerId, tile);
@@ -5136,6 +5186,22 @@ export class BotLogic {
         let score = 0;
 
         const myStructures = game.map.filter(t => t.ownerId === playerId && t.structure);
+
+        // [flag: lastRoundResearchVp] 사용자 관찰(2026-07-23): R6에 1O3K 무료 전진을 아무 VP 없는 sci 0→1에 낭비.
+        // R6(마지막 라운드)엔 트랙 전진이 '실제 VP를 낳을 때만' 가치 — 일반 트랙점수(수익/엔진 가치)는 게임이 끝나
+        // 무의미. VP 원천만 계산: ①연구트랙 라운드미션(전진 시 즉시 +vp) ②adv-vp-research 타일(+2/전진)
+        // ③L4→L5 도달(초록연방 有·미선점 = 잊혀진행성/L5 즉시보상 근사 +4). 그 외(sci→1 등)는 0에 가깝게(잔여자원
+        // 소량만) → 무료 전진이 VP 나는 트랙으로 가고, 4K 헛전진도 방지. 모든 종족 R6 공통.
+        if ((round ?? 1) >= 6 && getPlayerFlag(playerId, 'lastRoundResearchVp', false)) {
+            let vp = 0;
+            const rm = game.roundScoringTiles?.[(round ?? 1) - 1];
+            if (rm?.triggerType === 'research_track') vp += rm.vp;
+            if ((player.techTiles ?? []).includes('adv-vp-research') && !(player.coveredTechTiles ?? []).includes('adv-vp-research')) vp += 2;
+            if (level === 4 && getFederationEntries(player).some(f => f.isGreen) && !isTrackLevel5Taken(game, track, playerId)) {
+                vp += 4; // L5 즉시보상(잊혀진행성/보상) 근사
+            }
+            return vp > 0 ? vp * 100 : 5; // VP 없으면 잔여자원 소량(5)만 — VP 트랙(100+)이 확실히 이김
+        }
 
         // 1. 기본 트랙 가치 (동적 계산)
         switch (track) {
@@ -6671,6 +6737,7 @@ export class BotLogic {
                     } else if (i === 3) {
                         // 트왈라잇 1지식 → +3 Range(tempRangeBonus). 단, 그 사거리가 '실제로 새 대상을 여는' 경우만 켠다.
                         // 아니면 1K만 버리고 엉뚱한 액션을 하는 낭비(사용자 관찰) → 낮은 점수로 사실상 비활성.
+                        // 액션 자체는 유지(먼 타깃이 1K 값어치할 때 필요) — 증발은 아래 rangeBonusFarOnly의 forceFar 가드로 막음.
                         const rangeHelps = (player.knowledge || 0) >= 1 && !player.tempRangeBonus
                             && this.rangeBoosterUnlocksTarget(game, playerId, 'tempRangeBonus');
                         score = rangeHelps ? 450 : 0;
@@ -7680,6 +7747,10 @@ export class BotLogic {
         if (player.faction === 'ivits' && getPlayerFlag(playerId, 'ivitsFedPowerFix', true)) return [];
         const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
         const bowl3UsedBySat = Math.max(0, (spentTokens ?? 0) - p1 - p2);
+        // [버그수정 2026-07-23 사용자 관찰] 연방이 bowl3를 전혀 안 소모하면(0위성, 또는 위성을 bowl1/2로 완납)
+        // '남는 bowl3=idle 배출'의 근거(위성 소모분 회수)가 없음 — 멀쩡한 파워를 1C에 헐값 배출. 이비츠(QIC위성)
+        // 전용이던 면제를 'bowl3 미소모' 전 경우로 일반화. bowl3 소모가 실제 있을 때만 그 위 잉여를 회수.
+        if (bowl3UsedBySat < 1) return [];
         const idle = Math.max(0, p3 - bowl3UsedBySat);
         if (idle < 1) return [];
         const drain = Math.min(idle, 6);
