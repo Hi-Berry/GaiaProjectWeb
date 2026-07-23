@@ -3253,6 +3253,13 @@ export class BotLogic {
                 // 이 게이트(R≤3 & 광산<5)가 후보를 차단. r1PiOpen과 동형 — 광산 3+면 개방(선택은 MCTS).
                 const acadOpen = getPlayerFlag(playerId, 'acadGateOpen', true) && mineCount >= 3;
                 if (round <= 3 && mineCount < 5 && round !== 1 && !acadOpen) continue;
+                // [flag: firaksAcadHoldPi] 사용자(2026-07-24)+실측(ppziurl 37점: R3 랩→아카로 다운엔진 연료 소각):
+                //   파이락 코어는 PI+다운그레이드(랩→TS+연구, 라운드1회)라 PI 전 유일 랩을 아카로 태우면 엔진이 죽음.
+                //   PI 미보유 & 랩 ≤1이면 아카 보류(랩 보존). firaksLabLock(2번째 랩 금지)의 자매 가드(랩→아카도 차단).
+                if (getPlayerFlag(playerId, 'firaksAcadHoldPi', true) && player.faction === 'firaks'
+                    && !myStructures.some(t => t.structure === 'planetary_institute')
+                    && myStructures.filter(t => t.structure === 'research_lab').length <= 1
+                    && lab.structure === 'research_lab') continue;
 
                 // [사용자 피드백] 광산 건설보다 아카데미(고급 기술 타일 획득)를 우선하도록 대폭 상향
                 let score = 250;
@@ -5042,6 +5049,28 @@ export class BotLogic {
         if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return null;
         const labs = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab');
         if (labs.length === 0) return null;
+        // [flag: firaksDowngradeExpand] 사용자(2026-07-24): 다운그레이드 연구는 '무비용'이므로 Nav에 넣어 사거리↑ →
+        //   확장이 이득. 기존 pref는 Nav 최하위(고레벨 트랙 완성 우선)라 공짜 연구가 확장에 안 감. Nav<4 & 실제 사거리가
+        //   느는 다음 레벨이 새 미점유 행성을 열 때만 Nav 우선(지식 태우는 firaksNavHold 억제와 반대 — 여긴 공짜라 好).
+        if (getPlayerFlag(playerId, 'firaksDowngradeExpand', false)) {
+            const navLvl = player.research?.navigation ?? 0;
+            if (navLvl < 4) {
+                const myStr = game.map.filter(t => t.ownerId === playerId && t.structure);
+                const rngNow = getRange(navLvl) + (player.navigationBonus || 0);
+                let navNext = navLvl + 1;
+                while (navNext <= 5 && getRange(navNext) <= getRange(navLvl)) navNext++;
+                const rngNext = getRange(Math.min(navNext, 5)) + (player.navigationBonus || 0);
+                if (rngNext > rngNow) {
+                    const reachNow = new Set(game.map.filter(t => !t.ownerId && BotLogic.isPlanetHex(t) && myStr.some(s => getDistance(s, t) <= rngNow)));
+                    const opensNew = game.map.some(t => !t.ownerId && BotLogic.isPlanetHex(t)
+                        && !reachNow.has(t) && myStr.some(s => getDistance(s, t) <= rngNext));
+                    if (opensNew) {
+                        log(`Bot ${player.name} firaksDowngradeExpand: 다운 연구를 Nav L${navLvl}→ (공짜 사거리 확장)`, 'game', game.id);
+                        return { type: 'firaks_downgrade', params: { tileId: labs[0].id, trackId: 'navigation' } };
+                    }
+                }
+            }
+        }
         const pref: ResearchTrack[] = ['terraforming', 'gaiaProject', 'economy', 'artificialIntelligence', 'science', 'navigation'];
         let best: ResearchTrack | null = null, bestLvl = -1, bestPref = 99;
         for (const tr of pref) {
@@ -5256,8 +5285,13 @@ export class BotLogic {
                 //   getRange는 0·1→1, 2·3→2로 tier가 둘씩 묶여, nav0에서 level+1만 보면 range가 안 늘어(getRange(1)=1)
                 //   '항해 올려도 새 땅 0개'로 오판 → 항해를 미루고 QIC로 점프 → 뒤늦게 nav2. 자매함수 willNavResearchSaveQIC는
                 //   이미 '실제 range가 느는 다음 레벨까지' 보도록 고쳐졌으나(1648~), 이 점수기엔 미적용이었음. 동일 수정 이식.
+                //   [측정 2026-07-24] geodens 고정 40판: 좌석 ON 103.6 vs OFF 92.3 = +11.35(p≈0.085) — 단 global은
+                //   전체 −2.74(타 종족 nav 교란). 기오덴 dig-cycle(새 유형 사거리 확장)에 특히 큰 이득이라 기오덴 한정.
+                //   navLookaheadTierAll = 전 종족 적용(검증/실험용). 120확인 후 기오덴 기본 ON 예정.
                 let navNextLvl = level + 1;
-                if (getPlayerFlag(playerId, 'navLookaheadTier', false)) {
+                const navLookahead = (faction === 'geodens' && getPlayerFlag(playerId, 'navLookaheadTier', false))
+                    || getPlayerFlag(playerId, 'navLookaheadTierAll', false);
+                if (navLookahead) {
                     while (navNextLvl <= 5 && getRange(navNextLvl) <= getRange(level)) navNextLvl++;
                     if (navNextLvl > 5) navNextLvl = 5;
                 }

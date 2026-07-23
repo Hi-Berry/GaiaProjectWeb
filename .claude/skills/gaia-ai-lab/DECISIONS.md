@@ -1327,3 +1327,13 @@
 ## 2026-07-24 [진단] botHumanGap.mjs — 봇 #1 체계 약점 = 연방 (전 종족 −1.4~−2.6)
 - 112게임 사람로그 분석: 연방 봇 1.5 vs 사람 3-4(18종족 예외없음). 판당 ~20-30VP 갭. 부차: 아카 −0.3~−1.3, 광산 과다 +1.3~+2.5, 유휴자원 多.
 - ★반증: 봇 광산이 사람보다 많음(6-7 vs 4-6) = 재료 있는데 연방 전환 실패(humanFedCommit 기각 사유 "재료null"이 실데이터로 반증). [[federation-gap-1-vs-3]]
+
+## 2026-07-24 기각(OFF dormant, winner's curse): `navLookaheadTier` (기오덴 게이트) — 40판 +11.35 → 120판 −3.78
+- 사용자 관찰(기오덴 Nav 1에서 멈춤, 2단계가 이득) → getRange tier-skip 보정(nav 점수가 실사거리 느는 레벨까지 lookahead). 기오덴 한정 게이팅(global은 40판 전체 −2.74).
+- 40판 기오덴 좌석 ON 103.6 vs OFF 92.3 = +11.35(p≈0.085) → 120판 ON 91.2 vs OFF 95.0 = **−3.78**(부호 반전). firaksEcoRush(+5.2→−4.87)에 이어 **세션 2번째 n=20 허상**. faction-seat n=20은 VP분산 ±20에 SE 과대 → +10도 노이즈.
+- ★세션 교훈 확정: self-play 자율 최적화 소진([[ai-greedy-ceiling]]). n=20 큰 양수 절대 신뢰 금지, 40판 채택 후 120확인 필수(이번에 2/2 반전). 진짜 경로 = 실게임 데이터(점수사이트 수집)→학습. 코드 dormant 보존(navLookaheadTierAll로 재실험 가능).
+
+## 2026-07-24 채택(ON, do-no-harm 가드): `firaksAcadHoldPi` — PI 전 유일 랩→아카 차단
+- 실측(사람로그 파이락 봇 3좌석): ppziurl 37점 = R3에 유일 랩→아카(PI 전) → 다운엔진 연료(랩) 소각, PI R5·랩재건 R6까지 다운 거의 0회. 사용자 관찰("연구소 짓고 의회 안 짓고 아카 짓는 판") 재현.
+- firaksLabLock(2번째 랩 금지)이 랩→아카는 안 막던 구멍. 가드: 파이락 & PI미보유 & 랩≤1이면 아카 후보 스킵(랩 보존).
+- ★self-play 측정 안 함: 이번 세션 n=20 좌석측정 2/2 winner's curse 반전(firaksEcoRush·navLookaheadTier) 확인 → 파이락 희소 좌석 40판은 노이즈라 검증력 없음. firaksLabLock 전례처럼 **do-no-harm 로직(엔진 연료 파괴 방지)으로 채택**, 실게임(파이락 봇 다운 횟수·최종VP) 관찰로 판정. 과장 없음 — measured win 아님, 관측손해 방지 가드.
