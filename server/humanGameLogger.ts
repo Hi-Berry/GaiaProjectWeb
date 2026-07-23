@@ -338,3 +338,84 @@ export async function exportHumanGameDataset(game: GaiaGameState & {
   }
   writeLocalPayload(payload);
 }
+
+// Gaia 종족 id → 점수사이트(PythonAnywhere) 한글 종족명.
+// 게임 코드 주석의 한글 라벨(파이락/모웨이드/매안/하이브/란티다/글린/아이타 등) + 점수사이트 RACE_COLORS
+// 색상 페어(모행성 색)로 18개 전부 1:1 확정. 추측 아님.
+const FACTION_KO: Record<string, string> = {
+  terran: '테란', lantids: '란티다',
+  hadsch_hallas: '하드쉬', ivits: '하이브',
+  geodens: '기오덴', bal_tak: '발타크',
+  xenos: '제노스', gleens: '글린',
+  taklons: '타클론', ambas: '엠바스',
+  bescods: '매안', firaks: '파이락',
+  itars: '아이타', nevlas: '네블라',
+  moweyip: '모웨이드', space_giants: '스자',
+  tinkeroids: '팅커로이드', darkanians: '다카니안',
+};
+
+/**
+ * 4인 전원 사람게임 종료 시 점수사이트(PythonAnywhere)에 자동 제출.
+ * fire-and-forget: 점수사이트가 죽어도 게임엔 영향 없음(예외는 호출부에서 로그만).
+ * SCORE_SITE_URL / SCORE_SITE_TOKEN 둘 다 있어야 동작(미설정이면 조용히 스킵).
+ */
+export async function submitToScoreSite(game: GaiaGameState & {
+  id?: string;
+  botPlayerIds?: string[];
+  simulation?: boolean;
+}) {
+  if (game.simulation) return;
+  const url = process.env.SCORE_SITE_URL;
+  const token = process.env.SCORE_SITE_TOKEN;
+  if (!url || !token) return; // 미설정이면 조용히 스킵
+
+  const playerIds = Object.keys(game.players ?? {});
+  const botIds = new Set(game.botPlayerIds ?? []);
+  // 점수사이트는 정확히 4인 게임만 받는다. 봇이 하나라도 끼면 제출하지 않음.
+  if (playerIds.length !== 4) return;
+  if (playerIds.some(id => botIds.has(id))) return;
+
+  const players = playerIds.map((id) => {
+    const p = game.players[id]!;
+    const bidding = (p as any).factionBidVp ?? 0;
+    const finalScore = p.score ?? 0; // 이 시점 score엔 이미 비딩이 차감돼 있음(= 점수사이트 최종점수)
+    const race = FACTION_KO[String(p.faction)];
+    // 픽 순서(selectedTurnOrder) 우선, 없으면 종료 시점 turnOrder 인덱스로 대체.
+    // 점수사이트 턴/픽 컬럼은 "N턴" 형식이어야 턴순 통계(int(x.replace('턴',''))) 에 집계됨.
+    const seat = (p as any).selectedTurnOrder ?? ((game.turnOrder ?? playerIds).indexOf(id) + 1);
+    return {
+      name: p.name ?? '',
+      race,
+      bidding,
+      start_turn: `${seat}턴`,
+      end_score: finalScore + bidding, // 점수사이트: end_score − bidding = 최종점수(=finalScore)로 역산됨
+    };
+  });
+
+  // 매핑 안 되는 종족이 하나라도 있으면 통계 오염 방지 위해 제출 취소
+  const bad = players.find((pl) => !pl.race);
+  if (bad) {
+    log(`Score site submit skipped: unknown faction mapping (${JSON.stringify(playerIds.map(id => game.players[id]?.faction))})`, 'error', game.id);
+    return;
+  }
+
+  const endpoint = url.replace(/\/+$/, '') + '/api/submit-game';
+  // 점수사이트가 응답 없이 멈춰도 promise가 무한 대기하지 않도록 10초 타임아웃(매달린 소켓 누적 방지).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Gaia-Token': token },
+      body: JSON.stringify({ game_id: game.id, players }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Score site submit failed: ${res.status} ${body}`);
+    }
+    log(`Score submitted to score site: ${game.id}`, 'system', game.id);
+  } finally {
+    clearTimeout(timer);
+  }
+}
