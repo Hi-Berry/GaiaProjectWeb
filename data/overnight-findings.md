@@ -116,3 +116,20 @@ techTiles 격차 1위는 **고급 기술타일 종료점수**(교역소당4·큰
 - **바로 가능한 작은 개선**: (a) humanGameLogger 중단게임 마킹(분석 오염 제거) (b) leech/finalMissionIds
   로깅 추가(캘리브 정밀화). 둘 다 do-no-harm 인프라.
 
+
+## 8. Path B 착수 (사용자 선택 2026-07-23) — 가중치 진화
+
+가치망(path2 value-net)은 07-08에 아키텍처 천장 종결 확인 → 사용자가 Path B(휴리스틱
+가중치 진화) 선택. 기존 tuneAiAuto는 fitness가 자가대국 절대점수(절대점수 인플레 함정) +
+aiWeights.json 덮어쓰기라 부적합 → **새 하니스 scripts/tuneWeightsH2H.mjs**:
+- fitness = head2head(후보 challenger vs 챔피언 aiWeights.json) VP마진 = 채택기준과 동일
+- 챔피언 불변, 후보는 aiWeights.tuneCand.json에만. (1+1)-ES POC.
+- 섭동 대상 9개(오늘 분석이 지목): structureMine/TradingStation/Lab/PI/Academy,
+  researchTerraforming/GaiaProject, gaiaformerValueEach, federationValueEach.
+
+**첫 POC (2사이클×40판) 진행 중** — 결과는 아래. 목적은 하니스 검증(후보→fitness→수용 루프).
+비고: 40판은 VP마진 SE~4라 POC 신호는 약함. 진짜 최적화는 판수↑ + 다세대 루프(사람이 의도적
+실행)가 필요. 후보가 좋아도 자동 채택 금지 — 120+판 재검증 후 사람이 aiWeights.json 승격.
+
+### POC 결과
+*(완료 시 기록)*
