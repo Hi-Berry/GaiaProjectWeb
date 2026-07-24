@@ -1746,7 +1746,7 @@ export class BotLogic {
                     : (nevPI ? currentP3 >= 2 : currentP3 >= 3);
                 if (oreShort && can3pOre) {
                     const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
-                    return { type: 'convert_resource', params: { type: nevPI ? '2power-to-1ore-1credit' : '3power-to-1ore', useBrain } };
+                    return { type: 'convert_resource', params: { type: this.nevlasOreConvType(playerId, player, nevPI), useBrain } };
                 }
                 return { type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } };
             }
@@ -1772,7 +1772,7 @@ export class BotLogic {
                 : (hasNevlasPI ? currentP3 >= 2 : currentP3 >= 3);
             if (can3pOre && (incomeAware ? effOre : (player.ore ?? 0)) < 1) {
                 const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
-                const oreType = hasNevlasPI ? '2power-to-1ore-1credit' : '3power-to-1ore';
+                const oreType = this.nevlasOreConvType(playerId, player, hasNevlasPI);
                 return { type: 'convert_resource', params: { type: oreType, useBrain } };
             }
             if (currentP3 >= 1 && (incomeAware ? effCredits : (player.credits ?? 0)) < 2) {
@@ -2332,7 +2332,12 @@ export class BotLogic {
         //   그 거리를 안 쓰고 4K로 트랙을 올려 거리+1K를 통째 낭비(사용자 관찰 R1-2). 활성 중엔 연구 후보 억제.
         const rangeBoostForResearchGate = getPlayerFlag(playerId, 'rangeBuildOnly', true)
             && !!(player.rangeBonusActive || player.tempRangeBonus || player.gleensNavBonusActive);
-        if ((player.knowledge ?? 0) >= 4 && !bankResearch && !rangeBoostForResearchGate) addResearchCandidates();
+        // [flag: nevlasKnowledge] 네뷸라는 bowl3→지식 변환으로 연구비를 채울 수 있으므로, 유효지식 = 지식+bowl3로 게이트
+        //   (advanceResearchAction이 부족분 변환 pre-action을 붙인다). 그 외 종족은 순수 지식.
+        const effKnowledgeForResearch = (getPlayerFlag(playerId, 'nevlasKnowledge', true) && player.faction === 'nevlas' && (player.knowledge ?? 0) >= 2)
+            ? (player.knowledge ?? 0) + Math.min(player.power3 ?? 0, 4 - (player.knowledge ?? 0))
+            : (player.knowledge ?? 0);
+        if (effKnowledgeForResearch >= 4 && !bankResearch && !rangeBoostForResearchGate) addResearchCandidates();
         // [유령라운드 수정 2026-07-13] 뱅킹이 후보를 0으로 만들면 = 이 턴이 아니라 라운드 통째 패스(다른 액션이
         // 전무한 상태) → 템포 1라운드 손실이 미션 +2~4VP를 초과. 실측(w7gmzwnz geodens): R5 O4C11K7로 즉시패스
         // → R6에도 버스트 실패 → fed0 30점. 뱅킹은 '다른 할 일이 있을 때'만 유효 — 후보 0이면 해제.
@@ -6502,7 +6507,7 @@ export class BotLogic {
             : (hasNevlasPI ? p3 >= 2 : p3 >= 3);
         if (can3pOre && (player.ore ?? 0) < 2) {
             const useBrain = isTaklons && canTaklonsSpendUsingBrain(player, 3, 3) && !canSpendTaklonsPowerWithoutBrain(player, 3, 3);
-            const oreType = hasNevlasPI ? '2power-to-1ore-1credit' : '3power-to-1ore';
+            const oreType = this.nevlasOreConvType(playerId, player, hasNevlasPI);
             res.push({ type: 'convert_resource', params: { type: oreType, useBrain } });
         }
         if (p3 >= 1 && (player.credits ?? 0) < 2) res.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: isTaklons } });
@@ -7925,10 +7930,33 @@ export class BotLogic {
     /** advance_research 후보 생성 헬퍼: 그 전진이 충전을 유발하면(아무 트랙 L3 도달 +3PW, 경제 L5 +6PW,
      *  applyTrackLevelBonus) bowl 수용량 부족분을 chargeDrainPreActions로 미리 비워 충전 낭비를 막는다.
      *  충전을 안 일으키는 전진은 preActions 없이 그대로. */
+    /** [flag: nevlasKnowledge] 네뷸라 PI 오레 변환 타입: 크레딧 과잉(>=6)+bowl3 충분(>=3)이면 오레최대(3P→2O, 크레딧
+     *  낭비 없음), 아니면 오레+크레딧(2P→1O1C). 사람 실측: 3P→2O 44회(크레딧5+ 31회) vs 2P→1O1C 22회(평균 크레딧 4.8).
+     *  비-PI는 3P→1O. */
+    private static nevlasOreConvType(playerId: string, player: PlayerState, hasNevlasPI: boolean): '3power-to-1ore' | '3power-to-2ore' | '2power-to-1ore-1credit' {
+        if (!hasNevlasPI) return '3power-to-1ore';
+        if (getPlayerFlag(playerId, 'nevlasKnowledge', true) && (player.credits ?? 0) >= 6 && (player.power3 ?? 0) >= 3) return '3power-to-2ore';
+        return '2power-to-1ore-1credit';
+    }
+
     private static advanceResearchAction(playerId: string, player: PlayerState, trackId: ResearchTrack): BotAction {
         const newLevel = (player.research?.[trackId] ?? 0) + 1;
         const charge = newLevel === 3 ? 3 : (trackId === 'economy' && newLevel === 5 ? 6 : 0);
         const preActions = this.chargeDrainPreActions(playerId, player, charge);
+        // [flag: nevlasKnowledge] 네뷸라 기본능력(bowl3 토큰 1개 → 가이아[다음 라운드 bowl1 복귀] + 1지식)을 연구 연료로.
+        //   사람 실측(14좌석 26회): 88%가 같은 턴 연구 상승 직결, 사용 시 평균 지식 2.1(4 미만)·bowl3 3.4 = "잉여 정리"가
+        //   아니라 '연구비 4K에 부족한 만큼만' 변환(파워수익 안 버림 — 사용자 규칙). 지식<4면 부족분만큼 bowl3→지식 선행 변환.
+        //   (지식 변환을 앞에 unshift → bowl3 가득할 때 먼저 소비, 이후 chargeDrain.)
+        if (getPlayerFlag(playerId, 'nevlasKnowledge', true) && player.faction === 'nevlas') {
+            const k = player.knowledge ?? 0;
+            const gap = 4 - k;
+            // 사람 실측: 사용 시 지식 평균 2.1(대부분 k=2-3, gap 1-2). gap 3-4(지식 0-1)는 토큰 과다소모(파워엔진 훼손)라
+            //   제외 — 자가대국 −4.40(과변환)의 원인. 지식이 4에 가까울 때(부족분 1-2) 부족분만 연료.
+            if (k >= 2 && gap > 0 && (player.power3 ?? 0) >= gap) {
+                const kConvs = Array.from({ length: gap }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1k-gaiaformer' } }));
+                preActions.unshift(...kConvs);
+            }
+        }
         return preActions.length
             ? { type: 'advance_research', params: { trackId }, preActions }
             : { type: 'advance_research', params: { trackId } };
