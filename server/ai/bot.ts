@@ -2327,7 +2327,12 @@ export class BotLogic {
                 }
             }
         };
-        if ((player.knowledge ?? 0) >= 4 && !bankResearch) addResearchCandidates();
+        // [flag: rangeBuildOnly] 거리보너스(트왈3거리 tempRangeBonus/range_3/글린) 활성 중엔 뒤 액션이 {광산·포머·
+        //   소행성·우주선} 빌드로 한정돼야 함(4299의 규칙). 연구 후보엔 이 가드가 없어, 봇이 1K로 +3거리 켜놓고
+        //   그 거리를 안 쓰고 4K로 트랙을 올려 거리+1K를 통째 낭비(사용자 관찰 R1-2). 활성 중엔 연구 후보 억제.
+        const rangeBoostForResearchGate = getPlayerFlag(playerId, 'rangeBuildOnly', true)
+            && !!(player.rangeBonusActive || player.tempRangeBonus || player.gleensNavBonusActive);
+        if ((player.knowledge ?? 0) >= 4 && !bankResearch && !rangeBoostForResearchGate) addResearchCandidates();
         // [유령라운드 수정 2026-07-13] 뱅킹이 후보를 0으로 만들면 = 이 턴이 아니라 라운드 통째 패스(다른 액션이
         // 전무한 상태) → 템포 1라운드 손실이 미션 +2~4VP를 초과. 실측(w7gmzwnz geodens): R5 O4C11K7로 즉시패스
         // → R6에도 버스트 실패 → fed0 30점. 뱅킹은 '다른 할 일이 있을 때'만 유효 — 후보 0이면 해제.
