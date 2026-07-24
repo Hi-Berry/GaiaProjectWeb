@@ -1558,7 +1558,7 @@ export class BotLogic {
                         // '들고 있어도 발사 보장'이 없었음(직접발사는 기각된 advClaimDrive 안에만 = 죽은 코드,
                         // 문서화 사례 ofhfvztt HH R5: q3 완성 후 딴짓). twilightRecoupBeforePass 미러: 패스 직전
                         // 탑승+미사용+3Q면 기술타일 회수 후 패스 보류 — 기술타일(≥7VP급)>패스는 산술 이득.
-                        if (getPlayerFlag(playerId, 'rebelFireBeforePass', false) && (player.qic ?? 0) >= 3) {
+                        if (getPlayerFlag(playerId, 'rebelFireBeforePass', true) && (player.qic ?? 0) >= 3) {
                             const rebF = this.findPlayerShip(game, playerId, 'ship_rebellion');
                             const rebFState = rebF ? game.spaceships?.[rebF.id] : null;
                             if (rebF && (player.spaceshipsEntered || []).includes(rebF.id)
