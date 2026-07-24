@@ -2837,11 +2837,36 @@ export class BotLogic {
         const fedDeferPenalty = (tileId: string) => (freshTsAvailable && fedHexes.includes(tileId)) ? 200 : 0;
 
         // 1. Mines -> Trading Stations
-        if (ore >= 2 && (credits >= 3 || getPlayerFlag(playerId, 'tsConvertCombo', true))) {
+        // [flag: tsOreConvert] 사용자 관찰(2026-07-25, 실게임 종료로그): 광석0·1Q·5파워(bowl3)·14C + 광산 클러스터 —
+        // 3P→1O·1Q→1O 변환 2광석이면 TS 업글→7파워 연방(+480 가점은 이미 상시 평가)인데 ore>=2 선행게이트가
+        // 후보 자체를 미생성 → 자원 놓고 패스. tsConvertCombo(크레딧 갭 +0.92 채택)의 광석판.
+        // v1(무제한 개방) 120판 −8.20 p=0.000 기각 — 전 라운드에서 파워/QIC를 태워 TS만 +0.54, 연방 −0.06.
+        // v2 = 사용자 장면 그대로 한정: R4+ & 루트 & '이 업글이 연방을 새로 열거나 위성을 줄일 때만' 후보 생성.
+        const tsOreCombo = getPlayerFlag(playerId, 'tsOreConvert', false) && player.faction !== 'taklons'
+            && !game.simulation && round >= 4
+            && ore < 2 && (Math.floor((player.power3 ?? 0) / 3) + (player.qic ?? 0)) >= (2 - ore);
+        if ((ore >= 2 || tsOreCombo) && (credits >= 3 || getPlayerFlag(playerId, 'tsConvertCombo', true))) {
             const mines = myStructures.filter(t => t.structure === 'mine');
             for (const mine of mines) {
                 const isDiscounted = hasNearbyPlayersForDiscount(game, mine, playerId);
                 const cost = isDiscounted ? 3 : 6;
+                // tsOreConvert v2: 광석 갭(≤2) 변환 프리액션 — 단 '연방을 새로 열거나 위성 절감'하는 업글에만(사용자 장면).
+                let tsOrePre: BotAction[] | null = null;
+                let p3AfterOre = player.power3 ?? 0;
+                if (ore < 2) {
+                    const befF = BotLogic.getBestFederationSpentTokens(game, playerId);
+                    const aftF = BotLogic.getBestFederationSpentTokensAfterUpgrade(game, playerId, mine.id, 'trading_station');
+                    const opensFed = (befF == null && aftF != null) || (befF != null && aftF != null && aftF < befF);
+                    if (!opensFed) continue;
+                    const pre: BotAction[] = []; let q = player.qic ?? 0; let ok = true;
+                    for (let i = 0; i < 2 - ore; i++) {
+                        if (p3AfterOre >= 3) { pre.push({ type: 'convert_resource', params: { type: '3power-to-1ore' } }); p3AfterOre -= 3; }
+                        else if (q >= 1) { pre.push({ type: 'convert_resource', params: { type: '1qic-to-1ore' } }); q -= 1; }
+                        else { ok = false; break; }
+                    }
+                    if (!ok) continue;
+                    tsOrePre = pre;
+                }
                 // [flag: tsConvertCombo] 103게임 TS 갭 원인 1위 '자원 부족(2O3C) 50건/신뢰갭 91건' — 사람은 광석 잉여
                 // (1O→1C)·bowl3 파워(1P→1C)로 크레딧 갭 1~3을 메꾸고 TS 업글(대부분 할인 3C). 랩/아카에만 있던
                 // upgradeConvertCombo의 TS판(순수 후보 개방 — 선택은 MCTS). 타클론은 브레인 회계 특수라 제외.
@@ -2850,7 +2875,7 @@ export class BotLogic {
                     const gap = cost - credits;
                     if (gap <= 3) {
                         const pre: BotAction[] = [];
-                        let oreSur = ore - 2, p3 = player.power3 ?? 0, ok = true;
+                        let oreSur = Math.max(0, ore - 2), p3 = p3AfterOre, ok = true; // tsOreConvert 소진분 반영
                         for (let i = 0; i < gap; i++) {
                             if (oreSur > 0) { pre.push({ type: 'convert_resource', params: { type: '1ore-to-1credit' } }); oreSur--; }
                             else if (p3 > 0) { pre.push({ type: 'convert_resource', params: { type: '1power-to-1credit', useBrain: false } }); p3--; }
@@ -2981,11 +3006,12 @@ export class BotLogic {
                         }
                     }
 
+                    const tsAllPre = [...(tsOrePre ?? []), ...(tsFundPre ?? [])];
                     candidates.push({
                         id: `ts-${mine.id}`,
                         score,
-                        action: tsFundPre
-                            ? { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' }, preActions: tsFundPre }
+                        action: tsAllPre.length
+                            ? { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' }, preActions: tsAllPre }
                             : { type: 'upgrade_structure', params: { tileId: mine.id, target: 'trading_station' } },
                         isFederated: isFederated(mine.id),
                     });
