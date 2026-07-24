@@ -3162,10 +3162,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 		 * headToHead: 같은 테이블 A/B 비교. bPositions(0-base 턴순서 위치)에 해당하는 좌석은 그룹 B(도전자),
 		 *   나머지는 그룹 A(챔피언) 변형을 갖는다. 좌석별로 evaluator 가중치/기능 플래그가 달라진다.
 		 */
-		socket.on('auto_setup_test', ({ gameId, selfPlay, headToHead }: {
+		socket.on('auto_setup_test', ({ gameId, selfPlay, headToHead, fixedSetup }: {
 			gameId: string;
 			selfPlay?: boolean;
 			headToHead?: { bPositions: number[]; A: PlayerVariant; B: PlayerVariant; forceFaction?: string; forceFactionPos?: number };
+			fixedSetup?: { map?: HexTile[]; seatFactions?: string[] };
 		}) => {
 			const game = games.get(gameId);
 			if (!game) return;
@@ -3187,6 +3188,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				game.players[botId] = createInitialPlayerState(name);
 				game.turnOrder.push(botId);
 				game.botPlayerIds.push(botId);
+			}
+
+			// [paired h2h] 고정 맵 주입: 하니스가 generateMap()으로 그룹당 맵 하나 만들어 그룹 내 모든 게임에 동일 주입.
+			//   맵 레이아웃(회전·행성배치)을 고정해 판간 맵 노이즈를 제거 → paired 비교(1좌석만 변경).
+			if (fixedSetup?.map && fixedSetup.map.length > 0) {
+				game.map = deepClone(fixedSetup.map).map(t => ({ ...t, structure: null, ownerId: null, isGaiaformed: false }));
 			}
 
 			// 2. 게임 시작 (팩션 선택 단계로 진입)
@@ -3225,8 +3232,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 
 				let factionIdx = 0;
-				shuffledPlayerIds.forEach((pid, idx) => {
+				const orderIds = fixedSetup?.seatFactions ? playerIds : shuffledPlayerIds;
+				orderIds.forEach((pid, idx) => {
 					const player = game.players[pid];
+
+					// [paired h2h] 고정 세팅: 위치 idx에 seatFactions[idx] 결정적 배정(그룹 내 동일 종족/좌석) — 랜덤 우회.
+					if (fixedSetup?.seatFactions) {
+						const fid = fixedSetup.seatFactions[idx];
+						if (fid) executeSelectFaction(io, game, pid, fid, idx + 1, { skipBotTrigger: true });
+						return;
+					}
 
 					// 이미 팩션이 있는 경우 (유저가 선택함), 턴 순서만 새로 배정하여 executeSelectFaction 호출
 					if (player.faction) {

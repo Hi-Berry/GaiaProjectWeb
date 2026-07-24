@@ -23,11 +23,31 @@ import { io as ioClient, type Socket } from 'socket.io-client';
 import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { generateMap, FACTIONS } from '../../shared/gameConfig';
 
 type Flags = Record<string, number | boolean>;
 type Variant = { label?: string; weights?: unknown; flags?: Flags };
 type SeatResult = { playerId: string; faction?: string; score: number; group: 'A' | 'B' | null; pos?: number; actions?: Record<string, number>; r1income?: number };
-type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[] };
+type GameResult = { gameId: string; bPositions: number[]; seats: SeatResult[]; pairGroup?: number; bSeat?: number };
+
+// [paired h2h] 공정 측정: 같은 맵·같은 4종족을 고정하고, 그룹당 GROUP_SIZE판을 돌리되 매 판 딱 1좌석만
+//   challenger(B)로 회전(나머지 3은 champion A). 각 종족이 한 번씩 B가 되고, 그 좌석의 B점수 vs (같은 맵에서
+//   A였던 판들의) 평균을 쌍으로 비교 → 맵 노이즈 + '어느 종족이 B였나' 교란을 둘 다 상쇄. 사용자 설계(2026-07-24).
+const PAIRED = process.env.H2H_PAIRED === '1' || process.env.H2H_PAIRED === 'true';
+const GROUP_SIZE = 4;
+type PlanEntry = { bPositions: number[]; fixedSetup?: { map: unknown[]; seatFactions: string[] }; pairGroup?: number; bSeat?: number };
+const PAIRED_PLAN: PlanEntry[] = [];
+/** 색 중복 없는 종족 n개 무작위 선택(그룹 고정용). */
+function pickFactionIds(n: number): string[] {
+    const shuffled = [...FACTIONS].sort(() => Math.random() - 0.5);
+    const picked: string[] = []; const colors = new Set<string>();
+    for (const f of shuffled) {
+        const c = (f as { color?: string }).color; const id = (f as { id: string }).id;
+        if (c && colors.has(c)) continue; if (c) colors.add(c); picked.push(id);
+        if (picked.length === n) break;
+    }
+    return picked;
+}
 
 // 행동 분류 — "변경이 의도한 행동대체를 실제로 했는지"(예: 교역소↓ → 광산/연구소↑ vs 그냥 패스↑) 검증용.
 const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'upgrade', 'downgrade', 'research', 'federation', 'powerAct', 'hhConvert', 'techTile', 'advTile', 'gaiaform', 'shipEnter', 'shipAct', 'navP1', 'pass', 'total',
@@ -210,7 +230,7 @@ async function shutdownWorkers(workers: Worker[]) {
     }));
 }
 
-function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Variant; B: Variant; forceFaction?: string; forceFactionPos?: number }): Promise<GameResult> {
+function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Variant; B: Variant; forceFaction?: string; forceFactionPos?: number; fixedSetup?: { map: unknown[]; seatFactions: string[] }; pairGroup?: number; bSeat?: number }): Promise<GameResult> {
     return new Promise((resolve, reject) => {
         let gameId = '';
         let lastUpdate: any = null; // [hang 진단] 마지막 게임상태 — 타임아웃 시 어느 종족/pending에서 멈췄는지 덤프
@@ -338,14 +358,18 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 // [진단] 1라운드 수익 합(O+K+C). 0이면 그 플레이어가 1R 수익 못 받음 = 수익 스킵 버그 게임.
                 r1income: (() => { const t = p.roundIncomeTotals?.[1]; return t ? ((t.ore ?? 0) + (t.knowledge ?? 0) + (t.credits ?? 0)) : 0; })(),
             }));
-            resolve({ gameId, bPositions: headToHead.bPositions, seats });
+            resolve({ gameId, bPositions: headToHead.bPositions, seats, pairGroup: headToHead.pairGroup, bSeat: headToHead.bSeat });
         };
 
         socket.on('game_updated', onUpdate);
         socket.emit('create_game', { playerName: 'H2HRunner' }, (res: any) => {
             if (res?.error) { cleanup(); reject(new Error(res.error)); return; }
             gameId = res.gameId;
-            socket.emit('auto_setup_test', { gameId, selfPlay: true, headToHead });
+            socket.emit('auto_setup_test', {
+                gameId, selfPlay: true,
+                headToHead: { bPositions: headToHead.bPositions, A: headToHead.A, B: headToHead.B, forceFaction: headToHead.forceFaction, forceFactionPos: headToHead.forceFactionPos },
+                fixedSetup: headToHead.fixedSetup,
+            });
         });
     });
 }
@@ -380,7 +404,14 @@ async function evalWorker(worker: Worker, headToHead: { A: Variant; B: Variant }
     for (const gi of gameIndices) {
         let bPositions = B_PATTERNS[gi % B_PATTERNS.length];
         let forcePos = FORCE_FACTION_POS_FIXED ?? 0;
-        if (FORCE_FACTION) {
+        let fixedSetup: { map: unknown[]; seatFactions: string[] } | undefined;
+        let pairGroup: number | undefined, bSeat: number | undefined;
+        if (PAIRED) {
+            // [paired] 같은 맵·종족 그룹 내에서 1좌석만 B로 회전(main에서 미리 생성한 PLAN 사용).
+            const plan = PAIRED_PLAN[gi];
+            if (!plan) continue;
+            bPositions = plan.bPositions; fixedSetup = plan.fixedSetup; pairGroup = plan.pairGroup; bSeat = plan.bSeat;
+        } else if (FORCE_FACTION) {
             // 위치 회전(고정 override 없으면): 강제 종족을 게임마다 다른 좌석에 앉혀 선플 confound 제거.
             forcePos = FORCE_FACTION_POS_FIXED ?? (gi % 4);
             // ON/OFF는 B_PATTERNS에 맡기지 않고 직접 구성(4와 6이 안 맞아 비율/위치가 깨짐).
@@ -391,7 +422,7 @@ async function evalWorker(worker: Worker, headToHead: { A: Variant; B: Variant }
                 : [(forcePos + 1) % 4, (forcePos + 2) % 4];
         }
         try {
-            const r = await runOneGame(worker.socket, { bPositions, A: headToHead.A, B: headToHead.B, forceFaction: FORCE_FACTION || undefined, forceFactionPos: forcePos });
+            const r = await runOneGame(worker.socket, { bPositions, A: headToHead.A, B: headToHead.B, forceFaction: PAIRED ? undefined : (FORCE_FACTION || undefined), forceFactionPos: forcePos, fixedSetup, pairGroup, bSeat });
             results.push(r);
             const line = r.seats
                 .sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0))
@@ -448,6 +479,20 @@ async function main() {
     const A: Variant = { label: 'champion', weights: championWeights, flags: championFlags };
     const B: Variant = { label: 'challenger', weights: challengerWeights, flags: challengerFlags };
 
+    // [paired] 그룹마다 맵 1개 + 종족 4개를 미리 생성해 PLAN에 박는다(워커 분산돼도 같은 그룹은 같은 세팅 공유).
+    if (PAIRED) {
+        if (GAMES % GROUP_SIZE !== 0) console.warn(`  ⚠ PAIRED: GAMES(${GAMES})가 GROUP_SIZE(${GROUP_SIZE})의 배수가 아님 — 마지막 그룹 일부 생략`);
+        const nGroups = Math.floor(GAMES / GROUP_SIZE);
+        for (let g = 0; g < nGroups; g++) {
+            const map = generateMap() as unknown[];
+            const seatFactions = pickFactionIds(GROUP_SIZE);
+            for (let k = 0; k < GROUP_SIZE; k++) {
+                PAIRED_PLAN[g * GROUP_SIZE + k] = { bPositions: [k], fixedSetup: { map, seatFactions }, pairGroup: g, bSeat: k };
+            }
+        }
+        console.log(`  [PAIRED] ${nGroups} groups × ${GROUP_SIZE} games — 동일맵·동일종족, 좌석당 1개만 challenger 회전`);
+    }
+
     const workers = await bootWorkers();
     try {
         // 게임 인덱스를 워커에 라운드로빈 분배(패턴 순환 보존)
@@ -500,6 +545,42 @@ async function main() {
                 }
             }
             factionSplit = { faction: FORCE_FACTION, bScores: bs, aScores: as };
+        }
+
+        // [paired] 좌석당 변경효과(B−A, 동일맵 통제): 각 그룹에서 seat s가 B였던 판의 s점수 −
+        //   같은 s가 A였던 (같은 맵) 판들의 s점수 평균. 맵·종족·좌석을 완전 통제한 쌍비교 → 노이즈 최소.
+        let pairedStats: { diffMean: number; diffSE: number; n: number; p: number } | null = null;
+        if (PAIRED) {
+            const byGroup = new Map<number, GameResult[]>();
+            for (const g of results) {
+                if (g.pairGroup == null) continue;
+                let arr = byGroup.get(g.pairGroup);
+                if (!arr) { arr = []; byGroup.set(g.pairGroup, arr); }
+                arr.push(g);
+            }
+            // ★그룹 단위 집계: 한 그룹의 4개 좌석-diff는 같은 맵·같은 판을 공유해 독립이 아님 → 그룹 내 평균을
+            //   하나의 관측치로 삼고, 독립 단위인 '그룹' 간으로 SE를 낸다(좌석-diff를 독립 취급하면 SE 과소·p 과장).
+            const groupEffects: number[] = [];
+            let seatPairs = 0;
+            for (const games of Array.from(byGroup.values())) {
+                const gd: number[] = [];
+                for (let pos = 0; pos < GROUP_SIZE; pos++) {
+                    const bGame = games.find(x => x.bSeat === pos);
+                    if (!bGame) continue;
+                    const bScore = bGame.seats.find(s => s.pos === pos)?.score;
+                    const aVals = games.filter(x => x.bSeat !== pos)
+                        .map(x => x.seats.find(s => s.pos === pos)?.score)
+                        .filter((v): v is number => typeof v === 'number');
+                    if (typeof bScore !== 'number' || aVals.length === 0) continue;
+                    gd.push(bScore - mean(aVals));
+                }
+                if (gd.length) { groupEffects.push(mean(gd)); seatPairs += gd.length; }
+            }
+            const dMean = mean(groupEffects);
+            const dSE = groupEffects.length > 1 ? std(groupEffects) / Math.sqrt(groupEffects.length) : 0;
+            const dP = dSE > 0 ? 2 * (1 - normCdf(Math.abs(dMean / dSE))) : 1;
+            pairedStats = { diffMean: dMean, diffSE: dSE, n: groupEffects.length, p: dP };
+            console.log(`  ★ [PAIRED] 좌석 변경효과(B−A, 동일맵 통제): ${dMean >= 0 ? '+' : ''}${dMean.toFixed(2)} ± ${dSE.toFixed(2)} VP (그룹 n=${groupEffects.length}, 좌석쌍 ${seatPairs}, p≈${dP.toFixed(3)})`);
         }
 
         // [행동믹스 검증] 변경이 '의도한 행동대체'를 실제로 했는지 — 예: 교역소↓가 광산/연구소↑(좋은 발전)로

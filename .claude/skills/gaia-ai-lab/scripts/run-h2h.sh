@@ -20,9 +20,13 @@ MCTS="${3:-400}"
 WORKERS="${4:-6}"
 # 5번째 인자 = 강제 종족(예: geodens). 주면 그 종족을 고정좌석에 앉혀 절반 B(플래그ON)/절반 A(OFF)로 paired 비교.
 FORCE_FACTION="${5:-}"
+# 6번째 인자 = "paired". 주면 그룹(4판)마다 동일 맵·동일 4종족 고정, 매 판 1좌석만 challenger 회전 → 맵/종족/좌석
+#   교란 완전 통제한 쌍비교. GAMES는 4의 배수 권장(예: 120=30그룹). 글로벌(공용AI) 변경 측정에 공정. FORCE_FACTION과 배타.
+PAIRED_ARG="${6:-}"
+if [ "$PAIRED_ARG" = "paired" ]; then export H2H_PAIRED=1; FORCE_FACTION=""; fi
 
 echo "$FLAGS" > server/ai/challenger.flags.json
-echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS${FORCE_FACTION:+ | forceFaction=$FORCE_FACTION}"
+echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS${FORCE_FACTION:+ | forceFaction=$FORCE_FACTION}${H2H_PAIRED:+ | PAIRED}"
 
 # 디스크 정리(사용자 승인 2026-07-11): final_state.json이 게임당 ~1.1MB로 누적(7.6GB 도달) → 7일 지난 것 자동 삭제
 find logs -name "*final_state.json" -mtime +7 -delete 2>/dev/null || true
@@ -46,5 +50,5 @@ trap 'echo "[run-h2h] interrupted — cleaning workers"; kill_h2h_workers; exit 
 # 가중치 격리: 챌린저도 챔피언 가중치 사용 → 플래그만 비교 (weightsDiffer=false 확인할 것)
 AI_CHALLENGER_WEIGHTS=server/ai/aiWeights.json \
 H2H_GAMES="$GAMES" H2H_MCTS_MS="$MCTS" H2H_WORKERS="$WORKERS" \
-H2H_FORCE_FACTION="$FORCE_FACTION" \
+H2H_FORCE_FACTION="$FORCE_FACTION" H2H_PAIRED="${H2H_PAIRED:-}" \
   npm run head2head

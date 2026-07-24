@@ -1362,3 +1362,9 @@
 - 개선2: ①FederationPlanner cannibalizedSeedCount에 엠바스 한정 '파워4(+광산) 클러스터도 자립씨앗으로 보호'(스왑+3으로 7 닫으니) → leftover 보존 ②pickAmbasFedSwapMine 트리거 완화(before=null 전용 → '새 연방 OR 위성2+절약'). 둘 다 ambasFedSwap(base) || ambasFedSwapHuman+사람게이트.
 - 측정(forced ambas 40판, base flag로 self-play 행동검증): ★VP ambas ON 99.1 vs OFF 91.8 Δ+7.35 — **직전 동일기능 런 Δ-7.60과 페어링=±7.5 요동=n=20 노이즈(무시)**. ★행동: 좌석당 스왑 0.19→0.18(불변), 발동좌석 14%→11%, 연방 1.75→1.91(미미). **개선이 발동률을 사람2.5 근처로 못 올림**.
 - 결론: 연방planner·스왑트리거는 정합하게 고쳐졌으나 **binding constraint는 상류 = 봇이 분리된 파워4 클러스터를 의도 배치 못함 + 큰건물타일 획득 불확실**. 손규칙이 못 뚫은 확장/배치 = 가치함수 영역([[value-net-blend-neutral]], overnight-findings 확장벽). do-no-harm+도메인정합+사람게이트라 커밋(실전 다양한 맵서 도움 여지), 단 '연방 다수화' 미완성 명시. 판정 실게임 관찰.
+
+## 2026-07-24 [측정 인프라] paired h2h — 맵/종족/좌석 완전 통제 쌍비교 (사용자 설계)
+- 사용자 지적: 기존 h2h는 매 판 랜덤 맵 + B좌석 종족 랜덤이라 (1)맵 노이즈 (2)"어느 종족이 B였나" 교란으로 n=20 좌석측정이 −7.6↔+7.35 요동(winner's curse 다발의 근본원인). "똑같은 세팅에 4판 돌려 각 종족 1개씩만 B로 회전, 30그룹" 설계 제안.
+- 구현: 서버 auto_setup_test에 fixedSetup(고정 맵+좌석종족) 주입 추가. headToHead H2H_PAIRED=1 → 그룹당 generateMap()+종족4 생성해 4판에 동일 주입, bPositions=[k] 회전(1좌석만 challenger). 집계=그룹 내 좌석diff 평균을 그룹 관측치로, 그룹 간 SE(좌석diff는 같은맵 공유라 비독립 — 독립취급 시 SE 과소·p 과장. 8판 테스트서 −18 p=0.006 가짜유의 → 그룹단위로 −18±9 p~0.2).
+- 검증: A/A(flags {}) 40게임=10그룹 → paired 효과 **+0.50±4.98 (p=0.920)≈0**, 맵 시그니처 그룹 내 동일 확인 = 하니스 정확. 이득=맵/종족/좌석 교란 제거(공정), 단 MCTS 롤아웃 노이즈는 남아 그룹SE~5/10그룹 → 실사용은 30그룹(120게임, 그룹SE~2.9) 권장.
+- 사용법: `run-h2h.sh '<flags>' 120 400 6 "" paired` (6번째 인자). FORCE_FACTION과 배타. 글로벌 변경 측정에 공정.
