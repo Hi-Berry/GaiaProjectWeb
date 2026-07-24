@@ -361,9 +361,22 @@ export class FederationPlanner {
         }
         if (clusters.length <= 1) return 0;
         clusters.sort((a, b) => b.size - a.size); // 최대 = 주 클러스터(유지)
+        // [ambasFedSwap] 엠바스는 광산<->PI 스왑(+3)으로 파워4 클러스터도 7로 닫는다 → 파워4(+광산 보유) 클러스터도
+        // '자립 씨앗'으로 보호해 큰 연방에 삼켜지지 않게 함(다음 라운드 스왑 연방 재료로 남김). 사람 엠바스: 연방5.4·스왑2.5.
+        const ap = game.players[playerId];
+        const ambasSwap = ap?.faction === 'ambas' && (getPlayerFlag(playerId, 'ambasFedSwap', false)
+            || (getPlayerFlag(playerId, 'ambasFedSwapHuman', true) && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length));
         let seeds = 0;
         for (let i = 1; i < clusters.length; i++) {
-            if (getFederationBuildingPower(game, playerId, clusters[i]) >= requiredPower - 2) seeds++;
+            const pow = getFederationBuildingPower(game, playerId, clusters[i]);
+            if (pow >= requiredPower - 2) { seeds++; continue; }
+            if (ambasSwap && pow >= requiredPower - 3) {
+                const hasMine = Array.from(clusters[i]).some(id => {
+                    const t = game.map.find(m => m.id === id);
+                    return t?.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine');
+                });
+                if (hasMine) seeds++;
+            }
         }
         return seeds;
     }

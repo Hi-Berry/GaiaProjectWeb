@@ -3406,15 +3406,17 @@ export class BotLogic {
         const player = game.players[playerId];
         if (!player || player.faction !== 'ambas') return null;
         if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return null;
-        // 이미 연방 형성 가능하면 스왑 대신 정상 연방(스왑은 연방을 '새로 여는' 경우 전용).
-        if (this.getBestFederationSpentTokens(game, playerId) != null) return null;
+        // 사람 엠바스는 정상 연방이 가능해도(before!=null) 스왑으로 '추가/더 싼' 연방을 연다(2.5회/게임, R4-6).
+        // 발동: 스왑 후 최선 연방 위성비용이 (현재 연방 불가 → 새로 염) 또는 (현재보다 2+ 절약). 그 중 최저비용 광산.
+        const before = this.getBestFederationSpentTokens(game, playerId);
         let bestMine: string | null = null;
         let bestTok = Infinity;
         for (const t of game.map) {
-            if (t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')) {
-                const after = this.getBestFederationSpentTokensAfterAmbasSwap(game, playerId, t.id);
-                if (after != null && after < bestTok) { bestTok = after; bestMine = t.id; }
-            }
+            if (!(t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine'))) continue;
+            const after = this.getBestFederationSpentTokensAfterAmbasSwap(game, playerId, t.id);
+            if (after == null) continue;
+            const worth = before == null ? true : (after + 2 <= before);
+            if (worth && after < bestTok) { bestTok = after; bestMine = t.id; }
         }
         return bestMine;
     }

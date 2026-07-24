@@ -1356,3 +1356,9 @@
 - 구현 4부: ①PI R4+ 게이트 ②tech-big-4str +260 우선 ③pickAmbasFedSwapMine(before=null인데 스왑후 연방도달 되는 최저위성 광산 선택) ④botHandler 자동 스왑.
 - 측정(forced ambas 40판, weightsDiffer=false): ambas ON 90.7 vs OFF 98.3 = **Δ-7.60**(p≈0.305), 전체 -1.65±3.70. ★행동검증: **스왑 실발동 확인**(최근 60 저장본 중 48회, 옛 0회 대비), PI평균R 2.83->3.12(늦어짐), 기술타일 +0.15. **단 연방 Δ+0.04(불변)** — self-play 널널한 맵은 봇이 어차피 정상 연방 → 스왑이 "안 그래도 될 연방"에 메인액션+PI위치 낭비 = 비용만 보이고 이득 0.
 - 판정: self-play 상시ON 기각(-7.60), 그러나 스왑 발동 검증+도메인 정답+사용자 정석 → **사람게임 한정 채택**(lantidsParaEngineHuman·firaksEcoRush 패턴): ambasFedSwapHuman default true + 사람존재 게이트, bot-only 게임엔 비활성(-7.60 무해화). 스왑의 실가치=경합맵에서 4치 클러스터를 싸게 7로 닫기 → 사람이 좋은자리 차지하는 실게임에서만 발현. 판정은 실게임 관찰(엠바스 봇 R4-6 스왑 연방·최종VP). ambasFedSwap=self-play 검증용 base flag(default false 유지). [[ai-greedy-ceiling]]
+
+## 2026-07-24 정제(사람게임 한정, do-no-harm): ambasFedSwapHuman — 사람로그 학습 반영
+- 사용자 지시로 사람 엠바스 15좌석 분석: 평균 196.7점·**연방 5.4개**·**스왑 2.47회(전원, R4-6 집중)**·PI~R4.09·**연방은 딱 7파워(최소)**. 봇은 연방1.75·스왑0.4. 격차 뿌리 = 사람은 연방을 최소7로 만들어 건물 남겨 다음 스왑연방 재료로 씀, 봇은 큰 연방 하나로 다 먹어치움.
+- 개선2: ①FederationPlanner cannibalizedSeedCount에 엠바스 한정 '파워4(+광산) 클러스터도 자립씨앗으로 보호'(스왑+3으로 7 닫으니) → leftover 보존 ②pickAmbasFedSwapMine 트리거 완화(before=null 전용 → '새 연방 OR 위성2+절약'). 둘 다 ambasFedSwap(base) || ambasFedSwapHuman+사람게이트.
+- 측정(forced ambas 40판, base flag로 self-play 행동검증): ★VP ambas ON 99.1 vs OFF 91.8 Δ+7.35 — **직전 동일기능 런 Δ-7.60과 페어링=±7.5 요동=n=20 노이즈(무시)**. ★행동: 좌석당 스왑 0.19→0.18(불변), 발동좌석 14%→11%, 연방 1.75→1.91(미미). **개선이 발동률을 사람2.5 근처로 못 올림**.
+- 결론: 연방planner·스왑트리거는 정합하게 고쳐졌으나 **binding constraint는 상류 = 봇이 분리된 파워4 클러스터를 의도 배치 못함 + 큰건물타일 획득 불확실**. 손규칙이 못 뚫은 확장/배치 = 가치함수 영역([[value-net-blend-neutral]], overnight-findings 확장벽). do-no-harm+도메인정합+사람게이트라 커밋(실전 다양한 맵서 도움 여지), 단 '연방 다수화' 미완성 명시. 판정 실게임 관찰.
