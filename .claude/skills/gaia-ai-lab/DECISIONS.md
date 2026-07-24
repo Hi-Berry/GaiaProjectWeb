@@ -1381,3 +1381,8 @@
 - 남은 유일 비중복 경로(DECISIONS 667행) = per-candidate 재랭킹. 실데이터에 **17,476 결정 × 후보(avg 10.7, {type,tileId,target}) 캡처 확인**(80/115 게임).
 - `scripts/trainCandidateRanker.mjs`: build/upgrade 결정 2698개에서 후보 타일별 공간피처(내건물 최근접거리·인접·2헥스내 파워합=연방잠재력·목표구조물)로 사람 픽 랭킹. **선형 val sibling top1 41.5%(무작위 21.8%, top3 78.5%)** — 스칼라(30%)와 달리 진짜 신호. 가중치 `dOwn −8.25`(사람=밀집 선호=사용자 "혼자 배치" 관찰의 데이터 확증)·`fedPow +0.58`.
 - ★결론: 공간 per-candidate 학습이 작동함을 실증(스칼라/종족 실패와 대조). 남은 관문 = 통합(placementPolicy 전례: 오프라인 좋아도 통합 시 −2.05, placement는 self-play 검증불가) → 실게임 데이터(점수사이트) 판정 필수. 다음: 피처확장(reach·contention·sector)·비선형·신중통합.
+
+## 2026-07-25 채택(ON): `placementPolicyV2` — 112게임 per-candidate 배치 랭커 통합 (120판 +0.05 무해)
+- v1(22판 pointwise, ×60) −2.05 철회의 재학습판: build_mine per-candidate 1034결정, 통합 동일(같은 8피처·×60·root-only·스케일 정합 max|w|=3.57) → 데이터/라벨 효과만 분리. 오프라인 val top1 62.8% vs 무작위 30.7%(v1 17.8%).
+- 120판(40판 스킵, 조건고정): VP +0.05±2.05(p=0.982)·승률 52.1% = 완전 중립. v1의 −2.05 손해가 제거됨 = 라벨 개선이 유해성을 없앰. 행동믹스 flat은 예상(WHERE 변경은 액션수에 안 보임).
+- 판정: 음수 아님 + 사람데이터 기반 + 사용자 상시 관찰("봇 혼자 배치") 정합 → 채택. ★self-play는 배치가치(리치·견제) 미포착이라 중립이 상한 — 진짜 판정 = 실게임 1:3 (dOwn 분포·연방 재료 개선 여부). placementPolicy(v1)은 OFF 유지.

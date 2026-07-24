@@ -7612,7 +7612,14 @@ export class BotLogic {
         // [flag: placementPolicy] 사람 22판(656 빌드결정)에서 학습한 배치 정책(placementPolicy.json, top1 17.8% vs random 5%).
         // 8-피처 선형 랭커: dOwn −3.57(압도적 밀집), adjOwn +1.20, dProto −0.98, dOpp −0.85(상대근접=2/3 싼TS), newType −0.81…
         // isolatedTSPenalty(추측 −150)의 데이터-정밀 대체. ON이면 그걸 끄고 학습점수를 씀.
-        if (getPlayerFlag(playerId, 'placementPolicy', false)) {
+        // [flag: placementPolicyV2] v1(22판 pointwise, 120판 −2.05 철회)의 재학습판: 112게임 build_mine
+        // per-candidate 랭킹(봇 실후보 1034결정, val top1 62.8% vs 무작위 30.7%). 동일 8피처·동일 ×60 강도
+        // (스케일 정합 max|w|=3.57)라 v1과 blast radius 동일 — 데이터 5배+라벨 개선의 효과만 분리 측정.
+        // [측정 2026-07-25] 120판 +0.05±2.05(중립, v1의 −2.05 손해 제거 확인) → 채택 ON. self-play는 배치가치
+        // (리치·견제) 미포착이라 중립이 상한 — 진짜 판정은 실게임 1:3(사용자 "혼자 배치" 관찰 개선 여부).
+        if (getPlayerFlag(playerId, 'placementPolicyV2', true)) {
+            if (!game.simulation) bonus += this.calculatePlacementPolicyScore(game, playerId, tile, true) * 60;
+        } else if (getPlayerFlag(playerId, 'placementPolicy', false)) {
             // 비싼 계산(맵 전수 filter)이라 MCTS 롤아웃(game.simulation)에선 생략 — root 결정에만 적용(GC 폭주 방지).
             if (!game.simulation) bonus += this.calculatePlacementPolicyScore(game, playerId, tile) * 60;
         } else if (getPlayerFlag(playerId, 'isolatedTSPenalty', true) && game.roundNumber <= 4) {
@@ -7645,8 +7652,11 @@ export class BotLogic {
      * [학습정책] 사람 22판 656 빌드결정에서 학습한 배치 선형 랭커 점수 (server/ai/placementPolicy.json).
      * imitationProbeTile.mjs와 *동일* 피처/정규화. 게임 누적 시 재학습→W 갱신. 점수 클수록 사람이 고를 자리.
      */
-    private static calculatePlacementPolicyScore(game: ServerGameState, playerId: string, tile: HexTile): number {
-        const W = [-3.57, -0.85, 0.13, -0.98, -0.54, 1.20, 0.11, -0.81]; // [dOwn,dOpp,dShip,dProto,adjEmpty,adjOwn,newSector,newType]
+    private static calculatePlacementPolicyScore(game: ServerGameState, playerId: string, tile: HexTile, v2 = false): number {
+        // v2: 112게임 per-candidate 재학습(trainCandidateRankerTile.mjs, val 62.8% vs rand 30.7%). 스케일 v1 정합.
+        const W = v2
+            ? [-3.57, -0.22, 0.00, 0.10, 0.05, -1.27, -0.06, -0.22]
+            : [-3.57, -0.85, 0.13, -0.98, -0.54, 1.20, 0.11, -0.81]; // [dOwn,dOpp,dShip,dProto,adjEmpty,adjOwn,newSector,newType]
         const NONPLANET = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
         const isPlanetT = (t: HexTile) => !!t.type && !NONPLANET.has(t.type) && !t.type.startsWith('ship_');
         const tiles = game.map;
