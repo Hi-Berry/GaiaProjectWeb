@@ -1310,3 +1310,42 @@
 - 2026-07-22 기각(OFF): terraGaiaExpandEval — 야간 103게임 부검(data/overnight-findings.md): 망한봇 vs 잘한봇 확장격차는 nav(3.39≈3.53 동일) 아니라 terra(0.92→1.55)·gaia(0.80→1.67)·가이아광산(0.68→1.38). 평가기 확장보상이 navExpandEval(항법만)뿐이라 terra/gaia 루트 크레딧 0 = 갭 가설. nav 대응물(terra/gaia 레벨 × 80, board<6·R≤4)로 평가. 120판 격리OK: 승률 49.2%, VP −0.90±2.28(p=0.693) + ★행동검증 실패(가이아광산 1.51→1.52 무변, 가이아포밍 +0.05, 광산 −0.09, 연구만 +0.29) = gaiaThroughput −4.97 "빌드 미연결" 시그니처 동일. 결론: 확장 벽은 enabler-가중치 문제 아님(반증). 좋은봇은 롤아웃으로 이미 도달, 못하는봇은 연구만 더 하고 가이아포밍→빌드 사슬 미완성 = 가치함수(학습) 영역. 손규칙 7연속 + 평가기 enabler 1회 모두 벽 못 뚫음 확정 → path2(보드인코딩 가치망) 재가동 시점(사람로그 100+ 확보). 코드는 flag OFF 보존.
 - 2026-07-23 채택(ON, 사람게임 한정): lantidsParaEngineHuman — 사용자 관찰("의회 짓고도 1스텝 건물이라 약함") + 실측: 사람 란티다 PI전 기생 0.15→PI후 5.77(각 +2K) vs 봇 거꾸로 PI전 2.22(지식보너스 낭비)→PI후 1.00·일반광산 3.11. 기생 점수 PI후 +180(일반광산 상회)·PI전(R≤3) −120. 120판 격리OK: VP −1.02±1.92(노이즈), 란티다좌석 ON 71.6 vs OFF 72.9(Δ−1.28). ★행동검증: PI후 기생 1.0→2.1·PI후 일반광산 3.1→1.6(사람쪽 이동 성공), 단 PI전 억제는 봇 PI 늦어 미발동. self-play 상시ON은 −1.02라 기각, 사람게임 한정(lantidsPiRushHuman·leechHumanPay 패턴)으로 채택 — 정석 맞고 실전(사람 리치+게임 완주)에서 +2K 엔진 회수. 근본 벽: 봇 조기PI 미달(lantidsPiRush −4.56) = self-play 리치기근. 판정은 실게임 관찰.
 - 2026-07-23 채택(ON): lastRoundResearchVp — 사용자 관찰(oubme1k2 R6): 1O3K 무료 트랙전진을 VP 0인 sci 0→1에 낭비하고 값어치 트랙엔 4K 지불. calculateResearchScore가 R6(마지막)을 몰라 일반 트랙점수로 sci 선택. R6 분기 추가: 연구트랙 라운드미션(+vp)·adv-vp-research(+2)·L4→L5(초록연방 +4)만 VP로 계산, 그 외(sci→1 등)는 5(잔여자원)뿐 → 무료 전진이 VP 트랙으로 가고 4K 헛전진 방지. 모든 종족 R6 공통. 120판 격리OK: 승률 51.7%(61:57), VP +0.43±1.85(p=0.815) — 비음수 → 채택. self-play는 R6 헛연구 빈도 낮아 큰 차이 없으나 부호 양성. 실이득은 실전 R6.
+
+## 2026-07-24 재게이팅(사람게임 한정): `firaksEcoRush` — 40판 +5.20 → 120판 −4.87 (winner's curse), 도메인 정답이라 human-only로 보존
+- 사용자 관찰(2026-07-23): 파이락 R1 정석 = 랩(기술타일)+경제 2칸 → R2 수입으로 PI 자금. 봇은 Nav 4-5로 끝나고(로그 실측) 경제 미완성 → PI 지연.
+- 선행 실패: `firaksNavHold`(Nav 점수 억제 −200) 40판 파이락 좌석 −3.20 — Nav만 막으니 남는 자원이 경제 아닌 건물로 새고 경제상승 −0.36. "빼기"만으론 경제로 안 감. `firaksEngineRush`(−6.9, 자원소모 순서강제)도 실패 이력.
+- firaksEcoRush: R≤2 & PI미보유 & 경제<2 시 경제 상승 직접-return. **지식(4K)만 쓰는 수입 라인** = firaksLoopDrive(+4.10) 동형 "자원 안 태우는 순서강제", firaksEngineRush와 대조.
+- 측정(forced firaks 40판 paired, weightsDiffer=false): **파이락 좌석 ON 92.5 vs OFF 87.3 = +5.20**(p≈0.437, 전체 −0.49 중립=비파이락 노이즈). 행동 정합: PI평균R 2.97→2.75(조기 ✓), 다운그레이드 0.66→0.84(엔진 실가동 ✓), 경제상승 R4+→R1-2 조기이동, 연구진행 +0.50.
+- 120판 확인(champion=ON vs challenger=OFF, forced firaks): **파이락 좌석 ON 86.3 vs OFF 91.2 = Δ−4.87**(p≈0.256) — 40판 +5.20에서 **부호 반전(winner's curse)**. 행동은 여전히 정합(PI평균R ON 2.59<OFF 2.93 조기, 경제상승 ON 1.48>OFF 1.00). (주의: 이 120판은 merge가 런 도중 발생 — 워커 캐시로 대부분 pre-merge지만 소폭 오염 가능. 단 −4.87 크기+동일 패턴 3연속으로 결론 확실.)
+- 최종 판정: **self-play 상시ON 기각**(−4.87, firaksEngineRush −6.9·firaksNavHold −3.2·lantidsPiRush −4.56와 동일 [[ai-greedy-ceiling]] — 봇끼리 리치 기근이라 조기 경제/PI 커밋 회수 불가). 단 행동 검증됨+도메인 정답+사람 정석이므로 **사람게임 한정으로 재게이팅**(lantidsParaEngineHuman·leechHumanPay 패턴): 봇전용 게임엔 비활성(−4.87 무해), 실게임에서만 발동 → 판정은 실게임 관찰(파이락 R1-2 경제 2칸·PI 조기·최종 VP). firaksEcoRushForce=검증용.
+- 교훈 재확인: 40판 +5.2 첫측정은 winner's curse였다 — n=20 큰 양수는 믿지 말 것(스킬 원칙 #3). 잔여 파이락 큐: #2 아카가 유일 랩 태움(firaksLabLock 확장), #3 기오덴 Nav1→2(navLookaheadTier 미검증).
+
+## 2026-07-24 기각(OFF dormant, 노이즈 음수): `firaksDowngradeExpand` — 다운 무비용연구를 Nav→확장에
+- 사용자(2026-07-24): 파이락 다운그레이드 연구는 무비용 → Nav 올려 확장이 이득. 발견: findFiraksDowngradeAction의 pref가 Nav 꼴찌 + "고레벨 트랙 완성 우선"이라 공짜 연구가 확장에 안 감.
+- 수정: Nav<4 & 실사거리 느는 다음 레벨이 새 미점유 행성 열면 다운 연구를 Nav 우선.
+- 측정(forced firaks 40판): 파이락 좌석 ON 82.5 vs OFF 84.4 = Δ−1.85(p≈0.787 노이즈). 자원 희생 없는데도 이득 없음 = "연구→빌드 미전환" 벽(terraGaiaExpandEval −4.97·gaiaThroughput 동류 — Nav 올려도 새 광산 안 지음). 도메인 옳으나 self-play 무이득 → OFF dormant. 연방 전환율(botHumanGap #1) 고친 뒤 재검토 가치(확장이 연방재료).
+
+## 2026-07-24 [진단] botHumanGap.mjs — 봇 #1 체계 약점 = 연방 (전 종족 −1.4~−2.6)
+- 112게임 사람로그 분석: 연방 봇 1.5 vs 사람 3-4(18종족 예외없음). 판당 ~20-30VP 갭. 부차: 아카 −0.3~−1.3, 광산 과다 +1.3~+2.5, 유휴자원 多.
+- ★반증: 봇 광산이 사람보다 많음(6-7 vs 4-6) = 재료 있는데 연방 전환 실패(humanFedCommit 기각 사유 "재료null"이 실데이터로 반증). [[federation-gap-1-vs-3]]
+
+## 2026-07-24 기각(OFF dormant, winner's curse): `navLookaheadTier` (기오덴 게이트) — 40판 +11.35 → 120판 −3.78
+- 사용자 관찰(기오덴 Nav 1에서 멈춤, 2단계가 이득) → getRange tier-skip 보정(nav 점수가 실사거리 느는 레벨까지 lookahead). 기오덴 한정 게이팅(global은 40판 전체 −2.74).
+- 40판 기오덴 좌석 ON 103.6 vs OFF 92.3 = +11.35(p≈0.085) → 120판 ON 91.2 vs OFF 95.0 = **−3.78**(부호 반전). firaksEcoRush(+5.2→−4.87)에 이어 **세션 2번째 n=20 허상**. faction-seat n=20은 VP분산 ±20에 SE 과대 → +10도 노이즈.
+- ★세션 교훈 확정: self-play 자율 최적화 소진([[ai-greedy-ceiling]]). n=20 큰 양수 절대 신뢰 금지, 40판 채택 후 120확인 필수(이번에 2/2 반전). 진짜 경로 = 실게임 데이터(점수사이트 수집)→학습. 코드 dormant 보존(navLookaheadTierAll로 재실험 가능).
+
+## 2026-07-24 채택(ON, do-no-harm 가드): `firaksAcadHoldPi` — PI 전 유일 랩→아카 차단
+- 실측(사람로그 파이락 봇 3좌석): ppziurl 37점 = R3에 유일 랩→아카(PI 전) → 다운엔진 연료(랩) 소각, PI R5·랩재건 R6까지 다운 거의 0회. 사용자 관찰("연구소 짓고 의회 안 짓고 아카 짓는 판") 재현.
+- firaksLabLock(2번째 랩 금지)이 랩→아카는 안 막던 구멍. 가드: 파이락 & PI미보유 & 랩≤1이면 아카 후보 스킵(랩 보존).
+- ★self-play 측정 안 함: 이번 세션 n=20 좌석측정 2/2 winner's curse 반전(firaksEcoRush·navLookaheadTier) 확인 → 파이락 희소 좌석 40판은 노이즈라 검증력 없음. firaksLabLock 전례처럼 **do-no-harm 로직(엔진 연료 파괴 방지)으로 채택**, 실게임(파이락 봇 다운 횟수·최종VP) 관찰로 판정. 과장 없음 — measured win 아님, 관측손해 방지 가드.
+
+## 2026-07-24 정정→채택(ON, global): `navLookaheadTier` — 앞의 "기각(−3.78)"은 측정 교란이었음 (사용자 지적)
+- ★방법론 오류 발견(사용자 질문 "40 되는데 120 안 되는 이유 있지 않나?"): 앞의 40판(global)과 120판(내가 geodens-gated로 바꿈)은 **다른 실험**이었음 — gated는 geodens 상대봇의 nav도 바뀌어 좌석비교가 오염.
+- 깨끗한 재측정(동일 global 조건, 판수만 차이): 40판 geodens +11.35/전체 −2.74 → **120판 geodens +5.33/전체 +4.06(p=0.050, 승률48.3% 중립)**. 부호 유지+정상 회귀 = winner's curse 아님. tier-skip 보정(getRange 0·1→range1 묶임을 실사거리 느는 레벨까지 lookahead)은 도메인 옳은 버그수정.
+- 판정: 명확 양수 방향(VP)+도메인 정답 → **전 종족 기본 ON 채택**. firaksEcoRush(120 −4.87)도 머지-중-측정 교란이라 재확인 가치(human-gate라 무해하나 global 가능성).
+- ★세션 교훈 갱신: 앞서 "n=20 2/2 winner's curse"는 **과잉 결론** — 실은 confirm 런에서 내가 조건을 바꾼 교란. 진짜 원칙 = confirm은 판수 외 모든 조건 고정. [[federation-gap-1-vs-3]]
+
+## 2026-07-24 정정→채택(ON, global): `firaksEcoRush` — 첫 120판 −4.87은 머지-중-측정 오염이었음
+- 사용자 방법론 지적(navLookaheadTier와 동일 패턴): 첫 120판 −4.87은 원격 20커밋 머지 도중 돌아 챔피언 코드가 런 중 바뀐 오염. clean 재측정(머지 후 안정코드, 판수 외 조건 고정): **firaks 좌석 B(ON) 90.9 vs A(OFF) 86.5 = +4.42** (40판 +5.20과 일관 양수, 120게임 완주 n=60/60).
+- 판정: 오염 제거하니 실제 개선 확인 → 사람게임 한정 해제, **전 종족 기본 ON**. (navLookaheadTier +5.33에 이어 사용자 질문이 살린 2번째 개선.)
+- ★교훈 확정: 이번 세션 "winner's curse 반전"으로 기각했던 firaksEcoRush·navLookaheadTier 둘 다 **실은 내 confirm-런 오염**(머지 중 측정·게이팅 변경)이었음. n=20 노이즈 주의는 유효하나, confirm은 반드시 판수 외 전 조건 고정.
