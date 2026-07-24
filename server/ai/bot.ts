@@ -3358,9 +3358,15 @@ export class BotLogic {
               })
             : (hasNonFederated ? candidates.filter(c => !c.isFederated) : candidates);
 
-        filtered.sort((a, b) => b.score - a.score);
+        // [버그수정 2026-07-24] noFedTierUp이 업글 후보를 전부 제거하면(연방 건물 업글밖에 없는데 다 잘림) 봇이 할 게
+        //   없어 무한 패스(사용자 관찰: 란티다 연방[광산2]+기생6, 새 광산 지을 곳 없음 → 연방 내부 광산→TS가 유일한
+        //   업글인데 필터가 전부 컷 → 매 턴 0후보 강제 패스). '연방 씨앗 보존' 근거는 새 연방 재료(비연방 건물/지을 광산)가
+        //   있을 때만 유효 — 전부 잘려 후보가 0이면(=씨앗 만들 것도 없음) 원본 유지해 MCTS가 '연방 업글 vs 패스'를 상태가치로
+        //   판단하게 한다(강제 패스 방지, MCTS 최종선택은 heuristic −450이 아닌 상태평가라 후보만 살리면 됨).
+        const result = filtered.length > 0 ? filtered : candidates;
+        result.sort((a, b) => b.score - a.score);
         // 후보 컷이 너무 강하면 좋은 수가 탐색에서 사라짐 → 상위 5개로 확장
-        return filtered.slice(0, 5).map(c => c.action);
+        return result.slice(0, 5).map(c => c.action);
     }
 
     private static findDiscountedUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
