@@ -5499,8 +5499,10 @@ export class BotLogic {
                     // L4 도달 가능할 때만 선행 가점.
                     const l4Reachable = !getPlayerFlag(playerId, 'lateResearchMerit', false)
                         || (4 - next) <= (6 - round);
-                    if (next === 4) score += advScore;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
-                    else if (next < 4 && l4Reachable) score += advScore * 0.3; // L4로 가는 도중: 약한 선행 가점
+                    // advVpScale ON이면 advScore가 ×8 스케일 — 연구점수(~100-300 대역) 왜곡 방지 캡
+                    const advCap = getPlayerFlag(playerId, 'advVpScale', false) ? Math.min(advScore, 180) : advScore;
+                    if (next === 4) score += advCap;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
+                    else if (next < 4 && l4Reachable) score += advCap * 0.3; // L4로 가는 도중: 약한 선행 가점
                     // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
                 }
             }
@@ -5821,6 +5823,12 @@ export class BotLogic {
 
     private static scoreAdvancedTechTile(game: ServerGameState, playerId: string, tileId: string, round: number, player: PlayerState): number {
         let s = 45;
+        // [flag: advVpScale] 사용자(2026-07-25): "고급기술 가치를 AI가 전혀 계산 못함" — 실측 확인: 이 점수기의
+        // 가변항이 1점/VP인데 표준타일(calculateTechTileScore)은 ~11점/VP(tech-imm-7vp=80, tech-inc=120).
+        // 결과: 12VP 고급타일=57점 < 7VP 표준=80점, advTileValueFloor(한계<12 컷)가 5vp-fed(연방2=+10)·pass타일을
+        // "무가치"로 오컷 → 실게임 고급타일 사람 1.55/석 vs 봇 0.20/석(8배). 가변항 ×8로 표준 스케일 정합 —
+        // floor 12는 ~1.5VP(원의도), advTileOverL5 ≥70(초록 L5 대신 adv 보존)도 도달 가능해짐.
+        const SC = getPlayerFlag(playerId, 'advVpScale', false) ? 8 : 1;
 
         const passesLeft = Math.max(0, 7 - round);
         // 남은 패스 횟수 × 이후 라운드로 갈수록 패스 VP가 최대에 가깝게 오른다고 가정한 가중
@@ -5923,7 +5931,8 @@ export class BotLogic {
             s += 35;
         }
 
-        return s;
+        // advVpScale: base(45)는 유지, 가변항(실제 VP/자원 추정)만 ×SC — 타일 간 서열 보존 + 스케일만 표준 정합
+        return 45 + (s - 45) * SC;
     }
 
     private static calculateTechTileScore(game: ServerGameState, playerId: string, tileId: string): number {
@@ -7506,31 +7515,46 @@ export class BotLogic {
             ? ((game.finalMissionIds as string[]) || [])
             : ((game.finalScoringTiles || []).map(m => m.id));
 
+        // [flag: finalMissionRankDelta] 저점꼬리(<80) 분석(2026-07-25, 112게임): 저점봇 최종미션 9.2 vs 고점 16.7
+        // vs 사람 21.3 (36 만점) = 갭 1위. 기존 보너스는 고정 +5~25로 타 빌드보너스(100~450) 대비 미미 — R5-6에
+        // 순위를 실제로 뒤집는 빌드(+6~18VP)도 동일 취급. 서버 정산과 동일 규칙(getFinalMissionVpProjected, 동률
+        // 풀 분배 포함)으로 "이 빌드(+1) 시 내 미션 VP 상승분"을 ×12 가산. 상대 값이 계속 자라는 R1-3은 투영이
+        // 부정확 → R4+만(climbable 게이트와 정합). 순위 안 바뀌는 진행은 기존 고정 보너스만(다단계 진행 유인 보존).
+        const rankDeltaOn = getPlayerFlag(playerId, 'finalMissionRankDelta', false) && (game.roundNumber ?? 1) >= 4;
+        const projGain = (mid: string): number => {
+            if (!rankDeltaOn) return 0;
+            const myVal = getFinalMissionValue(game, playerId, mid);
+            const vpNow = getFinalMissionVpProjected(game, playerId, mid, null);
+            const vpAfter = getFinalMissionVpProjected(game, playerId, mid, myVal + 1);
+            return Math.max(0, vpAfter - vpNow) * 12;
+        };
+
         for (const missionId of missionIds) {
             // [flag: finalMissionRankAware] 사용자 관찰(2026-07-13): 외곽 미션 0개·상대 4/5/6인데 R6에 1개
             // 만들러 감 — 순위제(18/12/6)라 순위를 못 바꾸는 진행은 VP 0인데 고정 +25가 무조건 붙던 것.
             // R4+에 "남은 라운드 낙관 진행(라운드당 +2)으로도 내 미션 VP가 못 오르면" 그 미션 보너스 0.
             if (!this.finalMissionClimbable(game, playerId, missionId)) continue;
             switch (missionId) {
-                case 'fm_total_structures': totalBonus += 5; break;
+                case 'fm_total_structures': totalBonus += 5 + projGain(missionId); break;
                 case 'fm_planet_types':
-                    if (tile.type && !myTypes.has(tile.type)) totalBonus += 35;
+                    if (tile.type && !myTypes.has(tile.type)) totalBonus += 35 + projGain(missionId);
                     break;
-                case 'fm_gaia_planets': if (tile.type === 'gaia' || tile.type === 'transdim') totalBonus += 20; break;
+                case 'fm_gaia_planets': if (tile.type === 'gaia' || tile.type === 'transdim') totalBonus += 20 + projGain(missionId); break;
                 case 'fm_sectors': {
                     const mySectors = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship').map(t => t.sector));
-                    if (!mySectors.has(tile.sector)) totalBonus += 25;
+                    // projGain은 미션 값 정의(섹터 0~9만 카운트)와 정합하는 타일에만
+                    if (!mySectors.has(tile.sector)) totalBonus += 25 + (typeof tile.sector === 'number' && tile.sector >= 0 && tile.sector <= 9 ? projGain(missionId) : 0);
                     break;
                 }
                 case 'fm_outer_sectors': {
                     // 외곽 섹터(11~18)만 카운트. 새 외곽 섹터 진입이면 우대.
                     if (typeof tile.sector === 'number' && tile.sector >= 11 && tile.sector <= 18) {
                         const myOuter = new Set(game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship' && t.sector >= 11 && t.sector <= 18).map(t => t.sector));
-                        if (!myOuter.has(tile.sector)) totalBonus += 25;
+                        if (!myOuter.has(tile.sector)) totalBonus += 25 + projGain(missionId);
                     }
                     break;
                 }
-                case 'fm_asteroid_buildings': if (tile.type === 'asteroid') totalBonus += 20; break;
+                case 'fm_asteroid_buildings': if (tile.type === 'asteroid') totalBonus += 20 + projGain(missionId); break;
                 case 'fm_federation_buildings': {
                     // 연방 내 건물 최다 — 정확한 예측은 어려우나, 내 클러스터(dist≤1 내건물)에 붙는 빌드는
                     // 연방에 포함될 확률↑. 과한 군집 유도 방지 위해 modest.
