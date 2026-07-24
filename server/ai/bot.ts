@@ -3161,6 +3161,11 @@ export class BotLogic {
                 // PI를 지음(bescods 3·xenos 3·itars 2·ambas·terran·darkanians) — round<4 게이트가 종족 무관 차단.
                 // 광산 4+ & R2+면 개방 (acadGateOpen·r1PiOpen 동형: 순수 후보 개방, 선택은 MCTS).
                 const piGateOpen = getPlayerFlag(playerId, 'piGateOpen', true) && round >= 2 && mineCount >= 4;
+                // [flag: ambasFedSwap] 엠바스는 R4 전 PI 금지 — 스왑 연방엔진(광산1->PI4)은 큰건물타일 + 파워4 클러스터
+                // 준비가 전제라, 조기 PI는 스왑할 클러스터가 없어 낭비(사용자 모델: R4 이후 PI로 연방 다수 형성).
+                const ambasSwapStrat = getPlayerFlag(playerId, 'ambasFedSwap', false)
+                    || (getPlayerFlag(playerId, 'ambasFedSwapHuman', true) && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length);
+                if (ambasSwapStrat && faction === 'ambas' && round < 4) continue;
                 // [flag: piGateWide] 94게임 리프로브(2026-07-20): 사람 PI 79건 중 봇 후보 부재 84.8%, 그 72%가
                 // 이 R1-3 게이트들 — 사람은 전 종족이 광산 1~7 기반으로 조기 PI(스자 광산1, 기오덴 광산1, 매안
                 // 광산2, 암바스 광산2, 제노스·테란…). 기존 개방(r1PiOpen 종족제한·piGateOpen 광산4+)도 39건을
@@ -3391,6 +3396,35 @@ export class BotLogic {
         const clone: ServerGameState = JSON.parse(JSON.stringify(game));
         const tile = clone.map.find(t => t.id === tileId);
         if (tile) tile.structure = upgradedStructure;
+        return this.getBestFederationSpentTokens(clone, playerId);
+    }
+
+    /** [flag: ambasFedSwap] 엠바스 스왑 연방엔진: 광산<->PI 위치교체로 연방이 '새로' 도달가능해지는 광산을 고른다.
+     *  현재 연방 불가(before=null)인데 특정 광산과 스왑하면 도달(after!=null)되는 경우만 발동 — 그 중 최저 위성비용.
+     *  스왑은 메인액션 소모·라운드당 1회지만 광산(1)->PI(4, 큰건물타일 전제)=+3로 파워4 클러스터를 7로 점프(사용자 모델). */
+    public static pickAmbasFedSwapMine(game: ServerGameState, playerId: string): string | null {
+        const player = game.players[playerId];
+        if (!player || player.faction !== 'ambas') return null;
+        if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return null;
+        // 이미 연방 형성 가능하면 스왑 대신 정상 연방(스왑은 연방을 '새로 여는' 경우 전용).
+        if (this.getBestFederationSpentTokens(game, playerId) != null) return null;
+        let bestMine: string | null = null;
+        let bestTok = Infinity;
+        for (const t of game.map) {
+            if (t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine')) {
+                const after = this.getBestFederationSpentTokensAfterAmbasSwap(game, playerId, t.id);
+                if (after != null && after < bestTok) { bestTok = after; bestMine = t.id; }
+            }
+        }
+        return bestMine;
+    }
+
+    private static getBestFederationSpentTokensAfterAmbasSwap(game: ServerGameState, playerId: string, mineTileId: string): number | null {
+        const clone: ServerGameState = JSON.parse(JSON.stringify(game));
+        const pi = clone.map.find(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        const mine = clone.map.find(t => t.id === mineTileId && t.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine'));
+        if (!pi || !mine) return null;
+        const tmp = pi.structure; pi.structure = mine.structure; mine.structure = tmp;
         return this.getBestFederationSpentTokens(clone, playerId);
     }
 
@@ -5975,6 +6009,15 @@ export class BotLogic {
                 if (tileId === 'tech-imm-1o-1q') score += 20;
                 if (tileId === 'tech-act-4p') score += 10;
             }
+        }
+
+        // [flag: ambasFedSwap] 엠바스 큰건물 파워타일(tech-big-4str) = PI 3->4, 스왑 연방엔진의 전제.
+        // ~3번째 타일쯤 확보하도록 강하게 우선(초기 회피 -180 상쇄). PI를 R4에 짓기 전 미리 확보해야 함.
+        const ambasSwapStrat = getPlayerFlag(playerId, 'ambasFedSwap', false)
+            || (getPlayerFlag(playerId, 'ambasFedSwapHuman', true) && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length);
+        if (ambasSwapStrat && player.faction === 'ambas'
+            && tileId === 'tech-big-4str' && !(player.techTiles ?? []).includes('tech-big-4str')) {
+            score += 260;
         }
 
         // [flag: techTileRankFix] 사용자 랭킹(2026-07-07): 4C > 4PW > 1o1P > 1K1C. 기존엔 income 타일 3종이

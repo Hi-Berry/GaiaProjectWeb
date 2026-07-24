@@ -1349,3 +1349,10 @@
 - 사용자 방법론 지적(navLookaheadTier와 동일 패턴): 첫 120판 −4.87은 원격 20커밋 머지 도중 돌아 챔피언 코드가 런 중 바뀐 오염. clean 재측정(머지 후 안정코드, 판수 외 조건 고정): **firaks 좌석 B(ON) 90.9 vs A(OFF) 86.5 = +4.42** (40판 +5.20과 일관 양수, 120게임 완주 n=60/60).
 - 판정: 오염 제거하니 실제 개선 확인 → 사람게임 한정 해제, **전 종족 기본 ON**. (navLookaheadTier +5.33에 이어 사용자 질문이 살린 2번째 개선.)
 - ★교훈 확정: 이번 세션 "winner's curse 반전"으로 기각했던 firaksEcoRush·navLookaheadTier 둘 다 **실은 내 confirm-런 오염**(머지 중 측정·게이팅 변경)이었음. n=20 노이즈 주의는 유효하나, confirm은 반드시 판수 외 전 조건 고정.
+
+## 2026-07-24 채택(ON, 사람게임 한정): `ambasFedSwap`/`ambasFedSwapHuman` — 엠바스 스왑 연방엔진
+- 사용자 관찰+모델: 엠바스는 의회 능력(광산<->PI 위치교체, 메인액션·라운드당1회)을 봇이 0회 사용(사람 2.12/게임)하고 PI 타이밍도 이상(조기건설). 사용자 정석: R4 전엔 아카(3)+연구소(2)+광산으로 정상 1연방 + ~3번째 기술타일에 큰건물타일(tech-big-4str)로 PI 3->4 확보. R4 후 PI 짓고 **광산(1)<->PI(4)=+3 스왑**으로 파워4 클러스터를 7로 점프시켜 연방을 매 라운드 하나씩 닫음(usedSpecialActions 라운드 리셋 확증, gameState:2271). DECISIONS "ambas 연방11.7"=사람 최다연방 종족인데 봇은 엔진 통째 미사용.
+- 옛 `ambasSwap` 기각(2026-07-09, inert 0회)의 원인=MCTS 후보로만 열어 눈먼 평가기가 위치가치 못 봄. 이번엔 **모웨이드 링 패턴(botHandler 자동 직접실행, 평가기 우회)**. ★사용자 정정: "모웨이드 링도 액션 쓴다"(gameState:8527 hasDoneMainAction=true) — 내 "공짜라 자동/엠바스는 액션소모라 불가" 논리는 오류였고, 액션소모는 자동화 못 할 이유가 아님이 확인됨.
+- 구현 4부: ①PI R4+ 게이트 ②tech-big-4str +260 우선 ③pickAmbasFedSwapMine(before=null인데 스왑후 연방도달 되는 최저위성 광산 선택) ④botHandler 자동 스왑.
+- 측정(forced ambas 40판, weightsDiffer=false): ambas ON 90.7 vs OFF 98.3 = **Δ-7.60**(p≈0.305), 전체 -1.65±3.70. ★행동검증: **스왑 실발동 확인**(최근 60 저장본 중 48회, 옛 0회 대비), PI평균R 2.83->3.12(늦어짐), 기술타일 +0.15. **단 연방 Δ+0.04(불변)** — self-play 널널한 맵은 봇이 어차피 정상 연방 → 스왑이 "안 그래도 될 연방"에 메인액션+PI위치 낭비 = 비용만 보이고 이득 0.
+- 판정: self-play 상시ON 기각(-7.60), 그러나 스왑 발동 검증+도메인 정답+사용자 정석 → **사람게임 한정 채택**(lantidsParaEngineHuman·firaksEcoRush 패턴): ambasFedSwapHuman default true + 사람존재 게이트, bot-only 게임엔 비활성(-7.60 무해화). 스왑의 실가치=경합맵에서 4치 클러스터를 싸게 7로 닫기 → 사람이 좋은자리 차지하는 실게임에서만 발현. 판정은 실게임 관찰(엠바스 봇 R4-6 스왑 연방·최종VP). ambasFedSwap=self-play 검증용 base flag(default false 유지). [[ai-greedy-ceiling]]

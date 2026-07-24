@@ -11,6 +11,7 @@ import {
     executeBotTerranCouncilBenefit,
     executeBotItarsGaiaformerExchange,
     executeBotMoweyipPlaceRing,
+    executeBotAmbasSwapPiMine,
     executeBotBescodsAdvanceLowestTrack,
     executeConvertResource,
     getLegalEclipseAsteroidMineTileIds,
@@ -501,6 +502,29 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             if (ok) {
                 setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
                 return;
+            }
+        }
+    }
+
+    // === 엠바스(Ambas): [flag: ambasFedSwap] PI 보유 + 스왑 미사용 + 스왑으로 연방이 '새로' 닫히는 광산이 있으면 자동 스왑 (메인 전) ===
+    // 모웨이드 링과 동일 패턴(메인 액션 소모·라운드당 1회). 광산(1)<->PI(4)=+3로 파워4 클러스터를 7로 점프시켜 연방을 연다.
+    if (game.currentPhase === 'main' && !game.hasDoneMainAction) {
+        const ambasPlayer = game.players[currentPlayerId];
+        if (
+            ambasPlayer?.faction === 'ambas' &&
+            (getPlayerFlag(currentPlayerId, 'ambasFedSwap', false) ||
+                (getPlayerFlag(currentPlayerId, 'ambasFedSwapHuman', true) && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length)) &&
+            !ambasPlayer.usedSpecialActions?.includes('ambas-swap-pi-mine')
+        ) {
+            const swapMineId = BotLogic.pickAmbasFedSwapMine(game, currentPlayerId);
+            if (swapMineId) {
+                await new Promise(resolve => setTimeout(resolve, d(400)));
+                log(`Bot ${ambasPlayer.name} (Ambas) auto-swapping PI<->Mine ${swapMineId} to open a federation`, 'game');
+                const ok = executeBotAmbasSwapPiMine(io, game, currentPlayerId, swapMineId);
+                if (ok) {
+                    setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
+                    return;
+                }
             }
         }
     }
