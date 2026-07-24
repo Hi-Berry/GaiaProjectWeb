@@ -1375,3 +1375,9 @@
 - ★결론1: placementPolicy는 **진짜 중립(~0)**. +2.28은 노이즈였고 확인런이 잡음 → OFF 유지. 원 기각(중립) 유효. human-gate도 미정당화(행동 델타 ±0.1 부호반전=거의 inert).
 - ★결론2(하니스 캘리브레이션): **paired도 30그룹서 런간 ±5 요동** — 맵/종족/좌석 교란은 제거하나 MCTS 롤아웃 노이즈는 못 없앰. winner's curse의 절반만 맵교란이었음. ±3 효과엔 60~90그룹(240~360판) 또는 확인런 필수. paired=은탄환 아님, 교란제거 도구.
 - ★결론3: build-clustering 뿌리는 **self-play(paired 포함)로 안 뚫림** — 학습 밀집정책조차 self-play 중립. self-play 맵은 경합 없어 밀집 무가치. 클러스터링 가치는 실게임(경합) 전용 = 엠바스/확장/연방과 동일 벽([[value-net-blend-neutral]]). 남은 정공법은 실게임 관찰형 or 경합상태 학습(path2 천장).
+
+## 2026-07-24 [path B 착수] per-candidate 공간 배치 랭커 — 41.5% vs 무작위 21.8% (실증 성공)
+- 스칼라 정책망 소진 확정: 데이터 2배(56→112게임, 9055샘플)로도 val top1 30.4%→flat, 종족 one-hot(featDim 44)도 28.9%(악화, 과적합) — 병목은 데이터/종족이 아니라 **라벨이 "수의 종류"뿐 + 공간 표현 부재**.
+- 남은 유일 비중복 경로(DECISIONS 667행) = per-candidate 재랭킹. 실데이터에 **17,476 결정 × 후보(avg 10.7, {type,tileId,target}) 캡처 확인**(80/115 게임).
+- `scripts/trainCandidateRanker.mjs`: build/upgrade 결정 2698개에서 후보 타일별 공간피처(내건물 최근접거리·인접·2헥스내 파워합=연방잠재력·목표구조물)로 사람 픽 랭킹. **선형 val sibling top1 41.5%(무작위 21.8%, top3 78.5%)** — 스칼라(30%)와 달리 진짜 신호. 가중치 `dOwn −8.25`(사람=밀집 선호=사용자 "혼자 배치" 관찰의 데이터 확증)·`fedPow +0.58`.
+- ★결론: 공간 per-candidate 학습이 작동함을 실증(스칼라/종족 실패와 대조). 남은 관문 = 통합(placementPolicy 전례: 오프라인 좋아도 통합 시 −2.05, placement는 self-play 검증불가) → 실게임 데이터(점수사이트) 판정 필수. 다음: 피처확장(reach·contention·sector)·비선형·신중통합.
