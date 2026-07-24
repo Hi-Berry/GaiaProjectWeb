@@ -1553,6 +1553,20 @@ export class BotLogic {
                                 return { type: 'use_ship_action', params: { shipTileId: twi.id, actionIndex: 1 } };
                             }
                         }
+                        // [flag: rebelFireBeforePass] 사용자(2026-07-25): "봇이 리벨 3정큐 준비를 못함" — 실게임 실측:
+                        // 3정큐 사용 사람 68% vs 봇 30%, 탑승자 기준 사람 89% vs 봇 51%. 조달(rebel3qLadder)은 있는데
+                        // '들고 있어도 발사 보장'이 없었음(직접발사는 기각된 advClaimDrive 안에만 = 죽은 코드,
+                        // 문서화 사례 ofhfvztt HH R5: q3 완성 후 딴짓). twilightRecoupBeforePass 미러: 패스 직전
+                        // 탑승+미사용+3Q면 기술타일 회수 후 패스 보류 — 기술타일(≥7VP급)>패스는 산술 이득.
+                        if (getPlayerFlag(playerId, 'rebelFireBeforePass', false) && (player.qic ?? 0) >= 3) {
+                            const rebF = this.findPlayerShip(game, playerId, 'ship_rebellion');
+                            const rebFState = rebF ? game.spaceships?.[rebF.id] : null;
+                            if (rebF && (player.spaceshipsEntered || []).includes(rebF.id)
+                                && rebFState && !((rebFState.usedActionIndices ?? []) as number[]).includes(1)) {
+                                log(`Bot ${player.name} rebelFireBeforePass: 3QIC 기술타일 회수 후 패스 보류`, 'game', game.id);
+                                return { type: 'use_ship_action', params: { shipTileId: rebF.id, actionIndex: 1 } };
+                            }
+                        }
                         // 패스 직전 once-per-round 특수액션(아카데미 QIC·기술액션)도 사용 — 안 쓰면 그 라운드 통째 낭비(사용자 관찰).
                         // gleens-2nav/space_giants-2tf 등 once-per-game 부스터는 제외(아껴야 함). 이들은 비용 없는 자원획득이라 순이득.
                         const sp = this.findSpecialActions(game, playerId).find(a =>
@@ -5500,7 +5514,7 @@ export class BotLogic {
                     const l4Reachable = !getPlayerFlag(playerId, 'lateResearchMerit', false)
                         || (4 - next) <= (6 - round);
                     // advVpScale ON이면 advScore가 ×8 스케일 — 연구점수(~100-300 대역) 왜곡 방지 캡
-                    const advCap = getPlayerFlag(playerId, 'advVpScale', false) ? Math.min(advScore, 180) : advScore;
+                    const advCap = getPlayerFlag(playerId, 'advVpScale', true) ? Math.min(advScore, 180) : advScore;
                     if (next === 4) score += advCap;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
                     else if (next < 4 && l4Reachable) score += advCap * 0.3; // L4로 가는 도중: 약한 선행 가점
                     // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
@@ -5828,7 +5842,8 @@ export class BotLogic {
         // 결과: 12VP 고급타일=57점 < 7VP 표준=80점, advTileValueFloor(한계<12 컷)가 5vp-fed(연방2=+10)·pass타일을
         // "무가치"로 오컷 → 실게임 고급타일 사람 1.55/석 vs 봇 0.20/석(8배). 가변항 ×8로 표준 스케일 정합 —
         // floor 12는 ~1.5VP(원의도), advTileOverL5 ≥70(초록 L5 대신 adv 보존)도 도달 가능해짐.
-        const SC = getPlayerFlag(playerId, 'advVpScale', false) ? 8 : 1;
+        // [측정 2026-07-25] 120판: VP +2.00·승률 54.7%·★고급타일 0.23→0.54/석(2.3배, 행동 검증) → 채택 ON.
+        const SC = getPlayerFlag(playerId, 'advVpScale', true) ? 8 : 1;
 
         const passesLeft = Math.max(0, 7 - round);
         // 남은 패스 횟수 × 이후 라운드로 갈수록 패스 VP가 최대에 가깝게 오른다고 가정한 가중
