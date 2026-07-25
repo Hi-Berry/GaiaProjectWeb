@@ -2655,7 +2655,11 @@ export class BotLogic {
         if (getPlayerFlag(playerId, 'candRankerSort', false)) {
             const crs = this.candRankerScores(game, playerId, uniqueCandidates);
             if (crs) {
-                const scored = uniqueCandidates.map((c, i) => ({ c, s: crs[i], i }));
+                // [v1.5] ship 후보는 파라미터 미캡처(학습데이터 결함)로 prior가 허수 → 중립화(비-ship 중앙값).
+                // v1(그대로 통합) 120판 −2.39: 우주선 후보 맹목 우선이 원인. 지상 액션 신호만 사용.
+                const nonShip = uniqueCandidates.map((c, i) => c.type !== 'use_ship_action' ? crs[i] : null).filter((x): x is number => x !== null).sort((a, b) => a - b);
+                const med = nonShip.length ? nonShip[Math.floor(nonShip.length / 2)] : 0;
+                const scored = uniqueCandidates.map((c, i) => ({ c, s: c.type === 'use_ship_action' ? med : crs[i], i }));
                 scored.sort((a, b) => (b.s - a.s) || (a.i - b.i));
                 return scored.map(x => x.c);
             }
