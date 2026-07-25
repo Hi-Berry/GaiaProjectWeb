@@ -2842,7 +2842,7 @@ export class BotLogic {
         // 후보 자체를 미생성 → 자원 놓고 패스. tsConvertCombo(크레딧 갭 +0.92 채택)의 광석판.
         // v1(무제한 개방) 120판 −8.20 p=0.000 기각 — 전 라운드에서 파워/QIC를 태워 TS만 +0.54, 연방 −0.06.
         // v2 = 사용자 장면 그대로 한정: R4+ & 루트 & '이 업글이 연방을 새로 열거나 위성을 줄일 때만' 후보 생성.
-        const tsOreCombo = getPlayerFlag(playerId, 'tsOreConvert', false) && player.faction !== 'taklons'
+        const tsOreCombo = getPlayerFlag(playerId, 'tsOreConvert', true) && player.faction !== 'taklons'
             && !game.simulation && round >= 4
             && ore < 2 && (Math.floor((player.power3 ?? 0) / 3) + (player.qic ?? 0)) >= (2 - ore);
         if ((ore >= 2 || tsOreCombo) && (credits >= 3 || getPlayerFlag(playerId, 'tsConvertCombo', true))) {
