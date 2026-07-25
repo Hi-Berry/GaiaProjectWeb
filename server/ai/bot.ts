@@ -2652,7 +2652,8 @@ export class BotLogic {
         // [flag: candRankerSort] 학습빌드 ⑶: 통합 per-candidate 랭커(candRankerAll.json, 7653결정, val 45.8% vs
         // 무작위 11.7%)로 후보를 '사람이 그 후보셋에서 고를 확률' 순 안정정렬 → MCTS top-N을 사람 수 쪽으로.
         // policyPrior(상태→행동타입)와 달리 후보 자체를 채점(결정 그 자체 = 평가기와 비중복, DECISIONS 667 유일경로).
-        if (getPlayerFlag(playerId, 'candRankerSort', false)) {
+        // [측정 2026-07-25] v1 −2.39(ship 허수) → v1.5(ship 중립화) 120판 +2.09·승률 51.3% → 채택 ON.
+        if (getPlayerFlag(playerId, 'candRankerSort', true)) {
             const crs = this.candRankerScores(game, playerId, uniqueCandidates);
             if (crs) {
                 // [v1.5] ship 후보는 파라미터 미캡처(학습데이터 결함)로 prior가 허수 → 중립화(비-ship 중앙값).
