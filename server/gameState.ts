@@ -247,6 +247,9 @@ function captureHumanCandidates(game: ServerGameState, playerId: string): any[] 
 		return cands.slice(0, 40).map((c: any) => ({
 			type: c.type, tileId: c.params?.tileId, trackId: c.params?.trackId,
 			target: c.params?.target, actionId: c.params?.actionId,
+			// [2026-07-25 학습빌드] 우주선 액션 파라미터 — 미캡처라 per-candidate 학습에서 배 액션 구분 불가였음
+			// (통합랭커 ship 95% 허수의 원인). undefined는 JSON에서 자동 탈락이라 비-우주선 후보 페이로드 증가 없음.
+			shipTileId: c.params?.shipTileId, actionIndex: c.params?.actionIndex,
 		}));
 	} catch { return undefined; } // 캡처 실패는 게임에 절대 영향 없음
 }
