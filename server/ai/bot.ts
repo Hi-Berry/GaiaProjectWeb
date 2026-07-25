@@ -2649,6 +2649,17 @@ export class BotLogic {
             }
         }
 
+        // [flag: candRankerSort] 학습빌드 ⑶: 통합 per-candidate 랭커(candRankerAll.json, 7653결정, val 45.8% vs
+        // 무작위 11.7%)로 후보를 '사람이 그 후보셋에서 고를 확률' 순 안정정렬 → MCTS top-N을 사람 수 쪽으로.
+        // policyPrior(상태→행동타입)와 달리 후보 자체를 채점(결정 그 자체 = 평가기와 비중복, DECISIONS 667 유일경로).
+        if (getPlayerFlag(playerId, 'candRankerSort', false)) {
+            const crs = this.candRankerScores(game, playerId, uniqueCandidates);
+            if (crs) {
+                const scored = uniqueCandidates.map((c, i) => ({ c, s: crs[i], i }));
+                scored.sort((a, b) => (b.s - a.s) || (a.i - b.i));
+                return scored.map(x => x.c);
+            }
+        }
         // [flag: policyPrior] 알파고식: 사람 모방 학습 정책망(policyNet.json, imitation +10.1%p)으로
         // 후보를 '사람이 그 상태에서 할 법한 행동타입' 확률 순으로 안정정렬 → MCTS 롤아웃(top-N 평가)을
         // 사람 수 쪽으로 좁힘. mcts.ts(사용자 영역) 미수정. 동률은 원래 우선순위 유지(stable).
@@ -2667,6 +2678,47 @@ export class BotLogic {
         }
 
         return uniqueCandidates;
+    }
+
+    /** [candRankerSort] 통합 per-candidate 랭커 점수 — trainCandidateRankerAll.mjs 피처와 *동일 순서/정규화* 필수. */
+    private static _candRanker: { featDim: number; types: string[]; tracks: string[]; w: number[] } | null | undefined;
+    static candRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): number[] | null {
+        if (this._candRanker === undefined) {
+            try { this._candRanker = JSON.parse(nodeFs.readFileSync('server/ai/candRankerAll.json', 'utf8')); }
+            catch { this._candRanker = null; }
+        }
+        const M = this._candRanker;
+        if (!M || !cands.length) return null;
+        const player = game.players[playerId];
+        const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
+        const mine = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+        const pwCat = (s: string) => { s = (s || '').toLowerCase(); return /ore/.test(s) ? 0 : /credit/.test(s) ? 1 : /know/.test(s) ? 2 : /token/.test(s) ? 3 : /terraform|step|tf/.test(s) ? 4 : 5; };
+        const res = player.research || ({} as any);
+        return cands.map(c => {
+            const f = new Array(M.featDim).fill(0);
+            const ti = M.types.indexOf(c.type); if (ti >= 0) f[ti] = 1;
+            let off = M.types.length; // 15
+            const tid = (c.params as any)?.tileId;
+            const tile = tid ? game.map.find(t => t.id === tid) : null;
+            f[off] = tile ? 1 : 0; off += 1;
+            if (tile && mine.length) {
+                const dOwn = Math.min(...mine.map(m => getDistance(m, tile)));
+                f[off] = Math.min(dOwn, 9) / 9;
+                f[off + 1] = mine.filter(m => getDistance(m, tile) === 1).length / 6;
+                f[off + 2] = mine.filter(m => getDistance(m, tile) <= 2).length / 8;
+                f[off + 3] = (tile.type && !NONPL.has(tile.type) && !String(tile.type).startsWith('ship_')) ? 1 : 0;
+            }
+            off += 4;
+            if (c.type === 'advance_research' && (c.params as any)?.trackId) {
+                const k = M.tracks.indexOf((c.params as any).trackId);
+                if (k >= 0) f[off + k] = ((res as any)[(c.params as any).trackId] ?? 0) / 5 || 0.01;
+            }
+            off += 6;
+            f[off] = (game.roundNumber || 1) / 6; off += 1;
+            if (c.type === 'use_power_action') f[off + pwCat((c.params as any)?.actionId)] = 1;
+            let s = 0; for (let k = 0; k < M.featDim; k++) s += M.w[k] * f[k];
+            return s;
+        });
     }
 
     /** [정책망/PUCT] 후보 액션들에 대해 정책망 prior(확률)를 계산, 후보 집합 위에서 정규화(합≈1)해 Map 반환.
