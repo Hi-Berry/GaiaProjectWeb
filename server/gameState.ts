@@ -106,6 +106,12 @@ export interface ServerGameState extends GaiaGameState {
 
 const games = new Map<string, ServerGameState>();
 
+/** [의회 pending 가드 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 타일/혜택 선택)이 진행 중이면
+ *  라운드 첫 액션이 열려도 모든 메인 액션을 보류 — 파워 수락 대기와 동일한 순서 보장. */
+function councilPendingActive(game: GaiaGameState): boolean {
+	return !!(game.pendingItarsGaiaformerExchange || game.pendingTerranCouncilBenefit);
+}
+
 /** [상태 대시보드] 외부 status 페이지(Netlify)가 CORS로 조회하는 공개 요약 — 개인정보/게임내용 없음 */
 export function getPublicStatus() {
 	let humanPlayers = 0, activeGames = 0;
@@ -3651,7 +3657,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_bonus_action', ({ gameId }) => {
 			const game = games.get(gameId); if (!game || game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 
 			const player = game.players[playerId];
 			if (!player?.bonusTile || player.usedBonusAction) return;
@@ -3669,6 +3677,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 
 			executeBuildMine(io, game, playerId, tileId, useGaiaformer);
 		});
@@ -3679,6 +3688,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 
 			const error = executeEnterSpaceship(io, game, playerId, tileId, useRangeBonus, qicToUse);
 			if (error) {
@@ -3693,6 +3703,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			saveActionStartState(game, playerId);
 			const player = game.players[playerId];
@@ -3953,6 +3964,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.hasDoneMainAction) return;
 			const player = game.players[playerId];
 			const entered = player.spaceshipsEntered ?? [];
@@ -4210,6 +4222,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('place_gaiaformer', ({ gameId, tileId, qicUsed }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed);
 		});
 
@@ -4219,6 +4232,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.hasDoneMainAction) return;
 
 			const player = game.players[playerId];
@@ -4265,6 +4279,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			executeUpgradeStructure(io, game, playerId, tileId, target);
@@ -4286,6 +4301,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.pendingTurnEndPlayerId === playerId) return;
 			// 현재 턴 플레이어만 자기 턴 시작 스냅샷으로 복구 (다른 소켓/착오 방지)
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			const startState = game.turnStartState?.[playerId];
 			if (!startState) return;
 			if (startState.playerId && startState.playerId !== playerId) return;
@@ -4371,6 +4387,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			// 거리 보너스가 진행 중인데 Eclipse/우주선 트랙 보상 진행이 아니면 막음
 			if (hasActiveRangeBonus(game.players[playerId])
 				&& game.pendingEclipseResearch?.playerId !== playerId
@@ -4418,6 +4435,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_power_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			executeUsePowerAction(io, game, playerId, actionId);
 		});
@@ -4437,6 +4455,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
 
@@ -4446,6 +4465,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증 (클라 버튼 비활성과 별개로 막음)
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.pendingTurnEndPlayerId) return;
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
@@ -4462,6 +4482,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.pendingTurnEndPlayerId) return;
 
 			pushFreeActionUndoSnapshot(game);
@@ -4743,6 +4764,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			const ok = executeUseTechAction(io, game, playerId, tileId);
 			if (!ok) {
@@ -4819,6 +4841,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
+			if (councilPendingActive(game)) return; // 의회 선택 대기
 			if (player.faction !== 'ambas') return;
 			if (player.usedSpecialActions?.includes('ambas-swap-pi-mine')) return;
 
@@ -4845,6 +4868,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
+			if (councilPendingActive(game)) return; // 의회 선택 대기
 			if (player.faction !== 'bescods') return;
 			if (player.usedSpecialActions?.includes('bescods-advance-lowest')) return;
 
@@ -4878,6 +4902,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
+			if (councilPendingActive(game)) return; // 의회 선택 대기
 			if (player.faction !== 'moweyip') return;
 			if (player.usedSpecialActions?.includes('moweyip-place-ring')) return;
 			if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return;
@@ -4917,7 +4942,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.hasDoneMainAction) return;
 			if (game.pendingFederationReward) return;
 
@@ -5013,6 +5040,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (!game.federationMode || game.federationMode.playerId !== playerId) return;
 			if (game.pendingFederationReward) return;
 
@@ -5308,6 +5336,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.pendingTurnEndPlayerId) return;
 
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			// 가이아 프로젝트(보너스/TF Mars) 대기 중에는 턴 종료 불가 → 배치 또는 건너뛰기 먼저
 			if (game.pendingTFMarsGaiaProject?.playerId === playerId) {
 				socket.emit('game_error', { message: '가이아 프로젝트 진행 중에는 턴을 종료할 수 없습니다.' });
@@ -5578,6 +5607,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: '아이타/테란 의회 능력 처리 중입니다. 선택이 끝나면 라운드가 시작됩니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			executePassRound(io, game, playerId, newBonusTileId);

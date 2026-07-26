@@ -1416,6 +1416,15 @@ export default function Game() {
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
+  // [의회 대기 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 선택)이 진행 중이면 다른 플레이어는 대기 —
+  // 서버가 메인 액션을 막고(councilPendingActive), 여기선 파워 수락 대기와 같은 안내 배너를 띄운다.
+  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit;
+  const councilPendingInfo = councilPendingRaw && councilPendingRaw.playerId !== playerId
+    ? {
+      name: game.players[councilPendingRaw.playerId]?.name ?? '플레이어',
+      kind: (game as any).pendingItarsGaiaformerExchange ? '아이타' : '테란',
+    }
+    : null;
   const pendingPowerWaiters = (() => {
     const offers = game.pendingPowerOffers?.filter((o) => o && !o.responded) ?? [];
     const byTarget = new Map<string, number>();
@@ -2392,6 +2401,19 @@ export default function Game() {
       <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
+          {councilPendingInfo && (
+            <div className="bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs md:text-sm">
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 shrink-0 text-cyan-300 mt-0.5 animate-pulse" />
+                <p className="leading-snug">
+                  <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} 의회 능력 처리 중
+                  <span className="block text-[10px] text-cyan-200/75 font-medium mt-0.5">
+                    선택이 끝나면 라운드 첫 액션이 가능합니다
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
           {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
             <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs md:text-sm">
               <div className="flex items-start gap-2">
@@ -5465,6 +5487,15 @@ export default function Game() {
         />
       )}
 
+      {/* [의회 대기] 모바일 배너 — 데스크톱은 좌측 사이드바에 같은 안내(hidden md:flex라 모바일 미노출) */}
+      {game && isMobileViewport && councilPendingInfo && (
+        <div
+          className="md:hidden fixed inset-x-3 z-[116] bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3.25rem)' }}
+        >
+          <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} 의회 능력 처리 중 · 선택이 끝나면 라운드가 시작됩니다
+        </div>
+      )}
       {/* 모바일 전체모드 진입 버튼 — 좌상단, 전체모드 아닐 때만(사용자 요청). 전체모드는 시스템 UI를 접어 세로 공간 확보. */}
       {game && isMobileViewport && !isFullscreen && (
         <button
