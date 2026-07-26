@@ -100,6 +100,13 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // [상태 대시보드] Netlify status 페이지용 — CORS 전체 허용(공개 카운트만 반환, 개인정보/게임내용 없음)
+  const { getPublicStatus } = await import("./gameState");
+  app.get("/api/status", (_req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.json(getPublicStatus());
+  });
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
