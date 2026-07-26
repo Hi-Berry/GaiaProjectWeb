@@ -2703,6 +2703,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					playerCount: playerEntries.length,
 					maxPlayers: g.maxPlayers,
 					phase: g.currentPhase,
+					roundNumber: g.roundNumber ?? 0,
 					createdAt: g.createdAt ?? 0,
 					players: playerEntries,
 					hostName: g.players[g.hostId]?.name ?? null,
@@ -3001,13 +3002,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
 
-		socket.on('watch_game', ({ gameId }, callback) => {
+		socket.on('watch_game', ({ gameId, name }: { gameId: string; name?: string }, callback) => {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
 
 			const spectatorId = 'spec-' + generatePlayerId();
 			if (!game.spectatorIds) game.spectatorIds = [];
 			game.spectatorIds.push(spectatorId);
+			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
+			if (specName) { if (!(game as any).spectatorNames) (game as any).spectatorNames = {}; (game as any).spectatorNames[spectatorId] = specName; }
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			joinGameRoom(socket, gameId);
@@ -4482,7 +4485,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				id: generatePlayerId(),
 				gameId, // 클라이언트가 현재 방 메시지만 표시하도록 (방 격리)
 				senderId,
-				name: player?.name ?? '관전자',
+				name: player?.name ?? (game as any).spectatorNames?.[senderId] ?? '관전자',
 				faction: player?.faction ?? null,
 				isSpectator: !player,
 				text: clean,

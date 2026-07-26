@@ -14,6 +14,7 @@ interface GameInfo {
   playerCount: number;
   maxPlayers: number;
   phase: string;
+  roundNumber?: number;
   createdAt: number;
   hostName: string | null;
   players: Array<{ id: string; name: string; isHost: boolean }>;
@@ -198,7 +199,7 @@ export default function Lobby() {
   const handleWatchGame = async (gameId: string) => {
     try {
       setWatching(gameId);
-      const { spectatorId } = await GameClient.watchGame(gameId);
+      const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim() || undefined);
       storeSpectatorId(gameId, spectatorId);
       toast({
         title: '관전 시작',
@@ -316,7 +317,9 @@ export default function Lobby() {
                     ? '종료'
                     : game.phase === 'lobby'
                       ? '대기 중'
-                      : game.phase.replace(/([A-Z])/g, ' $1').trim();
+                      : game.phase === 'main'
+                        ? `${game.roundNumber || 1}라운드 진행 중`
+                        : game.phase.replace(/([A-Z])/g, ' $1').trim();
                   const created = formatCreatedAt(game.createdAt);
                   const roster = game.players ?? [];
 
@@ -335,7 +338,7 @@ export default function Lobby() {
                             <Badge variant="secondary">종료</Badge>
                           )}
                           {isStarted && !isFinished && (
-                            <Badge variant="default">진행 중</Badge>
+                            <Badge variant="default">{game.phase === 'main' ? `R${game.roundNumber || 1} 진행 중` : '진행 중'}</Badge>
                           )}
                           {!isStarted && !isFinished && (
                             <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">

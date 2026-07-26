@@ -102,10 +102,10 @@ export const GameClient = {
     });
   },
 
-  watchGame(gameId: string): Promise<{ gameId: string; spectatorId: string; game: GameState }> {
+  watchGame(gameId: string, name?: string): Promise<{ gameId: string; spectatorId: string; game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('watch_game', { gameId }, (response: any) => {
+      s.emit('watch_game', { gameId, name }, (response: any) => {
         if (response.error) reject(new Error(response.error));
         else resolve(response);
       });
