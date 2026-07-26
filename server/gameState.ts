@@ -2644,6 +2644,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 	const io = new SocketIOServer(httpServer, {
 		cors: { origin: '*', methods: ['GET', 'POST'] },
 		path: '/socket.io',
+		// [대역폭 2026-07-27, 사용자: Render 월 5GB 쿼터] WebSocket 압축 — 게임 상태 JSON은 반복 키가 많아
+		// ~25KB → ~6-8KB (3-4배 절감). 1KB 미만 소형 메시지는 압축 오버헤드가 손해라 임계값으로 제외.
+		perMessageDeflate: { threshold: 1024 },
 	});
 
 	io.on('connection', (socket) => {
