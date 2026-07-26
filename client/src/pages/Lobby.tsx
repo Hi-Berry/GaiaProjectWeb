@@ -294,7 +294,7 @@ export default function Lobby() {
             <Button
               variant="outline"
               size="icon"
-              onClick={fetchGames}
+              onClick={() => fetchGames()}
               disabled={loading || !connected}
               data-testid="button-refresh-games"
             >
