@@ -86,7 +86,8 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
+    // /api/status는 상태페이지(탭당 30초×3서버)+keep-alive 핑이 계속 때려 로그 도배 → 로깅 제외(사용자)
+    if (path.startsWith("/api") && path !== "/api/status") {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
