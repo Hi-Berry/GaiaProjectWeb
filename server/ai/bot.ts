@@ -45,7 +45,8 @@ import {
     getEffectiveGaiaformers,
     executeConfirmTwilightFederation,
     executePlaceLostPlanet,
-    getPlayerPlanetTypesForGeodens
+    getPlayerPlanetTypesForGeodens,
+    emitGameUpdated,
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -439,7 +440,7 @@ export class BotLogic {
                 player.nextMineFreeFromShipTech = false;
                 game.pendingShipTechTrackAdvance = { playerId };
                 log(`Bot ${player.name} skipped Ship Tech 2TF+Mine fallback because no legal mine target was available`, 'game', game.id);
-                io.to(game.id).emit('game_updated', game);
+                emitGameUpdated(io, game);
                 return true;
             }
             case 'form_federation':
@@ -2653,7 +2654,9 @@ export class BotLogic {
         // 무작위 11.7%)로 후보를 '사람이 그 후보셋에서 고를 확률' 순 안정정렬 → MCTS top-N을 사람 수 쪽으로.
         // policyPrior(상태→행동타입)와 달리 후보 자체를 채점(결정 그 자체 = 평가기와 비중복, DECISIONS 667 유일경로).
         // [측정 2026-07-25] v1 −2.39(ship 허수) → v1.5(ship 중립화) 120판 +2.09·승률 51.3% → 채택 ON.
-        if (getPlayerFlag(playerId, 'candRankerSort', true)) {
+        // ★ !game.simulation 필수: 후보별 맵 거리계산이 MCTS 롤아웃(수천회)에서 돌면 GC 폭주 행
+        //   (placementPolicy와 동일 클래스 — 2026-07-26 스모크 6/12 타임아웃의 원인, 게이트 누락이었음)
+        if (getPlayerFlag(playerId, 'candRankerSort', true) && !game.simulation) {
             const crs = this.candRankerScores(game, playerId, uniqueCandidates);
             if (crs) {
                 // [v1.5] ship 후보는 파라미터 미캡처(학습데이터 결함)로 prior가 허수 → 중립화(비-ship 중앙값).

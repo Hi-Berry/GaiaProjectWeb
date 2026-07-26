@@ -106,6 +106,18 @@ export interface ServerGameState extends GaiaGameState {
 
 const games = new Map<string, ServerGameState>();
 
+/** [대역폭 2단계 2026-07-26, 사용자] gameLog는 후반 100KB+로 최대 잔여 항목 — 액션 브로드캐스트엔 꼬리만
+ *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
+ *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
+const GAME_LOG_TAIL = 40;
+export function emitGameUpdated(io: any, game: any) {
+	const logArr = game.gameLog || [];
+	const payload = logArr.length > GAME_LOG_TAIL
+		? { ...game, gameLog: logArr.slice(-GAME_LOG_TAIL), gameLogStart: logArr.length - GAME_LOG_TAIL, gameLogLen: logArr.length }
+		: { ...game, gameLogStart: 0, gameLogLen: logArr.length };
+	io.to(game.id).emit('game_updated', payload);
+}
+
 /** [대역폭 2026-07-26, 사용자: 하루 10GB] game_updated가 액션마다 게임 전체(893KB)를 방 전원에 emit —
  *  그중 730KB가 클라 미사용 서버 전용(turnStartState 등, 플레이어별 맵 스냅샷). non-enumerable로 만들어
  *  코드 접근은 그대로 두고 JSON 직렬화(socket emit·파일 저장)에서만 자동 제외. 재할당해도 유지됨. */
@@ -1237,7 +1249,7 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 	}
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 
 	if (options?.reason) {
 		log(`Turn ended for ${endedPlayerId}. Next player: ${newCurrentPlayerId} (${options.reason})`, 'game', undefined, { simulation: (game as any).simulation });
@@ -1279,7 +1291,7 @@ export function executeEclipseAdvanceTrack(io: SocketIOServer, game: ServerGameS
 	applyAdvancedTechTileEffect(game, playerId, 'research');
 	game.pendingEclipseResearch = null;
 	game.hasDoneMainAction = true;
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -1300,7 +1312,7 @@ export function executeCancelEclipseResearch(io: SocketIOServer, game: ServerGam
 	game.hasDoneMainAction = false;
 	game.pendingEclipseResearch = null;
 	removeLastGameLogEntry(game, playerId, 'Eclipse: 2K+3P → Research'); // 취소한 액션의 placeholder 로그 제거(로그 잔류 버그)
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -1353,7 +1365,7 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 		game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
 	}
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (forceSkipStuckBotTurn): ${err}`, 'error');
 	});
@@ -1400,7 +1412,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	saveFinalGameState(game);
 	flushGameData(game);
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 }
 
 /** 특정 플레이어에 대해 파워 충전 처리 (타클론 브레인스톤 및 의회 보너스 포함) */
@@ -2065,7 +2077,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				powerBeforeSnapshots: [],
 			};
 			log(`[Income] Next: ${player.name} needs to select income items: ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (IncomeReentry): ${err}`, 'error');
 			});
@@ -2336,7 +2348,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					powerBeforeSnapshots: [],
 				};
 				log(`[Income] ${firstPlayer.name} needs to select income items: ${incomeItems.length} items`, 'game', undefined, { simulation: (game as any).simulation });
-				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				clampPlayerResources(game); emitGameUpdated(io, game);
 				executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 					log(`Bot turn execution error (IncomeInitial): ${err}`, 'error');
 				});
@@ -2399,14 +2411,14 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 
 	if (game.pendingItarsGaiaformerExchange) {
 		game.terranCouncilQueueAfterItars = terranCouncilQueue.length > 0 ? terranCouncilQueue : undefined;
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return;
 	}
 
 	if (terranCouncilQueue.length > 0) {
 		game.pendingTerranCouncilBenefit = terranCouncilQueue[0];
 		game.terranCouncilQueue = terranCouncilQueue.slice(1);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (TerranInitial): ${err}`, 'error');
 		});
@@ -2436,7 +2448,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		}
 	}
 
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 
 	if (!tinkeroidsPending) {
 		helperStartNewRoundTurn(io, game);
@@ -2479,7 +2491,7 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 	if (currentId) {
 		captureTurnStartWithPrev(game as ServerGameState, currentId);
 	}
-	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
 
 	log(`[RoundStart] New round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', undefined, { simulation: (game as any).simulation });
 
@@ -2545,7 +2557,7 @@ export function resumeItarsExchangeChain(io: SocketIOServer, game: GaiaGameState
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { /* 위에서 로깅됨 */ });
 		}
 	}
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 }
 
 export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, game: GaiaGameState) {
@@ -2554,7 +2566,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 	if (terranQueue && terranQueue.length > 0) {
 		game.pendingTerranCouncilBenefit = terranQueue[0];
 		game.terranCouncilQueue = terranQueue.slice(1);
-		clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
 		// 봇 보상 선택 처리
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (ProceedAfterItarsTerranBenefit): ${err}`, 'error');
@@ -2577,7 +2589,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 	// 액션 단계가 이미 시작된 상태라도 현재 턴 재개(emit + 봇 트리거)는 하고 나간다 — 둘 다 멱등이라 안전.
 	if ((game as any).actionPhaseStartedRound === game.roundNumber) {
 		log(`[ITARS-RESUME] round ${game.roundNumber} action phase already started — resuming current turn (index ${game.currentPlayerIndex})`, 'game', game.id);
-		clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (ItarsResumeStarted): ${err}`, 'error');
 		});
@@ -2587,7 +2599,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 	if ((game as any).firstMainActionDoneThisRound) {
 		log(`[ROUND-START-GUARD] helperProceedAfterItars blocked: round ${game.roundNumber} already had a turn (index stays ${game.currentPlayerIndex})`, 'game', game.id);
 		(game as any).actionPhaseStartedRound = game.roundNumber;
-		clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (ItarsResumeMidRound): ${err}`, 'error');
 		});
@@ -2606,7 +2618,7 @@ export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, ga
 	}
 	// [가시화 2026-07-07] 아이타 경로 라운드 시작은 로그가 전무해 hang 원인 특정 불가였음 — RoundStart와 동급 로그
 	log(`[RoundStart] (Itars/Terran path) round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', game.id, { simulation: (game as any).simulation });
-	clampPlayerResources(game as ServerGameState); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
 
 	// 봇 턴 확인
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -2620,7 +2632,7 @@ export function helperFinishAfterGaiaformerPhase(io: SocketIOServer, game: GaiaG
 		captureTurnStartWithPrev(game as ServerGameState, currentId);
 	}
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 
 	// 가이아 단계 종료 후 봇 턴 확인
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -2887,7 +2899,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [방 한정 좌석 비번(선택)] 걸어두면 다른 기기에서 같은 방 + 같은 이름/비번으로 이 좌석에 복귀 가능
 			if (password) setSeatPassword(gameId, playerId, playerName, password);
 			joinGameRoom(socket, gameId);
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			callback({ gameId, playerId, game });
 		});
 
@@ -2917,7 +2929,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.hostAddedPlayerIds) game.hostAddedPlayerIds = [];
 			game.hostAddedPlayerIds.push(newPlayerId);
 			clampPlayerResources(game);
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			callback({ playerId: newPlayerId, name, game });
 		});
 
@@ -2944,7 +2956,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			log(`AI Bot added: ${name} (${botId}) to game ${gameId}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game);
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			callback({ botId, name, game });
 		});
 
@@ -2962,7 +2974,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.botPlayerIds = (game.botPlayerIds || []).filter(id => id !== targetPlayerId);
 			game.hostAddedPlayerIds = (game.hostAddedPlayerIds || []).filter(id => id !== targetPlayerId);
 			log(`Player removed: ${targetPlayerId} from game ${gameId} by host`, 'game', undefined, { simulation: (game as any).simulation });
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			callback?.({ ok: true, game });
 		});
 
@@ -3014,7 +3026,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('chat_message', msg);
 			}
 
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			callback({ game });
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
@@ -3083,7 +3095,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}, targetAction);
 				addGameLog(game, targetAction.playerId, 'AI Feedback', `${rating || 'unspecified'} by ${isPlayerInGame ? game.players[playerId!]?.name ?? playerId : 'spectator'}`);
 				log(`AI feedback saved for game ${gameId}: ${record.lastBotAction?.actionType ?? 'unknown'} (${rating ?? 'unspecified'})`, 'game', gameId);
-				io.to(gameId).emit('game_updated', game);
+				emitGameUpdated(io, game);
 				callback?.({ ok: true });
 			} catch (err) {
 				log(`Failed to save AI feedback: ${err}`, 'error', gameId);
@@ -3098,7 +3110,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (playerId !== game.hostId) { callback?.({ error: 'Host only' }); return; }
 			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Lobby only' }); return; }
 			game.useFactionBidding = !!useFactionBidding;
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			callback?.({ ok: true });
 		});
 
@@ -3180,7 +3192,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			} else {
 				game.currentPlayerIndex = 0;
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 
 			// Trigger bot turn if first player is a bot
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -3193,7 +3205,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			game.isTestMode = !game.isTestMode;
 			log(`Test mode ${game.isTestMode ? 'ENABLED' : 'DISABLED'} for game ${gameId}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		/**
@@ -3365,7 +3377,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 				log(`Auto setup test completed for game ${gameId}. Current Phase: ${game.currentPhase}`, 'game', undefined, { simulation: (game as any).simulation });
 				clampPlayerResources(game);
-				io.to(gameId).emit('game_updated', game);
+				emitGameUpdated(io, game);
 			} finally {
 				game.isBotExecuting = false;
 			}
@@ -3391,7 +3403,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (resources.power2 !== undefined) player.power2 = resources.power2;
 			if (resources.power3 !== undefined) player.power3 = resources.power3;
 			log(`Debug: Set resources for ${player.name}: ${JSON.stringify(resources)}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('admin_set_player_state', ({ gameId, targetPlayerId, resources, adminCode }, callback) => {
@@ -3441,7 +3453,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			log(`Admin: Set player state for ${target.name}: ${JSON.stringify(resources)}`, 'game', gameId);
 			clampPlayerResources(game);
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			callback?.({ ok: true });
 		});
 
@@ -3486,7 +3498,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			captureTurnStartWithPrev(game as ServerGameState, targetPlayerId);
 			log(`Admin: set current turn to ${target.name} (index ${idx})`, 'game', gameId);
 			clampPlayerResources(game);
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			// 새 현재 플레이어가 봇이면 자동 진행
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => log(`Bot turn execution error (admin_set_current_turn): ${err}`, 'error'));
 			callback?.({ ok: true });
@@ -3506,7 +3518,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			target.federations = entries;
 			const nowGreen = entries[federationIndex].isGreen;
 			log(`Admin: toggled federation #${federationIndex} (${entries[federationIndex].rewardId}) of ${target.name} → ${nowGreen ? 'GREEN(사용가능)' : 'RED(사용됨)'}`, 'game', gameId);
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			callback?.({ ok: true, isGreen: nowGreen });
 		});
 
@@ -3586,7 +3598,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_error', { message: err });
 				return;
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('faction_bid_pass', ({ gameId }: { gameId: string }) => {
@@ -3599,7 +3611,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_error', { message: err });
 				return;
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('faction_bid_pick', ({ gameId, factionId, turnOrder }: { gameId: string; factionId: string; turnOrder: number }) => {
@@ -3612,7 +3624,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_error', { message: err });
 				return;
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
 
@@ -3639,7 +3651,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingBonusSelection = game.turnOrder[game.currentPlayerIndex];
 
 			game.currentPhase = 'bonusSelection';
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('place_starting_mine', ({ gameId, tileId, factionId }) => {
@@ -3742,7 +3754,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.pendingTwilightFederation = { playerId, shipTileId };
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true; // 우주선 액션 = 파워액션과 동일, 한 턴에 하나
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 2) {
@@ -3771,7 +3783,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					// 연구소 건설 시 6트랙+풀+우주선 기술 타일 모두 선택 가능 (동일 플로우)
 					game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 3) {
@@ -3785,7 +3797,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId);
 					// hasDoneMainAction 설정하지 않음 → 같은 턴에 광산 건설/가이아포밍 등 후 End Turn
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 			}
@@ -3805,7 +3817,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 2) {
@@ -3832,7 +3844,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					createPowerOffers(game, target, playerId);
 					addBuildingToFederationIfAdjacent(game, playerId, target.id);
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 3) {
@@ -3846,7 +3858,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId);
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 			}
@@ -3865,7 +3877,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 2) {
@@ -3883,7 +3895,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.pendingTFMarsGaiaProject = { playerId, shipTileId };
 					addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId);
 					game.hasDoneMainAction = true; // 가이아포머 배치는 후속 선택이지만 턴은 이미 소모
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 3) {
@@ -3897,7 +3909,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.usedActionBy[actionIndex] = playerId;
 					addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step, use when building)', shipTileId);
 					// 같은 턴에 광산 건설 시 테라포밍 할인 받을 수 있도록 hasDoneMainAction 설정하지 않음
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 			}
@@ -3917,7 +3929,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 2) {
@@ -3942,7 +3954,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.pendingEclipseResearch = { playerId, shipTileId };
 					addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
 					game.hasDoneMainAction = true;
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 				if (actionIndex === 3) {
@@ -3961,12 +3973,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.pendingEclipseAsteroidMine = { playerId, shipTileId };
 					addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId);
 					// hasDoneMainAction은 소행성 선택 후 eclipse_build_asteroid_mine에서 설정
-					clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
 				}
 			}
 
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 트왈라잇 인공물 가져가기 (우주선에 있는 플레이어만, 6파워 1→2→3 순 소모)
@@ -4064,7 +4076,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// TF Mars 액션2 / 보너스 타일 가이아 프로젝트: 건너뛰기 (가이아포머 없거나 배치 불가 시)
@@ -4087,7 +4099,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			clampPlayerResources(game);
-			io.to(game.id).emit('game_updated', game);
+			emitGameUpdated(io, game);
 		});
 
 		// Eclipse 액션2 취소: 자원과 사용 횟수 롤백
@@ -4117,7 +4129,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [로그 잔류 버그수정] 취소인데 "Eclipse: 2K+3P → Research (choose track)" placeholder 로그가 남던 것 제거
 			//   (자원만 수동 환불하고 로그/seq는 안 건드려, 이후 다른 액션 로그와 함께 둘 다 남던 사용자 관찰).
 			removeLastGameLogEntry(game, playerId, 'Eclipse: 2K+3P → Research');
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// Eclipse 액션3(6C 소행성) 취소: 6C 환불 + 액션 사용 롤백 (건설 가능 소행성이 없을 때 진행 불가 해소)
@@ -4139,7 +4151,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [로그 잔류 버그수정] 취소한 액션의 placeholder "Eclipse: 6C → Build mine on asteroid (select tile)" 제거
 			//   (기존엔 placeholder를 남긴 채 별도 '취소' 줄을 더해 '지었다 취소'처럼 보였음 — research 취소와 동일 처리).
 			removeLastGameLogEntry(game, playerId, 'Eclipse: 6C → Build mine on asteroid');
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// Eclipse 액션2: 선택한 연구 트랙 1칸 진행 (비용은 이미 use_ship_action에서 차감됨)
@@ -4226,7 +4238,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				return;
 			}
 			game.pendingTwilightFederation = null;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// Transdim에 가이아 포머 설치
@@ -4273,7 +4285,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.hasDoneMainAction = true;
 			addBuildingToFederationIfAdjacent(game, playerId, tileId);
 			addGameLog(game, playerId, 'Ivits: Space Station', neededQIC ? `${neededQIC} QIC (range)` : 'Placed (in Nav range)', tileId);
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 거리 5 보상 잊혀진 행성: 빈 우주(space/deep_space, 위성 없음)에 특수 광산 1개 배치. O 없음, 광산 보너스/패스/행성유형 포함, 업그레이드 불가.
@@ -4356,7 +4368,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					[playerId]: buildTurnStartStateEntryForPlayer(game as ServerGameState, playerId),
 				};
 				clampPlayerResources(game);
-				io.to(gameId).emit('game_updated', game);
+				emitGameUpdated(io, game);
 			}
 		});
 
@@ -4379,7 +4391,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 연구소/아카데미/리벨리온 획득과 동일 풀. 이 필드가 없으면 UI 미표시 + 선택 검증 거부.
 				game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 				addGameLog(game, playerId, 'Itars PI', '4 tokens → 1 Tech Tile (choose tile + track)');
-				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				clampPlayerResources(game); emitGameUpdated(io, game);
 				return;
 			}
 			player.power1 = (player.power1 || 0) + tokensRemaining;
@@ -4391,7 +4403,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`[ITARS-CHAIN] proceedAfterItars(choice) EXCEPTION: ${(e as Error)?.stack || e}`, 'error', game.id);
 				executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { /* 위에서 로깅됨 */ });
 			}
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('advance_tech', ({ gameId, trackId }) => {
@@ -4441,7 +4453,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!player || player.faction !== 'taklons') return;
 			// 전역 토글: 파워 소비 시 브레인 스톤 우선 여부
 			player.taklonsBrainPriority = !!value;
-			io.to(game.id).emit('game_updated', game);
+			emitGameUpdated(io, game);
 		});
 
 		socket.on('use_power_action', ({ gameId, actionId }) => {
@@ -4500,7 +4512,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			pushFreeActionUndoSnapshot(game);
 
 			if (executeBurnPower(game, playerId, moveBrainToBowl3)) {
-				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				clampPlayerResources(game); emitGameUpdated(io, game);
 			}
 		});
 
@@ -4627,7 +4639,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 				game.pendingAdvancedTechCover = { playerId, advancedTileId };
 			}
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 고급 타일로 덮을 일반 타일 선택 확정 → 연방 1개 소모, 덮기, 고급 타일 추가, 즉시 효과, 트랙 1칸 선택 대기
@@ -4655,7 +4667,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingAdvancedTechCover = null;
 			game.availableShipTechTileIds = undefined;
 			game.pendingAdvancedTechTrackAdvance = { playerId };
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 즉발 효과를 적용하고 '한 줄에 합칠' 설명 문자열을 반환(별도 'Tech Tile Effect' 로그 제거 — 사용자 요청)
@@ -4771,7 +4783,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			game.pendingTechTileSelection = null; game.availableShipTechTileIds = undefined;
-				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
@@ -4801,7 +4813,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Tinkeroid Special', `Selected ${specialId} for Round ${game.roundNumber}`);
 			log(`Player ${player.name} (Tinkeroids) selected special ${specialId} for round ${game.roundNumber}`, 'game', undefined, { simulation: (game as any).simulation });
 
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 
 			// 팅커로이드 선택이 수익 단계 마지막 단계이므로, 액션 단계로 전환 (내부에서 executeBotTurnIfNeeded 호출)
 			helperStartNewRoundTurn(io, game);
@@ -4842,7 +4854,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingTinkeroidSpecialChoice = null;
 			addGameLog(game, playerId, 'Tinkeroid: Round Special', `Round ${game.roundNumber}: ${actionId}`, undefined);
 			log(`Tinkeroid: ${player.name} chose special for round ${game.roundNumber}: ${actionId}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			// 팅커로이드 선택이 수익 단계 마지막 단계이므로, 여기서 액션 단계로 전환
 			helperStartNewRoundTurn(io, game);
 		});
@@ -4871,7 +4883,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.hasDoneMainAction = true;
 			addGameLog(game, playerId, 'Ambas: Special', 'PI ↔ Mine 위치 교체', mineTileId);
 			log(`Player ${player.name} (Ambas) swapped PI with Mine`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 매안(Bescods) Special: 가장 낮은 트랙 중 하나 +1 (라운드당 1회, 비용 없음)
@@ -4905,7 +4917,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			applyAdvancedTechTileEffect(game, playerId, 'research');
 			log(`Player ${player.name} (Bescods) advanced lowest track ${trackId} to Lv.${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 모웨이드(Moweyip) Special: 의회 보유 시 링 놓기 — 본인 건물 중 링 없는 것 하나에 링 배치 (+2 파워 수신/연방)
@@ -4929,7 +4941,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.hasDoneMainAction = true;
 			addGameLog(game, playerId, 'Moweyip: Special', `링 놓기 → ${tile.structure} (+2 파워)`, tileId);
 			log(`Player ${player.name} (Moweyip) placed ring on ${tile.structure}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		/** 우주선 연방 보상 무료광산 배치 포기 — 지을 곳이 없을 때(광산 8개 한도·빈 행성 없음) 배치도 턴종료도
@@ -4940,14 +4952,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.pendingSpaceshipFedMine?.playerId !== playerId) return;
 			game.pendingSpaceshipFedMine = null;
 			addGameLog(game, playerId, 'Spaceship Fed', '무료 광산 배치 포기');
-			io.to(gameId).emit('game_updated', game);
+			emitGameUpdated(io, game);
 		});
 
 		// 파이락(Firaks) Special: 의회 보유 시 연구소 1개→교역소 다운그레이드 + 아무 트랙 1칸 (라운드당 1회)
 		socket.on('firaks_downgrade', ({ gameId, tileId, trackId }: { gameId: string; tileId: string; trackId: ResearchTrack }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); io.to(gameId).emit('game_updated', game); }
+			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); emitGameUpdated(io, game); }
 		});
 
 		// ---------- 연방 구현 ----------
@@ -4973,7 +4985,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				game.federationMode = { playerId, selectedHexIds: [], selectedPlanetIds: [], selectedSpaceStationHexIds: [], toggleSeq: 0 };
 				game.federationPreview = computeFederationPreview(game, playerId);
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('federation_toggle_hex', ({ gameId, tileId }) => {
@@ -5046,7 +5058,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.federationPreview = computeFederationPreview(game, playerId);
 			// [낙관적 동기화] 토글 시퀀스 증가 → 클라가 자기 낙관 토글 수와 비교해 옛(stale) 패킷을 무시(rubber-banding 방지).
 			if (game.federationMode) game.federationMode.toggleSeq = (game.federationMode.toggleSeq ?? 0) + 1;
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('federation_complete', ({ gameId, force }: { gameId: string; force?: boolean }) => {
@@ -5161,7 +5173,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				? `Formed federation (${power} power${numEmpty > 0 ? `, ${numEmpty} QIC` : ''})`
 				: `Formed federation (${numEmpty} satellites, ${power} power)`;
 			addGameLog(game, playerId, 'Federation', fedDetail);
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('federation_select_reward', ({ gameId, rewardId }) => {
@@ -5286,7 +5298,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		// 게임 시작 시 모든 라운드 미션을 미리 랜덤 선택
@@ -5388,7 +5400,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
 			if (manualOfferCount > 0) {
 				game.pendingTurnEndPlayerId = endingPlayerId;
-				clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+				clampPlayerResources(game); emitGameUpdated(io, game);
 				return;
 			}
 
@@ -5432,7 +5444,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingIncomeOrder.incomeItems = game.pendingIncomeOrder.incomeItems.filter(i => i.id !== itemId);
 
 			log(`Player ${player.name} selected income: ${item.amount} ${item.type}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		/** 수익 항목 전부 한 번에 받기: 파워는 1그릇 추가 후 charge(amount), 토큰은 1그릇에만 추가. 적용 직전마다 스냅샷 저장 → Undo 시 복원 */
@@ -5473,7 +5485,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingIncomeOrder.appliedItems.push(...applied);
 			game.pendingIncomeOrder.incomeItems = [];
 			log(`Player ${player.name} auto-received all income (Optimal Order): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('undo_income_item', ({ gameId }) => {
@@ -5495,7 +5507,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingIncomeOrder.incomeItems.push(lastItem);
 
 			log(`Player ${player.name} undone income: ${lastItem.amount} ${lastItem.type}`, 'game', undefined, { simulation: (game as any).simulation });
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		/** 테란 의회: 가이아포머 토큰 수만큼 해택 선택 (4→QIC/K, 3→O, 1→C). 소비한 토큰만큼 2그릇에서 차감 */
@@ -5527,7 +5539,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				game.terranCouncilQueue = [];
 				finishAfterGaiaformerPhase(game);
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
 		socket.on('finish_income_selection', ({ gameId }) => {
@@ -5557,7 +5569,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingIncomeOrder = null;
 
 			// 게임 상태 먼저 업데이트
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 
 			// 수익 선택이 필요한 다음 플레이어(턴 순서)만 찾아서 대기시킴 (수익 재적용 없음)
 			setTimeout(() => triggerIncomePhase(game), 100);
@@ -5608,7 +5620,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
 				return;
 			}
-			clampPlayerResources(game); io.to(gameId).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 				log(`Bot turn execution error (accept_all_power_offers): ${err}`, 'error');
@@ -5659,12 +5671,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 					game.hasDoneMainAction = false;
 					game.pendingTwilightFederation = null;
 					clampPlayerResources(game);
-					io.to(gameId).emit('game_updated', game);
+					emitGameUpdated(io, game);
 				}
 			} else {
 				game.pendingTwilightFederation = null;
 				clampPlayerResources(game);
-				io.to(gameId).emit('game_updated', game);
+				emitGameUpdated(io, game);
 			}
 		});
 
@@ -5793,7 +5805,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			// Mine case: defer (keep remaining) and resume via resumeItarsExchangeChain after mine+track complete.
 			if (game.pendingShipTechMine?.playerId === playerId) {
 				(game as any).itarsExchangeResumeAfterShipMine = true;
-				clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+				clampPlayerResources(game); emitGameUpdated(io, game);
 				return;
 			}
 			game.itarsGaiaformerRemainingAfterTech = undefined;
@@ -5811,7 +5823,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 				}
 			}
 		}
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return;
 	}
 
@@ -5954,7 +5966,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 
 	game.pendingTechTileSelection = null;
 	game.availableShipTechTileIds = undefined;
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 }
 
 /** Bot/서버 공용: 고급 기술 타일 선택 (track 4–5 사이 또는 extra tile). */
@@ -5996,7 +6008,7 @@ export function executeSelectAdvancedTechTile(
 		// 안 비우면 botHandler가 pendingTechTileSelection을 계속 감지해 무한 재선택(게임 hang).
 		game.pendingTechTileSelection = null;
 		game.availableShipTechTileIds = undefined;
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -6067,7 +6079,7 @@ export function executeCoverAdvancedTechTile(
 	game.pendingAdvancedTechCover = null;
 	game.availableShipTechTileIds = undefined;
 	game.pendingAdvancedTechTrackAdvance = { playerId };
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -6128,7 +6140,7 @@ export function executePlaceLostPlanet(io: SocketIOServer, game: ServerGameState
 	createPowerOffers(game, tile, playerId);
 	addBuildingToFederationIfAdjacent(game, playerId, tileId);
 	applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeLostPlanet);
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -6251,7 +6263,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBefore);
 		game.hasDoneMainAction = true;
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -6317,7 +6329,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		clearFreeMineFlags();
 		game.hasDoneMainAction = true;
 		log(`Player ${player.name} built parasitic mine on ${tileId}`, 'game', undefined, { simulation: (game as any).simulation });
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -6409,7 +6421,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBeforeAsteroid);
 		clearFreeMineFlags();
 		game.hasDoneMainAction = true;
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -6577,7 +6589,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 	clearFreeMineFlags();
 	game.hasDoneMainAction = true;
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -6610,7 +6622,7 @@ export function executeUpgradeStructure(
 		applyAdvancedTechTileEffect(game, playerId, 'build_ts');
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	} else if (tile.structure === 'trading_station' && target === 'research_lab') {
 		if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return false;
@@ -6622,7 +6634,7 @@ export function executeUpgradeStructure(
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'research_lab' };
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	} else if (tile.structure === 'trading_station' && target === 'planetary_institute') {
 		if (player.faction === 'bescods') return false;
@@ -6650,7 +6662,7 @@ export function executeUpgradeStructure(
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	} else if (tile.structure === 'research_lab' && target === 'planetary_institute' && player.faction === 'bescods') {
 		if (getStructureCount(game, playerId, 'planetary_institute') >= BUILDING_LIMITS.planetary_institute) return false;
@@ -6660,7 +6672,7 @@ export function executeUpgradeStructure(
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	} else if (tile.structure === 'trading_station' && (target === 'academy_left' || target === 'academy_right') && player.faction === 'bescods') {
 		const academyTotal = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length;
@@ -6680,7 +6692,7 @@ export function executeUpgradeStructure(
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'academy' };
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	} else if (tile.structure === 'research_lab' && (target === 'academy_left' || target === 'academy_right')) {
 		if (player.faction === 'bescods') return false;
@@ -6701,7 +6713,7 @@ export function executeUpgradeStructure(
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
 		game.pendingTechTileSelection = { playerId, tileId, structureType: 'academy' };
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -6906,7 +6918,7 @@ export function executeSelectFaction(
 	}
 
 	log(`Player ${player.name} selected faction ${factionId}. State: ${JSON.stringify(player)}`, 'game', undefined, { simulation: (game as any).simulation });
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 
 	if (!options?.skipBotTrigger) {
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -6957,7 +6969,7 @@ export function executePlaceStartingMine(
 
 	if (playerId !== expectedPlayerId) {
 		log(`Wait for turn! Expected ${expectedPlayerId}, but got ${playerId}`, 'game', undefined, { simulation: (game as any).simulation });
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return `지금은 다른 플레이어의 차례입니다.`;
 	}
 
@@ -6995,7 +7007,7 @@ export function executePlaceStartingMine(
 		game.currentPlayerIndex = game.turnOrder.indexOf(nextPlayerId);
 	}
 
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (PlaceStartingMine): ${err}`, 'error');
@@ -7046,7 +7058,7 @@ export function executeSelectBonus(
 		game.pendingBonusSelection = game.turnOrder[game.currentPlayerIndex];
 	}
 
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 
 	// 보너스 선택이 완료되고 수익 단계로 진입하는 경우: helperStartNewRoundTurn에서 executeBotTurnIfNeeded를 호출하므로 여기서는 호출하지 않음
 	// 다음 보너스 선택 플레이어로 넘어가는 경우에만 호출
@@ -7154,7 +7166,7 @@ export function executeAdvanceTech(
 			return true;
 		}
 
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -7172,7 +7184,7 @@ export function executeAdvanceTech(
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
 		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -7196,7 +7208,7 @@ export function executeAdvanceTech(
 	applyRoundMissionScore(game, playerId, 'research_track');
 	applyAdvancedTechTileEffect(game, playerId, 'research');
 	game.hasDoneMainAction = true;
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -7356,7 +7368,7 @@ export function executePassRound(
 			game.currentPhase = 'gameEnd';
 			saveFinalGameState(game);
 			flushGameData(game);
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 
@@ -7377,7 +7389,7 @@ export function executePassRound(
 			captureTurnStartWithPrev(game as ServerGameState, nextId);
 		}
 
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 
 		// 6라운드에서도 사람이 패스한 후 다음 플레이어가 봇이면 자동 실행될 수 있도록 트리거 추가
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -7560,7 +7572,7 @@ export function executePassRound(
 			captureTurnStartWithPrev(game as ServerGameState, newCurrentId);
 		}
 
-		clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+		clampPlayerResources(game); emitGameUpdated(io, game);
 
 		// Trigger bot turn if next player is a bot
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
@@ -7674,7 +7686,7 @@ export function executeUsePowerAction(
 	action.usedByPlayerName = player.name ?? playerId;
 	game.hasDoneMainAction = true; // Bot version also marks main action done
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -7721,7 +7733,7 @@ export function executeUseTechAction(
 	}
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -7816,7 +7828,7 @@ export function executeUseSpecialAction(
 
 	if (!applied) return false;
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -7865,7 +7877,7 @@ export function executeUseBonusAction(
 			break;
 	}
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -7905,7 +7917,7 @@ export function executePlaceIvitsSpaceStation(
 	addBuildingToFederationIfAdjacent(game, playerId, tileId);
 	addGameLog(game, playerId, 'Ivits: Space Station (Bot)', neededQIC ? `${neededQIC} QIC (range)` : 'Placed', tileId);
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -7982,7 +7994,7 @@ export function executeEclipseBuildAsteroidMine(io: SocketIOServer, game: Server
 	addBuildingToFederationIfAdjacent(game, playerId, tileId);
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8016,7 +8028,7 @@ export function executeUseShipAction(
 			// 우주선 첫 칸은 QIC 소모 액션 → adv-vp-qic-action(+4VP/QIC액션) 트리거 (누락 버그 수정, 사용자 관찰)
 			applyAdvancedTechTileEffect(game, playerId, 'qic_action');
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 2) {
@@ -8052,7 +8064,7 @@ export function executeUseShipAction(
 			game.pendingTechTileSelection = { playerId, tileId: targetTileId, structureType: 'research_lab' };
 			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 3) {
@@ -8064,7 +8076,7 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId);
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		return false;
@@ -8084,7 +8096,7 @@ export function executeUseShipAction(
 			addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
 			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 2) {
@@ -8119,7 +8131,7 @@ export function executeUseShipAction(
 			createPowerOffers(game, target, playerId);
 			addBuildingToFederationIfAdjacent(game, playerId, target.id);
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 3) {
@@ -8133,7 +8145,7 @@ export function executeUseShipAction(
 			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId);
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		return false;
@@ -8153,7 +8165,7 @@ export function executeUseShipAction(
 			addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
 			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 2) {
@@ -8168,7 +8180,7 @@ export function executeUseShipAction(
 			game.pendingTFMarsGaiaProject = { playerId, shipTileId };
 			addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId);
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 3) {
@@ -8180,7 +8192,7 @@ export function executeUseShipAction(
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
 			addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step)', shipTileId);
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		return false;
@@ -8201,7 +8213,7 @@ export function executeUseShipAction(
 			addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
 			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 2) {
@@ -8225,7 +8237,7 @@ export function executeUseShipAction(
 			game.pendingEclipseResearch = { playerId, shipTileId };
 			addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
 			game.hasDoneMainAction = true;
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		if (actionIndex === 3) {
@@ -8239,7 +8251,7 @@ export function executeUseShipAction(
 			shipState.usedActionBy[actionIndex] = playerId;
 			game.pendingEclipseAsteroidMine = { playerId, shipTileId };
 			addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId);
-			clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
 		return false;
@@ -8262,7 +8274,7 @@ export function executeBotIncomeSelection(
 		delete (player as any).pendingIncomeItems;
 		game.pendingIncomeOrder = null;
 		clampPlayerResources(game);
-		io.to(game.id).emit('game_updated', game);
+		emitGameUpdated(io, game);
 		setTimeout(() => helperTriggerIncomePhase(io, game), 100);
 		return true;
 	}
@@ -8283,7 +8295,7 @@ export function executeBotIncomeSelection(
 	log(`Bot ${player.name} auto-received all income: ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 	game.pendingIncomeOrder = null;
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	setTimeout(() => helperTriggerIncomePhase(io, game), 100);
 	return true;
 }
@@ -8318,7 +8330,7 @@ export function executeEndTurn(
 	if (manualOfferCount > 0) {
 		game.pendingTurnEndPlayerId = endingPlayerId;
 		clampPlayerResources(game);
-		io.to(game.id).emit('game_updated', game);
+		emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -8382,7 +8394,7 @@ export function executeBotSelectTechTile(
 			log(`Bot ${player.name} gained tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 			_clearPendingTech();
 			clampPlayerResources(game);
-			io.to(game.id).emit('game_updated', game);
+			emitGameUpdated(io, game);
 			return true;
 		}
 	}
@@ -8412,7 +8424,7 @@ export function executeBotSelectTechTile(
 				log(`Bot ${player.name} gained pool tech tile ${techTileId} and advanced ${track} to level ${newLevel}`, 'game', undefined, { simulation: (game as any).simulation });
 				_clearPendingTech();
 				clampPlayerResources(game);
-				io.to(game.id).emit('game_updated', game);
+				emitGameUpdated(io, game);
 				return true;
 			}
 		}
@@ -8422,7 +8434,7 @@ export function executeBotSelectTechTile(
 	log(`Bot ${player.name} could not find valid tech tile selection, clearing pending state`, 'game', undefined, { simulation: (game as any).simulation });
 	_clearPendingTech();
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8453,7 +8465,7 @@ export function executeBotTinkeroidSpecial(
 
 	game.hasDoneMainAction = false; // 보너스 선택만 일어난 경우 메인 액션 소모 방지
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	// 봇 전용: 보너스 픽업 완료 후 턴오더 강제 리셋을 방지하기 위해 여기선 return만 처리
 	// (botHandler가 알아서 이어서 메인턴 실행함)
 	return true;
@@ -8496,7 +8508,7 @@ export function executeBotTerranCouncilBenefit(
 	}
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8539,7 +8551,7 @@ export function executeBotBescodsAdvanceLowestTrack(
 	game.hasDoneMainAction = true;
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8569,7 +8581,7 @@ export function executeBotAmbasSwapPiMine(
 	addGameLog(game, playerId, 'Ambas: Special', 'PI ↔ Mine 위치 교체', mineTileId);
 	log(`Bot ${player.name} (Ambas) swapped PI with Mine (${mineTileId})`, 'game', undefined, { simulation: (game as any).simulation });
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8611,7 +8623,7 @@ export function executeBotMoweyipPlaceRing(
 	log(`Bot ${player.name} (Moweyip) placed ring on ${targetTile.structure} @ ${targetTile.id}`, 'game', undefined, { simulation: (game as any).simulation });
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8636,7 +8648,7 @@ export function executeBotItarsGaiaformerExchange(
 		game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 		addGameLog(game, playerId, 'Bot: Itars PI', '4 tokens → Tech Tile exchange');
 		clampPlayerResources(game);
-		io.to(game.id).emit('game_updated', game);
+		emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -8646,7 +8658,7 @@ export function executeBotItarsGaiaformerExchange(
 	helperProceedAfterItarsGaiaformerOrTerran(io, game);
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8711,7 +8723,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 	}
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 
 	executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 		log(`Bot turn execution error (respond_power_offer): ${err}`, 'error');
@@ -8830,7 +8842,7 @@ export function executeBotFederation(
 	applyRoundMissionScore(game, playerId, 'federation');
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8852,7 +8864,7 @@ export function executeBalTakGaiaformerToQic(
 	addGameLog(game, playerId, "Bal T'aks: 1 Gaiaformer → 1 QIC", undefined, undefined);
 	log(`Player ${player.name} (Bal T'aks) used 1 Gaiaformer for 1 QIC (locked until next round)`, 'game', undefined, { simulation: (game as any).simulation });
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -8875,7 +8887,7 @@ export function executeUseHadschHallasPIAction(io: SocketIOServer, game: ServerG
 	else if (actionId === 'hh-3c-1o') player.ore = (player.ore ?? 0) + 1;
 	else return false;
 	addGameLog(game, playerId, 'Hadsch Hallas PI', action.label, undefined);
-	clampPlayerResources(game); io.to(game.id).emit('game_updated', game);
+	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
 
@@ -9013,7 +9025,7 @@ export function executeConvertResource(
 	if (success) {
 		addGameLog(game, playerId, 'Free Actions', logDesc, undefined);
 		clampPlayerResources(game);
-		io.to(game.id).emit('game_updated', game);
+		emitGameUpdated(io, game);
 		return true;
 	}
 
@@ -9149,7 +9161,7 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 
 	game.hasDoneMainAction = true;
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return null;
 }
 
@@ -9245,7 +9257,7 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	}
 
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -9264,7 +9276,7 @@ export function executeSkipTfmarsGaiaProject(io: SocketIOServer, game: ServerGam
 		game.hasDoneMainAction = true;
 	}
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -9381,7 +9393,7 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		if (p.knowledge != null && p.knowledge > 15) p.knowledge = 15;
 		if (p.credits != null && p.credits > 30) p.credits = 30;
 	}
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }
 
@@ -9460,6 +9472,6 @@ export function executeConfirmTwilightFederation(
 
 	game.pendingTwilightFederation = null;
 	clampPlayerResources(game);
-	io.to(game.id).emit('game_updated', game);
+	emitGameUpdated(io, game);
 	return true;
 }

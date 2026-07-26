@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -384,6 +384,24 @@ export default function Game() {
   const isHostSessionRef = useRef(
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
   );
+  // [대역폭 2026-07-26] 서버가 game_updated엔 gameLog 꼬리(40개)+인덱스만 보냄 → 여기서 병합·보관.
+  // 전체 로그는 입장/재접속 콜백(full 페이로드)이 시드 — 늦게 들어와도/재접해도 처음부터 다 보임.
+  const gameLogArchiveRef = useRef<{ gameId: string | null; log: NonNullable<GameState['gameLog']> }>({ gameId: null, log: [] });
+  const mergeGameLog = useCallback((g: any) => {
+    if (!g || !Array.isArray(g.gameLog)) return;
+    const arch = gameLogArchiveRef.current;
+    if (arch.gameId !== g.id) { arch.gameId = g.id; arch.log = []; } // 다른 게임으로 이동 시 리셋
+    if (typeof g.gameLogStart === 'number') {
+      if (arch.log.length >= g.gameLogStart) {
+        arch.log = [...arch.log.slice(0, g.gameLogStart), ...g.gameLog];
+      } else {
+        arch.log = [...arch.log, ...g.gameLog]; // 갭(이론상 재접속 full fetch가 선행) — 꼬리라도 반영
+      }
+      g.gameLog = arch.log;
+    } else {
+      arch.log = g.gameLog; // full 페이로드(입장/재접속/get_game) → 아카이브 시드
+    }
+  }, []);
   const [isResearchPinned, setIsResearchPinned] = useState(
     gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) === 'true' : false
   );
@@ -657,6 +675,7 @@ export default function Game() {
         if (storedPlayerId) {
           try {
             const { game: gameData } = await GameClient.rejoinGame(gameId, storedPlayerId);
+            mergeGameLog(gameData);
             setGame(gameData);
             setLoading(false);
             return;
@@ -667,6 +686,7 @@ export default function Game() {
         if (storedSpectatorId) {
           try {
             const { game: gameData } = await GameClient.rejoinGame(gameId, storedSpectatorId);
+            mergeGameLog(gameData);
             setGame(gameData);
             setPlayerId(null);
             setIsSpectator(true);
@@ -678,6 +698,7 @@ export default function Game() {
         }
 
         const { game: gameData } = await GameClient.getGame(gameId);
+        mergeGameLog(gameData);
         setGame(gameData);
         if (storedSpectatorId) {
           setPlayerId(null);
@@ -722,6 +743,7 @@ export default function Game() {
       // 단조 기준선 갱신: 새 컨텍스트(카운트 0, 턴 전환/메인액션 후)면 0으로 리셋, 아니면 최고치 유지.
       if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
       else GameClient.noteAppliedServerFreeCount(serverFreeCount);
+      mergeGameLog(updatedGame);
       setGame(updatedGame);
       // 자동 전환은 useEffect(game?.turnOrder, currentPlayerIndex)에서 처리
       // 메인 액션을 이미 한 상태면 추가 액션 선택 불가 → 대기 중인 선택 초기화
@@ -1460,7 +1482,7 @@ export default function Game() {
         onAddPlayer={playerId === game.hostId ? async (playerName) => {
           if (!gameId) return;
           const res = await GameClient.hostAddPlayer(gameId, playerName);
-          setGame(res.game);
+          mergeGameLog(res.game); setGame(res.game);
         } : undefined}
         onAddBot={playerId === game.hostId ? async (botName) => {
           if (!gameId) return;
