@@ -3988,10 +3988,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
 				addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, art.id);
 			} else if (art.id === 'art-vp-planet-types') {
-				const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
-				const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
-				if (player.virtualMineAsteroid) types.add('asteroid');
-				if (player.virtualMineProto) types.add('proto');
+				// [버그수정 2026-07-26, 사용자 관찰] naive tile.type 카운트는 잊혀진 행성(space 타일 위 lost_planet_mine)을
+				// 놓쳐 상태창(정본 fm_planet_types와 동일 규칙)보다 1 적게 정산 — 3889행에서 이미 고친 것과 동일 부류.
+				// 정본 헬퍼로 통일(lost_planet·가상광산 포함, 란티다 기생 제외).
+				const types = getPlayerPlanetTypesForGeodens(game, playerId);
 				const vp = 3 + types.size;
 				addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
 				addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);
