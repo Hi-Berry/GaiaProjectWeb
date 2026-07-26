@@ -106,6 +106,15 @@ export interface ServerGameState extends GaiaGameState {
 
 const games = new Map<string, ServerGameState>();
 
+/** [대역폭 2026-07-26, 사용자: 하루 10GB] game_updated가 액션마다 게임 전체(893KB)를 방 전원에 emit —
+ *  그중 730KB가 클라 미사용 서버 전용(turnStartState 등, 플레이어별 맵 스냅샷). non-enumerable로 만들어
+ *  코드 접근은 그대로 두고 JSON 직렬화(socket emit·파일 저장)에서만 자동 제외. 재할당해도 유지됨. */
+function hideHeavyServerFields(game: any) {
+	for (const k of ['turnStartState', 'prevTurnStartState', 'humanActionJournal', 'fullGameLog']) {
+		Object.defineProperty(game, k, { value: game[k], writable: true, configurable: true, enumerable: false });
+	}
+}
+
 /** [의회 pending 가드 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 타일/혜택 선택)이 진행 중이면
  *  라운드 첫 액션이 열려도 모든 메인 액션을 보류 — 파워 수락 대기와 동일한 순서 보장. */
 function councilPendingActive(game: GaiaGameState): boolean {
@@ -2854,6 +2863,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			shipTypes.forEach((shipType, i) => { game.spaceshipFederationByShip![shipType] = shuffledShipFed[i].id; });
 			game.satellites = {};
 
+			hideHeavyServerFields(game);
 			games.set(gameId, game);
 			game.hostSocketId = socket.id;
 			playerGameMap.set(playerId, gameId);
@@ -3540,6 +3550,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 진행 중이던 봇 루프 무효화: 옛 game 객체에 취소 플래그 + 락 해제 → 옛 루프 정지, 새 게임에서 재시작
 			(game as any).botCanceled = true;
 			cancelBotExecution(gameId);
+			hideHeavyServerFields(restored);
 			games.set(gameId, restored);
 			clampPlayerResources(restored);
 			log(`Admin: rolled back turn for ${restored.players[playerId]?.name ?? playerId}`, 'game', gameId);
@@ -4324,6 +4335,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
 				};
 
+				hideHeavyServerFields(restored);
 				games.set(gameId, restored);
 
 				clampPlayerResources(restored);
@@ -4569,6 +4581,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
+				hideHeavyServerFields(restoredGame);
 				games.set(gameId, restoredGame);
 				const player = restoredGame.players[playerId];
 				log(`Player ${player?.name} undone free actions (${popCount} step)`, 'game', undefined, { simulation: (game as any).simulation });
@@ -5630,6 +5643,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					restored.turnStartState = {
 						[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
 					};
+					hideHeavyServerFields(restored);
 					games.set(gameId, restored);
 					clampPlayerResources(restored);
 					io.to(gameId).emit('game_updated', restored);
