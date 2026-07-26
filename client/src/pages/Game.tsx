@@ -4443,7 +4443,7 @@ export default function Game() {
                     }
                     return 0; // 둘 다 플레이 중 → turnOrder 순서 유지
                   })
-              ).map((id) => {
+              ).map((id, cardIdx) => {
                 const p = game.players[id] as PlayerState | undefined;
                 if (!p) return null;
                 const fedEntries = getFederationEntries(p);
@@ -4695,7 +4695,9 @@ export default function Game() {
                                     title="클릭: 보드 표시 색 변경 (건물·위성·잊혀진 행성)"
                                   />
                                   {colorPickerFor === id && (
-                                    <div className="absolute z-50 top-4 left-0 p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40" onClick={(e) => e.stopPropagation()}>
+                                    // [2026-07-26 사용자] 아래쪽 카드(3·4번째)는 피커가 아래로 열리면 로그창(다른 스택)에 가려
+                                    // '기본색으로' 클릭 불가 → 하단 카드는 위로 열어 상태창 안에서 해결(z 전쟁 회피)
+                                    <div className={`absolute z-50 left-0 p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40 ${cardIdx >= 2 ? 'bottom-4' : 'top-4'}`} onClick={(e) => e.stopPropagation()}>
                                       <div className="text-[10px] text-zinc-400 mb-1.5">보드 표시 색 (나에게만 적용)</div>
                                       <div className="grid grid-cols-6 gap-1 mb-1.5">
                                         {OVERRIDE_COLORS.map((c) => (
