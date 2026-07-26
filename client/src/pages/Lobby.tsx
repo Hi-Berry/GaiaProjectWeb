@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -74,27 +74,35 @@ export default function Lobby() {
     };
   }, []);
 
-  const fetchGames = useCallback(async () => {
+  // [UX] 5초 폴링이 매번 스피너+리렌더를 유발해 정신 사나움 → 백그라운드 갱신은 ①로딩표시 없음
+  // ②내용이 실제로 바뀌었을 때만 setGames(JSON 비교) — 안 바뀌면 화면 그대로.
+  const lastGamesJsonRef = useRef<string>('');
+  const fetchGames = useCallback(async (background = false) => {
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       const data = await GameClient.listGames();
-      setGames(data.games || []);
+      const next = data.games || [];
+      const json = JSON.stringify(next);
+      if (json !== lastGamesJsonRef.current) {
+        lastGamesJsonRef.current = json;
+        setGames(next);
+      }
     } catch (error) {
       console.error('Failed to fetch games:', error);
-      toast({
+      if (!background) toast({
         title: 'Connection Error',
         description: 'Could not connect to game server.',
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
     if (!connected) return;
 
-    const interval = setInterval(fetchGames, 5000);
+    const interval = setInterval(() => fetchGames(true), 5000);
     return () => clearInterval(interval);
   }, [connected, fetchGames]);
 
