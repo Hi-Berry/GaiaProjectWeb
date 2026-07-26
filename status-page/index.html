@@ -31,7 +31,7 @@
 <div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 초록 서버에서 플레이하세요 — 사람 대전 상대는 사람 많은 곳으로!</div>
 <div class="banner" id="banner"></div>
 <div class="grid" id="grid"></div>
-<div class="foot">30초마다 자동 갱신 · 응답 없음은 서버가 잠자는 중(첫 접속 시 ~1분 내 깨어남)이거나 이번 달 용량 소진</div>
+<div class="foot">30초마다 자동 갱신 · 응답 없음 = 이번 달 무료 용량 소진</div>
 <script>
 // ★ 여기에 운영 중인 인스턴스를 추가/수정하세요 (이름, 주소)
 const INSTANCES = [
@@ -61,17 +61,17 @@ function render(list){
     const cls = x.state==='up'?'up':x.state==='wait'?'wait':'down';
     const meta = x.state==='up'
       ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명` + (best&&x.url===best.url&&x.humans>0?' · 🔥 사람 대전은 여기!':'')
-      : x.state==='wait' ? '확인 중…' : '응답 없음 — 용량 소진 또는 잠자는 중 (클릭해 깨우기 가능)';
+      : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
     const dis = x.state==='down' ? '' : '';
     return `<div class="card ${best&&x.url===best.url?'best':''}">
       <div class="dot ${cls}"></div>
       <div class="info"><div class="name">${x.name}</div><div class="meta">${meta}</div></div>
-      <a class="go" href="${x.url}" target="_blank" rel="noopener">${x.state==='up'?'플레이':'열어보기'}</a>
+      <a class="go" href="${x.url}" target="_blank" rel="noopener">${x.state==='up'?'플레이':'접속 시도'}</a>
     </div>`;
   }).join('');
   const b = document.getElementById('banner');
   if(best){ b.style.display='block'; b.innerHTML = `👉 지금 플레이 추천: <b>${best.name}</b>` + (best.humans>0?` — 사람 ${best.humans}명 접속 중, AI 봇 말고 사람 대전 가능!`:' (AI 봇 대전 가능)'); }
-  else { b.style.display='block'; b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 아래 버튼으로 깨워보거나 잠시 후 새로고침 하세요.'; }
+  else { b.style.display='block'; b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 잠시 후 새로고침 해보세요.'; }
 }
 
 async function tick(){
