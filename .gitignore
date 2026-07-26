@@ -20,3 +20,4 @@ data/valuenet-data.jsonl
 !.claude/skills/gaia-ai-lab/
 # Supabase 서비스 키 (fetch-supabase-games.bat용) — 절대 커밋 금지
 scripts/supabase-key.txt
+.render-hooks
