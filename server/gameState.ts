@@ -1,3 +1,4 @@
+import zlib from 'zlib';
 import { Server as SocketIOServer } from 'socket.io';
 import { setActiveEvaluatorWeights, getActiveEvaluatorWeights, type EvaluatorWeights } from './ai/evaluator';
 import { MCTS } from './ai/mcts';
@@ -110,11 +111,24 @@ const games = new Map<string, ServerGameState>();
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
 const GAME_LOG_TAIL = 40;
+const _emitStats: Record<string, { n: number; raw: number; gz: number }> = {};
 export function emitGameUpdated(io: any, game: any) {
 	const logArr = game.gameLog || [];
 	const payload = logArr.length > GAME_LOG_TAIL
 		? { ...game, gameLog: logArr.slice(-GAME_LOG_TAIL), gameLogStart: logArr.length - GAME_LOG_TAIL, gameLogLen: logArr.length }
 		: { ...game, gameLogStart: 0, gameLogLen: logArr.length };
+	// [계측, EMIT_BYTES=1일 때만] 게임당 emit 바이트 실측(원본+deflate 근사 — 실제 스트림 압축은 이보다 유리)
+	if (process.env.EMIT_BYTES) {
+		try {
+			const s = JSON.stringify(payload);
+			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0 });
+			st.n++; st.raw += s.length; st.gz += zlib.deflateRawSync(Buffer.from(s)).length;
+			if (game.currentPhase === 'gameEnd') {
+				fs.appendFileSync('data/emit-bytes.log', JSON.stringify({ id: game.id, ...st }) + '\n');
+				delete _emitStats[game.id];
+			}
+		} catch { /* 계측 실패 무시 */ }
+	}
 	io.to(game.id).emit('game_updated', payload);
 }
 
