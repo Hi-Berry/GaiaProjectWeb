@@ -105,6 +105,17 @@ export interface ServerGameState extends GaiaGameState {
 
 
 const games = new Map<string, ServerGameState>();
+
+/** [상태 대시보드] 외부 status 페이지(Netlify)가 CORS로 조회하는 공개 요약 — 개인정보/게임내용 없음 */
+export function getPublicStatus() {
+	let humanPlayers = 0, activeGames = 0;
+	for (const g of Array.from(games.values())) {
+		if ((g as any).simulation || g.currentPhase === 'gameEnd') continue;
+		activeGames++;
+		humanPlayers += Math.max(0, Object.keys(g.players || {}).length - ((g as any).botPlayerIds?.length || 0));
+	}
+	return { ok: true, activeGames, humanPlayers, ts: Date.now() };
+}
 /** [사람 우선 스로틀 2026-07-20] 사람이 참여한 진행 중 게임이 (지정 게임 외에) 존재하는가 —
  *  봇 전용 방의 MCTS가 이벤트 루프를 점유해 사람 방이 렉 걸리는 문제(사용자)의 판별용. */
 export function hasActiveHumanGame(exceptGameId?: string): boolean {
