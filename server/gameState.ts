@@ -2704,6 +2704,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					maxPlayers: g.maxPlayers,
 					phase: g.currentPhase,
 					roundNumber: g.roundNumber ?? 0,
+					botCount: g.botPlayerIds?.length ?? 0,
 					createdAt: g.createdAt ?? 0,
 					players: playerEntries,
 					hostName: g.players[g.hostId]?.name ?? null,
@@ -3086,12 +3087,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// 방 삭제: 시작 전(로비) 상태에서 방장만. 방 안의 모두를 로비로 내보내고 게임을 메모리에서 제거.
-		socket.on('delete_game', ({ gameId }: { gameId: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+		socket.on('delete_game', ({ gameId, playerId: claimedId }: { gameId: string; playerId?: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
 			const game = games.get(gameId);
 			if (!game) { callback?.({ ok: true }); return; } // 이미 없음
-			const playerId = socketToPlayerMap.get(socket.id);
+			// 로비 화면발 요청은 소켓에 좌석 매핑이 없어 payload playerId 인정 (rejoin_game과 동일 신뢰모델 — id 자체가 비밀값)
+			const playerId = socketToPlayerMap.get(socket.id) ?? (claimedId && game.players[claimedId] ? claimedId : undefined);
 			if (!playerId || game.hostId !== playerId) { callback?.({ error: '방장만 방을 삭제할 수 있습니다.' }); return; }
-			if (game.currentPhase !== 'lobby') { callback?.({ error: '게임이 시작된 후에는 삭제할 수 없습니다.' }); return; }
+			if (game.currentPhase !== 'lobby') {
+				// [사용자 요청 2026-07-26] 봇전 방 정리: 진행 중이어도 사람이 방장 1명뿐(나머지 전부 봇)이면 종료 허용
+				const humanCount = Object.keys(game.players).length - (game.botPlayerIds?.length ?? 0);
+				if (humanCount > 1) { callback?.({ error: '다른 사람이 있는 방은 시작 후 삭제할 수 없습니다.' }); return; }
+			}
 			io.to(gameId).emit('game_deleted', { gameId });
 			games.delete(gameId);
 			log(`Game ${gameId} deleted by host ${playerId}`, 'game', gameId);

@@ -161,10 +161,10 @@ export const GameClient = {
   },
 
   /** 방장 전용: 시작 전 로비에서 방 삭제. 성공 시 모두 로비로 나가게 됨 */
-  deleteGame(gameId: string): Promise<void> {
+  deleteGame(gameId: string, playerId?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('delete_game', { gameId }, (response: any) => {
+      s.emit('delete_game', { gameId, playerId }, (response: any) => {
         if (response?.error) reject(new Error(response.error));
         else resolve();
       });
