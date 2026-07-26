@@ -4655,7 +4655,7 @@ export default function Game() {
                           : isYou
                             ? 'bg-primary/15 border-primary/50'
                             : 'bg-muted/50 border-border'
-                        } ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}
+                        }`}
                     >
                       <PopoverTrigger asChild>
                         <div
@@ -4678,8 +4678,8 @@ export default function Game() {
                         >
                           {/* Left: Main info, Buildings, Resources */}
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
-                            {/* Score / Name / Bid Row */}
-                            <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
+                            {/* Score / Name / Bid Row — [2026-07-26 사용자] 패스 딤은 이름줄·보너스타일만, 건물/자원/파워/포머는 안 가림 */}
+                            <div className={`flex items-center gap-2 min-w-0 mb-1 md:mb-1.5 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
                               <span className="w-5 md:w-7 text-left text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
                                 {p.score}
                               </span>
@@ -4963,7 +4963,7 @@ export default function Game() {
                           </div>
 
                           {/* Right Edge: Pass Tile Image + Chevron (spanning full height) */}
-                          <div className="flex flex-col items-center justify-center p-2 border-l border-white/5 bg-black/10 shrink-0 w-[52px]">
+                          <div className={`flex flex-col items-center justify-center p-2 border-l border-white/5 bg-black/10 shrink-0 w-[52px] ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
                             {p.bonusTile && (() => {
                               const bonusIndex = ALL_BONUS_TILES.findIndex(t => t.id === p.bonusTile);
                               if (bonusIndex === -1) return null;
