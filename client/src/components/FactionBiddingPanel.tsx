@@ -96,19 +96,22 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
   //   3삽 = 다른 종족들의 홈행성. 봇은 비딩 시작 시 배정돼 알 수 있어, '이 종족을 잡으면 3삽이 뭔지' 판단에 도움.
   const expansionInfo = useMemo(() => {
     const players = Object.values(game.players);
-    const allAssigned = players.length > 0 && players.every(p => !!p.faction);
+    // [2026-07-27 사용자] 비딩 풀은 시작 시 확정 → 배정된 사람만 보지 말고 풀(배정+잔여) 기준으로 처음부터
+    // 완성된 3삽 목록 표시 (기존: 비딩 하나 끝날 때마다 목록이 자라 보임)
+    const assignedFacs = players.map(p => p.faction).filter((f): f is string => !!f);
+    const poolFacs = fb?.remainingFactionIds ?? [];
+    const gameFacs = Array.from(new Set([...assignedFacs, ...poolFacs]));
+    const poolComplete = gameFacs.length >= players.length;
     const out: { key: string; label: string; planets: string[]; note: string }[] = [];
     for (const fac of ['moweyip', 'tinkeroids'] as const) {
-      const assigned = players.some(p => p.faction === fac);
-      const inPool = !!fb?.remainingFactionIds?.includes(fac);
-      if (!assigned && !inPool) continue; // 게임에 없는 확장 종족은 표시 안 함
+      if (!gameFacs.includes(fac)) continue; // 게임에 없는 확장 종족은 표시 안 함
       const homes = Array.from(new Set(
-        players.filter(p => p.faction && p.faction !== fac)
-          .map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
-          .filter((h): h is NonNullable<typeof h> => !!h)
+        gameFacs.filter(f => f !== 'moweyip' && f !== 'tinkeroids')
+          .map(f => FACTIONS.find(x => x.id === f)?.homePlanet)
+          .filter((h): h is NonNullable<ReturnType<typeof Object>> & string => !!h)
       ));
       const label = fac === 'moweyip' ? '모웨이드' : '팅커로이드';
-      const note = !allAssigned ? '(다른 종족 확정 후 확정)' : homes.length > 3 ? '(이 중 3개 랜덤)' : homes.length < 3 ? '(+랜덤 보충)' : '';
+      const note = !poolComplete ? '(종족 풀 확정 후)' : homes.length > 3 ? '(이 중 3개 랜덤)' : homes.length < 3 ? '(+랜덤 보충)' : '';
       out.push({ key: fac, label, planets: homes, note });
     }
     return out;

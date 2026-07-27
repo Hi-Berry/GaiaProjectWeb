@@ -6779,12 +6779,17 @@ function computeTwoExpansionDraw(game: ServerGameState): void {
 	if ((game as any).expansionTwoFactionDraw) return;
 	const players = Object.values(game.players);
 	const total = players.length;
-	const inPlay = (fac: string) => players.some(pl => pl.faction === fac) || !!(game.factionBidding?.remainingFactionIds?.includes(fac));
-	if (!inPlay('moweyip') || !inPlay('tinkeroids')) return;
-	const normals = players.filter(pl => pl.faction && pl.faction !== 'moweyip' && pl.faction !== 'tinkeroids');
-	if (normals.length !== total - 2) return; // 일반 종족 전원 배정 전엔 고정 미확정
+	// [2026-07-27 사용자] 비딩 풀은 시작 시 확정 → 배정 완료를 기다리지 않고 풀(배정+잔여) 기준으로 즉시 확정.
+	// (기존: 배정된 플레이어만 봐서 비딩 하나 끝날 때마다 3삽 목록이 자라 보이던 문제)
+	const assignedFacs = players.map(pl => pl.faction).filter((f): f is string => !!f);
+	const poolFacs = game.factionBidding?.remainingFactionIds ?? [];
+	const allFacs = Array.from(new Set([...assignedFacs, ...poolFacs]));
+	if (!allFacs.includes('moweyip') || !allFacs.includes('tinkeroids')) return;
+	if (allFacs.length < total) return; // 종족 풀 자체가 미확정일 때만 대기
+	const normalFacs = allFacs.filter(f => f !== 'moweyip' && f !== 'tinkeroids');
+	if (normalFacs.length !== total - 2) return;
 	const fixed = Array.from(new Set(
-		normals.map(pl => FACTIONS.find(f => f.id === pl.faction)?.homePlanet)
+		normalFacs.map(f => FACTIONS.find(x => x.id === f)?.homePlanet)
 		.filter((h): h is import('@shared/gameConfig').PlanetType => !!h && HOME_PLANETS.includes(h))
 	));
 	const need = Math.max(1, 3 - fixed.length);
