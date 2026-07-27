@@ -10,10 +10,21 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // [배포 반영 2026-07-27, 사용자] index.html이 캐시되면 옛 번들을 계속 가리켜 강력 새로고침이 필요했음.
+  // 해시 번들(assets)은 영구 캐시, html은 매번 재검증 → 일반 새로고침(또는 재접속)만으로 새 버전 반영.
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache");
+      } else if (/[.-][0-9a-zA-Z_]{8,}\.(js|css)$/.test(filePath) || filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
