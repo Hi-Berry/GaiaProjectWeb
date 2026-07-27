@@ -5523,6 +5523,22 @@ export default function Game() {
           <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what} · 선택이 끝나면 라운드가 시작됩니다
         </div>
       )}
+      {/* [2026-07-27 사용자] 패널 확대 중 복귀 버튼 — 헤더(최상단)는 손이 안 닿아 우하단에 축소 버튼 */}
+      {game && isMobileViewport && splitActive && mobileZoomPanel && (
+        <button
+          type="button"
+          aria-label="패널 축소"
+          title="원래 크기로"
+          onClick={() => setMobileZoomPanel(null)}
+          className="md:hidden fixed z-[130] h-11 w-11 rounded-full border border-white/25 bg-zinc-900/90 text-zinc-100 text-lg shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center active:scale-95 transition-transform"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+            right: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
+          }}
+        >
+          ⤡
+        </button>
+      )}
       {/* 모바일 전체모드 진입 버튼 — 좌상단, 전체모드 아닐 때만(사용자 요청). 전체모드는 시스템 UI를 접어 세로 공간 확보. */}
       {game && isMobileViewport && !isFullscreen && (
         <button
