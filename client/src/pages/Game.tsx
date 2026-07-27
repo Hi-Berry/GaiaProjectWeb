@@ -306,7 +306,9 @@ export default function Game() {
   // (가로 화면이면 정보창 풀하이트 좌측 + 상태창 우측.) 레이아웃은 화면 방향에 좌우되고, 정보창 내용 표시방식(스와이프/스크롤)은 infoLayout이 따로 결정.
   // 분할 비율은 반반이 아니라 정보창:상태창 = 1.2:1(정보창이 더 큼).
   const splitActive = portraitMobile;
-  const splitInfoWidth = splitActive ? Math.round(winW * 1.2 / 2.2) : 0;
+  // [2026-07-27 사용자] 헤더탭 더블터치 → 해당 패널 전체화면(맵까지 덮음), 다시 더블터치 → 원복
+  const [mobileZoomPanel, setMobileZoomPanel] = useState<null | 'info' | 'status'>(null);
+  const splitInfoWidth = splitActive ? (mobileZoomPanel === 'info' ? winW : mobileZoomPanel === 'status' ? 0 : Math.round(winW * 1.2 / 2.2)) : 0;
   const splitStatusWidth = splitActive ? winW - splitInfoWidth : 0;
   const splitInfoZoom = splitActive ? splitInfoWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
   const splitStatusZoom = splitActive ? splitStatusWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
@@ -4418,7 +4420,7 @@ export default function Game() {
         transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         ${splitActive
-          ? 'fixed right-0 left-auto bottom-0 top-1/2 translate-x-0 opacity-100 border-t'
+          ? `fixed right-0 left-auto bottom-0 ${mobileZoomPanel === 'status' ? 'top-0' : 'top-1/2'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} translate-x-0 opacity-100 border-t`
           : `${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'} right-0 top-0 bottom-0 max-w-[85vw] md:max-w-none relative`
         }
       `}
@@ -5577,8 +5579,10 @@ export default function Game() {
           좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
       {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
         <div
-          className="md:hidden fixed right-0 z-[113] flex text-[9px] font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10"
-          style={{ top: splitActive ? '50%' : 0, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
+          className={`md:hidden fixed right-0 z-[113] flex text-[9px] font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
+          style={{ top: mobileZoomPanel === 'status' ? 0 : splitActive ? '50%' : 0, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
+          onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'status' ? null : 'status')}
+          title="더블터치: 전체화면 전환"
         >
           <button
             type="button"
@@ -5612,7 +5616,7 @@ export default function Game() {
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && isLogPanelOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] pt-[22px] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'right-0 bottom-0 top-1/2 border-t border-l border-border' : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          className={`md:hidden fixed z-[110] pt-[22px] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `right-0 bottom-0 ${mobileZoomPanel === 'status' ? 'top-0' : 'top-1/2'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
           style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
         >
           <div
@@ -5646,11 +5650,11 @@ export default function Game() {
           세로(portrait)에선 상시 표시(infoEffectivelyOpen), 가로(landscape)에선 i 버튼 토글. */}
       {isMobileViewport && infoEffectivelyOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? 'left-0 bottom-0 top-1/2 border-t border-r border-border' : 'top-0 bottom-0 left-0 border-r border-border'}`}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `left-0 bottom-0 ${mobileZoomPanel === 'info' ? 'top-0' : 'top-1/2'} ${mobileZoomPanel === 'status' ? 'hidden' : ''} border-t border-r border-border` : 'top-0 bottom-0 left-0 border-r border-border'}`}
           style={{ width: infoEffectiveWidth }}
         >
           {/* 헤더 + (가로 모드일 때만) 페이지 인디케이터 */}
-          <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30">
+          <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30" onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'info' ? null : 'info')} title="더블터치: 전체화면 전환">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 truncate">
               {infoLayout === 'vertical' ? '기술 · 우주선 · 라운드' : (infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스')}
             </span>
