@@ -2377,6 +2377,9 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 
 	// 수익 단계 모두 완료 (재진입에서 대기자 없음, 또는 첫 진입에서 선택 필요자 없음)
 
+	// [순서 2026-07-27 사용자] 팅커로이드 특수타일 선택을 income 직후 먼저 → 그다음 가이아포머복귀/아이타/테란/액션.
+	if (handleTinkeroidRoundSpecial(io, game as ServerGameState)) { clampPlayerResources(game); emitGameUpdated(io, game); return; }
+
 	// 타클론: 가이아 영역의 브레인 스톤을 그릇1로 복귀 (income 충전 이후 = 표준 가이아 단계 타이밍).
 	// brainStoneInGaia로 멱등 처리(재진입 시 이미 false면 스킵).
 	Object.values(game.players).forEach((p) => {
@@ -2439,37 +2442,30 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		return;
 	}
 
-	// 팅커로이드: 라운드 시작 시 Special 1개 선택 (게임 중 각 1회만, 3/6라운드는 남은 1개 자동 지정)
-	const tinkeroidPlayerId = Object.keys(game.players).find(pid => game.players[pid].faction === 'tinkeroids');
-	let tinkeroidsPending = false;
-	if (tinkeroidPlayerId) {
-		const tinkeroidPlayer = game.players[tinkeroidPlayerId];
-		const chosen = tinkeroidPlayer.tinkeroidsChosenSpecialIds ?? [];
-		const round13 = ['tinkeroid-1tf-mine', 'tinkeroid-1qic', 'tinkeroid-4power'];
-		const round46 = ['tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
-		const pool = game.roundNumber >= 1 && game.roundNumber <= 3 ? round13 : round46;
-		const options = pool.filter((id: string) => !chosen.includes(id));
-		if (options.length === 1) {
-			tinkeroidPlayer.tinkeroidRoundSpecialId = options[0];
-			tinkeroidPlayer.tinkeroidsChosenSpecialIds = [...chosen, options[0]];
-			log(`Tinkeroid: round ${game.roundNumber} special auto-selected: ${options[0]}`, 'game', undefined, { simulation: (game as any).simulation });
-		} else if (options.length > 1) {
-			game.pendingTinkeroidSpecialChoice = { playerId: tinkeroidPlayerId, round: game.roundNumber, options };
-			tinkeroidsPending = true;
-			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
-				log(`Bot turn execution error (TinkeroidInitial): ${err}`, 'error');
-			});
-		}
-	}
-
 	clampPlayerResources(game); emitGameUpdated(io, game);
+	helperStartNewRoundTurn(io, game);
+}
 
-	if (!tinkeroidsPending) {
-		helperStartNewRoundTurn(io, game);
-	}
+// [버그수정 2026-07-27 사용자] 아이타 교환 잔여 토큰 증발 방지 안전망: 여러 완료경로(우주선-mine defer·force-skip·엣지)
+//   중 하나라도 itarsGaiaformerRemainingAfterTech를 소비 못 하면 그릇1로 복구가 누락돼 증발. 액션단계 시작 직전 무조건 복구.
+//   교환이 아직 진행 중(pending/resume)이면 건드리지 않음.
+function flushLeftoverItarsTokens(io: SocketIOServer, game: GaiaGameState) {
+	const rem = (game as any).itarsGaiaformerRemainingAfterTech ?? 0;
+	if (rem <= 0) return;
+	if ((game as any).pendingItarsGaiaformerExchange) return;
+	if ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange') return;
+	if ((game as any).itarsExchangeResumeAfterShipMine) return;
+	const itarsId = Object.keys(game.players).find(pid => game.players[pid].faction === 'itars');
+	(game as any).itarsGaiaformerRemainingAfterTech = undefined;
+	if (!itarsId) return;
+	const p = game.players[itarsId];
+	p.power1 = (p.power1 || 0) + rem;
+	addGameLog(game, itarsId, 'Itars PI', `${rem} tokens → Bowl 1 (안전복구)`);
+	log(`[ITARS-CHAIN][SAFETY] leftover ${rem} tokens flushed to Bowl 1 (round ${game.roundNumber})`, 'game', game.id);
 }
 
 export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState) {
+	flushLeftoverItarsTokens(io, game);
 	// [버그수정] 수입 단계가 아직 안 끝났는데 액션 단계를 시작하면, 뒤 순번 플레이어(예: 네뷸라)의 수입 팝업이
 	// 영영 안 뜨고 파워를 못 받는다(사용자 관찰: 마지막 라운드 네뷸라 파워 미수령). ①팝업 활성 중이면 시작 보류
 	// (완료 후 체인이 다시 부름) ②팝업은 없는데 미처리 수입 플레이어가 남았으면(체인 끊김) 수입 체인을 이어 복구.
@@ -2574,7 +2570,34 @@ export function resumeItarsExchangeChain(io: SocketIOServer, game: GaiaGameState
 	clampPlayerResources(game); emitGameUpdated(io, game);
 }
 
+// [버그수정+순서 2026-07-27 사용자] 팅커로이드 라운드 특수선택을 income 완료 직후 "먼저" 처리(아이타/테란보다 앞).
+//   라운드당 1회 가드. 반환: human/bot 선택 대기 설정됐으면 true(호출측은 return하고 선택 완료 후 helperTriggerIncomePhase 재호출로 이어짐).
+function handleTinkeroidRoundSpecial(io: SocketIOServer, game: ServerGameState): boolean {
+	if ((game as any).tinkeroidSpecialHandledRound === game.roundNumber) return !!game.pendingTinkeroidSpecialChoice;
+	const tinkeroidPlayerId = Object.keys(game.players).find(pid => game.players[pid].faction === 'tinkeroids');
+	if (!tinkeroidPlayerId) { (game as any).tinkeroidSpecialHandledRound = game.roundNumber; return false; }
+	const tinkeroidPlayer = game.players[tinkeroidPlayerId];
+	const chosen = tinkeroidPlayer.tinkeroidsChosenSpecialIds ?? [];
+	const round13 = ['tinkeroid-1tf-mine', 'tinkeroid-1qic', 'tinkeroid-4power'];
+	const round46 = ['tinkeroid-3k', 'tinkeroid-2qic', 'tinkeroid-3tf-mine'];
+	const pool = game.roundNumber >= 1 && game.roundNumber <= 3 ? round13 : round46;
+	const options = pool.filter((id: string) => !chosen.includes(id));
+	(game as any).tinkeroidSpecialHandledRound = game.roundNumber;
+	if (options.length === 1) {
+		tinkeroidPlayer.tinkeroidRoundSpecialId = options[0];
+		tinkeroidPlayer.tinkeroidsChosenSpecialIds = [...chosen, options[0]];
+		log(`Tinkeroid: round ${game.roundNumber} special auto-selected: ${options[0]}`, 'game', undefined, { simulation: (game as any).simulation });
+		return false;
+	} else if (options.length > 1) {
+		game.pendingTinkeroidSpecialChoice = { playerId: tinkeroidPlayerId, round: game.roundNumber, options };
+		executeBotTurnIfNeeded(io, game).catch(err => log(`Bot turn execution error (TinkeroidChoice): ${err}`, 'error'));
+		return true;
+	}
+	return false;
+}
+
 export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, game: GaiaGameState) {
+	flushLeftoverItarsTokens(io, game);
 	const terranQueue = game.terranCouncilQueueAfterItars;
 	game.terranCouncilQueueAfterItars = undefined;
 	if (terranQueue && terranQueue.length > 0) {
@@ -3169,6 +3192,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				game.currentPhase = 'factionBidding';
 				log(`Start game: Entering factionBidding phase.`, 'game', undefined, { simulation: (game as any).simulation });
 				FactionBidding.initFactionBiddingPhase(game, io, biddingDeps);
+				computeTwoExpansionDraw(game);
 			} else if (allHaveFaction) {
 				game.currentPhase = 'startingMines';
 				log(`Start game: All factions selected. Resuming startingMines phase.`, 'game', undefined, { simulation: (game as any).simulation });
@@ -4832,8 +4856,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			clampPlayerResources(game); emitGameUpdated(io, game);
 
-			// 팅커로이드 선택이 수익 단계 마지막 단계이므로, 액션 단계로 전환 (내부에서 executeBotTurnIfNeeded 호출)
-			helperStartNewRoundTurn(io, game);
+			// [순서 2026-07-27] 팅커를 맨 앞으로 옮김 → 선택 후 income 계속(아이타/테란/액션).
+			helperTriggerIncomePhase(io, game);
 		});
 
 		socket.on('use_special_action', ({ gameId, actionId }) => {
@@ -4872,8 +4896,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			addGameLog(game, playerId, 'Tinkeroid: Round Special', `Round ${game.roundNumber}: ${actionId}`, undefined);
 			log(`Tinkeroid: ${player.name} chose special for round ${game.roundNumber}: ${actionId}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); emitGameUpdated(io, game);
-			// 팅커로이드 선택이 수익 단계 마지막 단계이므로, 여기서 액션 단계로 전환
-			helperStartNewRoundTurn(io, game);
+			// [순서 2026-07-27] 팅커를 맨 앞으로 → 선택 후 income 계속(아이타/테란/액션).
+			helperTriggerIncomePhase(io, game);
 		});
 
 		// 엠바스(Ambas): 의회 건설 후 Special — 의회와 광산 위치 교체 (라운드당 1회). 배치지 변경이므로 RM7·다카니안 의회 보너스 미적용.
@@ -6738,37 +6762,60 @@ export function executeUpgradeStructure(
 }
 
 /** 모웨이드/팅커로이드 확장 행성 — 종족 확정 후 호출 */
+// [룰 2026-07-27 사용자] 모웨+팅커 공존 시 3삽 = 고정 2개(일반 종족들 홈, 두 종족 공유) + 추첨 2개(A/B).
+//   추첨은 남은 HOME_PLANETS에서 랜덤 2개, 한 번만 뽑아 저장(비딩 표기·finalize 배정 동일값). 턴 앞(selectedTurnOrder 작은)=A, 뒷턴=B.
+//   일반 종족 전원 배정돼야 고정이 확정되므로 그 시점에 추첨(멱등).
+function computeTwoExpansionDraw(game: ServerGameState): void {
+	if ((game as any).expansionTwoFactionDraw) return;
+	const players = Object.values(game.players);
+	const total = players.length;
+	const inPlay = (fac: string) => players.some(pl => pl.faction === fac) || !!(game.factionBidding?.remainingFactionIds?.includes(fac));
+	if (!inPlay('moweyip') || !inPlay('tinkeroids')) return;
+	const normals = players.filter(pl => pl.faction && pl.faction !== 'moweyip' && pl.faction !== 'tinkeroids');
+	if (normals.length !== total - 2) return; // 일반 종족 전원 배정 전엔 고정 미확정
+	const fixed = Array.from(new Set(
+		normals.map(pl => FACTIONS.find(f => f.id === pl.faction)?.homePlanet)
+		.filter((h): h is import('@shared/gameConfig').PlanetType => !!h && HOME_PLANETS.includes(h))
+	));
+	const need = Math.max(1, 3 - fixed.length);
+	const remaining = HOME_PLANETS.filter(h => !fixed.includes(h));
+	const shuffled = remaining.slice().sort(() => Math.random() - 0.5);
+	(game as any).expansionTwoFactionDraw = { fixed, drawA: shuffled.slice(0, need), drawB: shuffled.slice(need, 2 * need) };
+}
+
 function applyMoweyipTinkeroidsExpansionPlanets(game: ServerGameState): void {
 	const playerList = Object.values(game.players);
 	const moweyipPlayer = playerList.find(p => p.faction === 'moweyip');
 	const tinkeroidsPlayer = playerList.find(p => p.faction === 'tinkeroids');
-	// [사용자 요청] 3삽(테라포밍) 확장 행성이 '랜덤'으로 결정되는 경우(다른 홈행성 distinct!==3; 표준 4인플은 3개 고정)만
-	//   로그창에 공개한다 — 비딩 시엔 다른 종족을 몰라 알 수 없던 정보라, 결정된 결과를 플레이어가 볼 수 있게.
-	const isRandomExpansionPick = (otherHomes: import('@shared/gameConfig').PlanetType[]) =>
-		Array.from(new Set(otherHomes.filter(pl => HOME_PLANETS.includes(pl)))).length !== 3;
+	if (moweyipPlayer && tinkeroidsPlayer) {
+		// 두 확장종족 공존: 고정 공용 + A/B 추첨, 턴 빠른 쪽=A 느린 쪽=B (사용자 룰).
+		computeTwoExpansionDraw(game);
+		const d = (game as any).expansionTwoFactionDraw as { fixed: string[]; drawA: string[]; drawB: string[] } | undefined;
+		if (d) {
+			const mOrder = (moweyipPlayer as any).selectedTurnOrder ?? 99;
+			const tOrder = (tinkeroidsPlayer as any).selectedTurnOrder ?? 99;
+			const moweyipEarlier = mOrder <= tOrder;
+			game.moweyipThreeStepPlanets = [...d.fixed, ...(moweyipEarlier ? d.drawA : d.drawB)] as import('@shared/gameConfig').PlanetType[];
+			game.tinkeroidsThreeStepPlanets = [...d.fixed, ...(moweyipEarlier ? d.drawB : d.drawA)] as import('@shared/gameConfig').PlanetType[];
+			log(`Expansion(2-faction): fixed=${d.fixed.join(',')} A=${d.drawA.join(',')} B=${d.drawB.join(',')} | moweyip(o${mOrder})=${game.moweyipThreeStepPlanets.join(',')} tinkeroids(o${tOrder})=${game.tinkeroidsThreeStepPlanets.join(',')}`, 'game', undefined, { simulation: (game as any).simulation });
+			return;
+		}
+	}
 	if (moweyipPlayer) {
-		const moweyipId = Object.keys(game.players).find(id => game.players[id].faction === 'moweyip');
 		const otherHomes = playerList
 			.filter(p => p.faction && p.faction !== 'moweyip')
 			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
 			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 		game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
 		log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
-		if (moweyipId && isRandomExpansionPick(otherHomes) && !(game as any).simulation) {
-			addGameLog(game, moweyipId, '모웨이드 확장 행성', `3삽(테라포밍) 행성 랜덤 결정: ${game.moweyipThreeStepPlanets.join(', ')}`);
-		}
 	}
 	if (tinkeroidsPlayer) {
-		const tinkeroidsId = Object.keys(game.players).find(id => game.players[id].faction === 'tinkeroids');
 		const otherHomes = playerList
 			.filter(p => p.faction && p.faction !== 'tinkeroids')
 			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
 			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 		game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
 		log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
-		if (tinkeroidsId && isRandomExpansionPick(otherHomes) && !(game as any).simulation) {
-			addGameLog(game, tinkeroidsId, '팅커로이드 확장 행성', `3삽(테라포밍) 행성 랜덤 결정: ${game.tinkeroidsThreeStepPlanets.join(', ')}`);
-		}
 	}
 }
 
@@ -7213,6 +7260,14 @@ export function executeAdvanceTech(
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
 		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
+		// [버그수정 2026-07-27 사보르 R5 실측] 아이타 교환에서 고급타일 선택 시 잔여 가이아포머 토큰이 증발하던 문제 —
+		//   고급 트랙전진(교환의 마지막 단계) 완료 후 잔여를 1그릇 복구하고 교환 체인 재개(일반타일·우주선 경로와 동형).
+		const remItarsAdv = game.itarsGaiaformerRemainingAfterTech ?? 0;
+		if (remItarsAdv > 0 && !game.pendingItarsGaiaformerExchange && !(game as any).itarsExchangeResumeAfterShipMine) {
+			game.itarsGaiaformerRemainingAfterTech = undefined;
+			resumeItarsExchangeChain(io, game, playerId, remItarsAdv);
+			return true;
+		}
 		clampPlayerResources(game); emitGameUpdated(io, game);
 		return true;
 	}
@@ -8496,7 +8551,8 @@ export function executeBotTinkeroidSpecial(
 	clampPlayerResources(game);
 	emitGameUpdated(io, game);
 	// 봇 전용: 보너스 픽업 완료 후 턴오더 강제 리셋을 방지하기 위해 여기선 return만 처리
-	// (botHandler가 알아서 이어서 메인턴 실행함)
+	// [순서 2026-07-27] 팅커를 맨 앞으로 옮김 → 선택 후 income 계속(가이아포머복귀/아이타/테란/액션).
+	helperTriggerIncomePhase(io, game as ServerGameState);
 	return true;
 }
 

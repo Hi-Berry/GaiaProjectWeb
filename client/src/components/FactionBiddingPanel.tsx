@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { GameState } from '@/lib/gameClient';
-import { FACTIONS } from '@shared/gameConfig';
+import { FACTIONS, PLANET_COLORS } from '@shared/gameConfig';
 import { GameClient } from '@/lib/gameClient';
 import { racePortraitSrc } from '@/lib/racePortrait';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
@@ -92,6 +92,28 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
     setPickFactionId((cur) => (cur && ids.includes(cur) ? cur : null));
   }, [isMyPick, remainingKey]);
 
+  // [3삽 표기 2026-07-27 사용자] 모웨이드/팅커로이드 3삽(테라포밍 확장) 행성을 비딩 창에 표기 — 로그창은 비딩 중 안 보이므로.
+  //   3삽 = 다른 종족들의 홈행성. 봇은 비딩 시작 시 배정돼 알 수 있어, '이 종족을 잡으면 3삽이 뭔지' 판단에 도움.
+  const expansionInfo = useMemo(() => {
+    const players = Object.values(game.players);
+    const allAssigned = players.length > 0 && players.every(p => !!p.faction);
+    const out: { key: string; label: string; planets: string[]; note: string }[] = [];
+    for (const fac of ['moweyip', 'tinkeroids'] as const) {
+      const assigned = players.some(p => p.faction === fac);
+      const inPool = !!fb?.remainingFactionIds?.includes(fac);
+      if (!assigned && !inPool) continue; // 게임에 없는 확장 종족은 표시 안 함
+      const homes = Array.from(new Set(
+        players.filter(p => p.faction && p.faction !== fac)
+          .map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
+          .filter((h): h is NonNullable<typeof h> => !!h)
+      ));
+      const label = fac === 'moweyip' ? '모웨이드' : '팅커로이드';
+      const note = !allAssigned ? '(다른 종족 확정 후 확정)' : homes.length > 3 ? '(이 중 3개 랜덤)' : homes.length < 3 ? '(+랜덤 보충)' : '';
+      out.push({ key: fac, label, planets: homes, note });
+    }
+    return out;
+  }, [game.players, fb]);
+
   if (!shouldRender) return null;
 
   const takenTurnOrders = new Set(
@@ -145,6 +167,46 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
           </p>
         )}
       </div>
+
+      {/* 모웨/팅커 확장 3삽 표기 — 비딩 판단용. 두 확장종족 공존 시 고정+A/B(추첨), 아니면 종족별 3삽. */}
+      {(() => {
+        const col = (pl: string) => (PLANET_COLORS as Record<string, string>)[pl];
+        const td = (game as unknown as { expansionTwoFactionDraw?: { fixed: string[]; drawA: string[]; drawB: string[] } | null }).expansionTwoFactionDraw;
+        if (td) {
+          return (
+            <div className="shrink-0 px-4 py-2 border-b border-amber-500/20 bg-zinc-900/60 text-[11px] space-y-0.5">
+              <div className="flex flex-wrap items-center gap-1 leading-snug">
+                <span className="text-zinc-400 font-semibold">확장 공용 3삽(모웨·팅커):</span>
+                {td.fixed.map((p, i) => <span key={i} className="font-black" style={{ color: col(p) }}>{p}</span>)}
+              </div>
+              <div className="flex flex-wrap items-center gap-1 leading-snug">
+                <span className="text-amber-300 font-bold">A:</span>
+                {td.drawA.map((p, i) => <span key={`a${i}`} className="font-black" style={{ color: col(p) }}>{p}</span>)}
+                <span className="mx-1 text-zinc-700">·</span>
+                <span className="text-amber-300 font-bold">B:</span>
+                {td.drawB.map((p, i) => <span key={`b${i}`} className="font-black" style={{ color: col(p) }}>{p}</span>)}
+                <span className="text-zinc-500">(턴 빠른 확장종족=A, 느린=B)</span>
+              </div>
+            </div>
+          );
+        }
+        if (expansionInfo.length === 0) return null;
+        return (
+          <div className="shrink-0 px-4 py-2 border-b border-amber-500/20 bg-zinc-900/60 text-[11px] space-y-0.5">
+            {expansionInfo.map(e => (
+              <div key={e.key} className="flex flex-wrap items-center gap-1 leading-snug">
+                <span className="text-zinc-400 font-semibold">{e.label} 3삽:</span>
+                {e.planets.length === 0
+                  ? <span className="text-zinc-500">—</span>
+                  : e.planets.map((p, i) => (
+                      <span key={i} className="font-black" style={{ color: col(p) }}>{p}</span>
+                    ))}
+                {e.note && <span className="text-zinc-500">{e.note}</span>}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* 본문(스크롤) */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">

@@ -1440,11 +1440,12 @@ export default function Game() {
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
   // [의회 대기 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 선택)이 진행 중이면 다른 플레이어는 대기 —
   // 서버가 메인 액션을 막고(councilPendingActive), 여기선 파워 수락 대기와 같은 안내 배너를 띄운다.
-  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit;
+  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit || (game as any).pendingTinkeroidSpecialChoice;
   const councilPendingInfo = councilPendingRaw && councilPendingRaw.playerId !== playerId
     ? {
       name: game.players[councilPendingRaw.playerId]?.name ?? '플레이어',
-      kind: (game as any).pendingItarsGaiaformerExchange ? '아이타' : '테란',
+      kind: (game as any).pendingItarsGaiaformerExchange ? '아이타' : (game as any).pendingTerranCouncilBenefit ? '테란' : '팅커로이드',
+      what: ((game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit) ? '의회 능력 처리 중' : '특수 타일 선택 중',
     }
     : null;
   const pendingPowerWaiters = (() => {
@@ -2428,7 +2429,7 @@ export default function Game() {
               <div className="flex items-start gap-2">
                 <Clock className="w-4 h-4 shrink-0 text-cyan-300 mt-0.5 animate-pulse" />
                 <p className="leading-snug">
-                  <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} 의회 능력 처리 중
+                  <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what}
                   <span className="block text-[10px] text-cyan-200/75 font-medium mt-0.5">
                     선택이 끝나면 라운드 첫 액션이 가능합니다
                   </span>
@@ -5517,7 +5518,7 @@ export default function Game() {
           className="md:hidden fixed inset-x-3 z-[116] bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3.25rem)' }}
         >
-          <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} 의회 능력 처리 중 · 선택이 끝나면 라운드가 시작됩니다
+          <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what} · 선택이 끝나면 라운드가 시작됩니다
         </div>
       )}
       {/* 모바일 전체모드 진입 버튼 — 좌상단, 전체모드 아닐 때만(사용자 요청). 전체모드는 시스템 UI를 접어 세로 공간 확보. */}

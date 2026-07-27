@@ -183,6 +183,18 @@ export function initFactionBiddingPhase(
 	const n = Object.keys(game.players).length;
 	let pool = pickDistinctFactionIdsForPlayerCount(n);
 	pool = shuffle(pool);
+	// [테스트 전용 env EXPANSION_LOG_TEST] 모웨+팅커 둘 다 봇에게 강제 배정 → 두-확장 룰/A·B 표기 확인.
+	//   프로덕션(env 미설정) no-op. assignBots 전에 배정해 남은 슬롯은 정상 경매.
+	if (process.env.EXPANSION_LOG_TEST) {
+		const freeBots = (game.botPlayerIds ?? []).filter(b => !game.players[b]?.faction);
+		const forced = ['moweyip', 'tinkeroids'];
+		let ti = 1;
+		for (let i = 0; i < forced.length && i < freeBots.length; i++) {
+			game.players[freeBots[i]].factionBidVp = 0;
+			deps.executeSelectFaction(io, game, freeBots[i], forced[i], ti++, { skipBotTrigger: true });
+			const pi = pool.indexOf(forced[i]); if (pi >= 0) pool.splice(pi, 1);
+		}
+	}
 	pool = assignBotsForFactionBidding(game, io, pool, deps);
 	startNewAuctionRound(game, io, pool, deps);
 }

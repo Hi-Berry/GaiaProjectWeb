@@ -1,0 +1,319 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx watch --exclude "./server/ai/**" --exclude "./data/**" --exclude "./logs/**" server/index.ts
+
+DATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+2:33:58 PM [socket.io] Game server initialized on same port
+2:33:58 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+2:33:58 PM [express]   로컬: http://localhost:5000
+2:33:58 PM [express]   같은 네트워크: http://10.10.2.33:5000
+2:33:58 PM [express] ----------------------------------------
+2:33:58 PM [express] serving on all interfaces:5000
+2:34:08 PM [system] Memory usage: RSS=136.17MB, HeapTotal=52.45MB, HeapUsed=49.88MB, External=5.80MB
+2:39:08 PM [system] Memory usage: RSS=138.03MB, HeapTotal=52.45MB, HeapUsed=49.94MB, External=5.80MB
+2:44:08 PM [system] Memory usage: RSS=137.68MB, HeapTotal=52.45MB, HeapUsed=49.96MB, External=5.80MB
+2:45:39 PM [system] Memory usage: RSS=173.87MB, HeapTotal=98.47MB, HeapUsed=73.29MB, External=7.34MB
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+2:45:42 PM [socket.io] Player connected: spgD5V1q9KV8NwOpAAAB
+2:45:43 PM [game] Round 1 mission: Big Building (5 VP)
+2:45:43 PM [game] Round 2 mission: Mine (2 VP)
+2:45:43 PM [game] Round 3 mission: Gaia Planet (3 VP)
+2:45:43 PM [game] Round 4 mission: New Sector/Bridge (3 VP)
+2:45:43 PM [game] Round 5 mission: Gaia Planet (4 VP)
+2:45:43 PM [game] Round 6 mission: Research Lab (4 VP)
+2:45:43 PM [game] Game created: s6zwe3gm by human
+2:45:44 PM [game] AI Bot added: AI Bot 2 (bot-p_lagyyhzpki) to game s6zwe3gm
+2:45:45 PM [game] AI Bot added: AI Bot 3 (bot-p_ztz082gbmi) to game s6zwe3gm
+2:45:45 PM [game] AI Bot added: AI Bot 4 (bot-p_t96lm2h1ij) to game s6zwe3gm
+2:45:46 PM [game] Start game: Entering factionSelect phase.
+2:45:49 PM [system] Memory usage: RSS=378.02MB, HeapTotal=270.80MB, HeapUsed=105.66MB, External=12.92MB
+2:45:54 PM [game] Applying starting specs for Tinkeroids
+2:45:54 PM [game] Player human selected faction tinkeroids. State: {"name":"human","faction":"tinkeroids","factionBidVp":0,"ore":4,"knowledge":2,"credits":15,"qic":1,"power1":4,"power2":2,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":1},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":1}
+2:45:58 PM [game] Applying starting specs for Geodens
+2:45:58 PM [game] Player AI Bot 2 selected faction geodens. State: {"name":"AI Bot 2","faction":"geodens","factionBidVp":0,"ore":6,"knowledge":3,"credits":15,"qic":1,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":1,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":4}
+2:45:59 PM [system] Memory usage: RSS=203.13MB, HeapTotal=102.05MB, HeapUsed=98.48MB, External=12.50MB
+2:46:00 PM [game] Applying starting specs for Xenos
+2:46:00 PM [game] Player AI Bot 3 selected faction xenos. State: {"name":"AI Bot 3","faction":"xenos","factionBidVp":0,"ore":4,"knowledge":3,"credits":15,"qic":2,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":1,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":3}
+2:46:02 PM [game] Applying starting specs for Firaks
+2:46:02 PM [game] All players selected faction. Finalizing turn order and moving to startingMines.
+2:46:02 PM [game] Turn order finalized: p_gfx2h0d4qs, bot-p_t96lm2h1ij, bot-p_ztz082gbmi, bot-p_lagyyhzpki
+2:46:02 PM [game] Tinkeroids expansion: 3-step planets = titanium, desert, oxide
+2:46:02 PM [game] Player AI Bot 4 selected faction firaks. State: {"name":"AI Bot 4","faction":"firaks","factionBidVp":0,"ore":3,"knowledge":2,"credits":15,"qic":1,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":2}
+2:46:02 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_t96lm2h1ij, isBot=true
+2:46:02 PM [game] BotLogic DEBUG: playerId=bot-p_t96lm2h1ij, homePlanet=titanium, freeTiles.length=6
+2:46:02 PM [game] Bot AI Bot 4 executing: place_starting_mine
+2:46:02 PM [game] Player AI Bot 4 (Firaks) placed Mine #1. Total: 1
+2:46:02 PM [game] Bot AI Bot 4 successfully executed place_starting_mine
+2:46:03 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_ztz082gbmi, isBot=true
+2:46:03 PM [game] BotLogic DEBUG: playerId=bot-p_ztz082gbmi, homePlanet=desert, freeTiles.length=6
+2:46:03 PM [game] Bot AI Bot 3 executing: place_starting_mine
+2:46:03 PM [game] Player AI Bot 3 (Xenos) placed Mine #1. Total: 2
+2:46:03 PM [game] Bot AI Bot 3 successfully executed place_starting_mine
+2:46:04 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_lagyyhzpki, isBot=true
+2:46:04 PM [game] BotLogic DEBUG: playerId=bot-p_lagyyhzpki, homePlanet=oxide, freeTiles.length=6
+2:46:04 PM [game] Bot AI Bot 2 executing: place_starting_mine
+2:46:04 PM [game] Player AI Bot 2 (Geodens) placed Mine #1. Total: 3
+2:46:04 PM [game] Bot AI Bot 2 successfully executed place_starting_mine
+2:46:05 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_lagyyhzpki, isBot=true
+2:46:05 PM [game] BotLogic DEBUG: playerId=bot-p_lagyyhzpki, homePlanet=oxide, freeTiles.length=5
+2:46:05 PM [game] Bot AI Bot 2 executing: place_starting_mine
+2:46:05 PM [game] Player AI Bot 2 (Geodens) placed Mine #2. Total: 4
+2:46:05 PM [game] Bot AI Bot 2 successfully executed place_starting_mine
+2:46:06 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_ztz082gbmi, isBot=true
+2:46:06 PM [game] BotLogic DEBUG: playerId=bot-p_ztz082gbmi, homePlanet=desert, freeTiles.length=5
+2:46:06 PM [game] Bot AI Bot 3 executing: place_starting_mine
+2:46:06 PM [game] Player AI Bot 3 (Xenos) placed Mine #2. Total: 5
+2:46:06 PM [game] Bot AI Bot 3 successfully executed place_starting_mine
+2:46:07 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_t96lm2h1ij, isBot=true
+2:46:07 PM [game] BotLogic DEBUG: playerId=bot-p_t96lm2h1ij, homePlanet=titanium, freeTiles.length=5
+2:46:07 PM [game] Bot AI Bot 4 executing: place_starting_mine
+2:46:07 PM [game] Player AI Bot 4 (Firaks) placed Mine #2. Total: 6
+2:46:07 PM [game] Bot AI Bot 4 successfully executed place_starting_mine
+2:46:08 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_ztz082gbmi, isBot=true
+2:46:08 PM [game] BotLogic DEBUG: playerId=bot-p_ztz082gbmi, homePlanet=desert, freeTiles.length=4
+2:46:08 PM [game] Bot AI Bot 3 executing: place_starting_mine
+2:46:08 PM [game] Player AI Bot 3 (Xenos) placed Mine #3. Total: 7
+2:46:08 PM [game] Bot AI Bot 3 successfully executed place_starting_mine
+오후 2:47:44 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+2:47:45 PM [socket.io] Game server initialized on same port
+2:47:45 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+2:47:45 PM [express]   로컬: http://localhost:5000
+2:47:45 PM [express]   같은 네트워크: http://10.10.2.33:5000
+2:47:45 PM [express] ----------------------------------------
+2:47:45 PM [express] serving on all interfaces:5000
+2:47:45 PM [socket.io] Player connected: 8CQ7rOKM1n_jIdSVAAAB
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+2:47:48 PM [socket.io] Player connected: WIeut9M7CrPBC0vCAAAD
+2:47:55 PM [system] Memory usage: RSS=395.21MB, HeapTotal=293.50MB, HeapUsed=209.27MB, External=18.67MB
+2:48:05 PM [system] Memory usage: RSS=202.18MB, HeapTotal=103.38MB, HeapUsed=100.20MB, External=12.75MB
+2:53:05 PM [system] Memory usage: RSS=203.49MB, HeapTotal=104.38MB, HeapUsed=100.73MB, External=12.84MB
+오후 2:53:07 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+2:53:08 PM [socket.io] Game server initialized on same port
+2:53:08 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+2:53:08 PM [express]   로컬: http://localhost:5000
+2:53:08 PM [express]   같은 네트워크: http://10.10.2.33:5000
+2:53:08 PM [express] ----------------------------------------
+2:53:08 PM [express] serving on all interfaces:5000
+2:53:18 PM [system] Memory usage: RSS=134.13MB, HeapTotal=52.46MB, HeapUsed=49.82MB, External=5.80MB
+오후 2:54:52 [tsx] unlink in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+2:54:53 PM [socket.io] Game server initialized on same port
+2:54:53 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+2:54:53 PM [express]   로컬: http://localhost:5000
+2:54:53 PM [express]   같은 네트워크: http://10.10.2.33:5000
+2:54:53 PM [express] ----------------------------------------
+2:54:53 PM [express] serving on all interfaces:5000
+2:55:03 PM [system] Memory usage: RSS=135.64MB, HeapTotal=52.20MB, HeapUsed=49.83MB, External=5.80MB
+3:00:03 PM [system] Memory usage: RSS=135.81MB, HeapTotal=52.20MB, HeapUsed=49.88MB, External=5.80MB
+오후 3:00:31 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+3:00:32 PM [socket.io] Game server initialized on same port
+3:00:32 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+3:00:32 PM [express]   로컬: http://localhost:5000
+3:00:32 PM [express]   같은 네트워크: http://10.10.2.33:5000
+3:00:32 PM [express] ----------------------------------------
+3:00:32 PM [express] serving on all interfaces:5000
+3:00:42 PM [system] Memory usage: RSS=137.05MB, HeapTotal=52.95MB, HeapUsed=49.84MB, External=5.80MB
+3:05:42 PM [system] Memory usage: RSS=140.71MB, HeapTotal=54.20MB, HeapUsed=50.34MB, External=5.80MB
+3:10:43 PM [system] Memory usage: RSS=140.82MB, HeapTotal=54.20MB, HeapUsed=50.37MB, External=5.80MB
+3:15:43 PM [system] Memory usage: RSS=140.86MB, HeapTotal=54.20MB, HeapUsed=50.40MB, External=5.80MB
+3:20:43 PM [system] Memory usage: RSS=140.93MB, HeapTotal=54.20MB, HeapUsed=50.43MB, External=5.80MB
+3:25:43 PM [system] Memory usage: RSS=141.00MB, HeapTotal=54.20MB, HeapUsed=50.46MB, External=5.80MB
+3:30:44 PM [system] Memory usage: RSS=140.74MB, HeapTotal=56.20MB, HeapUsed=50.72MB, External=5.80MB
+3:31:34 PM [system] Memory usage: RSS=96.83MB, HeapTotal=56.20MB, HeapUsed=50.72MB, External=5.80MB
+3:36:34 PM [system] Memory usage: RSS=85.07MB, HeapTotal=56.20MB, HeapUsed=50.75MB, External=5.80MB
+3:41:34 PM [system] Memory usage: RSS=84.91MB, HeapTotal=56.20MB, HeapUsed=52.03MB, External=5.80MB
+오후 3:46:24 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+3:46:25 PM [socket.io] Game server initialized on same port
+3:46:25 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+3:46:25 PM [express]   로컬: http://localhost:5000
+3:46:25 PM [express]   같은 네트워크: http://10.10.2.33:5000
+3:46:25 PM [express] ----------------------------------------
+3:46:25 PM [express] serving on all interfaces:5000
+3:46:35 PM [system] Memory usage: RSS=135.27MB, HeapTotal=52.71MB, HeapUsed=49.86MB, External=5.80MB
+3:51:35 PM [system] Memory usage: RSS=137.22MB, HeapTotal=52.71MB, HeapUsed=49.91MB, External=5.80MB
+3:56:35 PM [system] Memory usage: RSS=137.44MB, HeapTotal=52.71MB, HeapUsed=49.94MB, External=5.80MB
+4:01:35 PM [system] Memory usage: RSS=137.46MB, HeapTotal=52.71MB, HeapUsed=49.97MB, External=5.80MB
+4:06:35 PM [system] Memory usage: RSS=137.55MB, HeapTotal=52.71MB, HeapUsed=50.00MB, External=5.80MB
+4:11:36 PM [system] Memory usage: RSS=137.58MB, HeapTotal=52.71MB, HeapUsed=50.02MB, External=5.80MB
+4:16:36 PM [system] Memory usage: RSS=136.65MB, HeapTotal=52.71MB, HeapUsed=50.05MB, External=5.80MB
+4:16:46 PM [system] Memory usage: RSS=102.64MB, HeapTotal=52.71MB, HeapUsed=50.05MB, External=5.80MB
+4:21:46 PM [system] Memory usage: RSS=74.11MB, HeapTotal=53.71MB, HeapUsed=49.89MB, External=5.80MB
+4:26:46 PM [system] Memory usage: RSS=70.66MB, HeapTotal=53.71MB, HeapUsed=49.92MB, External=5.80MB
+4:31:47 PM [system] Memory usage: RSS=67.65MB, HeapTotal=53.71MB, HeapUsed=50.08MB, External=5.80MB
+4:36:47 PM [system] Memory usage: RSS=74.33MB, HeapTotal=55.71MB, HeapUsed=51.61MB, External=5.80MB
+4:41:47 PM [system] Memory usage: RSS=72.12MB, HeapTotal=55.71MB, HeapUsed=51.64MB, External=5.80MB
+4:46:47 PM [system] Memory usage: RSS=69.80MB, HeapTotal=52.71MB, HeapUsed=51.07MB, External=5.80MB
+오후 4:51:29 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+4:51:30 PM [socket.io] Game server initialized on same port
+4:51:31 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+4:51:31 PM [express]   로컬: http://localhost:5000
+4:51:31 PM [express]   같은 네트워크: http://10.10.2.33:5000
+4:51:31 PM [express] ----------------------------------------
+4:51:31 PM [express] serving on all interfaces:5000
+4:51:40 PM [system] Memory usage: RSS=136.42MB, HeapTotal=52.71MB, HeapUsed=49.81MB, External=5.80MB
+4:56:40 PM [system] Memory usage: RSS=138.10MB, HeapTotal=52.71MB, HeapUsed=49.87MB, External=5.80MB
+5:01:41 PM [system] Memory usage: RSS=139.22MB, HeapTotal=53.71MB, HeapUsed=49.98MB, External=5.80MB
+오후 5:03:38 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+5:03:39 PM [socket.io] Game server initialized on same port
+5:03:39 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+5:03:39 PM [express]   로컬: http://localhost:5000
+5:03:39 PM [express]   같은 네트워크: http://10.10.2.33:5000
+5:03:39 PM [express] ----------------------------------------
+5:03:39 PM [express] serving on all interfaces:5000
+5:03:49 PM [system] Memory usage: RSS=138.99MB, HeapTotal=53.20MB, HeapUsed=49.80MB, External=5.80MB
+5:08:49 PM [system] Memory usage: RSS=141.51MB, HeapTotal=54.20MB, HeapUsed=50.44MB, External=5.80MB
+5:13:50 PM [system] Memory usage: RSS=141.70MB, HeapTotal=54.20MB, HeapUsed=50.47MB, External=5.80MB
+오후 5:15:41 [tsx] change in ./server\factionBidding.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+5:15:42 PM [socket.io] Game server initialized on same port
+5:15:42 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+5:15:42 PM [express]   로컬: http://localhost:5000
+5:15:42 PM [express]   같은 네트워크: http://10.10.2.33:5000
+5:15:42 PM [express] ----------------------------------------
+5:15:42 PM [express] serving on all interfaces:5000
+5:15:51 PM [system] Memory usage: RSS=134.53MB, HeapTotal=52.70MB, HeapUsed=49.80MB, External=5.80MB
+5:20:52 PM [system] Memory usage: RSS=136.45MB, HeapTotal=52.70MB, HeapUsed=49.85MB, External=5.80MB
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+5:21:19 PM [socket.io] Player connected: nqpIOSI2_i_pM14GAAAB
+5:21:19 PM [socket.io] Player connected: gxoX19Jv0vZ_Yfu8AAAD
+5:21:22 PM [system] Memory usage: RSS=424.58MB, HeapTotal=323.25MB, HeapUsed=210.42MB, External=17.42MB
+5:21:25 PM [game] Round 1 mission: Mine (2 VP)
+5:21:25 PM [game] Round 2 mission: Gaia Planet (4 VP)
+5:21:25 PM [game] Round 3 mission: Research Track (2 VP)
+5:21:25 PM [game] Round 4 mission: New Sector/Bridge (3 VP)
+5:21:25 PM [game] Round 5 mission: Trading Station (3 VP)
+5:21:25 PM [game] Round 6 mission: Gaia Planet (3 VP)
+5:21:25 PM [game] Game created: 7czlcxv3 by ㅎㅎ
+5:21:26 PM [game] AI Bot added: AI Bot 2 (bot-p_fnubeid2h9) to game 7czlcxv3
+5:21:26 PM [game] AI Bot added: AI Bot 3 (bot-p_xnva9et07p) to game 7czlcxv3
+5:21:26 PM [game] AI Bot added: AI Bot 4 (bot-p_2f6bxvfgh3) to game 7czlcxv3
+5:21:31 PM [game] Start game: Entering factionBidding phase.
+5:21:31 PM [game] Applying starting specs for Nevlas
+5:21:31 PM [game] Player AI Bot 2 selected faction nevlas. State: {"name":"AI Bot 2","faction":"nevlas","factionBidVp":0,"ore":4,"knowledge":2,"credits":15,"qic":1,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":1},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":2}
+5:21:31 PM [game] Applying starting specs for Taklons
+5:21:31 PM [game] Player AI Bot 3 selected faction taklons. State: {"name":"AI Bot 3","faction":"taklons","factionBidVp":0,"ore":4,"knowledge":3,"credits":15,"qic":1,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":1,"brainStoneBowl":1,"brainStoneInGaia":false}
+5:21:31 PM [game] Applying starting specs for Geodens
+5:21:31 PM [game] Player AI Bot 4 selected faction geodens. State: {"name":"AI Bot 4","faction":"geodens","factionBidVp":0,"ore":6,"knowledge":3,"credits":15,"qic":1,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":1,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":3}
+5:21:31 PM [game] Applying starting specs for Xenos
+5:21:31 PM [game] All players selected faction. Finalizing turn order and moving to startingMines.
+5:21:31 PM [game] Turn order finalized: bot-p_xnva9et07p, bot-p_fnubeid2h9, bot-p_2f6bxvfgh3, p_2eowl42uje
+5:21:31 PM [game] Player ㅎㅎ selected faction xenos. State: {"name":"ㅎㅎ","faction":"xenos","factionBidVp":0,"ore":4,"knowledge":3,"credits":15,"qic":2,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":1,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":4}
+5:21:31 PM [game] Start game: first to place is bot-p_xnva9et07p (index 0)
+5:21:31 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_xnva9et07p, isBot=true
+5:21:31 PM [game] BotLogic DEBUG: playerId=bot-p_xnva9et07p, homePlanet=swamp, freeTiles.length=6
+5:21:31 PM [game] Bot AI Bot 3 executing: place_starting_mine
+5:21:31 PM [game] Player AI Bot 3 (Taklons) placed Mine #1. Total: 1
+5:21:31 PM [game] Bot AI Bot 3 successfully executed place_starting_mine
+5:21:32 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_fnubeid2h9, isBot=true
+5:21:32 PM [system] Memory usage: RSS=207.78MB, HeapTotal=105.30MB, HeapUsed=100.66MB, External=13.56MB
+5:21:32 PM [game] BotLogic DEBUG: playerId=bot-p_fnubeid2h9, homePlanet=ice, freeTiles.length=6
+5:21:32 PM [game] Bot AI Bot 2 executing: place_starting_mine
+5:21:32 PM [game] Player AI Bot 2 (Nevlas) placed Mine #1. Total: 2
+5:21:32 PM [game] Bot AI Bot 2 successfully executed place_starting_mine
+5:21:33 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_2f6bxvfgh3, isBot=true
+5:21:33 PM [game] BotLogic DEBUG: playerId=bot-p_2f6bxvfgh3, homePlanet=oxide, freeTiles.length=6
+5:21:33 PM [game] Bot AI Bot 4 executing: place_starting_mine
+5:21:33 PM [game] Player AI Bot 4 (Geodens) placed Mine #1. Total: 3
+5:21:33 PM [game] Bot AI Bot 4 successfully executed place_starting_mine
+5:21:37 PM [game] Round 1 mission: Gaia Planet (3 VP)
+5:21:37 PM [game] Round 2 mission: New Planet Type (3 VP)
+5:21:37 PM [game] Round 3 mission: Terraform Step (2 VP)
+5:21:37 PM [game] Round 4 mission: Federation (5 VP)
+5:21:37 PM [game] Round 5 mission: Big Building (5 VP)
+5:21:37 PM [game] Round 6 mission: Gaia Planet (4 VP)
+5:21:37 PM [game] Game created: p0xypx2m by ㅎㅎ
+5:21:38 PM [game] AI Bot added: AI Bot 2 (bot-p_6arr7nhlrx) to game p0xypx2m
+5:21:38 PM [game] AI Bot added: AI Bot 3 (bot-p_n8yzywgz9o) to game p0xypx2m
+5:21:44 PM [socket.io] Player connected: RjkWNKQ0yzIho9BYAAAF
+5:21:49 PM [game] Start game: Entering factionBidding phase.
+5:21:49 PM [game] Applying starting specs for Terrans
+5:21:49 PM [game] Player AI Bot 2 gained 1 Gaiaformer from starting tech (Gaia Project level 1)
+5:21:49 PM [game] Player AI Bot 2 selected faction terran. State: {"name":"AI Bot 2","faction":"terran","factionBidVp":0,"ore":4,"knowledge":3,"credits":15,"qic":1,"power1":4,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":0,"gaiaProject":1,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":1,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":1}
+5:21:49 PM [game] Applying starting specs for Geodens
+5:21:49 PM [game] Player AI Bot 3 selected faction geodens. State: {"name":"AI Bot 3","faction":"geodens","factionBidVp":0,"ore":6,"knowledge":3,"credits":15,"qic":1,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":1,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":3}
+5:22:42 PM [game] Applying starting specs for Tinkeroids
+5:22:42 PM [game] Player ㅎㅎ selected faction tinkeroids. State: {"name":"ㅎㅎ","faction":"tinkeroids","factionBidVp":11,"ore":4,"knowledge":2,"credits":15,"qic":1,"power1":4,"power2":2,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":0,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":1},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"factionAuctionLastBid":11,"selectedTurnOrder":2}
+5:22:42 PM [game] Applying starting specs for Gleens
+5:22:42 PM [game] All players selected faction. Finalizing turn order and moving to startingMines.
+5:22:42 PM [game] Turn order finalized: bot-p_6arr7nhlrx, p_ewcrcihgz4, bot-p_n8yzywgz9o, p_ezjafk5lhg
+5:22:42 PM [game] Tinkeroids expansion: 3-step planets = oxide, desert, terra
+5:22:42 PM [game] Player human selected faction gleens. State: {"name":"human","faction":"gleens","factionBidVp":0,"ore":5,"knowledge":3,"credits":15,"qic":0,"power1":2,"power2":4,"power3":0,"score":10,"ships":0,"research":{"terraforming":0,"navigation":1,"artificialIntelligence":0,"gaiaProject":0,"economy":0,"science":0},"startingMinesPlaced":0,"hasPassed":false,"techTiles":[],"usedTechActions":[],"usedSpecialActions":[],"bonusTile":null,"usedBonusAction":false,"gaiaformers":0,"destroyedGaiaformers":0,"gaiaformerPower":0,"pendingGaiaformerTiles":[],"spaceshipsEntered":[],"selectedTurnOrder":4}
+5:22:42 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_6arr7nhlrx, isBot=true
+5:22:42 PM [game] BotLogic DEBUG: playerId=bot-p_6arr7nhlrx, homePlanet=terra, freeTiles.length=6
+5:22:42 PM [game] Bot AI Bot 2 executing: place_starting_mine
+5:22:42 PM [game] Player AI Bot 2 (Terrans) placed Mine #1. Total: 1
+5:22:42 PM [game] Bot AI Bot 2 successfully executed place_starting_mine
+5:22:43 PM [game] BotHandler DEBUG: phase=startingMines, currentPlayer=bot-p_n8yzywgz9o, isBot=true
+5:22:43 PM [game] BotLogic DEBUG: playerId=bot-p_n8yzywgz9o, homePlanet=oxide, freeTiles.length=6
+5:22:43 PM [game] Bot AI Bot 3 executing: place_starting_mine
+5:22:43 PM [game] Player AI Bot 3 (Geodens) placed Mine #1. Total: 2
+5:22:43 PM [game] Bot AI Bot 3 successfully executed place_starting_mine
+5:23:00 PM [game] Player human disconnected
+5:26:32 PM [system] Memory usage: RSS=219.18MB, HeapTotal=103.55MB, HeapUsed=99.32MB, External=12.97MB
+5:28:06 PM [game] Player ㅎㅎ disconnected
+5:31:32 PM [system] Memory usage: RSS=219.22MB, HeapTotal=103.55MB, HeapUsed=99.40MB, External=12.99MB
+오후 5:35:24 [tsx] change in ./server\gameState.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+5:35:25 PM [socket.io] Game server initialized on same port
+5:35:25 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+5:35:25 PM [express]   로컬: http://localhost:5000
+5:35:25 PM [express]   같은 네트워크: http://10.10.2.33:5000
+5:35:25 PM [express] ----------------------------------------
+5:35:25 PM [express] serving on all interfaces:5000
+5:35:35 PM [system] Memory usage: RSS=133.91MB, HeapTotal=52.96MB, HeapUsed=49.82MB, External=5.80MB
+오후 5:38:31 [tsx] change in ./server\factionBidding.ts Restarting...
+cDATABASE_URL not set. defaulting to in-memory storage.
+Seeding Gaia Project map with 10 sectors...
+Seeding player...
+5:38:32 PM [socket.io] Game server initialized on same port
+5:38:32 PM [express] --- 접속 주소 (다른 사람이 접속할 URL) ---
+5:38:32 PM [express]   로컬: http://localhost:5000
+5:38:32 PM [express]   같은 네트워크: http://10.10.2.33:5000
+5:38:32 PM [express] ----------------------------------------
+5:38:32 PM [express] serving on all interfaces:5000
+5:38:42 PM [system] Memory usage: RSS=135.47MB, HeapTotal=53.46MB, HeapUsed=49.89MB, External=5.80MB
+5:43:42 PM [system] Memory usage: RSS=137.36MB, HeapTotal=53.46MB, HeapUsed=49.95MB, External=5.80MB
+5:48:42 PM [system] Memory usage: RSS=137.75MB, HeapTotal=53.46MB, HeapUsed=49.97MB, External=5.80MB
+5:53:42 PM [system] Memory usage: RSS=137.82MB, HeapTotal=53.46MB, HeapUsed=50.01MB, External=5.80MB
+5:58:43 PM [system] Memory usage: RSS=137.86MB, HeapTotal=53.46MB, HeapUsed=50.03MB, External=5.80MB
+6:03:43 PM [system] Memory usage: RSS=138.59MB, HeapTotal=54.46MB, HeapUsed=50.49MB, External=5.80MB
+6:08:43 PM [system] Memory usage: RSS=129.95MB, HeapTotal=54.46MB, HeapUsed=50.52MB, External=5.80MB
+6:12:23 PM [system] Memory usage: RSS=75.86MB, HeapTotal=54.46MB, HeapUsed=50.55MB, External=5.80MB
+6:17:24 PM [system] Memory usage: RSS=62.88MB, HeapTotal=54.46MB, HeapUsed=50.57MB, External=5.80MB
+6:22:24 PM [system] Memory usage: RSS=59.21MB, HeapTotal=54.46MB, HeapUsed=50.61MB, External=5.80MB
+6:27:24 PM [system] Memory usage: RSS=58.43MB, HeapTotal=54.46MB, HeapUsed=50.64MB, External=5.80MB
+6:32:24 PM [system] Memory usage: RSS=53.11MB, HeapTotal=54.46MB, HeapUsed=50.66MB, External=5.80MB
+6:37:25 PM [system] Memory usage: RSS=56.32MB, HeapTotal=53.46MB, HeapUsed=50.62MB, External=5.80MB
+6:42:25 PM [system] Memory usage: RSS=58.02MB, HeapTotal=54.46MB, HeapUsed=49.91MB, External=5.80MB
