@@ -364,6 +364,23 @@ export function GameLog({
     return s.split('\n').map(x => x.trim()).filter(Boolean);
   };
 
+  // 확장행성(모웨/팅커 3삽) 로그: 홈행성 타입 토큰을 각 행성 색(PLANET_COLORS)으로 — 정확 단어매치라
+  //   "terraforming" 속 "terra"엔 안 걸림. 사용자 요청("글자에 종족/행성 색").
+  const HOME_PLANET_TYPE_RE = /(\b(?:terra|oxide|volcanic|desert|swamp|titanium|ice)\b)/g;
+  const renderPlanetColored = (details: string, fallbackClassName: string) => {
+    const parts = details.split(HOME_PLANET_TYPE_RE);
+    return (
+      <span className={fallbackClassName}>
+        {parts.map((p, i) => {
+          const color = (PLANET_COLORS as Record<string, string>)[p];
+          return color
+            ? <span key={i} style={{ color, fontWeight: 900 }}>{p}</span>
+            : <span key={i}>{p}</span>;
+        })}
+      </span>
+    );
+  };
+
   const renderDetailsMultiline = (details: string, fallbackClassName: string) => {
     const lines = splitDetailLines(details);
     if (lines.length <= 1) return renderDetailsWithTrackColor(details, fallbackClassName);
@@ -648,10 +665,15 @@ export function GameLog({
                   )}
                   {!isBonusTileLog && !hideDetailsText && log.details && (
                     <span className="ml-1.5 min-w-0">
-                      {renderDetailsMultiline(
-                        log.details,
-                        `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
-                      )}
+                      {(log.action === '모웨이드 확장 행성' || log.action === '팅커로이드 확장 행성')
+                        ? renderPlanetColored(
+                            log.details,
+                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
+                          )
+                        : renderDetailsMultiline(
+                            log.details,
+                            `${isMainAction ? 'text-zinc-200 font-bold' : 'text-zinc-300 font-medium'}`
+                          )}
                     </span>
                   )}
                 </div>
