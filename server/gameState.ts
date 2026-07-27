@@ -147,7 +147,13 @@ function councilPendingActive(game: GaiaGameState): boolean {
 	// [확장 2026-07-27, 사용자] 이클립스 6C(소행성 건설)·2K+3P(트랙 선택) 진행 중에도 다른 메인 액션이
 	// 열려 있던 구멍 — 전용 해소 핸들러(eclipse_build_asteroid_mine/cancel_eclipse_asteroid_mine/
 	// eclipse_advance_track/cancel_eclipse_research)는 이 가드 목록에 없어 그대로 동작.
+	// [확장 2026-07-27, 사용자] 수입 단계 시퀀스(팅커 선택 → 아이타/테란 의회 → 첫 턴)의 '사이 틈' 봉쇄:
+	// 팅커로이드 라운드 선택(pendingTinkeroidSpecialChoice)과 의회 대기열(queue — 현재 pending이 잠깐 비는
+	// 전환 순간 포함)도 가드. 해소 핸들러(tinkeroid_choose_special 등)는 가드 목록 밖이라 정상 동작.
 	return !!(game.pendingItarsGaiaformerExchange || game.pendingTerranCouncilBenefit
+		|| (game as any).pendingTinkeroidSpecialChoice
+		|| (game.terranCouncilQueue?.length ?? 0) > 0
+		|| ((game as any).terranCouncilQueueAfterItars?.length ?? 0) > 0
 		|| (game as any).pendingEclipseAsteroidMine || (game as any).pendingEclipseResearch);
 }
 
