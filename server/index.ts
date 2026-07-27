@@ -86,7 +86,8 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
+    // /api/status는 상태페이지(탭당 30초×3서버)+keep-alive 핑이 계속 때려 로그 도배 → 로깅 제외(사용자)
+    if (path.startsWith("/api") && path !== "/api/status") {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
@@ -100,6 +101,13 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // [상태 대시보드] Netlify status 페이지용 — CORS 전체 허용(공개 카운트만 반환, 개인정보/게임내용 없음)
+  const { getPublicStatus } = await import("./gameState");
+  app.get("/api/status", (_req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.json(getPublicStatus());
+  });
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -2130,12 +2130,32 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       return mineCount + ts + lab + pi + academy;
     }
     case 'fm_federation_buildings': {
-      const fedHexIds = game.playerFederationHexes?.[playerId] || [];
+      // [버그수정 2026-07-26, 사용자] 이 게임의 연방 의미론(상태창 호버 하이라이트와 동일): 연방 헥스에
+      // '인접 연결된 내 노드(건물·기생광산·우주정거장)'는 자동 소속. 기존 정산은 형성 시점 헥스만 세서
+      // 나중에 연방 옆에 지은 건물/기생이 하이라이트엔 노랗게 뜨는데 미션 카운트엔 빠지는 불일치.
+      // → GameBoard.hoveredFederationHexIds와 같은 BFS 확장으로 통일 (정거장은 연결만, 카운트는 건물·기생).
+      const seeds = game.playerFederationHexes?.[playerId] || [];
+      if (seeds.length === 0) return 0;
+      const byId = new Map(map.map((t: any) => [t.id, t]));
+      const byCoord = new Map(map.map((t: any) => [`${t.q},${t.r}`, t]));
+      const isNode = (t: any) =>
+        (t.ownerId === playerId && t.structure != null && t.structure !== 'ship')
+        || t.parasiticMine?.ownerId === playerId
+        || t.spaceStation?.ownerId === playerId;
+      const seen = new Set<string>(seeds);
+      const queue: any[] = [];
+      for (const id of seeds) { const t = byId.get(id); if (t && isNode(t)) queue.push(t); }
+      for (let i = 0; i < queue.length; i++) {
+        for (const { q, r } of getNeighborCoords(queue[i].q, queue[i].r)) {
+          const n = byCoord.get(`${q},${r}`);
+          if (!n || seen.has(n.id) || !isNode(n)) continue;
+          seen.add(n.id); queue.push(n);
+        }
+      }
       let buildingCount = 0;
-      for (const hexId of fedHexIds) {
-        const hex = map.find(t => t.id === hexId);
+      for (const id of Array.from(seen)) {
+        const hex = byId.get(id);
         if (!hex) continue;
-        // 내 소유 구조물(우주선 제외)이 있거나, 란티다 기생 광산이 연방 헥스에 포함된 경우
         if ((hex.ownerId === playerId && hex.structure != null && hex.structure !== 'ship') ||
           hex.parasiticMine?.ownerId === playerId) {
           buildingCount++;

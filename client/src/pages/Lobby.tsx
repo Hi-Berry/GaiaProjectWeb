@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -14,6 +14,8 @@ interface GameInfo {
   playerCount: number;
   maxPlayers: number;
   phase: string;
+  roundNumber?: number;
+  botCount?: number;
   createdAt: number;
   hostName: string | null;
   players: Array<{ id: string; name: string; isHost: boolean }>;
@@ -73,27 +75,35 @@ export default function Lobby() {
     };
   }, []);
 
-  const fetchGames = useCallback(async () => {
+  // [UX] 5초 폴링이 매번 스피너+리렌더를 유발해 정신 사나움 → 백그라운드 갱신은 ①로딩표시 없음
+  // ②내용이 실제로 바뀌었을 때만 setGames(JSON 비교) — 안 바뀌면 화면 그대로.
+  const lastGamesJsonRef = useRef<string>('');
+  const fetchGames = useCallback(async (background = false) => {
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       const data = await GameClient.listGames();
-      setGames(data.games || []);
+      const next = data.games || [];
+      const json = JSON.stringify(next);
+      if (json !== lastGamesJsonRef.current) {
+        lastGamesJsonRef.current = json;
+        setGames(next);
+      }
     } catch (error) {
       console.error('Failed to fetch games:', error);
-      toast({
+      if (!background) toast({
         title: 'Connection Error',
         description: 'Could not connect to game server.',
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
     if (!connected) return;
 
-    const interval = setInterval(fetchGames, 5000);
+    const interval = setInterval(() => fetchGames(true), 5000);
     return () => clearInterval(interval);
   }, [connected, fetchGames]);
 
@@ -198,7 +208,7 @@ export default function Lobby() {
   const handleWatchGame = async (gameId: string) => {
     try {
       setWatching(gameId);
-      const { spectatorId } = await GameClient.watchGame(gameId);
+      const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim() || undefined);
       storeSpectatorId(gameId, spectatorId);
       toast({
         title: '관전 시작',
@@ -285,7 +295,7 @@ export default function Lobby() {
             <Button
               variant="outline"
               size="icon"
-              onClick={fetchGames}
+              onClick={() => fetchGames()}
               disabled={loading || !connected}
               data-testid="button-refresh-games"
             >
@@ -316,7 +326,9 @@ export default function Lobby() {
                     ? '종료'
                     : game.phase === 'lobby'
                       ? '대기 중'
-                      : game.phase.replace(/([A-Z])/g, ' $1').trim();
+                      : game.phase === 'main'
+                        ? `${game.roundNumber || 1}라운드 진행 중`
+                        : game.phase.replace(/([A-Z])/g, ' $1').trim();
                   const created = formatCreatedAt(game.createdAt);
                   const roster = game.players ?? [];
 
@@ -335,7 +347,7 @@ export default function Lobby() {
                             <Badge variant="secondary">종료</Badge>
                           )}
                           {isStarted && !isFinished && (
-                            <Badge variant="default">진행 중</Badge>
+                            <Badge variant="default">{game.phase === 'main' ? `R${game.roundNumber || 1} 진행 중` : '진행 중'}</Badge>
                           )}
                           {!isStarted && !isFinished && (
                             <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">
@@ -428,6 +440,33 @@ export default function Lobby() {
                           <Eye className="w-4 h-4 mr-2" />
                           {watching === game.id ? '접속 중...' : 'Watch'}
                         </Button>
+                        {/* [봇전 방 정리] 내가 방장 + 사람이 나뿐(나머지 봇)인 방은 진행 중이어도 종료 가능 */}
+                        {(() => {
+                          const hostP = roster.find(p => p.isHost);
+                          const humanCount = game.playerCount - (game.botCount ?? 0);
+                          const canClose = !!storedPlayerId && hostP?.id === storedPlayerId && humanCount <= 1;
+                          return canClose ? (
+                            <Button
+                              variant="outline"
+                              className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                              disabled={!connected}
+                              onClick={async () => {
+                                if (!confirm(`#${game.id} 봇전 방을 종료할까요? 되돌릴 수 없습니다.`)) return;
+                                try {
+                                  await GameClient.deleteGame(game.id, storedPlayerId!);
+                                  localStorage.removeItem(`gaia-${game.id}-playerId`);
+                                  toast({ title: '방 종료', description: `#${game.id} 방을 정리했습니다.` });
+                                  fetchGames();
+                                } catch (e: any) {
+                                  toast({ title: '종료 실패', description: e?.message || '방을 종료할 수 없습니다.', variant: 'destructive' });
+                                }
+                              }}
+                              data-testid={`button-close-${game.id}`}
+                            >
+                              종료
+                            </Button>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                   );

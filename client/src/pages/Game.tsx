@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -384,6 +384,24 @@ export default function Game() {
   const isHostSessionRef = useRef(
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
   );
+  // [대역폭 2026-07-26] 서버가 game_updated엔 gameLog 꼬리(40개)+인덱스만 보냄 → 여기서 병합·보관.
+  // 전체 로그는 입장/재접속 콜백(full 페이로드)이 시드 — 늦게 들어와도/재접해도 처음부터 다 보임.
+  const gameLogArchiveRef = useRef<{ gameId: string | null; log: NonNullable<GameState['gameLog']> }>({ gameId: null, log: [] });
+  const mergeGameLog = useCallback((g: any) => {
+    if (!g || !Array.isArray(g.gameLog)) return;
+    const arch = gameLogArchiveRef.current;
+    if (arch.gameId !== g.id) { arch.gameId = g.id; arch.log = []; } // 다른 게임으로 이동 시 리셋
+    if (typeof g.gameLogStart === 'number') {
+      if (arch.log.length >= g.gameLogStart) {
+        arch.log = [...arch.log.slice(0, g.gameLogStart), ...g.gameLog];
+      } else {
+        arch.log = [...arch.log, ...g.gameLog]; // 갭(이론상 재접속 full fetch가 선행) — 꼬리라도 반영
+      }
+      g.gameLog = arch.log;
+    } else {
+      arch.log = g.gameLog; // full 페이로드(입장/재접속/get_game) → 아카이브 시드
+    }
+  }, []);
   const [isResearchPinned, setIsResearchPinned] = useState(
     gameId ? localStorage.getItem(`is-research-pinned-${gameId}`) === 'true' : false
   );
@@ -657,6 +675,7 @@ export default function Game() {
         if (storedPlayerId) {
           try {
             const { game: gameData } = await GameClient.rejoinGame(gameId, storedPlayerId);
+            mergeGameLog(gameData);
             setGame(gameData);
             setLoading(false);
             return;
@@ -667,6 +686,7 @@ export default function Game() {
         if (storedSpectatorId) {
           try {
             const { game: gameData } = await GameClient.rejoinGame(gameId, storedSpectatorId);
+            mergeGameLog(gameData);
             setGame(gameData);
             setPlayerId(null);
             setIsSpectator(true);
@@ -678,6 +698,7 @@ export default function Game() {
         }
 
         const { game: gameData } = await GameClient.getGame(gameId);
+        mergeGameLog(gameData);
         setGame(gameData);
         if (storedSpectatorId) {
           setPlayerId(null);
@@ -722,6 +743,7 @@ export default function Game() {
       // 단조 기준선 갱신: 새 컨텍스트(카운트 0, 턴 전환/메인액션 후)면 0으로 리셋, 아니면 최고치 유지.
       if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
       else GameClient.noteAppliedServerFreeCount(serverFreeCount);
+      mergeGameLog(updatedGame);
       setGame(updatedGame);
       // 자동 전환은 useEffect(game?.turnOrder, currentPlayerIndex)에서 처리
       // 메인 액션을 이미 한 상태면 추가 액션 선택 불가 → 대기 중인 선택 초기화
@@ -1416,6 +1438,15 @@ export default function Game() {
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
+  // [의회 대기 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 선택)이 진행 중이면 다른 플레이어는 대기 —
+  // 서버가 메인 액션을 막고(councilPendingActive), 여기선 파워 수락 대기와 같은 안내 배너를 띄운다.
+  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit;
+  const councilPendingInfo = councilPendingRaw && councilPendingRaw.playerId !== playerId
+    ? {
+      name: game.players[councilPendingRaw.playerId]?.name ?? '플레이어',
+      kind: (game as any).pendingItarsGaiaformerExchange ? '아이타' : '테란',
+    }
+    : null;
   const pendingPowerWaiters = (() => {
     const offers = game.pendingPowerOffers?.filter((o) => o && !o.responded) ?? [];
     const byTarget = new Map<string, number>();
@@ -1451,7 +1482,7 @@ export default function Game() {
         onAddPlayer={playerId === game.hostId ? async (playerName) => {
           if (!gameId) return;
           const res = await GameClient.hostAddPlayer(gameId, playerName);
-          setGame(res.game);
+          mergeGameLog(res.game); setGame(res.game);
         } : undefined}
         onAddBot={playerId === game.hostId ? async (botName) => {
           if (!gameId) return;
@@ -2392,6 +2423,19 @@ export default function Game() {
       <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
+          {councilPendingInfo && (
+            <div className="bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs md:text-sm">
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 shrink-0 text-cyan-300 mt-0.5 animate-pulse" />
+                <p className="leading-snug">
+                  <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} 의회 능력 처리 중
+                  <span className="block text-[10px] text-cyan-200/75 font-medium mt-0.5">
+                    선택이 끝나면 라운드 첫 액션이 가능합니다
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
           {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
             <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs md:text-sm">
               <div className="flex items-start gap-2">
@@ -4421,7 +4465,7 @@ export default function Game() {
                     }
                     return 0; // 둘 다 플레이 중 → turnOrder 순서 유지
                   })
-              ).map((id) => {
+              ).map((id, cardIdx) => {
                 const p = game.players[id] as PlayerState | undefined;
                 if (!p) return null;
                 const fedEntries = getFederationEntries(p);
@@ -4633,7 +4677,7 @@ export default function Game() {
                           : isYou
                             ? 'bg-primary/15 border-primary/50'
                             : 'bg-muted/50 border-border'
-                        } ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}
+                        }`}
                     >
                       <PopoverTrigger asChild>
                         <div
@@ -4656,8 +4700,8 @@ export default function Game() {
                         >
                           {/* Left: Main info, Buildings, Resources */}
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
-                            {/* Score / Name / Bid Row */}
-                            <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
+                            {/* Score / Name / Bid Row — [2026-07-26 사용자] 패스 딤은 이름줄·보너스타일만, 건물/자원/파워/포머는 안 가림 */}
+                            <div className={`flex items-center gap-2 min-w-0 mb-1 md:mb-1.5 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
                               <span className="w-5 md:w-7 text-left text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
                                 {p.score}
                               </span>
@@ -4673,7 +4717,9 @@ export default function Game() {
                                     title="클릭: 보드 표시 색 변경 (건물·위성·잊혀진 행성)"
                                   />
                                   {colorPickerFor === id && (
-                                    <div className="absolute z-50 top-4 left-0 p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40" onClick={(e) => e.stopPropagation()}>
+                                    // [2026-07-26 사용자] 아래쪽 카드(3·4번째)는 피커가 아래로 열리면 로그창(다른 스택)에 가려
+                                    // '기본색으로' 클릭 불가 → 하단 카드는 위로 열어 상태창 안에서 해결(z 전쟁 회피)
+                                    <div className={`absolute z-50 left-0 p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40 ${cardIdx >= 2 ? 'bottom-4' : 'top-4'}`} onClick={(e) => e.stopPropagation()}>
                                       <div className="text-[10px] text-zinc-400 mb-1.5">보드 표시 색 (나에게만 적용)</div>
                                       <div className="grid grid-cols-6 gap-1 mb-1.5">
                                         {OVERRIDE_COLORS.map((c) => (
@@ -4941,7 +4987,7 @@ export default function Game() {
                           </div>
 
                           {/* Right Edge: Pass Tile Image + Chevron (spanning full height) */}
-                          <div className="flex flex-col items-center justify-center p-2 border-l border-white/5 bg-black/10 shrink-0 w-[52px]">
+                          <div className={`flex flex-col items-center justify-center p-2 border-l border-white/5 bg-black/10 shrink-0 w-[52px] ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
                             {p.bonusTile && (() => {
                               const bonusIndex = ALL_BONUS_TILES.findIndex(t => t.id === p.bonusTile);
                               if (bonusIndex === -1) return null;
@@ -5465,6 +5511,15 @@ export default function Game() {
         />
       )}
 
+      {/* [의회 대기] 모바일 배너 — 데스크톱은 좌측 사이드바에 같은 안내(hidden md:flex라 모바일 미노출) */}
+      {game && isMobileViewport && councilPendingInfo && (
+        <div
+          className="md:hidden fixed inset-x-3 z-[116] bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3.25rem)' }}
+        >
+          <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} 의회 능력 처리 중 · 선택이 끝나면 라운드가 시작됩니다
+        </div>
+      )}
       {/* 모바일 전체모드 진입 버튼 — 좌상단, 전체모드 아닐 때만(사용자 요청). 전체모드는 시스템 UI를 접어 세로 공간 확보. */}
       {game && isMobileViewport && !isFullscreen && (
         <button
