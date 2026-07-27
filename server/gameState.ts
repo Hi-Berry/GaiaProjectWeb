@@ -6742,21 +6742,33 @@ function applyMoweyipTinkeroidsExpansionPlanets(game: ServerGameState): void {
 	const playerList = Object.values(game.players);
 	const moweyipPlayer = playerList.find(p => p.faction === 'moweyip');
 	const tinkeroidsPlayer = playerList.find(p => p.faction === 'tinkeroids');
+	// [사용자 요청] 3삽(테라포밍) 확장 행성이 '랜덤'으로 결정되는 경우(다른 홈행성 distinct!==3; 표준 4인플은 3개 고정)만
+	//   로그창에 공개한다 — 비딩 시엔 다른 종족을 몰라 알 수 없던 정보라, 결정된 결과를 플레이어가 볼 수 있게.
+	const isRandomExpansionPick = (otherHomes: import('@shared/gameConfig').PlanetType[]) =>
+		Array.from(new Set(otherHomes.filter(pl => HOME_PLANETS.includes(pl)))).length !== 3;
 	if (moweyipPlayer) {
+		const moweyipId = Object.keys(game.players).find(id => game.players[id].faction === 'moweyip');
 		const otherHomes = playerList
 			.filter(p => p.faction && p.faction !== 'moweyip')
 			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
 			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 		game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
 		log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+		if (moweyipId && isRandomExpansionPick(otherHomes) && !(game as any).simulation) {
+			addGameLog(game, moweyipId, '모웨이드 확장 행성', `3삽(테라포밍) 행성 랜덤 결정: ${game.moweyipThreeStepPlanets.join(', ')}`);
+		}
 	}
 	if (tinkeroidsPlayer) {
+		const tinkeroidsId = Object.keys(game.players).find(id => game.players[id].faction === 'tinkeroids');
 		const otherHomes = playerList
 			.filter(p => p.faction && p.faction !== 'tinkeroids')
 			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
 			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
 		game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
 		log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+		if (tinkeroidsId && isRandomExpansionPick(otherHomes) && !(game as any).simulation) {
+			addGameLog(game, tinkeroidsId, '팅커로이드 확장 행성', `3삽(테라포밍) 행성 랜덤 결정: ${game.tinkeroidsThreeStepPlanets.join(', ')}`);
+		}
 	}
 }
 
