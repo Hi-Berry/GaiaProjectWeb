@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { GameState } from '@/lib/gameClient';
-import { FACTIONS, PLANET_COLORS } from '@shared/gameConfig';
+import { FACTIONS, PLANET_COLORS, HOME_PLANETS } from '@shared/gameConfig';
 import { GameClient } from '@/lib/gameClient';
 import { racePortraitSrc } from '@/lib/racePortrait';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
@@ -105,10 +105,13 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
     const out: { key: string; label: string; planets: string[]; note: string }[] = [];
     for (const fac of ['moweyip', 'tinkeroids'] as const) {
       if (!gameFacs.includes(fac)) continue; // 게임에 없는 확장 종족은 표시 안 함
+      // [버그수정 2026-07-28 사용자] 다크니안(asteroid=핑크)·스페이스자이언츠(proto) 등 '비표준 홈' 종족의
+      // 홈이 3삽 후보로 새어나오던 문제 — 서버(computeExpansionThreeStepPlanets/computeTwoExpansionDraw)와
+      // 동일하게 HOME_PLANETS(일반 홈 7종)로만 거른다. moweyip/tinkeroids 제외만으론 부족(같은 asteroid=darkanians).
       const homes = Array.from(new Set(
         gameFacs.filter(f => f !== 'moweyip' && f !== 'tinkeroids')
           .map(f => FACTIONS.find(x => x.id === f)?.homePlanet)
-          .filter((h): h is NonNullable<ReturnType<typeof Object>> & string => !!h)
+          .filter((h): h is NonNullable<ReturnType<typeof Object>> & string => !!h && (HOME_PLANETS as string[]).includes(h))
       ));
       const label = fac === 'moweyip' ? '모웨이드' : '팅커로이드';
       const note = !poolComplete ? '(종족 풀 확정 후)' : homes.length > 3 ? '(이 중 3개 랜덤)' : homes.length < 3 ? '(+랜덤 보충)' : '';
