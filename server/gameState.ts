@@ -8808,6 +8808,13 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 		}
 		log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game', undefined, { simulation: (game as any).simulation });
 	} else {
+		// [2026-07-27 사용자] 수락은 로그창에 뜨는데 거절은 무반응이던 것 — 거절도 같은 서브로그(↳)로 표기
+		const declined = addSubLogToLastAction(game, offer.sourcePlayerId, {
+			playerId: actualTargetId,
+			playerName: targetPlayer.name,
+			text: `↳ 파워 거절 ${targetPlayer.name}`
+		});
+		if (!declined) addGameLog(game, actualTargetId, 'Declined Power', `${game.players[offer.sourcePlayerId]?.name}의 파워 제안 거절`, offer.tileId);
 		log(`Player ${targetPlayer.name} declined power offer`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
