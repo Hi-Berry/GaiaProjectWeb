@@ -182,14 +182,19 @@ export default function Lobby() {
   /** [다른 기기 이어하기] 진행 중 게임에 이 기기 좌석(localStorage)이 없을 때 —
    *  이름+비번이 채워져 있으면 로비에서 바로 좌석 복귀(account_rejoin), 아니면 게임 페이지의 이어하기 폼으로 보냄. */
   const handleLobbyRejoin = async (gameId: string) => {
-    if (!playerName.trim() || !joinPassword.trim()) {
-      setLocation(`/game/${gameId}`); // 게임 페이지에서 '내 자리로 이어하기'(이름/비번) 폼이 뜸
+    // [2026-07-27 사용자] 상단 입력칸을 먼저 채워야 동작하던 게 헷갈림 → 버튼 누르면 팝업으로 이름/비번을 바로 물음
+    const name = (window.prompt('이어하기 — 이름을 입력하세요', playerName.trim()) ?? '').trim();
+    if (!name) return;
+    const pw = (window.prompt('좌석 비밀번호를 입력하세요 (게임 참가 때 설정한 비번)', joinPassword.trim()) ?? '').trim();
+    if (!pw) {
+      toast({ title: '비밀번호 필요', description: '참가할 때 비밀번호를 설정한 좌석만 다른 기기에서 이어할 수 있습니다.', variant: 'destructive' });
       return;
     }
     try {
       setJoining(gameId);
-      const { playerId } = await GameClient.accountRejoin(gameId, playerName.trim(), joinPassword.trim());
-      localStorage.setItem('gaia-playerName', playerName.trim());
+      const { playerId } = await GameClient.accountRejoin(gameId, name, pw);
+      localStorage.setItem('gaia-playerName', name);
+      setPlayerName(name);
       localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
       localStorage.removeItem(`gaia-${gameId}-spectatorId`); // 관전으로 열었던 기기도 좌석으로 전환
       toast({ title: '이어하기', description: '내 자리로 복귀했습니다.' });
