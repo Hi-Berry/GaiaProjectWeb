@@ -1185,10 +1185,14 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 		// 봇: 전략적 판단. 사람: 무료(VP 0)만 자동 수락, 유료는 직접 결정(아래 pending).
 		const autoAcceptOne = offer.vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
 		if (isBot) {
-			if (shouldBotAcceptPowerOffer(game, offer.targetPlayerId, offer.amount, offer.vpCost)) {
-				addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
-				applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount);
-				const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
+			// [버그수정 2026-07-28] stale 오퍼 값 대신 현재 충전여력·점수로 재계산(순차 leech로 여력 줄면 그만큼만·무료).
+			const capNow = getMaxPowerGain(targetPlayer);
+			const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
+			const vpNow = Math.max(0, chargeNow - 1);
+			if (shouldBotAcceptPowerOffer(game, offer.targetPlayerId, chargeNow, vpNow)) {
+				addScore(game, offer.targetPlayerId, -vpNow, 'powerReceived');
+				applyPlayerPowerCharge(game, offer.targetPlayerId, chargeNow);
+				const text = `+${chargeNow}P${vpNow > 0 ? ` (-${vpNow}VP)` : ''}`;
 				const added = addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
@@ -1199,7 +1203,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
-					text: `↳ Declined Power (-${offer.vpCost}VP avoided) ${targetPlayer.name}`
+					text: `↳ Declined Power (-${vpNow}VP avoided) ${targetPlayer.name}`
 				});
 			}
 			continue;
@@ -5676,15 +5680,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const targetPlayer = game.players[offer.targetPlayerId];
 				if (!targetPlayer) continue;
 
-				if (offer.vpCost > (targetPlayer.score || 0)) continue; // VP 부족 시 스킵
+				// [버그수정 2026-07-28 사용자] 오퍼 값(amount/vpCost)은 생성 시점(stale) — 일괄 수락은 큰 것부터
+				//   순차 처리라 앞 수락으로 충전여력·점수가 줄면 뒤 오퍼는 그만큼만 충전/무료여야 함 → 현재값으로 재계산.
+				const capNow = getMaxPowerGain(targetPlayer);
+				const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
+				const vpNow = Math.max(0, chargeNow - 1);
 				offer.responded = true;
-				addScore(game, offer.targetPlayerId, -offer.vpCost, 'powerReceived');
+				addScore(game, offer.targetPlayerId, -vpNow, 'powerReceived');
 				// 파워 수령 로직 통일: 타클론 브레인/PI 보너스 포함
-				applyPlayerPowerCharge(game, offer.targetPlayerId, offer.amount, { brainFirst: true });
+				applyPlayerPowerCharge(game, offer.targetPlayerId, chargeNow, { brainFirst: true });
 				const sourcePlayer = game.players[offer.sourcePlayerId];
-				const subTxt = `↳ Received Power +${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''} ${targetPlayer.name}`;
+				const subTxt = `↳ Received Power +${chargeNow}P${vpNow > 0 ? ` (-${vpNow}VP)` : ''} ${targetPlayer.name}`;
 				const subAdded = addSubLogToLastAction(game, offer.sourcePlayerId, { playerId: offer.targetPlayerId, playerName: targetPlayer.name, text: subTxt });
-				if (!subAdded) addGameLog(game, offer.targetPlayerId, 'Received Power', `+${offer.amount}P from ${sourcePlayer?.name} (-${offer.vpCost}VP)`, offer.tileId);
+				if (!subAdded) addGameLog(game, offer.targetPlayerId, 'Received Power', `+${chargeNow}P from ${sourcePlayer?.name} (-${vpNow}VP)`, offer.tileId);
 			}
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
@@ -8821,11 +8829,18 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 	}
 
 	if (accept) {
-		addScore(game, actualTargetId, -offer.vpCost, 'powerReceived');
-		applyPlayerPowerCharge(game, actualTargetId, offer.amount, { brainFirst, piAddFirst });
+		// [버그수정 2026-07-28 사용자] 오퍼의 amount/vpCost는 생성 시점(같은 턴 다른 leech 처리 전, 충전여력·점수
+		//   가득) 기준이라 stale. 한 턴 2회 leech(연구소+광산/검은행성 등)에서 첫 수락으로 충전여력·점수가 줄면
+		//   두 번째는 '실제 충전 가능분'만·그만큼의 VP만 내야 하는데(예: 1충전=무료) 옛 값으로 과다 차감하던 문제.
+		//   → 응답 시점의 현재 충전여력·점수로 재계산(줄면 그만큼만; 여력 여유면 원래 값과 동일).
+		const capNow = getMaxPowerGain(targetPlayer);
+		const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
+		const vpNow = Math.max(0, chargeNow - 1);
+		addScore(game, actualTargetId, -vpNow, 'powerReceived');
+		applyPlayerPowerCharge(game, actualTargetId, chargeNow, { brainFirst, piAddFirst });
 
 		const sourcePlayer = game.players[offer.sourcePlayerId];
-		const text = `+${offer.amount}P${offer.vpCost > 0 ? ` (-${offer.vpCost}VP)` : ''}`;
+		const text = `+${chargeNow}P${vpNow > 0 ? ` (-${vpNow}VP)` : ''}`;
 		// 중첩 로그 시도하되, 실패하거나 더 명확한 표시를 위해 개별 로그도 병행 고려 (보통 중첩이 가독성 좋음)
 		const added = addSubLogToLastAction(game, offer.sourcePlayerId, {
 			playerId: actualTargetId,
@@ -8838,7 +8853,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 			// 중첩되었더라도 최소한 개별 플레이어 입장에서 무엇인가 일어났음을 알 수 있도록 개별 로그도 남김 (상수 필터링 고려)
 			/* 서브로그(건물 아래 ↳)와 중복이라 개별 'Power Gained' 로그는 생략 */
 		}
-		log(`Player ${targetPlayer.name} accepted power: +${offer.amount}P, -${offer.vpCost}VP`, 'game', undefined, { simulation: (game as any).simulation });
+		log(`Player ${targetPlayer.name} accepted power: +${chargeNow}P, -${vpNow}VP`, 'game', undefined, { simulation: (game as any).simulation });
 	} else {
 		// [2026-07-27 사용자] 수락은 로그창에 뜨는데 거절은 무반응이던 것 — 거절도 같은 서브로그(↳)로 표기
 		const declined = addSubLogToLastAction(game, offer.sourcePlayerId, {
