@@ -1199,7 +1199,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
-					text: `↳ Declined Power (-${offer.vpCost}VP 회피) ${targetPlayer.name}`
+					text: `↳ Declined Power (-${offer.vpCost}VP avoided) ${targetPlayer.name}`
 				});
 			}
 			continue;
@@ -8827,9 +8827,9 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 		const declined = addSubLogToLastAction(game, offer.sourcePlayerId, {
 			playerId: actualTargetId,
 			playerName: targetPlayer.name,
-			text: `↳ 파워 거절 ${targetPlayer.name}`
+			text: `↳ Declined Power ${targetPlayer.name}`
 		});
-		if (!declined) addGameLog(game, actualTargetId, 'Declined Power', `${game.players[offer.sourcePlayerId]?.name}의 파워 제안 거절`, offer.tileId);
+		if (!declined) addGameLog(game, actualTargetId, 'Declined Power', `from ${game.players[offer.sourcePlayerId]?.name}`, offer.tileId);
 		log(`Player ${targetPlayer.name} declined power offer`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 
