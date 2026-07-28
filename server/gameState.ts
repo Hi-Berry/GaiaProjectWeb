@@ -5675,8 +5675,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
 			if (game.pendingTurnEndPlayerId) {
-				const endingPlayerId = game.pendingTurnEndPlayerId;
-				finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
+				// [버그수정 2026-07-28 사용자: 파워 처리 단계 모두 안 끝났는데 다음 사람이 액션] 일괄 수락은 '자기' 오퍼만
+				// 해소한다. 다른 플레이어 오퍼가 아직 남았는데도 pendingTurnEndPlayerId만 보고 finalize하면 턴이 조기
+				// 종료돼 다음 사람이 먼저 둔다. 단일 응답(executeRespondPowerOffer)과 동일하게 '모든 오퍼 해소' 시에만 종료.
+				if ((game.pendingPowerOffers?.length || 0) === 0) {
+					const endingPlayerId = game.pendingTurnEndPlayerId;
+					finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
+				} else {
+					clampPlayerResources(game); emitGameUpdated(io, game); // 다른 플레이어 오퍼 대기 — 종료 보류
+				}
 				return;
 			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
