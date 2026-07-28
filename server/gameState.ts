@@ -4641,6 +4641,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 					restoredGame.gameLog = liveLog;
 				}
 				restoredGame.humanActionJournal = game.humanActionJournal;
+				// [버그수정 2026-07-27 사용자 관찰: 리벨리온 교역소 후 타클론 leech 누락] 파워 leech 오퍼는 메인 액션
+				// '건설'로 생성되는, 상대에게 진 의무다. 스냅샷(buildFreeActionUndoSnapshot)은 queuedPowerOffers·
+				// pendingTurnEndPlayerId를 벗겨내는데, 복원 시 이 라이브 상태들을 도로 붙이지 않아 프리액션 되돌리기가
+				// 방금 건설로 큐잉된 leech 오퍼를 통째로 날렸다(자기·타인 무관) → 상대가 파워 수령 창을 영영 못 받음.
+				// 프리액션 undo는 '건설'을 되돌리지 않으므로 라이브 파워오퍼 상태를 그대로 보존한다.
+				restoredGame.pendingPowerOffers = game.pendingPowerOffers;
+				(restoredGame as ServerGameState).queuedPowerOffers = (game as ServerGameState).queuedPowerOffers;
+				(restoredGame as any).pendingTurnEndPlayerId = (game as any).pendingTurnEndPlayerId;
 				(restoredGame as any).freeActionUndoState = undefined;
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
