@@ -1223,6 +1223,15 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 	return game.pendingPowerOffers.length;
 }
 
+/** 다른 플레이어의 '사전 처리'가 진행 중이면 true → 그동안 어떤 새 메인 액션도 막는다('당신의 턴이 아닙니다'와 동급).
+ *  포함: ①수입 단계 파워 수입 순서 선택(pendingIncomeOrder, 예: 의회 4pw→경제2pw 순서 고르는 중)
+ *        ②leech 파워 오퍼 미해소(pendingPowerOffers / 턴 종료 보류 pendingTurnEndPlayerId). */
+function mainActionBlockedByPending(game: ServerGameState): boolean {
+	return ((game.pendingPowerOffers?.length ?? 0) > 0)
+		|| Boolean(game.pendingTurnEndPlayerId)
+		|| Boolean(game.pendingIncomeOrder);
+}
+
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
 	// 끝난 플레이어의 마지막 로그에 로그 이후 적용된 효과까지 끌어올림(변동량 정확도 보강)
 	finalizeLogSnap(game, endedPlayerId);
@@ -3751,6 +3760,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 
 			executeBuildMine(io, game, playerId, tileId, useGaiaformer);
@@ -3776,6 +3786,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
@@ -4353,6 +4364,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
@@ -4510,6 +4522,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_power_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			executeUsePowerAction(io, game, playerId, actionId);
@@ -4848,6 +4861,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			const ok = executeUseTechAction(io, game, playerId, tileId);
@@ -7240,6 +7254,9 @@ export function executeAdvanceTech(
 	const ownsPendingAdvance = game.pendingShipTechTrackAdvance?.playerId === playerId
 		|| game.pendingAdvancedTechTrackAdvance?.playerId === playerId;
 	if (!isMyTurn && !ownsPendingAdvance) return false;
+	// [버그수정 2026-07-28 사용자: 다른 사람 파워 수령 중인데 제노스가 연구 전진해버림] 파워 leech 오퍼가 아직
+	//   미해소(턴 종료 보류)면 일반 4K 연구 전진 불가 — 파워 처리 완료 후 진행. 보상 트랙 전진(Itars 등 크로스턴)은 예외.
+	if (!ownsPendingAdvance && mainActionBlockedByPending(game as ServerGameState)) return false;
 
 	const player = game.players[playerId];
 	const track = trackId as ResearchTrack;
