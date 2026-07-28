@@ -3211,8 +3211,9 @@ export default function Game() {
           playerId={playerId}
           mode="pass"
           onSelectBonusTile={(tileId) => {
-            GameClient.passRound(gameId!, tileId);
-            setConfirmPassWithTileId(null);
+            // [2026-07-27 사용자] 이 경로가 경고 다이얼로그(미사용 4P타일 등)를 우회하고 바로 패스하던 문제 —
+            // 다른 패스 경로처럼 확인 다이얼로그를 거치게 통일 (확인 버튼이 passRound 호출)
+            setConfirmPassWithTileId(tileId);
           }}
         />
 
@@ -3300,7 +3301,8 @@ export default function Game() {
             // 1) 기술 타일 액션 (예: ACT: 4P, ACT: 3K, ACT: 3O, ACT: 1Q+5C)
             (currentPlayer.techTiles ?? []).forEach(tid => {
               const tile = ALL_TECH_TILES.find(t => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
-              if (tile?.specialAction && !(currentPlayer.usedTechActions ?? []).includes(tid)) unusedAbilities.push(`기술: ${tile.label}`);
+              if (tile?.specialAction && !(currentPlayer.usedTechActions ?? []).includes(tid)
+                && !(currentPlayer.coveredTechTiles ?? []).includes(tid)) unusedAbilities.push(`기술: ${tile.label}`);
             });
             // 2) 보너스 타일 특수 액션 (1테라/가이아/+3거리)
             if (currentBonusTile?.specialAction && !currentPlayer.usedBonusAction) {
