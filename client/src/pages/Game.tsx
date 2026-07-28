@@ -4916,6 +4916,14 @@ export default function Game() {
                                   })()}
 
                                   <div className="flex items-center gap-1 shrink-0">
+                                    {/* [사용자] 포머 표시 우측에 미사용(초록) 연방 개수 칩 하나 — "FED N". 5단계/고급기술에 아직 안 쓴 연방 수. 없으면 미표시. */}
+                                    {(() => {
+                                      const green = getFederationEntries(p as PlayerState).filter((f) => f.isGreen).length;
+                                      if (green === 0) return null;
+                                      return (
+                                        <span className="text-[8px] font-black leading-none px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 tracking-tight" title={`미사용 연방 ${green}개 (5단계·고급기술에 사용 가능)`}>FED {green}</span>
+                                      );
+                                    })()}
                                     {inc.powerTokens > 0 && (
                                       <span className="text-[10px] md:text-xs text-zinc-400 font-bold">+{inc.powerTokens}Tok</span>
                                     )}

@@ -263,11 +263,8 @@ export function BonusTiles({
                       }}
                     />
                   ))}
-                  {n > 3 && (
-                    <div className="absolute -bottom-1 -right-1 bg-amber-600 text-[8px] font-black px-1 rounded-full z-10">
-                      {n}
-                    </div>
-                  )}
+                  {/* [사용자] 개수는 타일 오른쪽 아래 코너에 작게 붙임(타일 안 가리고 폭도 안 늘림). */}
+                  <div className="absolute -bottom-1 -right-1 bg-amber-600 text-white text-[13px] font-black px-1 rounded z-20 leading-none tabular-nums shadow-md pointer-events-none">×{n}</div>
                 </div>
               );
             })}
@@ -292,11 +289,7 @@ export function BonusTiles({
                       }}
                     />
                   ))}
-                  {n > 3 && (
-                    <div className="absolute -bottom-1 -right-1 bg-cyan-600 text-[8px] font-black px-1 rounded-full z-10">
-                      {n}
-                    </div>
-                  )}
+                  {/* [사용자] 우주선 연방은 항상 1개라 개수 표기 생략 */}
                 </div>
               );
             })}
