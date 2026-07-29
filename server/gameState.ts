@@ -349,6 +349,25 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
  * 현재 턴으로만 감"). 캡처 지점을 이 헬퍼로 통일한다. 참조 이관만 하므로(clone 아님) 추가 메모리 없음.
  * ※ 라운드 경계를 넘어선 prev는 admin_rollback_turn이 roundNumber 가드로 걸러 과도한 되감기(인컴 재적용 등)를 막는다.
  */
+/** [롤백] gameId별 압축 턴 시작 스냅샷 히스토리 (서버 메모리, 게임 객체와 분리 — 클론/emit/저장 무관).
+ *  실측: gzip(level1) 스냅샷당 ~5KB, dedup 후 게임당 수십~백 개 → 1MB 미만. */
+type TurnHistoryEntry = { seq: number; round: number; playerId: string; playerName: string; currentPlayerIndex: number; gz: Buffer; gameLogSeqAt: number; humanActionJournalLength: number; ts: number };
+const turnHistories = new Map<string, TurnHistoryEntry[]>();
+const TURN_HISTORY_CAP = 300; // 안전 상한(게임당). dedup 후엔 보통 이보다 훨씬 적음.
+
+function pushTurnHistory(game: ServerGameState, playerId: string): void {
+	if ((game as any).simulation) return; // 자가대전/시뮬은 롤백 불필요 → 오버헤드 스킵
+	const entry: any = game.turnStartState?.[playerId];
+	if (!entry?.fullGameState) return;
+	let hist = turnHistories.get(game.id);
+	if (!hist) { hist = []; turnHistories.set(game.id, hist); }
+	// dedup: 직전 엔트리와 같은 seq(그 사이 새 로그 없음)면 스킵 — 재진입/중복 캡처 제거(핵심). 실측: ~1102콜 → 32개 유지.
+	if (hist.length && hist[hist.length - 1].seq === entry.gameLogSeqAt) return;
+	const gz = zlib.gzipSync(Buffer.from(JSON.stringify(entry.fullGameState)), { level: 1 });
+	hist.push({ seq: entry.gameLogSeqAt, round: entry.roundNumber, playerId, playerName: game.players[playerId]?.name ?? playerId, currentPlayerIndex: entry.currentPlayerIndex, gz, gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength ?? 0, ts: Date.now() });
+	if (hist.length > TURN_HISTORY_CAP) hist.splice(0, hist.length - TURN_HISTORY_CAP);
+}
+
 function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void {
 	if (!game.turnStartState) game.turnStartState = {};
 	if (game.turnStartState[playerId]?.fullGameState) {
@@ -356,6 +375,33 @@ function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void
 		game.prevTurnStartState[playerId] = game.turnStartState[playerId];
 	}
 	game.turnStartState[playerId] = buildTurnStartStateEntryForPlayer(game, playerId);
+	pushTurnHistory(game, playerId);
+}
+
+/** [롤백 실행] 압축 히스토리 엔트리로 게임 상태 전체 복원 (admin_rollback_turn과 동일 복원부).
+ *  해당 seq 이후 히스토리는 잘라내고, 봇 루프 취소 후 복원 지점에서 재가동. */
+function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, hist: TurnHistoryEntry[], entry: TurnHistoryEntry): void {
+	const fullGameState = JSON.parse(zlib.gunzipSync(entry.gz).toString('utf8'));
+	const restored = deepClone(fullGameState) as ServerGameState;
+	const synthStart: any = { gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength };
+	restored.gameLog = restoreGameLogForReset(game, synthStart, entry.playerId);
+	restored.humanActionJournal = (game.humanActionJournal || []).slice(0, entry.humanActionJournalLength || 0);
+	clearFreeActionUndo(restored);
+	restored.turnStartState = { [entry.playerId]: buildTurnStartStateEntryForPlayer(restored, entry.playerId) };
+	restored.prevTurnStartState = undefined;
+	(restored as any).pendingRollback = null;
+	// 진행 중 봇 루프 무효화 후 복원 지점에서 재시작
+	(game as any).botCanceled = true;
+	cancelBotExecution(game.id);
+	hideHeavyServerFields(restored);
+	games.set(game.id, restored);
+	clampPlayerResources(restored);
+	// 이 seq 이후 히스토리 제거(새 타임라인)
+	const cut = hist.findIndex(h => h.seq === entry.seq);
+	if (cut >= 0) hist.splice(cut + 1);
+	log(`[ROLLBACK] ${game.id} → seq ${entry.seq} (R${entry.round} ${entry.playerName} 턴 시작)`, 'game', game.id);
+	io.to(game.id).emit('game_updated', restored);
+	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback): ${err}`, 'error'));
 }
 
 function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
@@ -1236,7 +1282,8 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 function mainActionBlockedByPending(game: ServerGameState): boolean {
 	return ((game.pendingPowerOffers?.length ?? 0) > 0)
 		|| Boolean(game.pendingTurnEndPlayerId)
-		|| Boolean(game.pendingIncomeOrder);
+		|| Boolean(game.pendingIncomeOrder)
+		|| Boolean((game as any).pendingRollback); // 롤백 투표 중엔 게임 얼림
 }
 
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
@@ -1449,6 +1496,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	}
 	for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 	game.currentPhase = 'gameEnd';
+	turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
 	saveFinalGameState(game);
 	flushGameData(game);
 	clampPlayerResources(game);
@@ -1619,6 +1667,7 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 			details: details || (isConsolidatable ? action : undefined),
 			tileId,
 			round: game.roundNumber, // [계측] 라운드별 행동 분해용(초반 TS 타이밍 등). h2h가 e.round로 버킷팅.
+			seq: (game as any).gameLogSeq, // [롤백] 이 엔트리 시점의 단조 seq — 로그에서 '여기로 롤백' 매핑용
 		});
 	}
 
@@ -3193,6 +3242,62 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// [롤백 투표] 호스트가 로그의 특정 지점으로 롤백 요청 → 다른 사람(사람) 전원 동의 시 실행. 봇 자동 승인.
+		socket.on('request_rollback', ({ gameId, seq }: { gameId: string; seq: number }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (playerId !== game.hostId) { callback?.({ error: '롤백은 호스트만 요청할 수 있습니다.' }); return; }
+			if (game.currentPhase !== 'main') { callback?.({ error: '진행 중 게임에서만 롤백 가능합니다.' }); return; }
+			if ((game as any).pendingRollback) { callback?.({ error: '이미 롤백 투표가 진행 중입니다.' }); return; }
+			const hist = turnHistories.get(gameId) || [];
+			// [버그수정] 클릭한 로그 seq '미만'의 가장 최근 턴 시작 스냅샷 = 그 로그가 속한 턴의 시작.
+			//   (기존 '<='는 클릭한 턴의 '다음' 턴 시작을 잡아 한 턴 늦게 시작하던 문제)
+			let targetIdx = -1;
+			for (let i = 0; i < hist.length; i++) { if (hist[i].seq < seq) targetIdx = i; else break; }
+			if (targetIdx < 0) { callback?.({ error: '그 지점의 롤백 스냅샷이 없습니다.' }); return; }
+			const target = hist[targetIdx];
+			const bots = new Set(game.botPlayerIds || []);
+			const required = Object.keys(game.players).filter(id => id !== playerId && !bots.has(id));
+			// [표시] 몇 턴 전인지 + 되돌릴 로그 내용(target.seq 이후 로그 요약, 최근 8개)
+			const turnsBack = hist.length - 1 - targetIdx; // target 이후 턴 시작 수
+			const undone = (game.gameLog || []).filter(e => typeof (e as any).seq === 'number' && (e as any).seq > target.seq);
+			const undoneCount = undone.length;
+			const undoneActions = undone.slice(-8).map(e => `${e.playerName}: ${e.action}`);
+			(game as any).pendingRollback = {
+				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '호스트',
+				seq: target.seq, label: `R${target.round} · ${target.playerName} 턴 시작`,
+				turnsBack, undoneCount, undoneActions,
+				required, approvals: [],
+			};
+			if (required.length === 0) { // 다른 사람(사람) 없음 → 즉시 실행
+				executeRollbackToHistory(io, game, hist, target);
+				callback?.({ ok: true }); return;
+			}
+			emitGameUpdated(io, game);
+			callback?.({ ok: true });
+		});
+
+		// 롤백 투표 응답: 한 명이라도 거절하면 취소, 필요한 사람 전원 승인 시 실행.
+		socket.on('respond_rollback', ({ gameId, accept }: { gameId: string; accept: boolean }) => {
+			const game = games.get(gameId);
+			if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId) return;
+			const pr = (game as any).pendingRollback;
+			if (!pr || !pr.required.includes(playerId)) return;
+			if (!accept) { (game as any).pendingRollback = null; emitGameUpdated(io, game); return; }
+			if (!pr.approvals.includes(playerId)) pr.approvals.push(playerId);
+			if (pr.required.every((id: string) => pr.approvals.includes(id))) {
+				const hist = turnHistories.get(gameId) || [];
+				const target = hist.find(h => h.seq === pr.seq);
+				if (target) executeRollbackToHistory(io, game, hist, target);
+				else { (game as any).pendingRollback = null; emitGameUpdated(io, game); }
+			} else {
+				emitGameUpdated(io, game);
+			}
+		});
+
 		// 방 삭제: 시작 전(로비) 상태에서 방장만. 방 안의 모두를 로비로 내보내고 게임을 메모리에서 제거.
 		socket.on('delete_game', ({ gameId, playerId: claimedId }: { gameId: string; playerId?: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
 			const game = games.get(gameId);
@@ -3207,6 +3312,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			io.to(gameId).emit('game_deleted', { gameId });
 			games.delete(gameId);
+			turnHistories.delete(gameId); // [롤백] 히스토리 메모리 정리
 			log(`Game ${gameId} deleted by host ${playerId}`, 'game', gameId);
 			callback?.({ ok: true });
 		});
@@ -7521,6 +7627,7 @@ export function executePassRound(
 			}
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
+			turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
 			saveFinalGameState(game);
 			flushGameData(game);
 			clampPlayerResources(game); emitGameUpdated(io, game);

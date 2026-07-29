@@ -456,7 +456,7 @@ export interface GaiaGameState {
     /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3[,bs]) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
     powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 }>;
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
-  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; snap?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number }; base?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number }; round?: number }>; // 게임 액션 로그 (snap=이 로그 시점 행위자 점수/자원 스냅샷, 클릭 시 직전 대비 변동량 표시용; round=발생 라운드, 라운드 점프용)
+  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; snap?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number }; base?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number }; round?: number; seq?: number }>; // 게임 액션 로그 (snap=이 로그 시점 행위자 점수/자원 스냅샷, 클릭 시 직전 대비 변동량 표시용; round=발생 라운드, 라운드 점프용)
   /** 플레이어 채팅 (최근 N개만 유지). 재접속/관전 시 히스토리 복원용으로 게임 상태에 보관 */
   chatMessages?: Array<{ id: string; senderId: string; name: string; faction?: string | null; isSpectator?: boolean; text: string; ts: number }>;
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
@@ -554,6 +554,18 @@ export interface GaiaGameState {
   useFactionBidding?: boolean;
   /** 친선전: 켜면 게임 종료 시 기록(점수) 사이트에 자동 저장하지 않음. 방 전체에 표시. */
   friendlyMatch?: boolean;
+  /** [롤백 투표] 호스트가 특정 지점 롤백을 요청하면 세팅 — 다른 사람 전원(사람) 동의 시 실행. 봇은 자동 승인. */
+  pendingRollback?: {
+    requesterId: string;
+    requesterName: string;
+    seq: number;        // 되돌릴 턴 시작 스냅샷의 seq
+    label: string;      // 예: "R3 · 사보르 턴 시작"
+    turnsBack: number;  // 몇 턴 전으로 되돌리는지
+    undoneCount: number;// 되돌려 사라질 로그(행동) 수
+    undoneActions: string[]; // 되돌릴 행동 요약(최근 몇 개, "이름: 액션")
+    required: string[]; // 승인이 필요한 사람 playerId 목록
+    approvals: string[];// 승인한 playerId 목록
+  } | null;
   /** 종족 비딩 진행 상태 (factionBidding 단계에서만) */
   factionBidding?: FactionBiddingState | null;
 }
