@@ -1388,24 +1388,21 @@ export function GameBoard({
                           ? '#FFD700'
                           : '#00F2FF';
 
-                      // [사용자] 연방 건물(금색) 테두리가 얇은 점선이라 잘 안 보임 → 연방=굵은 실선+강한 글로우로 강조,
-                      //   비연방(시안)은 기존 얇은 점선 유지해 대비.
-                      const fedHi = isFederated && (isOwnBuilding || isParasiticMine || isSpaceStation);
+                      // [사용자] 연방/미연방 건물 모두 굵은 실선+강한 글로우로 동일하게 강조(색만 구분: 연방=금색, 미연방=파란/시안).
                       return (
                         <g className="pointer-events-none">
                           <circle
                             r="4.3"
                             fill="none"
                             stroke={highlightColor}
-                            strokeWidth={fedHi ? 1 : 0.5}
-                            strokeDasharray={fedHi ? undefined : '1.2 0.8'}
+                            strokeWidth={1}
                             className="animate-pulse"
                             style={{
-                              filter: `drop-shadow(0 0 ${fedHi ? 7 : 4}px ${highlightColor})`,
-                              opacity: fedHi ? 1 : 0.8
+                              filter: `drop-shadow(0 0 7px ${highlightColor})`,
+                              opacity: 1
                             }}
                           />
-                          <circle r="4.6" fill="none" stroke={highlightColor} strokeWidth={fedHi ? 0.25 : 0.1} opacity={fedHi ? 0.75 : 0.4} />
+                          <circle r="4.6" fill="none" stroke={highlightColor} strokeWidth={0.25} opacity={0.75} />
                         </g>
                       );
                     })()}
