@@ -828,6 +828,8 @@ export function GameBoard({
 
   // Touch handlers for mobile pan and pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // 화면 줌 모드: 맵뷰는 고정 — 팬/핀치 모두 브라우저(페이지 스크롤/줌)에 맡긴다. 탭(타일 선택)은 그대로 동작.
+    if (pagePinchZoom) return;
     if (e.touches.length === 1) {
       // Single touch -> Pan
       setIsMouseDown(true);
@@ -835,8 +837,6 @@ export function GameBoard({
       setIsPinching(false);
       setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
     } else if (e.touches.length === 2) {
-      // 화면 줌 모드: 두 손가락은 브라우저 핀치줌에 맡긴다 (맵 자체 줌 비활성)
-      if (pagePinchZoom) { setIsMouseDown(false); return; }
       // Two touches -> Pinch-to-zoom
       setIsMouseDown(false); // Stop panning
       setIsPinching(true);
@@ -1116,7 +1116,7 @@ export function GameBoard({
       {/* 맵 영역: 우측 패널 표시 여부와 관계없이 항상 동일 크기 유지 (행성 클릭 시 확대/팬 깨짐 방지) */}
       <div
         ref={containerRef}
-        className={`flex-1 min-w-0 bg-black rounded-lg border border-white/5 overflow-hidden relative ${pagePinchZoom ? 'touch-pinch-zoom' : 'touch-none'}`}
+        className={`flex-1 min-w-0 bg-black rounded-lg border border-white/5 overflow-hidden relative ${pagePinchZoom ? 'touch-auto' : 'touch-none'}`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
