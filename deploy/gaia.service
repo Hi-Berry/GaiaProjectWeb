@@ -1,0 +1,23 @@
+[Unit]
+Description=Gaia Project Web Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/GaiaProjectWeb
+# 비밀키(SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL 등)는 /etc/gaia.env 에.
+# 파일이 없어도 기동되도록 '-' 접두사(선택적).
+EnvironmentFile=-/etc/gaia.env
+Environment=NODE_ENV=production
+Environment=PORT=5000
+ExecStart=/usr/bin/node /opt/GaiaProjectWeb/dist/index.cjs
+Restart=always
+RestartSec=3
+# 로그는 journald 로 (journalctl -u gaia -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
