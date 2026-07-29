@@ -20,7 +20,11 @@ export type HumanActionJournalEntry = {
   scoreAfter?: number;
   playerBefore?: ReturnType<typeof summarizePlayer>;
   playerAfter?: ReturnType<typeof summarizePlayer>;
-  candidates?: Array<{ type: string; tileId?: string; trackId?: string; target?: string; actionId?: string }>; // [per-candidate 학습] 결정시점 가능 후보들
+  candidates?: Array<{ type: string; tileId?: string; trackId?: string; target?: string; actionId?: string; shipTileId?: string; actionIndex?: number }>; // [per-candidate 학습] 결정시점 가능 후보들
+  // [2026-07-29 우주선 학습] 사람이 실제 고른 우주선/액션 인덱스. 후보엔 shipTileId·actionIndex를 캡처하면서
+  // 선택 엔트리엔 tileId(=어느 우주선)만 남겨 ship 결정의 ~89%가 라벨 불가였음(같은 배 안 actionIndex 구분 불가).
+  actionIndex?: number;
+  shipTileId?: string;
 };
 
 /**
@@ -95,7 +99,7 @@ export function recordHumanActionFromLog(game: GaiaGameState & {
   turnStartState?: Record<string, any>;
   humanActionJournal?: HumanActionJournalEntry[];
   simulation?: boolean;
-}, playerId: string, action: string, details?: string, tileId?: string) {
+}, playerId: string, action: string, details?: string, tileId?: string, meta?: { actionIndex?: number; shipTileId?: string }) {
   if (game.simulation) return;
   if (!game.id) return;
   if (game.botPlayerIds?.includes(playerId)) return;
@@ -118,6 +122,8 @@ export function recordHumanActionFromLog(game: GaiaGameState & {
     action,
     details,
     tileId,
+    actionIndex: meta?.actionIndex,
+    shipTileId: meta?.shipTileId,
     scoreBefore: startPlayer?.score,
     scoreAfter: player.score,
     playerBefore: summarizePlayer(startPlayer),

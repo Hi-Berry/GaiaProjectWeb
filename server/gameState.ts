@@ -1620,7 +1620,7 @@ export function finalizeLogSnap(game: GaiaGameState, playerId: string) {
 	(game as any)._snapBase[playerId] = s;
 }
 
-export function addGameLog(game: GaiaGameState, playerId: string, action: string, details?: string, tileId?: string) {
+export function addGameLog(game: GaiaGameState, playerId: string, action: string, details?: string, tileId?: string, meta?: { actionIndex?: number; shipTileId?: string }) {
 	if ((game as any).simulation) return;
 	if (!game.gameLog) {
 		game.gameLog = [];
@@ -1685,7 +1685,7 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 	}
 	(game as any)._snapBase[playerId] = _curSnap; // 다음 로그의 base 기준선 = 이 액션 결과
 
-	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId);
+	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId, meta);
 	// 사람 게임 한정 전체 로그(봇 포함, 전 라운드) — 라이브 gameLog는 아래에서 100캡되므로 별도 보관.
 	recordFullGameLog(game as ServerGameState, playerId, action, details, tileId);
 
@@ -3963,7 +3963,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					/* build_research_lab 라운드 미션은 건물 로그 직후에 처리(로그 같은 줄에 +VP 병합) */
-					addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId); applyRoundMissionScore(game, playerId, 'build_research_lab');
+					addGameLog(game, playerId, 'Twilight: TS → Research Lab', '2O, 3P (no 3O 5C)', targetTileId, { actionIndex, shipTileId }); applyRoundMissionScore(game, playerId, 'build_research_lab');
 					// 일반 TS→Lab 업그레이드와 동일하게: 인접 상대에게 파워 제공 + 인접 연방 편입 (우주선 액션 경로 누락 버그 수정)
 					createPowerOffers(game, target, playerId);
 					addBuildingToFederationIfAdjacent(game, playerId, target.id);
@@ -3983,7 +3983,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId);
+					addGameLog(game, playerId, 'Twilight: +3 Range', '1K (this turn)', shipTileId, { actionIndex, shipTileId });
 					// hasDoneMainAction 설정하지 않음 → 같은 턴에 광산 건설/가이아포밍 등 후 End Turn
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
@@ -4002,7 +4002,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					// 연구소/아카데미와 동일: 6트랙+풀+우주선 기술 타일 모두 선택 가능
 					game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
 					game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-					addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
+					addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId, { actionIndex, shipTileId });
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
@@ -4028,7 +4028,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.usedActionBy[actionIndex] = playerId;
 					applyRoundMissionScore(game, playerId, 'build_trading_station');
 					applyAdvancedTechTileEffect(game, playerId, 'build_ts'); // adv-vp-build-ts(+3VP) — 리벨리온 Mine→TS도 '교역소 건설'로 취급(누락 수정, 사용자 관찰)
-					addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId);
+					addGameLog(game, playerId, 'Rebellion: Mine → TS', '1O, 3P (no 2O 3C/6C)', targetTileId, { actionIndex, shipTileId });
 					createPowerOffers(game, target, playerId);
 					addBuildingToFederationIfAdjacent(game, playerId, target.id);
 					game.hasDoneMainAction = true;
@@ -4044,7 +4044,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId);
+					addGameLog(game, playerId, 'Rebellion: 2K → 1Q 2C', '', shipTileId, { actionIndex, shipTileId });
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
@@ -4062,7 +4062,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId);
+					addGameLog(game, playerId, 'TF Mars: Tech tiles + 2 VP', `${count + 2} VP`, shipTileId, { actionIndex, shipTileId });
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
@@ -4081,7 +4081,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingTFMarsGaiaProject = { playerId, shipTileId };
-					addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId);
+					addGameLog(game, playerId, 'TF Mars: Gaia Project', '2P → place Gaiaformer (same as bonus tile)', shipTileId, { actionIndex, shipTileId });
 					game.hasDoneMainAction = true; // 가이아포머 배치는 후속 선택이지만 턴은 이미 소모
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
@@ -4095,7 +4095,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step, use when building)', shipTileId);
+					addGameLog(game, playerId, 'TF Mars: 3C → 1 Terraform', '(same as 3PW or bonus 1 Step, use when building)', shipTileId, { actionIndex, shipTileId });
 					// 같은 턴에 광산 건설 시 테라포밍 할인 받을 수 있도록 hasDoneMainAction 설정하지 않음
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
@@ -4114,7 +4114,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId);
+					addGameLog(game, playerId, 'Eclipse: Planet types + 2 VP', `${types.size + 2} VP`, shipTileId, { actionIndex, shipTileId });
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
@@ -4140,7 +4140,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingEclipseResearch = { playerId, shipTileId };
-					addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
+					addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId, { actionIndex, shipTileId });
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
@@ -4159,7 +4159,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingEclipseAsteroidMine = { playerId, shipTileId };
-					addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId);
+					addGameLog(game, playerId, 'Eclipse: 6C → Build mine on asteroid', '(select tile)', shipTileId, { actionIndex, shipTileId });
 					// hasDoneMainAction은 소행성 선택 후 eclipse_build_asteroid_mine에서 설정
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
