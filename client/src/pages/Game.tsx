@@ -490,12 +490,6 @@ export default function Game() {
   const researchDragControls = useDragControls();
   const bonusDragControls = useDragControls();
   const [showGameEndScore, setShowGameEndScore] = useState(false);
-  const [aiFeedbackOpen, setAiFeedbackOpen] = useState(false);
-  const [aiFeedbackRating, setAiFeedbackRating] = useState<'bad' | 'questionable' | 'good'>('bad');
-  const [aiFeedbackExpertMove, setAiFeedbackExpertMove] = useState('');
-  const [aiFeedbackReason, setAiFeedbackReason] = useState('');
-  const [aiFeedbackSubmitting, setAiFeedbackSubmitting] = useState(false);
-  const [selectedAiFeedbackActionId, setSelectedAiFeedbackActionId] = useState<string | null>(null);
   const [isAdminModeOpen, setIsAdminModeOpen] = useState(false);
   // 관리자 해금(Ctrl+Alt+A) 여부 — 진행 중 로그 스냅샷 다운로드 등 관리자 전용 UI 노출 게이트
   const [isAdmin, setIsAdmin] = useState(false);
@@ -2199,46 +2193,6 @@ export default function Game() {
   const cost = pendingAction ? getActionCost(pendingAction) : null;
 
   const isHost = (game && playerId === game.hostId) || isHostSessionRef.current;
-  const selectedBotAction = selectedAiFeedbackActionId
-    ? game?.botActionsForFeedback?.find((a) => a.id === selectedAiFeedbackActionId) ?? game?.lastBotActionForFeedback
-    : game?.lastBotActionForFeedback;
-  const selectedBotActionLabel = selectedBotAction
-    ? `${selectedBotAction.playerName}: ${selectedBotAction.actionType}${selectedBotAction.params ? ` ${JSON.stringify(selectedBotAction.params)}` : ''}`
-    : '';
-
-  const submitAiFeedback = async () => {
-    if (!gameId || !selectedBotAction) return;
-    const reason = aiFeedbackReason.trim();
-    const expertMove = aiFeedbackExpertMove.trim();
-    if (!reason && !expertMove) {
-      toast({ title: '메모 필요', description: '추천 수나 이유 중 하나는 남겨주세요.', variant: 'destructive' });
-      return;
-    }
-    setAiFeedbackSubmitting(true);
-    try {
-      await GameClient.submitAiFeedback(gameId, {
-        actionId: selectedBotAction.id,
-        rating: aiFeedbackRating,
-        expertMove,
-        reason,
-      });
-      toast({ title: 'AI 피드백 저장됨', description: 'server/ai/expertFeedback.jsonl에 기록했습니다.' });
-      setAiFeedbackOpen(false);
-      setAiFeedbackExpertMove('');
-      setAiFeedbackReason('');
-      setAiFeedbackRating('bad');
-      setSelectedAiFeedbackActionId(null);
-    } catch (err: any) {
-      toast({ title: '저장 실패', description: err?.message || 'AI 피드백 저장에 실패했습니다.', variant: 'destructive' });
-    } finally {
-      setAiFeedbackSubmitting(false);
-    }
-  };
-
-  const openAiFeedbackForAction = (actionId: string) => {
-    setSelectedAiFeedbackActionId(actionId);
-    setAiFeedbackOpen(true);
-  };
 
   /** 모바일 Info 오버레이용: 기술/우주선 섹션을 핀 미니뷰와 동일 핸들러로 재사용(section만 다름). 호출은 game 가드 내부에서만 → game! 안전 */
   const renderInfoResearch = (section: 'tech' | 'ships' | 'all') => (
@@ -2352,75 +2306,6 @@ export default function Game() {
         </div>,
         document.body
       )}
-
-      <AlertDialog open={aiFeedbackOpen} onOpenChange={setAiFeedbackOpen}>
-        <AlertDialogContent className="bg-zinc-950 border-zinc-700 max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-white font-black">AI 수 평가 남기기</AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
-              마지막 봇 액션과 현재 상태 요약이 함께 저장됩니다. 나중에 후보 생성/평가 함수 개선에 사용합니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <div className="space-y-3">
-            <div className="rounded-lg border border-white/10 bg-zinc-900/80 p-2 text-xs text-zinc-300">
-              <div className="text-cyan-300 font-bold mb-1">대상 수</div>
-              <div className="break-words">{selectedBotActionLabel || '평가할 AI 수를 로그에서 선택하세요.'}</div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                ['bad', '나쁜 수'],
-                ['questionable', '애매함'],
-                ['good', '좋은 수'],
-              ] as const).map(([value, label]) => (
-                <Button
-                  key={value}
-                  type="button"
-                  variant={aiFeedbackRating === value ? 'default' : 'outline'}
-                  className={aiFeedbackRating === value ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}
-                  onClick={() => setAiFeedbackRating(value)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-zinc-300">더 좋은 수 / 추천 방향</label>
-              <Textarea
-                value={aiFeedbackExpertMove}
-                onChange={(e) => setAiFeedbackExpertMove(e.target.value)}
-                placeholder="예: 경제 4단계, 2O 파워 액션 후 연방 준비, 이 보너스 타일 패스 등"
-                className="mt-1 min-h-[72px] bg-zinc-900 border-zinc-700 text-zinc-100"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-zinc-300">이유 / 고수 판단 근거</label>
-              <Textarea
-                value={aiFeedbackReason}
-                onChange={(e) => setAiFeedbackReason(e.target.value)}
-                placeholder="왜 나쁜지, 어떤 목표/타이밍/상대 상황 때문에 다른 수가 좋은지 적어주세요."
-                className="mt-1 min-h-[110px] bg-zinc-900 border-zinc-700 text-zinc-100"
-              />
-            </div>
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white">
-              취소
-            </AlertDialogCancel>
-            <Button
-              className="bg-cyan-600 hover:bg-cyan-500 text-white font-black"
-              disabled={aiFeedbackSubmitting || !selectedBotAction}
-              onClick={submitAiFeedback}
-            >
-              {aiFeedbackSubmitting ? '저장 중...' : '저장'}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
       <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
@@ -3119,6 +3004,43 @@ export default function Game() {
             <span className="text-[9px] font-bold text-blue-300/90 normal-case">(타일/트랙 선택 대기 중)</span>
           </button>
         )}
+
+        {/* [롤백 투표] 대상자에겐 동의 다이얼로그, 그 외엔 대기 배너 */}
+        {game.pendingRollback && (() => {
+          const pr = game.pendingRollback!;
+          const iAmRequired = !!playerId && pr.required.includes(playerId);
+          const iApproved = !!playerId && pr.approvals.includes(playerId);
+          const need = pr.required.length, got = pr.approvals.length;
+          if (iAmRequired && !iApproved) {
+            return (
+              <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="w-full max-w-md rounded-2xl border border-amber-500/40 bg-zinc-950 p-5 shadow-2xl space-y-3">
+                  <div className="text-amber-300 font-black text-lg">↩ 롤백 요청</div>
+                  <p className="text-sm text-zinc-200 leading-relaxed">
+                    <span className="font-bold text-white">{pr.requesterName}</span>님이 <span className="font-bold text-amber-200">{pr.label}</span>(으)로 되돌리자고 요청했습니다.
+                    <br />약 <span className="font-black text-amber-300">{pr.turnsBack}턴 전</span> · 행동 <span className="font-black text-red-300">{pr.undoneCount}개</span> 되돌림. 전원 동의 필요.
+                  </p>
+                  {pr.undoneActions?.length > 0 && (
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-2 max-h-40 overflow-y-auto text-[11px] leading-relaxed">
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">되돌릴 내용{pr.undoneCount > pr.undoneActions.length ? ` (최근 ${pr.undoneActions.length}개)` : ''}</div>
+                      {pr.undoneActions.map((a, i) => (<div key={i} className="text-zinc-300">• {a}</div>))}
+                    </div>
+                  )}
+                  <div className="text-[11px] text-zinc-500">현재 동의 {got}/{need}</div>
+                  <div className="flex gap-2">
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
+                    <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false)}>거절</Button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-full border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 shadow-lg backdrop-blur">
+              ↩ 롤백 대기 중: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}
+            </div>
+          );
+        })()}
 
         {/* Research Board Overlay */}
         {isResearchOpen && (
@@ -5483,10 +5405,10 @@ export default function Game() {
                     maxHeight="none"
                     textScale={logTextScale}
                     showToolbar={logToolsOpen}
+                    canRollback={!!(playerId && game.hostId === playerId) && game.currentPhase === 'main'}
+                    onRollbackToSeq={(seq, label) => { if (!gameId) return; if (!window.confirm(`[${label ?? '이 지점'}] 이 로그가 속한 턴의 시작으로 되돌립니다.\n그 이후 행동은 모두 사라지고 그 턴부터 다시 진행됩니다.\n다른 플레이어 전원이 동의해야 실행됩니다. 요청할까요?`)) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                    onEntryMouseLeave={() => setHighlightedTileId(null)}
-                    onAiFeedbackClick={openAiFeedbackForAction}
-                  />
+                    onEntryMouseLeave={() => setHighlightedTileId(null)}                  />
                 )}
               </div>
             </div>
@@ -5662,10 +5584,10 @@ export default function Game() {
                   className="w-full"
                   maxHeight="none"
                   textScale={logTextScale}
+                  canRollback={!!(playerId && game.hostId === playerId) && game.currentPhase === 'main'}
+                  onRollbackToSeq={(seq) => { if (!gameId) return; if (!window.confirm('이 지점(턴 시작)으로 롤백을 요청할까요?\n다른 플레이어 전원이 동의해야 실행됩니다.')) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                   onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                  onEntryMouseLeave={() => setHighlightedTileId(null)}
-                  onAiFeedbackClick={openAiFeedbackForAction}
-                />
+                  onEntryMouseLeave={() => setHighlightedTileId(null)}                />
               )}
             </div>
           </div>

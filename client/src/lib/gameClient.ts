@@ -293,6 +293,22 @@ export const GameClient = {
     s.emit('reset_turn', { gameId });
   },
 
+  /** [롤백 투표] 호스트: 특정 로그 seq 지점으로 롤백 요청 (다른 사람 전원 동의 시 실행) */
+  requestRollback(gameId: string, seq: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('request_rollback', { gameId, seq }, (r: any) => {
+        if (r?.error) reject(new Error(r.error)); else resolve();
+      });
+    });
+  },
+
+  /** [롤백 투표] 요청받은 사람: 동의/거절 */
+  respondRollback(gameId: string, accept: boolean) {
+    const s = getSocket();
+    s.emit('respond_rollback', { gameId, accept });
+  },
+
   selectIncomeItem(gameId: string, itemId: string) {
     const s = getSocket();
     s.emit('select_income_item', { gameId, itemId });
@@ -617,16 +633,6 @@ export const GameClient = {
   federationSelectReward(gameId: string, rewardId: string) {
     const s = getSocket();
     s.emit('federation_select_reward', { gameId, rewardId });
-  },
-
-  submitAiFeedback(gameId: string, feedback: { actionId?: string; rating: string; expertMove?: string; reason?: string; tags?: string[] }): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const s = getSocket();
-      s.emit('submit_ai_feedback', { gameId, ...feedback }, (response: any) => {
-        if (response?.error) reject(new Error(response.error));
-        else resolve();
-      });
-    });
   },
 
   /** Terran council: exchange tokens (4→QIC/K, 3→O, 1→C). Total cost must be ≤ tokenCount. */

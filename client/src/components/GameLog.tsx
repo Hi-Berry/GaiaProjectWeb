@@ -18,25 +18,29 @@ interface GameLogProps {
   game: GameState;
   onEntryMouseEnter?: (tileId: string) => void;
   onEntryMouseLeave?: () => void;
-  onAiFeedbackClick?: (actionId: string) => void;
   hideHeader?: boolean;
   className?: string;
   maxHeight?: string;
   textScale?: number;
   /** 최신/라운드 점프 툴바 표시 여부 (기본 true). 도크에서는 'Game Log' 타이틀 클릭으로 토글. */
   showToolbar?: boolean;
+  /** [롤백] 호스트+진행중이면 로그 상세에 '여기로 롤백' 버튼 노출 */
+  canRollback?: boolean;
+  /** [롤백] 클릭 시 해당 로그 seq로 롤백 요청 (label = 클릭한 로그 요약) */
+  onRollbackToSeq?: (seq: number, label?: string) => void;
 }
 
 export function GameLog({
   game,
   onEntryMouseEnter,
   onEntryMouseLeave,
-  onAiFeedbackClick,
   hideHeader = false,
   className = "",
   maxHeight = "400px",
   textScale = 1,
-  showToolbar = true
+  showToolbar = true,
+  canRollback = false,
+  onRollbackToSeq,
 }: GameLogProps) {
   const logs = game.gameLog || [];
   // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)
@@ -484,7 +488,6 @@ export function GameLog({
           const factionColor = factionObj?.color;
           const portraitSrc = player?.faction ? raceFaceSrc(player.faction) : null;
           const primaryImg = getLogPrimaryImage(log, player?.faction);
-          const isAiFeedbackLog = !!log.aiFeedbackActionId;
 
           return (
             <Fragment key={index}>
@@ -498,10 +501,10 @@ export function GameLog({
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
                   : 'bg-zinc-900/30'
-                } ${isAiFeedbackLog ? 'cursor-pointer ring-1 ring-cyan-400/20 hover:ring-cyan-300/60 hover:bg-cyan-950/40' : log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
+                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
               style={{
                 // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
-                borderColor: factionColor ? hexToRgba(factionColor, 0.45) : (isAiFeedbackLog ? 'rgba(34,211,238,0.4)' : isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'),
+                borderColor: factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'),
                 // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
                 scrollMarginTop: '2.75rem',
               }}
@@ -743,16 +746,16 @@ export function GameLog({
                     </div>
                   );
                 })()}
-                {/* AI 평가는 더 이상 행 클릭으로 자동 안 뜸 → 펼친 패널 안 버튼으로만(원할 때만) */}
-                {openIdx === index && log.aiFeedbackActionId && (
+                {/* [롤백] 호스트만: 이 지점(턴 시작)으로 되돌리기 요청 — 다른 사람 전원 동의 시 실행 */}
+                {openIdx === index && canRollback && typeof log.seq === 'number' && onRollbackToSeq && (
                   <div className="mt-1">
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); onAiFeedbackClick?.(log.aiFeedbackActionId!); }}
-                      className="px-2 py-0.5 rounded bg-cyan-700/70 hover:bg-cyan-600 text-white text-[10px] font-bold border border-cyan-400/30"
-                      title="이 AI 수를 좋은수/나쁜수로 평가"
+                      onClick={(e) => { e.stopPropagation(); onRollbackToSeq(log.seq!, `${log.playerName}: ${log.action}`); }}
+                      className="px-2 py-0.5 rounded bg-amber-700/70 hover:bg-amber-600 text-white text-[10px] font-bold border border-amber-400/30"
+                      title="이 지점의 턴 시작으로 롤백 요청 (다른 사람 전원 동의 필요)"
                     >
-                      🧠 이 수 평가
+                      ↩ 여기로 롤백 요청
                     </button>
                   </div>
                 )}
