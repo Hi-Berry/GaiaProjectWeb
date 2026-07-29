@@ -552,6 +552,8 @@ export interface GaiaGameState {
 
   /** 로비에서 호스트가 켠 경우에만 start_game 시 종족 비딩 단계로 진입 */
   useFactionBidding?: boolean;
+  /** 친선전: 켜면 게임 종료 시 기록(점수) 사이트에 자동 저장하지 않음. 방 전체에 표시. */
+  friendlyMatch?: boolean;
   /** 종족 비딩 진행 상태 (factionBidding 단계에서만) */
   factionBidding?: FactionBiddingState | null;
 }

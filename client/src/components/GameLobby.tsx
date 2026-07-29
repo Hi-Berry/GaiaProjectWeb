@@ -210,6 +210,22 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
                     종족 비딩 사용 (경매 후 종족·턴 선택, AI는 랜덤 즉시 배정)
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-3 py-2">
+                  <Checkbox
+                    id="friendly-match"
+                    checked={!!game.friendlyMatch}
+                    onCheckedChange={async (v) => {
+                      try {
+                        await GameClient.setFriendlyMatch(gameId, v === true);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="friendly-match" className="text-sm cursor-pointer leading-tight">
+                    친선전 (기록 사이트에 자동 저장되지 않습니다)
+                  </Label>
+                </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     variant="secondary"
@@ -231,14 +247,21 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
               </div>
             )}
 
-            {!isHost && !isSpectator && (
-              <div className="text-muted-foreground text-sm text-center sm:text-right">
-                Waiting for host to start the game...
-              </div>
-            )}
-            {isSpectator && (
-              <div className="text-muted-foreground text-sm text-center sm:text-right">
-                관전 중입니다. 시작되면 경기가 보입니다.
+            {!isHost && (
+              <div className="flex flex-col gap-2 w-full sm:w-auto sm:items-end">
+                {/* [사용자] 방에 있는 다른 사람도 현재 옵션 확인 가능 (읽기전용) */}
+                <div className="flex flex-col gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs w-full sm:w-auto">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">게임 옵션</div>
+                  <div className={game.useFactionBidding ? 'text-amber-300 font-bold' : 'text-zinc-500'}>
+                    {game.useFactionBidding ? '☑' : '☐'} 종족 비딩 {game.useFactionBidding ? '사용' : '미사용'}
+                  </div>
+                  <div className={game.friendlyMatch ? 'text-emerald-300 font-bold' : 'text-zinc-500'}>
+                    {game.friendlyMatch ? '☑' : '☐'} 친선전 {game.friendlyMatch ? '(기록 미저장)' : '(기록 저장)'}
+                  </div>
+                </div>
+                <div className="text-muted-foreground text-sm text-center sm:text-right">
+                  {isSpectator ? '관전 중입니다. 시작되면 경기가 보입니다.' : 'Waiting for host to start the game...'}
+                </div>
               </div>
             )}
           </CardFooter>

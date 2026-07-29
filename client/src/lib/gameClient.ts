@@ -218,6 +218,16 @@ export const GameClient = {
     });
   },
 
+  setFriendlyMatch(gameId: string, friendlyMatch: boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('set_friendly_match', { gameId, friendlyMatch }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
   factionBidRaise(gameId: string, newBid: number) {
     const s = getSocket();
     s.emit('faction_bid_raise', { gameId, newBid });

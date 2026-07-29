@@ -456,7 +456,10 @@ export function saveFinalGameState(game: ServerGameState) {
 			});
 		}
 		// 4인 전원 사람게임이면 점수사이트(PythonAnywhere)에 자동 제출(fire-and-forget). 멱등 가드로 1회만.
-		if (!(game as any).scoreSiteSubmitted) {
+		// [사용자] 친선전이면 기록 사이트 자동 저장 스킵.
+		if ((game as any).friendlyMatch) {
+			log(`친선전(friendlyMatch) — 기록 사이트 자동 저장 스킵`, 'game', game.id);
+		} else if (!(game as any).scoreSiteSubmitted) {
 			(game as any).scoreSiteSubmitted = true;
 			submitToScoreSite(game).catch((error) => {
 				log(`Failed to submit to score site: ${error}`, 'error', game.id);
@@ -2849,7 +2852,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 				pendingTechTileSelection: null,
 				gameLog: [],
 				economyVariant: Math.random() < 0.5 ? 'power' : 'vp', // 랜덤으로 경제 트랙 변형 선택
-				useFactionBidding: false,
+				useFactionBidding: true, // [사용자] 기본 체크
+				friendlyMatch: false, // [사용자] 친선전(기록 사이트 미저장) — 방 전체 표시, 호스트 토글
 			};
 
 			// Randomize Standard Tech Tiles (9종류를 6트랙 + 3풀에 무작위 배정, 각 4개씩 스택)
@@ -3173,6 +3177,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (playerId !== game.hostId) { callback?.({ error: 'Host only' }); return; }
 			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Lobby only' }); return; }
 			game.useFactionBidding = !!useFactionBidding;
+			clampPlayerResources(game); emitGameUpdated(io, game);
+			callback?.({ ok: true });
+		});
+
+		// 친선전 토글: 로비에서 호스트만. 켜면 종료 시 기록(점수) 사이트 자동 저장 스킵. 방 전체에 표시됨.
+		socket.on('set_friendly_match', ({ gameId, friendlyMatch }: { gameId: string; friendlyMatch: boolean }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (playerId !== game.hostId) { callback?.({ error: 'Host only' }); return; }
+			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Lobby only' }); return; }
+			game.friendlyMatch = !!friendlyMatch;
 			clampPlayerResources(game); emitGameUpdated(io, game);
 			callback?.({ ok: true });
 		});
