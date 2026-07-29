@@ -472,8 +472,11 @@ export function GameLog({
         [...logs].reverse().filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
           // 최신순 표시 유지. 라운드 라벨은 블록 '하단'(그 라운드의 가장 오래된 로그 아래)에:
           // 화면에서 바로 아래(더 오래된) 항목과 라운드가 다르거나 마지막이면 이 항목이 해당 라운드의 첫(시간상) 로그.
-          const nextOlder = index < reversedLogs.length - 1 ? reversedLogs[index + 1] : null;
-          const isRoundFooter = typeof log.round === 'number' && (!nextOlder || nextOlder.round !== log.round);
+          // [사용자] 라운드 구분선을 각 라운드의 '첫(최신 방향) 엔트리 위(header)'에 그린다 — 최신순 표시라
+          // 라운드가 바뀌면 그 라운드의 파워/수입/팅커/아이타/테란 처리 로그보다 위에 'Round N'이 먼저 뜬다.
+          // (기존 footer 방식은 '가장 오래된 로그 아래'라 처리 로그 뒤에 떠서 "파워 처리 후 라운드 로그가 뜨는" 문제였음.)
+          const prevNewer = index > 0 ? reversedLogs[index - 1] : null;
+          const isRoundHeader = typeof log.round === 'number' && (!prevNewer || prevNewer.round !== log.round);
           const actionText = log.action || '';
           const isPowerAction = /power|income|energy|bowl/i.test(actionText) || /Accepted|Declined/i.test(actionText);
           const isMainAction = /AI Move|Built|Upgraded|Advanced|Pass|Pass Round|Gaia Project|Federation|Chosen/i.test(actionText) && !isPowerAction;
@@ -491,6 +494,17 @@ export function GameLog({
 
           return (
             <Fragment key={index}>
+            {isRoundHeader && typeof log.round === 'number' && (
+              <div
+                ref={(el) => { roundRefs.current[log.round as number] = el; }}
+                style={{ scrollMarginTop: '2.75rem' }}
+                className="flex items-center gap-2 px-1 pt-2 pb-1 select-none"
+              >
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-blue-500/60" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300 shrink-0">Round {log.round}</span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-blue-500/60" />
+              </div>
+            )}
             <div
               onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
               onMouseLeave={() => onEntryMouseLeave?.()}
@@ -772,17 +786,6 @@ export function GameLog({
                 )}
               </div>
             </div>
-            {isRoundFooter && typeof log.round === 'number' && (
-              <div
-                ref={(el) => { roundRefs.current[log.round as number] = el; }}
-                style={{ scrollMarginTop: '2.75rem' }}
-                className="flex items-center gap-2 px-1 pt-1 pb-2 select-none"
-              >
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-blue-500/60" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300 shrink-0">Round {log.round}</span>
-                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-blue-500/60" />
-              </div>
-            )}
             </Fragment>
           );
         })
