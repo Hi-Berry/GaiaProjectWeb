@@ -679,6 +679,17 @@ export function GameLog({
                           )}
                     </span>
                   )}
+                  {/* details 텍스트를 숨기는 로그(연방 보상 등)라도 라운드미션/보너스 VP 세그먼트는 보여준다
+                      — 서버는 (+5VP Round Federation)을 이 줄 details에 병합하는데, 라벨과 함께 통째로 가려져
+                      "연방 5VP인데 로그에 없다"는 문제가 있었음(사용자). 라벨은 계속 이미지로 대체, VP만 노출. */}
+                  {hideDetailsText && log.details && (() => {
+                    const vpSeg = (log.details.match(/\(\+\d+(?:\.\d+)?VP[^)]*\)/gi) || []).join(' ');
+                    return vpSeg ? (
+                      <span className="ml-1.5 min-w-0 text-amber-300 font-bold" style={secondaryTextStyle}>
+                        {vpSeg}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 {/* subLogs rendering */}
                 {log.subLogs && log.subLogs.length > 0 && (
