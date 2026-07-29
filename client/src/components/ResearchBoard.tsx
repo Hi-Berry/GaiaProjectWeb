@@ -190,6 +190,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     const showShips = section !== 'tech';
     const showPending = showPendingSelections ?? !isMini; // 펜딩 안내 블록 — 모바일 R 오버레이(미니 렌더)는 true로 켬
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
+    // [사용자] 발타크는 의회(PI) 없이는 Nav 트랙 진행 불가 → 그동안 Nav 마커(B 토큰)만 숨기고, 의회 지으면 표시.
+    //   (기존엔 Nav 트랙 전체를 음영/Lock 처리해 남들 Nav 진행이 안 보였음 → 음영 제거, 마커만 토글)
+    const balTakNavHiddenIds = new Set(
+        players
+            .filter(p => p.faction === 'bal_tak' && !game.map.some((t) => t.ownerId === p.id && t.structure === 'planetary_institute'))
+            .map(p => p.id)
+    );
     const [selectedTileIdNeedingTrack, setSelectedTileIdNeedingTrack] = useState<string | null>(null);
 
     const currentPlayer = playerId ? game.players[playerId] : null;
@@ -558,16 +565,10 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                 return (
                                     <div
                                         key={track.id}
-                                        className={`flex flex-col items-stretch gap-0 rounded-lg p-0.5 relative ${navBlocked ? 'opacity-50 grayscale bg-black/40' : ''}`}
-                                        style={{ backgroundColor: navBlocked ? 'transparent' : `${track.color}08`, borderTop: `1px solid ${navBlocked ? '#333' : `${track.color}40`}` }}
+                                        className={`flex flex-col items-stretch gap-0 rounded-lg p-0.5 relative`}
+                                        style={{ backgroundColor: `${track.color}08`, borderTop: `1px solid ${track.color}40` }}
                                     >
-                                        {/* Restricted (Locked) Overlay for Bal'Tak Nav */}
-                                        {navBlocked && (
-                                            <div className="absolute inset-x-0 top-6 bottom-0 flex flex-col items-center pt-10 bg-black/10 z-10 pointer-events-none">
-                                                <Lock className="w-4 h-4 text-zinc-600 opacity-40" />
-                                                <div className="text-[5px] font-black text-zinc-600 mt-0.5 uppercase tracking-tighter">Locked</div>
-                                            </div>
-                                        )}
+                                        {/* [사용자] 발타크 Nav도 음영/Lock 없이 정상 표시(남들 진행 보이게) — 마커만 숨김 */}
                                         {/* Track name */}
                                         <div className="text-[6px] font-black uppercase text-center leading-none truncate mb-0.5" style={{ color: track.color }}>
                                             {track.name === 'Terraforming' ? 'Terra' : track.name === 'Navigation' ? 'Nav' : track.name === 'Artificial Intelligence' ? 'AI' : track.name === 'Gaia Project' ? 'Gaia' : track.name === 'Economy' ? 'Eco' : 'Sci'}
@@ -575,7 +576,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
 
                                         {/* Level slots: L5 → L0 (위→아래). 고급 기술 타일은 L5와 L4 사이. */}
                                         {[5, 4, 3, 2, 1, 0].map((level) => {
-                                            const playersHere = players.filter(p => p.research && p.research[track.id as ResearchTrack] === level);
+                                            const playersHere = players
+                                                .filter(p => p.research && p.research[track.id as ResearchTrack] === level)
+                                                .filter(p => !(track.id === 'navigation' && balTakNavHiddenIds.has(p.id)));
                                             // L5 특수 이미지: 테라포밍 연방 / Nav 잊혀진 행성 (선착 도달 전까지)
                                             let l5Img: string | null = null;
                                             if (level === 5) {
@@ -951,13 +954,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                             return (
                                 <div
                                     key={track.id}
-                                    className={`flex flex-col gap-2 p-1.5 rounded-xl transition-all duration-300 border border-transparent z-10 hover:z-[100] ${navBlocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-white/10'}`}
+                                    className={`flex flex-col gap-2 p-1.5 rounded-xl transition-all duration-300 border border-transparent z-10 hover:z-[100] ${navBlocked ? 'cursor-not-allowed' : 'cursor-pointer hover:border-white/10'}`}
                                     onClick={() => { if (!navBlocked) handleTrackClick(track.id as ResearchTrack); }}
                                     title={navBlocked ? "발타크: 의회 건설 후 Nav 트랙 진행 가능" : undefined}
                                     style={{
-                                        backgroundColor: navBlocked ? 'transparent' : `${track.color}08`,
-                                        boxShadow: navBlocked ? 'none' : `inset 0 0 20px ${track.color}08`,
-                                        borderColor: navBlocked ? '#333' : `${track.color}20`
+                                        // [사용자] navBlocked(발타크 Nav)여도 트랙을 음영처리하지 않고 정상 표시 — 남들 진행이 보이게. 마커만 숨김.
+                                        backgroundColor: `${track.color}08`,
+                                        boxShadow: `inset 0 0 20px ${track.color}08`,
+                                        borderColor: `${track.color}20`
                                     }}
                                 >
                                     {/* Track Title */}
@@ -1141,6 +1145,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         <div className="flex flex-wrap items-center justify-center gap-1 p-1">
                                                             {players
                                                                 .filter(p => p.research && p.research[track.id as ResearchTrack] === level)
+                                                                .filter(p => !(track.id === 'navigation' && balTakNavHiddenIds.has(p.id)))
                                                                 .map(p => {
                                                                     const faction = FACTIONS.find(f => f.id === p.faction);
                                                                     const mColor = faction?.color || '#fff';
