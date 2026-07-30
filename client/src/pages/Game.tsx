@@ -1640,44 +1640,45 @@ export default function Game() {
               {/* [사용자] 전체 요약 탭: 누가 어디서 점수 얻었는지 한눈에 보는 표. 이름 클릭 → 해당 상세 탭. */}
               <TabsContent value="__overview__" className="flex-1 overflow-auto pr-2 custom-scrollbar">
                 {(() => {
-                  const rows: { label: string; key: string; neg?: boolean }[] = [
-                    { label: '시작 보너스', key: 'base' },
-                    { label: '라운드 미션', key: 'round' },
-                    { label: '보너스 타일(패스)', key: 'bonus' },
-                    { label: '기술 타일', key: 'tech' },
-                    { label: '최종 미션', key: 'final' },
-                    { label: '연구 트랙', key: 'research' },
-                    { label: '잔여 자원', key: 'remaining' },
-                    { label: '파워 수령(−)', key: 'power', neg: true },
-                    { label: '우주선', key: 'ship' },
-                  ];
+                  // [사용자] 'other'를 소스별로 라벨링해 "기타" 뭉치를 없앤다: 우주선 입장(−)·연방 보상·인공물·비딩·트랙보상 등
+                  //   각각 실제 소스명 행으로. b.spaceships(우주선 액션 +VP)는 '정큐액션' 행으로 분리(입장 비용과 별개).
+                  const bucketOf = (s: string) => {
+                    if (s.toLowerCase().includes('federation') || s.includes('연방')) return '연방 보상';
+                    if (s.includes('비딩')) return '비딩';
+                    if (s.includes('우주선 입장')) return '우주선 입장';
+                    if (s.startsWith('Artifact') || s.startsWith('인공물')) return '인공물';
+                    return s || '미분류';
+                  };
                   const cols = playersWithScores.map(({ pid, player, faction }) => {
                     const b = player!.scoreBreakdown!;
                     const round = b.roundMissions.reduce((s, m) => s + m.vp, 0);
                     const bonus = b.bonusTilePass.reduce((s, m) => s + m.vp, 0);
                     const tech = b.techTiles.reduce((s, t) => s + t.vp, 0);
-                    const ship = b.spaceships.reduce((s, x) => s + x.vp, 0);
-                    const otherAll = b.other.reduce((s, o) => s + o.vp, 0);
-                    // 개인 상세처럼 other(기타)를 분해: 연방 보상 / 비딩(−) / 그 외(misc — 보통 0). 총점 계산은 otherAll로 그대로.
-                    const src = (o: { source?: string }) => o.source ?? '';
-                    const federationVp = b.other.filter(o => src(o).toLowerCase().includes('federation') || src(o).includes('연방')).reduce((s, o) => s + o.vp, 0);
-                    const biddingVp = b.other.filter(o => src(o).includes('비딩')).reduce((s, o) => s + o.vp, 0);
-                    const miscVp = otherAll - federationVp - biddingVp;
+                    const jq = b.spaceships.reduce((s, x) => s + x.vp, 0);   // 정큐액션 = 우주선 액션에서 얻은 +VP
                     const remaining = b.remainingResources ?? 0;
-                    const raw = 10 + round + bonus + tech + b.finalMissions + b.researchTracks + remaining - b.powerReceived + ship + otherAll;
+                    const buckets: Record<string, number> = {};
+                    for (const o of b.other) { const k = bucketOf(o.source ?? ''); buckets[k] = (buckets[k] ?? 0) + o.vp; }
+                    const otherAll = b.other.reduce((s, o) => s + o.vp, 0);
+                    const raw = 10 + round + bonus + tech + b.finalMissions + b.researchTracks + remaining - b.powerReceived + jq + otherAll;
                     const adjust = (player!.score ?? 0) - raw;
-                    return {
-                      pid, player, faction, color: faction?.color ?? '#888',
-                      vals: { base: 10, round, bonus, tech, final: b.finalMissions, research: b.researchTracks, remaining, power: b.powerReceived, ship, federation: federationVp, bidding: -biddingVp, misc: miscVp, adjust } as Record<string, number>,
-                      total: player!.score ?? 0,
+                    const base: Record<string, number> = {
+                      '시작 보너스': 10, '라운드 미션': round, '보너스 타일(패스)': bonus, '기술 타일': tech,
+                      '최종 미션': b.finalMissions, '연구 트랙': b.researchTracks, '잔여 자원': remaining,
+                      '파워 수령': -b.powerReceived, '정큐액션': jq,
                     };
+                    return { pid, player, faction, color: faction?.color ?? '#888', base, buckets, adjust, total: player!.score ?? 0 };
                   });
-                  const anyAdjust = cols.some(c => c.vals.adjust !== 0);
-                  const anyFederation = cols.some(c => c.vals.federation !== 0);
-                  const anyBidding = cols.some(c => c.vals.bidding !== 0);
-                  const anyMisc = cols.some(c => c.vals.misc !== 0);
-                  const cell = (v: number, neg?: boolean) => (
-                    <span className={`tabular-nums font-bold ${v === 0 ? 'text-zinc-600' : neg ? 'text-red-300' : 'text-zinc-100'}`}>{neg ? (v > 0 ? `−${v}` : '0') : v}</span>
+                  const coreRows = ['시작 보너스', '라운드 미션', '보너스 타일(패스)', '기술 타일', '최종 미션', '연구 트랙', '잔여 자원', '파워 수령', '정큐액션'];
+                  const preferred = ['우주선 입장', '연방 보상', '인공물', '비딩'];
+                  const seen = new Set<string>();
+                  cols.forEach(c => Object.keys(c.buckets).forEach(k => { if (Math.abs(c.buckets[k]) > 1e-9) seen.add(k); }));
+                  const bucketRows = [...preferred.filter(k => seen.has(k)), ...Array.from(seen).filter(k => !preferred.includes(k)).sort()];
+                  const allRows = [...coreRows, ...bucketRows];
+                  const negLabels = new Set(['파워 수령', '우주선 입장', '비딩']);
+                  const anyAdjust = cols.some(c => Math.abs(c.adjust) > 1e-9);
+                  const valOf = (c: { base: Record<string, number>; buckets: Record<string, number> }, label: string) => (label in c.base ? c.base[label] : (c.buckets[label] ?? 0));
+                  const cell = (v: number) => (
+                    <span className={`tabular-nums font-bold ${Math.abs(v) < 1e-9 ? 'text-zinc-600' : v < 0 ? 'text-red-300' : 'text-zinc-100'}`}>{v < 0 ? `−${Math.abs(v)}` : v}</span>
                   );
                   return (
                     <div className="overflow-x-auto">
@@ -1700,36 +1701,18 @@ export default function Game() {
                           </tr>
                         </thead>
                         <tbody>
-                          {rows.map(r => (
-                            <tr key={r.key} className="border-b border-white/5 hover:bg-white/[0.02]">
-                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{r.label}</td>
+                          {allRows.map(label => (
+                            <tr key={label} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{negLabels.has(label) ? `${label}(−)` : label}</td>
                               {cols.map(c => (
-                                <td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals[r.key], r.neg)}</td>
+                                <td key={c.pid} className="py-1.5 px-3 text-center">{cell(valOf(c, label))}</td>
                               ))}
                             </tr>
                           ))}
-                          {anyFederation && (
-                            <tr className="border-b border-white/5 hover:bg-white/[0.02]">
-                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">연방 보상</td>
-                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.federation)}</td>))}
-                            </tr>
-                          )}
-                          {anyBidding && (
-                            <tr className="border-b border-white/5 hover:bg-white/[0.02]">
-                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">비딩(−)</td>
-                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.bidding, true)}</td>))}
-                            </tr>
-                          )}
-                          {anyMisc && (
-                            <tr className="border-b border-white/5 hover:bg-white/[0.02]">
-                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">기타</td>
-                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.misc)}</td>))}
-                            </tr>
-                          )}
                           {anyAdjust && (
                             <tr className="border-b border-white/5">
                               <td className="py-1.5 pr-3 text-zinc-500 font-medium italic whitespace-nowrap">보정</td>
-                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.adjust)}</td>))}
+                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.adjust)}</td>))}
                             </tr>
                           )}
                           <tr className="border-t-2 border-amber-500/40">
