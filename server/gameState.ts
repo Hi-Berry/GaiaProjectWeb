@@ -7830,6 +7830,20 @@ export function executePassRound(
 				player.gaiaformerPlacedThisRound = [];
 			});
 
+			// [사용자] 라운드 전환 순간(수입/파워/의회 처리 전)에 '라운드 시작' 시스템 로그 1개 — 클라가 이걸 라운드
+			// 구분선으로 렌더한다. 새 라운드의 첫(가장 오래된) 로그라 라벨이 '첫 액션'이 아니라 라운드 경계에 정확히 고정됨.
+			{
+				(game as any).gameLogSeq = ((game as any).gameLogSeq ?? 0) + 1;
+				game.gameLog?.push({
+					timestamp: Date.now(),
+					playerId: '',
+					playerName: '',
+					action: 'Round Start',
+					round: game.roundNumber,
+					seq: (game as any).gameLogSeq,
+				});
+			}
+
 			helperTriggerIncomePhase(io, game);
 		} else {
 			game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;

@@ -470,6 +470,22 @@ export function GameLog({
         </div>
       ) : (
         [...logs].reverse().filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
+          // [사용자] 서버가 라운드 전환 순간에 넣는 명시적 'Round Start' 시스템 로그 → 라운드 구분선으로 렌더(일반 행 X).
+          // 새 라운드의 첫 로그라 라벨이 라운드 경계(파워/액션 전)에 고정됨. R0/R1은 이 로그가 없어 아래 footer가 폴백.
+          if (log.action === 'Round Start' && typeof log.round === 'number') {
+            return (
+              <div
+                key={index}
+                ref={(el) => { roundRefs.current[log.round as number] = el; }}
+                style={{ scrollMarginTop: '2.75rem' }}
+                className="flex items-center gap-2 px-1 pt-1 pb-2 select-none"
+              >
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-blue-500/60" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300 shrink-0">Round {log.round}</span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-blue-500/60" />
+              </div>
+            );
+          }
           // 최신순 표시. 라운드 라벨은 그 라운드의 '가장 오래된 로그 아래(footer)'에 고정 — 라운드 경계 표시.
           // (header로 올렸더니 라벨이 최신 액션을 따라 움직여 "액션할 때마다 라운드 번호가 재부착"되는 버그 → footer 복원.)
           const nextOlder = index < reversedLogs.length - 1 ? reversedLogs[index + 1] : null;
