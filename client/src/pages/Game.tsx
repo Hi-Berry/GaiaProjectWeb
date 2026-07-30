@@ -1640,7 +1640,6 @@ export default function Game() {
                     { label: '잔여 자원', key: 'remaining' },
                     { label: '파워 수령(−)', key: 'power', neg: true },
                     { label: '우주선', key: 'ship' },
-                    { label: '기타', key: 'other' },
                   ];
                   const cols = playersWithScores.map(({ pid, player, faction }) => {
                     const b = player!.scoreBreakdown!;
@@ -1649,20 +1648,24 @@ export default function Game() {
                     const tech = b.techTiles.reduce((s, t) => s + t.vp, 0);
                     const ship = b.spaceships.reduce((s, x) => s + x.vp, 0);
                     const otherAll = b.other.reduce((s, o) => s + o.vp, 0);
-                    // 비딩(종족 경매) 차감은 서버가 other에 음수로 넣음 → 전용 행으로 분리(총점 계산은 otherAll로 그대로).
-                    const biddingVp = b.other.filter(o => (((o as { source?: string }).source) ?? '').includes('비딩')).reduce((s, o) => s + o.vp, 0);
-                    const otherRest = otherAll - biddingVp;
+                    // 개인 상세처럼 other(기타)를 분해: 연방 보상 / 비딩(−) / 그 외(misc — 보통 0). 총점 계산은 otherAll로 그대로.
+                    const src = (o: { source?: string }) => o.source ?? '';
+                    const federationVp = b.other.filter(o => src(o).toLowerCase().includes('federation') || src(o).includes('연방')).reduce((s, o) => s + o.vp, 0);
+                    const biddingVp = b.other.filter(o => src(o).includes('비딩')).reduce((s, o) => s + o.vp, 0);
+                    const miscVp = otherAll - federationVp - biddingVp;
                     const remaining = b.remainingResources ?? 0;
                     const raw = 10 + round + bonus + tech + b.finalMissions + b.researchTracks + remaining - b.powerReceived + ship + otherAll;
                     const adjust = (player!.score ?? 0) - raw;
                     return {
                       pid, player, faction, color: faction?.color ?? '#888',
-                      vals: { base: 10, round, bonus, tech, final: b.finalMissions, research: b.researchTracks, remaining, power: b.powerReceived, ship, other: otherRest, bidding: -biddingVp, adjust } as Record<string, number>,
+                      vals: { base: 10, round, bonus, tech, final: b.finalMissions, research: b.researchTracks, remaining, power: b.powerReceived, ship, federation: federationVp, bidding: -biddingVp, misc: miscVp, adjust } as Record<string, number>,
                       total: player!.score ?? 0,
                     };
                   });
                   const anyAdjust = cols.some(c => c.vals.adjust !== 0);
+                  const anyFederation = cols.some(c => c.vals.federation !== 0);
                   const anyBidding = cols.some(c => c.vals.bidding !== 0);
+                  const anyMisc = cols.some(c => c.vals.misc !== 0);
                   const cell = (v: number, neg?: boolean) => (
                     <span className={`tabular-nums font-bold ${v === 0 ? 'text-zinc-600' : neg ? 'text-red-300' : 'text-zinc-100'}`}>{neg ? (v > 0 ? `−${v}` : '0') : v}</span>
                   );
@@ -1695,10 +1698,22 @@ export default function Game() {
                               ))}
                             </tr>
                           ))}
+                          {anyFederation && (
+                            <tr className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">연방 보상</td>
+                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.federation)}</td>))}
+                            </tr>
+                          )}
                           {anyBidding && (
                             <tr className="border-b border-white/5 hover:bg-white/[0.02]">
                               <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">비딩(−)</td>
                               {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.bidding, true)}</td>))}
+                            </tr>
+                          )}
+                          {anyMisc && (
+                            <tr className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">기타</td>
+                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.misc)}</td>))}
                             </tr>
                           )}
                           {anyAdjust && (
