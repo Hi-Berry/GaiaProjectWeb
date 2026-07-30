@@ -8076,26 +8076,26 @@ export function executeUseSpecialAction(
 		player.usedSpecialActions.push('tinkeroid-special');
 		if (actionId === 'tinkeroid-1tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', actionId);
 		} else if (actionId === 'tinkeroid-1qic') {
 			grantQic(game, playerId, 1);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 QIC', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 QIC', actionId);
 		} else if (actionId === 'tinkeroid-4power') {
 			chargePower(player, 4);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '4 Power', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '4 Power', actionId);
 		} else if (actionId === 'tinkeroid-3k') {
 			player.knowledge = (player.knowledge ?? 0) + 3;
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Knowledge', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Knowledge', actionId);
 		} else if (actionId === 'tinkeroid-2qic') {
 			grantQic(game, playerId, 2);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', actionId);
 		} else if (actionId === 'tinkeroid-3tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', actionId);
 		}
 		applied = true;
 	}
