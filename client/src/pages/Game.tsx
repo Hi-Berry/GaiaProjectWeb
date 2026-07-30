@@ -3179,8 +3179,8 @@ export default function Game() {
                   )}
                   <div className="text-[11px] text-zinc-500">현재 동의 {got}/{need}</div>
                   <div className="flex gap-2">
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
                     <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false)}>거절</Button>
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
                   </div>
                 </div>
               </div>
