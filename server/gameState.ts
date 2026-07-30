@@ -106,8 +106,9 @@ export interface ServerGameState extends GaiaGameState {
 
 
 const games = new Map<string, ServerGameState>();
-// [사용자] AI 봇 추가 허용 여부(서버별). 기본 허용. env AI_BOTS_ENABLED=0 이면 봇 추가·Auto Setup 비활성(로비 버튼 숨김 + 서버 거부).
-const AI_BOTS_ENABLED = process.env.AI_BOTS_ENABLED !== '0';
+// [사용자] AI 봇 추가 허용 여부(서버별). 기본 허용. env AI_ENABLED(또는 AI_AVAILABLE/AI_BOTS_ENABLED)=0 이면
+// 봇 추가·Auto Setup 비활성(로비 버튼 숨김 + 서버 거부) — 상태 페이지 표기(isAiEnabled)와 동일 판정.
+const AI_BOTS_ENABLED = isAiEnabled();
 
 /** [대역폭 2단계 2026-07-26, 사용자] gameLog는 후반 100KB+로 최대 잔여 항목 — 액션 브로드캐스트엔 꼬리만
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
