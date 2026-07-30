@@ -115,7 +115,7 @@ const HELP_COLUMNS: HelpSection[][] = [
 
 /** [사용자] 자주 묻는 질문 — 비직관적 조작 위주. 도움말 하단 접이식(details) 목록으로 표시. */
 const FAQ_ITEMS: { q: string; a: string }[] = [
-  { q: '프리액션(자원 변환)은 어떻게 하나요?', a: '방법이 세 가지예요. ① 상태창의 "FA OFF" 버튼을 눌러 "FA ON"으로 바꾼 뒤 자원(O·K·Q·C)·파워 그릇 숫자를 클릭하면 즉시 변환됩니다("FA ON"에서 다시 누르면 이번 턴 프리액션이 모두 취소=Undo All). ② 상태창의 자원 숫자를 우클릭해도 변환됩니다(O→C·K→C·Q→O). ③ 왼쪽 "Free" 버튼이나 F 키로 Free Action 창을 열어 직접 할 수도 있어요.' },
+  { q: '프리액션(자원 변환)은 어떻게 하나요?', a: '방법이 세 가지예요.\n① 상태창의 "FA OFF" 버튼을 눌러 "FA ON"으로 바꾼 뒤 자원(O·K·Q·C)·파워 그릇 숫자를 클릭하면 즉시 변환됩니다("FA ON"에서 다시 누르면 이번 턴 프리액션이 모두 취소=Undo All).\n② 상태창의 자원 글자를 우클릭해도 변환됩니다(O→C·K→C·Q→O).\n③ 왼쪽 "Free" 버튼이나 F 키로 Free Action 창을 열어 직접 할 수도 있어요.' },
   { q: '연방은 어떻게 만드나요?', a: '우측 "연방" 버튼으로 연방 모드에 들어간 뒤, 내 건물들을 잇는 빈 칸(우주)을 클릭하면 위성이 놓이며 연방이 형성됩니다. 파워 합이 7 이상 되도록 빈 칸만 클릭해도 연방이 만들어져요.' },
   { q: '기술 타일은 어떻게 쓰나요?', a: '상태창을 클릭해 상세를 연 뒤 기술 타일 이미지를 클릭하거나, 스페셜 액션 영역에서 눌러 사용하세요.' },
   { q: '이전 턴으로 되돌리고 싶어요 (롤백).', a: '로그에서 되돌리고 싶은 지점의 항목을 열어 "↩ 여기로 롤백 요청"을 누르면, 참가자 전원(사람)이 동의할 때 그 턴 시작으로 되돌아갑니다. 봇은 자동 동의.' },
@@ -470,7 +470,7 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
                     <span className="inline-block text-amber-400/70 transition-transform group-open:rotate-90">▶</span>
                     {it.q}
                   </summary>
-                  <p className="mt-1 pl-4 text-[10px] leading-relaxed text-zinc-400">{it.a}</p>
+                  <p className="mt-1 whitespace-pre-line pl-4 text-[10px] leading-relaxed text-zinc-400">{it.a}</p>
                 </details>
               ))}
             </div>
