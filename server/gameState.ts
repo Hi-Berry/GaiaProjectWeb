@@ -5416,8 +5416,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
 				if (!reward) return;
 				rewardLabel = reward.label;
-				addGameLog(game, playerId, 'Federation Reward', rewardLabel, rewardId);
-				addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + rewardLabel });
+				// [사용자] 로그엔 "+7VP +6C"처럼 깔끔히 표기. addScore는 noLog(중복 "(+7VP 연방 7 VP 6C)" 방지 —
+				// 라벨 자체가 보상 표기라 auto-append와 겹쳤음). 라운드 미션(+5VP)은 뒤에서 이 줄에 별도 병합됨.
+				const rf: any = reward;
+				const fedParts = [`+${reward.vp}VP`];
+				if (rf.credits) fedParts.push(`+${rf.credits}C`);
+				if (rf.ore) fedParts.push(`+${rf.ore}O`);
+				if (rf.knowledge) fedParts.push(`+${rf.knowledge}K`);
+				if (rf.qic) fedParts.push(`+${rf.qic}Q`);
+				if (rf.powerTokens) fedParts.push(`+${rf.powerTokens}PW`);
+				addGameLog(game, playerId, 'Federation Reward', fedParts.join(' '), rewardId);
+				addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + rewardLabel, noLog: true });
 				if ('ore' in reward && reward.ore) player.ore += reward.ore;
 				if ('credits' in reward && reward.credits) player.credits += reward.credits;
 				if ('knowledge' in reward && reward.knowledge) player.knowledge += reward.knowledge;
@@ -5465,16 +5474,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 						game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 						break;
 					case 'ship-fed-4vp4k':
-						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
-						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true });
 						grantQic(game, playerId, 1);
 						player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
-						addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상', noLog: true });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-mine-free':
@@ -5485,10 +5494,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 						player.spaceshipFed3TfMineFree = true;
 						break;
 					case 'ship-fed-12vp':
-						addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상', noLog: true });
 						break;
 					case 'ship-fed-7vp3p2t':
-						addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상', noLog: true });
 						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					default:
@@ -9052,19 +9061,19 @@ export function executeBotFederation(
 				(game as any).availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 				break;
 			case 'ship-fed-4vp4k':
-				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' }); player.knowledge = (player.knowledge || 0) + 4; break;
+				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true }); player.knowledge = (player.knowledge || 0) + 4; break;
 			case 'ship-fed-4vp1q2o':
-				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' }); grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2; break;
+				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true }); grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2; break;
 			case 'ship-fed-8vp8c':
-				addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상' }); player.credits = (player.credits || 0) + 8; break;
+				addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상', noLog: true }); player.credits = (player.credits || 0) + 8; break;
 			case 'ship-fed-mine-free':
 				game.pendingSpaceshipFedMine = { playerId }; break;
 			case 'ship-fed-3tf-mine':
 				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3; player.spaceshipFed3TfMineFree = true; break;
 			case 'ship-fed-12vp':
-				addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상' }); break;
+				addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상', noLog: true }); break;
 			case 'ship-fed-7vp3p2t':
-				addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상' }); player.power3 = (player.power3 || 0) + 2; break;
+				addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상', noLog: true }); player.power3 = (player.power3 || 0) + 2; break;
 		}
 	} else {
 		const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);

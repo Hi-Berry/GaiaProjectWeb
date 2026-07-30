@@ -484,7 +484,9 @@ export function GameLog({
           const isBonusSwapLog = /^Selected Bonus$/i.test(actionText);
           const isBonusTileLog = isBonusTilePickLog || isBonusSwapLog;
           // 연방 보상/트왈라잇 재수령: 이미지만으로 충분 → 상세 텍스트(점수/보상 라벨) 숨김
-          const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText) || /^Federation Reward$/i.test(actionText);
+          // [사용자] 'Federation Reward'는 이제 details를 "+7VP +6C"처럼 깔끔히 담으므로 텍스트를 보여준다(이미지+숫자).
+          // (서버가 중복 "(+NVP 연방 …)" append를 noLog로 제거함.) Twilight 재수령류만 이미지로 갈음해 텍스트 숨김 유지.
+          const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText);
 
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
