@@ -62,6 +62,16 @@ const TINKEROID_SPECIAL_LABELS: Record<string, string> = {
   'tinkeroid-3tf-mine': '3 TF + 광산 건설',
 };
 
+/** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). 인덱스 1~6 = 1tf-mine,1qic,4power,3k,2qic,3tf-mine */
+const TINKEROID_SPECIAL_IMAGES: Record<string, string> = {
+  'tinkeroid-1tf-mine': '/tinker/tile_01.png',
+  'tinkeroid-1qic': '/tinker/tile_02.png',
+  'tinkeroid-4power': '/tinker/tile_03.png',
+  'tinkeroid-3k': '/tinker/tile_04.png',
+  'tinkeroid-2qic': '/tinker/tile_05.png',
+  'tinkeroid-3tf-mine': '/tinker/tile_06.png',
+};
+
 type PotentialAction =
   | { type: 'buildMine', tileId: string, useGaiaformer?: boolean }
   | { type: 'upgrade', tileId: string, target: StructureType | 'academy_left' | 'academy_right' }
@@ -3622,10 +3632,14 @@ export default function Game() {
                     key={actionId}
                     size="sm"
                     variant="outline"
-                    className="h-7 px-2 text-xs bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
+                    className="h-auto py-1 px-1.5 bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20 flex flex-col items-center gap-0.5"
                     onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
+                    title={labelOf(actionId)}
                   >
-                    {labelOf(actionId)}
+                    {TINKEROID_SPECIAL_IMAGES[actionId] && (
+                      <img src={TINKEROID_SPECIAL_IMAGES[actionId]} alt={labelOf(actionId)} className="w-12 h-12 object-contain rounded" />
+                    )}
+                    <span className="text-[10px] leading-none">{labelOf(actionId)}</span>
                   </Button>
                 ))}
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-amber-400 hover:text-white shrink-0" onClick={() => setTinkeroidSpecialCollapsed(false)}>펼치기</Button>
@@ -3650,10 +3664,13 @@ export default function Game() {
                     <Button
                       key={actionId}
                       variant="outline"
-                      className="w-full justify-start bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
+                      className="w-full justify-start bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20 h-auto py-2 gap-3"
                       onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
                     >
-                      {labelOf(actionId)}
+                      {TINKEROID_SPECIAL_IMAGES[actionId] && (
+                        <img src={TINKEROID_SPECIAL_IMAGES[actionId]} alt={labelOf(actionId)} className="w-12 h-12 object-contain rounded shrink-0" />
+                      )}
+                      <span>{labelOf(actionId)}</span>
                     </Button>
                   ))}
                 </div>

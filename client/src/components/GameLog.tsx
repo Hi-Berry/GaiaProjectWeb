@@ -6,6 +6,16 @@ import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_A
 import { Clock } from 'lucide-react';
 import { raceFaceSrc } from '@/lib/racePortrait';
 
+/** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). Game.tsx의 매핑과 동일 순서. */
+const TINKEROID_SPECIAL_IMG: Record<string, string> = {
+  'tinkeroid-1tf-mine': '/tinker/tile_01.png',
+  'tinkeroid-1qic': '/tinker/tile_02.png',
+  'tinkeroid-4power': '/tinker/tile_03.png',
+  'tinkeroid-3k': '/tinker/tile_04.png',
+  'tinkeroid-2qic': '/tinker/tile_05.png',
+  'tinkeroid-3tf-mine': '/tinker/tile_06.png',
+};
+
 /** #rrggbb → rgba 문자열 (연한 테두리용). */
 function hexToRgba(hex: string | undefined, alpha: number): string {
   const h = (hex || '').replace('#', '');
@@ -191,6 +201,13 @@ export function GameLog({
     if (/^Power Action$/i.test(actionText)) {
       const found = POWER_ACTION_STRIP.find(x => x.re.test(details));
       if (found) return { strip: '/image/powerAction.jpg', cols: 7, index: found.idx, alt: details || 'Power Action' };
+    }
+    // 팅커로이드 라운드 Special — 글자 대신 특수 타일 이미지(/tinker/tile_0N.png). action/details의 tinkeroid-xxx로 매핑.
+    if (/Tinkeroid/i.test(actionText)) {
+      const tid = (log.tileId && /^tinkeroid-/i.test(log.tileId) ? log.tileId : undefined)
+        ?? details.match(/tinkeroid-[a-z0-9-]+/i)?.[0];
+      const src = tid ? TINKEROID_SPECIAL_IMG[tid] : undefined;
+      if (src) return { src, alt: tid ?? 'tinkeroid' };
     }
     // 우주선 입장: 글자 대신 맵 타일 이미지(/map/ts_*)로 표시. 우주선 종류는 tileId로 맵에서 조회.
     if (/^Entered Ship$/i.test(actionText)) {
@@ -499,7 +516,8 @@ export function GameLog({
           // 연방 보상/트왈라잇 재수령: 이미지만으로 충분 → 상세 텍스트(점수/보상 라벨) 숨김
           // [사용자] 'Federation Reward'는 이제 details를 "+7VP +6C"처럼 깔끔히 담으므로 텍스트를 보여준다(이미지+숫자).
           // (서버가 중복 "(+NVP 연방 …)" append를 noLog로 제거함.) Twilight 재수령류만 이미지로 갈음해 텍스트 숨김 유지.
-          const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText);
+          // 팅커로이드 특수는 위 getLogPrimaryImage가 타일 이미지로 갈음하므로 원문 details("Round N: tinkeroid-xxx")는 숨김.
+          const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText) || /Tinkeroid/i.test(actionText);
 
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
