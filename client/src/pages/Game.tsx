@@ -1457,6 +1457,18 @@ export default function Game() {
     }));
   })();
 
+  // [수입 대기 표시, 사용자] 수입 단계에서 수익/파워 선택이 남은 플레이어들 — 현재 선택 중(pendingIncomeOrder)
+  //   + 아직 순서 안 온 대기자(pendingIncomeItems 남음)를 턴 순서로. 의회/파워 대기 배너와 동일 취지.
+  const incomeWaiters = (() => {
+    const cur = game.pendingIncomeOrder?.playerId;
+    const ids: string[] = [];
+    if (cur) ids.push(cur);
+    for (const wid of game.turnOrder ?? []) {
+      if (wid === cur) continue;
+      if ((((game.players[wid] as any)?.pendingIncomeItems?.length) ?? 0) > 0) ids.push(wid);
+    }
+    return ids.map((wid) => ({ id: wid, name: game.players[wid]?.name ?? wid, current: wid === cur }));
+  })();
 
   if (game.currentPhase === 'lobby') {
     return (
@@ -2418,6 +2430,31 @@ export default function Game() {
                   </span>
                 </p>
               </div>
+            </div>
+          )}
+          {incomeWaiters.length > 0 && (
+            <div className="bg-sky-500/20 border border-sky-400/40 text-sky-100 rounded-lg px-3 py-2 text-xs md:text-sm">
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 shrink-0 text-sky-300 mt-0.5 animate-pulse" />
+                <p className="leading-snug">
+                  수입 단계 · 수익/파워 선택 대기 중
+                  <span className="block text-[10px] text-sky-200/75 font-medium mt-0.5">
+                    아래 플레이어가 모두 완료하면 라운드 액션이 시작됩니다
+                  </span>
+                </p>
+              </div>
+              <ul className="mt-2 space-y-1 border-l-2 border-sky-400/35 pl-2.5">
+                {incomeWaiters.map((w) => (
+                  <li key={w.id} className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${w.current ? 'bg-sky-300 animate-pulse' : 'bg-sky-500/50'}`} />
+                    <span className="font-bold text-sky-50 truncate">{w.name}</span>
+                    {w.current && <span className="text-[10px] text-sky-300/80 shrink-0">선택 중</span>}
+                    {w.id === playerId && (
+                      <Badge variant="outline" className="h-4 px-1 text-[9px] border-sky-400/50 text-sky-200 shrink-0">나</Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
