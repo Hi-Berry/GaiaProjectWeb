@@ -106,6 +106,8 @@ export interface ServerGameState extends GaiaGameState {
 
 
 const games = new Map<string, ServerGameState>();
+// [사용자] AI 봇 추가 허용 여부(서버별). 기본 허용. env AI_BOTS_ENABLED=0 이면 봇 추가·Auto Setup 비활성(로비 버튼 숨김 + 서버 거부).
+const AI_BOTS_ENABLED = process.env.AI_BOTS_ENABLED !== '0';
 
 /** [대역폭 2단계 2026-07-26, 사용자] gameLog는 후반 100KB+로 최대 잔여 항목 — 액션 브로드캐스트엔 꼬리만
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
@@ -2883,6 +2885,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				maxPlayers: 4,
 				createdAt: Date.now(),
 				isTestMode: false,
+				aiBotsAllowed: AI_BOTS_ENABLED, // [사용자] 이 서버가 AI 봇 추가/Auto Setup을 허용하는지 (env AI_BOTS_ENABLED)
 				hasDoneMainAction: false,
 				powerActions: JSON.parse(JSON.stringify(INITIAL_POWER_ACTIONS)),
 				availableBonusTiles: shuffledBonusTiles.slice(0, 7), // Players + 3 extra (will adjust when game starts)
@@ -3054,7 +3057,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
 			const callerId = socketToPlayerMap.get(socket.id);
-			if (callerId !== game.hostId) { callback({ error: 'Only host can add bots' }); return; }
+			if (!AI_BOTS_ENABLED) { callback({ error: '이 서버에서는 AI 봇을 추가할 수 없습니다.' }); return; }
+				if (callerId !== game.hostId) { callback({ error: 'Only host can add bots' }); return; }
 			if (game.currentPhase !== 'lobby') { callback({ error: 'Can only add bots in lobby' }); return; }
 			if (Object.keys(game.players).length >= game.maxPlayers) { callback({ error: 'Max players reached' }); return; }
 
@@ -3413,7 +3417,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'lobby') return;
 
 			// head-to-head: 이전 게임의 좌석별 변형을 비운다(워커는 게임을 순차 실행)
-			if (headToHead) clearAllPlayerVariants();
+			if (!AI_BOTS_ENABLED) return; // [사용자] 봇 비활성 서버: Auto Setup(봇 자동 채우기) 금지
+				if (headToHead) clearAllPlayerVariants();
 
 			// 1. 봇 3개 추가 (최대 4인)
 			if (!game.botPlayerIds) game.botPlayerIds = [];
