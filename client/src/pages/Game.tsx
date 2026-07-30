@@ -1516,6 +1516,7 @@ export default function Game() {
   }
 
   const GameEndScoreModal = () => {
+    const [scoreTab, setScoreTab] = useState<string>('__overview__');
     if (game.currentPhase !== 'gameEnd') return null;
 
     const playersWithScores = game.turnOrder
@@ -1579,8 +1580,17 @@ export default function Game() {
           </AlertDialogHeader>
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-6 pt-2 custom-scrollbar">
-            <Tabs defaultValue={playersWithScores[0]?.pid} className="flex-1 flex flex-col min-h-0">
+            <Tabs value={scoreTab} onValueChange={setScoreTab} className="flex-1 flex flex-col min-h-0">
               <TabsList className="bg-zinc-900/50 p-1 rounded-xl border border-white/5 self-start mb-6">
+                <TabsTrigger
+                  value="__overview__"
+                  className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white font-bold py-2 px-6 rounded-lg transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📊</span>
+                    <span className="text-sm">전체 요약</span>
+                  </div>
+                </TabsTrigger>
                 {playersWithScores.map(({ pid, player, faction }) => (
                   <TabsTrigger
                     key={pid}
@@ -1604,6 +1614,92 @@ export default function Game() {
                   </TabsTrigger>
                 ))}
               </TabsList>
+
+              {/* [사용자] 전체 요약 탭: 누가 어디서 점수 얻었는지 한눈에 보는 표. 이름 클릭 → 해당 상세 탭. */}
+              <TabsContent value="__overview__" className="flex-1 overflow-auto pr-2 custom-scrollbar">
+                {(() => {
+                  const rows: { label: string; key: string; neg?: boolean }[] = [
+                    { label: '시작 보너스', key: 'base' },
+                    { label: '라운드 미션', key: 'round' },
+                    { label: '보너스 타일(패스)', key: 'bonus' },
+                    { label: '기술 타일', key: 'tech' },
+                    { label: '최종 미션', key: 'final' },
+                    { label: '연구 트랙', key: 'research' },
+                    { label: '잔여 자원', key: 'remaining' },
+                    { label: '파워 수령(−)', key: 'power', neg: true },
+                    { label: '우주선', key: 'ship' },
+                    { label: '기타', key: 'other' },
+                  ];
+                  const cols = playersWithScores.map(({ pid, player, faction }) => {
+                    const b = player!.scoreBreakdown!;
+                    const round = b.roundMissions.reduce((s, m) => s + m.vp, 0);
+                    const bonus = b.bonusTilePass.reduce((s, m) => s + m.vp, 0);
+                    const tech = b.techTiles.reduce((s, t) => s + t.vp, 0);
+                    const ship = b.spaceships.reduce((s, x) => s + x.vp, 0);
+                    const other = b.other.reduce((s, o) => s + o.vp, 0);
+                    const remaining = b.remainingResources ?? 0;
+                    const raw = 10 + round + bonus + tech + b.finalMissions + b.researchTracks + remaining - b.powerReceived + ship + other;
+                    const adjust = (player!.score ?? 0) - raw;
+                    return {
+                      pid, player, faction, color: faction?.color ?? '#888',
+                      vals: { base: 10, round, bonus, tech, final: b.finalMissions, research: b.researchTracks, remaining, power: b.powerReceived, ship, other, adjust } as Record<string, number>,
+                      total: player!.score ?? 0,
+                    };
+                  });
+                  const anyAdjust = cols.some(c => c.vals.adjust !== 0);
+                  const cell = (v: number, neg?: boolean) => (
+                    <span className={`tabular-nums font-bold ${v === 0 ? 'text-zinc-600' : neg ? 'text-red-300' : 'text-zinc-100'}`}>{neg ? (v > 0 ? `−${v}` : '0') : v}</span>
+                  );
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-widest text-zinc-500 font-black">항목</th>
+                            {cols.map((c, i) => (
+                              <th key={c.pid} className="py-2 px-3 min-w-[7rem]">
+                                <button onClick={() => setScoreTab(c.pid)} className="w-full flex flex-col items-center gap-0.5 group" title={`${c.player!.name} 상세 보기`}>
+                                  <div className="flex items-center gap-1.5">
+                                    {i === 0 && <span className="text-amber-400">👑</span>}
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                                    <span className="font-bold text-white group-hover:underline">{c.player!.name}</span>
+                                  </div>
+                                  <span className="text-[9px] uppercase tracking-wider text-zinc-500">{c.faction?.name}</span>
+                                </button>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(r => (
+                            <tr key={r.key} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{r.label}</td>
+                              {cols.map(c => (
+                                <td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals[r.key], r.neg)}</td>
+                              ))}
+                            </tr>
+                          ))}
+                          {anyAdjust && (
+                            <tr className="border-b border-white/5">
+                              <td className="py-1.5 pr-3 text-zinc-500 font-medium italic whitespace-nowrap">보정</td>
+                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.vals.adjust)}</td>))}
+                            </tr>
+                          )}
+                          <tr className="border-t-2 border-amber-500/40">
+                            <td className="py-2 pr-3 text-amber-300 font-black uppercase tracking-widest text-[11px] whitespace-nowrap">총점</td>
+                            {cols.map(c => (
+                              <td key={c.pid} className="py-2 px-3 text-center">
+                                <span className="text-2xl font-black tabular-nums text-white">{c.total}</span>
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                      <p className="mt-4 text-center text-[11px] text-zinc-500">플레이어 이름을 클릭하면 상세 내역 탭으로 이동합니다.</p>
+                    </div>
+                  );
+                })()}
+              </TabsContent>
 
               {playersWithScores.map(({ pid, player, faction }) => {
                 const b = player!.scoreBreakdown!;
