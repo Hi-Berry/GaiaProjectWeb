@@ -5095,12 +5095,32 @@ export default function Game() {
                                     );
                                   }
 
+                                  // [사용자] 스페셜 액션 있는 기술타일은 이미지 클릭으로도 바로 사용(스페셜 버튼과 동일 동작).
+                                  const hasSpecial = !!tile.specialAction;
+                                  const techActionUsed = p.usedTechActions?.includes(tileId) ?? false;
+                                  const canUseTechAction = hasSpecial && isYou && isCurrentTurn && !game.hasDoneMainAction && !techActionUsed && !covered;
                                   return (
-                                    <div key={tileId} className="relative group cursor-help" title={`${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}`}>
+                                    <div
+                                      key={tileId}
+                                      className={`relative group ${canUseTechAction ? 'cursor-pointer' : 'cursor-help'}`}
+                                      title={canUseTechAction
+                                        ? `클릭해서 사용: ${tile.label} — ${tile.description}`
+                                        : `${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}${hasSpecial && techActionUsed ? ' (이번 라운드 사용됨)' : ''}`}
+                                      onClick={canUseTechAction ? (e) => {
+                                        e.stopPropagation();
+                                        if (!gameId) return;
+                                        if (tileId === 'tech-act-4p' || tileId === 'adv-act-3k' || tileId === 'adv-act-3o' || tileId === 'adv-act-1q-5c') {
+                                          GameClient.useTechAction(gameId, tileId);
+                                        } else {
+                                          GameClient.useSpecialAction(gameId, tileId);
+                                        }
+                                        setExpandedPlayerId(null);
+                                      } : undefined}
+                                    >
                                       <img
                                         src={tile.image}
                                         alt={tile.label}
-                                        className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-60 brightness-75' : 'hover:scale-110 shadow-sm shadow-black'}`}
+                                        className={`w-10 h-auto object-contain rounded border transition-all ${covered ? 'grayscale opacity-60 brightness-75 border-white/10' : canUseTechAction ? 'border-amber-400/70 ring-1 ring-amber-400/50 hover:scale-110 shadow-[0_0_8px_rgba(251,191,36,0.45)]' : 'border-white/10 hover:scale-110 shadow-sm shadow-black'}`}
                                       />
                                       {covered && (
                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
