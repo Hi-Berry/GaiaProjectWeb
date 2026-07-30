@@ -86,10 +86,21 @@ function playBeep(frequency: number, duration: number, volume: number = 0.1) {
  * More prominent: a higher pitch double beep.
  */
 export function playMyTurnSound() {
-    playBeep(880, 0.1, 0.15); // A5
-    setTimeout(() => {
-        playBeep(1108.73, 0.15, 0.15); // C#6
-    }, 120);
+    // [사용자] 더 또렷하게 — 3음 상승 차임(A5→C#6→E6) + 볼륨 상향(0.15→0.3).
+    playBeep(880, 0.12, 0.3);              // A5
+    setTimeout(() => playBeep(1108.73, 0.12, 0.3), 130);  // C#6
+    setTimeout(() => playBeep(1318.51, 0.2, 0.34), 260);  // E6 (마지막 강조)
+}
+
+/**
+ * [사용자] 내가 '파워 충전 결정(누수 오퍼)'을 처리해야 할 때 — 놓치지 않게 또렷한 반복 벨.
+ * 수동 수령(playPowerReceiveSound, 잔잔)과 구분되는 '띵-동 ×2' 주의 환기 패턴.
+ */
+export function playPowerDecisionSound() {
+    playBeep(784, 0.12, 0.3);              // G5
+    setTimeout(() => playBeep(1046.5, 0.16, 0.34), 150);  // C6
+    setTimeout(() => playBeep(784, 0.12, 0.3), 360);      // G5
+    setTimeout(() => playBeep(1046.5, 0.2, 0.34), 510);   // C6
 }
 
 /**

@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playEndSound } from '@/lib/audio';
+import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -1049,7 +1049,7 @@ export default function Game() {
     if (myPendingOffers.length > lastMyOfferCountRef.current) {
       const el = document.activeElement;
       const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-      if (!isTyping) playPowerReceiveSound();
+      if (!isTyping) playPowerDecisionSound();
     }
     lastMyOfferCountRef.current = myPendingOffers.length;
 
@@ -1058,14 +1058,14 @@ export default function Game() {
       const el = document.activeElement;
       const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
       if (isTyping) return;
-      playPowerReceiveSound();
+      playPowerDecisionSound();
     }, 5000);
 
     // 첫 알림은 5초 뒤(즉시 울리면 너무 시끄러움)
     const t = window.setTimeout(() => {
       const el = document.activeElement;
       const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-      if (!isTyping) playPowerReceiveSound();
+      if (!isTyping) playPowerDecisionSound();
     }, 5000);
 
     return () => {
