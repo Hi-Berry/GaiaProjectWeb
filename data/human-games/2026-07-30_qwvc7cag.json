@@ -1,0 +1,6848 @@
+{
+  "version": 1,
+  "gameId": "qwvc7cag",
+  "createdAt": 1785384726642,
+  "completedAt": "2026-07-30T04:21:04.503Z",
+  "roundNumber": 2,
+  "players": {
+    "bot-p_204mua2ltq": {
+      "name": "AI Bot 3",
+      "faction": "bescods",
+      "score": 26,
+      "resources": {
+        "credits": 4,
+        "ore": 6,
+        "knowledge": 2,
+        "qic": 0,
+        "power1": 0,
+        "power2": 8,
+        "power3": 0
+      },
+      "research": {
+        "terraforming": 1,
+        "navigation": 0,
+        "artificialIntelligence": 0,
+        "gaiaProject": 1,
+        "economy": 0,
+        "science": 1
+      },
+      "techTiles": [
+        "tech-inc-1o-1p"
+      ],
+      "federations": [],
+      "bonusTile": "bon-3c-bridge",
+      "scoreBreakdown": {
+        "roundMissions": [
+          {
+            "round": 1,
+            "vp": 5
+          },
+          {
+            "round": 2,
+            "vp": 2
+          }
+        ],
+        "bonusTilePass": [
+          {
+            "round": 1,
+            "vp": 0,
+            "tileId": "bon-1o-2tokens"
+          }
+        ],
+        "techTiles": [],
+        "finalMissions": 12,
+        "finalMissionDetails": [
+          {
+            "missionId": "fm_total_structures",
+            "vp": 12
+          }
+        ],
+        "powerReceived": 3,
+        "spaceships": [],
+        "researchTracks": 0,
+        "remainingResources": 5,
+        "other": [
+          {
+            "source": "우주선 입장",
+            "vp": -5
+          }
+        ]
+      },
+      "rank": 1
+    },
+    "bot-p_ddnw5x1lzb": {
+      "name": "AI Bot 2",
+      "faction": "hadsch_hallas",
+      "score": 23,
+      "resources": {
+        "credits": 5,
+        "ore": 7,
+        "knowledge": 3,
+        "qic": 0,
+        "power1": 1,
+        "power2": 5,
+        "power3": 0
+      },
+      "research": {
+        "terraforming": 1,
+        "navigation": 1,
+        "artificialIntelligence": 0,
+        "gaiaProject": 0,
+        "economy": 1,
+        "science": 0
+      },
+      "techTiles": [
+        "tech-inc-1o-1p"
+      ],
+      "federations": [],
+      "bonusTile": "bon-1o-1k",
+      "scoreBreakdown": {
+        "roundMissions": [],
+        "bonusTilePass": [
+          {
+            "round": 1,
+            "vp": 0,
+            "tileId": "bon-4pw-bigbuilding"
+          }
+        ],
+        "techTiles": [],
+        "finalMissions": 18,
+        "finalMissionDetails": [
+          {
+            "missionId": "fm_total_structures",
+            "vp": 18
+          }
+        ],
+        "powerReceived": 0,
+        "spaceships": [],
+        "researchTracks": 0,
+        "remainingResources": 5,
+        "other": [
+          {
+            "source": "우주선 입장",
+            "vp": -5
+          },
+          {
+            "source": "우주선 입장",
+            "vp": -5
+          }
+        ]
+      },
+      "rank": 2
+    },
+    "p_bppgzy1oa7": {
+      "name": "tea",
+      "faction": "geodens",
+      "score": 20,
+      "resources": {
+        "credits": 0,
+        "ore": 2,
+        "knowledge": 6,
+        "qic": 0,
+        "power1": 1,
+        "power2": 0,
+        "power3": 8
+      },
+      "research": {
+        "terraforming": 1,
+        "navigation": 1,
+        "artificialIntelligence": 0,
+        "gaiaProject": 0,
+        "economy": 0,
+        "science": 0
+      },
+      "techTiles": [
+        "tech-act-4p"
+      ],
+      "federations": [],
+      "bonusTile": "bon-1o-2tokens",
+      "scoreBreakdown": {
+        "roundMissions": [
+          {
+            "round": 1,
+            "vp": 5
+          }
+        ],
+        "bonusTilePass": [
+          {
+            "round": 1,
+            "vp": 0,
+            "tileId": "bon-4c-gaia"
+          }
+        ],
+        "techTiles": [],
+        "finalMissions": 3,
+        "finalMissionDetails": [
+          {
+            "missionId": "fm_total_structures",
+            "vp": 3
+          }
+        ],
+        "powerReceived": 3,
+        "spaceships": [],
+        "researchTracks": 0,
+        "remainingResources": 5,
+        "other": []
+      },
+      "rank": 3
+    },
+    "bot-p_6no3tweqxe": {
+      "name": "AI Bot 4",
+      "faction": "space_giants",
+      "score": 16,
+      "resources": {
+        "credits": 7,
+        "ore": 7,
+        "knowledge": 4,
+        "qic": 0,
+        "power1": 1,
+        "power2": 3,
+        "power3": 5
+      },
+      "research": {
+        "terraforming": 1,
+        "navigation": 1,
+        "artificialIntelligence": 0,
+        "gaiaProject": 0,
+        "economy": 0,
+        "science": 0
+      },
+      "techTiles": [
+        "tech-inc-1o-1p"
+      ],
+      "federations": [],
+      "bonusTile": "bon-4c-gaia",
+      "scoreBreakdown": {
+        "roundMissions": [
+          {
+            "round": 1,
+            "vp": 5
+          }
+        ],
+        "bonusTilePass": [
+          {
+            "round": 1,
+            "vp": 0,
+            "tileId": "bon-1o-1k"
+          }
+        ],
+        "techTiles": [],
+        "finalMissions": 3,
+        "finalMissionDetails": [
+          {
+            "missionId": "fm_total_structures",
+            "vp": 3
+          }
+        ],
+        "powerReceived": 0,
+        "spaceships": [],
+        "researchTracks": 0,
+        "remainingResources": 8,
+        "other": [
+          {
+            "source": "우주선 입장",
+            "vp": -5
+          },
+          {
+            "source": "우주선 입장",
+            "vp": -5
+          }
+        ]
+      },
+      "rank": 4
+    }
+  },
+  "turnOrder": [
+    "bot-p_204mua2ltq",
+    "p_bppgzy1oa7",
+    "bot-p_6no3tweqxe",
+    "bot-p_ddnw5x1lzb"
+  ],
+  "gameLog": [
+    {
+      "timestamp": 1785384727527,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Selected Faction",
+      "details": "Bescods",
+      "round": 0,
+      "seq": 1,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384756313-bot-p_204mua2ltq-ru3exh"
+    },
+    {
+      "timestamp": 1785384727529,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Selected Faction",
+      "details": "Space Giants",
+      "round": 0,
+      "seq": 2,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384771370-bot-p_6no3tweqxe-v6hgr6"
+    },
+    {
+      "timestamp": 1785384727530,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Selected Faction",
+      "details": "Hadsch Hallas",
+      "round": 0,
+      "seq": 3,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384813873-bot-p_ddnw5x1lzb-4s8g4m"
+    },
+    {
+      "timestamp": 1785384727530,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Selected Faction",
+      "details": "Geodens",
+      "round": 0,
+      "seq": 4,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      }
+    },
+    {
+      "timestamp": 1785384728036,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-103",
+      "tileId": "tile-103",
+      "round": 0,
+      "seq": 5,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384728036-bot-p_204mua2ltq-o8m3qp"
+    },
+    {
+      "timestamp": 1785384729053,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-168",
+      "tileId": "tile-168",
+      "round": 0,
+      "seq": 6,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384729053-bot-p_ddnw5x1lzb-afwp9o"
+    },
+    {
+      "timestamp": 1785384731427,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-108",
+      "tileId": "tile-108",
+      "round": 0,
+      "seq": 7,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      }
+    },
+    {
+      "timestamp": 1785384738047,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-83",
+      "tileId": "tile-83",
+      "round": 0,
+      "seq": 8,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      }
+    },
+    {
+      "timestamp": 1785384738549,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-111",
+      "tileId": "tile-111",
+      "round": 0,
+      "seq": 9,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384738549-bot-p_ddnw5x1lzb-gxi6gd"
+    },
+    {
+      "timestamp": 1785384739560,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-21",
+      "tileId": "tile-21",
+      "round": 0,
+      "seq": 10,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384739560-bot-p_204mua2ltq-7gy4qf"
+    },
+    {
+      "timestamp": 1785384740568,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Placed Starting Mine",
+      "details": "Position: internal-4",
+      "tileId": "internal-4",
+      "round": 0,
+      "seq": 11,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 2,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384740567-bot-p_6no3tweqxe-h6bt9r"
+    },
+    {
+      "timestamp": 1785384745303,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Selected Bonus Tile",
+      "details": "4C | 1VP/Gaia",
+      "round": 0,
+      "seq": 12,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      }
+    },
+    {
+      "timestamp": 1785384745806,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Selected Bonus Tile",
+      "details": "4P | 4VP/Big",
+      "round": 0,
+      "seq": 13,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384745806-bot-p_ddnw5x1lzb-75uh2b"
+    },
+    {
+      "timestamp": 1785384746817,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Selected Bonus Tile",
+      "details": "1O | 1K",
+      "round": 0,
+      "seq": 14,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 6,
+        "k": 3,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384746817-bot-p_6no3tweqxe-fihnqk"
+    },
+    {
+      "timestamp": 1785384747822,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Selected Bonus Tile",
+      "details": "1O | +2 Tokens",
+      "round": 0,
+      "seq": 15,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 4,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384747822-bot-p_204mua2ltq-g7o99e"
+    },
+    {
+      "timestamp": 1785384755294,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 3C",
+      "tileId": "tile-103",
+      "round": 1,
+      "seq": 16,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 8,
+        "k": 3,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 12,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384755294-bot-p_204mua2ltq-3y7b4j",
+      "subLogs": [
+        {
+          "playerId": "p_bppgzy1oa7",
+          "playerName": "tea",
+          "text": "↳ Received Power +1P tea"
+        }
+      ]
+    },
+    {
+      "timestamp": 1785384763327,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Space Giants: Special",
+      "details": "+2 Terraform steps",
+      "round": 1,
+      "seq": 17,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 9,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 15,
+        "o": 9,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384763327-bot-p_6no3tweqxe-6ebvc5"
+    },
+    {
+      "timestamp": 1785384770343,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Built Mine",
+      "details": "on desert (1O, 2C)",
+      "tileId": "tile-94",
+      "round": 1,
+      "seq": 18,
+      "base": {
+        "vp": 10,
+        "c": 15,
+        "o": 9,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 13,
+        "o": 8,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384770343-bot-p_6no3tweqxe-zuecvd"
+    },
+    {
+      "timestamp": 1785384778396,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Power Action",
+      "details": "+1 Terraform step (3P)",
+      "round": 1,
+      "seq": 19,
+      "base": {
+        "vp": 10,
+        "c": 20,
+        "o": 7,
+        "k": 4,
+        "q": 1,
+        "p1": 0,
+        "p2": 3,
+        "p3": 3
+      },
+      "snap": {
+        "vp": 10,
+        "c": 20,
+        "o": 7,
+        "k": 4,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384779419-bot-p_ddnw5x1lzb-45m4x3"
+    },
+    {
+      "timestamp": 1785384778397,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Built Mine",
+      "details": "on terra (1O, 2C)",
+      "tileId": "tile-171",
+      "round": 1,
+      "seq": 20,
+      "base": {
+        "vp": 10,
+        "c": 20,
+        "o": 7,
+        "k": 4,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 18,
+        "o": 6,
+        "k": 4,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384778397-bot-p_ddnw5x1lzb-66rle4"
+    },
+    {
+      "timestamp": 1785384788027,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 3C",
+      "tileId": "tile-108",
+      "round": 1,
+      "seq": 21,
+      "base": {
+        "vp": 10,
+        "c": 19,
+        "o": 9,
+        "k": 4,
+        "q": 1,
+        "p1": 1,
+        "p2": 5,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 16,
+        "o": 7,
+        "k": 4,
+        "q": 1,
+        "p1": 1,
+        "p2": 5,
+        "p3": 0
+      },
+      "subLogs": [
+        {
+          "playerId": "bot-p_204mua2ltq",
+          "playerName": "AI Bot 3",
+          "text": "↳ Received Power +2P (-1VP) AI Bot 3"
+        }
+      ]
+    },
+    {
+      "timestamp": 1785384795337,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Upgraded to Academy (Bescods/매안)",
+      "details": "6O, 6C (2K 수익) (+5VP Round Big Building)",
+      "tileId": "tile-103",
+      "round": 1,
+      "seq": 22,
+      "base": {
+        "vp": 9,
+        "c": 12,
+        "o": 6,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 14,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384795337-bot-p_204mua2ltq-yoyoaq"
+    },
+    {
+      "timestamp": 1785384796151,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Gained Tech Tile",
+      "details": "terraforming → Lv.1",
+      "tileId": "tech-inc-1o-1p",
+      "round": 1,
+      "seq": 23,
+      "base": {
+        "vp": 14,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 14,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 1,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384796150-bot-p_204mua2ltq-k6a1h2",
+      "subLogs": [
+        {
+          "playerId": "p_bppgzy1oa7",
+          "playerName": "tea",
+          "text": "↳ Received Power +2P (-1VP) tea"
+        }
+      ]
+    },
+    {
+      "timestamp": 1785384804834,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-94",
+      "round": 1,
+      "seq": 24,
+      "base": {
+        "vp": 10,
+        "c": 13,
+        "o": 8,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 7,
+        "o": 6,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384804834-bot-p_6no3tweqxe-mvt3gi"
+    },
+    {
+      "timestamp": 1785384812861,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Built Mine",
+      "details": "on volcanic (1O, 2C, 1QIC)",
+      "tileId": "tile-142",
+      "round": 1,
+      "seq": 25,
+      "base": {
+        "vp": 10,
+        "c": 18,
+        "o": 6,
+        "k": 4,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 16,
+        "o": 5,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384812861-bot-p_ddnw5x1lzb-vqr56c"
+    },
+    {
+      "timestamp": 1785384815776,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Upgraded to Research Lab",
+      "details": "3O, 5C",
+      "tileId": "tile-108",
+      "round": 1,
+      "seq": 26,
+      "base": {
+        "vp": 9,
+        "c": 16,
+        "o": 7,
+        "k": 4,
+        "q": 1,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 9,
+        "c": 11,
+        "o": 4,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1
+      }
+    },
+    {
+      "timestamp": 1785384819158,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Gained Tech Tile",
+      "details": "navigation → Lv.1",
+      "tileId": "tech-act-4p",
+      "round": 1,
+      "seq": 27,
+      "base": {
+        "vp": 9,
+        "c": 11,
+        "o": 4,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 9,
+        "c": 11,
+        "o": 4,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1
+      },
+      "subLogs": [
+        {
+          "playerId": "bot-p_204mua2ltq",
+          "playerName": "AI Bot 3",
+          "text": "↳ Received Power +3P (-2VP) AI Bot 3"
+        }
+      ]
+    },
+    {
+      "timestamp": 1785384826239,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Bot: Bescods Special",
+      "details": "가장 낮은 트랙 +1 → science Lv.1",
+      "round": 1,
+      "seq": 28,
+      "base": {
+        "vp": 12,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 1,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 12,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 1,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "aiFeedbackActionId": "1785384826239-bot-p_204mua2ltq-jwclm9"
+    },
+    {
+      "timestamp": 1785384834263,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Space Giants: PI built",
+      "details": "Choose 1 tech tile + track",
+      "tileId": "tile-94",
+      "round": 1,
+      "seq": 29,
+      "base": {
+        "vp": 10,
+        "c": 7,
+        "o": 6,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 1,
+        "o": 2,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384835889-bot-p_6no3tweqxe-gtdy8c"
+    },
+    {
+      "timestamp": 1785384834263,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Upgraded to Planetary Institute",
+      "details": "4O, 6C (+5VP Round Big Building)",
+      "tileId": "tile-94",
+      "round": 1,
+      "seq": 30,
+      "base": {
+        "vp": 10,
+        "c": 1,
+        "o": 2,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 15,
+        "c": 1,
+        "o": 4,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384834263-bot-p_6no3tweqxe-nu5kfj"
+    },
+    {
+      "timestamp": 1785384835086,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Gained Tech Tile",
+      "details": "terraforming → Lv.1",
+      "tileId": "tech-inc-1o-1p",
+      "round": 1,
+      "seq": 31,
+      "base": {
+        "vp": 15,
+        "c": 1,
+        "o": 4,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 15,
+        "c": 1,
+        "o": 4,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384835086-bot-p_6no3tweqxe-9zeylo"
+    },
+    {
+      "timestamp": 1785384842917,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-142",
+      "round": 1,
+      "seq": 32,
+      "base": {
+        "vp": 10,
+        "c": 16,
+        "o": 5,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 10,
+        "o": 3,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384842917-bot-p_ddnw5x1lzb-40xk01"
+    },
+    {
+      "timestamp": 1785384847722,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Used Tech Action",
+      "details": "Gained 4 Power",
+      "tileId": "tech-act-4p",
+      "round": 1,
+      "seq": 33,
+      "base": {
+        "vp": 9,
+        "c": 11,
+        "o": 4,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 9,
+        "c": 11,
+        "o": 4,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 1,
+        "p3": 5
+      }
+    },
+    {
+      "timestamp": 1785384856001,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Entered Ship",
+      "details": "Eclipse · 12VP → 7VP (-5), 1QIC",
+      "tileId": "internal-2",
+      "round": 1,
+      "seq": 34,
+      "base": {
+        "vp": 12,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 1,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 7,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "aiFeedbackActionId": "1785384856001-bot-p_204mua2ltq-sacpw8"
+    },
+    {
+      "timestamp": 1785384864063,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Entered Ship",
+      "details": "Rebellion · 15VP → 10VP (-5), 1QIC",
+      "tileId": "internal-3",
+      "round": 1,
+      "seq": 35,
+      "base": {
+        "vp": 15,
+        "c": 1,
+        "o": 4,
+        "k": 5,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 1,
+        "o": 4,
+        "k": 5,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384864063-bot-p_6no3tweqxe-nnllt5"
+    },
+    {
+      "timestamp": 1785384872096,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Upgraded to Research Lab",
+      "details": "3O, 5C",
+      "tileId": "tile-142",
+      "round": 1,
+      "seq": 36,
+      "base": {
+        "vp": 10,
+        "c": 10,
+        "o": 3,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384872096-bot-p_ddnw5x1lzb-ndq94r"
+    },
+    {
+      "timestamp": 1785384872924,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Gained Tech Tile",
+      "details": "terraforming → Lv.1",
+      "tileId": "tech-inc-1o-1p",
+      "round": 1,
+      "seq": 37,
+      "base": {
+        "vp": 10,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384872923-bot-p_ddnw5x1lzb-aqz376"
+    },
+    {
+      "timestamp": 1785384874996,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-83",
+      "round": 1,
+      "seq": 38,
+      "base": {
+        "vp": 9,
+        "c": 11,
+        "o": 4,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 1,
+        "p3": 5
+      },
+      "snap": {
+        "vp": 9,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 1,
+        "p3": 5
+      }
+    },
+    {
+      "timestamp": 1785384876311,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Eclipse: 6C → Build mine on asteroid",
+      "details": "(select tile)",
+      "tileId": "internal-2",
+      "round": 1,
+      "seq": 39,
+      "base": {
+        "vp": 7,
+        "c": 6,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 7,
+        "c": 0,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "aiFeedbackActionId": "1785384876310-bot-p_204mua2ltq-50xhoe"
+    },
+    {
+      "timestamp": 1785384877140,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Eclipse: Built mine on asteroid",
+      "details": "6C (no Gaiaformer)",
+      "tileId": "bridge-0-2",
+      "round": 1,
+      "seq": 40,
+      "base": {
+        "vp": 7,
+        "c": 0,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 7,
+        "c": 0,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "aiFeedbackActionId": "1785384877957-bot-p_204mua2ltq-htsze1"
+    },
+    {
+      "timestamp": 1785384878989,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Rebellion: 2K → 1Q 2C",
+      "tileId": "internal-3",
+      "round": 1,
+      "seq": 41,
+      "base": {
+        "vp": 10,
+        "c": 1,
+        "o": 4,
+        "k": 5,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 10,
+        "c": 3,
+        "o": 4,
+        "k": 3,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384878989-bot-p_6no3tweqxe-e0aj6r"
+    },
+    {
+      "timestamp": 1785384887046,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Entered Ship",
+      "details": "TF Mars · 10VP → 5VP (-5)",
+      "tileId": "internal-1",
+      "round": 1,
+      "seq": 42,
+      "base": {
+        "vp": 10,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 5,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384887046-bot-p_ddnw5x1lzb-8sxy28"
+    },
+    {
+      "timestamp": 1785384889779,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Free Actions",
+      "details": "1Q → 1O ×2, 1P → 1C",
+      "round": 1,
+      "seq": 43,
+      "base": {
+        "vp": 9,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 2,
+        "p1": 0,
+        "p2": 1,
+        "p3": 5
+      },
+      "snap": {
+        "vp": 9,
+        "c": 6,
+        "o": 4,
+        "k": 4,
+        "q": 0,
+        "p1": 1,
+        "p2": 1,
+        "p3": 4
+      }
+    },
+    {
+      "timestamp": 1785384892289,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Upgraded to Planetary Institute",
+      "details": "4O, 6C (+5VP Round Big Building)",
+      "tileId": "tile-83",
+      "round": 1,
+      "seq": 44,
+      "base": {
+        "vp": 9,
+        "c": 6,
+        "o": 4,
+        "k": 4,
+        "q": 0,
+        "p1": 1,
+        "p2": 1,
+        "p3": 4
+      },
+      "snap": {
+        "vp": 14,
+        "c": 0,
+        "o": 0,
+        "k": 4,
+        "q": 0,
+        "p1": 1,
+        "p2": 1,
+        "p3": 4
+      }
+    },
+    {
+      "timestamp": 1785384895176,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Free Actions",
+      "details": "1P → 1C",
+      "round": 1,
+      "seq": 45,
+      "base": {
+        "vp": 7,
+        "c": 0,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 0,
+        "p2": 7,
+        "p3": 1
+      },
+      "snap": {
+        "vp": 7,
+        "c": 1,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 1,
+        "p2": 7,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384895176-bot-p_204mua2ltq-68baku"
+    },
+    {
+      "timestamp": 1785384896222,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-2tokens, took bon-3c-bridge",
+      "round": 1,
+      "seq": 46,
+      "base": {
+        "vp": 7,
+        "c": 1,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 1,
+        "p2": 7,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 7,
+        "c": 1,
+        "o": 2,
+        "k": 3,
+        "q": 0,
+        "p1": 1,
+        "p2": 7,
+        "p3": 0
+      },
+      "passInfo": {
+        "returnedTileId": "bon-1o-2tokens",
+        "tookTileId": "bon-3c-bridge"
+      },
+      "aiFeedbackActionId": "1785384896195-bot-p_204mua2ltq-06j7xo"
+    },
+    {
+      "timestamp": 1785384897246,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Entered Ship",
+      "details": "TF Mars · 10VP → 5VP (-5), 2QIC",
+      "tileId": "internal-1",
+      "round": 1,
+      "seq": 47,
+      "base": {
+        "vp": 10,
+        "c": 3,
+        "o": 4,
+        "k": 3,
+        "q": 2,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 5,
+        "c": 3,
+        "o": 4,
+        "k": 3,
+        "q": 0,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384897246-bot-p_6no3tweqxe-im6atc"
+    },
+    {
+      "timestamp": 1785384899294,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Entered Ship",
+      "details": "Twilight · 5VP → 0VP (-5)",
+      "tileId": "internal-0",
+      "round": 1,
+      "seq": 48,
+      "base": {
+        "vp": 5,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 0,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384899294-bot-p_ddnw5x1lzb-s2pwuh"
+    },
+    {
+      "timestamp": 1785384906726,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Selected Bonus",
+      "details": "Returned bon-4c-gaia, took bon-1o-2tokens",
+      "round": 1,
+      "seq": 49,
+      "base": {
+        "vp": 14,
+        "c": 0,
+        "o": 0,
+        "k": 4,
+        "q": 0,
+        "p1": 1,
+        "p2": 1,
+        "p3": 4
+      },
+      "snap": {
+        "vp": 14,
+        "c": 0,
+        "o": 0,
+        "k": 4,
+        "q": 0,
+        "p1": 1,
+        "p2": 1,
+        "p3": 4
+      },
+      "passInfo": {
+        "returnedTileId": "bon-4c-gaia",
+        "tookTileId": "bon-1o-2tokens"
+      }
+    },
+    {
+      "timestamp": 1785384907246,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-1k, took bon-4c-gaia",
+      "round": 1,
+      "seq": 50,
+      "base": {
+        "vp": 5,
+        "c": 3,
+        "o": 4,
+        "k": 3,
+        "q": 0,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 5,
+        "c": 3,
+        "o": 4,
+        "k": 3,
+        "q": 0,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "passInfo": {
+        "returnedTileId": "bon-1o-1k",
+        "tookTileId": "bon-4c-gaia"
+      },
+      "aiFeedbackActionId": "1785384907245-bot-p_6no3tweqxe-6kkaqa"
+    },
+    {
+      "timestamp": 1785384914272,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Advanced Research",
+      "details": "navigation to level 1 (4K→0K)",
+      "round": 1,
+      "seq": 51,
+      "base": {
+        "vp": 0,
+        "c": 5,
+        "o": 2,
+        "k": 4,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 0,
+        "c": 5,
+        "o": 2,
+        "k": 0,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384914272-bot-p_ddnw5x1lzb-xqj1v7"
+    },
+    {
+      "timestamp": 1785384922332,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "TF Mars: 3C → 1 Terraform",
+      "details": "(same as 3PW or bonus 1 Step)",
+      "tileId": "internal-1",
+      "round": 1,
+      "seq": 52,
+      "base": {
+        "vp": 0,
+        "c": 5,
+        "o": 2,
+        "k": 0,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 0,
+        "c": 2,
+        "o": 2,
+        "k": 0,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384922332-bot-p_ddnw5x1lzb-zl48sa"
+    },
+    {
+      "timestamp": 1785384929360,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Built Mine",
+      "details": "on terra (1O, 2C, 1QIC)",
+      "tileId": "tile-81",
+      "round": 1,
+      "seq": 53,
+      "base": {
+        "vp": 0,
+        "c": 2,
+        "o": 2,
+        "k": 0,
+        "q": 1,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 0,
+        "c": 0,
+        "o": 1,
+        "k": 0,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785384929360-bot-p_ddnw5x1lzb-ueghbz",
+      "subLogs": [
+        {
+          "playerId": "p_bppgzy1oa7",
+          "playerName": "tea",
+          "text": "↳ Received Power +3P (-2VP) tea"
+        }
+      ]
+    },
+    {
+      "timestamp": 1785384934996,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Selected Bonus",
+      "details": "Returned bon-4pw-bigbuilding, took bon-1o-1k",
+      "round": 1,
+      "seq": 54,
+      "base": {
+        "vp": 0,
+        "c": 0,
+        "o": 1,
+        "k": 0,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 0,
+        "c": 0,
+        "o": 1,
+        "k": 0,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "passInfo": {
+        "returnedTileId": "bon-4pw-bigbuilding",
+        "tookTileId": "bon-1o-1k"
+      },
+      "aiFeedbackActionId": "1785384934994-bot-p_ddnw5x1lzb-1cp4i4"
+    },
+    {
+      "timestamp": 1785384934996,
+      "playerId": "",
+      "playerName": "",
+      "action": "Round Start",
+      "round": 2,
+      "seq": 55
+    },
+    {
+      "timestamp": 1785385257362,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Advanced Research",
+      "details": "gaiaProject to level 1 (6K→2K) (+2VP Round Research Track)",
+      "round": 2,
+      "seq": 56,
+      "base": {
+        "vp": 7,
+        "c": 4,
+        "o": 6,
+        "k": 6,
+        "q": 0,
+        "p1": 0,
+        "p2": 8,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 9,
+        "c": 4,
+        "o": 6,
+        "k": 2,
+        "q": 0,
+        "p1": 0,
+        "p2": 8,
+        "p3": 0
+      },
+      "aiFeedbackActionId": "1785385257362-bot-p_204mua2ltq-rv1giz"
+    },
+    {
+      "timestamp": 1785385264500,
+      "playerId": "",
+      "playerName": "Game",
+      "action": "Game Finished",
+      "details": "최종 점수 정산",
+      "round": 2
+    },
+    {
+      "timestamp": 1785385264501,
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "action": "Final Mission",
+      "details": "+18 VP",
+      "tileId": "fm_total_structures",
+      "round": 2,
+      "seq": 57,
+      "base": {
+        "vp": 0,
+        "c": 0,
+        "o": 1,
+        "k": 0,
+        "q": 0,
+        "p1": 3,
+        "p2": 3,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 18,
+        "c": 5,
+        "o": 7,
+        "k": 3,
+        "q": 0,
+        "p1": 1,
+        "p2": 5,
+        "p3": 0
+      }
+    },
+    {
+      "timestamp": 1785385264501,
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "action": "Final Mission",
+      "details": "+12 VP",
+      "tileId": "fm_total_structures",
+      "round": 2,
+      "seq": 58,
+      "base": {
+        "vp": 9,
+        "c": 4,
+        "o": 6,
+        "k": 2,
+        "q": 0,
+        "p1": 0,
+        "p2": 8,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 21,
+        "c": 4,
+        "o": 6,
+        "k": 2,
+        "q": 0,
+        "p1": 0,
+        "p2": 8,
+        "p3": 0
+      }
+    },
+    {
+      "timestamp": 1785385264501,
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "action": "Final Mission",
+      "details": "+3 VP",
+      "tileId": "fm_total_structures",
+      "round": 2,
+      "seq": 59,
+      "base": {
+        "vp": 12,
+        "c": 0,
+        "o": 2,
+        "k": 6,
+        "q": 0,
+        "p1": 1,
+        "p2": 0,
+        "p3": 8
+      },
+      "snap": {
+        "vp": 15,
+        "c": 0,
+        "o": 2,
+        "k": 6,
+        "q": 0,
+        "p1": 1,
+        "p2": 0,
+        "p3": 8
+      }
+    },
+    {
+      "timestamp": 1785385264501,
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "action": "Final Mission",
+      "details": "+3 VP",
+      "tileId": "fm_total_structures",
+      "round": 2,
+      "seq": 60,
+      "base": {
+        "vp": 5,
+        "c": 3,
+        "o": 4,
+        "k": 3,
+        "q": 0,
+        "p1": 2,
+        "p2": 6,
+        "p3": 0
+      },
+      "snap": {
+        "vp": 8,
+        "c": 7,
+        "o": 7,
+        "k": 4,
+        "q": 0,
+        "p1": 1,
+        "p2": 3,
+        "p3": 5
+      }
+    }
+  ],
+  "actionJournal": [
+    {
+      "id": "qwvc7cag-1785384731427-0",
+      "timestamp": 1785384731427,
+      "gameId": "qwvc7cag",
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-108",
+      "tileId": "tile-108",
+      "scoreAfter": 10,
+      "playerBefore": null,
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 10,
+        "resources": {
+          "credits": 15,
+          "ore": 6,
+          "knowledge": 3,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "qwvc7cag-1785384738047-1",
+      "timestamp": 1785384738047,
+      "gameId": "qwvc7cag",
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-83",
+      "tileId": "tile-83",
+      "scoreAfter": 10,
+      "playerBefore": null,
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 10,
+        "resources": {
+          "credits": 15,
+          "ore": 6,
+          "knowledge": 3,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "qwvc7cag-1785384745303-2",
+      "timestamp": 1785384745303,
+      "gameId": "qwvc7cag",
+      "round": 0,
+      "phase": "bonusSelection",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Selected Bonus Tile",
+      "details": "4C | 1VP/Gaia",
+      "scoreAfter": 10,
+      "playerBefore": null,
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 10,
+        "resources": {
+          "credits": 15,
+          "ore": 6,
+          "knowledge": 3,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "qwvc7cag-1785384788027-3",
+      "timestamp": 1785384788027,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 3C",
+      "tileId": "tile-108",
+      "scoreBefore": 10,
+      "scoreAfter": 10,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 10,
+        "resources": {
+          "credits": 19,
+          "ore": 9,
+          "knowledge": 4,
+          "qic": 1,
+          "power1": 1,
+          "power2": 5,
+          "power3": 0
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 0,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 10,
+        "resources": {
+          "credits": 16,
+          "ore": 7,
+          "knowledge": 4,
+          "qic": 1,
+          "power1": 1,
+          "power2": 5,
+          "power3": 0
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-108",
+          "target": "trading_station"
+        },
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-83",
+          "target": "trading_station"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384815776-4",
+      "timestamp": 1785384815776,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Upgraded to Research Lab",
+      "details": "3O, 5C",
+      "tileId": "tile-108",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 16,
+          "ore": 7,
+          "knowledge": 4,
+          "qic": 1,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 11,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 1,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-108",
+          "target": "research_lab"
+        },
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-108",
+          "target": "planetary_institute"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384819158-5",
+      "timestamp": 1785384819158,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Gained Tech Tile",
+      "details": "navigation → Lv.1",
+      "tileId": "tech-act-4p",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 16,
+          "ore": 7,
+          "knowledge": 4,
+          "qic": 1,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 0,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 11,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-108",
+          "target": "research_lab"
+        },
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-108",
+          "target": "planetary_institute"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384847722-6",
+      "timestamp": 1785384847722,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Used Tech Action",
+      "details": "Gained 4 Power",
+      "tileId": "tech-act-4p",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 11,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 11,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_tech_action",
+          "tileId": "tech-act-4p"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384874996-7",
+      "timestamp": 1785384874996,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-83",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 11,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 2,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "tileId": "tile-108",
+          "target": "academy_left"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384888987-8",
+      "timestamp": 1785384888987,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Free Actions",
+      "details": "1Q → 1O",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 2,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 3,
+          "knowledge": 4,
+          "qic": 1,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384889163-9",
+      "timestamp": 1785384889163,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Free Actions",
+      "details": "1Q → 1O",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 2,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 0,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384889779-10",
+      "timestamp": 1785384889779,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Free Actions",
+      "details": "1P → 1C",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 2,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 6,
+          "ore": 4,
+          "knowledge": 4,
+          "qic": 0,
+          "power1": 1,
+          "power2": 1,
+          "power3": 4
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384892289-11",
+      "timestamp": 1785384892289,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Upgraded to Planetary Institute",
+      "details": "4O, 6C",
+      "tileId": "tile-83",
+      "scoreBefore": 9,
+      "scoreAfter": 9,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 5,
+          "ore": 2,
+          "knowledge": 4,
+          "qic": 2,
+          "power1": 0,
+          "power2": 1,
+          "power3": 5
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 9,
+        "resources": {
+          "credits": 0,
+          "ore": 0,
+          "knowledge": 4,
+          "qic": 0,
+          "power1": 1,
+          "power2": 1,
+          "power3": 4
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785384906726-12",
+      "timestamp": 1785384906726,
+      "gameId": "qwvc7cag",
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Selected Bonus",
+      "details": "Returned bon-4c-gaia, took bon-1o-2tokens",
+      "scoreBefore": 14,
+      "scoreAfter": 14,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 14,
+        "resources": {
+          "credits": 0,
+          "ore": 0,
+          "knowledge": 4,
+          "qic": 0,
+          "power1": 1,
+          "power2": 1,
+          "power3": 4
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-4c-gaia",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 1,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 14,
+        "resources": {
+          "credits": 0,
+          "ore": 0,
+          "knowledge": 4,
+          "qic": 0,
+          "power1": 1,
+          "power2": 1,
+          "power3": 4
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-1o-2tokens",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "convert_resource"
+        },
+        {
+          "type": "convert_resource"
+        },
+        {
+          "type": "convert_resource"
+        }
+      ]
+    },
+    {
+      "id": "qwvc7cag-1785385264501-13",
+      "timestamp": 1785385264501,
+      "gameId": "qwvc7cag",
+      "round": 2,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "faction": "geodens",
+      "action": "Final Mission",
+      "details": "+3 VP",
+      "tileId": "fm_total_structures",
+      "scoreBefore": 12,
+      "scoreAfter": 15,
+      "playerBefore": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 12,
+        "resources": {
+          "credits": 0,
+          "ore": 2,
+          "knowledge": 6,
+          "qic": 0,
+          "power1": 1,
+          "power2": 0,
+          "power3": 8
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-1o-2tokens",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 0,
+          "finalMissionDetails": [],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "other": []
+        }
+      },
+      "playerAfter": {
+        "name": "tea",
+        "faction": "geodens",
+        "score": 15,
+        "resources": {
+          "credits": 0,
+          "ore": 2,
+          "knowledge": 6,
+          "qic": 0,
+          "power1": 1,
+          "power2": 0,
+          "power3": 8
+        },
+        "research": {
+          "terraforming": 1,
+          "navigation": 1,
+          "artificialIntelligence": 0,
+          "gaiaProject": 0,
+          "economy": 0,
+          "science": 0
+        },
+        "techTiles": [
+          "tech-act-4p"
+        ],
+        "federations": [],
+        "bonusTile": "bon-1o-2tokens",
+        "scoreBreakdown": {
+          "roundMissions": [
+            {
+              "round": 1,
+              "vp": 5
+            }
+          ],
+          "bonusTilePass": [
+            {
+              "round": 1,
+              "vp": 0,
+              "tileId": "bon-4c-gaia"
+            }
+          ],
+          "techTiles": [],
+          "finalMissions": 3,
+          "finalMissionDetails": [
+            {
+              "missionId": "fm_total_structures",
+              "vp": 3
+            }
+          ],
+          "powerReceived": 3,
+          "spaceships": [],
+          "researchTracks": 0,
+          "remainingResources": 5,
+          "other": []
+        }
+      },
+      "candidates": [
+        {
+          "type": "use_tech_action",
+          "tileId": "tech-act-4p"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-7-credits"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-3-knowledge"
+        },
+        {
+          "type": "use_power_action",
+          "actionId": "gain-2-ore"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "convert_resource"
+        },
+        {
+          "type": "convert_resource"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ]
+    }
+  ],
+  "fullGameLog": [
+    {
+      "timestamp": 1785384727527,
+      "round": 0,
+      "phase": "factionSelect",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Selected Faction",
+      "details": "Bescods"
+    },
+    {
+      "timestamp": 1785384727529,
+      "round": 0,
+      "phase": "factionSelect",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Selected Faction",
+      "details": "Space Giants"
+    },
+    {
+      "timestamp": 1785384727530,
+      "round": 0,
+      "phase": "factionSelect",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Selected Faction",
+      "details": "Hadsch Hallas"
+    },
+    {
+      "timestamp": 1785384727530,
+      "round": 0,
+      "phase": "factionSelect",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Selected Faction",
+      "details": "Geodens"
+    },
+    {
+      "timestamp": 1785384728036,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-103",
+      "tileId": "tile-103"
+    },
+    {
+      "timestamp": 1785384729053,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-168",
+      "tileId": "tile-168"
+    },
+    {
+      "timestamp": 1785384731427,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-108",
+      "tileId": "tile-108"
+    },
+    {
+      "timestamp": 1785384738047,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-83",
+      "tileId": "tile-83"
+    },
+    {
+      "timestamp": 1785384738549,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-111",
+      "tileId": "tile-111"
+    },
+    {
+      "timestamp": 1785384739560,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Placed Starting Mine",
+      "details": "Position: tile-21",
+      "tileId": "tile-21"
+    },
+    {
+      "timestamp": 1785384740568,
+      "round": 0,
+      "phase": "startingMines",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Placed Starting Mine",
+      "details": "Position: internal-4",
+      "tileId": "internal-4"
+    },
+    {
+      "timestamp": 1785384745303,
+      "round": 0,
+      "phase": "bonusSelection",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Selected Bonus Tile",
+      "details": "4C | 1VP/Gaia"
+    },
+    {
+      "timestamp": 1785384745806,
+      "round": 0,
+      "phase": "bonusSelection",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Selected Bonus Tile",
+      "details": "4P | 4VP/Big"
+    },
+    {
+      "timestamp": 1785384746817,
+      "round": 0,
+      "phase": "bonusSelection",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Selected Bonus Tile",
+      "details": "1O | 1K"
+    },
+    {
+      "timestamp": 1785384747822,
+      "round": 0,
+      "phase": "bonusSelection",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Selected Bonus Tile",
+      "details": "1O | +2 Tokens"
+    },
+    {
+      "timestamp": 1785384755294,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 3C",
+      "tileId": "tile-103"
+    },
+    {
+      "timestamp": 1785384763327,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Space Giants: Special",
+      "details": "+2 Terraform steps"
+    },
+    {
+      "timestamp": 1785384770343,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Built Mine",
+      "details": "on desert (1O, 2C)",
+      "tileId": "tile-94"
+    },
+    {
+      "timestamp": 1785384778396,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Power Action",
+      "details": "+1 Terraform step (3P)"
+    },
+    {
+      "timestamp": 1785384778397,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Built Mine",
+      "details": "on terra (1O, 2C)",
+      "tileId": "tile-171"
+    },
+    {
+      "timestamp": 1785384788027,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 3C",
+      "tileId": "tile-108"
+    },
+    {
+      "timestamp": 1785384795337,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Upgraded to Academy (Bescods/매안)",
+      "details": "6O, 6C (2K 수익)",
+      "tileId": "tile-103"
+    },
+    {
+      "timestamp": 1785384796151,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Gained Tech Tile",
+      "details": "terraforming → Lv.1",
+      "tileId": "tech-inc-1o-1p"
+    },
+    {
+      "timestamp": 1785384804834,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-94"
+    },
+    {
+      "timestamp": 1785384812861,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Built Mine",
+      "details": "on volcanic (1O, 2C, 1QIC)",
+      "tileId": "tile-142"
+    },
+    {
+      "timestamp": 1785384815777,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Upgraded to Research Lab",
+      "details": "3O, 5C",
+      "tileId": "tile-108"
+    },
+    {
+      "timestamp": 1785384819158,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Gained Tech Tile",
+      "details": "navigation → Lv.1",
+      "tileId": "tech-act-4p"
+    },
+    {
+      "timestamp": 1785384826239,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Bot: Bescods Special",
+      "details": "가장 낮은 트랙 +1 → science Lv.1"
+    },
+    {
+      "timestamp": 1785384834263,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Space Giants: PI built",
+      "details": "Choose 1 tech tile + track",
+      "tileId": "tile-94"
+    },
+    {
+      "timestamp": 1785384834263,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Upgraded to Planetary Institute",
+      "details": "4O, 6C",
+      "tileId": "tile-94"
+    },
+    {
+      "timestamp": 1785384835086,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Gained Tech Tile",
+      "details": "terraforming → Lv.1",
+      "tileId": "tech-inc-1o-1p"
+    },
+    {
+      "timestamp": 1785384842917,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-142"
+    },
+    {
+      "timestamp": 1785384847722,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Used Tech Action",
+      "details": "Gained 4 Power",
+      "tileId": "tech-act-4p"
+    },
+    {
+      "timestamp": 1785384856001,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Entered Ship",
+      "details": "Eclipse · 12VP → 7VP (-5), 1QIC",
+      "tileId": "internal-2"
+    },
+    {
+      "timestamp": 1785384864063,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Entered Ship",
+      "details": "Rebellion · 15VP → 10VP (-5), 1QIC",
+      "tileId": "internal-3"
+    },
+    {
+      "timestamp": 1785384872096,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Upgraded to Research Lab",
+      "details": "3O, 5C",
+      "tileId": "tile-142"
+    },
+    {
+      "timestamp": 1785384872924,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Gained Tech Tile",
+      "details": "terraforming → Lv.1",
+      "tileId": "tech-inc-1o-1p"
+    },
+    {
+      "timestamp": 1785384874996,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Upgraded to Trading Station",
+      "details": "2O, 6C",
+      "tileId": "tile-83"
+    },
+    {
+      "timestamp": 1785384876311,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Eclipse: 6C → Build mine on asteroid",
+      "details": "(select tile)",
+      "tileId": "internal-2"
+    },
+    {
+      "timestamp": 1785384877140,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Eclipse: Built mine on asteroid",
+      "details": "6C (no Gaiaformer)",
+      "tileId": "bridge-0-2"
+    },
+    {
+      "timestamp": 1785384878989,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Rebellion: 2K → 1Q 2C",
+      "details": "",
+      "tileId": "internal-3"
+    },
+    {
+      "timestamp": 1785384887046,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Entered Ship",
+      "details": "TF Mars · 10VP → 5VP (-5)",
+      "tileId": "internal-1"
+    },
+    {
+      "timestamp": 1785384888987,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Free Actions",
+      "details": "1Q → 1O"
+    },
+    {
+      "timestamp": 1785384889163,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Free Actions",
+      "details": "1Q → 1O"
+    },
+    {
+      "timestamp": 1785384889779,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Free Actions",
+      "details": "1P → 1C"
+    },
+    {
+      "timestamp": 1785384892290,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Upgraded to Planetary Institute",
+      "details": "4O, 6C",
+      "tileId": "tile-83"
+    },
+    {
+      "timestamp": 1785384895176,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Free Actions",
+      "details": "1P → 1C"
+    },
+    {
+      "timestamp": 1785384896222,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-2tokens, took bon-3c-bridge"
+    },
+    {
+      "timestamp": 1785384897246,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Entered Ship",
+      "details": "TF Mars · 10VP → 5VP (-5), 2QIC",
+      "tileId": "internal-1"
+    },
+    {
+      "timestamp": 1785384899294,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Entered Ship",
+      "details": "Twilight · 5VP → 0VP (-5)",
+      "tileId": "internal-0"
+    },
+    {
+      "timestamp": 1785384906726,
+      "round": 1,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Selected Bonus",
+      "details": "Returned bon-4c-gaia, took bon-1o-2tokens"
+    },
+    {
+      "timestamp": 1785384907246,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-1k, took bon-4c-gaia"
+    },
+    {
+      "timestamp": 1785384914272,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Advanced Research",
+      "details": "navigation to level 1 (4K→0K)"
+    },
+    {
+      "timestamp": 1785384922332,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "TF Mars: 3C → 1 Terraform",
+      "details": "(same as 3PW or bonus 1 Step)",
+      "tileId": "internal-1"
+    },
+    {
+      "timestamp": 1785384929360,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Built Mine",
+      "details": "on terra (1O, 2C, 1QIC)",
+      "tileId": "tile-81"
+    },
+    {
+      "timestamp": 1785384934996,
+      "round": 1,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Selected Bonus",
+      "details": "Returned bon-4pw-bigbuilding, took bon-1o-1k"
+    },
+    {
+      "timestamp": 1785385257362,
+      "round": 2,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Advanced Research",
+      "details": "gaiaProject to level 1 (6K→2K)"
+    },
+    {
+      "timestamp": 1785385264501,
+      "round": 2,
+      "phase": "main",
+      "playerId": "bot-p_ddnw5x1lzb",
+      "playerName": "AI Bot 2",
+      "isBot": true,
+      "action": "Final Mission",
+      "details": "+18 VP",
+      "tileId": "fm_total_structures"
+    },
+    {
+      "timestamp": 1785385264501,
+      "round": 2,
+      "phase": "main",
+      "playerId": "bot-p_204mua2ltq",
+      "playerName": "AI Bot 3",
+      "isBot": true,
+      "action": "Final Mission",
+      "details": "+12 VP",
+      "tileId": "fm_total_structures"
+    },
+    {
+      "timestamp": 1785385264501,
+      "round": 2,
+      "phase": "main",
+      "playerId": "p_bppgzy1oa7",
+      "playerName": "tea",
+      "isBot": false,
+      "action": "Final Mission",
+      "details": "+3 VP",
+      "tileId": "fm_total_structures"
+    },
+    {
+      "timestamp": 1785385264501,
+      "round": 2,
+      "phase": "main",
+      "playerId": "bot-p_6no3tweqxe",
+      "playerName": "AI Bot 4",
+      "isBot": true,
+      "action": "Final Mission",
+      "details": "+3 VP",
+      "tileId": "fm_total_structures"
+    }
+  ],
+  "botPlayerIds": [
+    "bot-p_ddnw5x1lzb",
+    "bot-p_204mua2ltq",
+    "bot-p_6no3tweqxe"
+  ],
+  "map": [
+    {
+      "id": "tile-1",
+      "q": 4,
+      "r": 4,
+      "type": "ice",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-2",
+      "q": 3,
+      "r": 5,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-3",
+      "q": 2,
+      "r": 6,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-4",
+      "q": 4,
+      "r": 3,
+      "type": "transdim",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-5",
+      "q": 3,
+      "r": 4,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-6",
+      "q": 2,
+      "r": 5,
+      "type": "gaia",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-7",
+      "q": 1,
+      "r": 6,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-8",
+      "q": 4,
+      "r": 2,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-9",
+      "q": 3,
+      "r": 3,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-10",
+      "q": 2,
+      "r": 4,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-11",
+      "q": 1,
+      "r": 5,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-12",
+      "q": 0,
+      "r": 6,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-13",
+      "q": 3,
+      "r": 2,
+      "type": "oxide",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-14",
+      "q": 2,
+      "r": 3,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-15",
+      "q": 1,
+      "r": 4,
+      "type": "titanium",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-16",
+      "q": 0,
+      "r": 5,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-17",
+      "q": 2,
+      "r": 2,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-18",
+      "q": 1,
+      "r": 3,
+      "type": "space",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-19",
+      "q": 0,
+      "r": 4,
+      "type": "swamp",
+      "sector": 8,
+      "rotation": 2,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-20",
+      "q": 5,
+      "r": 3,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-21",
+      "q": 6,
+      "r": 2,
+      "type": "titanium",
+      "sector": 2,
+      "rotation": 5,
+      "structure": "mine",
+      "ownerId": "bot-p_204mua2ltq",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-22",
+      "q": 7,
+      "r": 1,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-23",
+      "q": 5,
+      "r": 4,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-24",
+      "q": 6,
+      "r": 3,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-25",
+      "q": 7,
+      "r": 2,
+      "type": "ice",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-26",
+      "q": 8,
+      "r": 1,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-27",
+      "q": 5,
+      "r": 5,
+      "type": "transdim",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-28",
+      "q": 6,
+      "r": 4,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-29",
+      "q": 7,
+      "r": 3,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-30",
+      "q": 8,
+      "r": 2,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-31",
+      "q": 9,
+      "r": 1,
+      "type": "desert",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-32",
+      "q": 6,
+      "r": 5,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-33",
+      "q": 7,
+      "r": 4,
+      "type": "gaia",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-34",
+      "q": 8,
+      "r": 3,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-35",
+      "q": 9,
+      "r": 2,
+      "type": "terra",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-36",
+      "q": 7,
+      "r": 5,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-37",
+      "q": 8,
+      "r": 4,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-38",
+      "q": 9,
+      "r": 3,
+      "type": "space",
+      "sector": 2,
+      "rotation": 5,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-39",
+      "q": 14,
+      "r": 0,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-40",
+      "q": 14,
+      "r": 1,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-41",
+      "q": 14,
+      "r": 2,
+      "type": "terra",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-42",
+      "q": 13,
+      "r": 0,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-43",
+      "q": 13,
+      "r": 1,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-44",
+      "q": 13,
+      "r": 2,
+      "type": "swamp",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-45",
+      "q": 13,
+      "r": 3,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-46",
+      "q": 12,
+      "r": 0,
+      "type": "titanium",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-47",
+      "q": 12,
+      "r": 1,
+      "type": "volcanic",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-48",
+      "q": 12,
+      "r": 2,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-49",
+      "q": 12,
+      "r": 3,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-50",
+      "q": 12,
+      "r": 4,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-51",
+      "q": 11,
+      "r": 1,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-52",
+      "q": 11,
+      "r": 2,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-53",
+      "q": 11,
+      "r": 3,
+      "type": "oxide",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-54",
+      "q": 11,
+      "r": 4,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-55",
+      "q": 10,
+      "r": 2,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-56",
+      "q": 10,
+      "r": 3,
+      "type": "ice",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-57",
+      "q": 10,
+      "r": 4,
+      "type": "space",
+      "sector": 3,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-58",
+      "q": -2,
+      "r": 11,
+      "type": "transdim",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-59",
+      "q": -3,
+      "r": 11,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-60",
+      "q": -4,
+      "r": 11,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-61",
+      "q": -1,
+      "r": 10,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-62",
+      "q": -2,
+      "r": 10,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-63",
+      "q": -3,
+      "r": 10,
+      "type": "titanium",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-64",
+      "q": -4,
+      "r": 10,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-65",
+      "q": 0,
+      "r": 9,
+      "type": "terra",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-66",
+      "q": -1,
+      "r": 9,
+      "type": "ice",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-67",
+      "q": -2,
+      "r": 9,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-68",
+      "q": -3,
+      "r": 9,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-69",
+      "q": -4,
+      "r": 9,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-70",
+      "q": 0,
+      "r": 8,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-71",
+      "q": -1,
+      "r": 8,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-72",
+      "q": -2,
+      "r": 8,
+      "type": "oxide",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-73",
+      "q": -3,
+      "r": 8,
+      "type": "transdim",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-74",
+      "q": 0,
+      "r": 7,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-75",
+      "q": -1,
+      "r": 7,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-76",
+      "q": -2,
+      "r": 7,
+      "type": "space",
+      "sector": 7,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-77",
+      "q": 3,
+      "r": 10,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-78",
+      "q": 2,
+      "r": 10,
+      "type": "transdim",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-79",
+      "q": 1,
+      "r": 10,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-80",
+      "q": 4,
+      "r": 9,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-81",
+      "q": 3,
+      "r": 9,
+      "type": "terra",
+      "sector": 0,
+      "rotation": 3,
+      "structure": "mine",
+      "ownerId": "bot-p_ddnw5x1lzb",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-82",
+      "q": 2,
+      "r": 9,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-83",
+      "q": 1,
+      "r": 9,
+      "type": "oxide",
+      "sector": 0,
+      "rotation": 3,
+      "structure": "planetary_institute",
+      "ownerId": "p_bppgzy1oa7",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-84",
+      "q": 5,
+      "r": 8,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-85",
+      "q": 4,
+      "r": 8,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-86",
+      "q": 3,
+      "r": 8,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-87",
+      "q": 2,
+      "r": 8,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-88",
+      "q": 1,
+      "r": 8,
+      "type": "volcanic",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-89",
+      "q": 5,
+      "r": 7,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-90",
+      "q": 4,
+      "r": 7,
+      "type": "swamp",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-91",
+      "q": 3,
+      "r": 7,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-92",
+      "q": 2,
+      "r": 7,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-93",
+      "q": 5,
+      "r": 6,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-94",
+      "q": 4,
+      "r": 6,
+      "type": "desert",
+      "sector": 0,
+      "rotation": 3,
+      "structure": "planetary_institute",
+      "ownerId": "bot-p_6no3tweqxe",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-95",
+      "q": 3,
+      "r": 6,
+      "type": "space",
+      "sector": 0,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-96",
+      "q": 10,
+      "r": 5,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-97",
+      "q": 10,
+      "r": 6,
+      "type": "desert",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-98",
+      "q": 10,
+      "r": 7,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-99",
+      "q": 9,
+      "r": 5,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-100",
+      "q": 9,
+      "r": 6,
+      "type": "ice",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-101",
+      "q": 9,
+      "r": 7,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-102",
+      "q": 9,
+      "r": 8,
+      "type": "transdim",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-103",
+      "q": 8,
+      "r": 5,
+      "type": "titanium",
+      "sector": 1,
+      "rotation": 1,
+      "structure": "academy",
+      "ownerId": "bot-p_204mua2ltq",
+      "isGaiaformed": false,
+      "academyType": "left"
+    },
+    {
+      "id": "tile-104",
+      "q": 8,
+      "r": 6,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-105",
+      "q": 8,
+      "r": 7,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-106",
+      "q": 8,
+      "r": 8,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-107",
+      "q": 8,
+      "r": 9,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-108",
+      "q": 7,
+      "r": 6,
+      "type": "oxide",
+      "sector": 1,
+      "rotation": 1,
+      "structure": "research_lab",
+      "ownerId": "p_bppgzy1oa7",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-109",
+      "q": 7,
+      "r": 7,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-110",
+      "q": 7,
+      "r": 8,
+      "type": "swamp",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-111",
+      "q": 7,
+      "r": 9,
+      "type": "volcanic",
+      "sector": 1,
+      "rotation": 1,
+      "structure": "mine",
+      "ownerId": "bot-p_ddnw5x1lzb",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-112",
+      "q": 6,
+      "r": 7,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-113",
+      "q": 6,
+      "r": 8,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-114",
+      "q": 6,
+      "r": 9,
+      "type": "space",
+      "sector": 1,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-115",
+      "q": 15,
+      "r": 4,
+      "type": "transdim",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-116",
+      "q": 15,
+      "r": 5,
+      "type": "volcanic",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-117",
+      "q": 15,
+      "r": 6,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-118",
+      "q": 14,
+      "r": 4,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-119",
+      "q": 14,
+      "r": 5,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-120",
+      "q": 14,
+      "r": 6,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-121",
+      "q": 14,
+      "r": 7,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-122",
+      "q": 13,
+      "r": 4,
+      "type": "ice",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-123",
+      "q": 13,
+      "r": 5,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-124",
+      "q": 13,
+      "r": 6,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-125",
+      "q": 13,
+      "r": 7,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-126",
+      "q": 13,
+      "r": 8,
+      "type": "desert",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-127",
+      "q": 12,
+      "r": 5,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-128",
+      "q": 12,
+      "r": 6,
+      "type": "gaia",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-129",
+      "q": 12,
+      "r": 7,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-130",
+      "q": 12,
+      "r": 8,
+      "type": "oxide",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-131",
+      "q": 11,
+      "r": 6,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-132",
+      "q": 11,
+      "r": 7,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-133",
+      "q": 11,
+      "r": 8,
+      "type": "space",
+      "sector": 4,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-134",
+      "q": -1,
+      "r": 15,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-135",
+      "q": -2,
+      "r": 15,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-136",
+      "q": -3,
+      "r": 15,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-137",
+      "q": 0,
+      "r": 14,
+      "type": "swamp",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-138",
+      "q": -1,
+      "r": 14,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-139",
+      "q": -2,
+      "r": 14,
+      "type": "gaia",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-140",
+      "q": -3,
+      "r": 14,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-141",
+      "q": 1,
+      "r": 13,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-142",
+      "q": 0,
+      "r": 13,
+      "type": "volcanic",
+      "sector": 6,
+      "rotation": 3,
+      "structure": "research_lab",
+      "ownerId": "bot-p_ddnw5x1lzb",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-143",
+      "q": -1,
+      "r": 13,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-144",
+      "q": -2,
+      "r": 13,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-145",
+      "q": -3,
+      "r": 13,
+      "type": "titanium",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-146",
+      "q": 1,
+      "r": 12,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-147",
+      "q": 0,
+      "r": 12,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-148",
+      "q": -1,
+      "r": 12,
+      "type": "gaia",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-149",
+      "q": -2,
+      "r": 12,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-150",
+      "q": 1,
+      "r": 11,
+      "type": "transdim",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-151",
+      "q": 0,
+      "r": 11,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-152",
+      "q": -1,
+      "r": 11,
+      "type": "space",
+      "sector": 6,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-153",
+      "q": 4,
+      "r": 14,
+      "type": "transdim",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-154",
+      "q": 3,
+      "r": 14,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-155",
+      "q": 2,
+      "r": 14,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-156",
+      "q": 5,
+      "r": 13,
+      "type": "transdim",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-157",
+      "q": 4,
+      "r": 13,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-158",
+      "q": 3,
+      "r": 13,
+      "type": "gaia",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-159",
+      "q": 2,
+      "r": 13,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-160",
+      "q": 6,
+      "r": 12,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-161",
+      "q": 5,
+      "r": 12,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-162",
+      "q": 4,
+      "r": 12,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-163",
+      "q": 3,
+      "r": 12,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-164",
+      "q": 2,
+      "r": 12,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-165",
+      "q": 6,
+      "r": 11,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-166",
+      "q": 5,
+      "r": 11,
+      "type": "desert",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-167",
+      "q": 4,
+      "r": 11,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-168",
+      "q": 3,
+      "r": 11,
+      "type": "volcanic",
+      "sector": 9,
+      "rotation": 3,
+      "structure": "mine",
+      "ownerId": "bot-p_ddnw5x1lzb",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-169",
+      "q": 6,
+      "r": 10,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-170",
+      "q": 5,
+      "r": 10,
+      "type": "space",
+      "sector": 9,
+      "rotation": 3,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-171",
+      "q": 4,
+      "r": 10,
+      "type": "terra",
+      "sector": 9,
+      "rotation": 3,
+      "structure": "mine",
+      "ownerId": "bot-p_ddnw5x1lzb",
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-172",
+      "q": 9,
+      "r": 9,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-173",
+      "q": 10,
+      "r": 9,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-174",
+      "q": 11,
+      "r": 9,
+      "type": "desert",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-175",
+      "q": 8,
+      "r": 10,
+      "type": "transdim",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-176",
+      "q": 9,
+      "r": 10,
+      "type": "terra",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-177",
+      "q": 10,
+      "r": 10,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-178",
+      "q": 11,
+      "r": 10,
+      "type": "transdim",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-179",
+      "q": 7,
+      "r": 11,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-180",
+      "q": 8,
+      "r": 11,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-181",
+      "q": 9,
+      "r": 11,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-182",
+      "q": 10,
+      "r": 11,
+      "type": "gaia",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-183",
+      "q": 11,
+      "r": 11,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-184",
+      "q": 7,
+      "r": 12,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-185",
+      "q": 8,
+      "r": 12,
+      "type": "swamp",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-186",
+      "q": 9,
+      "r": 12,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-187",
+      "q": 10,
+      "r": 12,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-188",
+      "q": 7,
+      "r": 13,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-189",
+      "q": 8,
+      "r": 13,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "tile-190",
+      "q": 9,
+      "r": 13,
+      "type": "space",
+      "sector": 5,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null,
+      "isGaiaformed": false
+    },
+    {
+      "id": "internal-0",
+      "q": 7,
+      "r": 10,
+      "type": "ship_twilight",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-1",
+      "q": 2,
+      "r": 11,
+      "type": "ship_tf_mars",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-2",
+      "q": 11,
+      "r": 5,
+      "type": "ship_eclipse",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-3",
+      "q": 6,
+      "r": 6,
+      "type": "ship_rebellion",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-4",
+      "q": 4,
+      "r": 5,
+      "type": "proto",
+      "sector": 90,
+      "structure": "mine",
+      "ownerId": "bot-p_6no3tweqxe"
+    },
+    {
+      "id": "internal-5",
+      "q": 9,
+      "r": 4,
+      "type": "space",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-6",
+      "q": 1,
+      "r": 7,
+      "type": "asteroid",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-7",
+      "q": 0,
+      "r": 10,
+      "type": "asteroid",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-8",
+      "q": 5,
+      "r": 9,
+      "type": "asteroid",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "internal-9",
+      "q": 10,
+      "r": 8,
+      "type": "asteroid",
+      "sector": 90,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-0-0",
+      "q": 6,
+      "r": 1,
+      "type": "proto",
+      "sector": 11,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-0-1",
+      "q": 5,
+      "r": 1,
+      "type": "space",
+      "sector": 11,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-0-2",
+      "q": 5,
+      "r": 2,
+      "type": "asteroid",
+      "sector": 11,
+      "rotation": 1,
+      "structure": "mine",
+      "ownerId": "bot-p_204mua2ltq"
+    },
+    {
+      "id": "bridge-1-0",
+      "q": 11,
+      "r": 0,
+      "type": "asteroid",
+      "sector": 12,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-1-1",
+      "q": 10,
+      "r": 0,
+      "type": "space",
+      "sector": 12,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-1-2",
+      "q": 10,
+      "r": 1,
+      "type": "space",
+      "sector": 12,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-2-0",
+      "q": 15,
+      "r": 2,
+      "type": "transdim",
+      "sector": 13,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-2-1",
+      "q": 14,
+      "r": 3,
+      "type": "asteroid",
+      "sector": 13,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-2-2",
+      "q": 15,
+      "r": 3,
+      "type": "space",
+      "sector": 13,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-3-0",
+      "q": 13,
+      "r": 9,
+      "type": "proto",
+      "sector": 14,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-3-1",
+      "q": 12,
+      "r": 9,
+      "type": "asteroid",
+      "sector": 14,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-3-2",
+      "q": 12,
+      "r": 10,
+      "type": "space",
+      "sector": 14,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-4-0",
+      "q": 6,
+      "r": 13,
+      "type": "proto",
+      "sector": 15,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-4-1",
+      "q": 5,
+      "r": 14,
+      "type": "asteroid",
+      "sector": 15,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-4-2",
+      "q": 6,
+      "r": 14,
+      "type": "space",
+      "sector": 15,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-5-0",
+      "q": 1,
+      "r": 14,
+      "type": "asteroid",
+      "sector": 16,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-5-1",
+      "q": 0,
+      "r": 15,
+      "type": "asteroid",
+      "sector": 16,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-5-2",
+      "q": 1,
+      "r": 15,
+      "type": "space",
+      "sector": 16,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-6-0",
+      "q": -3,
+      "r": 12,
+      "type": "transdim",
+      "sector": 17,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-6-1",
+      "q": -4,
+      "r": 12,
+      "type": "space",
+      "sector": 17,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-6-2",
+      "q": -4,
+      "r": 13,
+      "type": "space",
+      "sector": 17,
+      "rotation": 1,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-7-0",
+      "q": -1,
+      "r": 5,
+      "type": "space",
+      "sector": 18,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-7-1",
+      "q": -2,
+      "r": 6,
+      "type": "space",
+      "sector": 18,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    },
+    {
+      "id": "bridge-7-2",
+      "q": -1,
+      "r": 6,
+      "type": "asteroid",
+      "sector": 18,
+      "rotation": 0,
+      "structure": null,
+      "ownerId": null
+    }
+  ]
+}
