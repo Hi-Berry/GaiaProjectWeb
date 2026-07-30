@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playEndSound } from '@/lib/audio';
+import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -60,6 +60,16 @@ const TINKEROID_SPECIAL_LABELS: Record<string, string> = {
   'tinkeroid-3k': '3 지식',
   'tinkeroid-2qic': '2 QIC',
   'tinkeroid-3tf-mine': '3 TF + 광산 건설',
+};
+
+/** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). 인덱스 1~6 = 1tf-mine,1qic,4power,3k,2qic,3tf-mine */
+const TINKEROID_SPECIAL_IMAGES: Record<string, string> = {
+  'tinkeroid-1tf-mine': '/tinker/tile_01.png',
+  'tinkeroid-1qic': '/tinker/tile_02.png',
+  'tinkeroid-4power': '/tinker/tile_03.png',
+  'tinkeroid-3k': '/tinker/tile_04.png',
+  'tinkeroid-2qic': '/tinker/tile_05.png',
+  'tinkeroid-3tf-mine': '/tinker/tile_06.png',
 };
 
 type PotentialAction =
@@ -1049,7 +1059,7 @@ export default function Game() {
     if (myPendingOffers.length > lastMyOfferCountRef.current) {
       const el = document.activeElement;
       const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-      if (!isTyping) playPowerReceiveSound();
+      if (!isTyping) playPowerDecisionSound();
     }
     lastMyOfferCountRef.current = myPendingOffers.length;
 
@@ -1058,14 +1068,14 @@ export default function Game() {
       const el = document.activeElement;
       const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
       if (isTyping) return;
-      playPowerReceiveSound();
+      playPowerDecisionSound();
     }, 5000);
 
     // 첫 알림은 5초 뒤(즉시 울리면 너무 시끄러움)
     const t = window.setTimeout(() => {
       const el = document.activeElement;
       const isTyping = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-      if (!isTyping) playPowerReceiveSound();
+      if (!isTyping) playPowerDecisionSound();
     }, 5000);
 
     return () => {
@@ -1457,6 +1467,18 @@ export default function Game() {
     }));
   })();
 
+  // [수입 대기 표시, 사용자] 수입 단계에서 수익/파워 선택이 남은 플레이어들 — 현재 선택 중(pendingIncomeOrder)
+  //   + 아직 순서 안 온 대기자(pendingIncomeItems 남음)를 턴 순서로. 의회/파워 대기 배너와 동일 취지.
+  const incomeWaiters = (() => {
+    const cur = game.pendingIncomeOrder?.playerId;
+    const ids: string[] = [];
+    if (cur) ids.push(cur);
+    for (const wid of game.turnOrder ?? []) {
+      if (wid === cur) continue;
+      if ((((game.players[wid] as any)?.pendingIncomeItems?.length) ?? 0) > 0) ids.push(wid);
+    }
+    return ids.map((wid) => ({ id: wid, name: game.players[wid]?.name ?? wid, current: wid === cur }));
+  })();
 
   if (game.currentPhase === 'lobby') {
     return (
@@ -1516,6 +1538,7 @@ export default function Game() {
   }
 
   const GameEndScoreModal = () => {
+    const [scoreTab, setScoreTab] = useState<string>('__overview__');
     if (game.currentPhase !== 'gameEnd') return null;
 
     const playersWithScores = game.turnOrder
@@ -1579,8 +1602,17 @@ export default function Game() {
           </AlertDialogHeader>
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-6 pt-2 custom-scrollbar">
-            <Tabs defaultValue={playersWithScores[0]?.pid} className="flex-1 flex flex-col min-h-0">
+            <Tabs value={scoreTab} onValueChange={setScoreTab} className="flex-1 flex flex-col min-h-0">
               <TabsList className="bg-zinc-900/50 p-1 rounded-xl border border-white/5 self-start mb-6">
+                <TabsTrigger
+                  value="__overview__"
+                  className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white font-bold py-2 px-6 rounded-lg transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📊</span>
+                    <span className="text-sm">전체 요약</span>
+                  </div>
+                </TabsTrigger>
                 {playersWithScores.map(({ pid, player, faction }) => (
                   <TabsTrigger
                     key={pid}
@@ -1604,6 +1636,100 @@ export default function Game() {
                   </TabsTrigger>
                 ))}
               </TabsList>
+
+              {/* [사용자] 전체 요약 탭: 누가 어디서 점수 얻었는지 한눈에 보는 표. 이름 클릭 → 해당 상세 탭. */}
+              <TabsContent value="__overview__" className="flex-1 overflow-auto pr-2 custom-scrollbar">
+                {(() => {
+                  // [사용자] 'other'를 소스별로 라벨링해 "기타" 뭉치를 없앤다: 우주선 입장(−)·연방 보상·인공물·비딩·트랙보상 등
+                  //   각각 실제 소스명 행으로. b.spaceships(우주선 액션 +VP)는 '정큐액션' 행으로 분리(입장 비용과 별개).
+                  const bucketOf = (s: string) => {
+                    if (s.toLowerCase().includes('federation') || s.includes('연방')) return '연방 보상';
+                    if (s.includes('비딩')) return '비딩';
+                    if (s.includes('우주선 입장')) return '우주선 입장';
+                    if (s.startsWith('Artifact') || s.startsWith('인공물')) return '인공물';
+                    return s || '미분류';
+                  };
+                  const cols = playersWithScores.map(({ pid, player, faction }) => {
+                    const b = player!.scoreBreakdown!;
+                    const round = b.roundMissions.reduce((s, m) => s + m.vp, 0);
+                    const bonus = b.bonusTilePass.reduce((s, m) => s + m.vp, 0);
+                    const tech = b.techTiles.reduce((s, t) => s + t.vp, 0);
+                    const jq = b.spaceships.reduce((s, x) => s + x.vp, 0);   // 정큐액션 = 우주선 액션에서 얻은 +VP
+                    const remaining = b.remainingResources ?? 0;
+                    const buckets: Record<string, number> = {};
+                    for (const o of b.other) { const k = bucketOf(o.source ?? ''); buckets[k] = (buckets[k] ?? 0) + o.vp; }
+                    const otherAll = b.other.reduce((s, o) => s + o.vp, 0);
+                    const raw = 10 + round + bonus + tech + b.finalMissions + b.researchTracks + remaining - b.powerReceived + jq + otherAll;
+                    const adjust = (player!.score ?? 0) - raw;
+                    const base: Record<string, number> = {
+                      '시작 보너스': 10, '라운드 미션': round, '보너스 타일(패스)': bonus, '기술 타일': tech,
+                      '최종 미션': b.finalMissions, '연구 트랙': b.researchTracks, '잔여 자원': remaining,
+                      '파워 수령': -b.powerReceived, '정큐액션': jq,
+                    };
+                    return { pid, player, faction, color: faction?.color ?? '#888', base, buckets, adjust, total: player!.score ?? 0 };
+                  });
+                  const coreRows = ['시작 보너스', '라운드 미션', '보너스 타일(패스)', '기술 타일', '최종 미션', '연구 트랙', '잔여 자원', '파워 수령', '정큐액션'];
+                  const preferred = ['우주선 입장', '연방 보상', '인공물', '비딩'];
+                  const seen = new Set<string>();
+                  cols.forEach(c => Object.keys(c.buckets).forEach(k => { if (Math.abs(c.buckets[k]) > 1e-9) seen.add(k); }));
+                  const bucketRows = [...preferred.filter(k => seen.has(k)), ...Array.from(seen).filter(k => !preferred.includes(k)).sort()];
+                  const allRows = [...coreRows, ...bucketRows];
+                  const negLabels = new Set(['파워 수령', '우주선 입장', '비딩']);
+                  const anyAdjust = cols.some(c => Math.abs(c.adjust) > 1e-9);
+                  const valOf = (c: { base: Record<string, number>; buckets: Record<string, number> }, label: string) => (label in c.base ? c.base[label] : (c.buckets[label] ?? 0));
+                  const cell = (v: number) => (
+                    <span className={`tabular-nums font-bold ${Math.abs(v) < 1e-9 ? 'text-zinc-600' : v < 0 ? 'text-red-300' : 'text-zinc-100'}`}>{v < 0 ? `−${Math.abs(v)}` : v}</span>
+                  );
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-widest text-zinc-500 font-black">항목</th>
+                            {cols.map((c, i) => (
+                              <th key={c.pid} className="py-2 px-3 min-w-[7rem]">
+                                <button onClick={() => setScoreTab(c.pid)} className="w-full flex flex-col items-center gap-0.5 group" title={`${c.player!.name} 상세 보기`}>
+                                  <div className="flex items-center gap-1.5">
+                                    {i === 0 && <span className="text-amber-400">👑</span>}
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                                    <span className="font-bold text-white group-hover:underline">{c.player!.name}</span>
+                                  </div>
+                                  <span className="text-[9px] uppercase tracking-wider text-zinc-500">{c.faction?.name}</span>
+                                </button>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allRows.map(label => (
+                            <tr key={label} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{negLabels.has(label) ? `${label}(−)` : label}</td>
+                              {cols.map(c => (
+                                <td key={c.pid} className="py-1.5 px-3 text-center">{cell(valOf(c, label))}</td>
+                              ))}
+                            </tr>
+                          ))}
+                          {anyAdjust && (
+                            <tr className="border-b border-white/5">
+                              <td className="py-1.5 pr-3 text-zinc-500 font-medium italic whitespace-nowrap">보정</td>
+                              {cols.map(c => (<td key={c.pid} className="py-1.5 px-3 text-center">{cell(c.adjust)}</td>))}
+                            </tr>
+                          )}
+                          <tr className="border-t-2 border-amber-500/40">
+                            <td className="py-2 pr-3 text-amber-300 font-black uppercase tracking-widest text-[11px] whitespace-nowrap">총점</td>
+                            {cols.map(c => (
+                              <td key={c.pid} className="py-2 px-3 text-center">
+                                <span className="text-2xl font-black tabular-nums text-white">{c.total}</span>
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                      <p className="mt-4 text-center text-[11px] text-zinc-500">플레이어 이름을 클릭하면 상세 내역 탭으로 이동합니다.</p>
+                    </div>
+                  );
+                })()}
+              </TabsContent>
 
               {playersWithScores.map(({ pid, player, faction }) => {
                 const b = player!.scoreBreakdown!;
@@ -2324,6 +2450,31 @@ export default function Game() {
               </div>
             </div>
           )}
+          {incomeWaiters.length > 0 && (
+            <div className="bg-sky-500/20 border border-sky-400/40 text-sky-100 rounded-lg px-3 py-2 text-xs md:text-sm">
+              <div className="flex items-start gap-2">
+                <Clock className="w-4 h-4 shrink-0 text-sky-300 mt-0.5 animate-pulse" />
+                <p className="leading-snug">
+                  수입 단계 · 수익/파워 선택 대기 중
+                  <span className="block text-[10px] text-sky-200/75 font-medium mt-0.5">
+                    아래 플레이어가 모두 완료하면 라운드 액션이 시작됩니다
+                  </span>
+                </p>
+              </div>
+              <ul className="mt-2 space-y-1 border-l-2 border-sky-400/35 pl-2.5">
+                {incomeWaiters.map((w) => (
+                  <li key={w.id} className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${w.current ? 'bg-sky-300 animate-pulse' : 'bg-sky-500/50'}`} />
+                    <span className="font-bold text-sky-50 truncate">{w.name}</span>
+                    {w.current && <span className="text-[10px] text-sky-300/80 shrink-0">선택 중</span>}
+                    {w.id === playerId && (
+                      <Badge variant="outline" className="h-4 px-1 text-[9px] border-sky-400/50 text-sky-200 shrink-0">나</Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
             <div className="bg-amber-500/20 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs md:text-sm">
               <div className="flex items-start gap-2">
@@ -3028,8 +3179,8 @@ export default function Game() {
                   )}
                   <div className="text-[11px] text-zinc-500">현재 동의 {got}/{need}</div>
                   <div className="flex gap-2">
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
                     <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false)}>거절</Button>
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
                   </div>
                 </div>
               </div>
@@ -3464,10 +3615,14 @@ export default function Game() {
                     key={actionId}
                     size="sm"
                     variant="outline"
-                    className="h-7 px-2 text-xs bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
+                    className="h-auto py-1 px-1.5 bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20 flex flex-col items-center gap-0.5"
                     onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
+                    title={labelOf(actionId)}
                   >
-                    {labelOf(actionId)}
+                    {TINKEROID_SPECIAL_IMAGES[actionId] && (
+                      <img src={TINKEROID_SPECIAL_IMAGES[actionId]} alt={labelOf(actionId)} className="w-12 h-12 object-contain rounded" />
+                    )}
+                    <span className="text-[10px] leading-none">{labelOf(actionId)}</span>
                   </Button>
                 ))}
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-amber-400 hover:text-white shrink-0" onClick={() => setTinkeroidSpecialCollapsed(false)}>펼치기</Button>
@@ -3477,10 +3632,10 @@ export default function Game() {
 
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
-              <AlertDialogContent className="bg-zinc-900 border-amber-500/40 max-w-sm">
+              <AlertDialogContent className="bg-zinc-900 border-amber-500/40 max-w-md">
                 <AlertDialogHeader>
                   <div className="flex items-center justify-between gap-2">
-                    <AlertDialogTitle className="text-amber-300 font-black uppercase tracking-wider">팅커로이드: 라운드 Special 선택</AlertDialogTitle>
+                    <AlertDialogTitle className="text-amber-300 font-black whitespace-nowrap text-base shrink-0">팅커로이드: 라운드 Special 선택</AlertDialogTitle>
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-zinc-400 hover:text-amber-200 shrink-0" onClick={() => setTinkeroidSpecialCollapsed(true)} title="접기 (맵·라운드 보기)">접기</Button>
                   </div>
                   <AlertDialogDescription className="text-zinc-300">
@@ -3492,10 +3647,13 @@ export default function Game() {
                     <Button
                       key={actionId}
                       variant="outline"
-                      className="w-full justify-start bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
+                      className="w-full justify-start bg-zinc-800 border-amber-500/40 text-amber-200 hover:bg-amber-500/20 h-auto py-2 gap-3"
                       onClick={() => gameId && GameClient.tinkeroidChooseSpecial(gameId, actionId)}
                     >
-                      {labelOf(actionId)}
+                      {TINKEROID_SPECIAL_IMAGES[actionId] && (
+                        <img src={TINKEROID_SPECIAL_IMAGES[actionId]} alt={labelOf(actionId)} className="w-12 h-12 object-contain rounded shrink-0" />
+                      )}
+                      <span>{labelOf(actionId)}</span>
                     </Button>
                   ))}
                 </div>
@@ -4628,7 +4786,9 @@ export default function Game() {
                           {/* Left: Main info, Buildings, Resources */}
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
                             {/* Score / Name / Bid Row — [2026-07-26 사용자] 패스 딤은 이름줄·보너스타일만, 건물/자원/파워/포머는 안 가림 */}
-                            <div className={`flex items-center gap-2 min-w-0 mb-1 md:mb-1.5 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
+                            <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
+                              {/* [사용자] 패스 딤은 점수+이름에만 — PASSED 배지는 dim 밖(아래 ml-auto)이라 밝게 보임 */}
+                              <div className={`flex items-center gap-2 min-w-0 flex-1 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
                               <span className="w-5 md:w-7 text-left text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
                                 {p.score}
                               </span>
@@ -4686,6 +4846,7 @@ export default function Game() {
                                 )}
                               </div>
 
+                              </div>
                               <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                 {isYou && (
                                   <button
@@ -4715,7 +4876,7 @@ export default function Game() {
                                   </span>
                                 )}
                                 {hasPassed && (
-                                  <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1">PASSED</span>
+                                  <span className="text-[9px] font-black text-amber-300 border border-amber-500/50 bg-amber-500/10 rounded px-1.5 py-0.5 tracking-wide">PASSED</span>
                                 )}
                               </div>
                             </div>
@@ -5095,12 +5256,32 @@ export default function Game() {
                                     );
                                   }
 
+                                  // [사용자] 스페셜 액션 있는 기술타일은 이미지 클릭으로도 바로 사용(스페셜 버튼과 동일 동작).
+                                  const hasSpecial = !!tile.specialAction;
+                                  const techActionUsed = p.usedTechActions?.includes(tileId) ?? false;
+                                  const canUseTechAction = hasSpecial && isYou && isCurrentTurn && !game.hasDoneMainAction && !techActionUsed && !covered;
                                   return (
-                                    <div key={tileId} className="relative group cursor-help" title={`${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}`}>
+                                    <div
+                                      key={tileId}
+                                      className={`relative group ${canUseTechAction ? 'cursor-pointer' : 'cursor-help'}`}
+                                      title={canUseTechAction
+                                        ? `클릭해서 사용: ${tile.label} — ${tile.description}`
+                                        : `${tile.label}: ${tile.description}${covered ? ' (덮힘)' : ''}${hasSpecial && techActionUsed ? ' (이번 라운드 사용됨)' : ''}`}
+                                      onClick={canUseTechAction ? (e) => {
+                                        e.stopPropagation();
+                                        if (!gameId) return;
+                                        if (tileId === 'tech-act-4p' || tileId === 'adv-act-3k' || tileId === 'adv-act-3o' || tileId === 'adv-act-1q-5c') {
+                                          GameClient.useTechAction(gameId, tileId);
+                                        } else {
+                                          GameClient.useSpecialAction(gameId, tileId);
+                                        }
+                                        setExpandedPlayerId(null);
+                                      } : undefined}
+                                    >
                                       <img
                                         src={tile.image}
                                         alt={tile.label}
-                                        className={`w-10 h-auto object-contain rounded border border-white/10 transition-all ${covered ? 'grayscale opacity-60 brightness-75' : 'hover:scale-110 shadow-sm shadow-black'}`}
+                                        className={`w-10 h-auto object-contain rounded border transition-all ${covered ? 'grayscale opacity-60 brightness-75 border-white/10' : canUseTechAction ? 'border-amber-400/70 ring-1 ring-amber-400/50 hover:scale-110 shadow-[0_0_8px_rgba(251,191,36,0.45)]' : 'border-white/10 hover:scale-110 shadow-sm shadow-black'}`}
                                       />
                                       {covered && (
                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -5405,7 +5586,7 @@ export default function Game() {
                     maxHeight="none"
                     textScale={logTextScale}
                     showToolbar={logToolsOpen}
-                    canRollback={!!(playerId && game.hostId === playerId) && game.currentPhase === 'main'}
+                    canRollback={!!(playerId && game.players?.[playerId]) && game.currentPhase === 'main'}
                     onRollbackToSeq={(seq, label) => { if (!gameId) return; if (!window.confirm(`[${label ?? '이 지점'}] 이 로그가 속한 턴의 시작으로 되돌립니다.\n그 이후 행동은 모두 사라지고 그 턴부터 다시 진행됩니다.\n다른 플레이어 전원이 동의해야 실행됩니다. 요청할까요?`)) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}                  />
@@ -5584,7 +5765,7 @@ export default function Game() {
                   className="w-full"
                   maxHeight="none"
                   textScale={logTextScale}
-                  canRollback={!!(playerId && game.hostId === playerId) && game.currentPhase === 'main'}
+                  canRollback={!!(playerId && game.players?.[playerId]) && game.currentPhase === 'main'}
                   onRollbackToSeq={(seq) => { if (!gameId) return; if (!window.confirm('이 지점(턴 시작)으로 롤백을 요청할까요?\n다른 플레이어 전원이 동의해야 실행됩니다.')) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                   onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                   onEntryMouseLeave={() => setHighlightedTileId(null)}                />

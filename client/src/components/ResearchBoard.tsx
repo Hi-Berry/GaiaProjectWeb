@@ -571,7 +571,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         {/* [사용자] 발타크 Nav도 음영/Lock 없이 정상 표시(남들 진행 보이게) — 마커만 숨김 */}
                                         {/* Track name */}
                                         <div className="text-[6px] font-black uppercase text-center leading-none truncate mb-0.5" style={{ color: track.color }}>
-                                            {track.name === 'Terraforming' ? 'Terra' : track.name === 'Navigation' ? 'Nav' : track.name === 'Artificial Intelligence' ? 'AI' : track.name === 'Gaia Project' ? 'Gaia' : track.name === 'Economy' ? 'Eco' : 'Sci'}
+                                            {track.id === 'terraforming' ? 'Terra' : track.id === 'navigation' ? 'Nav' : track.id === 'artificialIntelligence' ? 'AI' : track.id === 'gaiaProject' ? 'Gaia' : track.id === 'economy' ? 'Eco' : 'Sci'}
                                         </div>
 
                                         {/* Level slots: L5 → L0 (위→아래). 고급 기술 타일은 L5와 L4 사이. */}

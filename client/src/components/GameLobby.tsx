@@ -147,17 +147,19 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
                           {adding ? '추가 중…' : '추가'}
                         </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleAddBot}
-                        disabled={adding || addingBot}
-                        data-testid="button-add-ai"
-                        className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 border-orange-500/20 w-full sm:w-auto"
-                      >
-                        <Play className="w-4 h-4 mr-1" />
-                        {addingBot ? '봇 추가 중…' : 'AI 봇 추가'}
-                      </Button>
+                      {game.aiBotsAllowed !== false && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={handleAddBot}
+                          disabled={adding || addingBot}
+                          data-testid="button-add-ai"
+                          className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 border-orange-500/20 w-full sm:w-auto"
+                        >
+                          <Play className="w-4 h-4 mr-1" />
+                          {addingBot ? '봇 추가 중…' : 'AI 봇 추가'}
+                        </Button>
+                      )}
                     </>
                   ) : (
                     <span className="text-muted-foreground">
@@ -227,13 +229,15 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
                   </Label>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={onAutoSetupTest}
-                    className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20 text-xs sm:text-sm"
-                  >
-                    Auto Setup (Random)
-                  </Button>
+                  {game.aiBotsAllowed !== false && (
+                    <Button
+                      variant="secondary"
+                      onClick={onAutoSetupTest}
+                      className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20 text-xs sm:text-sm"
+                    >
+                      Auto Setup (Random)
+                    </Button>
+                  )}
                   <Button
                     onClick={onStartGame}
                     disabled={!canStart}

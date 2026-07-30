@@ -106,6 +106,8 @@ export interface ServerGameState extends GaiaGameState {
 
 
 const games = new Map<string, ServerGameState>();
+// [사용자] AI 봇 추가 허용 여부(서버별). 기본 허용. env AI_BOTS_ENABLED=0 이면 봇 추가·Auto Setup 비활성(로비 버튼 숨김 + 서버 거부).
+const AI_BOTS_ENABLED = process.env.AI_BOTS_ENABLED !== '0';
 
 /** [대역폭 2단계 2026-07-26, 사용자] gameLog는 후반 100KB+로 최대 잔여 항목 — 액션 브로드캐스트엔 꼬리만
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
@@ -2890,6 +2892,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				maxPlayers: 4,
 				createdAt: Date.now(),
 				isTestMode: false,
+				aiBotsAllowed: AI_BOTS_ENABLED, // [사용자] 이 서버가 AI 봇 추가/Auto Setup을 허용하는지 (env AI_BOTS_ENABLED)
 				hasDoneMainAction: false,
 				powerActions: JSON.parse(JSON.stringify(INITIAL_POWER_ACTIONS)),
 				availableBonusTiles: shuffledBonusTiles.slice(0, 7), // Players + 3 extra (will adjust when game starts)
@@ -3061,7 +3064,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
 			const callerId = socketToPlayerMap.get(socket.id);
-			if (callerId !== game.hostId) { callback({ error: 'Only host can add bots' }); return; }
+			if (!AI_BOTS_ENABLED) { callback({ error: '이 서버에서는 AI 봇을 추가할 수 없습니다.' }); return; }
+				if (callerId !== game.hostId) { callback({ error: 'Only host can add bots' }); return; }
 			if (game.currentPhase !== 'lobby') { callback({ error: 'Can only add bots in lobby' }); return; }
 			if (Object.keys(game.players).length >= game.maxPlayers) { callback({ error: 'Max players reached' }); return; }
 
@@ -3254,7 +3258,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback?.({ error: 'Game not found' }); return; }
 			const playerId = socketToPlayerMap.get(socket.id);
-			if (playerId !== game.hostId) { callback?.({ error: '롤백은 호스트만 요청할 수 있습니다.' }); return; }
+			// [사용자] 방장 전용 → 참가자 누구나 요청 가능(어차피 나머지 전원 동의 필요). 봇·관전자만 차단.
+			if (!playerId || !game.players[playerId] || (game.botPlayerIds || []).includes(playerId)) { callback?.({ error: '게임 참가자만 롤백을 요청할 수 있습니다.' }); return; }
 			if (game.currentPhase !== 'main') { callback?.({ error: '진행 중 게임에서만 롤백 가능합니다.' }); return; }
 			if ((game as any).pendingRollback) { callback?.({ error: '이미 롤백 투표가 진행 중입니다.' }); return; }
 			const hist = turnHistories.get(gameId) || [];
@@ -3272,7 +3277,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const undoneCount = undone.length;
 			const undoneActions = undone.slice(-8).map(e => `${e.playerName}: ${e.action}`);
 			(game as any).pendingRollback = {
-				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '호스트',
+				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '요청자',
 				seq: target.seq, label: `R${target.round} · ${target.playerName} 턴 시작`,
 				turnsBack, undoneCount, undoneActions,
 				required, approvals: [],
@@ -3419,7 +3424,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'lobby') return;
 
 			// head-to-head: 이전 게임의 좌석별 변형을 비운다(워커는 게임을 순차 실행)
-			if (headToHead) clearAllPlayerVariants();
+			if (!AI_BOTS_ENABLED) return; // [사용자] 봇 비활성 서버: Auto Setup(봇 자동 채우기) 금지
+				if (headToHead) clearAllPlayerVariants();
 
 			// 1. 봇 3개 추가 (최대 4인)
 			if (!game.botPlayerIds) game.botPlayerIds = [];
@@ -5423,8 +5429,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
 				if (!reward) return;
 				rewardLabel = reward.label;
-				addGameLog(game, playerId, 'Federation Reward', rewardLabel, rewardId);
-				addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + rewardLabel });
+				// [사용자] 로그엔 "+7VP +6C"처럼 깔끔히 표기. addScore는 noLog(중복 "(+7VP 연방 7 VP 6C)" 방지 —
+				// 라벨 자체가 보상 표기라 auto-append와 겹쳤음). 라운드 미션(+5VP)은 뒤에서 이 줄에 별도 병합됨.
+				const rf: any = reward;
+				const fedParts = [`+${reward.vp}VP`];
+				if (rf.credits) fedParts.push(`+${rf.credits}C`);
+				if (rf.ore) fedParts.push(`+${rf.ore}O`);
+				if (rf.knowledge) fedParts.push(`+${rf.knowledge}K`);
+				if (rf.qic) fedParts.push(`+${rf.qic}Q`);
+				if (rf.powerTokens) fedParts.push(`+${rf.powerTokens}PW`);
+				addGameLog(game, playerId, 'Federation Reward', fedParts.join(' '), rewardId);
+				addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + rewardLabel, noLog: true });
 				if ('ore' in reward && reward.ore) player.ore += reward.ore;
 				if ('credits' in reward && reward.credits) player.credits += reward.credits;
 				if ('knowledge' in reward && reward.knowledge) player.knowledge += reward.knowledge;
@@ -5472,16 +5487,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 						game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 						break;
 					case 'ship-fed-4vp4k':
-						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
-						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true });
 						grantQic(game, playerId, 1);
 						player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
-						addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상', noLog: true });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-mine-free':
@@ -5492,10 +5507,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 						player.spaceshipFed3TfMineFree = true;
 						break;
 					case 'ship-fed-12vp':
-						addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상', noLog: true });
 						break;
 					case 'ship-fed-7vp3p2t':
-						addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상' });
+						addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상', noLog: true });
 						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					default:
@@ -7828,6 +7843,20 @@ export function executePassRound(
 				player.gaiaformerPlacedThisRound = [];
 			});
 
+			// [사용자] 라운드 전환 순간(수입/파워/의회 처리 전)에 '라운드 시작' 시스템 로그 1개 — 클라가 이걸 라운드
+			// 구분선으로 렌더한다. 새 라운드의 첫(가장 오래된) 로그라 라벨이 '첫 액션'이 아니라 라운드 경계에 정확히 고정됨.
+			{
+				(game as any).gameLogSeq = ((game as any).gameLogSeq ?? 0) + 1;
+				game.gameLog?.push({
+					timestamp: Date.now(),
+					playerId: '',
+					playerName: '',
+					action: 'Round Start',
+					round: game.roundNumber,
+					seq: (game as any).gameLogSeq,
+				});
+			}
+
 			helperTriggerIncomePhase(io, game);
 		} else {
 			game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;
@@ -8059,26 +8088,26 @@ export function executeUseSpecialAction(
 		player.usedSpecialActions.push('tinkeroid-special');
 		if (actionId === 'tinkeroid-1tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', actionId);
 		} else if (actionId === 'tinkeroid-1qic') {
 			grantQic(game, playerId, 1);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 QIC', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 QIC', actionId);
 		} else if (actionId === 'tinkeroid-4power') {
 			chargePower(player, 4);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '4 Power', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '4 Power', actionId);
 		} else if (actionId === 'tinkeroid-3k') {
 			player.knowledge = (player.knowledge ?? 0) + 3;
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Knowledge', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Knowledge', actionId);
 		} else if (actionId === 'tinkeroid-2qic') {
 			grantQic(game, playerId, 2);
 			game.hasDoneMainAction = true;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', actionId);
 		} else if (actionId === 'tinkeroid-3tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', undefined);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', actionId);
 		}
 		applied = true;
 	}
@@ -9059,19 +9088,19 @@ export function executeBotFederation(
 				(game as any).availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 				break;
 			case 'ship-fed-4vp4k':
-				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' }); player.knowledge = (player.knowledge || 0) + 4; break;
+				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true }); player.knowledge = (player.knowledge || 0) + 4; break;
 			case 'ship-fed-4vp1q2o':
-				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상' }); grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2; break;
+				addScore(game, playerId, 4, 'other', { source: '연방 우주선 보상', noLog: true }); grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2; break;
 			case 'ship-fed-8vp8c':
-				addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상' }); player.credits = (player.credits || 0) + 8; break;
+				addScore(game, playerId, 8, 'other', { source: '연방 우주선 보상', noLog: true }); player.credits = (player.credits || 0) + 8; break;
 			case 'ship-fed-mine-free':
 				game.pendingSpaceshipFedMine = { playerId }; break;
 			case 'ship-fed-3tf-mine':
 				player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3; player.spaceshipFed3TfMineFree = true; break;
 			case 'ship-fed-12vp':
-				addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상' }); break;
+				addScore(game, playerId, 12, 'other', { source: '연방 우주선 보상', noLog: true }); break;
 			case 'ship-fed-7vp3p2t':
-				addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상' }); player.power3 = (player.power3 || 0) + 2; break;
+				addScore(game, playerId, 7, 'other', { source: '연방 우주선 보상', noLog: true }); player.power3 = (player.power3 || 0) + 2; break;
 		}
 	} else {
 		const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);

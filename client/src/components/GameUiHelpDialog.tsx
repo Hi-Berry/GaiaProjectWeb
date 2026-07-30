@@ -97,7 +97,7 @@ const HELP_COLUMNS: HelpSection[][] = [
         { label: '우클릭', description: '프리액션 자원 변환 O→C·K→C·Q→O' },
         { label: 'hover', description: '맵 강조' },
         { label: '드래그', description: '너비 조절' },
-        { label: 'AI', description: '봇 피드백 (L 로그)' },
+        { label: '롤백', description: '로그 항목 → "여기로 롤백 요청" (참가자 전원 동의 시 그 턴 시작으로 되돌림)' },
       ],
     },
     {
@@ -111,6 +111,17 @@ const HELP_COLUMNS: HelpSection[][] = [
       ],
     },
   ],
+];
+
+/** [사용자] 자주 묻는 질문 — 비직관적 조작 위주. 도움말 하단 접이식(details) 목록으로 표시. */
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  { q: '프리액션(자원 변환)은 어떻게 하나요?', a: '방법이 세 가지예요.\n① 상태창의 "FA OFF" 버튼을 눌러 "FA ON"으로 바꾼 뒤 자원(O·K·Q·C)·파워 그릇 숫자를 클릭하면 즉시 변환됩니다("FA ON"에서 다시 누르면 이번 턴 프리액션이 모두 취소=Undo All).\n② 상태창의 자원 글자를 우클릭해도 변환됩니다(O→C·K→C·Q→O).\n③ 왼쪽 "Free" 버튼이나 F 키로 Free Action 창을 열어 직접 할 수도 있어요.' },
+  { q: '연방은 어떻게 만드나요?', a: '우측 "연방" 버튼으로 연방 모드에 들어간 뒤, 내 건물들을 잇는 빈 칸(우주)을 클릭하면 위성이 놓이며 연방이 형성됩니다. 파워 합이 7 이상 되도록 빈 칸만 클릭해도 연방이 만들어져요.' },
+  { q: '기술 타일은 어떻게 쓰나요?', a: '상태창을 클릭해 상세를 연 뒤 기술 타일 이미지를 클릭하거나, 스페셜 액션 영역에서 눌러 사용하세요.' },
+  { q: '이전 턴으로 되돌리고 싶어요 (롤백).', a: '로그에서 되돌리고 싶은 지점의 항목을 열어 "↩ 여기로 롤백 요청"을 누르면, 참가자 전원(사람)이 동의할 때 그 턴 시작으로 되돌아갑니다. 봇은 자동 동의.' },
+  { q: '파워 충전(누수) 창이 떴어요.', a: '상대가 건물을 지으면 인접한 내게 파워 충전 제안이 옵니다. VP를 깎지 않는 무료 충전은 자동 수락되고, VP를 깎는 유료 충전만 수락/거절을 직접 고릅니다. 처리 전엔 다른 사람 액션이 잠깐 대기합니다.' },
+  { q: '내 차례 알림음이 안 들려요.', a: '우측 상단 ? 안내창의 "알림음 크기"가 0이면 무음입니다. 탭을 다른 창에 둔 채로도 알림을 받으려면 같은 창의 "내 차례 데스크톱 알림"을 켜세요(https 또는 localhost 접속에서만 동작).' },
+  { q: '발타크 포머는 QIC로 어떻게 바꾸나요?', a: '직접 바꾸려면 "FA ON"을 켜고 초록색 포머 동그라미를 클릭하거나, Free Action 창에서 "1 포머 → 1 QIC" 버튼을 누르세요. 그리고 사용하지 않은 포머는 패스하면 자동으로 QIC로 전환됩니다.' },
 ];
 
 function LabelCell({ label, isKey }: { label: string; isKey?: boolean }) {
@@ -449,6 +460,21 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
               </div>
             ))}
           </div>
+          {/* [사용자] 자주 묻는 질문 — 도움말 하단 접이식 목록 */}
+          <section className="mt-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+            <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-400">자주 묻는 질문 (FAQ)</h3>
+            <div className="divide-y divide-white/5">
+              {FAQ_ITEMS.map((it, i) => (
+                <details key={i} className="group px-2 py-1.5">
+                  <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-bold text-zinc-200 marker:content-none">
+                    <span className="inline-block text-amber-400/70 transition-transform group-open:rotate-90">▶</span>
+                    {it.q}
+                  </summary>
+                  <p className="mt-1 whitespace-pre-line pl-4 text-[10px] leading-relaxed text-zinc-400">{it.a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
           {/* 관리자 모드 진입 — 모바일은 키보드 단축키(Ctrl+Alt+A)를 쓸 수 없어 버튼 제공(사용자). PC에도 노출 무방. */}
           {onOpenAdmin && (
             <div className="mt-2 border-t border-white/10 pt-2 text-center">
