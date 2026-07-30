@@ -3247,7 +3247,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback?.({ error: 'Game not found' }); return; }
 			const playerId = socketToPlayerMap.get(socket.id);
-			if (playerId !== game.hostId) { callback?.({ error: '롤백은 호스트만 요청할 수 있습니다.' }); return; }
+			// [사용자] 방장 전용 → 참가자 누구나 요청 가능(어차피 나머지 전원 동의 필요). 봇·관전자만 차단.
+			if (!playerId || !game.players[playerId] || (game.botPlayerIds || []).includes(playerId)) { callback?.({ error: '게임 참가자만 롤백을 요청할 수 있습니다.' }); return; }
 			if (game.currentPhase !== 'main') { callback?.({ error: '진행 중 게임에서만 롤백 가능합니다.' }); return; }
 			if ((game as any).pendingRollback) { callback?.({ error: '이미 롤백 투표가 진행 중입니다.' }); return; }
 			const hist = turnHistories.get(gameId) || [];
@@ -3265,7 +3266,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const undoneCount = undone.length;
 			const undoneActions = undone.slice(-8).map(e => `${e.playerName}: ${e.action}`);
 			(game as any).pendingRollback = {
-				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '호스트',
+				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '요청자',
 				seq: target.seq, label: `R${target.round} · ${target.playerName} 턴 시작`,
 				turnsBack, undoneCount, undoneActions,
 				required, approvals: [],

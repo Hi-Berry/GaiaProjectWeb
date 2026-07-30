@@ -5425,7 +5425,7 @@ export default function Game() {
                     maxHeight="none"
                     textScale={logTextScale}
                     showToolbar={logToolsOpen}
-                    canRollback={!!(playerId && game.hostId === playerId) && game.currentPhase === 'main'}
+                    canRollback={!!(playerId && game.players?.[playerId]) && game.currentPhase === 'main'}
                     onRollbackToSeq={(seq, label) => { if (!gameId) return; if (!window.confirm(`[${label ?? '이 지점'}] 이 로그가 속한 턴의 시작으로 되돌립니다.\n그 이후 행동은 모두 사라지고 그 턴부터 다시 진행됩니다.\n다른 플레이어 전원이 동의해야 실행됩니다. 요청할까요?`)) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}                  />
@@ -5604,7 +5604,7 @@ export default function Game() {
                   className="w-full"
                   maxHeight="none"
                   textScale={logTextScale}
-                  canRollback={!!(playerId && game.hostId === playerId) && game.currentPhase === 'main'}
+                  canRollback={!!(playerId && game.players?.[playerId]) && game.currentPhase === 'main'}
                   onRollbackToSeq={(seq) => { if (!gameId) return; if (!window.confirm('이 지점(턴 시작)으로 롤백을 요청할까요?\n다른 플레이어 전원이 동의해야 실행됩니다.')) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                   onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                   onEntryMouseLeave={() => setHighlightedTileId(null)}                />
