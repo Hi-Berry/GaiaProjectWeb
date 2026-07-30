@@ -3030,6 +3030,39 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback({ gameId, playerId, game });
 		});
 
+		/** [사용자 2026-07-31] 로비 단계에서 Leave하면 좌석을 실제로 제거 — 그동안 서버 핸들러가 없어
+		 *  좌석이 남았고, 다시 Join하면 같은 사람이 2명이 되던 문제. 진행 중 게임은 좌석 유지(재접속 모델). */
+		socket.on('leave_game', ({ gameId }: { gameId: string }) => {
+			const game = games.get(gameId);
+			if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId || !game.players[playerId]) return;
+			if (game.currentPhase !== 'lobby') return;
+			delete game.players[playerId];
+			game.turnOrder = game.turnOrder.filter(id => id !== playerId);
+			if (game.hostAddedPlayerIds) game.hostAddedPlayerIds = game.hostAddedPlayerIds.filter(id => id !== playerId);
+			playerGameMap.delete(playerId);
+			socketToPlayerMap.delete(socket.id);
+			socket.leave(gameId);
+			const bots = new Set(game.botPlayerIds || []);
+			const humans = Object.keys(game.players).filter(id => !bots.has(id));
+			if (humans.length === 0) {
+				// 사람이 아무도 안 남으면(봇만 남거나 빈 방) 방 자체를 정리
+				io.to(gameId).emit('game_deleted', { gameId });
+				games.delete(gameId);
+				turnHistories.delete(gameId);
+				log(`Game ${gameId} deleted (last human left lobby)`, 'game', gameId);
+				return;
+			}
+			if (game.hostId === playerId) {
+				// 방장이 나가면 남은 사람(직접 접속 좌석 우선)에게 방장 이관
+				const hostAdded = new Set(game.hostAddedPlayerIds || []);
+				game.hostId = humans.find(id => !hostAdded.has(id)) ?? humans[0];
+			}
+			log(`Player ${playerId} left lobby of game ${gameId}`, 'game', gameId);
+			emitGameUpdated(io, game);
+		});
+
 		/** 다른 기기에서 이름/비번으로 좌석 복귀 (방 한정 일회용 비번) — playerId를 돌려주면
 		 *  클라이언트가 localStorage에 심고 rejoin_game으로 정상 재접속. */
 		socket.on('account_rejoin', ({ gameId, playerName, password }, callback) => {
@@ -3318,11 +3351,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 로비 화면발 요청은 소켓에 좌석 매핑이 없어 payload playerId 인정 (rejoin_game과 동일 신뢰모델 — id 자체가 비밀값)
 			const playerId = socketToPlayerMap.get(socket.id) ?? (claimedId && game.players[claimedId] ? claimedId : undefined);
 			if (!playerId || game.hostId !== playerId) { callback?.({ error: '방장만 방을 삭제할 수 있습니다.' }); return; }
-			if (game.currentPhase !== 'lobby') {
-				// [사용자 요청 2026-07-26] 봇전 방 정리: 진행 중이어도 사람이 방장 1명뿐(나머지 전부 봇)이면 종료 허용
-				const humanCount = Object.keys(game.players).length - (game.botPlayerIds?.length ?? 0);
-				if (humanCount > 1) { callback?.({ error: '다른 사람이 있는 방은 시작 후 삭제할 수 없습니다.' }); return; }
-			}
+			// [사용자 요청 2026-07-31] 사람만 있는 방도 방장이면 종료 가능 (기존: 진행 중 + 사람 2명 이상이면 거부).
+			// 버려진 사람 방 정리가 목적 — 클라이언트에서 다른 사람이 있으면 경고 confirm을 띄운다.
 			io.to(gameId).emit('game_deleted', { gameId });
 			games.delete(gameId);
 			turnHistories.delete(gameId); // [롤백] 히스토리 메모리 정리

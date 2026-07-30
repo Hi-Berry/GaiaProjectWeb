@@ -445,18 +445,21 @@ export default function Lobby() {
                           <Eye className="w-4 h-4 mr-2" />
                           {watching === game.id ? '접속 중...' : 'Watch'}
                         </Button>
-                        {/* [봇전 방 정리] 내가 방장 + 사람이 나뿐(나머지 봇)인 방은 진행 중이어도 종료 가능 */}
+                        {/* [방 정리] 내가 방장인 방은 구성(봇/사람) 무관 종료 가능 — 다른 사람이 있으면 경고 confirm */}
                         {(() => {
                           const hostP = roster.find(p => p.isHost);
                           const humanCount = game.playerCount - (game.botCount ?? 0);
-                          const canClose = !!storedPlayerId && hostP?.id === storedPlayerId && humanCount <= 1;
+                          const canClose = !!storedPlayerId && hostP?.id === storedPlayerId;
                           return canClose ? (
                             <Button
                               variant="outline"
                               className="border-red-500/40 text-red-400 hover:bg-red-500/10"
                               disabled={!connected}
                               onClick={async () => {
-                                if (!confirm(`#${game.id} 봇전 방을 종료할까요? 되돌릴 수 없습니다.`)) return;
+                                const warn = humanCount > 1
+                                  ? `#${game.id} 방에 다른 사람이 ${humanCount - 1}명 있습니다. 정말 종료할까요? 되돌릴 수 없습니다.`
+                                  : `#${game.id} 방을 종료할까요? 되돌릴 수 없습니다.`;
+                                if (!confirm(warn)) return;
                                 try {
                                   await GameClient.deleteGame(game.id, storedPlayerId!);
                                   localStorage.removeItem(`gaia-${game.id}-playerId`);
