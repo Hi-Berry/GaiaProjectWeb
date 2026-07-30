@@ -3649,10 +3649,10 @@ export default function Game() {
 
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>
-              <AlertDialogContent className="bg-zinc-900 border-amber-500/40 max-w-sm">
+              <AlertDialogContent className="bg-zinc-900 border-amber-500/40 max-w-md">
                 <AlertDialogHeader>
                   <div className="flex items-center justify-between gap-2">
-                    <AlertDialogTitle className="text-amber-300 font-black uppercase tracking-wider">팅커로이드: 라운드 Special 선택</AlertDialogTitle>
+                    <AlertDialogTitle className="text-amber-300 font-black whitespace-nowrap text-base shrink-0">팅커로이드: 라운드 Special 선택</AlertDialogTitle>
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-zinc-400 hover:text-amber-200 shrink-0" onClick={() => setTinkeroidSpecialCollapsed(true)} title="접기 (맵·라운드 보기)">접기</Button>
                   </div>
                   <AlertDialogDescription className="text-zinc-300">
