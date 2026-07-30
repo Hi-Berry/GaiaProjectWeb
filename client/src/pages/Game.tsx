@@ -4724,7 +4724,9 @@ export default function Game() {
                           {/* Left: Main info, Buildings, Resources */}
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
                             {/* Score / Name / Bid Row — [2026-07-26 사용자] 패스 딤은 이름줄·보너스타일만, 건물/자원/파워/포머는 안 가림 */}
-                            <div className={`flex items-center gap-2 min-w-0 mb-1 md:mb-1.5 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
+                            <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
+                              {/* [사용자] 패스 딤은 점수+이름에만 — PASSED 배지는 dim 밖(아래 ml-auto)이라 밝게 보임 */}
+                              <div className={`flex items-center gap-2 min-w-0 flex-1 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
                               <span className="w-5 md:w-7 text-left text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
                                 {p.score}
                               </span>
@@ -4782,6 +4784,7 @@ export default function Game() {
                                 )}
                               </div>
 
+                              </div>
                               <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                 {isYou && (
                                   <button
@@ -4811,7 +4814,7 @@ export default function Game() {
                                   </span>
                                 )}
                                 {hasPassed && (
-                                  <span className="text-[9px] font-bold text-zinc-500 border border-zinc-700 rounded px-1">PASSED</span>
+                                  <span className="text-[9px] font-black text-amber-300 border border-amber-500/50 bg-amber-500/10 rounded px-1.5 py-0.5 tracking-wide">PASSED</span>
                                 )}
                               </div>
                             </div>
