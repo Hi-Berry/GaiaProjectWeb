@@ -49,7 +49,7 @@ async function check(inst){
     clearTimeout(to);
     if(!r.ok) return { ...inst, state:'down' };
     const j = await r.json();
-    return { ...inst, state:'up', games:j.activeGames||0, humans:j.humanPlayers||0 };
+    return { ...inst, state:'up', games:j.activeGames||0, humans:j.humanPlayers||0, ai:j.aiEnabled!==false };
   }catch(e){ clearTimeout(to); return { ...inst, state:'down' }; }
 }
 
@@ -61,7 +61,7 @@ function render(list){
   grid.innerHTML = list.map(x=>{
     const cls = x.state==='up'?'up':x.state==='wait'?'wait':'down';
     const meta = x.state==='up'
-      ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명` + (best&&x.url===best.url&&x.humans>0?' · 🔥 사람 대전은 여기!':'')
+      ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능':'🙅 AI 봇 없음(사람 전용)'}` + (best&&x.url===best.url&&x.humans>0?' · 🔥 사람 대전은 여기!':'')
       : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
     const dis = x.state==='down' ? '' : '';
     return `<div class="card ${best&&x.url===best.url?'best':''}">
@@ -71,7 +71,7 @@ function render(list){
     </div>`;
   }).join('');
   const b = document.getElementById('banner');
-  if(best){ b.style.display='block'; b.innerHTML = `👉 지금 플레이 추천: <b>${best.name}</b>` + (best.humans>0?` — 사람 ${best.humans}명 접속 중, AI 봇 말고 사람 대전 가능!`:' (AI 봇 대전 가능)'); }
+  if(best){ b.style.display='block'; b.innerHTML = `👉 지금 플레이 추천: <b>${best.name}</b>` + (best.humans>0?` — 사람 ${best.humans}명 접속 중, AI 봇 말고 사람 대전 가능!`:(best.ai?' (AI 봇 대전 가능)':' (사람 전용 서버)')); }
   else { b.style.display='block'; b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 잠시 후 새로고침 해보세요.'; }
 }
 

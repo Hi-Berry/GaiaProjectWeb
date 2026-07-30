@@ -165,7 +165,14 @@ export function getPublicStatus() {
 		activeGames++;
 		humanPlayers += Math.max(0, Object.keys(g.players || {}).length - ((g as any).botPlayerIds?.length || 0));
 	}
-	return { ok: true, activeGames, humanPlayers, ts: Date.now() };
+	return { ok: true, activeGames, humanPlayers, aiEnabled: isAiEnabled(), ts: Date.now() };
+}
+/** AI 봇 사용 가능 여부 — Render 환경변수로 서버별 지정 (AI_ENABLED / AI_AVAILABLE / AI_BOTS_ENABLED 중 아무거나).
+ *  미설정이면 true. '0'/'false'/'off'/'no'면 false. 상태 페이지 표기용. */
+export function isAiEnabled(): boolean {
+	const raw = process.env.AI_ENABLED ?? process.env.AI_AVAILABLE ?? process.env.AI_BOTS_ENABLED;
+	if (raw == null || raw === '') return true;
+	return !['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase());
 }
 /** [사람 우선 스로틀 2026-07-20] 사람이 참여한 진행 중 게임이 (지정 게임 외에) 존재하는가 —
  *  봇 전용 방의 MCTS가 이벤트 루프를 점유해 사람 방이 렉 걸리는 문제(사용자)의 판별용. */
