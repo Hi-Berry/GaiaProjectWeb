@@ -403,6 +403,19 @@ export function GameBoard({
   const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
   const isSyncingRef = useRef(false);
 
+  // 화면 줌 모드(모바일 "?" 옵션): ON이면 브라우저 핀치줌(페이지 전체 확대)을 허용하고
+  // 맵 자체의 핀치줌/휠줌/줌버튼은 끈다. viewport meta의 maximum-scale=1이 브라우저 줌을 막는 원인.
+  const [pagePinchZoom, setPagePinchZoom] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('page-pinch-zoom') === 'on');
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta) meta.setAttribute('content', pagePinchZoom
+      ? 'width=device-width, initial-scale=1.0'
+      : 'width=device-width, initial-scale=1.0, maximum-scale=1');
+    const onChange = (e: Event) => setPagePinchZoom(Boolean((e as CustomEvent).detail));
+    window.addEventListener('page-pinch-zoom-change', onChange);
+    return () => window.removeEventListener('page-pinch-zoom-change', onChange);
+  }, [pagePinchZoom]);
+
   // 부모 props(zoomValue, panValue)가 변경되면(예: 페이즈 전환 후 리마운트) 내부 상태 동기화
   useEffect(() => {
     if (zoomValue !== undefined && Math.abs(zoomValue - zoom) > 0.001) {
@@ -774,10 +787,11 @@ export function GameBoard({
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (pagePinchZoom) return; // 화면 줌 모드: 맵 자체 줌 비활성
     e.preventDefault();
     const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
     setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)));
-  }, []);
+  }, [pagePinchZoom]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 0) {
@@ -814,6 +828,8 @@ export function GameBoard({
 
   // Touch handlers for mobile pan and pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // 화면 줌 모드: 맵뷰는 고정 — 팬/핀치 모두 브라우저(페이지 스크롤/줌)에 맡긴다. 탭(타일 선택)은 그대로 동작.
+    if (pagePinchZoom) return;
     if (e.touches.length === 1) {
       // Single touch -> Pan
       setIsMouseDown(true);
@@ -830,7 +846,7 @@ export function GameBoard({
       setInitialPinchDist(dist);
       setInitialPinchZoom(zoom);
     }
-  }, [pan, zoom]);
+  }, [pan, zoom, pagePinchZoom]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (isPinching && e.touches.length === 2 && initialPinchDist !== null) {
@@ -1100,7 +1116,7 @@ export function GameBoard({
       {/* 맵 영역: 우측 패널 표시 여부와 관계없이 항상 동일 크기 유지 (행성 클릭 시 확대/팬 깨짐 방지) */}
       <div
         ref={containerRef}
-        className="flex-1 min-w-0 bg-black rounded-lg border border-white/5 overflow-hidden relative touch-none"
+        className={`flex-1 min-w-0 bg-black rounded-lg border border-white/5 overflow-hidden relative ${pagePinchZoom ? 'touch-auto' : 'touch-none'}`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -1647,6 +1663,7 @@ export function GameBoard({
                 ×{playerDetailScale}
               </Button>
             )}
+            {!pagePinchZoom && (<>
             <Button
               size="icon"
               variant="secondary"
@@ -1663,6 +1680,7 @@ export function GameBoard({
             >
               <ZoomOut className="w-4 h-4" />
             </Button>
+            </>)}
             <Button
               size="icon"
               variant="secondary"
