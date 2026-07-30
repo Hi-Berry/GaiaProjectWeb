@@ -97,7 +97,7 @@ const HELP_COLUMNS: HelpSection[][] = [
         { label: '우클릭', description: '프리액션 자원 변환 O→C·K→C·Q→O' },
         { label: 'hover', description: '맵 강조' },
         { label: '드래그', description: '너비 조절' },
-        { label: 'AI', description: '봇 피드백 (L 로그)' },
+        { label: '롤백', description: '로그 항목 → "여기로 롤백 요청" (참가자 전원 동의 시 그 턴 시작으로 되돌림)' },
       ],
     },
     {
