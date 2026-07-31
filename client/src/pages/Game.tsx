@@ -5056,8 +5056,8 @@ export default function Game() {
                                         const brainIn1 = isTakBrain && (p as any).brainStoneBowl === 1;
                                         const brainIn2 = isTakBrain && (p as any).brainStoneBowl === 2;
                                         const brainIn3 = isTakBrain && (p as any).brainStoneBowl === 3;
-                                        // [사용자] 브레인 스톤이 든 그릇을 배경색+테두리로 확실히 구분(이모지만으론 인지 약함)
-                                        const brainHi = ' rounded bg-fuchsia-500/25 ring-1 ring-fuchsia-400/70 px-1 -mx-0.5';
+                                        // [사용자] 브레인 스톤 든 그릇 표시. FA ON의 '초록 링(테두리)'과 헷갈리지 않게 링 대신 '자홍 채움(fill)' 사용.
+                                        const brainHi = ' rounded bg-fuchsia-600/45 px-1 -mx-0.5';
                                         // 제노스는 1O→토큰이 3그릇으로 가므로 1그릇 대신 3그릇에 클릭 박스
                                         const canBowl1 = isYou && freeActionMode && p.faction !== 'xenos' && (p.ore ?? 0) >= 1;
                                         const canBowl2 = isYou && freeActionMode && (p.power2 ?? 0) >= (brainIn2 ? 1 : 2);
