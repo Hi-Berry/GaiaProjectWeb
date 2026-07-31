@@ -1338,8 +1338,9 @@ export default function Game() {
     nevlasOreChainRef.current = null;
 
     const needPower = (cost: number) => {
-      const ok = isTak ? canSpendTaklonsPower(p, 3, cost) : hasNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
-      if (!ok) toast({ title: '파워 부족', description: '3그릇 파워가 부족합니다.', variant: 'destructive' });
+      // [사용자] 타클론 상태창 자원변환은 '일반 파워토큰' 기준으로만 활성화(브레인 조합은 왼쪽 스트립 전용).
+      const ok = hasNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
+      if (!ok) toast({ title: '파워 부족', description: '3그릇 일반 파워토큰이 부족합니다. (브레인은 왼쪽 🧠 버튼)', variant: 'destructive' });
       return ok;
     };
 
@@ -1378,17 +1379,14 @@ export default function Game() {
           GameClient.convertResource(gameId, '2power-to-1ore-1credit');
           return;
         }
-        // 타클론 브레인 우선 + 브레인스톤이 3그릇: 1파워(=1C) 대신 브레인스톤(3파워)을 3C로 바꿔 그릇1로 (사용자 요청)
-        if (isTak && (p.taklonsBrainPriority ?? true) && !p.brainStoneInGaia && p.brainStoneBowl === 3) {
-          GameClient.convertResource(gameId, '1brain-to-3credit');
-          return;
-        }
+        // [사용자] 상태창 C는 일반토큰 전용 — 브레인(1B→3C)은 왼쪽 스트립 버튼으로. (기존 브레인 우선 라우팅 제거)
+        //   1power-to-1credit 서버 로직은 타클론이면 일반토큰 우선(있을 때), 없으면 자동 브레인 폴백.
         if (!needPower(1)) return;
         applyOptimistic(hasNevPI ? { power3: -1, power1: 1, credits: 2 } : { power3: -1, power1: 1, credits: 1 }); GameClient.convertResource(gameId, '1power-to-1credit');
         return;
       case 'knowledge':
         if (!needPower(4)) return;
-        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, knowledge: 1 } : { power3: -4, power1: 4, knowledge: 1 }); GameClient.convertResource(gameId, '4power-to-1knowledge');
+        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, knowledge: 1 } : { power3: -4, power1: 4, knowledge: 1 }); GameClient.convertResource(gameId, '4power-to-1knowledge', isTak ? false : undefined);
         return;
       case 'qic':
         if (p.faction === 'gleens' && !(game.map?.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right'))) {
@@ -1396,7 +1394,7 @@ export default function Game() {
           return;
         }
         if (!needPower(4)) return;
-        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, qic: 1 } : { power3: -4, power1: 4, qic: 1 }); GameClient.convertResource(gameId, '4power-to-1qic');
+        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, qic: 1 } : { power3: -4, power1: 4, qic: 1 }); GameClient.convertResource(gameId, '4power-to-1qic', isTak ? false : undefined);
         return;
       case 'bowl1':
         if ((p.ore ?? 0) < 1) { toast({ title: '광물 부족', description: '광물이 1개 필요합니다.', variant: 'destructive' }); return; }
@@ -1482,6 +1480,10 @@ export default function Game() {
       acts.push({ label: '🧠1B→3C', disabled: false, run: () => GameClient.convertResource(gameId, '1brain-to-3credit') });
       // 브레인(3파워)을 3P→1O에 사용(useBrain=true로 일반토큰 대신 브레인 소비 강제)
       acts.push({ label: '🧠1B→1O', disabled: false, run: () => GameClient.convertResource(gameId, '3power-to-1ore', true) });
+      // K/Q는 4파워 = 브레인(3) + 일반토큰 1 → 일반 파워토큰이 1개 이상 있을 때만
+      const reg3 = me.power3 ?? 0;
+      acts.push({ label: '🧠1B+1P→1K', disabled: reg3 < 1, run: () => GameClient.convertResource(gameId, '4power-to-1knowledge', true) });
+      acts.push({ label: '🧠1B+1P→1Q', disabled: reg3 < 1, run: () => GameClient.convertResource(gameId, '4power-to-1qic', true) });
     }
     if (me.faction === 'nevlas' && hasPI(playerId!))
       acts.push({ label: '1P→가이어+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
@@ -5014,8 +5016,9 @@ export default function Game() {
                                 const faActive = isYou && freeActionMode;
                                 const faIsTak = p.faction === 'taklons';
                                 const faNevPI = p.faction === 'nevlas' && (game.map?.some(t => t.ownerId === id && t.structure === 'planetary_institute') ?? false);
+                                // [사용자] 타클론도 상태창 활성화는 '일반 파워토큰' 기준(브레인 미포함). 브레인 조합은 왼쪽 스트립.
                                 const faCanPow = (cost: number) =>
-                                  faIsTak ? canSpendTaklonsPower(p as any, 3, cost) : faNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
+                                  faNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
                                 const faCan: Record<'ore' | 'knowledge' | 'qic' | 'credit', boolean> = {
                                   ore: faCanPow(3),
                                   credit: faCanPow(1),
