@@ -157,6 +157,13 @@ function councilPendingActive(game: GaiaGameState): boolean {
 		|| (game as any).pendingTinkeroidSpecialChoice
 		|| (game.terranCouncilQueue?.length ?? 0) > 0
 		|| ((game as any).terranCouncilQueueAfterItars?.length ?? 0) > 0
+		// [버그수정 2026-07-31, 사용자] 아이타 4토큰 교환의 '기술타일 선택' 단계도 가드 —
+		//   교환 도중(pendingItarsGaiaformerExchange가 null이 되고 pendingTechTileSelection[itars_pi_exchange]로
+		//   넘어간 순간) 다른 플레이어가 액션 가능했던 문제(8토큰=2회 교환 시 특히). 해소 핸들러(select_tech_tile)는
+		//   councilPendingActive를 체크하지 않으므로 소유자는 안 막힘.
+		//   (교환 후 우주선 tech 후속단계[트랙전진/광산]는 소유자 build_mine/advance_tech가 이 가드를 체크하므로
+		//    여기 포함하지 않음 — 소유자 해소를 막지 않기 위함.)
+		|| ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange')
 		|| (game as any).pendingEclipseAsteroidMine || (game as any).pendingEclipseResearch);
 }
 
@@ -4220,6 +4227,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.hasDoneMainAction) return;
 			const player = game.players[playerId];
@@ -4478,6 +4486,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('place_gaiaformer', ({ gameId, tileId, qicUsed }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed);
 		});
@@ -4645,6 +4654,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			// [버그수정 2026-07-31] 남의 파워 수령/수입 처리 중엔 연구 전진 불가(자기 pending 트랙전진은 mid-turn이라 pendingPowerOffers 없음 → 미차단).
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			// 거리 보너스가 진행 중인데 Eclipse/우주선 트랙 보상 진행이 아니면 막음
 			if (hasActiveRangeBonus(game.players[playerId])
@@ -5121,6 +5132,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
 			if (player.faction !== 'ambas') return;
 			if (player.usedSpecialActions?.includes('ambas-swap-pi-mine')) return;
@@ -5148,6 +5160,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
 			if (player.faction !== 'bescods') return;
 			if (player.usedSpecialActions?.includes('bescods-advance-lowest')) return;
@@ -5182,6 +5195,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
 			if (player.faction !== 'moweyip') return;
 			if (player.usedSpecialActions?.includes('moweyip-place-ring')) return;
@@ -5222,6 +5236,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
@@ -5320,6 +5335,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (!game.federationMode || game.federationMode.playerId !== playerId) return;
 			if (game.pendingFederationReward) return;
@@ -5907,6 +5923,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
