@@ -181,7 +181,13 @@ export default function Game() {
   /** 연방 선언 시 불필요한 위성 경고 다이얼로그 (서버 federation_redundant_warning 수신 시) */
   const [federationRedundantWarning, setFederationRedundantWarning] = useState<{ count: number } | null>(null);
   /** 프리액션 모드: 내 상태창에서 자원/파워 숫자 클릭으로 즉시 변환 */
-  const [freeActionMode, setFreeActionMode] = useState(false);
+  // [사용자] FA 모드 기본 ON. 선택은 localStorage에 기억(끄면 유지), 미설정이면 ON.
+  const [freeActionMode, setFreeActionMode] = useState(() => {
+    try { const v = localStorage.getItem('fa-mode'); return v === null ? true : v === 'on'; } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('fa-mode', freeActionMode ? 'on' : 'off'); } catch { /* noop */ }
+  }, [freeActionMode]);
   /** 네뷸라 의회: 직전 O 클릭(2P→1O)을 다음 클릭에서 3P→2O / 2P→1O+1C로 승격하기 위한 체인 추적 */
   const nevlasOreChainRef = useRef<{ expectP3: number; expectOre: number } | null>(null);
   /** 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기(1소모+1이동)로 충당할지 확인 다이얼로그 */
