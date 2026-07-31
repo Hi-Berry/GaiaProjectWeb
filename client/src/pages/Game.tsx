@@ -5052,7 +5052,12 @@ export default function Game() {
                                     <div className="flex gap-2.5 items-center justify-between w-full">
                                       {(() => {
                                         const faBoxCls = ' cursor-pointer rounded ring-1 ring-emerald-400/40 hover:bg-emerald-500/15 px-0.5 -mx-0.5 transition-colors';
-                                        const brainIn2 = p.faction === 'taklons' && (p as any).brainStoneBowl === 2 && !(p as any).brainStoneInGaia;
+                                        const isTakBrain = p.faction === 'taklons' && !(p as any).brainStoneInGaia;
+                                        const brainIn1 = isTakBrain && (p as any).brainStoneBowl === 1;
+                                        const brainIn2 = isTakBrain && (p as any).brainStoneBowl === 2;
+                                        const brainIn3 = isTakBrain && (p as any).brainStoneBowl === 3;
+                                        // [사용자] 브레인 스톤이 든 그릇을 배경색+테두리로 확실히 구분(이모지만으론 인지 약함)
+                                        const brainHi = ' rounded bg-fuchsia-500/25 ring-1 ring-fuchsia-400/70 px-1 -mx-0.5';
                                         // 제노스는 1O→토큰이 3그릇으로 가므로 1그릇 대신 3그릇에 클릭 박스
                                         const canBowl1 = isYou && freeActionMode && p.faction !== 'xenos' && (p.ore ?? 0) >= 1;
                                         const canBowl2 = isYou && freeActionMode && (p.power2 ?? 0) >= (brainIn2 ? 1 : 2);
@@ -5060,7 +5065,7 @@ export default function Game() {
                                         return (
                                           <>
                                       <span
-                                        className={`flex items-center gap-0.5${canBowl1 ? faBoxCls : ''}`}
+                                        className={`flex items-center gap-0.5${canBowl1 ? faBoxCls : ''}${brainIn1 ? brainHi : ''}`}
                                         onClick={canBowl1 ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('bowl1'); } : undefined}
                                         title={canBowl1 ? '프리액션: 1O → 토큰 1개 (1그릇)' : undefined}
                                       >
@@ -5070,7 +5075,7 @@ export default function Game() {
                                         )}
                                       </span>
                                       <span
-                                        className={`flex items-center gap-0.5${canBowl2 ? faBoxCls : ''}`}
+                                        className={`flex items-center gap-0.5${canBowl2 ? faBoxCls : ''}${brainIn2 ? brainHi : ''}`}
                                         onClick={canBowl2 ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('bowl2'); } : undefined}
                                         title={canBowl2 ? '프리액션: 태우기 (2그릇 1개 소모 + 1개 3그릇 이동)' : undefined}
                                       >
@@ -5080,7 +5085,7 @@ export default function Game() {
                                         )}
                                       </span>
                                       <span
-                                        className={`flex items-center gap-0.5${canBowl3 ? faBoxCls : ''}`}
+                                        className={`flex items-center gap-0.5${canBowl3 ? faBoxCls : ''}${brainIn3 ? brainHi : ''}`}
                                         onClick={canBowl3 ? (e) => { e.stopPropagation(); e.preventDefault(); handleFreeActionClick('bowl3'); } : undefined}
                                         title={canBowl3 ? '프리액션: 1O → 토큰 1개 (제노스: 3그릇으로)' : undefined}
                                       >
