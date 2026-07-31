@@ -443,14 +443,15 @@ export function GameBoard({
       const ch = container.clientHeight;
       if (cw < 5 || ch < 5) return false;
       // 가시 높이 = 컨테이너 높이 - 하단 패널이 가리는 높이. 폭·가시높이 둘 다에 맞춰(min) 전체 맵이 보이게.
-      //   비율을 여유있게(폭 0.94, 높이 0.82) 잡아 상·하 여백을 확보 → 가시영역 중앙에 '떠 있는' 느낌으로.
       const visibleH = Math.max(80, ch - (mapBottomInset || 0));
-      const widthZoom = (cw * 0.94) / naturalW;
-      const heightZoom = (visibleH * 0.82) / naturalH;
+      const widthZoom = (cw * 0.96) / naturalW;
+      const heightZoom = (visibleH * 0.9) / naturalH;
       const targetZoom = Math.max(0.2, Math.min(1.6, Math.min(widthZoom, heightZoom)));
       const scaledH = naturalH * targetZoom;
-      // 콘텐츠 중심을 '가시영역(상단 [0, visibleH])'의 중앙에 둔다 — 하단 패널에 안 가리고 상단에도 안 붙게.
-      let centerY = visibleH * 0.5;
+      // [사용자] '중앙인데 너무 위로 느껴짐' → 가시영역 하단(패널 바로 위)에 맞닿게 하단 정렬.
+      //   콘텐츠 하단을 visibleH - bottomMargin 에 두고, 그래도 상단이 잘리면 8px 여백까지만.
+      const bottomMargin = Math.min(12, visibleH * 0.03);
+      let centerY = visibleH - bottomMargin - scaledH / 2;
       const minCenterY = scaledH / 2 + 8; // 상단이 잘리지 않게 최소 여백
       if (centerY < minCenterY) centerY = minCenterY;
       const panY = centerY - ch / 2;
