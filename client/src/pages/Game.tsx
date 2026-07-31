@@ -4800,6 +4800,35 @@ export default function Game() {
                           }}
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
                         >
+                          {/* [사용자] FA 모드: 종족 특수 프리액션 — 카드 맨 왼쪽 세로 컬럼(숫자 클릭으로 안 되는 것들) */}
+                          {isYou && freeActionMode && (() => {
+                            const acts: { label: string; disabled: boolean; run: () => void }[] = [];
+                            const hasPI = (pid: string) => game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === pid && t.structure === 'planetary_institute');
+                            if (p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia)
+                              acts.push({ label: '🧠1B→3C', disabled: false, run: () => gameId && GameClient.convertResource(gameId, '1brain-to-3credit') });
+                            if (p.faction === 'nevlas' && hasPI(id))
+                              acts.push({ label: '1P→가이어+1K', disabled: (p.power3 ?? 0) < 1, run: () => gameId && GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
+                            if (p.faction === 'bal_tak') {
+                              const avail = (p.gaiaformers ?? 0) - ((p as any).balTakGaiaformersUsedForQic ?? 0);
+                              acts.push({ label: '포머→1Q', disabled: avail < 1, run: () => gameId && GameClient.useBalTakGaiaformerToQic(gameId) });
+                            }
+                            if (p.faction === 'hadsch_hallas' && hasPI(id))
+                              for (const a of (((p as any).hadschHallasPIActions ?? []) as { id: string; costCredits: number; label: string }[]))
+                                acts.push({ label: a.label, disabled: (p.credits ?? 0) < a.costCredits, run: () => gameId && GameClient.useHadschHallasPIAction(gameId, a.id) });
+                            if (!acts.length) return null;
+                            return (
+                              <div className="flex flex-col justify-center gap-1 p-1 border-r border-amber-400/25 bg-amber-500/5 shrink-0">
+                                {acts.map((a, i) => (
+                                  <button key={i} type="button" disabled={a.disabled || !isCurrentTurn}
+                                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); if (a.disabled || !isCurrentTurn) return; a.run(); }}
+                                    title="종족 특수 프리액션"
+                                    className="text-[9px] font-bold px-1 py-1 rounded border border-amber-400/50 bg-amber-500/15 text-amber-200 hover:bg-amber-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap">
+                                    {a.label}
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
                           {/* Left: Main info, Buildings, Resources */}
                           <div className="flex-1 flex flex-col p-1.5 md:p-2.5 pr-1 md:pr-2 min-w-0">
                             {/* Score / Name / Bid Row — [2026-07-26 사용자] 패스 딤은 이름줄·보너스타일만, 건물/자원/파워/포머는 안 가림 */}
@@ -5102,39 +5131,6 @@ export default function Game() {
                                 </div>
                               </div>
                             </div>
-                            {/* [사용자] FA 모드: 종족 특수 프리액션 컴팩트 버튼 (숫자 클릭으로 안 되는 것들) */}
-                            {isYou && freeActionMode && (() => {
-                              const acts: { label: string; disabled: boolean; run: () => void }[] = [];
-                              const hasPI = (pid: string) => game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === pid && t.structure === 'planetary_institute');
-                              // 타클론: 브레인 스톤(그릇3) → +3C
-                              if (p.faction === 'taklons' && (p as any).brainStoneBowl === 3 && !(p as any).brainStoneInGaia)
-                                acts.push({ label: '🧠1B→3C', disabled: false, run: () => gameId && GameClient.convertResource(gameId, '1brain-to-3credit') });
-                              // 네뷸라(의회): 1P → 가이아포머+1K
-                              if (p.faction === 'nevlas' && hasPI(id))
-                                acts.push({ label: '1P→가이어+1K', disabled: (p.power3 ?? 0) < 1, run: () => gameId && GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
-                              // 발타크: 포머 → 1QIC
-                              if (p.faction === 'bal_tak') {
-                                const avail = (p.gaiaformers ?? 0) - ((p as any).balTakGaiaformersUsedForQic ?? 0);
-                                if (avail >= 1) acts.push({ label: '포머→1Q', disabled: false, run: () => gameId && GameClient.useBalTakGaiaformerToQic(gameId) });
-                              }
-                              // 하드쉬 할라스(의회): 크레딧 → 자원 (4C→1Q·4C→1K·3C→1O)
-                              if (p.faction === 'hadsch_hallas' && hasPI(id))
-                                for (const a of (((p as any).hadschHallasPIActions ?? []) as { id: string; costCredits: number; label: string }[]))
-                                  acts.push({ label: a.label, disabled: (p.credits ?? 0) < a.costCredits, run: () => gameId && GameClient.useHadschHallasPIAction(gameId, a.id) });
-                              if (!acts.length) return null;
-                              return (
-                                <div className="mt-1 flex flex-wrap gap-1 border-t border-white/10 pt-1.5">
-                                  {acts.map((a, i) => (
-                                    <button key={i} type="button" disabled={a.disabled || !isCurrentTurn}
-                                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); if (a.disabled || !isCurrentTurn) return; a.run(); }}
-                                      title="종족 특수 프리액션"
-                                      className="text-[9px] font-bold px-1.5 py-1 rounded border border-amber-400/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap">
-                                      {a.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              );
-                            })()}
                           </div>
 
                           {/* Right Edge: Pass Tile Image + Chevron (spanning full height) */}
