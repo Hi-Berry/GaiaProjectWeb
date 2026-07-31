@@ -336,6 +336,8 @@ interface GameBoardProps {
   isMobileViewport?: boolean;
   /** 모바일에서 디테일 패널 폭(=상태창 폭). 내용은 256px 디자인폭을 zoom으로 축소 */
   mobilePanelWidth?: number;
+  /** 폰 분할 모드에서 하단 패널(상태/정보)이 맵 컨테이너 하단을 가리는 픽셀 높이. 초기 맵 배치를 가시영역 기준으로 하기 위함 */
+  mapBottomInset?: number;
 }
 
 
@@ -393,6 +395,7 @@ export function GameBoard({
   mobileControlsOpen = false,
   isMobileViewport = false,
   mobilePanelWidth = 0,
+  mapBottomInset = 0,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
@@ -439,12 +442,15 @@ export function GameBoard({
       const cw = container.clientWidth;
       const ch = container.clientHeight;
       if (cw < 5 || ch < 5) return false;
-      const targetZoom = Math.max(0.2, Math.min(1.6, (cw * 0.98) / naturalW));
+      // 가시 높이 = 컨테이너 높이 - 하단 패널이 가리는 높이. 폭·가시높이 둘 다에 맞춰(min) 전체 맵이 보이게.
+      const visibleH = Math.max(80, ch - (mapBottomInset || 0));
+      const widthZoom = (cw * 0.98) / naturalW;
+      const heightZoom = (visibleH * 0.96) / naturalH;
+      const targetZoom = Math.max(0.2, Math.min(1.6, Math.min(widthZoom, heightZoom)));
       const scaledH = naturalH * targetZoom;
-      // 콘텐츠 중심을 컨테이너의 살짝 위쪽(44%)에 둔다 — '윗공간'이되 상단에 붙지 않게.
-      //   단 맵이 커서 상단이 잘릴 정도면 상단 8px 여백까지만 올린다.
-      let centerY = ch * 0.44;
-      const minCenterY = scaledH / 2 + 8;
+      // 콘텐츠 중심을 '가시영역(상단 [0, visibleH])'의 중앙에 둔다 — 하단 패널에 안 가리게.
+      let centerY = visibleH * 0.5;
+      const minCenterY = scaledH / 2 + 8; // 상단이 잘리지 않게 최소 여백
       if (centerY < minCenterY) centerY = minCenterY;
       const panY = centerY - ch / 2;
       setZoomInternal(targetZoom);
@@ -466,7 +472,7 @@ export function GameBoard({
       raf = requestAnimationFrame(() => requestAnimationFrame(() => { if (fit()) didInitialFitRef.current = true; }));
     }
     return () => { cancelAnimationFrame(raf); };
-  }, [pagePinchZoom, game.map.length, isMobileViewport]);
+  }, [pagePinchZoom, game.map.length, isMobileViewport, mapBottomInset]);
 
   // 부모 props(zoomValue, panValue)가 변경되면(예: 페이즈 전환 후 리마운트) 내부 상태 동기화
   useEffect(() => {

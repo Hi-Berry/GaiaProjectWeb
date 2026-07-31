@@ -3089,6 +3089,7 @@ export default function Game() {
             onOpenAdmin={() => { setIsAdmin(true); setIsAdminModeOpen(true); }}
             isMobileViewport={isMobileViewport}
             mobilePanelWidth={effectiveSidebarWidth}
+            mapBottomInset={splitActive && mobileZoomPanel !== 'status' && mobileZoomPanel !== 'info' ? Math.round(winH * 0.5) : 0}
           />
         </div>
 
