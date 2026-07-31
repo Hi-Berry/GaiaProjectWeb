@@ -418,37 +418,55 @@ export function GameBoard({
     return () => window.removeEventListener('page-pinch-zoom-change', onChange);
   }, [pagePinchZoom]);
 
-  // [사용자] 폰 '전체 확대(page pinch)' 모드에선 맵 줌/팬을 못 만지므로, 진입·리사이즈 시 맵을
-  //   '폭 맞춤 + 상단 정렬 + 가로 중앙'으로 자동 배치한다(기존: 하단에 작게 뜨던 문제).
-  //   맵 콘텐츠(<g>)의 실제 픽셀 크기를 재서 현재 줌을 제거→자연 크기로 환산 후 목표 줌/팬을 산출.
+  // [사용자] 폰에서 맵을 '폭 맞춤 + 가로 중앙 + 윗공간 배치'로 자동 배치한다(기존: 하단에 작게 뜨던 문제).
+  //   - 초기 1회는 모드 상관없이 배치(맵줌 모드는 이후 사용자가 자유롭게 조정 → 기본값일 때만 덮음).
+  //   - 전체확대(page pinch) 모드는 맵을 못 만지므로 진입·리사이즈마다 재배치.
+  //   맵 콘텐츠(<g>) 실제 픽셀을 재서 현재 줌 제거→자연 크기로 환산 후 목표 줌/팬 산출.
+  const didInitialFitRef = useRef(false);
   useEffect(() => {
-    if (!pagePinchZoom) return;
+    if (!isMobileViewport) return; // 데스크톱은 기존 기본값 유지
     const container = containerRef.current;
     if (!container) return;
-    const fit = () => {
+    const fit = (): boolean => {
       const svg = container.querySelector('svg');
-      if (!svg) return;
+      if (!svg) return false;
       const target = (svg.querySelector('g') as SVGGraphicsElement | null) ?? svg;
       const rect = target.getBoundingClientRect();
       const z0 = zoomRef.current || 1;
       const naturalW = rect.width / z0;
       const naturalH = rect.height / z0;
-      if (naturalW < 5 || naturalH < 5) return; // 아직 렌더 전
+      if (naturalW < 5 || naturalH < 5) return false; // 아직 렌더 전
       const cw = container.clientWidth;
       const ch = container.clientHeight;
-      if (cw < 5 || ch < 5) return;
+      if (cw < 5 || ch < 5) return false;
       const targetZoom = Math.max(0.2, Math.min(1.6, (cw * 0.98) / naturalW));
       const scaledH = naturalH * targetZoom;
-      const topMargin = Math.min(16, ch * 0.03);
-      const panY = topMargin + scaledH / 2 - ch / 2; // 콘텐츠 상단을 컨테이너 상단 근처로
+      // 콘텐츠 중심을 컨테이너의 살짝 위쪽(44%)에 둔다 — '윗공간'이되 상단에 붙지 않게.
+      //   단 맵이 커서 상단이 잘릴 정도면 상단 8px 여백까지만 올린다.
+      let centerY = ch * 0.44;
+      const minCenterY = scaledH / 2 + 8;
+      if (centerY < minCenterY) centerY = minCenterY;
+      const panY = centerY - ch / 2;
       setZoomInternal(targetZoom);
       setPanInternal({ x: 0, y: panY });
+      return true;
     };
-    const raf = requestAnimationFrame(() => requestAnimationFrame(fit));
-    window.addEventListener('resize', fit);
-    window.addEventListener('orientationchange', fit);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', fit); window.removeEventListener('orientationchange', fit); };
-  }, [pagePinchZoom, game.map.length]);
+    let raf = 0;
+    if (pagePinchZoom) {
+      // 전체확대: 진입/리사이즈마다 재배치
+      raf = requestAnimationFrame(() => requestAnimationFrame(fit));
+      const onResize = () => fit();
+      window.addEventListener('resize', onResize);
+      window.addEventListener('orientationchange', onResize);
+      return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); window.removeEventListener('orientationchange', onResize); };
+    }
+    // 맵줌 모드: 최초 1회만, 그리고 사용자가 아직 안 만진(기본값) 상태일 때만 초기배치
+    const atDefaults = Math.abs(zoomRef.current - 1) < 0.01 && Math.abs(pan.x) < 1 && Math.abs(pan.y) < 1;
+    if (!didInitialFitRef.current && atDefaults) {
+      raf = requestAnimationFrame(() => requestAnimationFrame(() => { if (fit()) didInitialFitRef.current = true; }));
+    }
+    return () => { cancelAnimationFrame(raf); };
+  }, [pagePinchZoom, game.map.length, isMobileViewport]);
 
   // 부모 props(zoomValue, panValue)가 변경되면(예: 페이즈 전환 후 리마운트) 내부 상태 동기화
   useEffect(() => {
