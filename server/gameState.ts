@@ -4438,7 +4438,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			if (normalReward) {
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Federation benefit' : 'Twilight: Federation benefit', normalReward.label, rewardId);
-				addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+				addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 				if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 				if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
 				if ('knowledge' in normalReward && normalReward.knowledge) player.knowledge += normalReward.knowledge;
@@ -4453,26 +4453,26 @@ export function setupGameServer(httpServer: HTTPServer) {
 						break;
 					case 'ship-fed-4vp4k':
 						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 						player.knowledge = (player.knowledge || 0) + 4;
 						break;
 					case 'ship-fed-4vp1q2o':
 						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+						addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 						grantQic(game, playerId, 1); player.ore = (player.ore || 0) + 2;
 						break;
 					case 'ship-fed-8vp8c':
 						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-						addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+						addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 						player.credits = (player.credits || 0) + 8;
 						break;
 					case 'ship-fed-12vp':
 						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-						addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+						addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 						break;
 					case 'ship-fed-7vp3p2t':
 						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-						addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+						addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 						player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 						break;
 					case 'ship-fed-mine-free':
@@ -9841,7 +9841,7 @@ export function executeConfirmTwilightFederation(
 
 	if (normalReward) {
 		addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Federation benefit' : 'Twilight: Federation benefit', normalReward.label, rewardId);
-		addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+		addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 		if ('ore' in normalReward && normalReward.ore) player.ore += normalReward.ore;
 		if ('credits' in normalReward && normalReward.credits) player.credits += normalReward.credits;
 		if ('knowledge' in normalReward && normalReward.knowledge) player.knowledge += normalReward.knowledge;
@@ -9856,27 +9856,27 @@ export function executeConfirmTwilightFederation(
 				break;
 			case 'ship-fed-4vp4k':
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 				player.knowledge = (player.knowledge || 0) + 4;
 				break;
 			case 'ship-fed-4vp1q2o':
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+				addScore(game, playerId, 4, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 				grantQic(game, playerId, 1);
 				player.ore = (player.ore || 0) + 2;
 				break;
 			case 'ship-fed-8vp8c':
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-				addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+				addScore(game, playerId, 8, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 				player.credits = (player.credits || 0) + 8;
 				break;
 			case 'ship-fed-12vp':
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-				addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+				addScore(game, playerId, 12, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 				break;
 			case 'ship-fed-7vp3p2t':
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
-				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1 });
+				addScore(game, playerId, 7, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
 				player.power3 = (player.power3 || 0) + 2; // [수정] ship-fed-7vp3p2t: 그릇3에 토큰 2개(충전됨)
 				break;
 			case 'ship-fed-mine-free':
