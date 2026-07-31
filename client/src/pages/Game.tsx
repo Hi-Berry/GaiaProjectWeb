@@ -2448,14 +2448,31 @@ export default function Game() {
           모바일은 좌하단이 채팅(입력창·접힌 버튼) 자리라 겹침(사용자 보고: 세로 모드에서 채팅 못 침) → 좌상단으로. */}
       {isSpectator && typeof document !== 'undefined' && createPortal(
         <>
-          {/* 데스크톱: 좌하단 상시 배너 */}
-          <div className="hidden md:flex fixed left-3 bottom-44 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold items-center gap-2 shadow-lg backdrop-blur-md">
-            <Eye className="w-3.5 h-3.5 shrink-0" />
-            <span>관전 중</span>
-            {isAdmin && (
-              <Button variant="outline" size="sm" className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white" onClick={() => void handleDownloadSnapshot()} title="[관리자] 진행 중 게임의 분석용 로그(JSON)를 지금 상태 그대로 내려받기">로그 저장</Button>
+          {/* 데스크톱: 좌하단 접이식 관전 배지 — [사용자] 작은 모니터에서 상시 배너가 미니뷰(좌상단)를 덮어 거슬림 →
+              기본은 작은 눈동자만, 클릭하면 펼쳐서 관전 중/나가기 표시. */}
+          <div className="hidden md:flex fixed left-3 bottom-44 z-[120] items-center">
+            {specBadgeOpen ? (
+              <div className="rounded-full border border-amber-300/40 bg-zinc-950/90 pl-3 pr-1.5 py-1.5 text-amber-200 text-xs font-bold flex items-center gap-2 shadow-lg backdrop-blur-md">
+                <button type="button" onClick={() => setSpecBadgeOpen(false)} className="flex items-center gap-2" title="접기">
+                  <Eye className="w-3.5 h-3.5 shrink-0" />
+                  <span>관전 중</span>
+                </button>
+                {isAdmin && (
+                  <Button variant="outline" size="sm" className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white" onClick={() => void handleDownloadSnapshot()} title="[관리자] 진행 중 게임의 분석용 로그(JSON)를 지금 상태 그대로 내려받기">로그 저장</Button>
+                )}
+                <Button variant="outline" size="sm" className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white" onClick={() => { if (gameId) localStorage.removeItem(`gaia-${gameId}-spectatorId`); setLocation('/'); }}>나가기</Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSpecBadgeOpen(true)}
+                aria-label="관전 중"
+                title="관전 중 — 클릭하면 나가기 표시"
+                className="h-9 w-9 rounded-full border border-amber-300/40 bg-zinc-950/90 text-amber-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur flex items-center justify-center hover:bg-zinc-900 transition-colors"
+              >
+                <Eye className="w-5 h-5" />
+              </button>
             )}
-            <Button variant="outline" size="sm" className="h-6 rounded-full border-amber-300/30 bg-amber-300/10 px-2 text-[10px] font-bold text-amber-100 hover:bg-amber-300/20 hover:text-white" onClick={() => { if (gameId) localStorage.removeItem(`gaia-${gameId}-spectatorId`); setLocation('/'); }}>나가기</Button>
           </div>
           {/* [사용자] 모바일: 접이식 관전 배지 — 접힘=눈동자만(전체화면 버튼 오른쪽). 탭하면 우측으로 펼쳐 관전중+나가기. 눈동자/글자 탭하면 다시 접힘. */}
           <div
