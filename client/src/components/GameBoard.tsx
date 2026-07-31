@@ -1637,7 +1637,7 @@ export function GameBoard({
           )}
 
           {/* 줌·격자·도움말 등 — 모바일·데스크톱 공통으로 위 토글로 열고 닫음(기본 닫힘) */}
-          <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden'}`}>
+          <div className={`flex-col items-end gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden'}`}>
             {onToggleSidebar && (
               <Button
                 size="icon"

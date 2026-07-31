@@ -4563,7 +4563,7 @@ export default function Game() {
       {showYouFaStrip && faStripPos && (
         <div
           style={{ position: 'fixed', top: faStripPos.top, left: faStripPos.left, height: faStripPos.height }}
-          className="z-[85] flex flex-col justify-center gap-1 pr-1 -translate-x-full"
+          className="z-[85] flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none"
         >
           {youFaActs.map((a, i) => (
             <button
@@ -4572,7 +4572,7 @@ export default function Game() {
               disabled={a.disabled || !isCurrentTurn}
               onClick={() => { if (a.disabled || !isCurrentTurn) return; a.run(); }}
               title="종족 특수 프리액션 (FA)"
-              className="text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
+              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
             >
               {a.label}
             </button>
