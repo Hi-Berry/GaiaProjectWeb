@@ -200,6 +200,10 @@ const playerGameMap = new Map<string, string>();
 const socketToPlayerMap = new Map<string, string>();
 const socketToSpectatorMap = new Map<string, string>();
 const spectatorToGameMap = new Map<string, string>();
+// [사용자] 폰에서 잠깐 앱 전환(카톡 등) 후 복귀 시 '떠났/다시접속' 채팅 스팸 방지용 디바운스 타이머.
+//   키 = `${gameId}:${playerId}`. 해제 시 45초 타이머 설정 → 그 안에 재접속하면 취소(무알림), 넘으면 '떠났' 표시.
+const LEFT_ANNOUNCE_DELAY_MS = 45000;
+const leftAnnounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function deepClone<T>(value: T): T {
 	// Prefer structuredClone to preserve undefined/Date/Map/Set/etc.
@@ -3165,6 +3169,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 다른 소켓이 없었을 때만 = 진짜 떠나있다 돌아온 경우만. (여러 탭/빠른 새로고침 중복 알림 방지.) 봇 제외.
 			const wasAway = !Array.from(socketToPlayerMap.values()).includes(playerId)
 				&& !game.botPlayerIds?.includes(playerId);
+			// [사용자] 45초 내 복귀면 '떠났'을 아직 안 띄웠으므로 그 타이머를 취소하고 '다시 접속'도 생략(스팸 방지).
+			//   타이머가 이미 발화(45초 초과 → '떠났' 표시됨)했으면 map에 없으니 아래 wasAway 알림이 정상 표시된다.
+			const leftKey = `${gameId}:${playerId}`;
+			const hadPendingLeftTimer = leftAnnounceTimers.has(leftKey);
+			if (hadPendingLeftTimer) {
+				clearTimeout(leftAnnounceTimers.get(leftKey)!);
+				leftAnnounceTimers.delete(leftKey);
+			}
 
 			// If the reconnecting player is the host, update the host socket context
 			if (game.hostId === playerId) {
@@ -3176,7 +3188,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			joinGameRoom(socket, gameId);
 			clampPlayerResources(game);
 
-			if (wasAway) {
+			if (wasAway && !hadPendingLeftTimer) {
 				const name = game.players[playerId].name;
 				const msg = {
 					id: generatePlayerId(),
@@ -5988,21 +6000,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 						// 게임 끝(gameEnd 포함) 어느 단계든 창 닫으면 표시. 봇은 소켓이 없으니 해당 없음.
 						const stillConnected = Array.from(socketToPlayerMap.values()).includes(playerId);
 						if (!stillConnected && !game.botPlayerIds?.includes(playerId)) {
-							const name = game.players[playerId].name;
-							const msg = {
-								id: generatePlayerId(),
-								gameId,
-								senderId: 'system',
-								name: '시스템',
-								faction: null,
-								isSpectator: false,
-								text: `🚪 ${name}님이 게임을 떠났습니다.`,
-								ts: Date.now(),
-							};
-							if (!game.chatMessages) game.chatMessages = [];
-							game.chatMessages.push(msg);
-							if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
-							io.to(gameId).emit('chat_message', msg);
+							// [사용자] 즉시 '떠났' 대신 45초 디바운스 — 폰에서 잠깐 앱 전환(카톡 등) 시 스팸 방지.
+							//   45초 내 재접속하면 rejoin에서 이 타이머를 지워 아무 알림도 안 뜬다(떠났/다시접속 둘 다 생략).
+							const key = `${gameId}:${playerId}`;
+							const existing = leftAnnounceTimers.get(key);
+							if (existing) clearTimeout(existing);
+							const timer = setTimeout(() => {
+								leftAnnounceTimers.delete(key);
+								const g = games.get(gameId);
+								if (!g || !g.players[playerId]) return;
+								if (Array.from(socketToPlayerMap.values()).includes(playerId)) return; // 그 사이 재접속함
+								const name = g.players[playerId].name;
+								const msg = {
+									id: generatePlayerId(),
+									gameId,
+									senderId: 'system',
+									name: '시스템',
+									faction: null,
+									isSpectator: false,
+									text: `🚪 ${name}님이 게임을 떠났습니다.`,
+									ts: Date.now(),
+								};
+								if (!g.chatMessages) g.chatMessages = [];
+								g.chatMessages.push(msg);
+								if (g.chatMessages.length > 100) g.chatMessages = g.chatMessages.slice(-100);
+								io.to(gameId).emit('chat_message', msg);
+							}, LEFT_ANNOUNCE_DELAY_MS);
+							leftAnnounceTimers.set(key, timer);
 						}
 					}
 				}
