@@ -241,7 +241,7 @@ export function BonusTiles({
               Federation Tiles
             </h3>
           )}
-          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide gap-4 h-10 items-center px-1' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
+          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide justify-between gap-1.5 h-10 items-center px-1' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
             {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;
