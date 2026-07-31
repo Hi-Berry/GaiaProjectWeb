@@ -1338,10 +1338,7 @@ export default function Game() {
     const p = currentPlayer;
     const isTak = p.faction === 'taklons';
     const hasNevPI = p.faction === 'nevlas' && (game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') ?? false);
-    // 직전 O 클릭 체인 검증 (그 사이 다른 경로로 자원이 바뀌었으면 무효)
-    const chain = nevlasOreChainRef.current;
-    const chainValid = !!chain && hasNevPI && (p.power3 ?? 0) === chain.expectP3 && (p.ore ?? 0) === chain.expectOre;
-    nevlasOreChainRef.current = null;
+    nevlasOreChainRef.current = null; // [2026-07-31] 네뷸라 O 체인 폐지(O=3P→2O 직접)
 
     const needPower = (cost: number) => {
       // [사용자] 타클론 상태창 자원변환은 '일반 파워토큰' 기준으로만 활성화(브레인 조합은 왼쪽 스트립 전용).
@@ -1365,26 +1362,19 @@ export default function Game() {
 
     switch (kind) {
       case 'ore':
-        if (chainValid) {
-          // 의회 네뷸라: 직전 2P→1O를 3P→2O로 승격 (토큰 1개만 추가 소모)
-          if ((p.power3 ?? 0) < 1) { toast({ title: '파워 부족', description: '3그릇 파워가 부족합니다.', variant: 'destructive' }); return; }
-          GameClient.undoFreeAction(gameId, 1);
+        // [사용자] 네뷸라 의회: O = 3P→2O 직접(기존 2P→1O 체인 폐지). 2P→1O1C는 왼쪽 스트립 버튼.
+        if (hasNevPI) {
+          if ((p.power3 ?? 0) < 3) { toast({ title: '파워 부족', description: '3그릇 파워가 3개 필요합니다 (3P→2O).', variant: 'destructive' }); return; }
           GameClient.convertResource(gameId, '3power-to-2ore');
           return;
         }
         if (!needPower(3)) return;
         // [사용자] 타클론: O 클릭은 일반토큰 우선(useBrain=false) — 브레인을 광석에 낭비 않게(3P→1O는 브레인 써도 이득 없음).
         //   브레인만 있고 일반토큰 부족하면 서버가 자동으로 브레인 폴백. 브레인을 굳이 쓰려면 🧠1B→1O 버튼 사용.
-        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, ore: 1 } : { power3: -3, power1: 3, ore: 1 }); GameClient.convertResource(gameId, '3power-to-1ore', isTak ? false : undefined);
-        if (hasNevPI) nevlasOreChainRef.current = { expectP3: (p.power3 ?? 0) - 2, expectOre: (p.ore ?? 0) + 1 };
+        applyOptimistic({ power3: -3, power1: 3, ore: 1 }); GameClient.convertResource(gameId, '3power-to-1ore', isTak ? false : undefined);
         return;
       case 'credit':
-        if (chainValid) {
-          // 의회 네뷸라: 직전 2P→1O를 2P→1O+1C로 승격 (추가 소모 없음)
-          GameClient.undoFreeAction(gameId, 1);
-          GameClient.convertResource(gameId, '2power-to-1ore-1credit');
-          return;
-        }
+        // [2026-07-31] 네뷸라 2P→1O1C 체인 폐지 → 왼쪽 스트립 버튼으로. C는 일반 1P→(의회2)C.
         // [사용자] 상태창 C는 일반토큰 전용 — 브레인(1B→3C)은 왼쪽 스트립 버튼으로. (기존 브레인 우선 라우팅 제거)
         //   1power-to-1credit 서버 로직은 타클론이면 일반토큰 우선(있을 때), 없으면 자동 브레인 폴백.
         if (!needPower(1)) return;
@@ -1497,7 +1487,6 @@ export default function Game() {
       // 네뷸라 의회(PI) 전용 변환 — 서버가 hasNevlasPI 요구. (기본 O/K/Q/C는 상태창에서 PI 할인가로 처리)
       if (hasPI(playerId!)) {
         acts.push({ label: '2P→1O1C', disabled: (me.power3 ?? 0) < 2, run: () => GameClient.convertResource(gameId, '2power-to-1ore-1credit') });
-        acts.push({ label: '3P→2O', disabled: (me.power3 ?? 0) < 3, run: () => GameClient.convertResource(gameId, '3power-to-2ore') });
       }
     }
     if (me.faction === 'bal_tak') {
@@ -5037,7 +5026,8 @@ export default function Game() {
                                 const faCanPow = (cost: number) =>
                                   faNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
                                 const faCan: Record<'ore' | 'knowledge' | 'qic' | 'credit', boolean> = {
-                                  ore: faCanPow(3),
+                                  // [사용자] 네뷸라 의회 O = 3P→2O(파워3 필요)라 faCanPow(할인가 2) 대신 파워3 기준.
+                                  ore: (p.power3 ?? 0) >= 3,
                                   credit: faCanPow(1),
                                   knowledge: faCanPow(4),
                                   qic: faCanPow(4) && !(p.faction === 'gleens' && !game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')),
@@ -5055,7 +5045,7 @@ export default function Game() {
                                 return (
                               <div className="grid grid-cols-2 gap-x-2 gap-y-1 w-1/2 tabular-nums">
                                 {/* O: Ore */}
-                                <div className={`flex items-center justify-start${faCellCls('ore')}${faActive && !faCan.ore ? ' cursor-pointer' : ''}`} onClick={faClick('ore')} onContextMenu={faRight('ore')} title={faActive ? '프리액션: 좌클릭 3P→1O (네뷸라: 연속 3P→2O) · 우클릭 1O→1C' : undefined}>
+                                <div className={`flex items-center justify-start${faCellCls('ore')}${faActive && !faCan.ore ? ' cursor-pointer' : ''}`} onClick={faClick('ore')} onContextMenu={faRight('ore')} title={faActive ? '프리액션: 좌클릭 3P→1O (네뷸라 의회: 3P→2O) · 우클릭 1O→1C' : undefined}>
                                   <span className="text-zinc-300 w-[10px] md:w-3 text-xs md:text-sm font-bold shrink-0 text-center">O</span>
                                   <span style={{ color: '#f5f5f0' }} className="font-black text-sm md:text-base ml-0.5 shrink-0 leading-none">{p.ore ?? 0}</span>
                                   {inc.ore > 0 && (
