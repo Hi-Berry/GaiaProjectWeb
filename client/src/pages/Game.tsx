@@ -1366,7 +1366,9 @@ export default function Game() {
           return;
         }
         if (!needPower(3)) return;
-        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, ore: 1 } : { power3: -3, power1: 3, ore: 1 }); GameClient.convertResource(gameId, '3power-to-1ore');
+        // [사용자] 타클론: O 클릭은 일반토큰 우선(useBrain=false) — 브레인을 광석에 낭비 않게(3P→1O는 브레인 써도 이득 없음).
+        //   브레인만 있고 일반토큰 부족하면 서버가 자동으로 브레인 폴백. 브레인을 굳이 쓰려면 🧠1B→1O 버튼 사용.
+        applyOptimistic(hasNevPI ? { power3: -2, power1: 2, ore: 1 } : { power3: -3, power1: 3, ore: 1 }); GameClient.convertResource(gameId, '3power-to-1ore', isTak ? false : undefined);
         if (hasNevPI) nevlasOreChainRef.current = { expectP3: (p.power3 ?? 0) - 2, expectOre: (p.ore ?? 0) + 1 };
         return;
       case 'credit':
