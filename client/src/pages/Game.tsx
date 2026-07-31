@@ -1136,6 +1136,26 @@ export default function Game() {
     GameClient.selectTechTile(gameId, techTileId, trackId, advanceToLevel5);
   };
 
+  // [사용자] FA 모드 종족 특수 프리액션 버튼 — 내 상태창 카드 '바깥 왼쪽'(데스크톱)에 fixed로 띄우려고
+  //  카드 DOM 위치를 추적한다. 훅은 반드시 조기 return 위에서 호출(로딩 중에도 동일 개수 유지).
+  const youCardRef = useRef<HTMLDivElement | null>(null);
+  const [faStripPos, setFaStripPos] = useState<{ top: number; left: number; height: number } | null>(null);
+  const trackFaStrip = freeActionMode && !isMobileViewport && isSidebarOpen;
+  useEffect(() => {
+    if (!trackFaStrip) { setFaStripPos((p) => (p === null ? p : null)); return; }
+    const update = () => {
+      const el = youCardRef.current;
+      if (!el) { setFaStripPos((p) => (p === null ? p : null)); return; }
+      const r = el.getBoundingClientRect();
+      setFaStripPos((prev) => (prev && Math.abs(prev.top - r.top) < 0.5 && Math.abs(prev.left - r.left) < 0.5 && Math.abs(prev.height - r.height) < 0.5) ? prev : { top: r.top, left: r.left, height: r.height });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true); // 사이드바 내부 스크롤도 캡처
+    const iv = window.setInterval(update, 250); // 카드 높이/자원 변동 폴백
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); window.clearInterval(iv); };
+  }, [trackFaStrip]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1450,10 +1470,7 @@ export default function Game() {
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
 
   // [사용자] FA 모드 종족 특수 프리액션을 내 상태창 카드 '바깥 왼쪽'(데스크톱)에 세로 버튼으로 띄운다.
-  //  카드 안에 넣으면 사이드바 overflow(overflow-y-auto→x auto)에 가려지므로, 내 카드의 실제 화면좌표를
-  //  getBoundingClientRect로 추적해 position:fixed로 카드 왼쪽에 그린다. (모바일은 카드 내부 버전 사용)
-  const youCardRef = useRef<HTMLDivElement | null>(null);
-  const [faStripPos, setFaStripPos] = useState<{ top: number; left: number; height: number } | null>(null);
+  //  (훅 자체는 조기 return 위에서 호출 — 아래는 game이 확정된 뒤라 non-hook 계산만 한다.)
   const youFaActs: { label: string; disabled: boolean; run: () => void }[] = (() => {
     const me = playerId ? (game.players[playerId] as PlayerState | undefined) : undefined;
     if (!me || !gameId) return [];
@@ -1473,20 +1490,6 @@ export default function Game() {
     return acts;
   })();
   const showYouFaStrip = freeActionMode && youFaActs.length > 0 && !isMobileViewport && isSidebarOpen;
-  useEffect(() => {
-    if (!showYouFaStrip) { setFaStripPos((p) => (p === null ? p : null)); return; }
-    const update = () => {
-      const el = youCardRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      setFaStripPos((prev) => (prev && Math.abs(prev.top - r.top) < 0.5 && Math.abs(prev.left - r.left) < 0.5 && Math.abs(prev.height - r.height) < 0.5) ? prev : { top: r.top, left: r.left, height: r.height });
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true); // 사이드바 내부 스크롤도 캡처
-    const iv = window.setInterval(update, 250); // 카드 높이/자원 변동 폴백
-    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); window.clearInterval(iv); };
-  }, [showYouFaStrip]);
 
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
