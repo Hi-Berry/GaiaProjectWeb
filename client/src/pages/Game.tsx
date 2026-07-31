@@ -2710,14 +2710,13 @@ export default function Game() {
         <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
           {(() => {
             const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main';
+            // [사용자] 못 쓸 땐 불투명(opacity-30) 대신 아예 숨김.
+            if (!canUseFreeActions) return null;
             return (
               <Button
                 variant={isFreeActionsOpen ? 'default' : 'outline'}
-                className="w-full justify-start md:justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-purple-500/40 text-purple-300 hover:bg-purple-500/20 disabled:opacity-30"
-                disabled={!canUseFreeActions}
-                onClick={() => {
-                  if (canUseFreeActions) setIsFreeActionsOpen(!isFreeActionsOpen);
-                }}
+                className="w-full justify-start md:justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-purple-500/40 text-purple-300 hover:bg-purple-500/20"
+                onClick={() => setIsFreeActionsOpen(!isFreeActionsOpen)}
               >
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-purple-500/30 border-purple-500/50 text-[8px]">F</Badge>
