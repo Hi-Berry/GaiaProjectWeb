@@ -2386,7 +2386,7 @@ export default function Game() {
       {isSpectator && typeof document !== 'undefined' && createPortal(
         <>
           {/* 데스크톱: 좌하단 상시 배너 */}
-          <div className="hidden md:flex fixed left-3 bottom-3 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold items-center gap-2 shadow-lg backdrop-blur-md">
+          <div className="hidden md:flex fixed left-3 bottom-44 z-[120] rounded-full border border-amber-300/40 bg-zinc-950/85 px-3 py-1.5 text-amber-200 text-xs font-bold items-center gap-2 shadow-lg backdrop-blur-md">
             <Eye className="w-3.5 h-3.5 shrink-0" />
             <span>관전 중</span>
             {isAdmin && (
@@ -2630,7 +2630,7 @@ export default function Game() {
             </Button>
           </div>
         )}
-        <div className="mt-auto md:mt-0 md:order-first flex flex-col justify-end pointer-events-none">
+        <div className="mt-auto flex flex-col justify-end pointer-events-none">
 
         {/* 왼쪽 하단 액션 버튼 토글 */}
         <div className="pointer-events-auto p-2 md:hidden bg-zinc-950/80 backdrop-blur w-fit rounded-tr-xl relative z-[100] mt-auto">
