@@ -1489,7 +1489,10 @@ export default function Game() {
         acts.push({ label: a.label, disabled: (me.credits ?? 0) < a.costCredits, run: () => GameClient.useHadschHallasPIAction(gameId, a.id) });
     return acts;
   })();
-  const showYouFaStrip = freeActionMode && youFaActs.length > 0 && !isMobileViewport && isSidebarOpen;
+  // 프리액션 Undo 스택 깊이(서버 브로드캐스트). Undo/Undo All 버튼 활성/비활성 판단용.
+  const faUndoDepth = ((game as unknown as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length) ?? 0;
+  // Undo/Undo All은 전종족 공통이라, 종족 특수 액션이 없어도 FA 모드면 스트립을 띄운다.
+  const showYouFaStrip = freeActionMode && !isMobileViewport && isSidebarOpen;
 
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
@@ -4577,6 +4580,26 @@ export default function Game() {
               {a.label}
             </button>
           ))}
+          {/* [사용자] 전종족 공통 Undo / Undo All — 이번 턴 프리액션을 한 단계 / 전부 되돌림 */}
+          {youFaActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
+          <button
+            type="button"
+            disabled={!isCurrentTurn || faUndoDepth === 0}
+            onClick={() => { if (!isCurrentTurn || faUndoDepth === 0 || !gameId) return; GameClient.undoFreeAction(gameId, 1); }}
+            title="프리액션 한 단계 되돌리기"
+            className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
+          >
+            ↩ Undo
+          </button>
+          <button
+            type="button"
+            disabled={!isCurrentTurn || faUndoDepth === 0}
+            onClick={() => { if (!isCurrentTurn || faUndoDepth === 0 || !gameId) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
+            title="이 턴의 프리액션 전부 되돌리기"
+            className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
+          >
+            ↩ Undo All
+          </button>
         </div>
       )}
 
