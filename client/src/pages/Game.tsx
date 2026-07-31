@@ -219,8 +219,13 @@ export default function Game() {
     window.addEventListener('info-overlay-layout-change', onChange);
     return () => window.removeEventListener('info-overlay-layout-change', onChange);
   }, []);
-  /** 모바일: 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글, 기본 숨김 */
-  const [isMapControlsOpen, setIsMapControlsOpen] = useState(false);
+  /** 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글. 모바일·데스크톱 공통, 기본 숨김(사용자: 항상 떠있는 게 보기 안 좋음). localStorage 기억 */
+  const [isMapControlsOpen, setIsMapControlsOpen] = useState(() => {
+    try { return localStorage.getItem('map-controls-open') === 'on'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('map-controls-open', isMapControlsOpen ? 'on' : 'off'); } catch { /* noop */ }
+  }, [isMapControlsOpen]);
   /** 플레이어 상세(클릭 시) 팝오버 배율 */
   const [playerDetailScale, setPlayerDetailScale] = useState<1 | 1.5 | 2>(() => {
     const v = parseFloat(localStorage.getItem('player-detail-scale') || '1');
@@ -1443,6 +1448,46 @@ export default function Game() {
   // boardgame.io doesn't always use currentPlayerIndex this way in custom setups, 
   // but we'll follow our server logic.
   const isCurrentTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+
+  // [사용자] FA 모드 종족 특수 프리액션을 내 상태창 카드 '바깥 왼쪽'(데스크톱)에 세로 버튼으로 띄운다.
+  //  카드 안에 넣으면 사이드바 overflow(overflow-y-auto→x auto)에 가려지므로, 내 카드의 실제 화면좌표를
+  //  getBoundingClientRect로 추적해 position:fixed로 카드 왼쪽에 그린다. (모바일은 카드 내부 버전 사용)
+  const youCardRef = useRef<HTMLDivElement | null>(null);
+  const [faStripPos, setFaStripPos] = useState<{ top: number; left: number; height: number } | null>(null);
+  const youFaActs: { label: string; disabled: boolean; run: () => void }[] = (() => {
+    const me = playerId ? (game.players[playerId] as PlayerState | undefined) : undefined;
+    if (!me || !gameId) return [];
+    const acts: { label: string; disabled: boolean; run: () => void }[] = [];
+    const hasPI = (pid: string) => !!game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === pid && t.structure === 'planetary_institute');
+    if (me.faction === 'taklons' && (me as any).brainStoneBowl === 3 && !(me as any).brainStoneInGaia)
+      acts.push({ label: '🧠1B→3C', disabled: false, run: () => GameClient.convertResource(gameId, '1brain-to-3credit') });
+    if (me.faction === 'nevlas' && hasPI(playerId!))
+      acts.push({ label: '1P→가이어+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
+    if (me.faction === 'bal_tak') {
+      const avail = (me.gaiaformers ?? 0) - ((me as any).balTakGaiaformersUsedForQic ?? 0);
+      acts.push({ label: '포머→1Q', disabled: avail < 1, run: () => GameClient.useBalTakGaiaformerToQic(gameId) });
+    }
+    if (me.faction === 'hadsch_hallas' && hasPI(playerId!))
+      for (const a of (((me as any).hadschHallasPIActions ?? []) as { id: string; costCredits: number; label: string }[]))
+        acts.push({ label: a.label, disabled: (me.credits ?? 0) < a.costCredits, run: () => GameClient.useHadschHallasPIAction(gameId, a.id) });
+    return acts;
+  })();
+  const showYouFaStrip = freeActionMode && youFaActs.length > 0 && !isMobileViewport && isSidebarOpen;
+  useEffect(() => {
+    if (!showYouFaStrip) { setFaStripPos((p) => (p === null ? p : null)); return; }
+    const update = () => {
+      const el = youCardRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setFaStripPos((prev) => (prev && Math.abs(prev.top - r.top) < 0.5 && Math.abs(prev.left - r.left) < 0.5 && Math.abs(prev.height - r.height) < 0.5) ? prev : { top: r.top, left: r.left, height: r.height });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true); // 사이드바 내부 스크롤도 캡처
+    const iv = window.setInterval(update, 250); // 카드 높이/자원 변동 폴백
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); window.clearInterval(iv); };
+  }, [showYouFaStrip]);
+
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
   // [의회 대기 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 선택)이 진행 중이면 다른 플레이어는 대기 —
@@ -4511,6 +4556,27 @@ export default function Game() {
 
       </main>
 
+      {/* [사용자] FA 모드 종족 특수 프리액션 — 내 상태창 카드 '바깥 왼쪽'에 떠있는 세로 버튼(데스크톱). 카드 DOM 위치를 추적해 fixed로 그림 */}
+      {showYouFaStrip && faStripPos && (
+        <div
+          style={{ position: 'fixed', top: faStripPos.top, left: faStripPos.left, height: faStripPos.height }}
+          className="z-[85] flex flex-col justify-center gap-1 pr-1 -translate-x-full"
+        >
+          {youFaActs.map((a, i) => (
+            <button
+              key={i}
+              type="button"
+              disabled={a.disabled || !isCurrentTurn}
+              onClick={() => { if (a.disabled || !isCurrentTurn) return; a.run(); }}
+              title="종족 특수 프리액션 (FA)"
+              className="text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Right Sidebar — 분할 모드(세로 Info)에선 하단-우측 사분면(top-1/2 ~ bottom-0) */}
       <div
         className={`
@@ -4771,6 +4837,7 @@ export default function Game() {
                 return (
                   <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
                     <div
+                      ref={isYou ? youCardRef : undefined}
                       onMouseEnter={() => setHoveredPlayerId(id)}
                       onMouseLeave={() => setHoveredPlayerId(null)}
                       className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
@@ -4817,7 +4884,8 @@ export default function Game() {
                                 acts.push({ label: a.label, disabled: (p.credits ?? 0) < a.costCredits, run: () => gameId && GameClient.useHadschHallasPIAction(gameId, a.id) });
                             if (!acts.length) return null;
                             return (
-                              <div className="flex flex-col justify-center gap-1 p-1 border-r border-amber-400/25 bg-amber-500/5 shrink-0">
+                              // 데스크톱은 카드 '바깥 왼쪽' fixed 스트립(youFaActs)을 쓰므로 카드 내부 버전은 모바일만
+                              <div className="md:hidden flex flex-col justify-center gap-1 p-1 border-r border-amber-400/25 bg-amber-500/5 shrink-0">
                                 {acts.map((a, i) => (
                                   <button key={i} type="button" disabled={a.disabled || !isCurrentTurn}
                                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); if (a.disabled || !isCurrentTurn) return; a.run(); }}

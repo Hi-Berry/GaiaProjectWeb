@@ -1621,13 +1621,13 @@ export function GameBoard({
             );
           })()}
 
-          {/* 모바일: 메뉴 토글 + 컨트롤을 한 세로줄로 — 토글(맨 위, 상시)만 보이고 누르면 아래로 펼침. 버튼 1개로 여닫기(사용자 요청). 데스크톱은 토글 숨김·컨트롤 상시 */}
+          {/* 메뉴 토글 + 컨트롤을 한 세로줄로 — 토글(맨 위, 상시)만 보이고 누르면 아래로 펼침. 버튼 1개로 여닫기. [사용자] 데스크톱도 항상 떠있는 게 보기 안 좋다 → 모바일처럼 접이식으로 통일 */}
           <div className="flex flex-col gap-2 items-end">
           {onToggleMobileControls && (
             <Button
               size="icon"
               variant="secondary"
-              className="md:hidden rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
+              className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
               onClick={onToggleMobileControls}
               aria-label={mobileControlsOpen ? '맵 컨트롤 닫기' : '맵 컨트롤 열기'}
               title="맵 컨트롤 (상태창·배율·줌) 열기/닫기"
@@ -1636,8 +1636,8 @@ export function GameBoard({
             </Button>
           )}
 
-          {/* 줌·격자·도움말 등 — 모바일은 위 토글로 열고 닫음(기본 닫힘), 데스크톱은 항상 표시 */}
-          <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden md:flex'}`}>
+          {/* 줌·격자·도움말 등 — 모바일·데스크톱 공통으로 위 토글로 열고 닫음(기본 닫힘) */}
+          <div className={`flex-col gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden'}`}>
             {onToggleSidebar && (
               <Button
                 size="icon"
