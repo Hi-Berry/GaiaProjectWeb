@@ -2630,7 +2630,7 @@ export default function Game() {
             </Button>
           </div>
         )}
-        <div className="mt-auto flex flex-col justify-end pointer-events-none">
+        <div className="mt-auto md:mt-0 flex flex-col justify-end pointer-events-none">
 
         {/* 왼쪽 하단 액션 버튼 토글 */}
         <div className="pointer-events-auto p-2 md:hidden bg-zinc-950/80 backdrop-blur w-fit rounded-tr-xl relative z-[100] mt-auto">
