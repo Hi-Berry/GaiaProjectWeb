@@ -4795,6 +4795,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const stack = game.freeActionUndoStack;
 			if (!stack.length) return;
 
+			// [진단 2026-07-31] 타클론 브레인/파워 되돌리기 버그 추적용 — 복원 전 라이브 상태 캡처(브레인이면).
+			const _diagLive = (() => {
+				const lp = game.players[playerId];
+				if (!lp || lp.faction !== 'taklons') return null;
+				return { bowl: (lp as any).brainStoneBowl, gaia: (lp as any).brainStoneInGaia, p1: lp.power1, p2: lp.power2, p3: lp.power3 };
+			})();
+
 			try {
 				const currentTurnStartState = game.turnStartState ? deepClone(game.turnStartState) : undefined;
 				const currentPrevTurnStartState = game.prevTurnStartState ? deepClone(game.prevTurnStartState) : undefined;
@@ -4840,6 +4847,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 				games.set(gameId, restoredGame);
 				const player = restoredGame.players[playerId];
 				log(`Player ${player?.name} undone free actions (${popCount} step)`, 'game', undefined, { simulation: (game as any).simulation });
+				// [진단 2026-07-31] 타클론이면 되돌리기 전(라이브)→후(복원) 브레인/파워 비교 로그.
+				if (_diagLive && player) {
+					log(`[BRAIN-UNDO-DIAG] live→restored | live{bowl=${_diagLive.bowl} gaia=${_diagLive.gaia} p1=${_diagLive.p1} p2=${_diagLive.p2} p3=${_diagLive.p3}} restored{bowl=${(player as any).brainStoneBowl} gaia=${(player as any).brainStoneInGaia} p1=${player.power1} p2=${player.power2} p3=${player.power3}}`, 'game', undefined, { simulation: (game as any).simulation });
+				}
 				addGameLog(restoredGame, playerId, 'Undo Free Action', `Reverted ${popCount} free action step(s)`);
 				io.to(gameId).emit('game_updated', restoredGame);
 			} catch (err) {
