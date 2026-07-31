@@ -773,9 +773,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
                                                 title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
                                             >
-                                                {/* [사용자] '사용됨' 표시: 검은 오버레이가 색을 덮던 것 → 옅게 + 사용자 색 틴트로 누군지 한눈에. */}
-                                                {action.isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                {action.isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                {/* [사용자] '사용됨' 표시: 어둡게 덮되 사용자 색 안쪽 테두리+코너 점으로 누군지 표시 (전체 색 틴트는 하얗게 떠 보여 폐지). */}
+                                                {action.isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
+                                                {action.isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${usedByColor}` }} />}
                                                 {usedByColor && <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />}
                                             </button>
                                         );
@@ -930,8 +930,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
                                                                     title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                                 >
-                                                                    {isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                                    {isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                                    {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
+                                                                    {isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${usedByColor}` }} />}
                                                                     {usedByColor && (
                                                                         <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
                                                                     )}
@@ -1409,9 +1409,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
                                                 title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
                                             >
-                                                {/* [사용자] '사용됨' 표시: 오버레이 옅게 + 사용자 색 틴트로 누군지 한눈에. */}
-                                                {action.isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                {action.isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                {/* [사용자] '사용됨' 표시: 어둡게 덮되 사용자 색 안쪽 테두리+코너 점으로 누군지 표시. */}
+                                                {action.isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
+                                                {action.isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${usedByColor}` }} />}
                                                 {usedByColor && <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />}
                                             </button>
                                         );
@@ -1578,8 +1578,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                             className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
                                                                             title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                                         >
-                                                                            {isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                                            {isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                                            {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
+                                                                            {isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${usedByColor}` }} />}
                                                                             {usedByColor && (
                                                                                 <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
                                                                             )}

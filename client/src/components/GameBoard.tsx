@@ -1964,10 +1964,10 @@ export function GameBoard({
                                     className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-blue-400/25' : 'cursor-default'}`}
                                     title={actionLabels[idx] + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : '')}
                                   >
-                                    {/* [사용자] '사용됨' 표시: 검은 오버레이가 색을 덮어 안 보이던 것 → 오버레이 옅게 + 사용자 색 틴트로 누군지 한눈에. */}
-                                    {isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
+                                    {/* [사용자] '사용됨' 표시: 어둡게 덮되 사용자 색 안쪽 테두리+코너 점으로 누군지 표시 (전체 색 틴트는 하얗게 떠 보여 폐지). */}
+                                    {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                     {isUsed && usedByColor && (
-                                      <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />
+                                      <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${usedByColor}` }} />
                                     )}
                                     {usedByColor && (
                                       <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
@@ -2044,10 +2044,10 @@ export function GameBoard({
                                     className="relative h-full border-r last:border-r-0 border-black/30"
                                     title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : ' (사용 가능)')}
                                   >
-                                    {/* [사용자] '사용됨' 표시: 검은 오버레이가 색을 덮어 안 보이던 것 → 오버레이 옅게 + 사용자 색 틴트로 누군지 한눈에. */}
-                                    {isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
+                                    {/* [사용자] '사용됨' 표시: 어둡게 덮되 사용자 색 안쪽 테두리+코너 점으로 누군지 표시 (전체 색 틴트는 하얗게 떠 보여 폐지). */}
+                                    {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                     {isUsed && usedByColor && (
-                                      <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />
+                                      <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${usedByColor}` }} />
                                     )}
                                     {usedByColor && (
                                       <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
