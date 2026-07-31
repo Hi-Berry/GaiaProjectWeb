@@ -3381,6 +3381,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				log(`Start game: Entering factionBidding phase.`, 'game', undefined, { simulation: (game as any).simulation });
 				FactionBidding.initFactionBiddingPhase(game, io, biddingDeps);
 				computeTwoExpansionDraw(game);
+				freezeSingleExpansionThreeStep(game); // 단일 확장종족도 비딩 시작 시 3삽 확정(랜덤 보충 문구 방지)
 			} else if (allHaveFaction) {
 				game.currentPhase = 'startingMines';
 				log(`Start game: All factions selected. Resuming startingMines phase.`, 'game', undefined, { simulation: (game as any).simulation });
@@ -6987,6 +6988,32 @@ export function executeUpgradeStructure(
 // [룰 2026-07-27 사용자] 모웨+팅커 공존 시 3삽 = 고정 2개(일반 종족들 홈, 두 종족 공유) + 추첨 2개(A/B).
 //   추첨은 남은 HOME_PLANETS에서 랜덤 2개, 한 번만 뽑아 저장(비딩 표기·finalize 배정 동일값). 턴 앞(selectedTurnOrder 작은)=A, 뒷턴=B.
 //   일반 종족 전원 배정돼야 고정이 확정되므로 그 시점에 추첨(멱등).
+/** 확장 3삽: 단일 확장종족(모웨 또는 팅커 하나만)일 때, 비딩 시작 시점에 '랜덤 보충분'까지 확정해 저장한다.
+ *  비딩 UI에서 '(+랜덤 보충)' 문구 없이 실제 3개를 바로 보여주고, 이후 배정 확정 시 재랜덤되지 않도록 하기 위함(사용자). */
+function freezeSingleExpansionThreeStep(game: ServerGameState): void {
+	const players = Object.values(game.players);
+	const total = players.length;
+	const assignedFacs = players.map(pl => pl.faction).filter((f): f is string => !!f);
+	const poolFacs = game.factionBidding?.remainingFactionIds ?? [];
+	const allFacs = Array.from(new Set([...assignedFacs, ...poolFacs]));
+	if (allFacs.length < total) return; // 종족 풀 미확정이면 대기
+	const hasMowe = allFacs.includes('moweyip');
+	const hasTink = allFacs.includes('tinkeroids');
+	if (hasMowe && hasTink) return; // 두 확장종족 공존은 computeTwoExpansionDraw가 담당
+	const otherHomes = (excludeFac: string) => allFacs
+		.filter(f => f !== excludeFac)
+		.map(f => FACTIONS.find(x => x.id === f)?.homePlanet)
+		.filter((h): h is import('@shared/gameConfig').PlanetType => !!h && HOME_PLANETS.includes(h));
+	if (hasMowe && !game.moweyipThreeStepPlanets) {
+		game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes('moweyip'));
+		log(`Moweyip expansion(bidding freeze): 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+	if (hasTink && !game.tinkeroidsThreeStepPlanets) {
+		game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes('tinkeroids'));
+		log(`Tinkeroids expansion(bidding freeze): 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
+	}
+}
+
 function computeTwoExpansionDraw(game: ServerGameState): void {
 	if ((game as any).expansionTwoFactionDraw) return;
 	const players = Object.values(game.players);
@@ -7033,7 +7060,8 @@ function applyMoweyipTinkeroidsExpansionPlanets(game: ServerGameState): void {
 			.filter(p => p.faction && p.faction !== 'moweyip')
 			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
 			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
-		game.moweyipThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+		// 비딩 시작 시 이미 확정(freeze)했으면 그대로 사용 — 재랜덤 방지(사용자)
+		game.moweyipThreeStepPlanets = game.moweyipThreeStepPlanets ?? computeExpansionThreeStepPlanets(otherHomes);
 		log(`Moweyip expansion: 3-step planets = ${game.moweyipThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 	if (tinkeroidsPlayer) {
@@ -7041,7 +7069,8 @@ function applyMoweyipTinkeroidsExpansionPlanets(game: ServerGameState): void {
 			.filter(p => p.faction && p.faction !== 'tinkeroids')
 			.map(p => FACTIONS.find(f => f.id === p.faction)?.homePlanet)
 			.filter((h): h is import('@shared/gameConfig').PlanetType => h != null && HOME_PLANETS.includes(h));
-		game.tinkeroidsThreeStepPlanets = computeExpansionThreeStepPlanets(otherHomes);
+		// 비딩 시작 시 이미 확정(freeze)했으면 그대로 사용 — 재랜덤 방지(사용자)
+		game.tinkeroidsThreeStepPlanets = game.tinkeroidsThreeStepPlanets ?? computeExpansionThreeStepPlanets(otherHomes);
 		log(`Tinkeroids expansion: 3-step planets = ${game.tinkeroidsThreeStepPlanets.join(', ')}`, 'game', undefined, { simulation: (game as any).simulation });
 	}
 }
