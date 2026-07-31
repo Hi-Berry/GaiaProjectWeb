@@ -1498,8 +1498,11 @@ export default function Game() {
   })();
   // 프리액션 Undo 스택 깊이(서버 브로드캐스트). Undo/Undo All 버튼 활성/비활성 판단용.
   const faUndoDepth = ((game as unknown as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length) ?? 0;
-  // Undo/Undo All은 전종족 공통이라, 종족 특수 액션이 없어도 FA 모드면 스트립을 띄운다.
-  const showYouFaStrip = freeActionMode && !isMobileViewport && isSidebarOpen;
+  // [사용자] 불가능한 버튼은 아예 숨김(불투명하게 자리 차지 방지) — 지금 실제로 누를 수 있는 것만 표시.
+  const faVisibleActs = isCurrentTurn ? youFaActs.filter(a => !a.disabled) : [];
+  const faShowUndo = isCurrentTurn && faUndoDepth > 0;
+  // FA 모드 + 표시할 게 있을 때만 스트립을 띄운다(빈 스트립 미표시).
+  const showYouFaStrip = freeActionMode && !isMobileViewport && isSidebarOpen && (faVisibleActs.length > 0 || faShowUndo);
 
   const pendingTurnEndPlayerId = game.pendingTurnEndPlayerId;
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
@@ -4576,38 +4579,39 @@ export default function Game() {
           style={{ position: 'fixed', top: faStripPos.top, left: faStripPos.left, height: faStripPos.height }}
           className="z-[85] flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none"
         >
-          {youFaActs.map((a, i) => (
+          {faVisibleActs.map((a, i) => (
             <button
               key={i}
               type="button"
-              disabled={a.disabled || !isCurrentTurn}
-              onClick={() => { if (a.disabled || !isCurrentTurn) return; a.run(); }}
+              onClick={() => { if (!isCurrentTurn || !gameId) return; a.run(); }}
               title="종족 특수 프리액션 (FA)"
-              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
+              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
             >
               {a.label}
             </button>
           ))}
-          {/* [사용자] 전종족 공통 Undo / Undo All — 이번 턴 프리액션을 한 단계 / 전부 되돌림 */}
-          {youFaActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
-          <button
-            type="button"
-            disabled={!isCurrentTurn || faUndoDepth === 0}
-            onClick={() => { if (!isCurrentTurn || faUndoDepth === 0 || !gameId) return; GameClient.undoFreeAction(gameId, 1); }}
-            title="프리액션 한 단계 되돌리기"
-            className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
-          >
-            ↩ Undo
-          </button>
-          <button
-            type="button"
-            disabled={!isCurrentTurn || faUndoDepth === 0}
-            onClick={() => { if (!isCurrentTurn || faUndoDepth === 0 || !gameId) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
-            title="이 턴의 프리액션 전부 되돌리기"
-            className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 disabled:opacity-30 disabled:cursor-not-allowed leading-none whitespace-nowrap shadow-lg backdrop-blur"
-          >
-            ↩ Undo All
-          </button>
+          {/* [사용자] 전종족 공통 Undo / Undo All — 되돌릴 게 있을 때만 표시(불가능시 숨김) */}
+          {faShowUndo && faVisibleActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
+          {faShowUndo && (
+            <button
+              type="button"
+              onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, 1); }}
+              title="프리액션 한 단계 되돌리기"
+              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+            >
+              ↩ Undo
+            </button>
+          )}
+          {faShowUndo && (
+            <button
+              type="button"
+              onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
+              title="이 턴의 프리액션 전부 되돌리기"
+              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+            >
+              ↩ Undo All
+            </button>
+          )}
         </div>
       )}
 
