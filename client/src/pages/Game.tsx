@@ -1491,7 +1491,8 @@ export default function Game() {
       acts.push({ label: '🧠1B+1P→1K', disabled: reg3 < 1, run: () => GameClient.convertResource(gameId, '4power-to-1knowledge', true) });
       acts.push({ label: '🧠1B+1P→1Q', disabled: reg3 < 1, run: () => GameClient.convertResource(gameId, '4power-to-1qic', true) });
     }
-    if (me.faction === 'nevlas' && hasPI(playerId!))
+    // [버그수정 2026-07-31 사용자] 네뷸라 1P→가이어+1K는 PI 불필요(기본 능력) — 서버·FreeActionsDialog와 동일하게 faction만 체크.
+    if (me.faction === 'nevlas')
       acts.push({ label: '1P→가이어+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
     if (me.faction === 'bal_tak') {
       const avail = (me.gaiaformers ?? 0) - ((me as any).balTakGaiaformersUsedForQic ?? 0);
