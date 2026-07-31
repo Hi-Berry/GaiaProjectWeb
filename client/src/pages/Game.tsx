@@ -4519,7 +4519,7 @@ export default function Game() {
         transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         ${splitActive
-          ? `fixed right-0 left-auto bottom-0 ${mobileZoomPanel === 'status' ? 'top-0' : 'top-1/2'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} translate-x-0 opacity-100 border-t`
+          ? `fixed right-0 left-auto ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} translate-x-0 opacity-100 border-t`
           : `${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'} right-0 top-0 bottom-0 max-w-[85vw] md:max-w-none relative`
         }
       `}
@@ -5762,7 +5762,7 @@ export default function Game() {
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && isLogPanelOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] pt-[22px] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `right-0 bottom-0 ${mobileZoomPanel === 'status' ? 'top-0' : 'top-1/2'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          className={`md:hidden fixed z-[110] pt-[22px] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
           style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
         >
           <div
@@ -5796,7 +5796,7 @@ export default function Game() {
           세로(portrait)에선 상시 표시(infoEffectivelyOpen), 가로(landscape)에선 i 버튼 토글. */}
       {isMobileViewport && infoEffectivelyOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `left-0 bottom-0 ${mobileZoomPanel === 'info' ? 'top-0' : 'top-1/2'} ${mobileZoomPanel === 'status' ? 'hidden' : ''} border-t border-r border-border` : 'top-0 bottom-0 left-0 border-r border-border'}`}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `left-0 ${mobileZoomPanel === 'info' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'status' ? 'hidden' : ''} border-t border-r border-border` : 'top-0 bottom-0 left-0 border-r border-border'}`}
           style={{ width: infoEffectiveWidth }}
         >
           {/* 헤더 + (가로 모드일 때만) 페이지 인디케이터 */}
