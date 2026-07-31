@@ -1476,8 +1476,11 @@ export default function Game() {
     if (!me || !gameId) return [];
     const acts: { label: string; disabled: boolean; run: () => void }[] = [];
     const hasPI = (pid: string) => !!game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === pid && t.structure === 'planetary_institute');
-    if (me.faction === 'taklons' && (me as any).brainStoneBowl === 3 && !(me as any).brainStoneInGaia)
+    if (me.faction === 'taklons' && (me as any).brainStoneBowl === 3 && !(me as any).brainStoneInGaia) {
       acts.push({ label: '🧠1B→3C', disabled: false, run: () => GameClient.convertResource(gameId, '1brain-to-3credit') });
+      // 브레인(3파워)을 3P→1O에 사용(useBrain=true로 일반토큰 대신 브레인 소비 강제)
+      acts.push({ label: '🧠1B→1O', disabled: false, run: () => GameClient.convertResource(gameId, '3power-to-1ore', true) });
+    }
     if (me.faction === 'nevlas' && hasPI(playerId!))
       acts.push({ label: '1P→가이어+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
     if (me.faction === 'bal_tak') {
