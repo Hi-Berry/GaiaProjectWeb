@@ -792,6 +792,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const usedIndices = ship.usedActionIndices ?? [];
                                         const shipFedId = game.spaceshipFederationByShip?.[tile.type];
                                         const shipFedTaken = shipFedId && Object.values(game.players).some((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId));
+                                        // [사용자 2026-08-01] 연방/기술타일도 hover 설명 + 누가 가져갔는지 표시 (관전 시 파악용)
+                                        const shipFedLabelMini = shipFedId ? SPACESHIP_FEDERATION_REWARDS.find(r => r.id === shipFedId)?.label : undefined;
+                                        const shipFedTakerName = shipFedId ? Object.values(game.players).find((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId))?.name : undefined;
                                         const rewardIndex = shipFedId != null ? SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId) : -1;
                                         const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
                                         const techId = game.shipTechByShip?.[tile.type] ?? SHIP_TECH_BY_SHIP[tile.type];
@@ -840,8 +843,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 </div>
 
                                                 <div className="flex items-center justify-center gap-1 py-1 flex-grow">
-                                                    {/* Federation Reward (Reduced to 80%) */}
-                                                    <div className="w-[35px] h-[35px] shrink-0 flex items-center justify-center">
+                                                    {/* Federation Reward (Reduced to 80%) — hover: 설명 + 획득자 */}
+                                                    <div
+                                                        className="w-[35px] h-[35px] shrink-0 flex items-center justify-center cursor-help"
+                                                        title={shipFedLabelMini
+                                                            ? `우주선 연방 보상: ${shipFedLabelMini}${shipFedTaken ? ` — ${shipFedTakerName ?? '?'} 획득` : ''}`
+                                                            : undefined}
+                                                    >
                                                         {shipFedTaken ? (
                                                             <div className="w-full h-full flex items-center justify-center">
                                                                 <span className="text-[7px] text-zinc-500 italic">Taken</span>
@@ -881,8 +889,12 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             </div>
                                                         ) : (
                                                             techTile && (
-                                                                <div 
-                                                    className={`w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-[0_0_10px_rgba(234,179,8,0.2)]' : ''}`}
+                                                                <div
+                                                    className={`w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-[0_0_10px_rgba(234,179,8,0.2)]' : 'cursor-help'}`}
+                                                    title={(() => {
+                                                        const takers = Object.values(game.players).filter((p) => (p.techTiles ?? []).includes(techTile.id)).map((p) => p.name);
+                                                        return `${techTile.label}: ${techTile.description}${takers.length ? ` — 획득: ${takers.join(', ')}` : ''}`;
+                                                    })()}
                                                     onClick={(e) => {
                                                         if (pendingTech && onSelectTechTile) {
                                                             e.stopPropagation();
@@ -1435,6 +1447,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             const shipFedId = byShip[tile.type];
                                             const shipFedTaken = shipFedId && Object.values(game.players).some((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId));
                                             const shipFedLabel = shipFedId ? SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === shipFedId)?.label : null;
+                                            const shipFedTakerName = shipFedId ? Object.values(game.players).find((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId))?.name : undefined;
 
                                             return (
                                                 <div key={tile.id} className={`bg-zinc-900/60 rounded-lg border p-2 space-y-2 ${isInShip ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-white/10'}`}>
@@ -1452,7 +1465,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     <div className="flex items-center gap-2 py-1">
                                                                         <span className="text-[11px] text-zinc-400 font-semibold shrink-0">보상:</span>
                                                                         {shipFedTaken ? (
-                                                                            <span className="text-zinc-500 italic text-[11px]">획득됨</span>
+                                                                            <span className="text-zinc-500 italic text-[11px] cursor-help" title={shipFedLabel ? `우주선 연방 보상: ${shipFedLabel}` : undefined}>
+                                                                                획득됨{shipFedTakerName ? ` — ${shipFedTakerName}` : ''}
+                                                                            </span>
                                                                         ) : imgUrl ? (
                                                                             <img
                                                                                 src={imgUrl}
