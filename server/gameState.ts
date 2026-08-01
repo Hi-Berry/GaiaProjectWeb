@@ -1443,6 +1443,7 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 	if (game.pendingEclipseAsteroidMine?.playerId === playerId) game.pendingEclipseAsteroidMine = null;
 	if (game.pendingTechTileSelection?.playerId === playerId) game.pendingTechTileSelection = null;
 	if (game.pendingEclipseResearch?.playerId === playerId) game.pendingEclipseResearch = null; // [2026-07-05] 미처리 pending 감사에서 발견
+	if (game.pendingTwilightFederation?.playerId === playerId) game.pendingTwilightFederation = null; // [2026-08-01] end_turn 가드 추가에 맞춘 안전망
 	if (game.pendingFederationReward?.playerId === playerId) game.pendingFederationReward = null;
 	if (player) player.pendingTerraformSteps = 0;
 	game.hasDoneMainAction = false;
@@ -4594,12 +4595,23 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (game.pendingTurnEndPlayerId === playerId) return;
+			if (game.pendingTurnEndPlayerId === playerId) { socket.emit('game_error', { message: '파워 수락 대기 중에는 리셋할 수 없습니다.' }); return; }
 			// 현재 턴 플레이어만 자기 턴 시작 스냅샷으로 복구 (다른 소켓/착오 방지)
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [사용자 2026-08-01 제보 "6C 액션+프리액션 후 Reset"] 이클립스 6C/2K+3P 대기는 '내 턴의 내 보류'라
+			// 전체 복원이 비용(6C/2K+3P)까지 정확히 되돌린다 → 리셋 허용. 기존엔 councilPendingActive에 묶여
+			// 조용히 무시됐고(무반응), 사용자는 리셋된 줄 알고 이어가다 상태가 꼬였다. 아이타/테란/팅커 의회 등
+			// 다른 플레이어와 얽힌 대기는 기존대로 차단하되 이유를 토스트로 안내.
+			const councilBlockedNonEclipse = !!(game.pendingItarsGaiaformerExchange || game.pendingTerranCouncilBenefit
+				|| (game as any).pendingTinkeroidSpecialChoice
+				|| (game.terranCouncilQueue?.length ?? 0) > 0
+				|| ((game as any).terranCouncilQueueAfterItars?.length ?? 0) > 0
+				|| ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange')
+				|| (game.pendingEclipseAsteroidMine && game.pendingEclipseAsteroidMine.playerId !== playerId)
+				|| (game.pendingEclipseResearch && game.pendingEclipseResearch.playerId !== playerId));
+			if (councilBlockedNonEclipse) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회 등)이 처리 중이라 지금은 리셋할 수 없습니다.' }); return; }
 			const startState = game.turnStartState?.[playerId];
-			if (!startState) return;
+			if (!startState) { socket.emit('game_error', { message: '이 턴의 시작 스냅샷이 없어 리셋할 수 없습니다.' }); return; }
 			if (startState.playerId && startState.playerId !== playerId) return;
 			if (typeof startState.roundNumber === 'number' && startState.roundNumber !== game.roundNumber) return;
 			if (typeof startState.currentPlayerIndex === 'number' && startState.currentPlayerIndex !== game.currentPlayerIndex) return;
@@ -5700,6 +5712,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			if (game.pendingLostPlanet?.playerId === playerId) {
 				socket.emit('game_error', { message: '검은 행성을 배치해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			// [사용자 2026-08-01 제보 "액션 후 턴이 넘어감"] 이클립스 2K+3P(트랙 선택)·트왈라잇 3QIC(연방 보상)는
+			// hasDoneMainAction=true 상태로 보류가 남는데 end_turn 가드에 빠져 있어 — 선택을 안 하고 턴 종료하면
+			// 지불한 비용째 증발 + pending이 남아 councilPendingActive가 게임 전체를 잠갔다. 해소 전 턴 종료 차단.
+			if (game.pendingEclipseResearch?.playerId === playerId) {
+				socket.emit('game_error', { message: '이클립스 연구 트랙을 선택(또는 취소)해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			if (game.pendingEclipseAsteroidMine?.playerId === playerId) {
+				socket.emit('game_error', { message: '소행성을 선택(또는 취소)해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			if (game.pendingTwilightFederation?.playerId === playerId) {
+				socket.emit('game_error', { message: '연방 보상을 선택해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
 			if (!game.hasDoneMainAction) {
@@ -8804,6 +8831,10 @@ export function executeEndTurn(
 	if (game.pendingSpaceshipFedMine?.playerId === playerId) return false;
 	if (game.pendingShipTechMine?.playerId === playerId) return false;
 	if (game.pendingLostPlanet?.playerId === playerId) return false;
+	// [사용자 2026-08-01] 이클립스/트왈라잇 보류도 해소 전 턴 종료 차단 (소켓 end_turn과 동일 — 비용 지불 후 미선택 증발 방지)
+	if (game.pendingEclipseResearch?.playerId === playerId) return false;
+	if (game.pendingEclipseAsteroidMine?.playerId === playerId) return false;
+	if (game.pendingTwilightFederation?.playerId === playerId) return false;
 
 	const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
 	const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
