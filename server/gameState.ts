@@ -9557,13 +9557,14 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	if (entered.includes(tileId)) return '이미 이 우주선에 입장했습니다.';
 
 	// 거리 체크: 플레이어 건물에서 우주선 타일까지 (첫 입장도 동일)
+	// [증발 버그수정 2026-08-01] +3 사거리/글린즈 +2 보너스를 검증 '전에' 소모하던 것 → 아래 모든 검증
+	// 통과 후에만 소모 (예전엔 QIC/VP/토큰 부족으로 입장 거부돼도 보너스만 날아감 — 가이아포머 배치와 동일 부류)
 	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
 	if (player.tempRangeBonus) baseRange += 3;
-	if (useRangeBonus && player.rangeBonusActive) {
-		baseRange += 3;
-		player.rangeBonusActive = false;
-	}
-	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	const usingRangeBonus = !!(useRangeBonus && player.rangeBonusActive);
+	if (usingRangeBonus) baseRange += 3;
+	const usingGleensBonus = !!player.gleensNavBonusActive;
+	if (usingGleensBonus) baseRange += 2;
 	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
 	if (rangeTiles.length === 0) return '거리 계산을 위한 시작 지점이 없습니다.';
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
@@ -9586,6 +9587,9 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 		return '타클론: 브레인 스톤이 가이아 영역에 있어 이번 라운드에는 우주선에 입장할 수 없습니다.';
 	}
 
+	// ---- 여기부터 성공 확정: 보너스 플래그 소모 + 자원 차감 ----
+	if (usingRangeBonus) player.rangeBonusActive = false;
+	if (usingGleensBonus) player.gleensNavBonusActive = false;
 	player.qic = (player.qic || 0) - useQic; const scoreBefore = player.score ?? 0;
 	addScore(game, playerId, -entryCost, 'other', { source: '우주선 입장' });
 
