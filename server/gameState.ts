@@ -9641,10 +9641,13 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 
 	if (getEffectiveGaiaformers(player) <= 0) return false;
 
+	// [토큰 증발 버그수정 2026-08-01, 사용자 제보 "Reset하면 토큰이 사라져"] 예전 순서: QIC 차감 → 그릇1→2→3
+	// 토큰 차감 → '부족하면 return false' — 실패해도 이미 뺀 QIC/토큰이 복구되지 않고 증발했고, +3사거리
+	// 보너스도 검증 전에 소모됐다. 모든 검증을 차감 '앞'으로, 보너스 플래그 소모는 성공 확정 후로 재배치.
 	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	if (player.tempRangeBonus) baseRange += 3;
+	if (player.rangeBonusActive) baseRange += 3;
+	if (player.gleensNavBonusActive) baseRange += 2;
 	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
 	if (rangeTiles.length === 0) return false;
 
@@ -9654,8 +9657,6 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	const qicToUse = qicUsed || 0;
 	if (qicToUse < neededQIC) return false;
 	if (player.qic < qicToUse) return false;
-
-	player.qic -= qicToUse;
 
 	const gaiaLevel = player.research.gaiaProject || 0;
 	let powerToMove = 0;
@@ -9671,21 +9672,29 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 		else if (gaiaLevel >= 3 && gaiaLevel < 4) powerToMove = 4;
 		else if (gaiaLevel >= 4) powerToMove = 3;
 		else return false;
+		// 총 보유 토큰 검증을 차감 전에 완료
+		if (((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0)) < powerToMove) return false;
+	}
 
+	// ---- 여기부터 성공 확정: 자원 차감/플래그 소모 ----
+	if (player.tempRangeBonus) player.tempRangeBonus = false;
+	if (player.rangeBonusActive) player.rangeBonusActive = false;
+	if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
+	player.qic -= qicToUse;
+
+	if (!immediateBuildable) {
 		let remaining = powerToMove;
-		let movedFrom1 = Math.min(remaining, player.power1 || 0);
+		const movedFrom1 = Math.min(remaining, player.power1 || 0);
 		player.power1 = (player.power1 || 0) - movedFrom1;
 		remaining -= movedFrom1;
 
-		let movedFrom2 = Math.min(remaining, player.power2 || 0);
+		const movedFrom2 = Math.min(remaining, player.power2 || 0);
 		player.power2 = (player.power2 || 0) - movedFrom2;
 		remaining -= movedFrom2;
 
-		let movedFrom3 = Math.min(remaining, player.power3 || 0);
+		const movedFrom3 = Math.min(remaining, player.power3 || 0);
 		player.power3 = (player.power3 || 0) - movedFrom3;
 		remaining -= movedFrom3;
-
-		if (remaining > 0) return false;
 
 		player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
 	}
