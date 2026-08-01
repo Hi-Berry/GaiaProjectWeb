@@ -891,10 +891,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             techTile && (
                                                                 <div
                                                     className={`w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-[0_0_10px_rgba(234,179,8,0.2)]' : 'cursor-help'}`}
-                                                    title={(() => {
-                                                        const takers = Object.values(game.players).filter((p) => (p.techTiles ?? []).includes(techTile.id)).map((p) => p.name);
-                                                        return `${techTile.label}: ${techTile.description}${takers.length ? ` — 획득: ${takers.join(', ')}` : ''}`;
-                                                    })()}
+                                                    title={`${techTile.label}: ${techTile.description}`}
                                                     onClick={(e) => {
                                                         if (pendingTech && onSelectTechTile) {
                                                             e.stopPropagation();
