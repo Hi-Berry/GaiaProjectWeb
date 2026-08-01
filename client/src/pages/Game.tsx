@@ -2533,7 +2533,8 @@ export default function Game() {
       )}
 
       {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
-      <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
+      {/* [사용자 2026-08-01] 의회/수입/파워 대기 배너가 미니뷰(z-110)에 가려짐 — 배너 떠 있는 동안만 사이드바를 위(z-135)로 */}
+      <div className={`absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col ${(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) ? 'z-[135]' : 'z-[50]'} pointer-events-none *:pointer-events-auto`}>
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
           {councilPendingInfo && (
