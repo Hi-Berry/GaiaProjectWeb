@@ -512,6 +512,8 @@ export default function Game() {
   const researchDragControls = useDragControls();
   const bonusDragControls = useDragControls();
   const [showGameEndScore, setShowGameEndScore] = useState(false);
+  // 결과창 탭 상태 — GameEndScoreModal이 일반 함수라(인라인 컴포넌트 재마운트 버그 회피) 부모에 둔다
+  const [scoreTab, setScoreTab] = useState<string>('__overview__');
   const [isAdminModeOpen, setIsAdminModeOpen] = useState(false);
   // 관리자 해금(Ctrl+Alt+A) 여부 — 진행 중 로그 스냅샷 다운로드 등 관리자 전용 UI 노출 게이트
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1603,8 +1605,10 @@ export default function Game() {
     );
   }
 
+  // [사용자 2026-08-01 "결과창이 1초 뒤 닫혔다 다시 열려"] 인라인 컴포넌트(<GameEndScoreModal />)는 부모 리렌더마다
+  // 타입이 새로 생겨 React가 다이얼로그를 재마운트 → 종료 직후 서버 후처리 emit 한 번에 닫힘/재열림 깜빡임.
+  // 일반 함수 호출({GameEndScoreModal()})로 바꿔 컴포넌트 경계를 제거 (scoreTab state는 부모로 승격).
   const GameEndScoreModal = () => {
-    const [scoreTab, setScoreTab] = useState<string>('__overview__');
     if (game.currentPhase !== 'gameEnd') return null;
 
     const playersWithScores = game.turnOrder
@@ -6337,7 +6341,7 @@ export default function Game() {
           </motion.div>
         )}
       </AnimatePresence>
-      <GameEndScoreModal />
+      {GameEndScoreModal()}
 
       {/* 인게임 채팅 — 하단 좌측, 최상위 레이어. 참가자/관전자만 노출 */}
       {/* 관전자 selfId = 관전 ID: 서버 echo의 senderId와 일치해야 낙관적 메시지가 교체됨(불일치 시 채팅이 2번씩 보임 — 사용자 관찰) */}
