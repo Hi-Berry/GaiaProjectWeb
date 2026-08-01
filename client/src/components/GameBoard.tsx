@@ -1210,10 +1210,10 @@ export function GameBoard({
                 {game.hasDoneMainAction ? 'Main Action Complete ✓' : 'Perform Main Action'}
               </span>
             </div>
-            <div className="h-8 w-[1px] bg-white/10" />
-            <div className="flex gap-2">
-              {/* 종족 선택 버튼 (startingMines 또는 factionSelect 단계에서) */}
-              {showFactionSelectButton && onToggleFactionSelect && (
+            {/* [사용자 2026-08-01] 오른쪽 슬롯은 종족선택 버튼 전용 — 버튼 없을 땐 구분선·빈 공간도 숨김 */}
+            {showFactionSelectButton && onToggleFactionSelect && (
+              <>
+                <div className="h-8 w-[1px] bg-white/10" />
                 <Button
                   size="sm"
                   variant="default"
@@ -1224,8 +1224,8 @@ export function GameBoard({
                 >
                   {isFactionSelectOpen ? 'Hide Faction' : 'Select Faction'}
                 </Button>
-              )}
-            </div>
+              </>
+            )}
 
           </div>
         </div>
