@@ -4919,6 +4919,15 @@ export default function Game() {
                               const left = Math.max(8, rect.left - popW - 4); // 상태창 왼쪽에 4px 간격, 넘치면 8px 클램프
                               document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(top)}px`);
                               document.documentElement.style.setProperty('--gp-detail-left', `${Math.round(left)}px`);
+                              // [사용자] 아래쪽 카드(3·4번째) 클릭 시 팝오버가 화면 아래로 잘려 액션 선택 불가 →
+                              // 렌더 후 실제 높이를 재서 전체가 화면 안에 들어오도록 top을 위로 재클램프
+                              requestAnimationFrame(() => requestAnimationFrame(() => {
+                                const el = document.querySelector('[data-radix-popper-content-wrapper] > .gp-detail-mobile');
+                                if (!el) return;
+                                const h = el.getBoundingClientRect().height;
+                                const fitTop = Math.max(8, Math.min(top, window.innerHeight - h - 8));
+                                document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(fitTop)}px`);
+                              }));
                             }
                           }}
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
@@ -5265,8 +5274,13 @@ export default function Game() {
                           /* 모바일: 확대(zoom) 시 Radix가 zoom을 모르고 좌측(side=left)에 위치를 잡아 화면 왼쪽으로 짤림.
                              → !important로 위치를 강제(좌측 8px 고정·transform 제거·상단 고정). zoom은 좌상단서 자라므로
                              오른쪽으로만 넘침(상태창 가려도 됨=사용자 요청). 세로 스크롤 허용. */
-                          className={`w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2 ${isMobileViewport ? 'gp-detail-mobile max-h-[80vh] overflow-y-auto' : ''}`}
-                          style={{ zoom: isMobileViewport ? playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom) : playerDetailScale }}
+                          collisionPadding={8}
+                          className={`w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2 overflow-y-auto ${isMobileViewport ? 'gp-detail-mobile' : ''}`}
+                          /* [사용자] 화면보다 길어지던 문제: max-height는 zoom을 곱한 '실제 렌더 높이' 기준으로 화면 안에 들어오게 나눠서 제한 */
+                          style={(() => {
+                            const z = isMobileViewport ? playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom) : playerDetailScale;
+                            return { zoom: z, maxHeight: `calc((100vh - 16px) / ${z})` };
+                          })()}
                         >
                           {!hasPlayerDetailContent && (
                             <p className="text-[9px] text-zinc-400 text-center leading-relaxed px-1">
