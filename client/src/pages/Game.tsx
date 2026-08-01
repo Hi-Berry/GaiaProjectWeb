@@ -4304,6 +4304,11 @@ export default function Game() {
                 ? '보너스 액션: 보라색(Transdim) 행성에 가이아포머 배치'
                 : 'TF Mars 액션: 보라색(Transdim) 행성에 가이아포머 배치'}
             </span>
+            {/* [사용자 2026-08-02] 삽/거리 보너스 배너처럼 '되돌리기'도 제공 — 액션포기(스킵)는 메인 액션+2P/보너스
+                액션을 소모하지만, 취소는 턴 시작으로 복원해 지불한 비용·액션 사용까지 되돌린다 */}
+            <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0" onClick={() => { GameClient.resetTurn(gameId); setPendingAction(null); }}>
+              취소 (Undo)
+            </Button>
             <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0" onClick={() => GameClient.skipTFMarsGaiaProject(gameId)}>
               액션포기
             </Button>
