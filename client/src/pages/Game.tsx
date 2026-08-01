@@ -2738,7 +2738,12 @@ export default function Game() {
 
         <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
           {(() => {
-            const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main';
+            // [사용자 2026-08-01] 수입/파워 수락 대기 중엔 서버가 프리액션을 거부(mainActionBlockedByPending)하므로 버튼도 숨김
+            const freeActionBlocked = ((game?.pendingPowerOffers?.length ?? 0) > 0)
+              || Boolean(game?.pendingTurnEndPlayerId)
+              || Boolean(game?.pendingIncomeOrder)
+              || Boolean((game as any)?.pendingRollback);
+            const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main' && !freeActionBlocked;
             // [사용자] 못 쓸 땐 불투명(opacity-30) 대신 아예 숨김.
             if (!canUseFreeActions) return null;
             return (

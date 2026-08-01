@@ -4741,10 +4741,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// 하드쉬 할라 의회 프리 액션: 4C→1QIC, 4C→1K, 3C→1O (Free Action — 크레딧 있으면 반복 사용 가능)
+		// [사용자 2026-08-01] 수입/파워 수락 대기 중(배너 표시)에도 프리액션이 뚫려 토큰 이동(번/변환)이
+		// 수입 파워 충전·leech 처리와 엉키던 문제 — 메인 액션과 동일하게 mainActionBlockedByPending으로 차단.
 		socket.on('use_hadsch_hallas_pi_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (game.pendingTurnEndPlayerId) return;
+			if (councilPendingActive(game)) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeUseHadschHallasPIAction(io, game as ServerGameState, playerId, actionId);
 		});
 
@@ -4756,6 +4759,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
 
@@ -4766,7 +4770,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (game.pendingTurnEndPlayerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
 			pushFreeActionUndoSnapshot(game);
@@ -4783,7 +4787,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (game.pendingTurnEndPlayerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			pushFreeActionUndoSnapshot(game);
 
