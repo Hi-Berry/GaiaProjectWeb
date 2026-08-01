@@ -2684,7 +2684,9 @@ export class BotLogic {
                     const isShip = c.type === 'use_ship_action';
                     let s: number;
                     if (!isShip) s = crs[i];
-                    else if (shipScores[i] !== null) s = med + (shipScores[i]! - shipMean);
+                    // [v2.2] 편차를 그대로 더하면(v2.1) ship 절반이 med 아래로 → top-N 컷 탈락, 사용률 1.05→0.74 −4.04 기각.
+                    // 순수 동점처리로 축소: ship 그룹 위치는 v1.5와 동일(med), ship '끼리 순서'만 학습 점수(±1e-4 캡).
+                    else if (shipScores[i] !== null) s = med + Math.max(-1, Math.min(1, shipScores[i]! - shipMean)) * 1e-4;
                     else s = med;
                     return { c, s, i };
                 });
