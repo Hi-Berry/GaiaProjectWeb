@@ -1571,6 +1571,15 @@ function generateGameId(): string {
 
 /** 소켓을 게임 방에 넣기 전, 이전에 참여한 '다른 게임' 방에서 제거.
  *  방을 넘나든 소켓이 이전 방에 남아 그 방의 채팅/업데이트를 계속 받던 문제(사용자 관찰: 채팅이 모든 방에 보임). */
+/** [관전자 목록] 현재 접속 중인 관전자 id 목록(game.connectedSpectators) 갱신 — 채팅창 "(관전자: AA, BB)" 표기용.
+ *  spectatorIds(재접속 허용 명단)와 별개: 이건 '지금 보고 있는 사람'만. */
+function setSpectatorConnected(game: any, spectatorId: string, on: boolean) {
+	const list: string[] = game.connectedSpectators ?? (game.connectedSpectators = []);
+	const i = list.indexOf(spectatorId);
+	if (on && i < 0) list.push(spectatorId);
+	if (!on && i >= 0) list.splice(i, 1);
+}
+
 function joinGameRoom(socket: { id: string; rooms: Set<string>; join: (r: string) => void; leave: (r: string) => void }, gameId: string) {
 	for (const r of Array.from(socket.rooms)) {
 		if (r !== socket.id && r !== gameId && games.has(r)) socket.leave(r);
@@ -3159,7 +3168,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
 				joinGameRoom(socket, gameId);
+				setSpectatorConnected(game, playerId, true);
 				callback({ game });
+				emitGameUpdated(io, game); // 관전자 목록 갱신
 				return;
 			}
 
@@ -3215,16 +3226,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
 
+			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
+			// [사용자 2026-08-01] Join처럼 관전도 이름 필수 — 채팅/관전자 목록 표기에 쓰임
+			if (!specName) { callback({ error: '관전하려면 이름을 입력하세요.' }); return; }
 			const spectatorId = 'spec-' + generatePlayerId();
 			if (!game.spectatorIds) game.spectatorIds = [];
 			game.spectatorIds.push(spectatorId);
-			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
-			if (specName) { if (!(game as any).spectatorNames) (game as any).spectatorNames = {}; (game as any).spectatorNames[spectatorId] = specName; }
+			if (!(game as any).spectatorNames) (game as any).spectatorNames = {};
+			(game as any).spectatorNames[spectatorId] = specName;
+			setSpectatorConnected(game, spectatorId, true);
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			joinGameRoom(socket, gameId);
 			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
+			emitGameUpdated(io, game); // 관전자 목록 갱신 브로드캐스트
 		});
 
 		socket.on('get_game', ({ gameId }, callback) => {
@@ -6033,8 +6049,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			const spectatorId = socketToSpectatorMap.get(socket.id);
 			if (spectatorId) {
+				// [관전자 목록] 접속 끊기면 '현재 관전 중' 목록에서 제거 (spectatorIds는 재접속용으로 유지)
+				const specGameId = spectatorToGameMap.get(spectatorId);
+				const specGame = specGameId ? games.get(specGameId) : undefined;
 				spectatorToGameMap.delete(spectatorId);
 				socketToSpectatorMap.delete(socket.id);
+				if (specGame) {
+					setSpectatorConnected(specGame, spectatorId, false);
+					emitGameUpdated(io, specGame);
+				}
 			}
 		});
 	});
