@@ -1828,7 +1828,7 @@ export default function Game() {
 
                             <div className="pt-4 border-t border-white/5">
                               <div className="flex justify-between items-end mb-1">
-                                <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Total Score</span>
+                                <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">총점</span>
                                 <span className="text-4xl font-black tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{player!.score} <span className="text-sm font-bold text-zinc-500 tracking-normal uppercase">VP</span></span>
                               </div>
                               {legacyScoreAdjustment !== 0 && (
@@ -1840,39 +1840,39 @@ export default function Game() {
 
                         {/* 전체 점수 내역 (Breakdown 합계 = Total Score와 일치해야 함) */}
                         <div className="space-y-4">
-                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">Score Breakdown</h4>
+                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">점수 구성</h4>
                           <div className="bg-zinc-900/20 rounded-xl border border-white/5 divide-y divide-white/5">
                             <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                              <span className="text-xs font-bold text-zinc-400">Starting Bonus</span>
+                              <span className="text-xs font-bold text-zinc-400">시작 보너스</span>
                               <span className="text-sm font-black text-amber-500/80">+10 VP</span>
                             </div>
                             {roundMissionsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Round Missions</span>
+                                <span className="text-xs font-bold text-zinc-400">라운드 미션</span>
                                 <span className="text-sm font-black text-amber-400/90">+{roundMissionsSum} VP</span>
                               </div>
                             )}
                             {bonusTilePassSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Bonus Tile Pass</span>
+                                <span className="text-xs font-bold text-zinc-400">보너스 타일(패스)</span>
                                 <span className="text-sm font-black text-yellow-400/90">+{bonusTilePassSum} VP</span>
                               </div>
                             )}
                             {techTilesSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Tech Tiles</span>
+                                <span className="text-xs font-bold text-zinc-400">기술 타일</span>
                                 <span className="text-sm font-black text-purple-400/90">+{techTilesSum} VP</span>
                               </div>
                             )}
                             {b.finalMissions > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Final Missions</span>
+                                <span className="text-xs font-bold text-zinc-400">최종 미션</span>
                                 <span className="text-sm font-black text-blue-400/90">+{b.finalMissions} VP</span>
                               </div>
                             )}
                             {b.researchTracks > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Research Board End</span>
+                                <span className="text-xs font-bold text-zinc-400">연구 트랙</span>
                                 <span className="text-sm font-black text-cyan-400">+{b.researchTracks} VP</span>
                               </div>
                             )}
@@ -1884,13 +1884,13 @@ export default function Game() {
                             )}
                             {b.powerReceived > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-red-400/80">Power Reception Tax</span>
+                                <span className="text-xs font-bold text-red-400/80">파워 수령(−)</span>
                                 <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
                               </div>
                             )}
                             {spaceshipsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Spaceship Missions</span>
+                                <span className="text-xs font-bold text-zinc-400">정큐액션(우주선)</span>
                                 <span className="text-sm font-black text-cyan-400/90">+{spaceshipsSum} VP</span>
                               </div>
                             )}
@@ -1920,7 +1920,7 @@ export default function Game() {
                               </div>
                             )}
                             <div className="p-3 flex justify-between items-center border-t border-white/10 bg-white/[0.02]">
-                              <span className="text-xs font-black text-zinc-300 uppercase tracking-wider">Breakdown 합계</span>
+                              <span className="text-xs font-black text-zinc-300 uppercase tracking-wider">구성 합계</span>
                               <span className="text-sm font-black tabular-nums text-white">= {breakdownTotal} VP</span>
                             </div>
                           </div>
@@ -1933,7 +1933,7 @@ export default function Game() {
                         <section>
                           <div className="flex items-center gap-2 mb-4">
                             <Trophy className="w-4 h-4 text-amber-500" />
-                            <h4 className="text-xs font-black text-white uppercase tracking-widest">Round Achievements</h4>
+                            <h4 className="text-xs font-black text-white uppercase tracking-widest">라운드별 획득</h4>
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                             {game.roundScoringTiles.map((tile, idx) => {
@@ -1963,7 +1963,7 @@ export default function Game() {
                           <section className="min-w-0">
                             <div className="flex items-center gap-2 mb-4">
                               <Star className="w-4 h-4 text-yellow-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Bonus Tiles</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">보너스 타일</h4>
                             </div>
                             <div className="flex flex-nowrap gap-1 justify-start">
                               {[1, 2, 3, 4, 5, 6].map((r) => {
@@ -1997,7 +1997,7 @@ export default function Game() {
                           <section className="min-w-0">
                             <div className="flex items-center gap-2 mb-4">
                               <Flag className="w-4 h-4 text-blue-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Endgame Missions</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">최종 미션 상세</h4>
                             </div>
                             <div className="flex flex-col gap-3">
                               {(game.finalMissionIds ?? []).map((mid) => {
@@ -2040,7 +2040,7 @@ export default function Game() {
                               })}
                             </div>
                             <div className="mt-2 text-right">
-                              <span className="text-[10px] font-bold text-zinc-500 mr-2 uppercase">Subtotal:</span>
+                              <span className="text-[10px] font-bold text-zinc-500 mr-2 uppercase">소계:</span>
                               <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 font-black">+{b.finalMissions} VP</Badge>
                             </div>
                           </section>
@@ -2052,7 +2052,7 @@ export default function Game() {
                           <section>
                             <div className="flex items-center gap-2 mb-4">
                               <FlaskConical className="w-4 h-4 text-purple-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Technology Portfolio</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">기술 타일 목록</h4>
                             </div>
                             <div className="grid grid-cols-4 gap-2">
                               {(() => {
@@ -2080,7 +2080,7 @@ export default function Game() {
                                 });
                               })()}
                               {b.techTiles.length === 0 && (
-                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No technology tokens acquired.</div>
+                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">획득한 기술 타일이 없습니다.</div>
                               )}
                             </div>
                           </section>
@@ -2089,7 +2089,7 @@ export default function Game() {
                           <section>
                             <div className="flex items-center gap-2 mb-4">
                               <Shield className="w-4 h-4 text-emerald-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Established Federations</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">형성한 연방</h4>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {(player!.federations ?? []).map((fed, i) => {
@@ -2111,7 +2111,7 @@ export default function Game() {
                                 );
                               })}
                               {(!player!.federations || player!.federations.length === 0) && (
-                                <div className="h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No federations established.</div>
+                                <div className="h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">형성한 연방이 없습니다.</div>
                               )}
                             </div>
                           </section>
@@ -2120,7 +2120,7 @@ export default function Game() {
                           {(player!.artifacts?.length ?? 0) > 0 && (
                             <section>
                               <div className="flex items-center gap-2 mb-4">
-                                <span className="text-amber-400 font-black text-xs uppercase tracking-widest">Artifacts</span>
+                                <span className="text-amber-400 font-black text-xs uppercase tracking-widest">인공물</span>
                               </div>
                               <div className="grid grid-cols-4 gap-2">
                                 {(player!.artifacts ?? []).map((aid, i) => {
@@ -2157,7 +2157,7 @@ export default function Game() {
                             <section>
                               <div className="flex items-center gap-2 mb-4">
                                 <Ship className="w-4 h-4 text-cyan-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Spaceship Missions</h4>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">정큐액션(우주선)</h4>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {(() => {
@@ -2203,7 +2203,7 @@ export default function Game() {
                             <section>
                               <div className="flex items-center gap-2 mb-4">
                                 <Mountain className="w-4 h-4 text-cyan-300" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Scientific Milestone</h4>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">과학 업적</h4>
                               </div>
                               <Card className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border-cyan-800/30 overflow-hidden shadow-lg shadow-cyan-950/20">
                                 <div className="p-4 flex items-center gap-4">
@@ -2211,8 +2211,8 @@ export default function Game() {
                                     <img src="/map/ts_111.png" alt="Proto Planet" className="w-full h-full object-contain" />
                                   </div>
                                   <div>
-                                    <div className="text-[10px] font-black text-cyan-300 tracking-widest uppercase">Proto Planet Colonized</div>
-                                    <div className="text-sm font-black text-white">+6 VP <span className="text-[10px] font-bold text-zinc-500">(3 Terraforming)</span></div>
+                                    <div className="text-[10px] font-black text-cyan-300 tracking-widest uppercase">프로토 행성 개척</div>
+                                    <div className="text-sm font-black text-white">+6 VP <span className="text-[10px] font-bold text-zinc-500">(테라포밍 3단계)</span></div>
                                   </div>
                                 </div>
                               </Card>
