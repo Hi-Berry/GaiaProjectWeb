@@ -2662,13 +2662,32 @@ export class BotLogic {
         // ★ !game.simulation 필수: 후보별 맵 거리계산이 MCTS 롤아웃(수천회)에서 돌면 GC 폭주 행
         //   (placementPolicy와 동일 클래스 — 2026-07-26 스모크 6/12 타임아웃의 원인, 게이트 누락이었음)
         if (getPlayerFlag(playerId, 'candRankerSort', true) && !game.simulation) {
-            const crs = this.candRankerScores(game, playerId, uniqueCandidates);
+            // [flag: candRankerV2] v2 랭커(12,561결정·ship 파라미터 피처 포함, val 41.0% vs 무작위 11.6%, ship top-1 77%).
+            // v2에서는 파라미터 있는 ship 후보를 중립화하지 않고 학습 점수 그대로 사용 — v1.5의 ship 허수 문제가
+            // shipTileId/actionIndex 캡처(2026-07)로 해소된 데이터로 재학습했기 때문.
+            const useV2 = getPlayerFlag(playerId, 'candRankerV2', false);
+            // [v2.1 격리] 비-ship 순위는 검증된 v1 점수 유지, v2는 ship 후보 간 상대 순위에만 사용
+            const crs = this.candRankerScores(game, playerId, uniqueCandidates, false);
+            const crsV2 = useV2 ? this.candRankerScores(game, playerId, uniqueCandidates, true) : null;
             if (crs) {
                 // [v1.5] ship 후보는 파라미터 미캡처(학습데이터 결함)로 prior가 허수 → 중립화(비-ship 중앙값).
                 // v1(그대로 통합) 120판 −2.39: 우주선 후보 맹목 우선이 원인. 지상 액션 신호만 사용.
                 const nonShip = uniqueCandidates.map((c, i) => c.type !== 'use_ship_action' ? crs[i] : null).filter((x): x is number => x !== null).sort((a, b) => a - b);
                 const med = nonShip.length ? nonShip[Math.floor(nonShip.length / 2)] : 0;
-                const scored = uniqueCandidates.map((c, i) => ({ c, s: c.type === 'use_ship_action' ? med : crs[i], i }));
+                // [v2.1] 우주선 vs 지상 밸런스는 v1.5(중앙값 앵커) 유지 — v2 원안(ship 점수 그대로)은 40판 −4.10,
+                // 우주선 사용률 0.94→0.78로 오히려 감소(학습 점수가 ship 전체를 지상 아래로 내림). 대신 우주선
+                // '끼리의' 상대 순위만 학습 점수로: med + (자기점수 − ship평균) → 어느 ship 액션을 쓸지만 개선.
+                const shipScores = uniqueCandidates.map((c, i) => (crsV2 && c.type === 'use_ship_action' && (c.params as any)?.shipTileId != null) ? crsV2[i] : null);
+                const shipVals = shipScores.filter((x): x is number => x !== null);
+                const shipMean = shipVals.length ? shipVals.reduce((a, b) => a + b, 0) / shipVals.length : 0;
+                const scored = uniqueCandidates.map((c, i) => {
+                    const isShip = c.type === 'use_ship_action';
+                    let s: number;
+                    if (!isShip) s = crs[i];
+                    else if (shipScores[i] !== null) s = med + (shipScores[i]! - shipMean);
+                    else s = med;
+                    return { c, s, i };
+                });
                 scored.sort((a, b) => (b.s - a.s) || (a.i - b.i));
                 return scored.map(x => x.c);
             }
@@ -2694,13 +2713,18 @@ export class BotLogic {
     }
 
     /** [candRankerSort] 통합 per-candidate 랭커 점수 — trainCandidateRankerAll.mjs 피처와 *동일 순서/정규화* 필수. */
-    private static _candRanker: { featDim: number; types: string[]; tracks: string[]; w: number[] } | null | undefined;
-    static candRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): number[] | null {
-        if (this._candRanker === undefined) {
+    private static _candRanker: { version?: number; featDim: number; types: string[]; tracks: string[]; ships?: string[]; w: number[] } | null | undefined;
+    private static _candRankerV2: { version?: number; featDim: number; types: string[]; tracks: string[]; ships?: string[]; w: number[] } | null | undefined;
+    static candRankerScores(game: ServerGameState, playerId: string, cands: BotAction[], useV2 = false): number[] | null {
+        if (useV2 && this._candRankerV2 === undefined) {
+            try { this._candRankerV2 = JSON.parse(nodeFs.readFileSync('server/ai/candRankerAll.v2.json', 'utf8')); }
+            catch { this._candRankerV2 = null; }
+        }
+        if (!useV2 && this._candRanker === undefined) {
             try { this._candRanker = JSON.parse(nodeFs.readFileSync('server/ai/candRankerAll.json', 'utf8')); }
             catch { this._candRanker = null; }
         }
-        const M = this._candRanker;
+        const M = useV2 ? this._candRankerV2 : this._candRanker;
         if (!M || !cands.length) return null;
         const player = game.players[playerId];
         const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
@@ -2729,6 +2753,16 @@ export class BotLogic {
             off += 6;
             f[off] = (game.roundNumber || 1) / 6; off += 1;
             if (c.type === 'use_power_action') f[off + pwCat((c.params as any)?.actionId)] = 1;
+            off += 6;
+            // [v2] 우주선 후보: 어느 우주선(타입 one-hot 4)의 몇 번째 액션(슬롯 one-hot 3)인지 — 학습 스크립트와 동일 순서
+            if ((M.version ?? 1) >= 2 && M.ships && c.type === 'use_ship_action') {
+                const sid = (c.params as any)?.shipTileId;
+                const stile = sid ? game.map.find(t => t.id === sid) : null;
+                const si = stile ? M.ships.indexOf(String(stile.type)) : -1;
+                if (si >= 0) f[off + si] = 1;
+                const ai = (c.params as any)?.actionIndex;
+                if (ai >= 1 && ai <= 3) f[off + 4 + (ai - 1)] = 1;
+            }
             let s = 0; for (let k = 0; k < M.featDim; k++) s += M.w[k] * f[k];
             return s;
         });
