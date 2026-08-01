@@ -6199,6 +6199,18 @@ export class BotLogic {
             }
         }
 
+        // [flag: tileHumanPrior] 실게임 분포(사람 727건 vs 봇 561건, 2026-08-01): 사람은 1O+1Q 13.8%(봇 0.2%),
+        // 4P액션 12.8%(봇 3.0%), big-4str 11.4%(봇 0.5%)를 집는데 봇 채점 서열상 income 타일에 항상 밀림.
+        // 1O1Q=리벨 3Q 재료, big-4str=상급건물 파워4 → 7파워 연방 군집 촉진(사람 연방 4.5개의 요소로 추정).
+        if (getPlayerFlag(playerId, 'tileHumanPrior', false)) {
+            if (tileId === 'tech-imm-1o-1q') score += 35;
+            if (tileId === 'tech-act-4p') score += 30;
+            if (tileId === 'tech-big-4str') {
+                const bigs = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
+                score += (round <= 4 ? 150 : 0) + bigs * 45;
+            }
+        }
+
         // [flag: ambasFedSwap] 엠바스 큰건물 파워타일(tech-big-4str) = PI 3->4, 스왑 연방엔진의 전제.
         // ~3번째 타일쯤 확보하도록 강하게 우선(초기 회피 -180 상쇄). PI를 R4에 짓기 전 미리 확보해야 함.
         const ambasSwapStrat = getPlayerFlag(playerId, 'ambasFedSwap', false)
