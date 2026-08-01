@@ -6203,12 +6203,10 @@ export class BotLogic {
         // 4P액션 12.8%(봇 3.0%), big-4str 11.4%(봇 0.5%)를 집는데 봇 채점 서열상 income 타일에 항상 밀림.
         // 1O1Q=리벨 3Q 재료, big-4str=상급건물 파워4 → 7파워 연방 군집 촉진(사람 연방 4.5개의 요소로 추정).
         if (getPlayerFlag(playerId, 'tileHumanPrior', false)) {
+            // [v2] v1(+big-4str R≤4 +150) 40판 −4.58 기각 — 초반 income 엔진 타일을 밀어낸 것으로 추정
+            // (기존 교훈: 초반엔 income이 왕). 온건한 두 개만 유지: 1O1Q(리벨 3Q 재료)·4P액션.
             if (tileId === 'tech-imm-1o-1q') score += 35;
             if (tileId === 'tech-act-4p') score += 30;
-            if (tileId === 'tech-big-4str') {
-                const bigs = game.map.filter(t => t.ownerId === playerId && (t.structure === 'planetary_institute' || t.structure === 'academy')).length;
-                score += (round <= 4 ? 150 : 0) + bigs * 45;
-            }
         }
 
         // [flag: ambasFedSwap] 엠바스 큰건물 파워타일(tech-big-4str) = PI 3->4, 스왑 연방엔진의 전제.
