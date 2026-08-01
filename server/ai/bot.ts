@@ -1177,7 +1177,8 @@ export class BotLogic {
                     // [flag: rebelFireEarly] 사용자(2026-08-01): "리벨 3정큐가 최고 액션인데 봇이 다 뺏겨서 사람이
                     // 그것만으로 이김" — rebelFireBeforePass(패스 직전)는 실게임에서 이미 늦다: 사람은 라운드 초반 선점.
                     // 준비 완료(탑승+3Q+이번 라운드 미사용)면 즉시 발사. 연방 가능 턴은 양보(direct-return 관례).
-                    if (getPlayerFlag(playerId, 'rebelFireEarly', false) && onReb && rebTile && rebUnused
+                    // [측정 2026-08-01] 40판 +2.24 ± 2.98 (승률 51.3%), 활성 22게임 — 음수 아님 + 도메인 옳음(사람 선점 메타) → 채택 ON.
+                    if (getPlayerFlag(playerId, 'rebelFireEarly', true) && onReb && rebTile && rebUnused
                         && qNow >= 3
                         && !candidates.some(c => c.type === 'form_federation')) {
                         log(`Bot ${player.name} rebelFireEarly: 리벨 3정큐 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
@@ -2674,7 +2675,8 @@ export class BotLogic {
             // [flag: candRankerV2] v2 랭커(12,561결정·ship 파라미터 피처 포함, val 41.0% vs 무작위 11.6%, ship top-1 77%).
             // v2에서는 파라미터 있는 ship 후보를 중립화하지 않고 학습 점수 그대로 사용 — v1.5의 ship 허수 문제가
             // shipTileId/actionIndex 캡처(2026-07)로 해소된 데이터로 재학습했기 때문.
-            const useV2 = getPlayerFlag(playerId, 'candRankerV2', false);
+            // [측정 2026-08-01] v2.2 40판 +5.67 ± 2.89 (p=0.050) → 120판 확정 +0.61 ± 2.28 — 부호 일관 양성, 행동 건강 → 채택 ON.
+            const useV2 = getPlayerFlag(playerId, 'candRankerV2', true);
             // [v2.1 격리] 비-ship 순위는 검증된 v1 점수 유지, v2는 ship 후보 간 상대 순위에만 사용
             const crs = this.candRankerScores(game, playerId, uniqueCandidates, false);
             const crsV2 = useV2 ? this.candRankerScores(game, playerId, uniqueCandidates, true) : null;
