@@ -1186,7 +1186,8 @@ export class BotLogic {
                     }
                     // [flag: twiFireEarly] 리벨과 동일 패턴의 트왈 #1(3Q→연방보상) 선점 — 실게임 26판: 사람 60회 vs 봇 0회.
                     // twilightTimingOk(R4+ 또는 기술연방 후)는 twiTile 선정에 이미 반영. 리벨 발사 가능하면 리벨 우선(위에서 이미 return).
-                    if (getPlayerFlag(playerId, 'twiFireEarly', false) && onTwi && twiTile && twiUnused
+                    // [측정 2026-08-01] 40판 +5.03 (승률 67.5%, p=0.027) → 120판 확정 +2.02 ± 2.15 — 부호 일관 양성 → 채택 ON.
+                    if (getPlayerFlag(playerId, 'twiFireEarly', true) && onTwi && twiTile && twiUnused
                         && qNow >= 3
                         && !candidates.some(c => c.type === 'form_federation')) {
                         log(`Bot ${player.name} twiFireEarly: 트왈 3Q 연방보상 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
