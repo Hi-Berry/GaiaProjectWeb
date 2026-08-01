@@ -4543,12 +4543,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const rangeTiles = getPlayerRangeTiles(game, playerId);
 			if (rangeTiles.length === 0) return;
 			let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+			// [증발 방지 2026-08-01] 글린즈 플래그 소모를 QIC 검증 뒤로 (Ivits 전용이라 현재 도달 불가지만 동일 패턴 정리)
+			if (player.gleensNavBonusActive) baseRange += 2;
 			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 			const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
 			if (player.qic < neededQIC) return;
 
 			saveActionStartState(game, playerId);
+			if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 			player.qic -= neededQIC;
 			tile.spaceStation = { ownerId: playerId };
 			player.usedIvitsSpaceStationThisRound = true;
@@ -6226,6 +6228,13 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const canAdvancePool = baseCanAdvancePool && (!isLevel5AdvancePool || (wantsLevel5Pool && !level5BlockedPool && canSpendLevel5FedPool));
 		const newLevelPool = canAdvancePool ? targetLevelPool : 0;
 		const isAdvancedPool = techTileId.startsWith('adv-');
+		// [증발 버그수정 2026-08-01] 풀 존재 검증을 초록 연방 소모/트랙 전진 '앞'으로 — 기존엔 연방을 뒤집고
+		// 트랙까지 올린 뒤 풀에 타일이 없으면 return해 초록 연방이 증발했다(재시도 시 이중 소모).
+		const poolIndexEarly = game.techTilesPool.findIndex(t => t && t.id === techTileId);
+		if (poolIndexEarly === -1 && !isRebellionGain) {
+			log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game', undefined, { simulation: (game as any).simulation });
+			return;
+		}
 		const greenNeededPool = (isAdvancedPool ? 1 : 0) + (newLevelPool === 5 ? 1 : 0);
 		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) { io.to(game.id).emit('game_error', { message: '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.' }); return; }
 		for (let i = 0; i < greenNeededPool; i++) spendGreenFederation(player);
@@ -6242,12 +6251,8 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			advanceDetail = `${selectedTrack} stays L4 (${reason})`;
 		}
 
-		// 풀에서 해당 칸이 존재하는지 확인
-		const poolIndex = game.techTilesPool.findIndex(t => t && t.id === techTileId);
-		if (poolIndex === -1 && !isRebellionGain) {
-			log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game', undefined, { simulation: (game as any).simulation });
-			return;
-		}
+		// 풀 존재 확인은 위(연방 소모 전)에서 완료 — poolIndexEarly 재사용
+		const poolIndex = poolIndexEarly;
 
 		if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 		// 풀에서 해당 칸만 빈 칸으로 표시 (splice로 당기지 않음)
@@ -6652,16 +6657,21 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			debugLog(game, `executeBuildMine failed (Lantida): No existing structures for range calculation`, 'error');
 			return false;
 		}
+		// [증발 버그수정 2026-08-01] +3사거리/글린즈 보너스 플래그를 QIC 검증 '전에' 소모 → 실패 시 보너스만 증발.
+		// 가이아포머 배치/우주선 입장과 동일 부류 — 검증 통과 후에만 소모하도록 재배치.
 		let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-		if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-		if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-		if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+		if (player.tempRangeBonus) baseRange += 3;
+		if (player.rangeBonusActive) baseRange += 3;
+		if (player.gleensNavBonusActive) baseRange += 2;
 		const minDist = Math.min(...playerTiles.map(t => getDistance(t, tile)));
 		const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
 		if ((player.qic ?? 0) < neededQIC) {
 			debugLog(game, `executeBuildMine failed (Lantida): Insufficient QIC (QIC: ${player.qic}/${neededQIC}, Dist: ${minDist}, Range: ${baseRange})`, 'error');
 			return false;
 		}
+		if (player.tempRangeBonus) player.tempRangeBonus = false;
+		if (player.rangeBonusActive) player.rangeBonusActive = false;
+		if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 		player.ore = (player.ore ?? 0) - mineOre;
 		player.credits = (player.credits ?? 0) - mineCredits;
 		player.qic = (player.qic ?? 0) - neededQIC;
@@ -6725,10 +6735,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		// QIC가 안 빠지던 버그(클라 mineBuildCost는 neededQIC를 요구/표시하는데 서버 미차감). Eclipse 6C 소행성 경로와 일관.
 		let astNeededQIC = 0;
 		{
+			// [증발 버그수정 2026-08-01] 사거리 보너스 플래그 소모를 QIC 검증 뒤로 (실패 시 보너스 증발 — 란티다 분기와 동일)
 			let astBaseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.tempRangeBonus) { astBaseRange += 3; player.tempRangeBonus = false; }
-			if (player.rangeBonusActive) { astBaseRange += 3; player.rangeBonusActive = false; }
-			if (player.gleensNavBonusActive) { astBaseRange += 2; player.gleensNavBonusActive = false; }
+			if (player.tempRangeBonus) astBaseRange += 3;
+			if (player.rangeBonusActive) astBaseRange += 3;
+			if (player.gleensNavBonusActive) astBaseRange += 2;
 			const astRangeTiles = getPlayerRangeTiles(game, playerId);
 			const astMinDist = astRangeTiles.length > 0 ? Math.min(...astRangeTiles.map(t => getDistance(t, tile))) : Infinity;
 			astNeededQIC = astMinDist > astBaseRange ? Math.ceil((astMinDist - astBaseRange) / 2) : 0;
@@ -6737,6 +6748,9 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 				if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', `소행성이 사거리 밖입니다 (필요 QIC ${astNeededQIC}, 보유 ${player.qic ?? 0}).`);
 				return false;
 			}
+			if (player.tempRangeBonus) player.tempRangeBonus = false;
+			if (player.rangeBonusActive) player.rangeBonusActive = false;
+			if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 			player.qic = (player.qic ?? 0) - astNeededQIC;
 		}
 
@@ -6783,9 +6797,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [계측 2026-07-20] 사용자 관찰("+3거리 누르고 기본 사거리 안에 건설 = 1K 낭비") 현장 포착용 —
 	// 부스트 소모량을 기억해 두고, 건설 거리가 부스트 없이도 닿았으면 diagRangeWaste에 기록(행동 무변경).
 	const rangeBoostSpent = (player.tempRangeBonus ? 3 : 0) + (player.rangeBonusActive ? 3 : 0) + (player.gleensNavBonusActive ? 2 : 0);
-	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	// [증발 버그수정 2026-08-01] 사거리 보너스 플래그를 자원 검증 '전에' 소모 → 자원 부족으로 건설 실패해도
+	// 보너스만 증발(사용자 제보 "Reset/액션 후 토큰 사라짐" 부류). 소모는 아래 비용 차감 성공 후로 재배치.
+	if (player.tempRangeBonus) baseRange += 3;
+	if (player.rangeBonusActive) baseRange += 3;
+	if (player.gleensNavBonusActive) baseRange += 2;
 	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) {
 		debugLog(game, `executeBuildMine failed (Standard): No starting tiles for range calculation`, 'error');
@@ -6863,6 +6879,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		player.ore = (player.ore ?? 0) - (terraformCost + standardMineOre); player.credits = (player.credits ?? 0) - standardMineCredits; player.qic = (player.qic ?? 0) - neededQIC;
 		player.pendingTerraformSteps = Math.max(0, pendingTerraformSteps - discountSteps);
 	}
+
+	// ---- 여기부터 성공 확정: 사거리 보너스 플래그 소모 (위 검증 실패 시엔 보존) ----
+	if (player.tempRangeBonus) player.tempRangeBonus = false;
+	if (player.rangeBonusActive) player.rangeBonusActive = false;
+	if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 
 	// (이미 위에서 체크함)
 	const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
@@ -7670,6 +7691,14 @@ export function executePassRound(
 
 	const player = game.players[playerId];
 	if (!player) return false;
+
+	// [증발 버그수정 2026-08-01] 라운드 1-5 보너스 타일 검증을 발타크 자동변환 '앞'으로 —
+	// 기존엔 변환(포머 잠금+QIC)부터 하고 아래에서 타일 무효로 return false 시 실패한 패스인데도
+	// 포머가 잠긴 채 라운드를 계속하게 됐다. (아래 기존 검증은 newTileIndex 사용을 위해 유지)
+	if (game.roundNumber !== 6) {
+		if (!newBonusTileId) return false;
+		if (game.availableBonusTiles.findIndex(t => t.id === newBonusTileId) === -1) return false;
+	}
 
 	// 발타크: 패스 시 남은(잠기지 않은) 가이아포머를 자동으로 QIC로 변환.
 	// 패스 후엔 이번 라운드에 포머를 쓸 기회가 없고, 잠긴 포머는 어차피 라운드 전환 시 복귀하므로 항상 이득.
