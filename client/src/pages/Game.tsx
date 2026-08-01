@@ -5801,13 +5801,28 @@ export default function Game() {
         />
       )}
 
-      {/* [의회 대기] 모바일 배너 — 데스크톱은 좌측 사이드바에 같은 안내(hidden md:flex라 모바일 미노출) */}
-      {game && isMobileViewport && councilPendingInfo && (
+      {/* [대기 배너] 모바일 — 데스크톱은 좌측 사이드바 오버레이(hidden md:flex라 모바일 미노출).
+          [사용자 2026-08-01] 의회만 있고 수입/파워 수락 대기가 모바일에 아예 안 뜨던 것 → 3종 모두 스택 표시 */}
+      {game && isMobileViewport && (councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) && (
         <div
-          className="md:hidden fixed inset-x-3 z-[116] bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur"
+          className="md:hidden fixed inset-x-3 z-[116] space-y-1.5"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3.25rem)' }}
         >
-          <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what} · 선택이 끝나면 라운드가 시작됩니다
+          {councilPendingInfo && (
+            <div className="bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur">
+              <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what} · 선택이 끝나면 라운드가 시작됩니다
+            </div>
+          )}
+          {incomeWaiters.length > 0 && (
+            <div className="bg-sky-950/95 border border-sky-400/40 text-sky-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur">
+              수입 단계 · 대기: {incomeWaiters.map((w) => w.current ? `${w.name}(선택 중)` : w.name).join(', ')}
+            </div>
+          )}
+          {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
+            <div className="bg-amber-950/95 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur">
+              <strong>{pendingTurnEndPlayerName}</strong> 턴 · 파워 수락 대기: {pendingPowerWaiters.map((w) => w.offerCount > 1 ? `${w.name}(${w.offerCount}건)` : w.name).join(', ')}
+            </div>
+          )}
         </div>
       )}
       {/* [2026-07-27 사용자] 패널 확대 중 복귀 버튼 — 헤더(최상단)는 손이 안 닿아 우하단에 축소 버튼 */}
