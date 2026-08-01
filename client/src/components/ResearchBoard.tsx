@@ -104,43 +104,39 @@ const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: 
 
 const MINI_SHIP_RING_INACTIVE = 'rgba(82, 82, 91, 0.45)'; // zinc-600
 
-/** 시계 구간 — 종족 선택 시 고른 턴 순서 번호(1~4)와 1:1 */
-const SHIP_QUADRANT_CLOCK = ['9~12시', '12~3시', '3~6시', '6~9시'] as const;
-
 /**
  * 우주선 테두리 구역: 플레이어 고정 좌석(selectedTurnOrder 1~4).
- * 라운드마다 turnOrder가 바뀌어도, A가 1번 자리면 항상 9~12시 구역.
+ * 라운드마다 turnOrder가 바뀌어도, A가 1번 자리면 항상 같은 구역.
+ * [사용자 2026-08-01] hover 문구는 시계자리 설명 대신 '입장 : 이름들'로 단순화.
  */
 function getShipQuadrantsByPlayerSeat(game: GameState, occupants: string[]) {
     const quadrantFactionColors: Array<string | null> = [null, null, null, null];
-    const quadrantTitles: Array<string | undefined> = [undefined, undefined, undefined, undefined];
+    const names: string[] = [];
 
     for (const pid of occupants) {
         const p = game.players[pid];
         const seat = p?.selectedTurnOrder;
+        if (p?.name) names.push(p.name);
         if (seat == null || seat < 1 || seat > 4) continue;
         const slot = seat - 1;
         const faction = p?.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
         quadrantFactionColors[slot] = faction?.color ?? null;
-        const name = p?.name;
-        quadrantTitles[slot] = name
-            ? `${name} · ${SHIP_QUADRANT_CLOCK[slot]} (자리 ${seat})`
-            : undefined;
     }
 
-    return { quadrantFactionColors, quadrantTitles };
+    const shipTitle = names.length > 0 ? `입장 : ${names.join(', ')}` : undefined;
+    return { quadrantFactionColors, shipTitle };
 }
 
 /** 미니 우주선 카드: 시계 방향 4등분(12→3→6→9→12) 테두리 링 */
 function MiniShipQuadrantFrame({
-    /** selectedTurnOrder 1~4 → [9~12, 12~3, 3~6, 6~9], 탑승 중인 플레이어만 색 */
+    /** selectedTurnOrder 1~4 → 4등분 링, 탑승 중인 플레이어만 색 */
     quadrantFactionColors,
-    quadrantTitles,
+    shipTitle,
     children,
     className = '',
 }: {
     quadrantFactionColors: Array<string | null | undefined>;
-    quadrantTitles?: Array<string | undefined>;
+    shipTitle?: string;
     children: React.ReactNode;
     className?: string;
 }) {
@@ -164,7 +160,7 @@ function MiniShipQuadrantFrame({
                 padding: ringThickness,
                 background: `conic-gradient(from 0deg, ${c12to3} 0deg 90deg, ${c3to6} 90deg 180deg, ${c6to9} 180deg 270deg, ${c9to12} 270deg 360deg), ${emptyHatch}`,
             }}
-            title={quadrantTitles?.filter(Boolean).join(' · ')}
+            title={shipTitle}
         >
             <div className="relative flex flex-col gap-1 rounded-[6px] bg-zinc-950/95 min-h-0 h-full">
                 {children}
@@ -802,14 +798,14 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const techTile = techId ? SHIP_TECH_TILES.find((t) => t.id === techId) : null;
                                         const actionLabels = SHIP_ACTION_LABELS[tile.type] || ['—', '—', '—'];
 
-                                        const { quadrantFactionColors: quadrantColors, quadrantTitles } =
+                                        const { quadrantFactionColors: quadrantColors, shipTitle } =
                                             getShipQuadrantsByPlayerSeat(game, ship.occupants ?? []);
 
                                         return (
                                             <MiniShipQuadrantFrame
                                                 key={tile.id}
                                                 quadrantFactionColors={quadrantColors}
-                                                quadrantTitles={quadrantTitles}
+                                                shipTitle={shipTitle}
                                                 className={isInShip ? 'shadow-[0_0_12px_rgba(52,211,153,0.2)]' : ''}
                                             >
                                                 <div className="p-1.5 flex flex-col gap-1 min-h-0 h-full">
