@@ -972,6 +972,7 @@ export default function Game() {
   // Turn behavior notification sounds
   useEffect(() => {
     if (!game || !game.turnOrder || game.currentPlayerIndex === undefined) return;
+    if (isSpectator) return; // [사용자 2026-08-01] 관전자에게 턴 알림음(내턴/상대턴) 울리던 버그 — 파워 리마인더처럼 차단
 
     const activePlayerId = game.turnOrder[game.currentPlayerIndex];
     const isMyTurn = activePlayerId === playerId;
@@ -1027,11 +1028,12 @@ export default function Game() {
       lastBidderRef.current = bidderId || null;
       lastWasMyBidRef.current = isMyBid;
     }
-  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId]);
+  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId, isSpectator]);
 
   // Power Receive sound notification
   useEffect(() => {
     if (!game || !playerId) return;
+    if (isSpectator) return; // 관전자는 좌석 파워 변화 소리도 제외
     const player = game.players[playerId];
     if (!player) return;
 
