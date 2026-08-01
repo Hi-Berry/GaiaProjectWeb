@@ -6498,6 +6498,20 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		return false;
 	}
 
+	// [사용자 2026-08-01] 테라포밍 스텝 구매 상태(3PW/보너스/TF마스 3C)에서는 1스텝 이상 소모되는 행성만 건설 허용.
+	// 가이아·포밍된 행성(스텝 0)은 스텝을 안 쓰고 지어져 스텝이 남고, 메인 액션 후에도 6472 우회로
+	// '포밍한 곳 공짜 광산'이 가능했던 exploit 차단. 봇은 제외(교착 방지 — 봇은 이 경로를 악용하지 않음).
+	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine
+		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
+		const stepsNeeded = (tile.type === 'gaia' || tile.type === 'transdim' || isPendingGaiaBuild)
+			? 0 : getTerraformStepsForFaction(game, player.faction!, tile.type);
+		if (stepsNeeded < 1) {
+			debugLog(game, `executeBuildMine rejected: terraform step pending but target ${tileId} (${tile.type}) needs 0 steps`, 'error');
+			io.to(game.id).emit('game_error', '테라포밍 스텝을 구매한 상태에서는 1스텝 이상 소모되는 행성에만 광산을 지을 수 있습니다.');
+			return false;
+		}
+	}
+
 	// 0. 전역 광산 개수 제한 체크 (자원 소모 전)
 	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
 		const errorMsg = `광산 건설 제한(${BUILDING_LIMITS.mine}개)에 도달했습니다.`;
