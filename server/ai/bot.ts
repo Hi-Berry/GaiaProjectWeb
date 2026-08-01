@@ -1184,6 +1184,14 @@ export class BotLogic {
                         log(`Bot ${player.name} rebelFireEarly: 리벨 3정큐 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
                         return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 1 } };
                     }
+                    // [flag: twiFireEarly] 리벨과 동일 패턴의 트왈 #1(3Q→연방보상) 선점 — 실게임 26판: 사람 60회 vs 봇 0회.
+                    // twilightTimingOk(R4+ 또는 기술연방 후)는 twiTile 선정에 이미 반영. 리벨 발사 가능하면 리벨 우선(위에서 이미 return).
+                    if (getPlayerFlag(playerId, 'twiFireEarly', false) && onTwi && twiTile && twiUnused
+                        && qNow >= 3
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        log(`Bot ${player.name} twiFireEarly: 트왈 3Q 연방보상 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
+                        return { type: 'use_ship_action', params: { shipTileId: twiTile.id, actionIndex: 1 } };
+                    }
                     // [flag: rebelPrepPlus ②] 엠바스식 Nav 선행 입장(사용자): 3Q를 이미 들고 있는데 리벨이 사거리 밖이면
                     // QIC 점프 입장은 3정큐 스택 파괴 — Nav 연구 1레벨로 사거리 내가 되면 연구 먼저(무료 입장 + 3Q 보존).
                     // navBeforeJump(채택)의 입장 버전.
