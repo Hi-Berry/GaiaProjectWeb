@@ -2535,8 +2535,11 @@ export default function Game() {
       {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
       {/* [사용자 2026-08-01] 의회/수입/파워 대기 배너가 미니뷰(z-110)에 가려짐 — 배너 떠 있는 동안만 사이드바를 위(z-135)로 */}
       <div className={`absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col ${(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) ? 'z-[135]' : 'z-[50]'} pointer-events-none *:pointer-events-auto`}>
-        {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
-        <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
+        {/* [사용자 2026-08-01] 의회/수입/파워 배너가 툴바 flow에 끼어 미니뷰 토글 버튼을 밀어냈다 되돌리던 문제 —
+            배너를 absolute 오버레이로 분리: 버튼은 제자리 고정, 배너가 떠 있는 동안만 위에 '덮이고' 끝나면 다시 드러남 */}
+        {(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) && (
+        <div className="absolute top-0 left-0 right-0 z-[120] p-2 pointer-events-auto">
+          <div className="rounded-xl bg-zinc-950/90 backdrop-blur-md p-1.5 space-y-2 shadow-2xl">
           {councilPendingInfo && (
             <div className="bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs md:text-sm">
               <div className="flex items-start gap-2">
@@ -2614,6 +2617,12 @@ export default function Game() {
               </ul>
             </div>
           )}
+          </div>
+        </div>
+        )}
+
+        {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
+        <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
           <div className="flex gap-1 items-end bg-black/80 rounded-lg p-1 md:p-0 md:bg-transparent shadow-xl md:shadow-none">
             {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
             {!isSpectator && isHost && game && game.turnOrder.length > 1 && (
