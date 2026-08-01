@@ -1174,6 +1174,15 @@ export class BotLogic {
                             return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 3 } };
                         }
                     }
+                    // [flag: rebelFireEarly] 사용자(2026-08-01): "리벨 3정큐가 최고 액션인데 봇이 다 뺏겨서 사람이
+                    // 그것만으로 이김" — rebelFireBeforePass(패스 직전)는 실게임에서 이미 늦다: 사람은 라운드 초반 선점.
+                    // 준비 완료(탑승+3Q+이번 라운드 미사용)면 즉시 발사. 연방 가능 턴은 양보(direct-return 관례).
+                    if (getPlayerFlag(playerId, 'rebelFireEarly', false) && onReb && rebTile && rebUnused
+                        && qNow >= 3
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        log(`Bot ${player.name} rebelFireEarly: 리벨 3정큐 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
+                        return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 1 } };
+                    }
                     // [flag: rebelPrepPlus ②] 엠바스식 Nav 선행 입장(사용자): 3Q를 이미 들고 있는데 리벨이 사거리 밖이면
                     // QIC 점프 입장은 3정큐 스택 파괴 — Nav 연구 1레벨로 사거리 내가 되면 연구 먼저(무료 입장 + 3Q 보존).
                     // navBeforeJump(채택)의 입장 버전.
