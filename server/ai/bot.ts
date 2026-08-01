@@ -2688,10 +2688,14 @@ export class BotLogic {
             // [v2.1 격리] 비-ship 순위는 검증된 v1 점수 유지, v2는 ship 후보 간 상대 순위에만 사용
             const crs = this.candRankerScores(game, playerId, uniqueCandidates, false);
             const crsV2 = useV2 ? this.candRankerScores(game, playerId, uniqueCandidates, true) : null;
-            if (crs) {
+            // [flag: candRankerV2Ground] 지상(비-ship) 순위도 v2 가중치로 — v2 원안 기각(−4.10)은 ship 그룹 붕괴가 원인이라
+            // 지상 효과는 미측정. v2 데이터 1.6배(12,561 vs 7,653 결정)의 지상 개선분만 격리 A/B.
+            const baseScores = (getPlayerFlag(playerId, 'candRankerV2Ground', false) && crsV2) ? crsV2 : crs;
+            if (baseScores) {
+                const crs0 = baseScores;
                 // [v1.5] ship 후보는 파라미터 미캡처(학습데이터 결함)로 prior가 허수 → 중립화(비-ship 중앙값).
                 // v1(그대로 통합) 120판 −2.39: 우주선 후보 맹목 우선이 원인. 지상 액션 신호만 사용.
-                const nonShip = uniqueCandidates.map((c, i) => c.type !== 'use_ship_action' ? crs[i] : null).filter((x): x is number => x !== null).sort((a, b) => a - b);
+                const nonShip = uniqueCandidates.map((c, i) => c.type !== 'use_ship_action' ? crs0[i] : null).filter((x): x is number => x !== null).sort((a, b) => a - b);
                 const med = nonShip.length ? nonShip[Math.floor(nonShip.length / 2)] : 0;
                 // [v2.1] 우주선 vs 지상 밸런스는 v1.5(중앙값 앵커) 유지 — v2 원안(ship 점수 그대로)은 40판 −4.10,
                 // 우주선 사용률 0.94→0.78로 오히려 감소(학습 점수가 ship 전체를 지상 아래로 내림). 대신 우주선
@@ -2702,7 +2706,7 @@ export class BotLogic {
                 const scored = uniqueCandidates.map((c, i) => {
                     const isShip = c.type === 'use_ship_action';
                     let s: number;
-                    if (!isShip) s = crs[i];
+                    if (!isShip) s = crs0[i];
                     // [v2.2] 편차를 그대로 더하면(v2.1) ship 절반이 med 아래로 → top-N 컷 탈락, 사용률 1.05→0.74 −4.04 기각.
                     // 순수 동점처리로 축소: ship 그룹 위치는 v1.5와 동일(med), ship '끼리 순서'만 학습 점수(±1e-4 캡).
                     else if (shipScores[i] !== null) s = med + Math.max(-1, Math.min(1, shipScores[i]! - shipMean)) * 1e-4;
