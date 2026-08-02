@@ -5737,6 +5737,30 @@ export class BotLogic {
             score += (5 - level) * 14;
         }
 
+        // [flag: gaiaReachValue] 사용자(2026-08-01) "신규 광산이 늘면 수입도 연방도 늘 것" → 실측: 광산 건설의
+        // 병목은 평가가 아니라 도달능력(2026-06-25 expandDrive 진단). 실게임 재측정(26판): 가이아포머 배치
+        // 사람 2.42/석 vs 봇 0.09/석, gaiaProject 트랙 사람 4.20 vs 봇 1.17. 원인 = L1-2는 포머 배치에 파워 6이
+        // 들어 사실상 못 씀 → 안 쓰니 트랙도 안 올림. 사람은 L3(4파워)·L4(3파워)까지 올려 싸게 새 타일을 연다.
+        // 1-ply라 이 투자 사슬을 못 보므로, 고급타일 (H)와 같은 '값 인지' 보너스로: 이번 상승이 (a) 포머를
+        // 늘리거나 (b) 배치 비용을 낮출 때, 실제로 열 수 있는 미점유 transdim 수에 비례해 가점.
+        if (getPlayerFlag(playerId, 'gaiaReachValue', false) && track === 'gaiaProject' && level < 4) {
+            const nextLvl = level + 1;
+            const newFormer = (nextLvl === 1 || nextLvl === 3 || nextLvl === 4) ? 1 : 0; // 포머 수 증가 레벨
+            const costDrop = nextLvl === 3 ? 2 : nextLvl === 4 ? 1 : 0;         // 6→4→3 파워
+            if (newFormer || costDrop) {
+                const myNodes = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
+                    || t.spaceStation?.ownerId === playerId);
+                if (myNodes.length) {
+                    const rng = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+                    const openTransdim = game.map.filter(t => t.type === 'transdim' && !t.ownerId && !t.structure && !t.hasGaiaformer
+                        && Math.min(...myNodes.map(m => getDistance(m, t))) <= rng + 2).length;
+                    const payoff = Math.min(openTransdim, 4) / 4;               // 열 수 있는 타일이 있어야 가치
+                    const timeLeft = Math.max(0, 6 - round) >= 2 ? 1 : 0.4;     // 남은 라운드가 없으면 회수 불가
+                    score += (newFormer * 45 + costDrop * 30) * payoff * timeLeft;
+                }
+            }
+        }
+
         // 2. 고급 기술 타일 시너지 분석
         //   [flag: researchValueModel] 아래 정액 시너지(+30/+25)는 위 (H)의 값-인지 보너스가 대체 → 플래그 ON시 생략(중복 방지).
         const advTiles = game.advancedTechTilesByTrack || {};
