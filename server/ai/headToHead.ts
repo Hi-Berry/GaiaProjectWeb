@@ -257,9 +257,26 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
         }, GAME_TIMEOUT_MS);
         const cleanup = () => { clearTimeout(timer); socket.off('game_updated', onUpdate); };
 
+        // [계측 버그수정 2026-08-01] 대역폭 최적화(emitGameUpdated)가 game_updated의 gameLog를 꼬리 40줄로
+        // 잘라 보내면서, 아래 행동믹스 집계가 '게임 마지막 40줄'만 세고 있었다(가이아포밍 등 초·중반 행동이
+        // 통째로 0으로 계측됨 — 최종상태 파일엔 Placed Gaiaformer 76건 있는데 카운터는 0.00).
+        // 클라이언트와 동일하게 gameLogStart/gameLogLen으로 델타 병합해 전체 로그를 복원한다.
+        const fullLog: any[] = [];
+        const mergeLog = (u: any) => {
+            const tail = u?.gameLog;
+            if (!Array.isArray(tail)) return;
+            const start = typeof u.gameLogStart === 'number' ? u.gameLogStart : 0;
+            for (let i = 0; i < tail.length; i++) {
+                const idx = start + i;
+                if (idx < fullLog.length) { if (!fullLog[idx]) fullLog[idx] = tail[i]; }
+                else { while (fullLog.length < idx) fullLog.push(null); fullLog.push(tail[i]); }
+            }
+        };
+
         const onUpdate = (updated: any) => {
             if (updated?.id === gameId) {
                 lastUpdate = updated; // 매 갱신 저장(hang 진단용)
+                mergeLog(updated);
                 // [파워 공급vs소비] 매 갱신마다 각 플레이어 bowl3 샘플 → 봇이 사람(~1.5)만큼 충전파워를 들고 있나(공급) 판별
                 for (const [pid, p] of Object.entries(updated.players || {})) {
                     const q = (p3samp[pid] ??= { s: 0, n: 0 }); q.s += ((p as any).power3 ?? 0); q.n++;
@@ -269,7 +286,10 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
             cleanup();
             // 행동믹스 집계: 게임상태에 포함된 gameLog를 playerId별로 분류 카운트.
             const byPlayer: Record<string, Record<string, number>> = {};
-            for (const e of (updated.gameLog ?? [])) {
+            // 병합 로그가 최종 payload보다 길면(=꼬리 잘림 복원 성공) 그걸 쓰고, 아니면 payload 그대로.
+            const logForCount = fullLog.filter(Boolean).length >= (updated.gameLog?.length ?? 0)
+                ? fullLog.filter(Boolean) : (updated.gameLog ?? []);
+            for (const e of logForCount) {
                 const pid = e?.playerId;
                 if (!pid) continue;
                 // [즉포 계측] classifyAction 밖에서 원시 로그로 직접 카운트(Bonus Action은 classify null이라 continue됨).
