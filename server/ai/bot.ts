@@ -7856,11 +7856,25 @@ export class BotLogic {
      * [학습정책] 사람 22판 656 빌드결정에서 학습한 배치 선형 랭커 점수 (server/ai/placementPolicy.json).
      * imitationProbeTile.mjs와 *동일* 피처/정규화. 게임 누적 시 재학습→W 갱신. 점수 클수록 사람이 고를 자리.
      */
+    /** [placementPolicyV3] 연방 잠재력 피처 학습 가중치 (11피처) — server/ai/placementPolicyV3.json */
+    private static _placeV3: { weights: number[] } | null | undefined;
+    private static placeV3Weights(): number[] | null {
+        if (this._placeV3 === undefined) {
+            try { this._placeV3 = JSON.parse(nodeFs.readFileSync('server/ai/placementPolicyV3.json', 'utf8')); }
+            catch { this._placeV3 = null; }
+        }
+        return this._placeV3?.weights ?? null;
+    }
+
     private static calculatePlacementPolicyScore(game: ServerGameState, playerId: string, tile: HexTile, v2 = false): number {
         // v2: 112게임 per-candidate 재학습(trainCandidateRankerTile.mjs, val 62.8% vs rand 30.7%). 스케일 v1 정합.
         const W = v2
             ? [-3.57, -0.22, 0.00, 0.10, 0.05, -1.27, -0.06, -0.22]
             : [-3.57, -0.85, 0.13, -0.98, -0.54, 1.20, 0.11, -0.81]; // [dOwn,dOpp,dShip,dProto,adjEmpty,adjOwn,newSector,newType]
+        // [flag: placementPolicyV3] 사용자(2026-08-01) "연방 늘리는 거 해보자". v2 8피처 + 연방잠재력 3피처
+        // (clusterPow/reaches7/sat2Pow)로 재학습: 동일 데이터·분할에서 val 65.1% vs v2 63.1%, clusterPow 가중치 +3.27
+        //  = "사람은 연결 군집 파워를 키우는 자리에 짓는다"가 데이터로 확인됨. 스케일은 v2와 동일(max|w|=3.57 → ×60).
+        const W3 = getPlayerFlag(playerId, 'placementPolicyV3', false) ? this.placeV3Weights() : null;
         const NONPLANET = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
         const isPlanetT = (t: HexTile) => !!t.type && !NONPLANET.has(t.type) && !t.type.startsWith('ship_');
         const tiles = game.map;
@@ -7879,6 +7893,30 @@ export class BotLogic {
             Math.min(md(mine), 9) / 9, Math.min(md(opp), 9) / 9, Math.min(md(ships), 9) / 9, Math.min(md(protos), 9) / 9,
             adjEmpty / 6, adjOwn / 6, mySectors.has(tile.sector) ? 0 : 1, myTypes.has(tile.type) ? 0 : 1,
         ];
+        if (W3 && W3.length === 11) {
+            // 연방 잠재력: 이 자리에 광산(파워1)을 놓았을 때 dist1로 이어지는 내 건물 파워합(BFS), 그리고 dist2(위성 1개 브리지) 버전
+            const powOf = (st: string | null | undefined) =>
+                st === 'trading_station' || st === 'research_lab' ? 2
+                    : st === 'planetary_institute' || st === 'academy' ? 3 : 1;
+            const clusterPow = (radius: number) => {
+                const seen = new Set<string>();
+                let total = 1; // 새 광산
+                const queue: HexTile[] = [tile];
+                while (queue.length) {
+                    const cur = queue.shift()!;
+                    for (const m of mine) {
+                        if (seen.has(m.id)) continue;
+                        if (getDistance(cur, m) <= radius) { seen.add(m.id); total += powOf(m.structure); queue.push(m); }
+                    }
+                }
+                return total;
+            };
+            const cPow = clusterPow(1), sPow = clusterPow(2);
+            const f3 = [...f, Math.min(cPow, 7) / 7, cPow >= 7 ? 1 : 0, Math.min(sPow, 7) / 7];
+            let s3 = 0;
+            for (let i = 0; i < W3.length; i++) s3 += W3[i] * f3[i];
+            return s3;
+        }
         let s = 0;
         for (let i = 0; i < W.length; i++) s += W[i] * f[i];
         return s;
