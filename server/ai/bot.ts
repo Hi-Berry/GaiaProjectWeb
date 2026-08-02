@@ -5737,6 +5737,33 @@ export class BotLogic {
             score += (5 - level) * 14;
         }
 
+        // [flag: terraReachValue] 사용자(2026-08-01) "빨리 더 많은 건물 확보". 실측: 종료 건물 사람 15.35 vs 봇 11.05,
+        // terraforming 트랙 사람 4.17 vs 봇 2.17. 테라포밍 L2/L3는 스텝당 광석 3→2→1로 낮춰 '지을 수 있는 행성'을
+        // 즉시 늘리는 레버인데(=reach), 1-ply 평가는 상승 자체의 즉시보상만 봐서 이 파급을 못 셈.
+        // 값-인지: 사거리 안의 미점유 행성 중 이번 상승으로 실제 비용이 내려가는(스텝 1~3 필요) 타일 수 × 절감 광석.
+        if (getPlayerFlag(playerId, 'terraReachValue', false) && track === 'terraforming' && level < 3) {
+            const drop = getTerraformCost(level) - getTerraformCost(level + 1); // 3→2→1, 각 1
+            if (drop > 0) {
+                const myNodes = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
+                    || t.spaceStation?.ownerId === playerId);
+                if (myNodes.length) {
+                    const rng = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+                    let savedOre = 0, targets = 0;
+                    for (const t of game.map) {
+                        if (t.ownerId || t.structure || !t.type) continue;
+                        const steps = getTerraformStepsForFaction(game, player.faction!, t.type);
+                        if (steps < 1 || steps > 3) continue;               // 0스텝(자기 행성/가이아)·불가 타일 제외
+                        if (Math.min(...myNodes.map(m => getDistance(m, t))) > rng + 2) continue; // 도달 가망 밖
+                        targets++; savedOre += steps * drop;                // 이 타일 건설비가 실제로 내려가는 양
+                    }
+                    if (targets > 0) {
+                        const timeLeft = Math.max(0, 6 - round) >= 2 ? 1 : 0.4; // 회수할 라운드가 있어야 가치
+                        score += Math.min(savedOre, 12) * 9 * timeLeft;         // 광석 1 ≈ 9점(캡으로 폭주 방지)
+                    }
+                }
+            }
+        }
+
         // [flag: gaiaReachValue] 사용자(2026-08-01) "신규 광산이 늘면 수입도 연방도 늘 것" → 실측: 광산 건설의
         // 병목은 평가가 아니라 도달능력(2026-06-25 expandDrive 진단). 실게임 재측정(26판): 가이아포머 배치
         // 사람 2.42/석 vs 봇 0.09/석, gaiaProject 트랙 사람 4.20 vs 봇 1.17. 원인 = L1-2는 포머 배치에 파워 6이
