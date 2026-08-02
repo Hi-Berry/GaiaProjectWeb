@@ -2701,13 +2701,26 @@ export class BotLogic {
                 // [v2.1] 우주선 vs 지상 밸런스는 v1.5(중앙값 앵커) 유지 — v2 원안(ship 점수 그대로)은 40판 −4.10,
                 // 우주선 사용률 0.94→0.78로 오히려 감소(학습 점수가 ship 전체를 지상 아래로 내림). 대신 우주선
                 // '끼리의' 상대 순위만 학습 점수로: med + (자기점수 − ship평균) → 어느 ship 액션을 쓸지만 개선.
+                // [flag: upgradeRankerSort] 업그레이드 전용 랭커(upgradeRanker.json, 사람 1,900결정, val 41.5% vs
+                // 무작위 29.3%). 통합 랭커는 업글 후보에 '타입+타일공간' 피처밖에 없어 어느 건물을 무엇으로 올릴지
+                // 근거가 0이었다. ship과 동일하게 '업글끼리의 상대 순서'만 학습 점수로(그룹 위치는 불변).
+                const upScores = getPlayerFlag(playerId, 'upgradeRankerSort', false)
+                    ? this.upgradeRankerScores(game, playerId, uniqueCandidates) : null;
+                const upVals = upScores ? upScores.filter((x): x is number => x !== null) : [];
+                const upMean = upVals.length ? upVals.reduce((a, b) => a + b, 0) / upVals.length : 0;
+                const upBase = upScores ? uniqueCandidates.map((c, i) => c.type === 'upgrade_structure' ? crs0[i] : null).filter((x): x is number => x !== null) : [];
+                const upAnchor = upBase.length ? upBase.reduce((a, b) => a + b, 0) / upBase.length : 0;
                 const shipScores = uniqueCandidates.map((c, i) => (crsV2 && c.type === 'use_ship_action' && (c.params as any)?.shipTileId != null) ? crsV2[i] : null);
                 const shipVals = shipScores.filter((x): x is number => x !== null);
                 const shipMean = shipVals.length ? shipVals.reduce((a, b) => a + b, 0) / shipVals.length : 0;
                 const scored = uniqueCandidates.map((c, i) => {
                     const isShip = c.type === 'use_ship_action';
                     let s: number;
-                    if (!isShip) s = crs0[i];
+                    if (upScores && c.type === 'upgrade_structure' && upScores[i] !== null) {
+                        // 업글 그룹의 평균 위치(upAnchor)는 유지하고, 그 안에서만 학습 점수 편차로 재정렬
+                        s = upAnchor + (upScores[i]! - upMean) * 12;
+                    }
+                    else if (!isShip) s = crs0[i];
                     // [v2.2] 편차를 그대로 더하면(v2.1) ship 절반이 med 아래로 → top-N 컷 탈락, 사용률 1.05→0.74 −4.04 기각.
                     // 순수 동점처리로 축소: ship 그룹 위치는 v1.5와 동일(med), ship '끼리 순서'만 학습 점수(±1e-4 캡).
                     else if (shipScores[i] !== null) s = med + Math.max(-1, Math.min(1, shipScores[i]! - shipMean)) * 1e-4;
@@ -2736,6 +2749,62 @@ export class BotLogic {
         }
 
         return uniqueCandidates;
+    }
+
+    /** [upgradeRankerSort] 업그레이드 전용 랭커 — trainUpgradeRanker.mjs 피처와 *동일 순서/정규화* 필수.
+     *  업글 후보만 점수, 나머지는 null. 맵 전수 계산이라 root 결정에서만 호출(호출부에서 !simulation 보장). */
+    private static _upRanker: { weights: number[] } | null | undefined;
+    static upgradeRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): (number | null)[] | null {
+        if (this._upRanker === undefined) {
+            try { this._upRanker = JSON.parse(nodeFs.readFileSync('server/ai/upgradeRanker.json', 'utf8')); }
+            catch { this._upRanker = null; }
+        }
+        const W = this._upRanker?.weights;
+        if (!W || W.length !== 14) return null;
+        const TARGETS = ['trading_station', 'research_lab', 'planetary_institute', 'academy'];
+        const powOf = (st: string | null | undefined) => st === 'mine' ? 1
+            : (st === 'trading_station' || st === 'research_lab') ? 2
+                : (st === 'planetary_institute' || st === 'academy') ? 3 : 1;
+        const mineT = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+        const oppT = game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure && t.structure !== 'ship');
+        const ownedCount: Record<string, number> = {};
+        for (const m of mineT) ownedCount[String(m.structure)] = (ownedCount[String(m.structure)] || 0) + 1;
+        return cands.map(c => {
+            if (c.type !== 'upgrade_structure') return null;
+            const tid = (c.params as any)?.tileId;
+            const tile = tid ? game.map.find(t => t.id === tid) : null;
+            if (!tile) return null;
+            const tgt = String((c.params as any)?.target || '').startsWith('academy') ? 'academy' : String((c.params as any)?.target || '');
+            const newPow = (tgt === 'trading_station' || tgt === 'research_lab') ? 2 : 3;
+            const others = mineT.filter(m => m.id !== tile.id);
+            // 업글 후 dist1 연결 군집 파워 (학습 스크립트와 동일 BFS)
+            const seen = new Set<string>([tile.id]);
+            let cPow = newPow;
+            const q: typeof others = [tile as any];
+            while (q.length) {
+                const cur = q.shift()!;
+                for (const m of others) {
+                    if (seen.has(m.id)) continue;
+                    if (getDistance(cur, m) <= 1) { seen.add(m.id); cPow += powOf(m.structure); q.push(m); }
+                }
+            }
+            const adjOpp = oppT.filter(o => getDistance(o, tile) === 1).length;
+            const dOwn = others.length ? Math.min(...others.map(m => getDistance(m, tile))) : 9;
+            const f = new Array(14).fill(0);
+            const ti = TARGETS.indexOf(tgt); if (ti >= 0) f[ti] = 1;
+            f[4] = tile.structure === 'mine' ? 1 : 0;
+            f[5] = Math.max(0, newPow - powOf(tile.structure)) / 2;
+            f[6] = Math.min(cPow, 7) / 7;
+            f[7] = cPow >= 7 ? 1 : 0;
+            f[8] = Math.min(adjOpp, 3) / 3;
+            f[9] = Math.min(dOwn, 9) / 9;
+            f[10] = Math.min(ownedCount[tgt === 'academy' ? 'academy' : tgt] || 0, 4) / 4;
+            f[11] = (game.roundNumber || 1) / 6;
+            f[12] = (tgt === 'research_lab' || tgt === 'academy') ? 1 : 0;
+            f[13] = 0;
+            let s = 0; for (let k = 0; k < 14; k++) s += W[k] * f[k];
+            return s;
+        });
     }
 
     /** [candRankerSort] 통합 per-candidate 랭커 점수 — trainCandidateRankerAll.mjs 피처와 *동일 순서/정규화* 필수. */
