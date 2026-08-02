@@ -7965,7 +7965,9 @@ export class BotLogic {
         //   v2(R1-2·−70)  40판 +3.09였으나 120판 −0.66, 광산 −0.27 — 역시 빌드를 깎음.
         // → v3: 벌점을 '다른 액션과의 경쟁'에 쓰지 않고 **고립 대안이 존재할 때만** 적용(사람도 R1 15%는 고립에 짓는다 =
         //   대안이 없으면 짓는 게 맞다). 비고립 후보가 하나라도 있을 때만 감점 → 빌드 총량은 유지, 자리만 이동.
-        if (getPlayerFlag(playerId, 'isolationGuardAlways', false) && game.roundNumber <= 2
+        // [측정 2026-08-03] v3 40판 +4.35 → 120판 확정 +2.12 ± 2.02(승률 53.4%) — 부호 일관 양성 + 부작용 없음
+        //   (총행동 +1.12·교역소 +0.13, v1/v2가 깎던 빌드 총량 유지) → 채택 ON. 실게임 근거: R1 고립비율 봇 47% vs 사람 15%.
+        if (getPlayerFlag(playerId, 'isolationGuardAlways', true) && game.roundNumber <= 2
             && (getPlayerFlag(playerId, 'placementPolicyV2', true) || getPlayerFlag(playerId, 'placementPolicy', false))) {
             const myBuilt = game.map.filter(m => m.ownerId === playerId && m.structure && m.structure !== 'ship');
             const oppBuilt = game.map.filter(m => m.ownerId && m.ownerId !== playerId && m.structure && m.structure !== 'ship');
