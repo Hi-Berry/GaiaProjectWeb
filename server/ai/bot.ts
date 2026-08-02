@@ -7874,7 +7874,10 @@ export class BotLogic {
         // [flag: placementPolicyV3] 사용자(2026-08-01) "연방 늘리는 거 해보자". v2 8피처 + 연방잠재력 3피처
         // (clusterPow/reaches7/sat2Pow)로 재학습: 동일 데이터·분할에서 val 65.1% vs v2 63.1%, clusterPow 가중치 +3.27
         //  = "사람은 연결 군집 파워를 키우는 자리에 짓는다"가 데이터로 확인됨. 스케일은 v2와 동일(max|w|=3.57 → ×60).
-        const W3 = getPlayerFlag(playerId, 'placementPolicyV3', false) ? this.placeV3Weights() : null;
+        // [측정 2026-08-01] 40판 +3.55(승률 60.0%) → 120판 확정 +1.23 ± 2.03(승률 56.8%) — 부호 일관 양성 +
+        // 행동 검증(연방 +0.02, 광산 +0.10, 고급타일 +0.02 전부 양의 방향) → 채택 ON. 배치가치는 self-play가
+        // 과소평가하는 부류(v2도 +0.05 중립이었으나 실게임 기준 채택) — 진짜 판정은 실게임 연방 추이(기준 1.66).
+        const W3 = getPlayerFlag(playerId, 'placementPolicyV3', true) ? this.placeV3Weights() : null;
         const NONPLANET = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
         const isPlanetT = (t: HexTile) => !!t.type && !NONPLANET.has(t.type) && !t.type.startsWith('ship_');
         const tiles = game.map;
