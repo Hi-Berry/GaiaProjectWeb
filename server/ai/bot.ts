@@ -7953,6 +7953,19 @@ export class BotLogic {
             if (!adjOpp && !nearOwn) bonus -= 150; // 강하게: 외곽 고립 빌드 억제
         }
 
+        // [flag: isolationGuardAlways] 사용자 실게임 관찰(2026-08-02): "아무도 없는 구석에 광산 지어서 R1에 망함".
+        // 원인: 위 분기가 else-if 체인이라 placementPolicyV2/V3(기본 ON)가 켜지면 고립 패널티(−150)가 **아예 실행되지 않음**.
+        // 학습 랭커는 후보 간 '상대 순위'만 줄 뿐 "이 자리는 안 됨"의 하한이 없어서, 후보가 전부 나쁠 때 외곽을 고름.
+        // → 학습 점수와 병행(누적)되는 가드로 복원. TS 업글 할인(상대인접 2O3C vs 고립 2O6C)·파워 리치가 근거라
+        //   self-play는 이 가치를 못 잡음(봇끼리 leech 저평가) → 여기선 do-no-harm만 확인, 진짜 판정은 사용자 1:3.
+        if (getPlayerFlag(playerId, 'isolationGuardAlways', false) && game.roundNumber <= 4
+            && (getPlayerFlag(playerId, 'placementPolicyV2', true) || getPlayerFlag(playerId, 'placementPolicy', false))) {
+            const adjOpp2 = neighbors.some(n => n.ownerId && n.ownerId !== playerId && n.structure && n.structure !== 'ship');
+            const nearOwn2 = neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship')
+                || range2Neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship');
+            if (!adjOpp2 && !nearOwn2) bonus -= 150;
+        }
+
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
         if (opponentGaiaformers.some(gf => getDistance(gf, tile) === 1)) bonus += 15;
 
