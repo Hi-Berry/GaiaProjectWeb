@@ -7958,12 +7958,15 @@ export class BotLogic {
         // 학습 랭커는 후보 간 '상대 순위'만 줄 뿐 "이 자리는 안 됨"의 하한이 없어서, 후보가 전부 나쁠 때 외곽을 고름.
         // → 학습 점수와 병행(누적)되는 가드로 복원. TS 업글 할인(상대인접 2O3C vs 고립 2O6C)·파워 리치가 근거라
         //   self-play는 이 가치를 못 잡음(봇끼리 leech 저평가) → 여기선 do-no-harm만 확인, 진짜 판정은 사용자 1:3.
-        if (getPlayerFlag(playerId, 'isolationGuardAlways', false) && game.roundNumber <= 4
+        // [v2] v1(R1-4·−150) 40판 −1.89 + 행동 전면 감소(광산 −0.18·교역소 −0.15·총행동 −1.75) = 너무 뭉툭했다.
+        //   −150이면 '고립 건설'이 '아예 안 지음'보다도 나빠져 빌드 자체를 스킵 → 건물이 줄었다(사용자 다른 목표와 충돌).
+        //   사용자 장면은 R1 초반이므로 R1-2로 좁히고 크기도 −70으로 낮춰 '대안이 있으면 그쪽'만 유도.
+        if (getPlayerFlag(playerId, 'isolationGuardAlways', false) && game.roundNumber <= 2
             && (getPlayerFlag(playerId, 'placementPolicyV2', true) || getPlayerFlag(playerId, 'placementPolicy', false))) {
             const adjOpp2 = neighbors.some(n => n.ownerId && n.ownerId !== playerId && n.structure && n.structure !== 'ship');
             const nearOwn2 = neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship')
                 || range2Neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship');
-            if (!adjOpp2 && !nearOwn2) bonus -= 150;
+            if (!adjOpp2 && !nearOwn2) bonus -= 70;
         }
 
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
