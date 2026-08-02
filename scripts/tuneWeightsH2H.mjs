@@ -19,14 +19,21 @@ const LOG = `${ROOT}/data/tuneWeightsH2H-log.txt`;
 const CYCLES = Math.max(1, Number(process.argv[2]) || 2);
 const GAMES = Math.max(20, Number(process.argv[3]) || 40);
 const SIGMA = Number(process.argv[4]) || 0.15;
-const MIN_MARGIN = 1.0; // 후보 채택 최소 VP마진(POC: 노이즈 위라 보수적)
+const MIN_MARGIN = Number(process.env.MIN_MARGIN) || 1.0; // 후보 채택 최소 VP마진(POC: 노이즈 위라 보수적)
 
 // 오늘 야간 분석이 지목한 확장/캐시아웃 관련 가중치만 섭동(전역 32차원 전체는 POC엔 과함)
+// [2026-08-01 사용자 "룰을 잘 못 만드는 것 같다"] 손으로 가치 보너스를 얹는 방식이 오늘만 4연속 실패
+// (reach 3종·advL4Chase). '어떤 룰을 쓸까'가 아니라 '기존 평가기 가중치를 측정이 직접 고르게' 전환.
+// POC의 확장 관련 9개 → 전역 32차원 중 핵심 축 23개로 확대(자원가치·건물·연구·연방·파워·VP시점).
 const TUNABLE = [
   'structureMine', 'structureTradingStation', 'structureResearchLab',
   'structurePlanetaryInstitute', 'structureAcademy',
-  'researchTerraforming', 'researchGaiaProject', 'gaiaformerValueEach', 'federationValueEach',
-];
+  'researchTerraforming', 'researchNavigation', 'researchGaiaProject', 'researchEconomy', 'researchScience',
+  'gaiaformerValueEach', 'federationValueEach',
+  'oreValue', 'creditsValue', 'knowledgeValue', 'qicWeightEarly', 'qicWeightLate',
+  'power2Value', 'power3Value', 'vpWeightEarly', 'vpWeightLate',
+  'resourceMultiplierEarly', 'resourceMultiplierLate',
+]
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`;
