@@ -7958,15 +7958,27 @@ export class BotLogic {
         // 학습 랭커는 후보 간 '상대 순위'만 줄 뿐 "이 자리는 안 됨"의 하한이 없어서, 후보가 전부 나쁠 때 외곽을 고름.
         // → 학습 점수와 병행(누적)되는 가드로 복원. TS 업글 할인(상대인접 2O3C vs 고립 2O6C)·파워 리치가 근거라
         //   self-play는 이 가치를 못 잡음(봇끼리 leech 저평가) → 여기선 do-no-harm만 확인, 진짜 판정은 사용자 1:3.
-        // [v2] v1(R1-4·−150) 40판 −1.89 + 행동 전면 감소(광산 −0.18·교역소 −0.15·총행동 −1.75) = 너무 뭉툭했다.
-        //   −150이면 '고립 건설'이 '아예 안 지음'보다도 나빠져 빌드 자체를 스킵 → 건물이 줄었다(사용자 다른 목표와 충돌).
-        //   사용자 장면은 R1 초반이므로 R1-2로 좁히고 크기도 −70으로 낮춰 '대안이 있으면 그쪽'만 유도.
+        // [flag: isolationGuardAlways] 사용자 실게임 관찰(2026-08-02) "아무도 없는 구석에 광산 → R1에 망함".
+        // 로그 실측(완주 26판, R1-4 광산): 고립 배치 비율 봇 37.3% vs 사람 19.8%, 특히 **R1은 봇 47% vs 사람 15%(3.1배)**.
+        // 현상은 실재. 단 평탄한 벌점은 두 번 실패:
+        //   v1(R1-4·−150) 40판 −1.89, 광산 −0.18·총행동 −1.75 — 벌점이 커서 '고립 건설'<'아예 안 지음'이 돼 빌드 포기.
+        //   v2(R1-2·−70)  40판 +3.09였으나 120판 −0.66, 광산 −0.27 — 역시 빌드를 깎음.
+        // → v3: 벌점을 '다른 액션과의 경쟁'에 쓰지 않고 **고립 대안이 존재할 때만** 적용(사람도 R1 15%는 고립에 짓는다 =
+        //   대안이 없으면 짓는 게 맞다). 비고립 후보가 하나라도 있을 때만 감점 → 빌드 총량은 유지, 자리만 이동.
         if (getPlayerFlag(playerId, 'isolationGuardAlways', false) && game.roundNumber <= 2
             && (getPlayerFlag(playerId, 'placementPolicyV2', true) || getPlayerFlag(playerId, 'placementPolicy', false))) {
-            const adjOpp2 = neighbors.some(n => n.ownerId && n.ownerId !== playerId && n.structure && n.structure !== 'ship');
-            const nearOwn2 = neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship')
-                || range2Neighbors.some(n => n.ownerId === playerId && n.structure && n.structure !== 'ship');
-            if (!adjOpp2 && !nearOwn2) bonus -= 70;
+            const myBuilt = game.map.filter(m => m.ownerId === playerId && m.structure && m.structure !== 'ship');
+            const oppBuilt = game.map.filter(m => m.ownerId && m.ownerId !== playerId && m.structure && m.structure !== 'ship');
+            const isIsolated = (t: HexTile) =>
+                !oppBuilt.some(o => getDistance(o, t) === 1) && !myBuilt.some(m => getDistance(m, t) <= 2);
+            if (isIsolated(tile)) {
+                // 비고립 대안이 있는지: 내 건물 dist≤2 이웃 중 아직 안 지어진 행성(비용 무시 근사 — 여기선 '자리 존재'만 판단)
+                const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
+                const hasBetter = game.map.some(t2 => t2.id !== tile.id && !t2.ownerId && !t2.structure
+                    && t2.type && !NONPL.has(t2.type) && !String(t2.type).startsWith('ship_')
+                    && !isIsolated(t2));
+                if (hasBetter) bonus -= 70;
+            }
         }
 
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
