@@ -5665,7 +5665,11 @@ export class BotLogic {
                     const l4Reachable = !getPlayerFlag(playerId, 'lateResearchMerit', false)
                         || (4 - next) <= (6 - round);
                     // advVpScale ON이면 advScore가 ×8 스케일 — 연구점수(~100-300 대역) 왜곡 방지 캡
-                    const advCap = getPlayerFlag(playerId, 'advVpScale', true) ? Math.min(advScore, 180) : advScore;
+                    // [flag: advL4Chase] 사용자(2026-08-01) "봇이 인기 고급타일(집3점·패스시리즈)로 점수 내는 걸 보고 싶다".
+                    // 캡 180이면 집3점(~400)·6VP대형(~350)·평범한 타일(~200)이 전부 180으로 뭉개져 '어느 트랙의 L4를
+                    // 노릴지' 변별이 사라짐. 캡을 320으로 올려 좋은 타일이 있는 트랙의 L4 등정을 더 강하게 당긴다.
+                    const capMax = getPlayerFlag(playerId, 'advL4Chase', false) ? 320 : 180;
+                    const advCap = getPlayerFlag(playerId, 'advVpScale', true) ? Math.min(advScore, capMax) : advScore;
                     if (next === 4) score += advCap;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
                     else if (next < 4 && l4Reachable) score += advCap * 0.3; // L4로 가는 도중: 약한 선행 가점
                     // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
