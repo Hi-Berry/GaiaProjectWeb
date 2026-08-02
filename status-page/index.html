@@ -55,9 +55,11 @@ async function check(inst){
 }
 
 function render(list){
-  // 추천: 사람 많은 서버 우선, 없으면 첫 온라인
+  // [사용자 2026-08-03] AI 봇 가능 서버는 추천에서 제외 — 거기선 사람끼리 게임을 안 하므로
+  // 추천(배너·best 하이라이트)은 '사람 전용(AI 봇 없음)' 서버 중에서만 고른다. 사람 많은 순 → 진행 게임 순.
   const ups = list.filter(x=>x.state==='up');
-  const best = ups.sort((a,b)=>(b.humans-a.humans)||(b.games-a.games))[0];
+  const humanOnly = ups.filter(x=>!x.ai);
+  const best = humanOnly.sort((a,b)=>(b.humans-a.humans)||(b.games-a.games))[0];
   const grid = document.getElementById('grid');
   grid.innerHTML = list.map(x=>{
     const cls = x.state==='up'?'up':x.state==='wait'?'wait':'down';
@@ -72,8 +74,15 @@ function render(list){
     </div>`;
   }).join('');
   const b = document.getElementById('banner');
-  if(best){ b.style.display='block'; b.innerHTML = `👉 지금 플레이 추천: <b>${best.name}</b>` + (best.humans>0?(best.ai?` — 사람 ${best.humans}명 접속 중 (AI 봇 대전 가능)`:` — 사람 ${best.humans}명 접속 중, AI 봇 말고 사람 대전 가능!`):(best.ai?' (AI 봇 대전 가능)':' (사람 전용 서버)')); }
-  else { b.style.display='block'; b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 잠시 후 새로고침 해보세요.'; }
+  b.style.display='block';
+  if(best){
+    b.innerHTML = `👉 사람 대전 추천: <b>${best.name}</b> (사람 전용 서버)` + (best.humans>0?` — 지금 ${best.humans}명 접속 중!`:'');
+  } else if(ups.length){
+    // 사람 전용 서버가 하나도 안 열려 있음 — AI 봇 서버는 추천하지 않고 안내만
+    b.innerHTML = '⚠️ 지금 사람 전용 서버가 없습니다. 아래 서버는 AI 봇 대전용입니다.';
+  } else {
+    b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 잠시 후 새로고침 해보세요.';
+  }
 }
 
 async function tick(){
