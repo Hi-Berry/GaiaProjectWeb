@@ -79,9 +79,25 @@
       "researchEconomy": 29.38,
       "qicWeightLate": 7.51
     },
+    "taklons": {
+      "researchEconomy": 27.88,
+      "researchScience": 13.19
+    },
+    "bescods": {
+      "researchScience": 14.24,
+      "researchEconomy": 27.39
+    },
+    "firaks": {
+      "researchScience": 13.72,
+      "structureResearchLab": 150.94
+    },
     "moweyip": {
       "researchGaiaProject": 17.71,
       "researchTerraforming": 17.42
+    },
+    "tinkeroids": {
+      "researchScience": 14.24,
+      "researchNavigation": 11.98
     },
     "darkanians": {
       "researchNavigation": 14.06,
