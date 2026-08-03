@@ -7072,6 +7072,26 @@ export class BotLogic {
                 }
             }
 
+            // [flag: r1RebelBoardFirst] R1 전면 계측(2026-08-03, scripts/round1Diag.mjs — 실게임 완주분 사람 199석 vs 봇 289석):
+            //   R1 총 액션이 봇 11.1 vs 사람 18.5(×0.60)이고, 그 결손의 대부분이 **우주선 액션 0.33 vs 2.85(×0.11)** 한 줄.
+            //   종류별로는 `Rebellion: Gain tech tile(3QIC)` 사람 0.492 vs 봇 0.014가 최대 항목.
+            // ★인과 사슬(리벨리온 있는 게임 R1, 사람 361석 vs 봇 279석): **리벨 탑승률 59.8% vs 24.0%**,
+            //   리벨 액션 사용률 46.8% vs **3.6%**. 봇은 R1에 배를 1.44척 타는데 그게 리벨이 아니다.
+            //   → 이미 있는 장치가 전부 '탑승 후'를 전제한다: qicShipBudget의 3Q 적립보호(탑승 후 QIC 점프 실측 **0%** = 완벽 작동),
+            //     rebel3qLadder(q1~2에서 #3 브리지), rebelFireEarly(q>=3 선점발사). 정작 탑승이 안 돼 전제조건이 안 채워진다.
+            //   → QIC는 대신 먼 광산 점프로 샌다(R1 일반행성 점프 QIC 봇 0.82 vs 사람 0.19; isolationGuard의 'R1 고립 47% vs 15%'와 동일 행동).
+            // 원인(코드): 입장 기본점수가 rebellion +40 < tf_mars +50 < eclipse +60 이고, r1ShipPriority의 가산도
+            //   '배에 붙은 ship-tech 타일'만 본다. 정작 상금인 **매 라운드 반복 3Q→기술타일+트랙전진**은 입장 가치에 0으로 들어간다.
+            //   기술타일이 실게임 최대 갭(봇 3.89 vs 사람 9.35)인데 그 최대 공급원이 입장 평가에서 빠져 있는 셈.
+            // 처리: 순수 '입장 선호' 가산(입장 총량을 늘리는 게 아니라 어느 배를 탈지만 바꿈) — 3Q 미사용 + QIC 점프 불필요할 때만.
+            //   ※ 이 부류(우주선 contention)는 self-play가 원천적으로 못 재현한다(shipTechEntryValue −9.5, Nav+1 self-play 0.40 vs 실전 0.09).
+            //     여기선 do-no-harm + 탑승률 발화만 확인하고 실효 판정은 사용자 1:3 — r1ShipPriority·qicShipBudget·rebelFireEarly와 동일 프로토콜.
+            if (getPlayerFlag(playerId, 'r1RebelBoardFirst', false) && round <= 2
+                && tile.type === 'ship_rebellion' && neededQic === 0
+                && !((game.spaceships?.[tile.id]?.usedActionIndices) ?? []).includes(1)) {
+                score += 160;
+            }
+
             // [사용자 관찰] 입장 순서 충전(2·3번째 +2PW, 4번째 +3PW, executeEnterSpaceship)이 bowl 수용량 부족으로
             // 버려지면 bowl3 먼저 비워 수용량 확보. itars/nevlas는 입장 시 토큰 1개를 선소모해 bowl 상태가 바뀌어
             // chargeDrainPreActions 모델(strictly dominant 보장)이 어긋나므로 제외.
