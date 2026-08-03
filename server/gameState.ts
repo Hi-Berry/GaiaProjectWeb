@@ -1236,10 +1236,13 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 		const targetPlayer = game.players[offer.targetPlayerId];
 		if (!targetPlayer) continue;
 
-		// 마지막 라운드(6)에 이미 패스한 플레이어: 파워 제안 창을 띄우지 않는다.
-		// 패스 후엔 파워를 쓸 수 없으므로 무료 1파워만 자동 수령하고, VP를 깎는 추가분은 자동 거절.
+		// 마지막 라운드(6)에 이미 패스한 플레이어: 파워 제안 창을 띄우지 않고 자동 처리.
+		// [버그수정 2026-08-03, 사용자 제보 "2파워 받을 타이밍에 1파워만 올라감"] 예전 코드는 오퍼 크기와 무관하게
+		// 무조건 1파워를 충전했다. 두 가지가 잘못됨: ①부분 충전은 룰에 없다(전액 수락 또는 거절) ②패스 후 파워는
+		// 종료 점수에 1점도 기여하지 않으므로(파워 토큰은 잔여자원 VP 대상 아님) VP를 깎고 받는 건 순손실.
+		// → 오퍼가 1파워(전액=무료)면 그대로 수령, 2파워 이상(VP 소모)이면 전액 자동 거절.
 		if (targetPlayer.hasPassed && (game.roundNumber ?? 0) >= 6) {
-			if (offer.amount > 0 && getMaxPowerGain(targetPlayer) > 0) {
+			if (offer.amount === 1 && offer.vpCost === 0 && getMaxPowerGain(targetPlayer) > 0) {
 				applyPlayerPowerCharge(game, offer.targetPlayerId, 1);
 				const added = addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
@@ -1247,6 +1250,13 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 					text: `↳ Received Power +1P ${targetPlayer.name}`
 				});
 				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (패스/마지막 라운드 자동)`, offer.tileId);
+			} else if (offer.amount >= 2) {
+				const added = addSubLogToLastAction(game, sourcePlayerId, {
+					playerId: offer.targetPlayerId,
+					playerName: targetPlayer.name,
+					text: `↳ Declined Power (패스 후 −${Math.max(0, offer.amount - 1)}VP 회피) ${targetPlayer.name}`
+				});
+				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스/마지막 라운드)`, offer.tileId);
 			}
 			continue;
 		}
