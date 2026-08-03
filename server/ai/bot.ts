@@ -709,7 +709,17 @@ export class BotLogic {
                 //   R1에 켜면 6라운드, R3.5면 절반만 돌린다. 평가기 PI 항 추가는 3연속 기각(geodensPiValue·bescodsPiValue) 이력이라
                 //   여기선 사람 패턴 그대로의 **시퀀싱 직접-return**(humanRule 계열)으로 간다.
                 // 안전장치: R1-2 한정 + findUpgradeActions가 낸 합법·지불가능 후보일 때만(자금 없으면 후보 자체가 없어 발동 안 함).
-                if (getPlayerFlag(playerId, 'nevlasPiFirst', false) && player.faction === 'nevlas' && !game.hasDoneMainAction) {
+                // [flag: nevlasPowerPack] 2026-08-03 파워수지 계측(scripts/powerBudgetDiag.mjs, 실게임 완주 130판):
+                //   봇의 파워 '소비'는 결함이 아니다 — 행동 1건당 지불파워 봇 0.511 vs 사람 0.464(봇이 더 높음).
+                //   결함은 '공급'이다 — 액션 경유 파워 획득 사람 14.9 vs 봇 2.6, 그 9할이 Used Tech Action(13.13 vs 1.47),
+                //   뿌리는 +4P 타일 보유율 **사람 67.8% vs 봇 8.3%**(봇 무작위 기대치 43%보다도 낮음 = 적극 회피).
+                //   ★단 '보유한 좌석'의 사용량은 봇 17.67 ≈ 사람 19.35 = 쓸 줄은 안다.
+                //   네블라스 배당금: 사람은 같은 행동수로 파워밀도 0.464→0.742(+60%)를 만드는데 봇은 0.511→0.591(+16%).
+                // ★조합 가설: 이 조각들은 개별로 전부 기각됐다(의회조기 −4.27 / act4pPick 120판 −4.21 유의 / 지식사이클 −5.8).
+                //   전부 "소스만 열고 싱크 없음" 또는 그 역이었다. 사람 네블라스는 패키지로 쓴다(act-4p 100% + R1 의회 + 파워액션 9.73).
+                //   → 상보성 검증: 네블라스 한정으로 ①의회 조기 ②+4P 타일 강선호를 **동시** 적용. 단독 실패의 합이 될 위험도 실재.
+                const nevPack = getPlayerFlag(playerId, 'nevlasPowerPack', false) && player.faction === 'nevlas';
+                if ((getPlayerFlag(playerId, 'nevlasPiFirst', false) || nevPack) && player.faction === 'nevlas' && !game.hasDoneMainAction) {
                     const rr = game.roundNumber ?? 1;
                     const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
                     if (rr <= 2 && !hasPI) {
@@ -6416,6 +6426,12 @@ export class BotLogic {
         // 4. 종족별 특정 타일 시너지
         if (player.faction === 'taklons' && tileId === 'tech-act-4p') score += 20; // 아이타는 의회 능력 활용을 위해 4P 매우 선호
         if (player.faction === 'nevlas' && tileId === 'tech-act-4p') score += 20; // 네블라스는 파워 충격 시너지
+        // [flag: nevlasPowerPack] 위 +20으로는 income 타일(+120/R1-2, +70/R3-4)을 못 넘어 4P가 순번이 안 온다
+        // (실측 보유율 봇 8.3% vs 사람 67.8%). 네블라스 한정으로 income 위로 올린다: R1-2 100+20+80=200 > 120,
+        // R3-4 60+20+80=160 > 70. ★act4pPick(전종족 +50, 120판 −4.21 유의기각)의 재탕이 아님 — 종족 한정 +
+        // 의회 조기화와 동시 적용(파워 싱크가 생긴 상태에서의 공급 확충)이 검증 대상.
+        if (getPlayerFlag(playerId, 'nevlasPowerPack', false) && player.faction === 'nevlas'
+            && tileId === 'tech-act-4p' && (game.roundNumber ?? 1) <= 4) score += 80;
 
         return score;
     }
