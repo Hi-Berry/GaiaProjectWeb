@@ -2713,10 +2713,26 @@ export class BotLogic {
                 const shipScores = uniqueCandidates.map((c, i) => (crsV2 && c.type === 'use_ship_action' && (c.params as any)?.shipTileId != null) ? crsV2[i] : null);
                 const shipVals = shipScores.filter((x): x is number => x !== null);
                 const shipMean = shipVals.length ? shipVals.reduce((a, b) => a + b, 0) / shipVals.length : 0;
+                // [flag: rankerNeutralizeUpgTech] 2026-08-03 오프라인 실측: 통합 랭커의 **그룹 내부 top-1**(같은 타입
+                // 후보끼리 사람 픽을 1등으로 놓는 비율, 3-폴드 CV 16,628결정)이 업글 28%(무작위 30%)·테크 44%(무작위 49%)로
+                // **무작위보다 나쁘다**. 다른 타입은 양호(연방 100%·ship 73%·광산 59%·연구 49% vs 무작위 26~36%).
+                // 원인 추정: 통합 피처에 업글 근거(어느 건물을 무엇으로)·테크 근거가 사실상 0(타입 one-hot + 타일 공간뿐)
+                //   — upgradeRankerSort는 여기에 전용 랭커를 *더하는* 방향이었고 120판 −3.85로 기각. 이건 반대로 *빼는* 방향.
+                // 처리: 두 타입은 그룹 평균 위치(앵커)로 동점화 → 그룹의 전체 순위 위치는 보존하고 그룹 내부 순서는
+                //   봇 원래 순서(안정정렬)로 되돌린다. ship 앵커(v1.5)와 같은 형태.
+                const neutUT = getPlayerFlag(playerId, 'rankerNeutralizeUpgTech', false);
+                const utAnchor: Record<string, number> = {};
+                if (neutUT) {
+                    for (const ty of ['upgrade_structure', 'use_tech_action']) {
+                        const vals = uniqueCandidates.map((c, i) => c.type === ty ? crs0[i] : null).filter((x): x is number => x !== null);
+                        if (vals.length) utAnchor[ty] = vals.reduce((a, b) => a + b, 0) / vals.length;
+                    }
+                }
                 const scored = uniqueCandidates.map((c, i) => {
                     const isShip = c.type === 'use_ship_action';
                     let s: number;
-                    if (upScores && c.type === 'upgrade_structure' && upScores[i] !== null) {
+                    if (neutUT && utAnchor[c.type] !== undefined) s = utAnchor[c.type];
+                    else if (upScores && c.type === 'upgrade_structure' && upScores[i] !== null) {
                         // 업글 그룹의 평균 위치(upAnchor)는 유지하고, 그 안에서만 학습 점수 편차로 재정렬
                         s = upAnchor + (upScores[i]! - upMean) * 12;
                     }
