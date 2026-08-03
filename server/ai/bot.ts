@@ -700,6 +700,27 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: nevlasPiFirst] 실게임 실측(2026-08-03, 완주 62판): 네블라스 의회 건설 라운드 **사람 1.31 vs 봇 3.50**,
+                // 건설률 사람 96%(26석 중 22석이 R1) vs 봇 75%(R1 0석). 봇 nevlas 좌석 중 PI 없는 4석 평균 58.8 vs 있는 12석 76.6.
+                // ★자금 문제 아님: 같은 R1에 봇은 연구소(3O,5C)를 짓는다 = PI(4O,6C)와 거의 동일 비용인데 연구소를 고른 것.
+                //   사람 R1 라인은 예외 없이 `TS(2O,3C) → PI(4O,6C)`가 첫 두 수.
+                // 원인: **evaluator.ts에 'nevlas'가 0회 등장**(itars PI 분기는 있음) — 네블라스 의회를 일반 PI(건물값 3)로
+                //   값매김한다. 실제로는 bowl3 토큰 1개=파워 2 → 모든 파워비용 절반(ceil) + 연구소가 파워+2 수입 = 종족 엔진 전부.
+                //   R1에 켜면 6라운드, R3.5면 절반만 돌린다. 평가기 PI 항 추가는 3연속 기각(geodensPiValue·bescodsPiValue) 이력이라
+                //   여기선 사람 패턴 그대로의 **시퀀싱 직접-return**(humanRule 계열)으로 간다.
+                // 안전장치: R1-2 한정 + findUpgradeActions가 낸 합법·지불가능 후보일 때만(자금 없으면 후보 자체가 없어 발동 안 함).
+                if (getPlayerFlag(playerId, 'nevlasPiFirst', false) && player.faction === 'nevlas' && !game.hasDoneMainAction) {
+                    const rr = game.roundNumber ?? 1;
+                    const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    if (rr <= 2 && !hasPI) {
+                        const piAct = this.findUpgradeActions(game, playerId)
+                            .find(a => (a.params as any)?.target === 'planetary_institute');
+                        if (piAct) {
+                            log(`Bot ${player.name} nevlasPiFirst: 의회 우선 (R${rr}) — 사람 R1 85% 패턴`, 'game', game.id);
+                            return piAct;
+                        }
+                    }
+                }
                 // [flag: earlyDigResearch] 실측(2026-07-07): 테라포밍 L1 도달 사람 R2.3(25명) vs 봇 R3.8(5명뿐),
                 // 가이아 L1 사람 R2.1 vs 봇 R3.5 — 삽·포머가 1.5R 늦어 지을 행성 풀이 작음(사용자 진단 ②) →
                 // 광산부족→LOW_POWER→연방부족의 상류. 평가기 nudge는 MCTS가 덮으므로(반복 확인) humanRule 계열
