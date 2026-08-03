@@ -79,15 +79,15 @@ const TINKEROID_SPECIAL_IMAGES: Record<string, string> = {
 const SCORE_SOURCE_LABELS: Record<string, string> = {
   'Gaia Project track reward': '가이아 트랙 보상',
   'Economy track reward': '경제 트랙 보상',
-  'Proto Planet': '프로토 행성',
-  'Gleens Gaia Bonus': '글린스 가이아 보너스',
+  'Proto Planet': '원시 행성 건설',
+  'Gleens Gaia Bonus': '글린 가이아 보너스',
   'Artifact: Gaia x 3': '인공물: 가이아 ×3',
   'Artifact: Science x 3': '인공물: 과학 ×3',
   'Artifact: Tracks >= 3': '인공물: 트랙 3단계 이상',
   'Artifact: Planet types': '인공물: 행성 종류',
   'Artifact: 7 VP + Asteroid': '인공물: 7VP + 소행성',
-  'Artifact: 7 VP + Proto': '인공물: 7VP + 프로토',
-  'Artifact: Bridge VP': '인공물: 브리지 VP',
+  'Artifact: 7 VP + Proto': '인공물: 7VP + 원시',
+  'Artifact: Bridge VP': '인공물: 외각 VP',
 };
 
 /** 연방으로 합칠 소스인지 — 연방 보상 계열 + 테라포밍 5 보상(규칙상 연방 토큰 지급이라 별도 줄이면 헷갈림, 사용자 요청) */
@@ -1814,7 +1814,7 @@ export default function Game() {
                         </thead>
                         <tbody>
                           {allRows.map(label => (
-                            <tr key={label} className="border-b border-white/5 hover:bg-white/[0.02]">
+                            <tr key={label} className="border-b border-white/5 even:bg-white/[0.035] hover:bg-white/[0.07]">
                               <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{negLabels.has(label) ? `${label}(−)` : label}</td>
                               {cols.map(c => (
                                 <td key={c.pid} className="py-1.5 px-3 text-center">{cell(valOf(c, label))}</td>
@@ -1887,55 +1887,57 @@ export default function Game() {
                         {/* 전체 점수 내역 (Breakdown 합계 = Total Score와 일치해야 함) */}
                         <div className="space-y-4">
                           <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">점수 구성</h4>
-                          <div className="bg-zinc-900/20 rounded-xl border border-white/5 divide-y divide-white/5">
-                            <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                          {/* 짝수 줄 배경 교차(zebra) — 항목이 많아 같은 색이면 행 구분이 안 됨(사용자 요청).
+                              조건부 렌더 행이 섞여 있어 인덱스 계산 대신 nth-child로 처리, 마지막 '구성 합계' 행은 제외. */}
+                          <div className="bg-zinc-900/20 rounded-xl border border-white/5 divide-y divide-white/5 [&>*:nth-child(even):not(:last-child)]:bg-white/[0.035]">
+                            <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                               <span className="text-xs font-bold text-zinc-400">시작 보너스</span>
                               <span className="text-sm font-black text-amber-500/80">+10 VP</span>
                             </div>
                             {roundMissionsSum !== 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">라운드 미션</span>
                                 <span className="text-sm font-black text-amber-400/90">+{roundMissionsSum} VP</span>
                               </div>
                             )}
                             {bonusTilePassSum !== 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">보너스 타일(패스)</span>
                                 <span className="text-sm font-black text-yellow-400/90">+{bonusTilePassSum} VP</span>
                               </div>
                             )}
                             {techTilesSum !== 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">기술 타일</span>
                                 <span className="text-sm font-black text-purple-400/90">+{techTilesSum} VP</span>
                               </div>
                             )}
                             {b.finalMissions > 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">최종 미션</span>
                                 <span className="text-sm font-black text-blue-400/90">+{b.finalMissions} VP</span>
                               </div>
                             )}
                             {b.researchTracks > 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">연구 트랙</span>
                                 <span className="text-sm font-black text-cyan-400">+{b.researchTracks} VP</span>
                               </div>
                             )}
                             {remainingResourcesVp > 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">남은 자원 (O+C+Q+K) 3당 1 VP</span>
                                 <span className="text-sm font-black text-emerald-400/90">+{remainingResourcesVp} VP</span>
                               </div>
                             )}
                             {b.powerReceived > 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-red-400/80">파워 수령(−)</span>
                                 <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
                               </div>
                             )}
                             {spaceshipsSum !== 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-zinc-400">정큐액션(우주선)</span>
                                 <span className="text-sm font-black text-cyan-400/90">+{spaceshipsSum} VP</span>
                               </div>
@@ -1952,14 +1954,14 @@ export default function Game() {
                               }, [] as { source: string; vp: number }[]);
 
                               return grouped.map((item, i) => (
-                                <div key={i} className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                                <div key={i} className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                   <span className="text-xs font-bold text-zinc-400">{item.source}</span>
                                   <span className="text-sm font-black text-zinc-100">{item.vp >= 0 ? '+' : ''}{item.vp} VP</span>
                                 </div>
                               ));
                             })()}
                             {legacyScoreAdjustment !== 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
                                 <span className="text-xs font-bold text-amber-400/90">미분류/레거시 보정</span>
                                 <span className="text-sm font-black text-amber-300">{legacyScoreAdjustment >= 0 ? '+' : ''}{legacyScoreAdjustment} VP</span>
                               </div>
