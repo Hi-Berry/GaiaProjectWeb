@@ -88,7 +88,7 @@ for (const f of files) {
         // 퇴화 판정: 후보 피처가 전부 동일하면 어느 모델이든 자동정답 → 실력 지표에서 제외
         const key0 = feats[0].join(',');
         const degenerate = feats.every(fv => fv.join(',') === key0);
-        decisions.push({ cands: feats, y, takenType: e.candidates[y].type, degenerate });
+        decisions.push({ cands: feats, y, takenType: e.candidates[y].type, typeOf: e.candidates.map(c => c.type), degenerate });
       }
     }
     if (/Built Mine|Placed Starting Mine|Placed Mine|Placed Gaiaformer/i.test(act)) { if (tid) owner.set(tid, pid); }
@@ -102,7 +102,7 @@ console.log(`통합 결정 ${decisions.length}, 피처 ${D}, 후보평균 ${(dec
 const softmax = ss => { const mx = Math.max(...ss); const ex = ss.map(s => Math.exp(s - mx)); const Z = ex.reduce((a, b) => a + b, 0); return ex.map(x => x / Z); };
 function mkRnd(seed0) { let seed = seed0; return () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }; }
 
-function trainLinear(tr, { epochs = 60, lr = 0.05, l2 = 1e-4, seed = 12345 } = {}) {
+function trainLinear(tr, { epochs = 60, lr = 0.05, l2 = 1e-4, seed = 12345, onEpoch = null } = {}) {
   const w = new Float64Array(D); const m = new Float64Array(D), v = new Float64Array(D);
   const b1 = 0.9, b2 = 0.999, eps = 1e-8; let t = 0; const rnd = mkRnd(seed);
   const sc = fv => { let s = 0; for (let k = 0; k < D; k++) s += w[k] * fv[k]; return s; };
@@ -115,11 +115,12 @@ function trainLinear(tr, { epochs = 60, lr = 0.05, l2 = 1e-4, seed = 12345 } = {
       const lrt = lr * Math.sqrt(1 - Math.pow(b2, t)) / (1 - Math.pow(b1, t));
       for (let k = 0; k < D; k++) { const gr = g[k] + l2 * w[k]; m[k] = b1 * m[k] + (1 - b1) * gr; v[k] = b2 * v[k] + (1 - b2) * gr * gr; w[k] -= lrt * m[k] / (Math.sqrt(v[k]) + eps); }
     }
+    if (onEpoch) { const snap = [...w]; onEpoch(ep + 1, { scoreOf: fv => { let s = 0; for (let k = 0; k < D; k++) s += snap[k] * fv[k]; return s; } }); }
   }
   return { kind: 'linear', w: [...w], scoreOf: sc };
 }
 
-function trainMLP(tr, { H = 16, epochs = 60, lr = 0.02, l2 = 1e-3, seed = 12345, skip = false } = {}) {
+function trainMLP(tr, { H = 16, epochs = 60, lr = 0.02, l2 = 1e-3, seed = 12345, skip = false, onEpoch = null } = {}) {
   const rnd = mkRnd(seed);
   const gauss = () => { let u = 0, v2 = 0; while (u === 0) u = rnd(); while (v2 === 0) v2 = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v2); };
   const W1 = new Float64Array(H * D), b1v = new Float64Array(H), W2 = new Float64Array(H); let b2v = 0;
@@ -166,8 +167,40 @@ function trainMLP(tr, { H = 16, epochs = 60, lr = 0.02, l2 = 1e-3, seed = 12345,
       b2v = step(LIN0 - 1, b2v, 0);
       if (skip) for (let k = 0; k < D; k++) wLin[k] = step(LIN0 + k, wLin[k], 1e-4);
     }
+    if (onEpoch) {
+      const s1 = new Float64Array(W1), s2 = new Float64Array(b1v), s3 = new Float64Array(W2), s4 = b2v, s5 = new Float64Array(wLin);
+      onEpoch(ep + 1, {
+        scoreOf: fv => {
+          let s = s4;
+          for (let j = 0; j < H; j++) { let z = s2[j]; const off = j * D; for (let k = 0; k < D; k++) z += s1[off + k] * fv[k]; s += s3[j] * Math.tanh(z); }
+          if (skip) for (let k = 0; k < D; k++) s += s5[k] * fv[k];
+          return s;
+        }
+      });
+    }
   }
   return { kind: skip ? 'resmlp' : 'mlp', H, W1: [...W1], b1: [...b1v], W2: [...W2], b2: b2v, wLin: skip ? [...wLin] : null, scoreOf: fv => fwd(fv).s };
+}
+
+// ★배포 정합 지표: bot.ts는 통합 랭커 점수를 '그룹 앵커 + 그룹 내부 순서'로만 쓴다(ship은 med에 고정하고
+//   ±1e-4로 동점처리, upgrade도 앵커 유지 — bot.ts 2716-2726). 즉 **타입 간 순위는 소비되지 않는다.**
+//   전체 top-1(12.3후보 중 1등)은 대부분 '어느 타입을 고를까'를 재는 지표라 소비 경로와 불일치한다.
+//   → 같은 타입 후보끼리(2개 이상)의 top-1 = 실제로 봇 행동을 바꾸는 해상도.
+function evalWithin(model, set) {
+  const per = {}; let hit = 0, n = 0;
+  for (const d of set) {
+    const takenType = d.takenType;
+    const idx = [];
+    for (let i = 0; i < d.cands.length; i++) if (d.typeOf[i] === takenType) idx.push(i);
+    if (idx.length < 2) continue;                       // 그룹 내 선택지가 없으면 변별 대상 아님
+    let bi = idx[0], bs = model.scoreOf(d.cands[idx[0]]);
+    for (const i of idx.slice(1)) { const s = model.scoreOf(d.cands[i]); if (s > bs) { bs = s; bi = i; } }
+    const h = bi === d.y ? 1 : 0;
+    hit += h; n++;
+    per[takenType] = per[takenType] || { n: 0, hit: 0, rand: 0 };
+    per[takenType].n++; per[takenType].hit += h; per[takenType].rand += 1 / idx.length;
+  }
+  return { t1: n ? hit / n : 0, n, per };
 }
 
 function evalSet(model, set) {
@@ -184,6 +217,62 @@ function evalSet(model, set) {
 
 const FOLDS = Number(process.env.FOLDS) || 4;
 const EPOCHS = Number(process.env.EPOCHS) || 60;
+
+// ---------- CKPT 모드: 에폭 체크포인트 × (전체 top-1 / ★배포정합 그룹내 top-1) ----------
+// 두 가지를 한 번에 해결한다:
+//   ① "MLP가 덜 학습된 것 아니냐" / "선형이 과학습으로 무너진 것 아니냐" → 두 모델 다 에폭 곡선으로 최고점 비교
+//   ② 지표 정합 → 봇이 실제로 소비하는 '그룹 내부 순서'로 판정
+if (process.env.CKPT === '1') {
+  const CK = (process.env.CKPTS || '40,80,120,180').split(',').map(Number);
+  const maxEp = Math.max(...CK);
+  const models = [
+    { name: 'linear', fn: (tr, cb) => trainLinear(tr, { epochs: maxEp, onEpoch: cb }) },
+    { name: 'mlp H=16', fn: (tr, cb) => trainMLP(tr, { H: 16, epochs: maxEp, onEpoch: cb }) },
+  ];
+  const res = new Map();  // name -> ep -> {all:[], within:[]}
+  for (const m of models) res.set(m.name, new Map(CK.map(e => [e, { all: [], within: [] }])));
+  const perByName = new Map();
+  for (let f = 0; f < FOLDS; f++) {
+    const tr = [], va = [];
+    decisions.forEach((d, i) => ((i % FOLDS === f) ? va : tr).push(d));
+    for (const m of models) {
+      m.fn(tr, (ep, snap) => {
+        if (!CK.includes(ep)) return;
+        const A = evalSet(snap, va), W = evalWithin(snap, va);
+        res.get(m.name).get(ep).all.push(A.nonDeg);
+        res.get(m.name).get(ep).within.push(W.t1);
+        if (f === FOLDS - 1) perByName.set(m.name + '@' + ep, W.per);
+      });
+      process.stdout.write(`  fold ${f} ${m.name} 완료\n`);
+    }
+  }
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const sd = a => { const m0 = mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m0) ** 2, 0) / Math.max(1, a.length - 1)); };
+  console.log(`\n${FOLDS}-폴드 CV, 에폭 체크포인트 — 전체(비퇴화) / ★그룹내(배포정합)`);
+  console.log('에폭    linear 전체 / 그룹내      mlp16 전체 / 그룹내');
+  for (const ep of CK) {
+    const L = res.get('linear').get(ep), M = res.get('mlp H=16').get(ep);
+    console.log(`${String(ep).padStart(4)}    ${(mean(L.all) * 100).toFixed(2)}% / ${(mean(L.within) * 100).toFixed(2)}%` +
+      `        ${(mean(M.all) * 100).toFixed(2)}% / ${(mean(M.within) * 100).toFixed(2)}%`);
+  }
+  const bestOf = (name, key) => CK.map(ep => [ep, mean(res.get(name).get(ep)[key])]).sort((a, b) => b[1] - a[1])[0];
+  for (const key of ['all', 'within']) {
+    const bl = bestOf('linear', key), bm = bestOf('mlp H=16', key);
+    // 최고점끼리 비교(각자 최적 에폭) + 같은 에폭 쌍대차 SE
+    const diff = res.get('mlp H=16').get(bm[0])[key].map((x, i) => x - res.get('linear').get(bl[0])[key][i]);
+    console.log(`\n[${key === 'all' ? '전체(참고)' : '★그룹내(판정지표)'}] linear 최고 ${(bl[1] * 100).toFixed(2)}%@ep${bl[0]} vs mlp16 최고 ${(bm[1] * 100).toFixed(2)}%@ep${bm[0]}` +
+      ` → 차이 ${mean(diff) >= 0 ? '+' : ''}${(mean(diff) * 100).toFixed(2)}%p ± ${(sd(diff) / Math.sqrt(FOLDS) * 100).toFixed(2)}`);
+  }
+  const bl = bestOf('linear', 'within'), bm = bestOf('mlp H=16', 'within');
+  const pl = perByName.get('linear@' + bl[0]), pm = perByName.get('mlp H=16@' + bm[0]);
+  console.log('\n마지막 폴드 타입별 ★그룹내 top-1 (무작위 → linear → mlp16):');
+  Object.entries(pl).sort((a, b) => b[1].n - a[1].n).slice(0, 10).forEach(([k, x]) => {
+    const y = pm[k] || { n: 1, hit: 0 };
+    console.log(`  ${k.padEnd(22)} n=${String(x.n).padStart(4)}  ${(x.rand / x.n * 100).toFixed(0)}% → ${(x.hit / x.n * 100).toFixed(0)}% → ${(y.hit / y.n * 100).toFixed(0)}%`);
+  });
+  console.log('\n게이트: ★그룹내 차이가 +2%p 이상 & > 2×SE 여야 봇 통합/h2h로 진행.');
+  process.exit(0);
+}
 // LONG=1: MLP가 60에폭에서 덜 학습된 것 아니냐는 반론 제거용 장기학습 대조(선형도 동일 에폭).
 const configs = process.env.LONG === '1' ? [
   { name: 'linear', fn: tr => trainLinear(tr, { epochs: EPOCHS }) },
