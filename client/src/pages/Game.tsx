@@ -512,6 +512,8 @@ export default function Game() {
   const researchDragControls = useDragControls();
   const bonusDragControls = useDragControls();
   const [showGameEndScore, setShowGameEndScore] = useState(false);
+  // 결과창 탭 상태 — GameEndScoreModal이 일반 함수라(인라인 컴포넌트 재마운트 버그 회피) 부모에 둔다
+  const [scoreTab, setScoreTab] = useState<string>('__overview__');
   const [isAdminModeOpen, setIsAdminModeOpen] = useState(false);
   // 관리자 해금(Ctrl+Alt+A) 여부 — 진행 중 로그 스냅샷 다운로드 등 관리자 전용 UI 노출 게이트
   const [isAdmin, setIsAdmin] = useState(false);
@@ -972,6 +974,7 @@ export default function Game() {
   // Turn behavior notification sounds
   useEffect(() => {
     if (!game || !game.turnOrder || game.currentPlayerIndex === undefined) return;
+    if (isSpectator) return; // [사용자 2026-08-01] 관전자에게 턴 알림음(내턴/상대턴) 울리던 버그 — 파워 리마인더처럼 차단
 
     const activePlayerId = game.turnOrder[game.currentPlayerIndex];
     const isMyTurn = activePlayerId === playerId;
@@ -1027,11 +1030,12 @@ export default function Game() {
       lastBidderRef.current = bidderId || null;
       lastWasMyBidRef.current = isMyBid;
     }
-  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId]);
+  }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId, isSpectator]);
 
   // Power Receive sound notification
   useEffect(() => {
     if (!game || !playerId) return;
+    if (isSpectator) return; // 관전자는 좌석 파워 변화 소리도 제외
     const player = game.players[playerId];
     if (!player) return;
 
@@ -1601,8 +1605,10 @@ export default function Game() {
     );
   }
 
+  // [사용자 2026-08-01 "결과창이 1초 뒤 닫혔다 다시 열려"] 인라인 컴포넌트(<GameEndScoreModal />)는 부모 리렌더마다
+  // 타입이 새로 생겨 React가 다이얼로그를 재마운트 → 종료 직후 서버 후처리 emit 한 번에 닫힘/재열림 깜빡임.
+  // 일반 함수 호출({GameEndScoreModal()})로 바꿔 컴포넌트 경계를 제거 (scoreTab state는 부모로 승격).
   const GameEndScoreModal = () => {
-    const [scoreTab, setScoreTab] = useState<string>('__overview__');
     if (game.currentPhase !== 'gameEnd') return null;
 
     const playersWithScores = game.turnOrder
@@ -1826,7 +1832,7 @@ export default function Game() {
 
                             <div className="pt-4 border-t border-white/5">
                               <div className="flex justify-between items-end mb-1">
-                                <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Total Score</span>
+                                <span className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">총점</span>
                                 <span className="text-4xl font-black tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{player!.score} <span className="text-sm font-bold text-zinc-500 tracking-normal uppercase">VP</span></span>
                               </div>
                               {legacyScoreAdjustment !== 0 && (
@@ -1838,39 +1844,39 @@ export default function Game() {
 
                         {/* 전체 점수 내역 (Breakdown 합계 = Total Score와 일치해야 함) */}
                         <div className="space-y-4">
-                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">Score Breakdown</h4>
+                          <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] px-1">점수 구성</h4>
                           <div className="bg-zinc-900/20 rounded-xl border border-white/5 divide-y divide-white/5">
                             <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                              <span className="text-xs font-bold text-zinc-400">Starting Bonus</span>
+                              <span className="text-xs font-bold text-zinc-400">시작 보너스</span>
                               <span className="text-sm font-black text-amber-500/80">+10 VP</span>
                             </div>
                             {roundMissionsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Round Missions</span>
+                                <span className="text-xs font-bold text-zinc-400">라운드 미션</span>
                                 <span className="text-sm font-black text-amber-400/90">+{roundMissionsSum} VP</span>
                               </div>
                             )}
                             {bonusTilePassSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Bonus Tile Pass</span>
+                                <span className="text-xs font-bold text-zinc-400">보너스 타일(패스)</span>
                                 <span className="text-sm font-black text-yellow-400/90">+{bonusTilePassSum} VP</span>
                               </div>
                             )}
                             {techTilesSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Tech Tiles</span>
+                                <span className="text-xs font-bold text-zinc-400">기술 타일</span>
                                 <span className="text-sm font-black text-purple-400/90">+{techTilesSum} VP</span>
                               </div>
                             )}
                             {b.finalMissions > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Final Missions</span>
+                                <span className="text-xs font-bold text-zinc-400">최종 미션</span>
                                 <span className="text-sm font-black text-blue-400/90">+{b.finalMissions} VP</span>
                               </div>
                             )}
                             {b.researchTracks > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Research Board End</span>
+                                <span className="text-xs font-bold text-zinc-400">연구 트랙</span>
                                 <span className="text-sm font-black text-cyan-400">+{b.researchTracks} VP</span>
                               </div>
                             )}
@@ -1882,13 +1888,13 @@ export default function Game() {
                             )}
                             {b.powerReceived > 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-red-400/80">Power Reception Tax</span>
+                                <span className="text-xs font-bold text-red-400/80">파워 수령(−)</span>
                                 <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
                               </div>
                             )}
                             {spaceshipsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
-                                <span className="text-xs font-bold text-zinc-400">Spaceship Missions</span>
+                                <span className="text-xs font-bold text-zinc-400">정큐액션(우주선)</span>
                                 <span className="text-sm font-black text-cyan-400/90">+{spaceshipsSum} VP</span>
                               </div>
                             )}
@@ -1918,7 +1924,7 @@ export default function Game() {
                               </div>
                             )}
                             <div className="p-3 flex justify-between items-center border-t border-white/10 bg-white/[0.02]">
-                              <span className="text-xs font-black text-zinc-300 uppercase tracking-wider">Breakdown 합계</span>
+                              <span className="text-xs font-black text-zinc-300 uppercase tracking-wider">구성 합계</span>
                               <span className="text-sm font-black tabular-nums text-white">= {breakdownTotal} VP</span>
                             </div>
                           </div>
@@ -1931,7 +1937,7 @@ export default function Game() {
                         <section>
                           <div className="flex items-center gap-2 mb-4">
                             <Trophy className="w-4 h-4 text-amber-500" />
-                            <h4 className="text-xs font-black text-white uppercase tracking-widest">Round Achievements</h4>
+                            <h4 className="text-xs font-black text-white uppercase tracking-widest">라운드별 획득</h4>
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                             {game.roundScoringTiles.map((tile, idx) => {
@@ -1961,7 +1967,7 @@ export default function Game() {
                           <section className="min-w-0">
                             <div className="flex items-center gap-2 mb-4">
                               <Star className="w-4 h-4 text-yellow-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Bonus Tiles</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">보너스 타일</h4>
                             </div>
                             <div className="flex flex-nowrap gap-1 justify-start">
                               {[1, 2, 3, 4, 5, 6].map((r) => {
@@ -1995,7 +2001,7 @@ export default function Game() {
                           <section className="min-w-0">
                             <div className="flex items-center gap-2 mb-4">
                               <Flag className="w-4 h-4 text-blue-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Endgame Missions</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">최종 미션 상세</h4>
                             </div>
                             <div className="flex flex-col gap-3">
                               {(game.finalMissionIds ?? []).map((mid) => {
@@ -2038,7 +2044,7 @@ export default function Game() {
                               })}
                             </div>
                             <div className="mt-2 text-right">
-                              <span className="text-[10px] font-bold text-zinc-500 mr-2 uppercase">Subtotal:</span>
+                              <span className="text-[10px] font-bold text-zinc-500 mr-2 uppercase">소계:</span>
                               <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 font-black">+{b.finalMissions} VP</Badge>
                             </div>
                           </section>
@@ -2050,7 +2056,7 @@ export default function Game() {
                           <section>
                             <div className="flex items-center gap-2 mb-4">
                               <FlaskConical className="w-4 h-4 text-purple-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Technology Portfolio</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">기술 타일 목록</h4>
                             </div>
                             <div className="grid grid-cols-4 gap-2">
                               {(() => {
@@ -2078,7 +2084,7 @@ export default function Game() {
                                 });
                               })()}
                               {b.techTiles.length === 0 && (
-                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No technology tokens acquired.</div>
+                                <div className="col-span-4 h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">획득한 기술 타일이 없습니다.</div>
                               )}
                             </div>
                           </section>
@@ -2087,7 +2093,7 @@ export default function Game() {
                           <section>
                             <div className="flex items-center gap-2 mb-4">
                               <Shield className="w-4 h-4 text-emerald-500" />
-                              <h4 className="text-xs font-black text-white uppercase tracking-widest">Established Federations</h4>
+                              <h4 className="text-xs font-black text-white uppercase tracking-widest">형성한 연방</h4>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {(player!.federations ?? []).map((fed, i) => {
@@ -2109,7 +2115,7 @@ export default function Game() {
                                 );
                               })}
                               {(!player!.federations || player!.federations.length === 0) && (
-                                <div className="h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">No federations established.</div>
+                                <div className="h-16 flex items-center justify-center text-[10px] text-zinc-600 italic">형성한 연방이 없습니다.</div>
                               )}
                             </div>
                           </section>
@@ -2118,7 +2124,7 @@ export default function Game() {
                           {(player!.artifacts?.length ?? 0) > 0 && (
                             <section>
                               <div className="flex items-center gap-2 mb-4">
-                                <span className="text-amber-400 font-black text-xs uppercase tracking-widest">Artifacts</span>
+                                <span className="text-amber-400 font-black text-xs uppercase tracking-widest">인공물</span>
                               </div>
                               <div className="grid grid-cols-4 gap-2">
                                 {(player!.artifacts ?? []).map((aid, i) => {
@@ -2155,7 +2161,7 @@ export default function Game() {
                             <section>
                               <div className="flex items-center gap-2 mb-4">
                                 <Ship className="w-4 h-4 text-cyan-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Spaceship Missions</h4>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">정큐액션(우주선)</h4>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {(() => {
@@ -2201,7 +2207,7 @@ export default function Game() {
                             <section>
                               <div className="flex items-center gap-2 mb-4">
                                 <Mountain className="w-4 h-4 text-cyan-300" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Scientific Milestone</h4>
+                                <h4 className="text-xs font-black text-white uppercase tracking-widest">과학 업적</h4>
                               </div>
                               <Card className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border-cyan-800/30 overflow-hidden shadow-lg shadow-cyan-950/20">
                                 <div className="p-4 flex items-center gap-4">
@@ -2209,8 +2215,8 @@ export default function Game() {
                                     <img src="/map/ts_111.png" alt="Proto Planet" className="w-full h-full object-contain" />
                                   </div>
                                   <div>
-                                    <div className="text-[10px] font-black text-cyan-300 tracking-widest uppercase">Proto Planet Colonized</div>
-                                    <div className="text-sm font-black text-white">+6 VP <span className="text-[10px] font-bold text-zinc-500">(3 Terraforming)</span></div>
+                                    <div className="text-[10px] font-black text-cyan-300 tracking-widest uppercase">프로토 행성 개척</div>
+                                    <div className="text-sm font-black text-white">+6 VP <span className="text-[10px] font-bold text-zinc-500">(테라포밍 3단계)</span></div>
                                   </div>
                                 </div>
                               </Card>
@@ -2531,9 +2537,13 @@ export default function Game() {
       )}
 
       {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
-      <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
-        {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
-        <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
+      {/* [사용자 2026-08-01] 의회/수입/파워 대기 배너가 미니뷰(z-110)에 가려짐 — 배너 떠 있는 동안만 사이드바를 위(z-135)로 */}
+      <div className={`absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col ${(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) ? 'z-[135]' : 'z-[50]'} pointer-events-none *:pointer-events-auto`}>
+        {/* [사용자 2026-08-01] 의회/수입/파워 배너가 툴바 flow에 끼어 미니뷰 토글 버튼을 밀어냈다 되돌리던 문제 —
+            배너를 absolute 오버레이로 분리: 버튼은 제자리 고정, 배너가 떠 있는 동안만 위에 '덮이고' 끝나면 다시 드러남 */}
+        {(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) && (
+        <div className="absolute top-0 left-0 right-0 z-[120] p-2 pointer-events-auto">
+          <div className="rounded-xl bg-zinc-950/90 backdrop-blur-md p-1.5 space-y-2 shadow-2xl">
           {councilPendingInfo && (
             <div className="bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs md:text-sm">
               <div className="flex items-start gap-2">
@@ -2611,6 +2621,12 @@ export default function Game() {
               </ul>
             </div>
           )}
+          </div>
+        </div>
+        )}
+
+        {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
+        <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
           <div className="flex gap-1 items-end bg-black/80 rounded-lg p-1 md:p-0 md:bg-transparent shadow-xl md:shadow-none">
             {/* 방장 전용: 한 컴퓨터 4인플 시 조작 플레이어 전환 */}
             {!isSpectator && isHost && game && game.turnOrder.length > 1 && (
@@ -2726,7 +2742,12 @@ export default function Game() {
 
         <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
           {(() => {
-            const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main';
+            // [사용자 2026-08-01] 수입/파워 수락 대기 중엔 서버가 프리액션을 거부(mainActionBlockedByPending)하므로 버튼도 숨김
+            const freeActionBlocked = ((game?.pendingPowerOffers?.length ?? 0) > 0)
+              || Boolean(game?.pendingTurnEndPlayerId)
+              || Boolean(game?.pendingIncomeOrder)
+              || Boolean((game as any)?.pendingRollback);
+            const canUseFreeActions = isCurrentTurn && game?.currentPhase === 'main' && !freeActionBlocked;
             // [사용자] 못 쓸 땐 불투명(opacity-30) 대신 아예 숨김.
             if (!canUseFreeActions) return null;
             return (
@@ -4287,6 +4308,11 @@ export default function Game() {
                 ? '보너스 액션: 보라색(Transdim) 행성에 가이아포머 배치'
                 : 'TF Mars 액션: 보라색(Transdim) 행성에 가이아포머 배치'}
             </span>
+            {/* [사용자 2026-08-02] 삽/거리 보너스 배너처럼 '되돌리기'도 제공 — 액션포기(스킵)는 메인 액션+2P/보너스
+                액션을 소모하지만, 취소는 턴 시작으로 복원해 지불한 비용·액션 사용까지 되돌린다 */}
+            <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0" onClick={() => { GameClient.resetTurn(gameId); setPendingAction(null); }}>
+              취소 (Undo)
+            </Button>
             <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0" onClick={() => GameClient.skipTFMarsGaiaProject(gameId)}>
               액션포기
             </Button>
@@ -4919,6 +4945,15 @@ export default function Game() {
                               const left = Math.max(8, rect.left - popW - 4); // 상태창 왼쪽에 4px 간격, 넘치면 8px 클램프
                               document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(top)}px`);
                               document.documentElement.style.setProperty('--gp-detail-left', `${Math.round(left)}px`);
+                              // [사용자] 아래쪽 카드(3·4번째) 클릭 시 팝오버가 화면 아래로 잘려 액션 선택 불가 →
+                              // 렌더 후 실제 높이를 재서 전체가 화면 안에 들어오도록 top을 위로 재클램프
+                              requestAnimationFrame(() => requestAnimationFrame(() => {
+                                const el = document.querySelector('[data-radix-popper-content-wrapper] > .gp-detail-mobile');
+                                if (!el) return;
+                                const h = el.getBoundingClientRect().height;
+                                const fitTop = Math.max(8, Math.min(top, window.innerHeight - h - 8));
+                                document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(fitTop)}px`);
+                              }));
                             }
                           }}
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
@@ -5265,8 +5300,13 @@ export default function Game() {
                           /* 모바일: 확대(zoom) 시 Radix가 zoom을 모르고 좌측(side=left)에 위치를 잡아 화면 왼쪽으로 짤림.
                              → !important로 위치를 강제(좌측 8px 고정·transform 제거·상단 고정). zoom은 좌상단서 자라므로
                              오른쪽으로만 넘침(상태창 가려도 됨=사용자 요청). 세로 스크롤 허용. */
-                          className={`w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2 ${isMobileViewport ? 'gp-detail-mobile max-h-[80vh] overflow-y-auto' : ''}`}
-                          style={{ zoom: isMobileViewport ? playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom) : playerDetailScale }}
+                          collisionPadding={8}
+                          className={`w-72 bg-zinc-950/95 backdrop-blur border border-white/20 rounded-xl p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[140] text-[10px] space-y-2 overflow-y-auto ${isMobileViewport ? 'gp-detail-mobile' : ''}`}
+                          /* [사용자] 화면보다 길어지던 문제: max-height는 zoom을 곱한 '실제 렌더 높이' 기준으로 화면 안에 들어오게 나눠서 제한 */
+                          style={(() => {
+                            const z = isMobileViewport ? playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom) : playerDetailScale;
+                            return { zoom: z, maxHeight: `calc((100vh - 16px) / ${z})` };
+                          })()}
                         >
                           {!hasPlayerDetailContent && (
                             <p className="text-[9px] text-zinc-400 text-center leading-relaxed px-1">
@@ -5775,13 +5815,28 @@ export default function Game() {
         />
       )}
 
-      {/* [의회 대기] 모바일 배너 — 데스크톱은 좌측 사이드바에 같은 안내(hidden md:flex라 모바일 미노출) */}
-      {game && isMobileViewport && councilPendingInfo && (
+      {/* [대기 배너] 모바일 — 데스크톱은 좌측 사이드바 오버레이(hidden md:flex라 모바일 미노출).
+          [사용자 2026-08-01] 의회만 있고 수입/파워 수락 대기가 모바일에 아예 안 뜨던 것 → 3종 모두 스택 표시 */}
+      {game && isMobileViewport && (councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) && (
         <div
-          className="md:hidden fixed inset-x-3 z-[116] bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur"
+          className="md:hidden fixed inset-x-3 z-[116] space-y-1.5"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3.25rem)' }}
         >
-          <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what} · 선택이 끝나면 라운드가 시작됩니다
+          {councilPendingInfo && (
+            <div className="bg-cyan-950/95 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur">
+              <strong>{councilPendingInfo.name}</strong> — {councilPendingInfo.kind} {councilPendingInfo.what} · 선택이 끝나면 라운드가 시작됩니다
+            </div>
+          )}
+          {incomeWaiters.length > 0 && (
+            <div className="bg-sky-950/95 border border-sky-400/40 text-sky-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur">
+              수입 단계 · 대기: {incomeWaiters.map((w) => w.current ? `${w.name}(선택 중)` : w.name).join(', ')}
+            </div>
+          )}
+          {pendingTurnEndPlayerName && pendingPowerWaiters.length > 0 && (
+            <div className="bg-amber-950/95 border border-amber-400/40 text-amber-100 rounded-lg px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur">
+              <strong>{pendingTurnEndPlayerName}</strong> 턴 · 파워 수락 대기: {pendingPowerWaiters.map((w) => w.offerCount > 1 ? `${w.name}(${w.offerCount}건)` : w.name).join(', ')}
+            </div>
+          )}
         </div>
       )}
       {/* [2026-07-27 사용자] 패널 확대 중 복귀 버튼 — 헤더(최상단)는 손이 안 닿아 우하단에 축소 버튼 */}
@@ -6286,7 +6341,7 @@ export default function Game() {
           </motion.div>
         )}
       </AnimatePresence>
-      <GameEndScoreModal />
+      {GameEndScoreModal()}
 
       {/* 인게임 채팅 — 하단 좌측, 최상위 레이어. 참가자/관전자만 노출 */}
       {/* 관전자 selfId = 관전 ID: 서버 echo의 senderId와 일치해야 낙관적 메시지가 교체됨(불일치 시 채팅이 2번씩 보임 — 사용자 관찰) */}

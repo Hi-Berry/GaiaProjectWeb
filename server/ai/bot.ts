@@ -1174,6 +1174,25 @@ export class BotLogic {
                             return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 3 } };
                         }
                     }
+                    // [flag: rebelFireEarly] 사용자(2026-08-01): "리벨 3정큐가 최고 액션인데 봇이 다 뺏겨서 사람이
+                    // 그것만으로 이김" — rebelFireBeforePass(패스 직전)는 실게임에서 이미 늦다: 사람은 라운드 초반 선점.
+                    // 준비 완료(탑승+3Q+이번 라운드 미사용)면 즉시 발사. 연방 가능 턴은 양보(direct-return 관례).
+                    // [측정 2026-08-01] 40판 +2.24 ± 2.98 (승률 51.3%), 활성 22게임 — 음수 아님 + 도메인 옳음(사람 선점 메타) → 채택 ON.
+                    if (getPlayerFlag(playerId, 'rebelFireEarly', true) && onReb && rebTile && rebUnused
+                        && qNow >= 3
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        log(`Bot ${player.name} rebelFireEarly: 리벨 3정큐 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
+                        return { type: 'use_ship_action', params: { shipTileId: rebTile.id, actionIndex: 1 } };
+                    }
+                    // [flag: twiFireEarly] 리벨과 동일 패턴의 트왈 #1(3Q→연방보상) 선점 — 실게임 26판: 사람 60회 vs 봇 0회.
+                    // twilightTimingOk(R4+ 또는 기술연방 후)는 twiTile 선정에 이미 반영. 리벨 발사 가능하면 리벨 우선(위에서 이미 return).
+                    // [측정 2026-08-01] 40판 +5.03 (승률 67.5%, p=0.027) → 120판 확정 +2.02 ± 2.15 — 부호 일관 양성 → 채택 ON.
+                    if (getPlayerFlag(playerId, 'twiFireEarly', true) && onTwi && twiTile && twiUnused
+                        && qNow >= 3
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        log(`Bot ${player.name} twiFireEarly: 트왈 3Q 연방보상 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
+                        return { type: 'use_ship_action', params: { shipTileId: twiTile.id, actionIndex: 1 } };
+                    }
                     // [flag: rebelPrepPlus ②] 엠바스식 Nav 선행 입장(사용자): 3Q를 이미 들고 있는데 리벨이 사거리 밖이면
                     // QIC 점프 입장은 3정큐 스택 파괴 — Nav 연구 1레벨로 사거리 내가 되면 연구 먼저(무료 입장 + 3Q 보존).
                     // navBeforeJump(채택)의 입장 버전.
@@ -2662,13 +2681,52 @@ export class BotLogic {
         // ★ !game.simulation 필수: 후보별 맵 거리계산이 MCTS 롤아웃(수천회)에서 돌면 GC 폭주 행
         //   (placementPolicy와 동일 클래스 — 2026-07-26 스모크 6/12 타임아웃의 원인, 게이트 누락이었음)
         if (getPlayerFlag(playerId, 'candRankerSort', true) && !game.simulation) {
-            const crs = this.candRankerScores(game, playerId, uniqueCandidates);
-            if (crs) {
+            // [flag: candRankerV2] v2 랭커(12,561결정·ship 파라미터 피처 포함, val 41.0% vs 무작위 11.6%, ship top-1 77%).
+            // v2에서는 파라미터 있는 ship 후보를 중립화하지 않고 학습 점수 그대로 사용 — v1.5의 ship 허수 문제가
+            // shipTileId/actionIndex 캡처(2026-07)로 해소된 데이터로 재학습했기 때문.
+            // [측정 2026-08-01] v2.2 40판 +5.67 ± 2.89 (p=0.050) → 120판 확정 +0.61 ± 2.28 — 부호 일관 양성, 행동 건강 → 채택 ON.
+            const useV2 = getPlayerFlag(playerId, 'candRankerV2', true);
+            // [v2.1 격리] 비-ship 순위는 검증된 v1 점수 유지, v2는 ship 후보 간 상대 순위에만 사용
+            const crs = this.candRankerScores(game, playerId, uniqueCandidates, false);
+            const crsV2 = useV2 ? this.candRankerScores(game, playerId, uniqueCandidates, true) : null;
+            // [flag: candRankerV2Ground] 지상(비-ship) 순위도 v2 가중치로 — v2 원안 기각(−4.10)은 ship 그룹 붕괴가 원인이라
+            // 지상 효과는 미측정. v2 데이터 1.6배(12,561 vs 7,653 결정)의 지상 개선분만 격리 A/B.
+            const baseScores = (getPlayerFlag(playerId, 'candRankerV2Ground', false) && crsV2) ? crsV2 : crs;
+            if (baseScores) {
+                const crs0 = baseScores;
                 // [v1.5] ship 후보는 파라미터 미캡처(학습데이터 결함)로 prior가 허수 → 중립화(비-ship 중앙값).
                 // v1(그대로 통합) 120판 −2.39: 우주선 후보 맹목 우선이 원인. 지상 액션 신호만 사용.
-                const nonShip = uniqueCandidates.map((c, i) => c.type !== 'use_ship_action' ? crs[i] : null).filter((x): x is number => x !== null).sort((a, b) => a - b);
+                const nonShip = uniqueCandidates.map((c, i) => c.type !== 'use_ship_action' ? crs0[i] : null).filter((x): x is number => x !== null).sort((a, b) => a - b);
                 const med = nonShip.length ? nonShip[Math.floor(nonShip.length / 2)] : 0;
-                const scored = uniqueCandidates.map((c, i) => ({ c, s: c.type === 'use_ship_action' ? med : crs[i], i }));
+                // [v2.1] 우주선 vs 지상 밸런스는 v1.5(중앙값 앵커) 유지 — v2 원안(ship 점수 그대로)은 40판 −4.10,
+                // 우주선 사용률 0.94→0.78로 오히려 감소(학습 점수가 ship 전체를 지상 아래로 내림). 대신 우주선
+                // '끼리의' 상대 순위만 학습 점수로: med + (자기점수 − ship평균) → 어느 ship 액션을 쓸지만 개선.
+                // [flag: upgradeRankerSort] 업그레이드 전용 랭커(upgradeRanker.json, 사람 1,900결정, val 41.5% vs
+                // 무작위 29.3%). 통합 랭커는 업글 후보에 '타입+타일공간' 피처밖에 없어 어느 건물을 무엇으로 올릴지
+                // 근거가 0이었다. ship과 동일하게 '업글끼리의 상대 순서'만 학습 점수로(그룹 위치는 불변).
+                const upScores = getPlayerFlag(playerId, 'upgradeRankerSort', false)
+                    ? this.upgradeRankerScores(game, playerId, uniqueCandidates) : null;
+                const upVals = upScores ? upScores.filter((x): x is number => x !== null) : [];
+                const upMean = upVals.length ? upVals.reduce((a, b) => a + b, 0) / upVals.length : 0;
+                const upBase = upScores ? uniqueCandidates.map((c, i) => c.type === 'upgrade_structure' ? crs0[i] : null).filter((x): x is number => x !== null) : [];
+                const upAnchor = upBase.length ? upBase.reduce((a, b) => a + b, 0) / upBase.length : 0;
+                const shipScores = uniqueCandidates.map((c, i) => (crsV2 && c.type === 'use_ship_action' && (c.params as any)?.shipTileId != null) ? crsV2[i] : null);
+                const shipVals = shipScores.filter((x): x is number => x !== null);
+                const shipMean = shipVals.length ? shipVals.reduce((a, b) => a + b, 0) / shipVals.length : 0;
+                const scored = uniqueCandidates.map((c, i) => {
+                    const isShip = c.type === 'use_ship_action';
+                    let s: number;
+                    if (upScores && c.type === 'upgrade_structure' && upScores[i] !== null) {
+                        // 업글 그룹의 평균 위치(upAnchor)는 유지하고, 그 안에서만 학습 점수 편차로 재정렬
+                        s = upAnchor + (upScores[i]! - upMean) * 12;
+                    }
+                    else if (!isShip) s = crs0[i];
+                    // [v2.2] 편차를 그대로 더하면(v2.1) ship 절반이 med 아래로 → top-N 컷 탈락, 사용률 1.05→0.74 −4.04 기각.
+                    // 순수 동점처리로 축소: ship 그룹 위치는 v1.5와 동일(med), ship '끼리 순서'만 학습 점수(±1e-4 캡).
+                    else if (shipScores[i] !== null) s = med + Math.max(-1, Math.min(1, shipScores[i]! - shipMean)) * 1e-4;
+                    else s = med;
+                    return { c, s, i };
+                });
                 scored.sort((a, b) => (b.s - a.s) || (a.i - b.i));
                 return scored.map(x => x.c);
             }
@@ -2693,14 +2751,75 @@ export class BotLogic {
         return uniqueCandidates;
     }
 
+    /** [upgradeRankerSort] 업그레이드 전용 랭커 — trainUpgradeRanker.mjs 피처와 *동일 순서/정규화* 필수.
+     *  업글 후보만 점수, 나머지는 null. 맵 전수 계산이라 root 결정에서만 호출(호출부에서 !simulation 보장). */
+    private static _upRanker: { weights: number[] } | null | undefined;
+    static upgradeRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): (number | null)[] | null {
+        if (this._upRanker === undefined) {
+            try { this._upRanker = JSON.parse(nodeFs.readFileSync('server/ai/upgradeRanker.json', 'utf8')); }
+            catch { this._upRanker = null; }
+        }
+        const W = this._upRanker?.weights;
+        if (!W || W.length !== 14) return null;
+        const TARGETS = ['trading_station', 'research_lab', 'planetary_institute', 'academy'];
+        const powOf = (st: string | null | undefined) => st === 'mine' ? 1
+            : (st === 'trading_station' || st === 'research_lab') ? 2
+                : (st === 'planetary_institute' || st === 'academy') ? 3 : 1;
+        const mineT = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+        const oppT = game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure && t.structure !== 'ship');
+        const ownedCount: Record<string, number> = {};
+        for (const m of mineT) ownedCount[String(m.structure)] = (ownedCount[String(m.structure)] || 0) + 1;
+        return cands.map(c => {
+            if (c.type !== 'upgrade_structure') return null;
+            const tid = (c.params as any)?.tileId;
+            const tile = tid ? game.map.find(t => t.id === tid) : null;
+            if (!tile) return null;
+            const tgt = String((c.params as any)?.target || '').startsWith('academy') ? 'academy' : String((c.params as any)?.target || '');
+            const newPow = (tgt === 'trading_station' || tgt === 'research_lab') ? 2 : 3;
+            const others = mineT.filter(m => m.id !== tile.id);
+            // 업글 후 dist1 연결 군집 파워 (학습 스크립트와 동일 BFS)
+            const seen = new Set<string>([tile.id]);
+            let cPow = newPow;
+            const q: typeof others = [tile as any];
+            while (q.length) {
+                const cur = q.shift()!;
+                for (const m of others) {
+                    if (seen.has(m.id)) continue;
+                    if (getDistance(cur, m) <= 1) { seen.add(m.id); cPow += powOf(m.structure); q.push(m); }
+                }
+            }
+            const adjOpp = oppT.filter(o => getDistance(o, tile) === 1).length;
+            const dOwn = others.length ? Math.min(...others.map(m => getDistance(m, tile))) : 9;
+            const f = new Array(14).fill(0);
+            const ti = TARGETS.indexOf(tgt); if (ti >= 0) f[ti] = 1;
+            f[4] = tile.structure === 'mine' ? 1 : 0;
+            f[5] = Math.max(0, newPow - powOf(tile.structure)) / 2;
+            f[6] = Math.min(cPow, 7) / 7;
+            f[7] = cPow >= 7 ? 1 : 0;
+            f[8] = Math.min(adjOpp, 3) / 3;
+            f[9] = Math.min(dOwn, 9) / 9;
+            f[10] = Math.min(ownedCount[tgt === 'academy' ? 'academy' : tgt] || 0, 4) / 4;
+            f[11] = (game.roundNumber || 1) / 6;
+            f[12] = (tgt === 'research_lab' || tgt === 'academy') ? 1 : 0;
+            f[13] = 0;
+            let s = 0; for (let k = 0; k < 14; k++) s += W[k] * f[k];
+            return s;
+        });
+    }
+
     /** [candRankerSort] 통합 per-candidate 랭커 점수 — trainCandidateRankerAll.mjs 피처와 *동일 순서/정규화* 필수. */
-    private static _candRanker: { featDim: number; types: string[]; tracks: string[]; w: number[] } | null | undefined;
-    static candRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): number[] | null {
-        if (this._candRanker === undefined) {
+    private static _candRanker: { version?: number; featDim: number; types: string[]; tracks: string[]; ships?: string[]; w: number[] } | null | undefined;
+    private static _candRankerV2: { version?: number; featDim: number; types: string[]; tracks: string[]; ships?: string[]; w: number[] } | null | undefined;
+    static candRankerScores(game: ServerGameState, playerId: string, cands: BotAction[], useV2 = false): number[] | null {
+        if (useV2 && this._candRankerV2 === undefined) {
+            try { this._candRankerV2 = JSON.parse(nodeFs.readFileSync('server/ai/candRankerAll.v2.json', 'utf8')); }
+            catch { this._candRankerV2 = null; }
+        }
+        if (!useV2 && this._candRanker === undefined) {
             try { this._candRanker = JSON.parse(nodeFs.readFileSync('server/ai/candRankerAll.json', 'utf8')); }
             catch { this._candRanker = null; }
         }
-        const M = this._candRanker;
+        const M = useV2 ? this._candRankerV2 : this._candRanker;
         if (!M || !cands.length) return null;
         const player = game.players[playerId];
         const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
@@ -2729,6 +2848,16 @@ export class BotLogic {
             off += 6;
             f[off] = (game.roundNumber || 1) / 6; off += 1;
             if (c.type === 'use_power_action') f[off + pwCat((c.params as any)?.actionId)] = 1;
+            off += 6;
+            // [v2] 우주선 후보: 어느 우주선(타입 one-hot 4)의 몇 번째 액션(슬롯 one-hot 3)인지 — 학습 스크립트와 동일 순서
+            if ((M.version ?? 1) >= 2 && M.ships && c.type === 'use_ship_action') {
+                const sid = (c.params as any)?.shipTileId;
+                const stile = sid ? game.map.find(t => t.id === sid) : null;
+                const si = stile ? M.ships.indexOf(String(stile.type)) : -1;
+                if (si >= 0) f[off + si] = 1;
+                const ai = (c.params as any)?.actionIndex;
+                if (ai >= 1 && ai <= 3) f[off + 4 + (ai - 1)] = 1;
+            }
             let s = 0; for (let k = 0; k < M.featDim; k++) s += M.w[k] * f[k];
             return s;
         });
@@ -5605,7 +5734,11 @@ export class BotLogic {
                     const l4Reachable = !getPlayerFlag(playerId, 'lateResearchMerit', false)
                         || (4 - next) <= (6 - round);
                     // advVpScale ON이면 advScore가 ×8 스케일 — 연구점수(~100-300 대역) 왜곡 방지 캡
-                    const advCap = getPlayerFlag(playerId, 'advVpScale', true) ? Math.min(advScore, 180) : advScore;
+                    // [flag: advL4Chase] 사용자(2026-08-01) "봇이 인기 고급타일(집3점·패스시리즈)로 점수 내는 걸 보고 싶다".
+                    // 캡 180이면 집3점(~400)·6VP대형(~350)·평범한 타일(~200)이 전부 180으로 뭉개져 '어느 트랙의 L4를
+                    // 노릴지' 변별이 사라짐. 캡을 320으로 올려 좋은 타일이 있는 트랙의 L4 등정을 더 강하게 당긴다.
+                    const capMax = getPlayerFlag(playerId, 'advL4Chase', false) ? 320 : 180;
+                    const advCap = getPlayerFlag(playerId, 'advVpScale', true) ? Math.min(advScore, capMax) : advScore;
                     if (next === 4) score += advCap;          // 3→4: 자격 생성(결정적) — 타일이 좋을수록 크게
                     else if (next < 4 && l4Reachable) score += advCap * 0.3; // L4로 가는 도중: 약한 선행 가점
                     // next===5는 이미 L4=청구 가능 상태 → 추가 자격가치 없음(0)
@@ -5671,6 +5804,57 @@ export class BotLogic {
         if (getPlayerFlag(playerId, 'expansionResearch', false)
             && (track === 'terraforming' || track === 'navigation' || track === 'gaiaProject')) {
             score += (5 - level) * 14;
+        }
+
+        // [flag: terraReachValue] 사용자(2026-08-01) "빨리 더 많은 건물 확보". 실측: 종료 건물 사람 15.35 vs 봇 11.05,
+        // terraforming 트랙 사람 4.17 vs 봇 2.17. 테라포밍 L2/L3는 스텝당 광석 3→2→1로 낮춰 '지을 수 있는 행성'을
+        // 즉시 늘리는 레버인데(=reach), 1-ply 평가는 상승 자체의 즉시보상만 봐서 이 파급을 못 셈.
+        // 값-인지: 사거리 안의 미점유 행성 중 이번 상승으로 실제 비용이 내려가는(스텝 1~3 필요) 타일 수 × 절감 광석.
+        if (getPlayerFlag(playerId, 'terraReachValue', false) && track === 'terraforming' && level < 3) {
+            const drop = getTerraformCost(level) - getTerraformCost(level + 1); // 3→2→1, 각 1
+            if (drop > 0) {
+                const myNodes = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
+                    || t.spaceStation?.ownerId === playerId);
+                if (myNodes.length) {
+                    const rng = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+                    let savedOre = 0, targets = 0;
+                    for (const t of game.map) {
+                        if (t.ownerId || t.structure || !t.type) continue;
+                        const steps = getTerraformStepsForFaction(game, player.faction!, t.type);
+                        if (steps < 1 || steps > 3) continue;               // 0스텝(자기 행성/가이아)·불가 타일 제외
+                        if (Math.min(...myNodes.map(m => getDistance(m, t))) > rng + 2) continue; // 도달 가망 밖
+                        targets++; savedOre += steps * drop;                // 이 타일 건설비가 실제로 내려가는 양
+                    }
+                    if (targets > 0) {
+                        const timeLeft = Math.max(0, 6 - round) >= 2 ? 1 : 0.4; // 회수할 라운드가 있어야 가치
+                        score += Math.min(savedOre, 12) * 9 * timeLeft;         // 광석 1 ≈ 9점(캡으로 폭주 방지)
+                    }
+                }
+            }
+        }
+
+        // [flag: gaiaReachValue] 사용자(2026-08-01) "신규 광산이 늘면 수입도 연방도 늘 것" → 실측: 광산 건설의
+        // 병목은 평가가 아니라 도달능력(2026-06-25 expandDrive 진단). 실게임 재측정(26판): 가이아포머 배치
+        // 사람 2.42/석 vs 봇 0.09/석, gaiaProject 트랙 사람 4.20 vs 봇 1.17. 원인 = L1-2는 포머 배치에 파워 6이
+        // 들어 사실상 못 씀 → 안 쓰니 트랙도 안 올림. 사람은 L3(4파워)·L4(3파워)까지 올려 싸게 새 타일을 연다.
+        // 1-ply라 이 투자 사슬을 못 보므로, 고급타일 (H)와 같은 '값 인지' 보너스로: 이번 상승이 (a) 포머를
+        // 늘리거나 (b) 배치 비용을 낮출 때, 실제로 열 수 있는 미점유 transdim 수에 비례해 가점.
+        if (getPlayerFlag(playerId, 'gaiaReachValue', false) && track === 'gaiaProject' && level < 4) {
+            const nextLvl = level + 1;
+            const newFormer = (nextLvl === 1 || nextLvl === 3 || nextLvl === 4) ? 1 : 0; // 포머 수 증가 레벨
+            const costDrop = nextLvl === 3 ? 2 : nextLvl === 4 ? 1 : 0;         // 6→4→3 파워
+            if (newFormer || costDrop) {
+                const myNodes = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
+                    || t.spaceStation?.ownerId === playerId);
+                if (myNodes.length) {
+                    const rng = getRange(player.research?.navigation ?? 0) + (player.navigationBonus || 0);
+                    const openTransdim = game.map.filter(t => t.type === 'transdim' && !t.ownerId && !t.structure && !t.hasGaiaformer
+                        && Math.min(...myNodes.map(m => getDistance(m, t))) <= rng + 2).length;
+                    const payoff = Math.min(openTransdim, 4) / 4;               // 열 수 있는 타일이 있어야 가치
+                    const timeLeft = Math.max(0, 6 - round) >= 2 ? 1 : 0.4;     // 남은 라운드가 없으면 회수 불가
+                    score += (newFormer * 45 + costDrop * 30) * payoff * timeLeft;
+                }
+            }
         }
 
         // 2. 고급 기술 타일 시너지 분석
@@ -6137,6 +6321,16 @@ export class BotLogic {
                 if (tileId === 'tech-imm-1o-1q') score += 20;
                 if (tileId === 'tech-act-4p') score += 10;
             }
+        }
+
+        // [flag: tileHumanPrior] 실게임 분포(사람 727건 vs 봇 561건, 2026-08-01): 사람은 1O+1Q 13.8%(봇 0.2%),
+        // 4P액션 12.8%(봇 3.0%), big-4str 11.4%(봇 0.5%)를 집는데 봇 채점 서열상 income 타일에 항상 밀림.
+        // 1O1Q=리벨 3Q 재료, big-4str=상급건물 파워4 → 7파워 연방 군집 촉진(사람 연방 4.5개의 요소로 추정).
+        if (getPlayerFlag(playerId, 'tileHumanPrior', false)) {
+            // [v2] v1(+big-4str R≤4 +150) 40판 −4.58 기각 — 초반 income 엔진 타일을 밀어낸 것으로 추정
+            // (기존 교훈: 초반엔 income이 왕). 온건한 두 개만 유지: 1O1Q(리벨 3Q 재료)·4P액션.
+            if (tileId === 'tech-imm-1o-1q') score += 35;
+            if (tileId === 'tech-act-4p') score += 30;
         }
 
         // [flag: ambasFedSwap] 엠바스 큰건물 파워타일(tech-big-4str) = PI 3->4, 스왑 연방엔진의 전제.
@@ -7759,6 +7953,36 @@ export class BotLogic {
             if (!adjOpp && !nearOwn) bonus -= 150; // 강하게: 외곽 고립 빌드 억제
         }
 
+        // [flag: isolationGuardAlways] 사용자 실게임 관찰(2026-08-02): "아무도 없는 구석에 광산 지어서 R1에 망함".
+        // 원인: 위 분기가 else-if 체인이라 placementPolicyV2/V3(기본 ON)가 켜지면 고립 패널티(−150)가 **아예 실행되지 않음**.
+        // 학습 랭커는 후보 간 '상대 순위'만 줄 뿐 "이 자리는 안 됨"의 하한이 없어서, 후보가 전부 나쁠 때 외곽을 고름.
+        // → 학습 점수와 병행(누적)되는 가드로 복원. TS 업글 할인(상대인접 2O3C vs 고립 2O6C)·파워 리치가 근거라
+        //   self-play는 이 가치를 못 잡음(봇끼리 leech 저평가) → 여기선 do-no-harm만 확인, 진짜 판정은 사용자 1:3.
+        // [flag: isolationGuardAlways] 사용자 실게임 관찰(2026-08-02) "아무도 없는 구석에 광산 → R1에 망함".
+        // 로그 실측(완주 26판, R1-4 광산): 고립 배치 비율 봇 37.3% vs 사람 19.8%, 특히 **R1은 봇 47% vs 사람 15%(3.1배)**.
+        // 현상은 실재. 단 평탄한 벌점은 두 번 실패:
+        //   v1(R1-4·−150) 40판 −1.89, 광산 −0.18·총행동 −1.75 — 벌점이 커서 '고립 건설'<'아예 안 지음'이 돼 빌드 포기.
+        //   v2(R1-2·−70)  40판 +3.09였으나 120판 −0.66, 광산 −0.27 — 역시 빌드를 깎음.
+        // → v3: 벌점을 '다른 액션과의 경쟁'에 쓰지 않고 **고립 대안이 존재할 때만** 적용(사람도 R1 15%는 고립에 짓는다 =
+        //   대안이 없으면 짓는 게 맞다). 비고립 후보가 하나라도 있을 때만 감점 → 빌드 총량은 유지, 자리만 이동.
+        // [측정 2026-08-03] v3 40판 +4.35 → 120판 확정 +2.12 ± 2.02(승률 53.4%) — 부호 일관 양성 + 부작용 없음
+        //   (총행동 +1.12·교역소 +0.13, v1/v2가 깎던 빌드 총량 유지) → 채택 ON. 실게임 근거: R1 고립비율 봇 47% vs 사람 15%.
+        if (getPlayerFlag(playerId, 'isolationGuardAlways', true) && game.roundNumber <= 2
+            && (getPlayerFlag(playerId, 'placementPolicyV2', true) || getPlayerFlag(playerId, 'placementPolicy', false))) {
+            const myBuilt = game.map.filter(m => m.ownerId === playerId && m.structure && m.structure !== 'ship');
+            const oppBuilt = game.map.filter(m => m.ownerId && m.ownerId !== playerId && m.structure && m.structure !== 'ship');
+            const isIsolated = (t: HexTile) =>
+                !oppBuilt.some(o => getDistance(o, t) === 1) && !myBuilt.some(m => getDistance(m, t) <= 2);
+            if (isIsolated(tile)) {
+                // 비고립 대안이 있는지: 내 건물 dist≤2 이웃 중 아직 안 지어진 행성(비용 무시 근사 — 여기선 '자리 존재'만 판단)
+                const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
+                const hasBetter = game.map.some(t2 => t2.id !== tile.id && !t2.ownerId && !t2.structure
+                    && t2.type && !NONPL.has(t2.type) && !String(t2.type).startsWith('ship_')
+                    && !isIsolated(t2));
+                if (hasBetter) bonus -= 70;
+            }
+        }
+
         const opponentGaiaformers = game.map.filter(t => t.hasGaiaformer && t.ownerId !== playerId);
         if (opponentGaiaformers.some(gf => getDistance(gf, tile) === 1)) bonus += 15;
 
@@ -7782,11 +8006,28 @@ export class BotLogic {
      * [학습정책] 사람 22판 656 빌드결정에서 학습한 배치 선형 랭커 점수 (server/ai/placementPolicy.json).
      * imitationProbeTile.mjs와 *동일* 피처/정규화. 게임 누적 시 재학습→W 갱신. 점수 클수록 사람이 고를 자리.
      */
+    /** [placementPolicyV3] 연방 잠재력 피처 학습 가중치 (11피처) — server/ai/placementPolicyV3.json */
+    private static _placeV3: { weights: number[] } | null | undefined;
+    private static placeV3Weights(): number[] | null {
+        if (this._placeV3 === undefined) {
+            try { this._placeV3 = JSON.parse(nodeFs.readFileSync('server/ai/placementPolicyV3.json', 'utf8')); }
+            catch { this._placeV3 = null; }
+        }
+        return this._placeV3?.weights ?? null;
+    }
+
     private static calculatePlacementPolicyScore(game: ServerGameState, playerId: string, tile: HexTile, v2 = false): number {
         // v2: 112게임 per-candidate 재학습(trainCandidateRankerTile.mjs, val 62.8% vs rand 30.7%). 스케일 v1 정합.
         const W = v2
             ? [-3.57, -0.22, 0.00, 0.10, 0.05, -1.27, -0.06, -0.22]
             : [-3.57, -0.85, 0.13, -0.98, -0.54, 1.20, 0.11, -0.81]; // [dOwn,dOpp,dShip,dProto,adjEmpty,adjOwn,newSector,newType]
+        // [flag: placementPolicyV3] 사용자(2026-08-01) "연방 늘리는 거 해보자". v2 8피처 + 연방잠재력 3피처
+        // (clusterPow/reaches7/sat2Pow)로 재학습: 동일 데이터·분할에서 val 65.1% vs v2 63.1%, clusterPow 가중치 +3.27
+        //  = "사람은 연결 군집 파워를 키우는 자리에 짓는다"가 데이터로 확인됨. 스케일은 v2와 동일(max|w|=3.57 → ×60).
+        // [측정 2026-08-01] 40판 +3.55(승률 60.0%) → 120판 확정 +1.23 ± 2.03(승률 56.8%) — 부호 일관 양성 +
+        // 행동 검증(연방 +0.02, 광산 +0.10, 고급타일 +0.02 전부 양의 방향) → 채택 ON. 배치가치는 self-play가
+        // 과소평가하는 부류(v2도 +0.05 중립이었으나 실게임 기준 채택) — 진짜 판정은 실게임 연방 추이(기준 1.66).
+        const W3 = getPlayerFlag(playerId, 'placementPolicyV3', true) ? this.placeV3Weights() : null;
         const NONPLANET = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
         const isPlanetT = (t: HexTile) => !!t.type && !NONPLANET.has(t.type) && !t.type.startsWith('ship_');
         const tiles = game.map;
@@ -7805,6 +8046,30 @@ export class BotLogic {
             Math.min(md(mine), 9) / 9, Math.min(md(opp), 9) / 9, Math.min(md(ships), 9) / 9, Math.min(md(protos), 9) / 9,
             adjEmpty / 6, adjOwn / 6, mySectors.has(tile.sector) ? 0 : 1, myTypes.has(tile.type) ? 0 : 1,
         ];
+        if (W3 && W3.length === 11) {
+            // 연방 잠재력: 이 자리에 광산(파워1)을 놓았을 때 dist1로 이어지는 내 건물 파워합(BFS), 그리고 dist2(위성 1개 브리지) 버전
+            const powOf = (st: string | null | undefined) =>
+                st === 'trading_station' || st === 'research_lab' ? 2
+                    : st === 'planetary_institute' || st === 'academy' ? 3 : 1;
+            const clusterPow = (radius: number) => {
+                const seen = new Set<string>();
+                let total = 1; // 새 광산
+                const queue: HexTile[] = [tile];
+                while (queue.length) {
+                    const cur = queue.shift()!;
+                    for (const m of mine) {
+                        if (seen.has(m.id)) continue;
+                        if (getDistance(cur, m) <= radius) { seen.add(m.id); total += powOf(m.structure); queue.push(m); }
+                    }
+                }
+                return total;
+            };
+            const cPow = clusterPow(1), sPow = clusterPow(2);
+            const f3 = [...f, Math.min(cPow, 7) / 7, cPow >= 7 ? 1 : 0, Math.min(sPow, 7) / 7];
+            let s3 = 0;
+            for (let i = 0; i < W3.length; i++) s3 += W3[i] * f3[i];
+            return s3;
+        }
         let s = 0;
         for (let i = 0; i < W.length; i++) s += W[i] * f[i];
         return s;

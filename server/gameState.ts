@@ -1443,6 +1443,7 @@ export function forceSkipStuckBotTurn(io: SocketIOServer, game: ServerGameState,
 	if (game.pendingEclipseAsteroidMine?.playerId === playerId) game.pendingEclipseAsteroidMine = null;
 	if (game.pendingTechTileSelection?.playerId === playerId) game.pendingTechTileSelection = null;
 	if (game.pendingEclipseResearch?.playerId === playerId) game.pendingEclipseResearch = null; // [2026-07-05] 미처리 pending 감사에서 발견
+	if (game.pendingTwilightFederation?.playerId === playerId) game.pendingTwilightFederation = null; // [2026-08-01] end_turn 가드 추가에 맞춘 안전망
 	if (game.pendingFederationReward?.playerId === playerId) game.pendingFederationReward = null;
 	if (player) player.pendingTerraformSteps = 0;
 	game.hasDoneMainAction = false;
@@ -1571,6 +1572,15 @@ function generateGameId(): string {
 
 /** 소켓을 게임 방에 넣기 전, 이전에 참여한 '다른 게임' 방에서 제거.
  *  방을 넘나든 소켓이 이전 방에 남아 그 방의 채팅/업데이트를 계속 받던 문제(사용자 관찰: 채팅이 모든 방에 보임). */
+/** [관전자 목록] 현재 접속 중인 관전자 id 목록(game.connectedSpectators) 갱신 — 채팅창 "(관전자: AA, BB)" 표기용.
+ *  spectatorIds(재접속 허용 명단)와 별개: 이건 '지금 보고 있는 사람'만. */
+function setSpectatorConnected(game: any, spectatorId: string, on: boolean) {
+	const list: string[] = game.connectedSpectators ?? (game.connectedSpectators = []);
+	const i = list.indexOf(spectatorId);
+	if (on && i < 0) list.push(spectatorId);
+	if (!on && i >= 0) list.splice(i, 1);
+}
+
 function joinGameRoom(socket: { id: string; rooms: Set<string>; join: (r: string) => void; leave: (r: string) => void }, gameId: string) {
 	for (const r of Array.from(socket.rooms)) {
 		if (r !== socket.id && r !== gameId && games.has(r)) socket.leave(r);
@@ -3159,7 +3169,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
 				joinGameRoom(socket, gameId);
+				setSpectatorConnected(game, playerId, true);
 				callback({ game });
+				emitGameUpdated(io, game); // 관전자 목록 갱신
 				return;
 			}
 
@@ -3215,16 +3227,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
 
+			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
+			// [사용자 2026-08-01] Join처럼 관전도 이름 필수 — 채팅/관전자 목록 표기에 쓰임
+			if (!specName) { callback({ error: '관전하려면 이름을 입력하세요.' }); return; }
 			const spectatorId = 'spec-' + generatePlayerId();
 			if (!game.spectatorIds) game.spectatorIds = [];
 			game.spectatorIds.push(spectatorId);
-			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
-			if (specName) { if (!(game as any).spectatorNames) (game as any).spectatorNames = {}; (game as any).spectatorNames[spectatorId] = specName; }
+			if (!(game as any).spectatorNames) (game as any).spectatorNames = {};
+			(game as any).spectatorNames[spectatorId] = specName;
+			setSpectatorConnected(game, spectatorId, true);
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			joinGameRoom(socket, gameId);
 			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
+			emitGameUpdated(io, game); // 관전자 목록 갱신 브로드캐스트
 		});
 
 		socket.on('get_game', ({ gameId }, callback) => {
@@ -4527,12 +4544,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const rangeTiles = getPlayerRangeTiles(game, playerId);
 			if (rangeTiles.length === 0) return;
 			let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+			// [증발 방지 2026-08-01] 글린즈 플래그 소모를 QIC 검증 뒤로 (Ivits 전용이라 현재 도달 불가지만 동일 패턴 정리)
+			if (player.gleensNavBonusActive) baseRange += 2;
 			const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 			const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
 			if (player.qic < neededQIC) return;
 
 			saveActionStartState(game, playerId);
+			if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 			player.qic -= neededQIC;
 			tile.spaceStation = { ownerId: playerId };
 			player.usedIvitsSpaceStationThisRound = true;
@@ -4576,12 +4595,23 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (game.pendingTurnEndPlayerId === playerId) return;
+			if (game.pendingTurnEndPlayerId === playerId) { socket.emit('game_error', { message: '파워 수락 대기 중에는 리셋할 수 없습니다.' }); return; }
 			// 현재 턴 플레이어만 자기 턴 시작 스냅샷으로 복구 (다른 소켓/착오 방지)
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [사용자 2026-08-01 제보 "6C 액션+프리액션 후 Reset"] 이클립스 6C/2K+3P 대기는 '내 턴의 내 보류'라
+			// 전체 복원이 비용(6C/2K+3P)까지 정확히 되돌린다 → 리셋 허용. 기존엔 councilPendingActive에 묶여
+			// 조용히 무시됐고(무반응), 사용자는 리셋된 줄 알고 이어가다 상태가 꼬였다. 아이타/테란/팅커 의회 등
+			// 다른 플레이어와 얽힌 대기는 기존대로 차단하되 이유를 토스트로 안내.
+			const councilBlockedNonEclipse = !!(game.pendingItarsGaiaformerExchange || game.pendingTerranCouncilBenefit
+				|| (game as any).pendingTinkeroidSpecialChoice
+				|| (game.terranCouncilQueue?.length ?? 0) > 0
+				|| ((game as any).terranCouncilQueueAfterItars?.length ?? 0) > 0
+				|| ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange')
+				|| (game.pendingEclipseAsteroidMine && game.pendingEclipseAsteroidMine.playerId !== playerId)
+				|| (game.pendingEclipseResearch && game.pendingEclipseResearch.playerId !== playerId));
+			if (councilBlockedNonEclipse) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회 등)이 처리 중이라 지금은 리셋할 수 없습니다.' }); return; }
 			const startState = game.turnStartState?.[playerId];
-			if (!startState) return;
+			if (!startState) { socket.emit('game_error', { message: '이 턴의 시작 스냅샷이 없어 리셋할 수 없습니다.' }); return; }
 			if (startState.playerId && startState.playerId !== playerId) return;
 			if (typeof startState.roundNumber === 'number' && startState.roundNumber !== game.roundNumber) return;
 			if (typeof startState.currentPlayerIndex === 'number' && startState.currentPlayerIndex !== game.currentPlayerIndex) return;
@@ -4723,10 +4753,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// 하드쉬 할라 의회 프리 액션: 4C→1QIC, 4C→1K, 3C→1O (Free Action — 크레딧 있으면 반복 사용 가능)
+		// [사용자 2026-08-01] 수입/파워 수락 대기 중(배너 표시)에도 프리액션이 뚫려 토큰 이동(번/변환)이
+		// 수입 파워 충전·leech 처리와 엉키던 문제 — 메인 액션과 동일하게 mainActionBlockedByPending으로 차단.
 		socket.on('use_hadsch_hallas_pi_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (game.pendingTurnEndPlayerId) return;
+			if (councilPendingActive(game)) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeUseHadschHallasPIAction(io, game as ServerGameState, playerId, actionId);
 		});
 
@@ -4738,6 +4771,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
 
@@ -4748,7 +4782,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (game.pendingTurnEndPlayerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
 			pushFreeActionUndoSnapshot(game);
@@ -4765,7 +4799,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (game.pendingTurnEndPlayerId) return;
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			pushFreeActionUndoSnapshot(game);
 
@@ -5680,6 +5714,21 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socket.emit('game_error', { message: '검은 행성을 배치해야 턴을 종료할 수 있습니다.' });
 				return;
 			}
+			// [사용자 2026-08-01 제보 "액션 후 턴이 넘어감"] 이클립스 2K+3P(트랙 선택)·트왈라잇 3QIC(연방 보상)는
+			// hasDoneMainAction=true 상태로 보류가 남는데 end_turn 가드에 빠져 있어 — 선택을 안 하고 턴 종료하면
+			// 지불한 비용째 증발 + pending이 남아 councilPendingActive가 게임 전체를 잠갔다. 해소 전 턴 종료 차단.
+			if (game.pendingEclipseResearch?.playerId === playerId) {
+				socket.emit('game_error', { message: '이클립스 연구 트랙을 선택(또는 취소)해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			if (game.pendingEclipseAsteroidMine?.playerId === playerId) {
+				socket.emit('game_error', { message: '소행성을 선택(또는 취소)해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
+			if (game.pendingTwilightFederation?.playerId === playerId) {
+				socket.emit('game_error', { message: '연방 보상을 선택해야 턴을 종료할 수 있습니다.' });
+				return;
+			}
 			if (!game.hasDoneMainAction) {
 				// [계측 2026-07-06] 사용자 "스페셜 QIC 받기 후 종종 이 에러" — 직전 액션 흐름을 게임파일에 남겨 재발 시 원인 특정
 				const recent = (game.gameLog || []).slice(-3).map((e: any) => `${e.playerName ?? e.playerId}:${e.action}`).join(' | ');
@@ -6033,8 +6082,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			const spectatorId = socketToSpectatorMap.get(socket.id);
 			if (spectatorId) {
+				// [관전자 목록] 접속 끊기면 '현재 관전 중' 목록에서 제거 (spectatorIds는 재접속용으로 유지)
+				const specGameId = spectatorToGameMap.get(spectatorId);
+				const specGame = specGameId ? games.get(specGameId) : undefined;
 				spectatorToGameMap.delete(spectatorId);
 				socketToSpectatorMap.delete(socket.id);
+				if (specGame) {
+					setSpectatorConnected(specGame, spectatorId, false);
+					emitGameUpdated(io, specGame);
+				}
 			}
 		});
 	});
@@ -6203,6 +6259,13 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		const canAdvancePool = baseCanAdvancePool && (!isLevel5AdvancePool || (wantsLevel5Pool && !level5BlockedPool && canSpendLevel5FedPool));
 		const newLevelPool = canAdvancePool ? targetLevelPool : 0;
 		const isAdvancedPool = techTileId.startsWith('adv-');
+		// [증발 버그수정 2026-08-01] 풀 존재 검증을 초록 연방 소모/트랙 전진 '앞'으로 — 기존엔 연방을 뒤집고
+		// 트랙까지 올린 뒤 풀에 타일이 없으면 return해 초록 연방이 증발했다(재시도 시 이중 소모).
+		const poolIndexEarly = game.techTilesPool.findIndex(t => t && t.id === techTileId);
+		if (poolIndexEarly === -1 && !isRebellionGain) {
+			log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game', undefined, { simulation: (game as any).simulation });
+			return;
+		}
 		const greenNeededPool = (isAdvancedPool ? 1 : 0) + (newLevelPool === 5 ? 1 : 0);
 		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) { io.to(game.id).emit('game_error', { message: '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.' }); return; }
 		for (let i = 0; i < greenNeededPool; i++) spendGreenFederation(player);
@@ -6219,12 +6282,8 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			advanceDetail = `${selectedTrack} stays L4 (${reason})`;
 		}
 
-		// 풀에서 해당 칸이 존재하는지 확인
-		const poolIndex = game.techTilesPool.findIndex(t => t && t.id === techTileId);
-		if (poolIndex === -1 && !isRebellionGain) {
-			log(`Player ${player.name} selected pool tile ${techTileId} but it's not available in pool.`, 'game', undefined, { simulation: (game as any).simulation });
-			return;
-		}
+		// 풀 존재 확인은 위(연방 소모 전)에서 완료 — poolIndexEarly 재사용
+		const poolIndex = poolIndexEarly;
 
 		if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
 		// 풀에서 해당 칸만 빈 칸으로 표시 (splice로 당기지 않음)
@@ -6498,6 +6557,20 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		return false;
 	}
 
+	// [사용자 2026-08-01] 테라포밍 스텝 구매 상태(3PW/보너스/TF마스 3C)에서는 1스텝 이상 소모되는 행성만 건설 허용.
+	// 가이아·포밍된 행성(스텝 0)은 스텝을 안 쓰고 지어져 스텝이 남고, 메인 액션 후에도 6472 우회로
+	// '포밍한 곳 공짜 광산'이 가능했던 exploit 차단. 봇은 제외(교착 방지 — 봇은 이 경로를 악용하지 않음).
+	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine
+		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
+		const stepsNeeded = (tile.type === 'gaia' || tile.type === 'transdim' || isPendingGaiaBuild)
+			? 0 : getTerraformStepsForFaction(game, player.faction!, tile.type);
+		if (stepsNeeded < 1) {
+			debugLog(game, `executeBuildMine rejected: terraform step pending but target ${tileId} (${tile.type}) needs 0 steps`, 'error');
+			io.to(game.id).emit('game_error', '테라포밍 스텝을 구매한 상태에서는 1스텝 이상 소모되는 행성에만 광산을 지을 수 있습니다.');
+			return false;
+		}
+	}
+
 	// 0. 전역 광산 개수 제한 체크 (자원 소모 전)
 	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
 		const errorMsg = `광산 건설 제한(${BUILDING_LIMITS.mine}개)에 도달했습니다.`;
@@ -6615,16 +6688,21 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			debugLog(game, `executeBuildMine failed (Lantida): No existing structures for range calculation`, 'error');
 			return false;
 		}
+		// [증발 버그수정 2026-08-01] +3사거리/글린즈 보너스 플래그를 QIC 검증 '전에' 소모 → 실패 시 보너스만 증발.
+		// 가이아포머 배치/우주선 입장과 동일 부류 — 검증 통과 후에만 소모하도록 재배치.
 		let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-		if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-		if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-		if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+		if (player.tempRangeBonus) baseRange += 3;
+		if (player.rangeBonusActive) baseRange += 3;
+		if (player.gleensNavBonusActive) baseRange += 2;
 		const minDist = Math.min(...playerTiles.map(t => getDistance(t, tile)));
 		const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
 		if ((player.qic ?? 0) < neededQIC) {
 			debugLog(game, `executeBuildMine failed (Lantida): Insufficient QIC (QIC: ${player.qic}/${neededQIC}, Dist: ${minDist}, Range: ${baseRange})`, 'error');
 			return false;
 		}
+		if (player.tempRangeBonus) player.tempRangeBonus = false;
+		if (player.rangeBonusActive) player.rangeBonusActive = false;
+		if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 		player.ore = (player.ore ?? 0) - mineOre;
 		player.credits = (player.credits ?? 0) - mineCredits;
 		player.qic = (player.qic ?? 0) - neededQIC;
@@ -6688,10 +6766,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		// QIC가 안 빠지던 버그(클라 mineBuildCost는 neededQIC를 요구/표시하는데 서버 미차감). Eclipse 6C 소행성 경로와 일관.
 		let astNeededQIC = 0;
 		{
+			// [증발 버그수정 2026-08-01] 사거리 보너스 플래그 소모를 QIC 검증 뒤로 (실패 시 보너스 증발 — 란티다 분기와 동일)
 			let astBaseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-			if (player.tempRangeBonus) { astBaseRange += 3; player.tempRangeBonus = false; }
-			if (player.rangeBonusActive) { astBaseRange += 3; player.rangeBonusActive = false; }
-			if (player.gleensNavBonusActive) { astBaseRange += 2; player.gleensNavBonusActive = false; }
+			if (player.tempRangeBonus) astBaseRange += 3;
+			if (player.rangeBonusActive) astBaseRange += 3;
+			if (player.gleensNavBonusActive) astBaseRange += 2;
 			const astRangeTiles = getPlayerRangeTiles(game, playerId);
 			const astMinDist = astRangeTiles.length > 0 ? Math.min(...astRangeTiles.map(t => getDistance(t, tile))) : Infinity;
 			astNeededQIC = astMinDist > astBaseRange ? Math.ceil((astMinDist - astBaseRange) / 2) : 0;
@@ -6700,6 +6779,9 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 				if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', `소행성이 사거리 밖입니다 (필요 QIC ${astNeededQIC}, 보유 ${player.qic ?? 0}).`);
 				return false;
 			}
+			if (player.tempRangeBonus) player.tempRangeBonus = false;
+			if (player.rangeBonusActive) player.rangeBonusActive = false;
+			if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 			player.qic = (player.qic ?? 0) - astNeededQIC;
 		}
 
@@ -6746,9 +6828,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [계측 2026-07-20] 사용자 관찰("+3거리 누르고 기본 사거리 안에 건설 = 1K 낭비") 현장 포착용 —
 	// 부스트 소모량을 기억해 두고, 건설 거리가 부스트 없이도 닿았으면 diagRangeWaste에 기록(행동 무변경).
 	const rangeBoostSpent = (player.tempRangeBonus ? 3 : 0) + (player.rangeBonusActive ? 3 : 0) + (player.gleensNavBonusActive ? 2 : 0);
-	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	// [증발 버그수정 2026-08-01] 사거리 보너스 플래그를 자원 검증 '전에' 소모 → 자원 부족으로 건설 실패해도
+	// 보너스만 증발(사용자 제보 "Reset/액션 후 토큰 사라짐" 부류). 소모는 아래 비용 차감 성공 후로 재배치.
+	if (player.tempRangeBonus) baseRange += 3;
+	if (player.rangeBonusActive) baseRange += 3;
+	if (player.gleensNavBonusActive) baseRange += 2;
 	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) {
 		debugLog(game, `executeBuildMine failed (Standard): No starting tiles for range calculation`, 'error');
@@ -6826,6 +6910,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		player.ore = (player.ore ?? 0) - (terraformCost + standardMineOre); player.credits = (player.credits ?? 0) - standardMineCredits; player.qic = (player.qic ?? 0) - neededQIC;
 		player.pendingTerraformSteps = Math.max(0, pendingTerraformSteps - discountSteps);
 	}
+
+	// ---- 여기부터 성공 확정: 사거리 보너스 플래그 소모 (위 검증 실패 시엔 보존) ----
+	if (player.tempRangeBonus) player.tempRangeBonus = false;
+	if (player.rangeBonusActive) player.rangeBonusActive = false;
+	if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 
 	// (이미 위에서 체크함)
 	const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
@@ -7633,6 +7722,14 @@ export function executePassRound(
 
 	const player = game.players[playerId];
 	if (!player) return false;
+
+	// [증발 버그수정 2026-08-01] 라운드 1-5 보너스 타일 검증을 발타크 자동변환 '앞'으로 —
+	// 기존엔 변환(포머 잠금+QIC)부터 하고 아래에서 타일 무효로 return false 시 실패한 패스인데도
+	// 포머가 잠긴 채 라운드를 계속하게 됐다. (아래 기존 검증은 newTileIndex 사용을 위해 유지)
+	if (game.roundNumber !== 6) {
+		if (!newBonusTileId) return false;
+		if (game.availableBonusTiles.findIndex(t => t.id === newBonusTileId) === -1) return false;
+	}
 
 	// 발타크: 패스 시 남은(잠기지 않은) 가이아포머를 자동으로 QIC로 변환.
 	// 패스 후엔 이번 라운드에 포머를 쓸 기회가 없고, 잠긴 포머는 어차피 라운드 전환 시 복귀하므로 항상 이득.
@@ -8734,6 +8831,10 @@ export function executeEndTurn(
 	if (game.pendingSpaceshipFedMine?.playerId === playerId) return false;
 	if (game.pendingShipTechMine?.playerId === playerId) return false;
 	if (game.pendingLostPlanet?.playerId === playerId) return false;
+	// [사용자 2026-08-01] 이클립스/트왈라잇 보류도 해소 전 턴 종료 차단 (소켓 end_turn과 동일 — 비용 지불 후 미선택 증발 방지)
+	if (game.pendingEclipseResearch?.playerId === playerId) return false;
+	if (game.pendingEclipseAsteroidMine?.playerId === playerId) return false;
+	if (game.pendingTwilightFederation?.playerId === playerId) return false;
 
 	const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
 	const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
@@ -9520,13 +9621,14 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	if (entered.includes(tileId)) return '이미 이 우주선에 입장했습니다.';
 
 	// 거리 체크: 플레이어 건물에서 우주선 타일까지 (첫 입장도 동일)
+	// [증발 버그수정 2026-08-01] +3 사거리/글린즈 +2 보너스를 검증 '전에' 소모하던 것 → 아래 모든 검증
+	// 통과 후에만 소모 (예전엔 QIC/VP/토큰 부족으로 입장 거부돼도 보너스만 날아감 — 가이아포머 배치와 동일 부류)
 	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
 	if (player.tempRangeBonus) baseRange += 3;
-	if (useRangeBonus && player.rangeBonusActive) {
-		baseRange += 3;
-		player.rangeBonusActive = false;
-	}
-	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	const usingRangeBonus = !!(useRangeBonus && player.rangeBonusActive);
+	if (usingRangeBonus) baseRange += 3;
+	const usingGleensBonus = !!player.gleensNavBonusActive;
+	if (usingGleensBonus) baseRange += 2;
 	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
 	if (rangeTiles.length === 0) return '거리 계산을 위한 시작 지점이 없습니다.';
 	const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
@@ -9549,6 +9651,9 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 		return '타클론: 브레인 스톤이 가이아 영역에 있어 이번 라운드에는 우주선에 입장할 수 없습니다.';
 	}
 
+	// ---- 여기부터 성공 확정: 보너스 플래그 소모 + 자원 차감 ----
+	if (usingRangeBonus) player.rangeBonusActive = false;
+	if (usingGleensBonus) player.gleensNavBonusActive = false;
 	player.qic = (player.qic || 0) - useQic; const scoreBefore = player.score ?? 0;
 	addScore(game, playerId, -entryCost, 'other', { source: '우주선 입장' });
 
@@ -9604,10 +9709,13 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 
 	if (getEffectiveGaiaformers(player) <= 0) return false;
 
+	// [토큰 증발 버그수정 2026-08-01, 사용자 제보 "Reset하면 토큰이 사라져"] 예전 순서: QIC 차감 → 그릇1→2→3
+	// 토큰 차감 → '부족하면 return false' — 실패해도 이미 뺀 QIC/토큰이 복구되지 않고 증발했고, +3사거리
+	// 보너스도 검증 전에 소모됐다. 모든 검증을 차감 '앞'으로, 보너스 플래그 소모는 성공 확정 후로 재배치.
 	let baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-	if (player.tempRangeBonus) { baseRange += 3; player.tempRangeBonus = false; }
-	if (player.rangeBonusActive) { baseRange += 3; player.rangeBonusActive = false; }
-	if (player.gleensNavBonusActive) { baseRange += 2; player.gleensNavBonusActive = false; }
+	if (player.tempRangeBonus) baseRange += 3;
+	if (player.rangeBonusActive) baseRange += 3;
+	if (player.gleensNavBonusActive) baseRange += 2;
 	const rangeTiles = getPlayerRangeTiles(game, playerId, true);
 	if (rangeTiles.length === 0) return false;
 
@@ -9617,8 +9725,6 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	const qicToUse = qicUsed || 0;
 	if (qicToUse < neededQIC) return false;
 	if (player.qic < qicToUse) return false;
-
-	player.qic -= qicToUse;
 
 	const gaiaLevel = player.research.gaiaProject || 0;
 	let powerToMove = 0;
@@ -9634,21 +9740,29 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 		else if (gaiaLevel >= 3 && gaiaLevel < 4) powerToMove = 4;
 		else if (gaiaLevel >= 4) powerToMove = 3;
 		else return false;
+		// 총 보유 토큰 검증을 차감 전에 완료
+		if (((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0)) < powerToMove) return false;
+	}
 
+	// ---- 여기부터 성공 확정: 자원 차감/플래그 소모 ----
+	if (player.tempRangeBonus) player.tempRangeBonus = false;
+	if (player.rangeBonusActive) player.rangeBonusActive = false;
+	if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
+	player.qic -= qicToUse;
+
+	if (!immediateBuildable) {
 		let remaining = powerToMove;
-		let movedFrom1 = Math.min(remaining, player.power1 || 0);
+		const movedFrom1 = Math.min(remaining, player.power1 || 0);
 		player.power1 = (player.power1 || 0) - movedFrom1;
 		remaining -= movedFrom1;
 
-		let movedFrom2 = Math.min(remaining, player.power2 || 0);
+		const movedFrom2 = Math.min(remaining, player.power2 || 0);
 		player.power2 = (player.power2 || 0) - movedFrom2;
 		remaining -= movedFrom2;
 
-		let movedFrom3 = Math.min(remaining, player.power3 || 0);
+		const movedFrom3 = Math.min(remaining, player.power3 || 0);
 		player.power3 = (player.power3 || 0) - movedFrom3;
 		remaining -= movedFrom3;
-
-		if (remaining > 0) return false;
 
 		player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
 	}

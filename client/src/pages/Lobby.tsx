@@ -211,9 +211,14 @@ export default function Lobby() {
   };
 
   const handleWatchGame = async (gameId: string) => {
+    // [사용자 2026-08-01] Join처럼 관전도 이름 필수 (채팅·관전자 목록 표기)
+    if (!playerName.trim()) {
+      toast({ title: '이름을 입력하세요', description: '관전도 이름이 필요합니다 (채팅과 관전자 목록에 표시).', variant: 'destructive' });
+      return;
+    }
     try {
       setWatching(gameId);
-      const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim() || undefined);
+      const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim());
       storeSpectatorId(gameId, spectatorId);
       toast({
         title: '관전 시작',

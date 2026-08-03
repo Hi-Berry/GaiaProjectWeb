@@ -104,43 +104,39 @@ const SHIP_ACTION_THEME: Record<string, { color: string; border: string; hover: 
 
 const MINI_SHIP_RING_INACTIVE = 'rgba(82, 82, 91, 0.45)'; // zinc-600
 
-/** 시계 구간 — 종족 선택 시 고른 턴 순서 번호(1~4)와 1:1 */
-const SHIP_QUADRANT_CLOCK = ['9~12시', '12~3시', '3~6시', '6~9시'] as const;
-
 /**
  * 우주선 테두리 구역: 플레이어 고정 좌석(selectedTurnOrder 1~4).
- * 라운드마다 turnOrder가 바뀌어도, A가 1번 자리면 항상 9~12시 구역.
+ * 라운드마다 turnOrder가 바뀌어도, A가 1번 자리면 항상 같은 구역.
+ * [사용자 2026-08-01] hover 문구는 시계자리 설명 대신 '입장 : 이름들'로 단순화.
  */
 function getShipQuadrantsByPlayerSeat(game: GameState, occupants: string[]) {
     const quadrantFactionColors: Array<string | null> = [null, null, null, null];
-    const quadrantTitles: Array<string | undefined> = [undefined, undefined, undefined, undefined];
+    const names: string[] = [];
 
     for (const pid of occupants) {
         const p = game.players[pid];
         const seat = p?.selectedTurnOrder;
+        if (p?.name) names.push(p.name);
         if (seat == null || seat < 1 || seat > 4) continue;
         const slot = seat - 1;
         const faction = p?.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
         quadrantFactionColors[slot] = faction?.color ?? null;
-        const name = p?.name;
-        quadrantTitles[slot] = name
-            ? `${name} · ${SHIP_QUADRANT_CLOCK[slot]} (자리 ${seat})`
-            : undefined;
     }
 
-    return { quadrantFactionColors, quadrantTitles };
+    const shipTitle = names.length > 0 ? `입장 : ${names.join(', ')}` : undefined;
+    return { quadrantFactionColors, shipTitle };
 }
 
 /** 미니 우주선 카드: 시계 방향 4등분(12→3→6→9→12) 테두리 링 */
 function MiniShipQuadrantFrame({
-    /** selectedTurnOrder 1~4 → [9~12, 12~3, 3~6, 6~9], 탑승 중인 플레이어만 색 */
+    /** selectedTurnOrder 1~4 → 4등분 링, 탑승 중인 플레이어만 색 */
     quadrantFactionColors,
-    quadrantTitles,
+    shipTitle,
     children,
     className = '',
 }: {
     quadrantFactionColors: Array<string | null | undefined>;
-    quadrantTitles?: Array<string | undefined>;
+    shipTitle?: string;
     children: React.ReactNode;
     className?: string;
 }) {
@@ -164,7 +160,7 @@ function MiniShipQuadrantFrame({
                 padding: ringThickness,
                 background: `conic-gradient(from 0deg, ${c12to3} 0deg 90deg, ${c3to6} 90deg 180deg, ${c6to9} 180deg 270deg, ${c9to12} 270deg 360deg), ${emptyHatch}`,
             }}
-            title={quadrantTitles?.filter(Boolean).join(' · ')}
+            title={shipTitle}
         >
             <div className="relative flex flex-col gap-1 rounded-[6px] bg-zinc-950/95 min-h-0 h-full">
                 {children}
@@ -773,9 +769,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
                                                 title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
                                             >
-                                                {/* [사용자] '사용됨' 표시: 검은 오버레이가 색을 덮던 것 → 옅게 + 사용자 색 틴트로 누군지 한눈에. */}
-                                                {action.isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                {action.isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                {/* [사용자] '사용됨' 표시: 어두운 오버레이 + 코너 색 점만 (전체 틴트·색 테두리는 정신 사나워 폐지). */}
+                                                {action.isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                 {usedByColor && <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />}
                                             </button>
                                         );
@@ -797,20 +792,23 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         const usedIndices = ship.usedActionIndices ?? [];
                                         const shipFedId = game.spaceshipFederationByShip?.[tile.type];
                                         const shipFedTaken = shipFedId && Object.values(game.players).some((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId));
+                                        // [사용자 2026-08-01] 연방/기술타일도 hover 설명 + 누가 가져갔는지 표시 (관전 시 파악용)
+                                        const shipFedLabelMini = shipFedId ? SPACESHIP_FEDERATION_REWARDS.find(r => r.id === shipFedId)?.label : undefined;
+                                        const shipFedTakerName = shipFedId ? Object.values(game.players).find((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId))?.name : undefined;
                                         const rewardIndex = shipFedId != null ? SPACESHIP_FEDERATION_REWARDS.findIndex(r => r.id === shipFedId) : -1;
                                         const imgUrl = rewardIndex !== -1 ? `/image/Federation_${rewardIndex + 7}.gif` : null;
                                         const techId = game.shipTechByShip?.[tile.type] ?? SHIP_TECH_BY_SHIP[tile.type];
                                         const techTile = techId ? SHIP_TECH_TILES.find((t) => t.id === techId) : null;
                                         const actionLabels = SHIP_ACTION_LABELS[tile.type] || ['—', '—', '—'];
 
-                                        const { quadrantFactionColors: quadrantColors, quadrantTitles } =
+                                        const { quadrantFactionColors: quadrantColors, shipTitle } =
                                             getShipQuadrantsByPlayerSeat(game, ship.occupants ?? []);
 
                                         return (
                                             <MiniShipQuadrantFrame
                                                 key={tile.id}
                                                 quadrantFactionColors={quadrantColors}
-                                                quadrantTitles={quadrantTitles}
+                                                shipTitle={shipTitle}
                                                 className={isInShip ? 'shadow-[0_0_12px_rgba(52,211,153,0.2)]' : ''}
                                             >
                                                 <div className="p-1.5 flex flex-col gap-1 min-h-0 h-full">
@@ -845,8 +843,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 </div>
 
                                                 <div className="flex items-center justify-center gap-1 py-1 flex-grow">
-                                                    {/* Federation Reward (Reduced to 80%) */}
-                                                    <div className="w-[35px] h-[35px] shrink-0 flex items-center justify-center">
+                                                    {/* Federation Reward (Reduced to 80%) — hover: 설명 + 획득자 */}
+                                                    <div
+                                                        className="w-[35px] h-[35px] shrink-0 flex items-center justify-center cursor-help"
+                                                        title={shipFedLabelMini
+                                                            ? `우주선 연방 보상: ${shipFedLabelMini}${shipFedTaken ? ` — ${shipFedTakerName ?? '?'} 획득` : ''}`
+                                                            : undefined}
+                                                    >
                                                         {shipFedTaken ? (
                                                             <div className="w-full h-full flex items-center justify-center">
                                                                 <span className="text-[7px] text-zinc-500 italic">Taken</span>
@@ -886,8 +889,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             </div>
                                                         ) : (
                                                             techTile && (
-                                                                <div 
-                                                    className={`w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-[0_0_10px_rgba(234,179,8,0.2)]' : ''}`}
+                                                                <div
+                                                    className={`w-full h-full rounded bg-zinc-800/40 border border-yellow-500/20 flex items-center justify-center overflow-hidden transition-all ${pendingTech ? 'hover:border-yellow-500 cursor-pointer shadow-[0_0_10px_rgba(234,179,8,0.2)]' : 'cursor-help'}`}
+                                                    title={`${techTile.label}: ${techTile.description}`}
                                                     onClick={(e) => {
                                                         if (pendingTech && onSelectTechTile) {
                                                             e.stopPropagation();
@@ -930,8 +934,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
                                                                     title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                                 >
-                                                                    {isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                                    {isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                                    {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                                     {usedByColor && (
                                                                         <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
                                                                     )}
@@ -1409,9 +1412,8 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
                                                 title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
                                             >
-                                                {/* [사용자] '사용됨' 표시: 오버레이 옅게 + 사용자 색 틴트로 누군지 한눈에. */}
-                                                {action.isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                {action.isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                {/* [사용자] '사용됨' 표시: 어두운 오버레이 + 코너 색 점만 (전체 틴트·색 테두리는 정신 사나워 폐지). */}
+                                                {action.isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                 {usedByColor && <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />}
                                             </button>
                                         );
@@ -1442,6 +1444,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             const shipFedId = byShip[tile.type];
                                             const shipFedTaken = shipFedId && Object.values(game.players).some((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId));
                                             const shipFedLabel = shipFedId ? SPACESHIP_FEDERATION_REWARDS.find((r) => r.id === shipFedId)?.label : null;
+                                            const shipFedTakerName = shipFedId ? Object.values(game.players).find((p) => getFederationEntries(p).some((e) => e.rewardId === shipFedId))?.name : undefined;
 
                                             return (
                                                 <div key={tile.id} className={`bg-zinc-900/60 rounded-lg border p-2 space-y-2 ${isInShip ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-white/10'}`}>
@@ -1459,7 +1462,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     <div className="flex items-center gap-2 py-1">
                                                                         <span className="text-[11px] text-zinc-400 font-semibold shrink-0">보상:</span>
                                                                         {shipFedTaken ? (
-                                                                            <span className="text-zinc-500 italic text-[11px]">획득됨</span>
+                                                                            <span className="text-zinc-500 italic text-[11px] cursor-help" title={shipFedLabel ? `우주선 연방 보상: ${shipFedLabel}` : undefined}>
+                                                                                획득됨{shipFedTakerName ? ` — ${shipFedTakerName}` : ''}
+                                                                            </span>
                                                                         ) : imgUrl ? (
                                                                             <img
                                                                                 src={imgUrl}
@@ -1578,8 +1583,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                             className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
                                                                             title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                                         >
-                                                                            {isUsed && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
-                                                                            {isUsed && usedByColor && <span className="absolute inset-0 pointer-events-none" style={{ backgroundColor: usedByColor, opacity: 0.38 }} />}
+                                                                            {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                                             {usedByColor && (
                                                                                 <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
                                                                             )}

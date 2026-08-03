@@ -241,7 +241,9 @@ export function BonusTiles({
               Federation Tiles
             </h3>
           )}
-          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto custom-scrollbar-hide justify-between gap-1.5 h-10 items-center px-1' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
+          {/* [사용자] h-10에 스택 오프셋(-1px)+×n 배지(-4px)가 세로로 2px 넘쳐 연방 줄에만 세로 스크롤이 생기던 것
+              (overflow-x:auto가 y도 auto로 만드는 CSS 규칙) → h-12로 여유 + overflow-y-hidden으로 차단 */}
+          <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto overflow-y-hidden custom-scrollbar-hide justify-between gap-1.5 h-12 items-center px-1' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
             {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
               if (n === 0) return null;

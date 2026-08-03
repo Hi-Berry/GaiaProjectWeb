@@ -1,0 +1,79 @@
+{
+  "global": {
+    "vpWeightEarly": 4.403632712022738,
+    "vpWeightLate": 23.975131351898046,
+    "resourceMultiplierEarly": 1.7872582065151374,
+    "resourceMultiplierLate": 0.5342334741051121,
+    "oreValue": 0.7786657997100166,
+    "creditsValue": 0.1971349591406232,
+    "knowledgeValue": 0.585319360183527,
+    "qicWeightEarly": 4.036211585268865,
+    "qicWeightLate": 6.704416859551689,
+    "power1Value": 0.05,
+    "power2Value": 0.3397221431764625,
+    "power3Value": 0.8969827191200952,
+    "brainStoneBowl1": 0.2,
+    "brainStoneBowl2": 1.2,
+    "brainStoneBowl3": 2.5,
+    "structureMine": 58.22147317734711,
+    "structureTradingStation": 136.50233862869956,
+    "structureResearchLab": 134.76763710098496,
+    "structurePlanetaryInstitute": 168.78152510810403,
+    "structureAcademy": 195.5715037347599,
+    "structureRemainingRoundsFactor": 1,
+    "researchTerraforming": 15.145887081280907,
+    "researchNavigation": 10.415449926562733,
+    "researchArtificialIntelligence": 10,
+    "researchGaiaProject": 12.214902258005955,
+    "researchEconomy": 24.897186421382425,
+    "researchScience": 10.551174880703599,
+    "researchRemainingRoundsFactor": 0.2,
+    "researchLevel5Bonus": 350,
+    "researchLevel4Bonus": 100,
+    "federationValueEach": 106.44003983494899,
+    "gaiaformerValueEach": 6.471746789497847
+  },
+  "byFaction": {
+    "terran": {
+      "researchGaiaProject": 20,
+      "researchEconomy": 18
+    },
+    "bal_tak": {
+      "researchGaiaProject": 20,
+      "researchEconomy": 18
+    },
+    "itars": {
+      "researchGaiaProject": 18
+    },
+    "space_giants": {
+      "researchGaiaProject": 18,
+      "researchNavigation": 16
+    },
+    "nevlas": {
+      "researchGaiaProject": 16
+    },
+    "ambas": {
+      "researchNavigation": 17,
+      "researchGaiaProject": 15
+    },
+    "gleens": {
+      "researchNavigation": 17,
+      "researchTerraforming": 16,
+      "researchGaiaProject": 8
+    },
+    "geodens": {
+      "researchTerraforming": 18,
+      "researchNavigation": 15
+    },
+    "lantids": {
+      "researchNavigation": 17
+    },
+    "ivits": {
+      "federationValueEach": 170
+    },
+    "xenos": {
+      "federationValueEach": 150,
+      "researchArtificialIntelligence": 14
+    }
+  }
+}

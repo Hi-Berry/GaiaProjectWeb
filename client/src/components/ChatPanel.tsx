@@ -242,8 +242,18 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                         onDoubleClick={() => { setPos(null); try { localStorage.removeItem('gaia-chat-pos'); } catch { /* noop */ } }}
                         title="드래그: 위치 이동 · 더블클릭: 기본 위치로"
                     >
-                        <span className="text-xs font-black uppercase tracking-widest text-zinc-200 flex items-center gap-1.5">
+                        <span className="text-xs font-black uppercase tracking-widest text-zinc-200 flex items-center gap-1.5 min-w-0">
                             <span className="text-zinc-500">⠿</span>채팅
+                            {/* [사용자 2026-08-01] 현재 관전 중인 사람 표시 — 서버 connectedSpectators(접속 중) × spectatorNames */}
+                            {(() => {
+                                const g = game as unknown as { connectedSpectators?: string[]; spectatorNames?: Record<string, string> };
+                                const names = (g.connectedSpectators ?? []).map((id) => g.spectatorNames?.[id]).filter(Boolean);
+                                return names.length > 0 ? (
+                                    <span className="normal-case tracking-normal font-medium text-[10px] text-amber-300/90 truncate">
+                                        (관전자 : {names.join(', ')})
+                                    </span>
+                                ) : null;
+                            })()}
                         </span>
                         <button
                             type="button"

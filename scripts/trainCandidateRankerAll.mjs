@@ -7,8 +7,16 @@ const NONPLANET=new Set(['space','deep_space','transdim','lost_fleet_ship']);
 const TYPES=['build_mine','upgrade_structure','advance_research','use_power_action','use_ship_action','enter_spaceship','place_gaiaformer','use_tech_action','use_bonus_action','use_special_action','form_federation','take_twilight_artifact','convert_resource','pass_round','place_ivits_space_station'];
 const TRACKS=['terraforming','navigation','artificialIntelligence','gaiaProject','economy','science'];
 const pwCat=s=>{s=(s||'').toLowerCase();return /ore/.test(s)?0:/credit/.test(s)?1:/know/.test(s)?2:/token/.test(s)?3:/terraform|step|tf/.test(s)?4:5;};
+// [v2] 우주선 액션 정확 매칭: 저널 라벨 prefix → (우주선 타입, actionIndex). 후보의 shipTileId는 로그 map의 타일 type으로 타입 판별.
+const SHIPS=['ship_rebellion','ship_twilight','ship_tf_mars','ship_eclipse'];
+const SHIP_LBL=[
+  ['Rebellion: Gain tech tile','ship_rebellion',1],['Rebellion: Mine','ship_rebellion',2],['Rebellion: 2K','ship_rebellion',3],
+  ['Twilight: Federation benefit','ship_twilight',1],['Twilight: Spaceship Fed','ship_twilight',1],['Twilight: TS','ship_twilight',2],['Twilight: +3 Range','ship_twilight',3],
+  ['TF Mars: Tech tiles','ship_tf_mars',1],['TF Mars: Gaia Project','ship_tf_mars',2],['TF Mars: 3C','ship_tf_mars',3],
+  ['Eclipse: Planet types','ship_eclipse',1],['Eclipse: 2K+3P','ship_eclipse',2],['Eclipse: 6C','ship_eclipse',3],
+];
 
-function matchTaken(e,cands){
+function matchTaken(e,cands,geom){
   const a=e.action||'',d=(e.details||'').toLowerCase(),tid=e.tileId;
   const fi=(pred)=>cands.findIndex(pred);
   if(a==='Built Mine')return fi(c=>c.type==='build_mine'&&c.tileId===tid);
@@ -22,6 +30,12 @@ function matchTaken(e,cands){
   if(a==='Placed Gaiaformer')return fi(c=>c.type==='place_gaiaformer'&&c.tileId===tid);
   if(a==='Used Tech Action')return fi(c=>c.type==='use_tech_action'&&(!tid||c.tileId===tid));
   if(a==='Federation')return fi(c=>c.type==='form_federation');
+  const sl=SHIP_LBL.find(([p])=>a.startsWith(p));
+  if(sl){
+    // 파라미터 캡처된 후보는 (타입, actionIndex) 정확 매칭, 아니면 예전처럼 첫 use_ship_action (타입 레벨 신호만)
+    const exact=fi(c=>c.type==='use_ship_action'&&c.actionIndex===sl[2]&&geom.get(c.shipTileId)?.type===sl[1]);
+    return exact>=0?exact:fi(c=>c.type==='use_ship_action');
+  }
   if(/^Rebellion|^Twilight|^Eclipse|^TF Mars|^Ship Tech/.test(a))return fi(c=>c.type==='use_ship_action');
   return -1;
 }
@@ -34,12 +48,12 @@ for(const f of files){let g;try{g=JSON.parse(fs.readFileSync(dir+'/'+f,'utf8'))}
   for(const e of g.actionJournal){
     const pid=e.playerId,act=e.action||'',tid=e.tileId;
     if(Array.isArray(e.candidates)&&e.candidates.length>=2&&e.playerBefore){
-      const y=matchTaken(e,e.candidates);
+      const y=matchTaken(e,e.candidates,geom);
       if(y>=0){
         const mine=[...owner.entries()].filter(([,o])=>o===pid).map(([id])=>geom.get(id)).filter(Boolean);
         const res=e.playerBefore.research||{};
         const feats=e.candidates.map(c=>{
-          const f=new Array(15+1+4+6+1+6).fill(0);
+          const f=new Array(15+1+4+6+1+6+4+3).fill(0); // [v2] +우주선타입4 +액션슬롯3
           const ti=TYPES.indexOf(c.type); if(ti>=0)f[ti]=1;
           let off=15;
           const tile=c.tileId?geom.get(c.tileId):null;
@@ -56,6 +70,13 @@ for(const f of files){let g;try{g=JSON.parse(fs.readFileSync(dir+'/'+f,'utf8'))}
           off+=6;
           f[off]=(e.round||1)/6; off+=1;
           if(c.type==='use_power_action')f[off+pwCat(c.actionId)]=1;
+          off+=6;
+          // [v2] 우주선 후보: 어느 우주선의 몇 번째 액션인지 — 파라미터 캡처(2026-07 이후) 게임만 값이 실림
+          if(c.type==='use_ship_action'&&c.shipTileId){
+            const st=geom.get(c.shipTileId)?.type; const si=SHIPS.indexOf(st);
+            if(si>=0)f[off+si]=1;
+            if(c.actionIndex>=1&&c.actionIndex<=3)f[off+4+(c.actionIndex-1)]=1;
+          }
           return f;
         });
         decisions.push({cands:feats,y,takenType:e.candidates[y].type});
@@ -91,5 +112,5 @@ const va2=evalSet(va),tr2=evalSet(tr);
 console.log(`train ${tr.length} val ${va.length} | val top1 ${(va2.t1*100).toFixed(1)}% (무작위 ${(va2.rand*100).toFixed(1)}%) | train ${(tr2.t1*100).toFixed(1)}%`);
 console.log('타입별 val top-1:');
 Object.entries(va2.per).sort((a,b)=>b[1].n-a[1].n).forEach(([k,x])=>console.log(`  ${k.padEnd(24)} n=${String(x.n).padStart(4)}  ${(x.hit/x.n*100).toFixed(0)}%`));
-fs.writeFileSync('server/ai/candRankerAll.json',JSON.stringify({version:1,featDim:D,types:TYPES,tracks:TRACKS,w:[...w]}));
-console.log('저장: server/ai/candRankerAll.json');
+fs.writeFileSync('server/ai/candRankerAll.v2.json',JSON.stringify({version:2,featDim:D,types:TYPES,tracks:TRACKS,ships:SHIPS,w:[...w]}));
+console.log('저장: server/ai/candRankerAll.v2.json (v1은 candRankerAll.json에 유지 — 봇 플래그 candRankerV2로 선택)');
