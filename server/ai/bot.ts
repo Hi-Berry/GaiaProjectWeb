@@ -7086,7 +7086,12 @@ export class BotLogic {
             // 처리: 순수 '입장 선호' 가산(입장 총량을 늘리는 게 아니라 어느 배를 탈지만 바꿈) — 3Q 미사용 + QIC 점프 불필요할 때만.
             //   ※ 이 부류(우주선 contention)는 self-play가 원천적으로 못 재현한다(shipTechEntryValue −9.5, Nav+1 self-play 0.40 vs 실전 0.09).
             //     여기선 do-no-harm + 탑승률 발화만 확인하고 실효 판정은 사용자 1:3 — r1ShipPriority·qicShipBudget·rebelFireEarly와 동일 프로토콜.
-            if (getPlayerFlag(playerId, 'r1RebelBoardFirst', false) && round <= 2
+            // [측정 2026-08-03] 40판 VP +3.41 ± 3.67 → 120판 확정 **+0.07 ± 2.23(승률 48.3%) = wash, 단 음수 아님**.
+            //   ★행동 11개 지표 전부 양수: 총행동 +2.01 · 우주선액션 +0.45 · 기술타일 +0.20 · 입장 +0.16 · 광산 +0.17 ·
+            //   교역소 +0.15 · 연구소 +0.06 · 고급타일 +0.05 · 가이아광산 +0.06 (연방만 −0.01 평탄).
+            //   R1 진단이 지목한 두 병목(총행동·기술타일)이 정확히 그 방향 → do-no-harm 채택 ON.
+            //   실효 판정은 사용자 1:3: **R1 리벨 탑승률(기준 봇 24.0% vs 사람 59.8%)**·기술타일 장수(기준 3.89 vs 9.35).
+            if (getPlayerFlag(playerId, 'r1RebelBoardFirst', true) && round <= 2
                 && tile.type === 'ship_rebellion' && neededQic === 0
                 && !((game.spaceships?.[tile.id]?.usedActionIndices) ?? []).includes(1)) {
                 score += 160;
