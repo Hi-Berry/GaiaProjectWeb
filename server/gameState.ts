@@ -3341,7 +3341,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [사용자] 방장 전용 → 참가자 누구나 요청 가능(어차피 나머지 전원 동의 필요). 봇·관전자만 차단.
 			if (!playerId || !game.players[playerId] || (game.botPlayerIds || []).includes(playerId)) { callback?.({ error: '게임 참가자만 롤백을 요청할 수 있습니다.' }); return; }
 			// [사용자 2026-08-03] 최초 집 배치(startingMines)도 허용 — 첫 집을 잘못 놓으면 게임 전체가 꼬이므로 되돌릴 필요가 큼.
-			if (game.currentPhase !== 'main' && game.currentPhase !== 'startingMines') { callback?.({ error: '진행 중이거나 시작 배치 단계에서만 롤백 가능합니다.' }); return; }
+			if (!['main','startingMines','bonusSelection'].includes(String(game.currentPhase))) { callback?.({ error: '진행 중·시작 배치·보너스 선택 단계에서만 롤백 가능합니다.' }); return; }
 			if ((game as any).pendingRollback) { callback?.({ error: '이미 롤백 투표가 진행 중입니다.' }); return; }
 			const hist = turnHistories.get(gameId) || [];
 			// [버그수정] 클릭한 로그 seq '미만'의 가장 최근 턴 시작 스냅샷 = 그 로그가 속한 턴의 시작.
@@ -7517,6 +7517,9 @@ export function executeSelectBonus(
 	if (tileIndex === -1) return false;
 
 	const player = game.players[playerId];
+	// [사용자 2026-08-03] 게임 시작 시 보너스 타일 선택도 롤백 가능하게 — 선택 '직전' 상태를 히스토리에 남긴다.
+	// (라운드 중 패스하며 고르는 보너스는 main 단계라 턴 시작 스냅샷으로 이미 롤백 가능했음)
+	captureTurnStartWithPrev(game, playerId);
 	player.bonusTile = bonusTileId;
 	game.availableBonusTiles.splice(tileIndex, 1);
 
