@@ -72,6 +72,47 @@ const TINKEROID_SPECIAL_IMAGES: Record<string, string> = {
   'tinkeroid-3tf-mine': '/tinker/tile_06.png',
 };
 
+/**
+ * 결과 화면 '점수 구성'의 기타(other) 항목 라벨 — 서버 source 문자열은 저장된 게임 JSON·분석 스크립트가
+ * 참조하므로 건드리지 않고 표시 시점에만 한글화한다(사용자 2026-08-03: "칼럼 왼쪽 탭에 영어 잔여").
+ */
+const SCORE_SOURCE_LABELS: Record<string, string> = {
+  'Gaia Project track reward': '가이아 트랙 보상',
+  'Economy track reward': '경제 트랙 보상',
+  'Proto Planet': '프로토 행성',
+  'Gleens Gaia Bonus': '글린스 가이아 보너스',
+  'Artifact: Gaia x 3': '인공물: 가이아 ×3',
+  'Artifact: Science x 3': '인공물: 과학 ×3',
+  'Artifact: Tracks >= 3': '인공물: 트랙 3단계 이상',
+  'Artifact: Planet types': '인공물: 행성 종류',
+  'Artifact: 7 VP + Asteroid': '인공물: 7VP + 소행성',
+  'Artifact: 7 VP + Proto': '인공물: 7VP + 프로토',
+  'Artifact: Bridge VP': '인공물: 브리지 VP',
+};
+
+/** 연방으로 합칠 소스인지 — 연방 보상 계열 + 테라포밍 5 보상(규칙상 연방 토큰 지급이라 별도 줄이면 헷갈림, 사용자 요청) */
+const isFederationScoreSource = (source: string): boolean =>
+  source.toLowerCase().includes('federation') || source.includes('연방') || source === 'Terraforming 5 Reward';
+
+/** 레거시 폴백(addScore에서 분류 실패 시 `Uncategorized: <category>`)의 내부 키 → 한글 */
+const SCORE_CATEGORY_LABELS: Record<string, string> = {
+  roundMissions: '라운드 미션', bonusTilePass: '보너스 타일(패스)', techTiles: '기술 타일',
+  finalMissions: '최종 미션', researchTracks: '연구 트랙', remainingResources: '잔여 자원',
+  powerReceived: '파워 수령', spaceships: '우주선', other: '기타',
+};
+
+/** other 항목 표시 라벨(연방 계열은 '연방'으로 합산) */
+const scoreSourceLabel = (source: string): string => {
+  if (isFederationScoreSource(source)) return '연방';
+  if (SCORE_SOURCE_LABELS[source]) return SCORE_SOURCE_LABELS[source];
+  const uncategorized = source.match(/^Uncategorized:\s*(.*)$/);
+  if (uncategorized) {
+    const key = uncategorized[1].trim();
+    return `미분류: ${SCORE_CATEGORY_LABELS[key] ?? key}`;
+  }
+  return source;
+};
+
 type PotentialAction =
   | { type: 'buildMine', tileId: string, useGaiaformer?: boolean }
   | { type: 'upgrade', tileId: string, target: StructureType | 'academy_left' | 'academy_right' }
@@ -1712,12 +1753,13 @@ export default function Game() {
                 {(() => {
                   // [사용자] 'other'를 소스별로 라벨링해 "기타" 뭉치를 없앤다: 우주선 입장(−)·연방 보상·인공물·비딩·트랙보상 등
                   //   각각 실제 소스명 행으로. b.spaceships(우주선 액션 +VP)는 '정큐액션' 행으로 분리(입장 비용과 별개).
+                  // 연방 계열 판정·한글 라벨은 상세 카드와 동일 헬퍼 공유(테라포밍 5 보상도 연방으로 합산)
                   const bucketOf = (s: string) => {
-                    if (s.toLowerCase().includes('federation') || s.includes('연방')) return '연방 보상';
+                    if (isFederationScoreSource(s)) return '연방 보상';
                     if (s.includes('비딩')) return '비딩';
                     if (s.includes('우주선 입장')) return '우주선 입장';
                     if (s.startsWith('Artifact') || s.startsWith('인공물')) return '인공물';
-                    return s || '미분류';
+                    return scoreSourceLabel(s) || '미분류';
                   };
                   const cols = playersWithScores.map(({ pid, player, faction }) => {
                     const b = player!.scoreBreakdown!;
@@ -1900,9 +1942,8 @@ export default function Game() {
                             )}
                             {(() => {
                               const grouped = b.other.reduce((acc, curr) => {
-                                // 연방 관련 소스("Federation" 영문 또는 "연방" 한글)는 한 줄(Federations 총합)로 묶음
-                                const isFederation = curr.source.toLowerCase().includes('federation') || curr.source.includes('연방');
-                                const sourceName = isFederation ? 'Federations' : curr.source;
+                                // 연방 계열("Federation"·"연방"·테라포밍 5 보상)은 한 줄('연방' 총합)로 묶고, 나머지도 한글 라벨로 표시
+                                const sourceName = scoreSourceLabel(curr.source);
 
                                 const existing = acc.find(item => item.source === sourceName);
                                 if (existing) existing.vp += curr.vp;
