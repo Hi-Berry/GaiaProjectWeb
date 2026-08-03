@@ -1,0 +1,25 @@
+통합 결정 16628, 피처 40, 후보평균 12.3, 퇴화(자동정답) 106 (0.6%)
+  fold 0 (전체/비퇴화): linear 39.1%/38.8% | mlp H=16 39.2%/38.9% | res H=16 38.2%/37.9% | res H=32 38.2%/37.9%
+  fold 1 (전체/비퇴화): linear 38.2%/37.8% | mlp H=16 37.8%/37.5% | res H=16 37.0%/36.7% | res H=32 37.3%/37.0%
+  fold 2 (전체/비퇴화): linear 38.2%/37.9% | mlp H=16 39.5%/39.2% | res H=16 38.6%/38.4% | res H=32 38.4%/38.1%
+  fold 3 (전체/비퇴화): linear 37.0%/36.8% | mlp H=16 39.6%/39.4% | res H=16 39.1%/38.9% | res H=32 39.5%/39.2%
+
+4-폴드 CV (EPOCHS=60)
+모델         전체top1    비퇴화top1   비퇴화 선형대비(쌍대차 ± SE)
+linear       38.10%     37.83%      (기준)
+mlp H=16     39.01%     38.74%      +0.91%p ± 0.67
+res H=16     38.21%     37.94%      +0.11%p ± 0.74
+res H=32     38.33%     38.06%      +0.23%p ± 0.78
+
+마지막 폴드 타입별 비퇴화 top-1 (선형 → 최고 MLP):
+  use_ship_action        n=1389  70% → 83%  (mlp H=16)
+  upgrade_structure      n= 700  7% → 9%  (mlp H=16)
+  advance_research       n= 582  13% → 12%  (mlp H=16)
+  build_mine             n= 410  27% → 9%  (mlp H=16)
+  use_tech_action        n= 338  40% → 28%  (mlp H=16)
+  use_power_action       n= 323  10% → 20%  (mlp H=16)
+  enter_spaceship        n= 163  50% → 44%  (mlp H=16)
+  form_federation        n= 142  20% → 42%  (mlp H=16)
+  place_gaiaformer       n=  86  44% → 15%  (mlp H=16)
+
+게이트: 비퇴화 쌍대차 +2%p 이상 & > 2×SE 여야 봇 통합/h2h로 진행.
