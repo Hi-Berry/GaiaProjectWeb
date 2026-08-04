@@ -67,6 +67,7 @@ import {
 	getFinalMissionValue,
 	RESEARCH_TRACK_END_BONUS,
 	RESEARCH_TRACKS,
+	isHiddenSpectatorName,
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
@@ -200,6 +201,10 @@ const playerGameMap = new Map<string, string>();
 const socketToPlayerMap = new Map<string, string>();
 const socketToSpectatorMap = new Map<string, string>();
 const spectatorToGameMap = new Map<string, string>();
+/** [숨은 관전 아이디] HIDDEN_SPECTATOR_NAME('---')으로 들어온 관전자 id. 서버 메모리에만 두어
+ *  game 객체(=브로드캐스트 payload·롤백 스냅샷)에 이름/흔적을 남기지 않는다. 재접속 시 숨김 유지 판정용.
+ *  게임은 메모리에만 존재해 서버 재시작 시 게임과 함께 무의미해지므로 별도 정리 없이 둔다(항목당 수십 바이트). */
+const hiddenSpectatorIds = new Set<string>();
 // [사용자] 폰에서 잠깐 앱 전환(카톡 등) 후 복귀 시 '떠났/다시접속' 채팅 스팸 방지용 디바운스 타이머.
 //   키 = `${gameId}:${playerId}`. 해제 시 45초 타이머 설정 → 그 안에 재접속하면 취소(무알림), 넘으면 '떠났' 표시.
 const LEFT_ANNOUNCE_DELAY_MS = 45000;
@@ -3182,7 +3187,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
 				joinGameRoom(socket, gameId);
-				setSpectatorConnected(game, playerId, true);
+				// [숨은 관전 아이디] 새로고침으로 재접속할 때 다시 목록에 뜨면 숨김이 무의미해진다 → 숨은 id면 등록 생략.
+				//   (게임은 서버 메모리에만 있어 재시작하면 게임 자체가 사라지므로 이 Set이 게임보다 먼저 없어질 일은 없다.)
+				if (!hiddenSpectatorIds.has(playerId)) setSpectatorConnected(game, playerId, true);
 				callback({ game });
 				emitGameUpdated(io, game); // 관전자 목록 갱신
 				return;
@@ -3246,15 +3253,26 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const spectatorId = 'spec-' + generatePlayerId();
 			if (!game.spectatorIds) game.spectatorIds = [];
 			game.spectatorIds.push(spectatorId);
-			if (!(game as any).spectatorNames) (game as any).spectatorNames = {};
-			(game as any).spectatorNames[spectatorId] = specName;
-			setSpectatorConnected(game, spectatorId, true);
+			// [숨은 관전 아이디] HIDDEN_SPECTATOR_NAME('---')이면 이름을 game 객체에 아예 기록하지 않고
+			//   connectedSpectators에도 넣지 않는다 → 채팅창 관전자 목록에 안 뜨는 건 물론, game_updated 브로드캐스트·
+			//   롤백 gz 스냅샷 어디에도 흔적이 없어 devtools로 payload를 열어봐도 보이지 않는다.
+			//   spectatorIds에는 남지만 이름 없는 'spec-xxxx'라 접속을 끊은 일반 관전자와 구별되지 않는다(재접속 인증에 필요).
+			const hiddenSpectator = isHiddenSpectatorName(specName);
+			if (hiddenSpectator) {
+				hiddenSpectatorIds.add(spectatorId);
+			} else {
+				if (!(game as any).spectatorNames) (game as any).spectatorNames = {};
+				(game as any).spectatorNames[spectatorId] = specName;
+				setSpectatorConnected(game, spectatorId, true);
+			}
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			joinGameRoom(socket, gameId);
-			log(`Spectator joined game ${gameId} (${spectatorId})`, 'game', undefined, { simulation: (game as any).simulation });
+			log(`Spectator joined game ${gameId} (${spectatorId})${hiddenSpectator ? ' [hidden]' : ''}`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
-			emitGameUpdated(io, game); // 관전자 목록 갱신 브로드캐스트
+			// 관전자 목록 갱신 브로드캐스트. 숨은 관전자는 목록이 안 바뀌므로 보내지 않는다 —
+			// 내용이 그대로인 game_updated가 방 전원에 튀는 것 자체가 '누가 들어왔다'는 신호가 되기 때문.
+			if (!hiddenSpectator) emitGameUpdated(io, game);
 		});
 
 		socket.on('get_game', ({ gameId }, callback) => {

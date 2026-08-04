@@ -128,6 +128,16 @@ export interface ScoreBreakdown {
 /** 연구 트랙 게임 종료 보너스: 3단계 4점, 4단계 8점, 5단계 12점 (트랙별 해당 단계 도달 시) */
 export const RESEARCH_TRACK_END_BONUS: Record<number, number> = { 3: 4, 4: 8, 5: 12 };
 
+/** [숨은 관전 아이디, 사용자 요청] 이 이름으로 관전에 들어오면 채팅창 "(관전자 : …)" 목록에 뜨지 않는다.
+ *  개발/운영자가 진행 중인 게임을 들여다볼 때 플레이어에게 관전 사실을 안 알리기 위한 용도.
+ *  관전(watch_game)에만 적용 — 좌석에 앉는 플레이어는 숨길 수 없다(게임 참가자라 항상 보여야 함).
+ *  이름 비교는 trim 후 정확일치(' --- '도 숨김). 서버는 이 이름을 game 객체에 저장하지 않는다(gameState.ts hiddenSpectatorIds).
+ *  참고: 이 상태로 채팅을 보내면 이름이 없어 일반 '관전자'로 표시된다 — 목록엔 없는데 발언이 있으면 존재는 드러난다. */
+export const HIDDEN_SPECTATOR_NAME = '---';
+export function isHiddenSpectatorName(name?: string | null): boolean {
+  return (name ?? '').trim() === HIDDEN_SPECTATOR_NAME;
+}
+
 export type PlanetType =
   | 'terra' | 'oxide' | 'volcanic' | 'desert'
   | 'swamp' | 'titanium' | 'ice' | 'transdim'

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { GameClient, type GameState, type ChatMessage } from '@/lib/gameClient';
-import { FACTIONS } from '@shared/gameConfig';
+import { FACTIONS, isHiddenSpectatorName } from '@shared/gameConfig';
 import { playChatSound } from '@/lib/audio';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -247,7 +247,10 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                             {/* [사용자 2026-08-01] 현재 관전 중인 사람 표시 — 서버 connectedSpectators(접속 중) × spectatorNames */}
                             {(() => {
                                 const g = game as unknown as { connectedSpectators?: string[]; spectatorNames?: Record<string, string> };
-                                const names = (g.connectedSpectators ?? []).map((id) => g.spectatorNames?.[id]).filter(Boolean);
+                                // [숨은 관전 아이디] 서버가 '---'는 애초에 connectedSpectators/spectatorNames에 안 넣지만,
+                                //   "절대 안 보여야 하는" 성질이라 표시 단계에서 한 번 더 막는다(서버측 누락 시 최후 방어).
+                                const names = (g.connectedSpectators ?? []).map((id) => g.spectatorNames?.[id])
+                                    .filter((n): n is string => !!n && !isHiddenSpectatorName(n));
                                 return names.length > 0 ? (
                                     <span className="normal-case tracking-normal font-medium text-[10px] text-amber-300/90 truncate">
                                         (관전자 : {names.join(', ')})
