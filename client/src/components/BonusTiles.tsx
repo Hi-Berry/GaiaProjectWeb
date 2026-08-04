@@ -246,16 +246,25 @@ export function BonusTiles({
           <div className={`${isMini ? 'flex flex-row flex-nowrap overflow-x-auto overflow-y-hidden custom-scrollbar-hide justify-between gap-1.5 h-12 items-center px-1' : 'flex flex-wrap gap-x-8 gap-y-4'}`}>
             {FEDERATION_REWARDS.map((r, idx) => {
               const n = pool[r.id] ?? 0;
-              if (n === 0) return null;
               const size = isMini ? 35 : 56;
+              // [사용자] 다 가져간 종류를 숨기면(기존 `n===0 → null`) 미니뷰 연방 줄이 justify-between이라
+              //   남은 것들이 벌어져 빈칸이 생겨 어색했음 → 슬롯은 그대로 두고 타일만 음영처리 + ×0 표기.
+              //   ×n 배지는 음영 대상이 아니라(별개 형제 요소) 0일 때도 선명하게 읽힌다.
+              const depleted = n === 0;
+              const stackCount = Math.max(1, Math.min(n, 3)); // 0장이어도 자리 표시용으로 1장은 그린다
               return (
-                <div key={r.id} className="relative group shrink-0" style={{ width: `${size}px`, height: `${size}px` }} title={`${r.label} (${n} left)`}>
-                  {Array.from({ length: Math.min(n, 3) }).map((_, i) => (
+                <div
+                  key={r.id}
+                  className="relative group shrink-0"
+                  style={{ width: `${size}px`, height: `${size}px` }}
+                  title={depleted ? `${r.label} — 모두 획득됨 (남은 개수 0)` : `${r.label} (${n} left)`}
+                >
+                  {Array.from({ length: stackCount }).map((_, i) => (
                     <img
                       key={`${r.id}-${i}`}
                       src={`/image/Federation_${idx + 1}.gif`}
                       alt={r.label}
-                      className="absolute object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105"
+                      className={`absolute object-contain shadow-lg border border-white/5 rounded-md transition-transform group-hover:scale-105 ${depleted ? 'grayscale opacity-40' : ''}`}
                       style={{
                         width: `${size}px`,
                         height: `${size}px`,
@@ -266,7 +275,7 @@ export function BonusTiles({
                     />
                   ))}
                   {/* [사용자] 개수는 타일 오른쪽 아래 코너에 작게 붙임(타일 안 가리고 폭도 안 늘림). */}
-                  <div className="absolute -bottom-1 -right-1 bg-amber-600 text-white text-[13px] font-black px-1 rounded z-20 leading-none tabular-nums shadow-md pointer-events-none">×{n}</div>
+                  <div className={`absolute -bottom-1 -right-1 ${depleted ? 'bg-zinc-700' : 'bg-amber-600'} text-white text-[13px] font-black px-1 rounded z-20 leading-none tabular-nums shadow-md pointer-events-none`}>×{n}</div>
                 </div>
               );
             })}
