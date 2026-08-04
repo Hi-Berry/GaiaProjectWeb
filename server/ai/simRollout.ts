@@ -145,9 +145,28 @@ function fastPolicy(p: SimPlayer, round: number): SimAction {
 }
 
 // ---------- B3: 종료점수 ----------
+/** 실정산(gameState.ts endgameLeftoverUnits)과 동일한 잔여자원 유닛 합. /3은 호출부에서.
+ *  O+C+K+QIC는 전부 1:1(자기들끼리 프리액션 환산이 1:1이라 생 개수 그대로가 정답) +
+ *  2그릇을 전부 태워(토큰 2개→1개 3그릇행) 3그릇 전체를 크레딧으로 환산.
+ *  환산율: 기본 1C, 네뷸라+의회 2C. 타클론 브레인스톤은 3C(2그릇이면 일반토큰 1개가 태울 비용).
+ *  [수정] 기존엔 p3만 더해 2그릇 태우기·네뷸라 2배·브레인스톤을 빠뜨려 실정산보다 과소평가했음
+ *  (실정산과 롤아웃 평가가 어긋나면 봇이 잔여자원 가치를 낮게 보고 정리변환/보유 판단이 틀어짐).
+ *  주의: SimPlayer엔 brainStoneInGaia가 없어 '브레인이 가이아 영역' 케이스는 근사(실측 571판 중 2건). */
+function leftoverUnits(p: SimPlayer): number {
+    const sum = p.ore + p.credits + p.knowledge + p.qic;
+    const rate = (p.faction === 'nevlas' && p.pi >= 1) ? 2 : 1;
+    let n2 = p.p2;
+    let brainC = 0;
+    if (p.faction === 'taklons') {
+        if (p.brainBowl === 3) brainC = 3;
+        else if (p.brainBowl === 2 && n2 >= 1) { brainC = 3; n2 -= 1; }
+    }
+    return sum + (p.p3 + Math.floor(n2 / 2)) * rate + brainC;
+}
+
 export function terminalScore(p: SimPlayer): number {
     let vp = p.score;
-    vp += Math.floor((p.ore + p.credits + p.knowledge + p.qic + p.p3) / 3); // 잔여자원
+    vp += Math.floor(leftoverUnits(p) / 3);                                  // 잔여자원(실정산과 동일 산식)
     vp += p.research.reduce((a, b) => a + b, 0) * 1.2;                        // 연구 VP 근사
     vp += p.feds * 4;                                                        // 연방(토큰VP+가치)
     vp += p.mines + p.ts * 1.5 + p.labs * 1.5 + p.pi * 2 + p.academies * 2;   // 구조물/최종미션 근사

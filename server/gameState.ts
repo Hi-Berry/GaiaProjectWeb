@@ -1946,7 +1946,10 @@ function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: PlayerState):
 	let n2 = p.power2 ?? 0;
 	const n3 = p.power3 ?? 0;
 	let brainC = 0;
-	if (p.faction === 'taklons') {
+	// !brainStoneInGaia: 우주선 입장으로 브레인이 가이아 영역에 있으면(:9699 — brainStoneBowl은 안 지워짐)
+	// 이번 라운드엔 쓸 수 없으므로 환산 대상이 아니다. 다른 브레인 사용처(1B→3C, 번, 파워지불)와 동일한 가드.
+	// (잠재 버그였음: R6 우주선 입장 후 종료 시 부당 +3유닛 → 최대 +1VP. 실측 571판 중 발생 0건)
+	if (p.faction === 'taklons' && !p.brainStoneInGaia) {
 		if (p.brainStoneBowl === 3) brainC = 3;
 		else if (p.brainStoneBowl === 2 && n2 >= 1) { brainC = 3; n2 -= 1; } // 이동 번 비용: 일반토큰 1개
 	}
