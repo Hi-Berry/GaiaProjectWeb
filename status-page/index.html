@@ -24,13 +24,14 @@
   .best{border-color:#4f46e5aa}
   .pinned{border-color:#f59e0baa;box-shadow:0 0 0 1px #f59e0b33}
   .notice{font-size:.8rem;color:#fcd34d;margin-top:.25rem;word-break:break-word}
+  .warn{color:#fca5a5}
   .banner{max-width:560px;width:100%;background:#4f46e51a;border:1px solid #4f46e555;border-radius:12px;padding:.8rem 1rem;font-size:.9rem;margin-bottom:1rem;display:none}
   .foot{color:#64748b;font-size:.75rem;margin-top:1.6rem}
 </style>
 </head>
 <body>
 <h1>🪐 Gaia Project 서버 현황</h1>
-<div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 초록 서버에서 플레이하세요 — 사람 대전 상대는 사람 많은 곳으로!</div>
+<div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 초록 서버에서 플레이하세요 — 사람 대전 상대는 사람 많은 곳으로!<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
 <div class="banner" id="banner"></div>
 <div class="grid" id="grid"></div>
 <div class="foot">30초마다 자동 갱신 · 응답 없음 = 이번 달 무료 용량 소진</div>
@@ -76,7 +77,7 @@ function render(list){
     const cls = x.state==='up'?'up':x.state==='wait'?'wait':'down';
     const isPinned = pinned && x.url===pinned.url;
     const meta = x.state==='up'
-      ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능':'🙅 AI 봇 없음(사람 전용)'}`
+      ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능 — AI 연산으로 느려 사람 대전 비추천':'🙅 AI 봇 없음(사람 전용)'}`
         + (isPinned?' · 👉 여기서 플레이하세요':(best&&x.url===best.url&&x.humans>0&&!x.ai?' · 🔥 사람 대전은 여기!':''))
       : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
     // 안내 문구는 지정 여부와 무관하게 표시 — '점검 중' 같은 알림도 서버별로 띄울 수 있게
@@ -97,7 +98,7 @@ function render(list){
     b.innerHTML = `👉 사람 대전 추천: <b>${esc(auto.name)}</b> (사람 전용 서버)` + (auto.humans>0?` — 지금 ${auto.humans}명 접속 중!`:'');
   } else if(ups.length){
     // 사람 전용 서버가 하나도 안 열려 있음 — AI 봇 서버는 추천하지 않고 안내만
-    b.innerHTML = '⚠️ 지금 사람 전용 서버가 없습니다. 아래 서버는 AI 봇 대전용입니다.';
+    b.innerHTML = '⚠️ 지금 사람 전용 서버가 없습니다. 아래 서버는 AI 봇 대전용이며, AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.';
   } else {
     b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 잠시 후 새로고침 해보세요.';
   }
