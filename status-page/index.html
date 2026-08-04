@@ -22,6 +22,8 @@
   a.go{flex:none;background:#4f46e5;color:#fff;text-decoration:none;padding:.5rem .9rem;border-radius:9px;font-size:.85rem;font-weight:600}
   a.go.dis{background:#334155;pointer-events:none;opacity:.6}
   .best{border-color:#4f46e5aa}
+  .pinned{border-color:#f59e0baa;box-shadow:0 0 0 1px #f59e0b33}
+  .notice{font-size:.8rem;color:#fcd34d;margin-top:.25rem;word-break:break-word}
   .banner{max-width:560px;width:100%;background:#4f46e51a;border:1px solid #4f46e555;border-radius:12px;padding:.8rem 1rem;font-size:.9rem;margin-bottom:1rem;display:none}
   .foot{color:#64748b;font-size:.75rem;margin-top:1.6rem}
 </style>
@@ -50,33 +52,49 @@ async function check(inst){
     clearTimeout(to);
     if(!r.ok) return { ...inst, state:'down' };
     const j = await r.json();
-    return { ...inst, state:'up', games:j.activeGames||0, humans:j.humanPlayers||0, ai:j.aiEnabled!==false };
+    // notice/recommend/noticeAt = 서버가 /api/status/notice로 실시간 지정한 안내 (구버전 서버면 undefined → 무시)
+    return { ...inst, state:'up', games:j.activeGames||0, humans:j.humanPlayers||0, ai:j.aiEnabled!==false,
+             notice:j.notice||null, recommend:j.recommend===true, noticeAt:j.noticeAt||0 };
   }catch(e){ clearTimeout(to); return { ...inst, state:'down' }; }
 }
+
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 function render(list){
   // [사용자 2026-08-03] AI 봇 가능 서버는 추천에서 제외 — 거기선 사람끼리 게임을 안 하므로
   // 추천(배너·best 하이라이트)은 '사람 전용(AI 봇 없음)' 서버 중에서만 고른다. 사람 많은 순 → 진행 게임 순.
   const ups = list.filter(x=>x.state==='up');
+  // [사용자 2026-08-04] 운영자가 서버의 /api/status/notice로 직접 지정한 서버가 있으면 자동 추천을 덮는다.
+  //   여러 서버에 지정이 남아 있으면 가장 최근에 지정된 것(noticeAt 최대)을 쓴다 → 새로 지정할 때 나머지를
+  //   일일이 해제할 필요 없이 URL 하나로 전환된다. 지정이 없으면 기존 자동 추천 로직 그대로.
+  const pinned = ups.filter(x=>x.recommend).sort((a,b)=>b.noticeAt-a.noticeAt)[0];
   const humanOnly = ups.filter(x=>!x.ai);
-  const best = humanOnly.sort((a,b)=>(b.humans-a.humans)||(b.games-a.games))[0];
+  const auto = humanOnly.sort((a,b)=>(b.humans-a.humans)||(b.games-a.games))[0];
+  const best = pinned || auto;
   const grid = document.getElementById('grid');
   grid.innerHTML = list.map(x=>{
     const cls = x.state==='up'?'up':x.state==='wait'?'wait':'down';
+    const isPinned = pinned && x.url===pinned.url;
     const meta = x.state==='up'
-      ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능':'🙅 AI 봇 없음(사람 전용)'}` + (best&&x.url===best.url&&x.humans>0&&!x.ai?' · 🔥 사람 대전은 여기!':'')
+      ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능':'🙅 AI 봇 없음(사람 전용)'}`
+        + (isPinned?' · 👉 여기서 플레이하세요':(best&&x.url===best.url&&x.humans>0&&!x.ai?' · 🔥 사람 대전은 여기!':''))
       : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
-    const dis = x.state==='down' ? '' : '';
-    return `<div class="card ${best&&x.url===best.url?'best':''}">
+    // 안내 문구는 지정 여부와 무관하게 표시 — '점검 중' 같은 알림도 서버별로 띄울 수 있게
+    const noticeLine = (x.state==='up' && x.notice) ? `<div class="notice">📢 ${esc(x.notice)}</div>` : '';
+    return `<div class="card ${isPinned?'pinned':(best&&x.url===best.url?'best':'')}">
       <div class="dot ${cls}"></div>
-      <div class="info"><div class="name">${x.name}</div><div class="meta">${meta}</div></div>
+      <div class="info"><div class="name">${esc(x.name)}</div><div class="meta">${meta}</div>${noticeLine}</div>
       <a class="go" href="${x.url}" target="_blank" rel="noopener">${x.state==='up'?'플레이':'접속 시도'}</a>
     </div>`;
   }).join('');
   const b = document.getElementById('banner');
   b.style.display='block';
-  if(best){
-    b.innerHTML = `👉 사람 대전 추천: <b>${best.name}</b> (사람 전용 서버)` + (best.humans>0?` — 지금 ${best.humans}명 접속 중!`:'');
+  if(pinned){
+    b.innerHTML = `👉 <b>${esc(pinned.name)}</b> 에서 플레이하세요`
+      + (pinned.notice?` — ${esc(pinned.notice)}`:'')
+      + (pinned.humans>0?` (지금 ${pinned.humans}명 접속 중)`:'');
+  } else if(auto){
+    b.innerHTML = `👉 사람 대전 추천: <b>${esc(auto.name)}</b> (사람 전용 서버)` + (auto.humans>0?` — 지금 ${auto.humans}명 접속 중!`:'');
   } else if(ups.length){
     // 사람 전용 서버가 하나도 안 열려 있음 — AI 봇 서버는 추천하지 않고 안내만
     b.innerHTML = '⚠️ 지금 사람 전용 서버가 없습니다. 아래 서버는 AI 봇 대전용입니다.';

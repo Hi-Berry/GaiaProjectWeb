@@ -13,6 +13,8 @@ data/h2h-*.json
 data/pace-*.json
 data/diag-*.log
 data/valuenet-data.jsonl
+# 상태 페이지 실시간 안내(운영 중 서버가 쓰는 런타임 파일 — 서버마다 다름)
+data/status-notice.json
 # 로컬 에이전트/IDE 설정 (개인 설정은 무시하되, 공유 스킬 gaia-ai-lab은 추적)
 .claude/*
 !.claude/skills/

@@ -168,6 +168,49 @@ function councilPendingActive(game: GaiaGameState): boolean {
 		|| (game as any).pendingEclipseAsteroidMine || (game as any).pendingEclipseResearch);
 }
 
+/** [상태 페이지 실시간 안내 2026-08-04, 사용자] 상태 페이지의 '여기서 플레이하세요' 안내를
+ *  재배포(Netlify)·재시작(Render) 없이 즉시 바꾸기 위한 서버별 런타임 안내.
+ *  /api/status에 실려 나가고 상태 페이지가 그대로 표시한다. 설정은 /api/status/notice (admin 토큰).
+ *  recommend=true인 서버가 여러 개면 상태 페이지가 updatedAt이 가장 최신인 것을 고른다
+ *  → 새 서버를 지정할 때 나머지를 일일이 해제할 필요가 없다(URL 1개로 전환). */
+type StatusNotice = { text: string; recommend: boolean; updatedAt: number };
+let statusNotice: StatusNotice = { text: '', recommend: false, updatedAt: 0 };
+
+function statusNoticeFilePath(): string {
+	return path.join(process.cwd(), 'data', 'status-notice.json');
+}
+/** 재시작에도 안내를 유지(같은 인스턴스 수명 내). Render 파일시스템은 재배포 시 초기화되는데,
+ *  그때는 안내가 비어 자동 추천으로 되돌아가므로 안전한 방향으로 실패한다. */
+function loadStatusNotice(): void {
+	try {
+		const raw = fs.readFileSync(statusNoticeFilePath(), 'utf8');
+		const j = JSON.parse(raw);
+		statusNotice = {
+			text: typeof j?.text === 'string' ? j.text.slice(0, 200) : '',
+			recommend: !!j?.recommend,
+			updatedAt: Number(j?.updatedAt) || 0,
+		};
+	} catch { /* 없거나 깨졌으면 기본값(빈 안내) */ }
+}
+loadStatusNotice();
+
+export function getStatusNotice(): StatusNotice {
+	return statusNotice;
+}
+/** 안내 설정/해제. text 200자 제한, 즉시 /api/status에 반영됨(폴링 주기만큼만 지연). */
+export function setStatusNotice(next: { text?: string; recommend?: boolean }): StatusNotice {
+	statusNotice = {
+		text: (next.text ?? statusNotice.text).slice(0, 200),
+		recommend: next.recommend ?? statusNotice.recommend,
+		updatedAt: Date.now(),
+	};
+	try {
+		fs.mkdirSync(path.dirname(statusNoticeFilePath()), { recursive: true });
+		fs.writeFileSync(statusNoticeFilePath(), JSON.stringify(statusNotice), 'utf8');
+	} catch { /* 읽기전용 FS여도 메모리 값은 살아있으므로 무시 */ }
+	return statusNotice;
+}
+
 /** [상태 대시보드] 외부 status 페이지(Netlify)가 CORS로 조회하는 공개 요약 — 개인정보/게임내용 없음 */
 export function getPublicStatus() {
 	let humanPlayers = 0, activeGames = 0;
@@ -176,7 +219,13 @@ export function getPublicStatus() {
 		activeGames++;
 		humanPlayers += Math.max(0, Object.keys(g.players || {}).length - ((g as any).botPlayerIds?.length || 0));
 	}
-	return { ok: true, activeGames, humanPlayers, aiEnabled: isAiEnabled(), ts: Date.now() };
+	return {
+		ok: true, activeGames, humanPlayers, aiEnabled: isAiEnabled(),
+		notice: statusNotice.text || null,
+		recommend: statusNotice.recommend,
+		noticeAt: statusNotice.updatedAt || null,
+		ts: Date.now(),
+	};
 }
 /** AI 봇 사용 가능 여부 — Render 환경변수로 서버별 지정 (AI_ENABLED / AI_AVAILABLE / AI_BOTS_ENABLED 중 아무거나).
  *  미설정이면 true. '0'/'false'/'off'/'no'면 false. 상태 페이지 표기용. */

@@ -102,11 +102,43 @@ app.use((req, res, next) => {
 
 (async () => {
   // [상태 대시보드] Netlify status 페이지용 — CORS 전체 허용(공개 카운트만 반환, 개인정보/게임내용 없음)
-  const { getPublicStatus } = await import("./gameState");
+  const { getPublicStatus, getStatusNotice, setStatusNotice } = await import("./gameState");
   app.get("/api/status", (_req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.json(getPublicStatus());
   });
+
+  // [상태 페이지 실시간 안내 2026-08-04, 사용자] '여기서 플레이하세요'를 재배포·재시작 없이 즉시 지정/해제.
+  //   예) /api/status/notice?token=0011&recommend=1&text=여기서%20플레이하세요
+  //       /api/status/notice?token=0011&clear=1
+  //   GET도 허용 — 폰 브라우저에 URL만 붙여넣어 바꿀 수 있어야 한다는 게 이 기능의 목적.
+  //   CORS 헤더는 일부러 안 붙임(다른 사이트가 브라우저를 통해 건드리지 못하게). 토큰은 STATUS_ADMIN_TOKEN으로
+  //   덮어쓸 수 있고, 미설정 시 기존 어드민 코드('0011')를 쓴다 — 4자리는 약하므로 공개 운영 시 env 설정 권장.
+  const statusNoticeHandler = (req: Request, res: Response) => {
+    const expected = process.env.STATUS_ADMIN_TOKEN?.trim() || '0011';
+    const q = { ...(req.query as Record<string, unknown>), ...((req.body ?? {}) as Record<string, unknown>) };
+    const token = typeof q.token === 'string' ? q.token : '';
+    if (token !== expected) { res.status(403).json({ ok: false, error: 'invalid token' }); return; }
+
+    const truthy = (v: unknown) => v === true || v === '1' || v === 'true' || v === 'on' || v === 'yes';
+    if (truthy(q.clear)) {
+      const n = setStatusNotice({ text: '', recommend: false });
+      res.json({ ok: true, cleared: true, notice: n });
+      return;
+    }
+    const next: { text?: string; recommend?: boolean } = {};
+    if (typeof q.text === 'string') next.text = q.text;
+    if (q.recommend !== undefined) next.recommend = truthy(q.recommend);
+    if (next.text === undefined && next.recommend === undefined) {
+      res.json({ ok: true, unchanged: true, notice: getStatusNotice() }); // 조회용
+      return;
+    }
+    const n = setStatusNotice(next);
+    log(`[STATUS-NOTICE] recommend=${n.recommend} text="${n.text}"`, 'express');
+    res.json({ ok: true, notice: n });
+  };
+  app.get("/api/status/notice", statusNoticeHandler);
+  app.post("/api/status/notice", statusNoticeHandler);
 
   await registerRoutes(httpServer, app);
 
