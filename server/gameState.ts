@@ -6958,13 +6958,16 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		addGameLog(game, playerId, 'Built Mine on Proto', `+6 VP (3 terraforming required)`, tileId);
 	}
 
+	// 가이아 광산 보너스(기술타일 +3VP / 글린 +2VP)는 전용 로그줄을 쓰지 않고 아래 'Built Mine' 로그에
+	// `(+NVP ...)` 세그먼트로 병합한다(라운드 미션과 동일한 방식, 사용자 요청).
+	const gaiaMineVpSegments: Array<{ vp: number; reason: string }> = [];
 	if (tile.type === 'gaia' && player.techTiles.includes('tech-gaia-3vp') && !isTechTileCovered(player, 'tech-gaia-3vp')) {
 		addScore(game, playerId, 3, 'techTiles', { tileId: 'tech-gaia-3vp' });
-		addGameLog(game, playerId, 'Tech Tile Bonus', `Gaia Planet: +3 VP`, tileId);
+		gaiaMineVpSegments.push({ vp: 3, reason: 'Tech Gaia Planet' });
 	}
 	if (tile.type === 'gaia' && player.faction === 'gleens') {
 		addScore(game, playerId, 2, 'other', { source: 'Gleens Gaia Bonus', noLog: true });
-		addGameLog(game, playerId, 'Gleens: Gaia building', '+2 VP', tileId);
+		gaiaMineVpSegments.push({ vp: 2, reason: 'Gleens Gaia' });
 	}
 
 	let totalQicLog = neededQIC;
@@ -6977,6 +6980,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		? `무료${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
 		: `${standardMineOre}O, ${standardMineCredits}C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
+	for (const seg of gaiaMineVpSegments) appendVpSegmentToLastLog(game, playerId, seg.vp, seg.reason);
 
 	applyRoundMissionScore(game, playerId, 'build_mine');
 	if (rm7QualifyMine) applyRoundMissionScore(game, playerId, 'new_sector');
