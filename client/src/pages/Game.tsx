@@ -3065,6 +3065,11 @@ export default function Game() {
               if (
                 game.hasDoneMainAction &&
                 (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) &&
+                // [버그수정 2026-08-05 사용자: "칸 클릭하고 비용 0 0까지 뜨는데 건설이 안 됨"]
+                //   우주선 연방 보상(무한거리 무료광산)은 연방 형성=메인 액션 '후'에 배치하므로 hasDoneMainAction이
+                //   항상 true다. 그런데 이 예외 목록에 pendingSpaceshipFedMine이 빠져 있어 클릭이 조용히 무시됐다
+                //   (서버는 이 건설을 받아줄 준비가 돼 있었음 — 클라 게이트만 막던 문제).
+                (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) &&
                 (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) &&
                 !isPendingGaiaBuild &&
                 !terraformStepMinePending

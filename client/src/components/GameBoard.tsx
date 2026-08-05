@@ -2290,7 +2290,7 @@ export function GameBoard({
                           className="w-full"
                           variant="secondary"
                           /* [순서 2026-08-05] 아이타 교환 2TF+무료광산은 액션 단계 시작 전(아무의 턴도 아닐 때) 지어야 하므로 턴 게이트 면제 */
-                          disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId && game.pendingShipTechMine?.playerId !== playerId)}
+                          disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId && game.pendingShipTechMine?.playerId !== playerId)}
                           onClick={() => {
                             onBuildMine(selectedTile.id);
                             setSelectedTile(null);
@@ -2343,7 +2343,7 @@ export function GameBoard({
                       className="w-full border-amber-500/50 text-amber-200 hover:bg-amber-500/20"
                       variant="secondary"
                       /* [순서 2026-08-05] 위와 동일 — 교환 2TF+무료광산은 턴 시작 전 해소 */
-                      disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId && game.pendingShipTechMine?.playerId !== playerId) || !canAfford}
+                      disabled={(game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId)) || (game.turnOrder[game.currentPlayerIndex] !== playerId && game.pendingShipTechMine?.playerId !== playerId) || !canAfford}
                       onClick={() => {
                         onBuildMine(selectedTile.id);
                         setSelectedTile(null);
