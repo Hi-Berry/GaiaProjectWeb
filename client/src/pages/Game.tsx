@@ -780,6 +780,32 @@ export default function Game() {
       fetchGame();
     }
 
+    // [모바일 실시간 갱신 2026-08-05, 사용자: "폰에서 종종 새로고침해야 한다"]
+    // 원인: 폰이 백그라운드(앱 전환·화면 잠금)로 가면 JS 타이머가 멈춰 socket.io의 하트비트
+    //   (pingInterval 25s / pingTimeout 20s)가 돌지 못한다. 그 사이 OS/통신사 NAT이 소켓을 조용히 끊으면
+    //   복귀 후에도 socket.connected가 true라 'connect' 이벤트가 안 떠서 fetchGame이 실행되지 않고,
+    //   서버 방에서도 빠진 상태라 game_updated가 안 온다 → 최대 ~45초간 화면이 멈춘 것처럼 보이고
+    //   수동 새로고침(=재마운트로 fetchGame)만이 즉시 복구였다. connectionStateRecovery도 꺼져 있어
+    //   끊긴 사이 놓친 이벤트는 재전송되지 않으므로, 복구는 '상태를 다시 받는' 것뿐이다.
+    // 대응: 화면에 돌아온 순간 직접 재동기화한다(= 새로고침과 같은 효과, 화면 깜빡임 없음).
+    let lastResync = 0;
+    const resyncNow = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastResync < 1000) return; // 앱 전환 연타 시 중복 요청 방지
+      lastResync = now;
+      if (!socket.connected) {
+        socket.connect(); // 끊긴 게 확실하면 즉시 재연결 — 'connect'에서 fetchGame이 돌며 방에 다시 들어간다
+        return;
+      }
+      // 연결된 것처럼 보여도 실제로는 죽은 '좀비 소켓'일 수 있다 → 응답이 없으면 강제로 끊고 다시 붙인다.
+      const probe = setTimeout(() => { socket.disconnect(); socket.connect(); }, 3000);
+      fetchGame().finally(() => clearTimeout(probe));
+    };
+    document.addEventListener('visibilitychange', resyncNow);
+    window.addEventListener('focus', resyncNow);    // iOS에서 visibilitychange가 안 오는 경우 대비
+    window.addEventListener('pageshow', resyncNow); // 뒤로가기 캐시(bfcache)로 복귀할 때
+
     const unsubGame = GameClient.onGameUpdated((updatedGame) => {
       if (updatedGame.id !== gameId) return;
       if (updatedGame.hostId === playerId) isHostSessionRef.current = true;
@@ -851,6 +877,9 @@ export default function Game() {
 
     return () => {
       socket.off('connect', fetchGame);
+      document.removeEventListener('visibilitychange', resyncNow);
+      window.removeEventListener('focus', resyncNow);
+      window.removeEventListener('pageshow', resyncNow);
       unsubGame();
       unsubError();
       unsubGameError();
