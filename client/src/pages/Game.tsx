@@ -4442,8 +4442,10 @@ export default function Game() {
         )}
         {/* 우주선 기술(2TF+Mine): 맵에서 행성 클릭으로 건설 */}
         {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-orange-500/50 text-orange-400 text-sm font-medium shadow-lg">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-orange-500/50 text-orange-400 text-sm font-medium shadow-lg flex items-center gap-2">
             Ship Tech (2TF+Mine): 맵에서 <span className="font-bold text-orange-300">행성을 클릭</span>하여 광산 건설
+            {/* [탈출구 2026-08-05] 지을 곳이 없을 때 포기 — 아이타 교환 중이면 액션 단계가 이걸 기다리므로 탈출구 필수 */}
+            <Button variant="ghost" size="sm" className="text-orange-300 hover:text-white shrink-0" onClick={() => gameId && GameClient.skipShipTechMine(gameId)}>배치 포기</Button>
           </div>
         )}
         {/* 우주선 연방 보상(무한거리 무료광산): 안내가 전혀 없어 '클릭해도 무반응'으로 보이던 문제(사용자 관찰) + 지을 곳 없을 때(광산 8개 한도 등) 포기 탈출구 */}

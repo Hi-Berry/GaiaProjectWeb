@@ -2638,6 +2638,15 @@ function flushLeftoverItarsTokens(io: SocketIOServer, game: GaiaGameState) {
 }
 
 export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState) {
+	// [순서 2026-08-05 사용자] 아이타 교환으로 받은 2TF+무료광산이 아직 미해소면 액션 단계(1턴)를 시작하지 않는다.
+	//   "건설까지 다 하고 1턴이 시작"이 되도록 보류 — 광산+트랙이 끝나면 resumeItarsExchangeChain이 여기를 다시 부른다.
+	//   탈출구: 지을 곳이 없으면 skip_ship_tech_mine('배치 포기')로 pending을 비우고 체인을 재개할 수 있다.
+	if ((game as any).itarsExchangeResumeAfterShipMine) {
+		log(`[ITARS-ORDER] action phase deferred: 2TF+Mine unresolved (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
+		clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { /* 봇이면 스스로 해소 */ });
+		return;
+	}
 	flushLeftoverItarsTokens(io, game);
 	// [버그수정] 수입 단계가 아직 안 끝났는데 액션 단계를 시작하면, 뒤 순번 플레이어(예: 네뷸라)의 수입 팝업이
 	// 영영 안 뜨고 파워를 못 받는다(사용자 관찰: 마지막 라운드 네뷸라 파워 미수령). ①팝업 활성 중이면 시작 보류
@@ -2770,6 +2779,13 @@ function handleTinkeroidRoundSpecial(io: SocketIOServer, game: ServerGameState):
 }
 
 export function helperProceedAfterItarsGaiaformerOrTerran(io: SocketIOServer, game: GaiaGameState) {
+	// [순서 2026-08-05] helperStartNewRoundTurn과 동일 보험 — 2TF+무료광산 미해소 상태로 액션 단계가 시작되지 않게.
+	//   (정상 흐름은 트랙 전진에서 플래그를 소비한 뒤 여기 오므로 이 가드에 걸리지 않는다.)
+	if ((game as any).itarsExchangeResumeAfterShipMine) {
+		log(`[ITARS-ORDER] action phase deferred(Itars path): 2TF+Mine unresolved (round ${game.roundNumber})`, 'game', game.id, { simulation: (game as any).simulation });
+		clampPlayerResources(game as ServerGameState); emitGameUpdated(io, game);
+		return;
+	}
 	flushLeftoverItarsTokens(io, game);
 	const terranQueue = game.terranCouncilQueueAfterItars;
 	game.terranCouncilQueueAfterItars = undefined;
@@ -5342,6 +5358,38 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 		/** 우주선 연방 보상 무료광산 배치 포기 — 지을 곳이 없을 때(광산 8개 한도·빈 행성 없음) 배치도 턴종료도
 		 *  불가한 데드락 탈출구(사용자 관찰). 보상은 소멸하고 턴 종료가 가능해진다. */
+		// [탈출구 2026-08-05 사용자] 2TF+무료광산: 지을 곳이 없을 때 포기. 아이타 교환에서 온 것이면
+		//   액션 단계가 이 pending을 기다리며 보류돼 있으므로(helperStartNewRoundTurn), 체인을 재개해 1턴을 시작시킨다.
+		socket.on('skip_ship_tech_mine', ({ gameId }: { gameId: string }) => {
+			const game = games.get(gameId); if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (game.pendingShipTechMine?.playerId !== playerId) return;
+			const player = game.players[playerId];
+			const fromItars = !!(game as any).itarsExchangeResumeAfterShipMine;
+			game.pendingShipTechMine = null;
+			if (player) { player.nextMineFreeFromShipTech = false; player.pendingTerraformSteps = 0; }
+			addGameLog(game, playerId, 'Ship Tech: 2TF+Mine', '광산 배치 포기');
+			// 광산을 건너뛰어도 타일의 트랙 전진은 남는다(정상 경로와 동일: 광산 완료 → 트랙 전진).
+			// 단 아이타 교환 중이면 '트랙 전진'이 액션 단계 보류 플래그를 소비하는 유일한 지점이므로,
+			// 올릴 수 있는 트랙이 없으면(전부 L4↑ = L5 제약에 걸릴 수 있음) 트랙을 걸지 않고 여기서 체인을 재개해
+			// 1턴이 반드시 시작되게 한다(교착 방지).
+			const canAdvanceSomeTrack = !!player && RESEARCH_TRACKS.some(t => (player.research?.[t.id] ?? 0) < 4);
+			if (canAdvanceSomeTrack) {
+				game.pendingShipTechTrackAdvance = { playerId };
+				if (fromItars) log(`[ITARS-ORDER] 2TF+Mine skipped by ${player?.name ?? playerId} — 트랙 전진 후 체인 재개 (round ${game.roundNumber})`, 'game', game.id);
+				clampPlayerResources(game); emitGameUpdated(io, game);
+				return;
+			}
+			if (fromItars) {
+				(game as any).itarsExchangeResumeAfterShipMine = false;
+				const rem = game.itarsGaiaformerRemainingAfterTech ?? 0;
+				log(`[ITARS-ORDER] 2TF+Mine skipped, 올릴 트랙 없음 — 체인 즉시 재개 (잔여 ${rem}, round ${game.roundNumber})`, 'game', game.id);
+				resumeItarsExchangeChain(io, game, playerId, rem);
+				return;
+			}
+			clampPlayerResources(game); emitGameUpdated(io, game);
+		});
+
 		socket.on('skip_spaceship_fed_mine', ({ gameId }: { gameId: string }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
@@ -6621,13 +6669,16 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		return false;
 	}
 
-	if (game.currentPhase !== 'main') {
+	// [순서 2026-08-05 사용자] 아이타 교환의 2TF+무료광산은 '가이아 단계에서 건설까지 끝내고' 액션 단계가
+	//   시작돼야 한다 → 그 pending에 한해 phase/턴 게이트를 면제. (액션 단계 시작은 helperStartNewRoundTurn이
+	//   이 pending 동안 보류하므로, 이 창에서는 아직 아무의 턴도 아니다.)
+	if (game.currentPhase !== 'main' && !isItarsExchangeShipMine) {
 		debugLog(game, `executeBuildMine failed: Current phase is ${game.currentPhase}, expected 'main'`, 'error');
 		return false;
 	}
 
 	// Note: playerId is passed as argument, so we check if it matches current player
-	if (game.turnOrder[game.currentPlayerIndex] !== playerId) {
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId && !isItarsExchangeShipMine) {
 		debugLog(game, `executeBuildMine failed: Not Player ${playerId}'s turn (Current: ${game.turnOrder[game.currentPlayerIndex]})`, 'error');
 		return false;
 	}
@@ -7697,7 +7748,12 @@ export function executeAdvanceTech(
 	playerId: string,
 	trackId: ResearchTrack
 ): boolean {
-	if (!game || game.currentPhase !== 'main') return false;
+	if (!game) return false;
+	// [순서 2026-08-05 사용자] 보상 트랙 전진(우주선/고급기술 pending)은 아이타 교환처럼 액션 단계 시작 전
+	//   (가이아 단계)에도 해소돼야 한다 → pending 소유자면 phase 게이트 면제. 일반 4K 연구는 종전대로 main 전용.
+	const ownsPendingAdvanceEarly = game.pendingShipTechTrackAdvance?.playerId === playerId
+		|| game.pendingAdvancedTechTrackAdvance?.playerId === playerId;
+	if (game.currentPhase !== 'main' && !ownsPendingAdvanceEarly) return false;
 
 	// [버그수정 2026-06-19] 보상 트랙 전진(우주선/고급기술 pending)은 Itars PI 가이아포머 교환처럼
 	// '내 액션 턴이 아닐 때' 생길 수 있다 → 그 pending 소유자는 현재 턴이 아니어도 해소 가능.

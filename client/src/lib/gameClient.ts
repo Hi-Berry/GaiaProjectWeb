@@ -598,6 +598,12 @@ export const GameClient = {
     s.emit('skip_spaceship_fed_mine', { gameId });
   },
 
+  /** 2TF+무료광산: 지을 곳이 없을 때 배치 포기(아이타 교환 중이면 이걸로 1턴이 시작된다) */
+  skipShipTechMine(gameId: string) {
+    const s = getSocket();
+    s.emit('skip_ship_tech_mine', { gameId });
+  },
+
   eclipseAdvanceTrack(gameId: string, trackId: ResearchTrack) {
     const s = getSocket();
     s.emit('eclipse_advance_track', { gameId, trackId });
