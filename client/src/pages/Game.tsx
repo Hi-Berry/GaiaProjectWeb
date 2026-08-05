@@ -273,10 +273,14 @@ export default function Game() {
   useEffect(() => {
     try { localStorage.setItem('map-controls-open', isMapControlsOpen ? 'on' : 'off'); } catch { /* noop */ }
   }, [isMapControlsOpen]);
-  /** 플레이어 상세(클릭 시) 팝오버 배율 */
+  /** 플레이어 상세(클릭 시) 팝오버 배율.
+   *  [사용자 2026-08-05] 기본값 ×1 → ×1.5. 저장된 값이 있으면 그 선택을 존중하므로,
+   *  배율 버튼(×1→×1.5→×2)을 한 번이라도 눌러본 기기는 저장값이 그대로 유지된다
+   *  (그 기기에서 기본값을 다시 타려면 localStorage의 'player-detail-scale'을 지우면 된다). */
   const [playerDetailScale, setPlayerDetailScale] = useState<1 | 1.5 | 2>(() => {
-    const v = parseFloat(localStorage.getItem('player-detail-scale') || '1');
-    return v === 2 ? 2 : v === 1.5 ? 1.5 : 1;
+    const saved = localStorage.getItem('player-detail-scale');
+    const v = saved != null ? parseFloat(saved) : 1.5;
+    return v === 2 ? 2 : v === 1 ? 1 : 1.5;
   });
   /** 오른쪽 플레이어 요약: 클릭 시 펼쳐서 연방·기술타일·인공물·Special 사용여부 등 표시 */
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
