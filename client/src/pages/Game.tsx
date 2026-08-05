@@ -3615,22 +3615,6 @@ export default function Game() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
 
-                {unusedAbilities.length > 0 && (
-                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
-                    <p className="text-amber-300 font-bold text-sm flex items-center gap-1.5">
-                      ⚠️ 아직 안 쓴 특수 액션이 {unusedAbilities.length}개 있어요
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {unusedAbilities.map((a, i) => (
-                        <span key={i} className="text-[11px] font-bold text-amber-200 bg-amber-500/15 border border-amber-500/30 rounded px-2 py-0.5">
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-[11px] text-amber-200/70 mt-2">패스하면 이번 라운드에 다시 쓸 수 없습니다. 정말 패스할까요?</p>
-                  </div>
-                )}
-
                 <div className="flex items-start justify-center gap-8 py-6">
                   {currentBonusTile && (
                     <div className="flex flex-col items-center gap-3">
@@ -3684,12 +3668,33 @@ export default function Game() {
                   </div>
                 )}
 
-                <AlertDialogFooter className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-zinc-950/95 backdrop-blur border-t border-white/10">
+                {/* [사용자 2026-08-05] 경고를 버튼 '바로 위'로 옮기고 버튼과 함께 sticky 고정 — 예전엔 다이얼로그 상단이라
+                    내용이 길어 스크롤되면 경고가 밀려 보이지 않은 채 패스할 수 있었다.
+                    경고가 1개라도 있으면 Ok 버튼 색도 경고색(앰버)으로 바꿔 한 번 더 알린다. */}
+                <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-zinc-950/95 backdrop-blur border-t border-white/10 space-y-3">
+                  {unusedAbilities.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                      <p className="text-amber-300 font-bold text-sm flex items-center gap-1.5">
+                        ⚠️ 아직 안 쓴 특수 액션이 {unusedAbilities.length}개 있어요
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {unusedAbilities.map((a, i) => (
+                          <span key={i} className="text-[11px] font-bold text-amber-200 bg-amber-500/15 border border-amber-500/30 rounded px-2 py-0.5">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-amber-200/70 mt-2">패스하면 이번 라운드에 다시 쓸 수 없습니다. 정말 패스할까요?</p>
+                    </div>
+                  )}
+                  <AlertDialogFooter>
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                     Cancel
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-primary hover:bg-primary/90 text-black font-bold"
+                    className={unusedAbilities.length > 0
+                      ? "bg-amber-500 hover:bg-amber-500/90 text-black font-bold"
+                      : "bg-primary hover:bg-primary/90 text-black font-bold"}
                     onClick={() => {
                       if (confirmPassWithTileId && confirmPassWithTileId !== 'dummy') {
                         GameClient.passRound(gameId!, confirmPassWithTileId);
@@ -3702,6 +3707,7 @@ export default function Game() {
                     Ok
                   </AlertDialogAction>
                 </AlertDialogFooter>
+                </div>
               </AlertDialogContent>
             </AlertDialog>
           );
@@ -5864,7 +5870,8 @@ export default function Game() {
                     canRollback={!!(playerId && game.players?.[playerId]) && ['main','startingMines','bonusSelection'].includes(String(game.currentPhase))}
                     onRollbackToSeq={(seq, label) => { if (!gameId) return; if (!window.confirm(`[${label ?? '이 지점'}] 이 로그가 속한 턴의 시작으로 되돌립니다.\n그 이후 행동은 모두 사라지고 그 턴부터 다시 진행됩니다.\n다른 플레이어 전원이 동의해야 실행됩니다. 요청할까요?`)) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                    onEntryMouseLeave={() => setHighlightedTileId(null)}                  />
+                    onEntryMouseLeave={() => setHighlightedTileId(null)}
+                  />
                 )}
               </div>
             </div>
@@ -6058,7 +6065,8 @@ export default function Game() {
                   canRollback={!!(playerId && game.players?.[playerId]) && ['main','startingMines','bonusSelection'].includes(String(game.currentPhase))}
                   onRollbackToSeq={(seq) => { if (!gameId) return; if (!window.confirm('이 지점(턴 시작)으로 롤백을 요청할까요?\n다른 플레이어 전원이 동의해야 실행됩니다.')) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                   onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                  onEntryMouseLeave={() => setHighlightedTileId(null)}                />
+                  onEntryMouseLeave={() => setHighlightedTileId(null)}
+                />
               )}
             </div>
           </div>
