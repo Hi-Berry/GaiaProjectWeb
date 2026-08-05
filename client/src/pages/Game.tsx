@@ -4456,7 +4456,11 @@ export default function Game() {
         {/* 우주선 연방 보상(무한거리 무료광산): 안내가 전혀 없어 '클릭해도 무반응'으로 보이던 문제(사용자 관찰) + 지을 곳 없을 때(광산 8개 한도 등) 포기 탈출구 */}
         {game.pendingSpaceshipFedMine && game.pendingSpaceshipFedMine.playerId === playerId && (
           <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-sky-500/50 text-sky-300 text-sm font-medium shadow-lg flex items-center gap-2">
-            연방 보상: 맵에서 <span className="font-bold text-sky-200">빈 행성을 클릭</span>해 무료 광산 배치 (무한거리 · 소행성 제외 · 테라포밍/가이아 비용만 청구)
+            {/* [정리 2026-08-05 사용자: 텍스트 과다] 긴 설명(무한거리·소행성 제외·비용 청구 규칙)은 배치 때마다 읽을 필요가 없어
+                한 줄로 축약하고, 상세 규칙은 hover(title)로 옮김 */}
+            <span title="무한거리 · 소행성 제외 · 테라포밍/가이아 비용만 청구(못 내면 면제)">
+              연방 보상: <span className="font-bold text-sky-200">빈 행성 클릭</span>해 무료 광산 배치
+            </span>
             <Button variant="ghost" size="sm" className="text-sky-400 hover:text-white shrink-0" onClick={() => gameId && GameClient.skipSpaceshipFedMine(gameId)}>배치 포기</Button>
           </div>
         )}

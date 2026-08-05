@@ -2388,7 +2388,9 @@ export function GameBoard({
                           {mineBuildCost.qicCost > 0 && `, ${mineBuildCost.qicCost} QIC`})</>
                       )}
                     </Button>
-                    {mineBuildCost.terraformSteps > 0 && (
+                    {/* [정리 2026-08-05 사용자: 배치 중 텍스트 과다] 우주선 연방 무료광산은 비용이 면제(못 내면 자동 면제)라
+                        테라포밍 비용/경고가 무의미하고 오해만 준다 → 그 상태에선 숨김 */}
+                    {mineBuildCost.terraformSteps > 0 && game.pendingSpaceshipFedMine?.playerId !== playerId && (
                       <div className="text-xs space-y-1">
                         <div className={`${mineBuildCost.needsExtraTerraforming ? 'text-red-400' : 'text-amber-400'}`}>
                           Terraforming: {mineBuildCost.terraformSteps} step{mineBuildCost.terraformSteps > 1 ? 's' : ''}
@@ -2407,7 +2409,7 @@ export function GameBoard({
                         )}
                       </div>
                     )}
-                    {!canBuildMine && (
+                    {!canBuildMine && game.pendingSpaceshipFedMine?.playerId !== playerId && (
                       <div className="text-red-400 text-[10px] font-bold bg-red-500/10 p-1 rounded border border-red-500/30">
                         자원 또는 QIC가 부족합니다.
                       </div>
