@@ -6609,6 +6609,13 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	const isTerraformingPowerActionBuild = (player.pendingTerraformSteps || 0) > 0;
 	const isPendingGaiaBuild = (player.pendingGaiaformerTiles || []).includes(tileId);
 	const isPendingSpaceshipFedMine = game.pendingSpaceshipFedMine?.playerId === playerId;
+	// [버그수정 2026-08-05 사용자] 아이타 PI 교환(가이아 단계)으로 받은 'ship-tech-2tf-mine'의 무료 광산은
+	//   액션 단계로 이연된다(교환 시점엔 currentPhase!=='main'이라 즉시 건설 불가). 그런데 그 이연분이 자기 턴
+	//   '시작 시점'에 해소되면 아래 hasDoneMainAction=true가 걸려 그 라운드 메인 액션을 통째로 잡아먹었다.
+	//   (일반 경로는 연구소 건설=메인액션 직후라 이미 true여서 무해했고, 교환 경로만 손해였다.)
+	//   → 교환에서 온 이연 광산은 메인 액션을 소모하지 않는다. 타일의 즉시효과이지 액션이 아니므로.
+	const isItarsExchangeShipMine = !!(game as any).itarsExchangeResumeAfterShipMine
+		&& game.pendingShipTechMine?.playerId === playerId;
 	if (game.hasDoneMainAction && !isTerraformingPowerActionBuild && !isPendingGaiaBuild && !isPendingSpaceshipFedMine) {
 		debugLog(game, `executeBuildMine failed: Player ${playerId} has already done a main action`, 'error');
 		return false;
@@ -7078,7 +7085,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	applyGeodensNewPlanetTypeBonus(game, playerId, geodensTypesBefore);
 
 	clearFreeMineFlags();
-	game.hasDoneMainAction = true;
+	// 아이타 교환에서 이연된 무료 광산은 메인 액션 소모 없음(위 isItarsExchangeShipMine 주석 참조).
+	if (!isItarsExchangeShipMine) game.hasDoneMainAction = true;
 	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
@@ -7720,7 +7728,10 @@ export function executeAdvanceTech(
 		addGameLog(game, playerId, 'Ship Tech: Advanced track', `${track} → Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
-		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
+		// 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음.
+		// [버그수정 2026-08-05 사용자] 아이타 교환에서 온 2TF+Mine의 후속 트랙 전진은 '내 턴'에 해소되더라도
+		//   메인 액션을 소모하면 안 된다(광산 쪽과 동일 이유 — 타일 즉시효과. 아래 몇 줄 뒤에서 이 플래그를 소비).
+		if (isMyTurn && !(game as any).itarsExchangeResumeAfterShipMine) game.hasDoneMainAction = true;
 
 		// 2TF+Mine 관련 순서 조정을 위해 기존 로직 제거 (이제 광산 건설 완료 시 트랙 전진이 트리거됨)
 
