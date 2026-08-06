@@ -1287,6 +1287,43 @@ function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: {
 }
 
 /** 수익 항목 적용 순서 최적화 (3그릇 > 2그릇 > 1그릇 우선) */
+/**
+ * [사용자 요청 2026-08-06] 이미 패스한 플레이어에게 지금 파워 누출(leech)을 받는 것이
+ * '최종적으로 아무 의미도 없는' 상태인가 — 그렇다면 물어볼 필요 없이 거절해도 된다.
+ *
+ * 판정: 다음 라운드 수익(그릇1 토큰 추가 + 파워 수익)만으로도 토큰이 전부 그릇3에 올라간다면,
+ *       지금 받아 두든 말든 다음 라운드 시작 시점의 상태가 같다 → 받아봐야 VP만 깎인다.
+ *
+ * 순서: 토큰을 먼저 받는 순서로 계산한다. 이 순서가 수익이 흡수하는 충전량이 가장 큰
+ *       (= 남는 충전 여력이 최소인) 순서이므로, 여기서 여력 0이면 어떤 수익 순서를 골라도
+ *       누출이 무의미하다는 결론이 뒤집히지 않는다.
+ *
+ * 제외: 이타르(가이아 구역 토큰)·타클론(브레인 스톤/의회 토큰)은 충전 여력이 0이어도 수락에
+ *       의미가 있을 수 있어 판정하지 않는다(오퍼 생성 단계의 예외와 동일). 가이아 포머 구역에서
+ *       돌아올 토큰이 있으면 다음 라운드 여력이 늘어나므로 역시 판정하지 않는다.
+ */
+export function isPowerLeechPointlessAfterIncome(game: GaiaGameState, playerId: string): boolean {
+  const player = game.players[playerId];
+  if (!player) return false;
+  if (player.faction === 'itars' || player.faction === 'taklons') return false;
+  if ((player.gaiaformerPower ?? 0) > 0) return false;
+
+  const preview = getNextRoundIncomePreview(playerId, game);
+  const order: IncomeOrderItem[] = [];
+  if (preview.powerTokens > 0) order.push({ type: 'tokens', amount: preview.powerTokens, id: 'inc-tokens' });
+  if (preview.powerCharge > 0) order.push({ type: 'power', amount: preview.powerCharge, id: 'inc-power' });
+  if (order.length === 0) return false; // 파워 수익이 없으면 저절로 찰 일도 없다
+
+  const after = simulateIncomeOrder(player, order);
+  return getMaxPowerGain({
+    ...player,
+    power1: after.p1,
+    power2: after.p2,
+    power3: after.p3,
+    brainStoneBowl: after.brainStoneBowl,
+  } as PlayerState) === 0;
+}
+
 export function findOptimalIncomeOrder(
   base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia'>,
   items: IncomeOrderItem[]

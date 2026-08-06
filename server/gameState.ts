@@ -31,6 +31,7 @@ import {
 	snapshotPlayerPower,
 	restorePlayerPowerSnapshot,
 	getMaxPowerGain,
+	isPowerLeechPointlessAfterIncome,
 	canSpendTaklonsPower,
 	spendTaklonsPower,
 	createInitialPlayerState,
@@ -1298,6 +1299,21 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				});
 				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스/마지막 라운드)`, offer.tileId);
 			}
+			continue;
+		}
+
+		// [사용자 요청 2026-08-06] 이미 패스한 플레이어가 '다음 라운드 수익(토큰 추가 + 파워 수익)만으로도
+		//   토큰이 전부 그릇3에 차는' 상태면 지금 누출을 받아도 다음 라운드 시작 상태가 똑같다 → VP만 손해.
+		//   이런 사람에게는 "파워 받을래?"를 묻지 않고 자동 거절한다(사용자: "다 거절할 테니 묻지 말아 달라").
+		//   패스했지만 수익만으로 다 차지 않는 경우(= 받아 두면 다음 라운드에 실제로 더 쓸 수 있는 경우)는 종전대로 묻는다.
+		//   라운드 6은 위 분기에서 이미 별도 처리(패스 후 파워는 종료 점수에 기여하지 않음).
+		if (targetPlayer.hasPassed && isPowerLeechPointlessAfterIncome(game, offer.targetPlayerId)) {
+			const added = addSubLogToLastAction(game, sourcePlayerId, {
+				playerId: offer.targetPlayerId,
+				playerName: targetPlayer.name,
+				text: `↳ Declined Power (패스·수익만으로 풀파워${offer.vpCost > 0 ? ` / −${offer.vpCost}VP 회피` : ''}) ${targetPlayer.name}`
+			});
+			if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스 후 수익만으로 풀파워)`, offer.tileId);
 			continue;
 		}
 
