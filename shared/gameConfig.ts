@@ -2261,13 +2261,18 @@ export function countOccupiedSectors(game: GaiaGameState, playerId: string, lo: 
 export const OUTER_SECTOR_RANGE = { lo: 11, hi: 18 } as const;
 
 /** 보유 행성 유형 집합. 잊혀진 행성·가상 광산(인공물 소행성/원시) 포함, space/deep_space·기생광산 제외.
- *  (패스 보너스 'planet_type' / 고급타일 adv-pass-1vp-type / 최종미션 fm_planet_types / 기오덴 의회 공용) */
+ *  (패스 보너스 'planet_type' / 고급타일 adv-pass-1vp-type / 최종미션 fm_planet_types / 기오덴 의회 공용)
+ *
+ *  [엠바스 스왑 주의] 잊혀진 행성은 원래 빈 우주(space)에 놓이므로 보통 'lost_planet' 하나만 준다.
+ *  그런데 엠바스 의회 능력으로 의회 ↔ 광산 위치를 바꾸면 lost_planet_mine이 '진짜 행성 헥스'(예: proto) 위로
+ *  옮겨간다. 이때 그 칸은 실제로 그 행성을 점유한 것이므로 '행성 유형'과 'lost_planet'을 둘 다 세야 한다.
+ *  (else-if로 두면 스왑 후 유형이 하나 사라져 미션·기오덴·패스 점수가 모두 과소 집계된다.) */
 export function getOwnedPlanetTypes(game: GaiaGameState, playerId: string): Set<string> {
   const types = new Set<string>();
   for (const t of game.map) {
     if (!isOwnedBuilding(t, playerId)) continue;
     if (t.structure === 'lost_planet_mine') types.add('lost_planet');
-    else if (t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
+    if (t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
   }
   const player = game.players[playerId];
   if (player?.virtualMineAsteroid) types.add('asteroid');

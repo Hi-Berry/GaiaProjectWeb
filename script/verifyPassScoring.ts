@@ -171,6 +171,26 @@ function oldClientBonusVp(game: any, playerId: string): number {
 	return 0;
 }
 
+/**
+ * 유일한 '의도된' 정산 변경 판정 — 엠바스 스왑으로 잊혀진 행성이 진짜 행성 헥스 위로 옮겨간 경우.
+ *
+ * 구 서버는 같은 '행성 유형'을 두 가지 규칙으로 세고 있었다.
+ *   · 보너스 타일 planet_type: 소유 타일의 type 집합 + (잊혀진행성 있으면) lost_planet  → 스왑된 칸을 둘 다 셈
+ *   · adv-pass-1vp-type / fm_planet_types / 기오덴 의회: lost_planet_mine이면 lost_planet '만'  → 스왑된 칸의 원래 행성 유형을 잃음
+ * 엠바스 의회 능력(의회 ↔ 광산 위치 교환)은 lost_planet_mine을 실제 행성(예: proto) 위로 옮길 수 있고,
+ * 그 칸은 실제로 그 행성을 점유한 것이므로 두 유형 모두 세는 쪽이 맞다.
+ * → 공용 getOwnedPlanetTypes를 그렇게 통일했다. 보너스 타일 값은 구 서버와 동일하게 유지되고,
+ *   adv-pass-1vp-type만 스왑된 판에서 +1 (구 서버의 과소 집계를 바로잡은 것).
+ */
+function hasSwappedLostPlanet(game: any, playerId: string): boolean {
+	return game.map.some((t: any) =>
+		t.ownerId === playerId && t.structure === 'lost_planet_mine' && t.type !== 'space' && t.type !== 'deep_space');
+}
+function isIntendedPlanetTypeFix(game: any, playerId: string, kind: PassBonusType | string | undefined): boolean {
+	if (kind !== 'planet_type' && kind !== 'adv-pass-1vp-type') return false;
+	return hasSwappedLostPlanet(game, playerId);
+}
+
 // ---------------------------------------------------------------------------
 // 합성 변형: 저장 로그에 없는 필드(포머·가상광산·기생광산)를 채워 전 항목을 강제로 돌린다
 // ---------------------------------------------------------------------------
@@ -234,7 +254,8 @@ let games = 0, skippedFiles = 0;
 let aChecked = 0, aMismatch = 0, aSkipped = 0;
 const aByType = new Map<string, number>();
 // B
-let bChecked = 0, bMismatch = 0;
+let bChecked = 0, bMismatch = 0, bIntended = 0;
+const intendedNotes = new Set<string>();
 // C
 let cChecked = 0;
 const cDiffByType = new Map<string, number>();
@@ -292,20 +313,30 @@ for (const file of files) {
 			const g = synthesize(data, playerId, bonusTileId, rng);
 			const preview = computePassScorePreview(g, playerId);
 
-			// B: 구 서버 vs 공용 — 반드시 일치해야 한다
+			// B: 구 서버 vs 공용 — 반드시 일치해야 한다 (아래 '의도된 변경'만 예외)
 			bChecked++;
 			const oldBonus = oldServerBonusVp(g, playerId);
 			if (oldBonus !== preview.bonusVp) {
-				bMismatch++;
-				failures.push(`[B/bonus] ${path.basename(file)} ${playerId} ${bonusTileId}: 구서버=${oldBonus} 공용=${preview.bonusVp}`);
+				if (isIntendedPlanetTypeFix(g, playerId, preview.bonusTile?.type)) {
+					bIntended++;
+					intendedNotes.add(`${path.basename(file)} ${playerId}: 구서버=${oldBonus} 공용=${preview.bonusVp}`);
+				} else {
+					bMismatch++;
+					failures.push(`[B/bonus] ${path.basename(file)} ${playerId} ${bonusTileId}: 구서버=${oldBonus} 공용=${preview.bonusVp}`);
+				}
 			}
 			const oldAdv = oldServerAdvVp(g, playerId);
 			const newAdv = new Map(preview.advTiles.map(a => [a.tileId, a.vp]));
 			for (const tileId of new Set([...oldAdv.keys(), ...newAdv.keys()])) {
 				bChecked++;
 				if (oldAdv.get(tileId) !== newAdv.get(tileId)) {
-					bMismatch++;
-					failures.push(`[B/adv] ${path.basename(file)} ${playerId} ${tileId}: 구서버=${oldAdv.get(tileId)} 공용=${newAdv.get(tileId)}`);
+					if (isIntendedPlanetTypeFix(g, playerId, tileId)) {
+						bIntended++;
+						intendedNotes.add(`${path.basename(file)} ${playerId} ${tileId}: 구서버=${oldAdv.get(tileId)} 공용=${newAdv.get(tileId)}`);
+					} else {
+						bMismatch++;
+						failures.push(`[B/adv] ${path.basename(file)} ${playerId} ${tileId}: 구서버=${oldAdv.get(tileId)} 공용=${newAdv.get(tileId)}`);
+					}
 				}
 			}
 
@@ -326,7 +357,11 @@ console.log(`A. 실제 6라운드 패스 기록 대조: ${aChecked}건 검사, �
 console.log(`   항목별: ${[...aByType.entries()].map(([k, v]) => `${k}=${v}`).join(', ') || '(없음)'}`);
 console.log(`   ※ 제외 사유: 저장 로그의 players에 gaiaformers·virtualMineAsteroid/Proto가 직렬화되지 않아 패스 시점 상태 복원 불가`);
 console.log('');
-console.log(`B. 구 서버 공식 vs 공용 함수(회귀): ${bChecked}건 검사, 불일치 ${bMismatch}건`);
+console.log(`B. 구 서버 공식 vs 공용 함수(회귀): ${bChecked}건 검사, 불일치 ${bMismatch}건, 의도된 변경 ${bIntended}건`);
+if (bIntended > 0) {
+	console.log(`   의도된 변경 = 엠바스 스왑으로 잊혀진 행성이 실제 행성 헥스로 옮겨간 판에서 구 서버가 그 칸의 원래 행성 유형을 잃던 것(과소 집계) 수정:`);
+	for (const n of [...intendedNotes].slice(0, 10)) console.log(`     ${n}`);
+}
 console.log('');
 console.log(`C. 구 클라 미리보기 공식 vs 공용 함수: ${cChecked}건 중 차이 ${[...cDiffByType.values()].reduce((a, b) => a + b, 0)}건`);
 console.log(`   유형별 차이(=고쳐진 미리보기 오차): ${[...cDiffByType.entries()].map(([k, v]) => `${k}=${v}`).join(', ') || '(없음)'}`);
