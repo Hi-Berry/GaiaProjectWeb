@@ -313,6 +313,10 @@ export default function Game() {
     try { return JSON.parse(localStorage.getItem(`player-color-overrides-${params.matchID}`) || '{}'); } catch { return {}; }
   });
   const [colorPickerFor, setColorPickerFor] = useState<string | null>(null);
+  // [사용자 2026-08-03] 색 피커를 카드 안에서 그리면 ①패스한 사람 카드의 딤(grayscale/opacity 필터)을 그대로 물려받아
+  //   흐릿하게 보이고(자식은 조상 필터를 되돌릴 수 없음) ②바깥 클릭으로 닫히지 않았다. → 버튼 좌표를 잡아 body로
+  //   포털 렌더 + 투명 백드롭으로 바깥 클릭 닫기(상태창 상세와 동일 UX).
+  const [colorPickerPos, setColorPickerPos] = useState<{ left: number; top: number } | null>(null);
   const OVERRIDE_COLORS = [
     '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
     '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
@@ -327,6 +331,7 @@ export default function Game() {
       return next;
     });
     setColorPickerFor(null);
+    setColorPickerPos(null);
   };
   const adjustLogDockHeight = (delta: number) => {
     setLogDockHeightVh((prev) => {
@@ -5018,36 +5023,53 @@ export default function Game() {
                                 <div className="relative flex-shrink-0">
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setColorPickerFor(colorPickerFor === id ? null : id); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (colorPickerFor === id) { setColorPickerFor(null); setColorPickerPos(null); return; }
+                                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                      const W = 160, H = 96; // w-40 + 대략 높이
+                                      setColorPickerPos({
+                                        left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)),
+                                        top: r.bottom + 6 + H > window.innerHeight ? Math.max(8, r.top - H - 6) : r.bottom + 6,
+                                      });
+                                      setColorPickerFor(id);
+                                    }}
                                     className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full block hover:scale-150 transition-transform ${playerColorOverrides[id] ? 'ring-1 ring-white/70' : ''}`}
                                     style={{ backgroundColor: playerColorOverrides[id] ?? faction?.color ?? '#666' }}
                                     title="클릭: 보드 표시 색 변경 (건물·위성·잊혀진 행성)"
                                   />
-                                  {colorPickerFor === id && (
-                                    // [2026-07-26 사용자] 아래쪽 카드(3·4번째)는 피커가 아래로 열리면 로그창(다른 스택)에 가려
-                                    // '기본색으로' 클릭 불가 → 하단 카드는 위로 열어 상태창 안에서 해결(z 전쟁 회피)
-                                    <div className={`absolute z-50 left-0 p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40 ${cardIdx >= 2 ? 'bottom-4' : 'top-4'}`} onClick={(e) => e.stopPropagation()}>
-                                      <div className="text-[10px] text-zinc-400 mb-1.5">보드 표시 색 (나에게만 적용)</div>
-                                      <div className="grid grid-cols-6 gap-1 mb-1.5">
-                                        {OVERRIDE_COLORS.map((c) => (
-                                          <button
-                                            key={c}
-                                            type="button"
-                                            onClick={() => setPlayerColor(id, c)}
-                                            className={`w-4 h-4 rounded-full border ${playerColorOverrides[id] === c ? 'border-white ring-1 ring-white' : 'border-white/20 hover:border-white/60'}`}
-                                            style={{ backgroundColor: c }}
-                                          />
-                                        ))}
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => setPlayerColor(id, null)}
-                                        className="w-full py-1 rounded text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 flex items-center justify-center gap-1.5"
+                                  {colorPickerFor === id && colorPickerPos && typeof document !== 'undefined' && createPortal(
+                                    <>
+                                      {/* 바깥 클릭 닫기 (상태창 상세와 동일 UX) */}
+                                      <div className="fixed inset-0 z-[190]" onClick={() => { setColorPickerFor(null); setColorPickerPos(null); }} />
+                                      <div
+                                        className="fixed z-[200] p-2 rounded-lg bg-zinc-900 border border-white/20 shadow-xl w-40"
+                                        style={{ left: colorPickerPos.left, top: colorPickerPos.top }}
+                                        onClick={(e) => e.stopPropagation()}
                                       >
-                                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: faction?.color ?? '#666' }} />
-                                        기본값으로
-                                      </button>
-                                    </div>
+                                        <div className="text-[10px] text-zinc-400 mb-1.5">보드 표시 색 (나에게만 적용)</div>
+                                        <div className="grid grid-cols-6 gap-1 mb-1.5">
+                                          {OVERRIDE_COLORS.map((c) => (
+                                            <button
+                                              key={c}
+                                              type="button"
+                                              onClick={() => { setPlayerColor(id, c); setColorPickerFor(null); setColorPickerPos(null); }}
+                                              className={`w-4 h-4 rounded-full border ${playerColorOverrides[id] === c ? 'border-white ring-1 ring-white' : 'border-white/20 hover:border-white/60'}`}
+                                              style={{ backgroundColor: c }}
+                                            />
+                                          ))}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => { setPlayerColor(id, null); setColorPickerFor(null); setColorPickerPos(null); }}
+                                          className="w-full py-1 rounded text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 flex items-center justify-center gap-1.5"
+                                        >
+                                          <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: faction?.color ?? '#666' }} />
+                                          기본값으로
+                                        </button>
+                                      </div>
+                                    </>,
+                                    document.body
                                   )}
                                 </div>
                                 <span className="truncate font-medium text-xs md:text-sm text-zinc-200">
