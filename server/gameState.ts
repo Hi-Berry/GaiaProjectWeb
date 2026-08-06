@@ -4992,13 +4992,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 			);
 			if (uncoveredNormal.length < 1) return;
 
+			// [버그수정 2026-08-06 사용자] 아이타 의회 교환으로 받은 고급 타일인지 기억해 둔다 —
+			//   교환은 가이아 단계(액션 전)에 일어나므로 후속 트랙 전진이 메인 액션을 소모하면 안 된다.
+			const fromItarsExchange = game.pendingTechTileSelection?.structureType === 'itars_pi_exchange';
 			if (trackId != null) {
 				// 트랙 4–5 사이 고급 타일
 				const advTile = game.advancedTechTilesByTrack?.[trackId];
 				if (!advTile || advTile.id !== advancedTileId) return;
 				const level = player.research?.[trackId] ?? 0;
 				if (level < 4) return;
-				game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId };
+				game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId, fromItarsExchange };
 			} else {
 				// 7번째(추가) 고급 타일: 조건 25 VP+ 또는 우주선 3개 입장
 				const extra = game.extraAdvancedTechTile;
@@ -5010,7 +5013,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					const entered = (player.spaceshipsEntered ?? []).length;
 					if (entered < 3) return;
 				}
-				game.pendingAdvancedTechCover = { playerId, advancedTileId };
+				game.pendingAdvancedTechCover = { playerId, advancedTileId, fromItarsExchange };
 			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
@@ -5039,7 +5042,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingTechTileSelection = null;
 			game.pendingAdvancedTechCover = null;
 			game.availableShipTechTileIds = undefined;
-			game.pendingAdvancedTechTrackAdvance = { playerId };
+			game.pendingAdvancedTechTrackAdvance = { playerId, fromItarsExchange: pending.fromItarsExchange };
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
@@ -6455,12 +6458,14 @@ export function executeSelectAdvancedTechTile(
 	// 고급 타일은 각 1개씩만 존재 — 이미 누군가 보유 중이면 중복 획득 거부.
 	if (Object.values(game.players).some(p => p.techTiles?.includes(advancedTileId))) return false;
 
+	// [버그수정 2026-08-06 사용자] 소켓 경로와 동일 — 아이타 의회 교환 유래 여부를 커버 단계로 전달
+	const fromItarsExchange = game.pendingTechTileSelection?.structureType === 'itars_pi_exchange';
 	if (trackId != null) {
 		const advTile = game.advancedTechTilesByTrack?.[trackId];
 		if (!advTile || advTile.id !== advancedTileId) return false;
 		const level = player.research?.[trackId] ?? 0;
 		if (level < 4) return false;
-		game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId };
+		game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId, fromItarsExchange };
 	} else {
 		const extra = game.extraAdvancedTechTile;
 		if (!extra || extra.id !== advancedTileId) return false;
@@ -6471,7 +6476,7 @@ export function executeSelectAdvancedTechTile(
 			const entered = (player.spaceshipsEntered ?? []).length;
 			if (entered < 3) return false;
 		}
-		game.pendingAdvancedTechCover = { playerId, advancedTileId };
+		game.pendingAdvancedTechCover = { playerId, advancedTileId, fromItarsExchange };
 	}
 		// [hang 수정] 고급타일 선택 확정 시 표준 기술타일 선택 대기를 비워 커버 단계로 전환.
 		// 안 비우면 botHandler가 pendingTechTileSelection을 계속 감지해 무한 재선택(게임 hang).
@@ -6547,7 +6552,7 @@ export function executeCoverAdvancedTechTile(
 	game.pendingTechTileSelection = null;
 	game.pendingAdvancedTechCover = null;
 	game.availableShipTechTileIds = undefined;
-	game.pendingAdvancedTechTrackAdvance = { playerId };
+	game.pendingAdvancedTechTrackAdvance = { playerId, fromItarsExchange: pending.fromItarsExchange };
 	clampPlayerResources(game); emitGameUpdated(io, game);
 	return true;
 }
@@ -7783,7 +7788,14 @@ export function executeAdvanceTech(
 		addGameLog(game, playerId, 'Advanced Tech: Advanced track', `${track} → Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
 		applyTrackLevelBonus(game, playerId, player, track, newLevel);
 		applyRoundMissionScore(game, playerId, 'research_track');
-		if (isMyTurn) game.hasDoneMainAction = true; // 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음
+		// 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음.
+		// [버그수정 2026-08-06 사용자: "아이타가 의회로 고급기술(즉시점수) 먹었는데 1턴에 자기 액션 없이 2턴으로 넘어감"]
+		//   아이타 교환은 가이아 단계(액션 시작 전)에 일어나는데, 교환자가 시작 플레이어면 그 시점에도
+		//   turnOrder[currentPlayerIndex] === 본인이라 isMyTurn이 true다. 그대로 hasDoneMainAction을 세우면
+		//   액션 단계가 시작될 때 이미 '액션 완료' 상태 → 첫 턴이 통째로 날아갔다(라운드 시작은 이 플래그를 리셋하지 않음).
+		//   고급 타일의 트랙 전진은 타일의 보상이지 메인 액션이 아니므로, 교환 유래면 소모하지 않는다.
+		//   (바로 위 우주선 기술 분기가 itarsExchangeResumeAfterShipMine으로 같은 처리를 하고 있었는데 이 분기만 누락)
+		if (isMyTurn && !pendingAdvTech.fromItarsExchange) game.hasDoneMainAction = true;
 		// [버그수정 2026-07-27 사보르 R5 실측] 아이타 교환에서 고급타일 선택 시 잔여 가이아포머 토큰이 증발하던 문제 —
 		//   고급 트랙전진(교환의 마지막 단계) 완료 후 잔여를 1그릇 복구하고 교환 체인 재개(일반타일·우주선 경로와 동형).
 		const remItarsAdv = game.itarsGaiaformerRemainingAfterTech ?? 0;

@@ -507,9 +507,10 @@ export interface GaiaGameState {
   /** 우주선 기술 타일 3개 중 하나 획득 시: 하단 풀 3개처럼 6개 트랙 중 원하는 트랙 1칸 진행 선택 대기 */
   pendingShipTechTrackAdvance?: { playerId: string } | null;
   /** 고급 기술 타일 획득 시: 덮을 일반 타일 선택 대기 → 선택 후 pendingAdvancedTechTrackAdvance로 트랙 1칸 선택 */
-  pendingAdvancedTechCover?: { playerId: string; advancedTileId: string; trackId?: ResearchTrack } | null;
+  /** fromItarsExchange: 아이타 의회(가이아 토큰 4개) 교환에서 온 고급 타일 — 후속 트랙 전진이 메인 액션을 소모하면 안 됨 */
+  pendingAdvancedTechCover?: { playerId: string; advancedTileId: string; trackId?: ResearchTrack; fromItarsExchange?: boolean } | null;
   /** 고급 기술 타일 획득 후: 원하는 트랙 1칸 진행 선택 대기 (우주선/풀 타일과 동일) */
-  pendingAdvancedTechTrackAdvance?: { playerId: string } | null;
+  pendingAdvancedTechTrackAdvance?: { playerId: string; fromItarsExchange?: boolean } | null;
   /** 거리 5 보상 잊혀진 행성: 해당 플레이어가 빈 우주 타일을 클릭해 특수 광산 배치 대기 */
   pendingLostPlanet?: { playerId: string } | null;
   /** 우주선 기술 타일 "2TF+Mine" 획득 후 남은 광산 건설 대기 */
