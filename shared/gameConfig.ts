@@ -1299,14 +1299,16 @@ function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: {
  *       누출이 무의미하다는 결론이 뒤집히지 않는다.
  *
  * 제외: 이타르(가이아 구역 토큰)·타클론(브레인 스톤/의회 토큰)은 충전 여력이 0이어도 수락에
- *       의미가 있을 수 있어 판정하지 않는다(오퍼 생성 단계의 예외와 동일). 가이아 포머 구역에서
- *       돌아올 토큰이 있으면 다음 라운드 여력이 늘어나므로 역시 판정하지 않는다.
+ *       의미가 있을 수 있어 판정하지 않는다(오퍼 생성 단계의 예외와 동일).
+ *
+ * 가이아 포머 구역 토큰은 고려하지 않는다(사용자 지적): 그 토큰은 그릇 밖에 있어 충전 여력에 잡히지도
+ * 않고, 복귀 시점이 '수익 단계가 모두 끝난 뒤'라 수익 파워를 흡수하지도 못한다. 누출을 받든 말든
+ * 복귀는 똑같이 일어나므로 판정 결과를 바꾸지 않는다.
  */
 export function isPowerLeechPointlessAfterIncome(game: GaiaGameState, playerId: string): boolean {
   const player = game.players[playerId];
   if (!player) return false;
   if (player.faction === 'itars' || player.faction === 'taklons') return false;
-  if ((player.gaiaformerPower ?? 0) > 0) return false;
 
   const preview = getNextRoundIncomePreview(playerId, game);
   const order: IncomeOrderItem[] = [];

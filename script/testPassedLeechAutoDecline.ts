@@ -78,10 +78,20 @@ console.log('수익만으로 풀파워가 되는가? (true = 묻지 않고 자�
 	check('타클론은 판정 제외', isPowerLeechPointlessAfterIncome(g, 'p'), false);
 }
 
-// 가이아 포머 구역에서 돌아올 토큰이 있으면 다음 라운드 여력이 늘어난다 → 판정 제외
+// 가이아 포머 구역 토큰은 판정에 영향을 주지 않는다 (사용자 지적):
+//   그릇 밖이라 충전 여력에 안 잡히고, 복귀는 '수익 단계가 모두 끝난 뒤'라 수익 파워를 흡수하지 못한다.
+//   → 누출을 받든 말든 복귀는 똑같이 일어나므로, 토큰이 있어도 결론은 '무의미(자동 거절)' 그대로.
 {
 	const g = makeGame({ bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, gaiaformerPower: 2 });
-	check('가이아 구역 복귀 토큰 있으면 제외', isPowerLeechPointlessAfterIncome(g, 'p'), false);
+	check('가이아 구역 복귀 토큰은 결론을 바꾸지 않음', isPowerLeechPointlessAfterIncome(g, 'p'), true);
+}
+// 같은 상태에서 가이아 토큰만 뺀 대조군 — 두 결과가 같아야 한다(토큰이 판정에 개입하지 않음)
+{
+	const withGaia = makeGame({ bonusTile: 'bon-4pw-bigbuilding', p1: 1, p2: 2, p3: 3, gaiaformerPower: 3 });
+	const without = makeGame({ bonusTile: 'bon-4pw-bigbuilding', p1: 1, p2: 2, p3: 3 });
+	const a = isPowerLeechPointlessAfterIncome(withGaia, 'p');
+	const b = isPowerLeechPointlessAfterIncome(without, 'p');
+	check('가이아 토큰 유무가 판정을 바꾸지 않음', a === b, true, `(있음=${a}, 없음=${b})`);
 }
 
 console.log('');
