@@ -1934,7 +1934,9 @@ function appendVpSegmentToLastLog(game: GaiaGameState, playerId: string, vp: num
 			lastLog.details = segment;
 		}
 	} else {
-		addGameLog(game, playerId, '', segment);
+		// [로그 정리 2026-08-03 사용자] 병합할 내 로그가 없을 때 예전엔 액션명이 빈 줄로 떠서 깨진 칸처럼 보였다.
+		//   최소한 사유를 액션명으로 세워 읽히게 한다(정상 경로는 위 병합으로 처리됨 — 여기는 예외 폴백).
+		addGameLog(game, playerId, reason, `+${vp}VP`);
 	}
 }
 
@@ -4133,7 +4135,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					game.pendingTwilightFederation = { playerId, shipTileId };
-					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
+					// [로그 정리 2026-08-03 사용자] adv-vp-qic-action(+4VP)을 여기서 적용하면 이 시점엔 이 액션의 로그가
+					//   아직 없어(보상 선택 후에야 로그가 남음) '+4VP'만 빈 줄로 따로 떴다. 다른 우주선 첫 칸들처럼
+					//   '액션 로그 뒤 병합'이 되도록, 보상 확정 시점(confirm_twilight_federation)으로 미룬다.
 					game.hasDoneMainAction = true; // 우주선 액션 = 파워액션과 동일, 한 턴에 하나
 					clampPlayerResources(game); emitGameUpdated(io, game);
 					return;
@@ -4619,6 +4623,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			} else {
 				return;
 			}
+			// [로그 정리 2026-08-03 사용자] 트왈 첫 칸(3QIC)의 adv-vp-qic-action(+4VP)을 여기서 적용 —
+			//   바로 위에서 이 액션의 로그가 남았으므로 '(+4VP Advanced QIC action)'이 그 줄 뒤에 병합된다.
+			//   인공물 경로(fromArtifact)는 QIC 액션이 아니므로 제외.
+			if (!pending.fromArtifact) applyAdvancedTechTileEffect(game, playerId, 'qic_action');
 			game.pendingTwilightFederation = null;
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
