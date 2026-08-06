@@ -773,19 +773,31 @@ export function GameLog({
                         {STAT_DEFS.map(([k, label]) => (
                           <span key={k} className="tabular-nums">{label} <span className="font-bold text-zinc-100">{snap[k]}</span></span>
                         ))}
+                        {/* [버그추적 2026-08-06 사용자] 타클론 브레인 스톤 위치 — 0이면 가이아 영역(이번 라운드 사용 불가) */}
+                        {typeof snap.bs === 'number' && (
+                          <span className="tabular-nums text-amber-300" title="브레인 스톤 위치 (그릇 1/2/3, Gaia=이번 라운드 사용 불가)">
+                            🧠 <span className="font-bold">{snap.bs === 0 ? 'Gaia' : snap.bs}</span>
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-zinc-500 font-bold">변동</span>
                         {prev ? (() => {
                           const diffs = STAT_DEFS
-                            .map(([k, label]) => [label, snap[k] - prev[k]] as [string, number])
+                            .map(([k, label]) => [label, (snap[k] ?? 0) - (prev[k] ?? 0)] as [string, number])
                             .filter(([, d]) => d !== 0);
-                          if (diffs.length === 0) return <span className="text-zinc-500">변화 없음</span>;
-                          return diffs.map(([label, d]) => (
+                          const bsMoved = typeof snap.bs === 'number' && typeof prev.bs === 'number' && snap.bs !== prev.bs;
+                          const bsChip = bsMoved ? (
+                            <span key="bs" className="font-bold tabular-nums text-amber-300" title="브레인 스톤 이동">
+                              🧠 {prev?.bs === 0 ? 'Gaia' : prev?.bs}→{snap.bs === 0 ? 'Gaia' : snap.bs}
+                            </span>
+                          ) : null;
+                          if (diffs.length === 0) return bsChip ?? <span className="text-zinc-500">변화 없음</span>;
+                          return [...diffs.map(([label, d]) => (
                             <span key={label} className={`font-bold tabular-nums ${d > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                               {d > 0 ? '+' : ''}{d} {label}
                             </span>
-                          ));
+                          )), bsChip];
                         })() : (
                           <span className="text-zinc-500">직전 기록 없음 (이 플레이어 첫 로그)</span>
                         )}

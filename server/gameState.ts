@@ -1691,6 +1691,9 @@ function snapOfPlayer(p: PlayerState) {
 	return {
 		vp: p.score ?? 0, c: p.credits ?? 0, o: p.ore ?? 0, k: p.knowledge ?? 0,
 		q: p.qic ?? 0, p1: p.power1 ?? 0, p2: p.power2 ?? 0, p3: p.power3 ?? 0,
+		// [버그추적 2026-08-06 사용자] 타클론 브레인 스톤 위치도 스냅샷에 — 프리액션/언두/충전에서 브레인이
+		// 어디로 갔는지 로그 클릭만으로 추적 가능하게. 0 = 가이아 영역(이번 라운드 사용 불가), undefined = 타클론 아님.
+		...(p.faction === 'taklons' ? { bs: p.brainStoneInGaia ? 0 : (p.brainStoneBowl ?? 1) } : {}),
 	};
 }
 
