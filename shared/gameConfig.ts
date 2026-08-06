@@ -1311,8 +1311,13 @@ export function isPowerLeechPointlessAfterIncome(game: GaiaGameState, playerId: 
   if (player.faction === 'itars' || player.faction === 'taklons') return false;
 
   const preview = getNextRoundIncomePreview(playerId, game);
+  // 상태창 '예상 수익'과 같은 계산(기본 수익·건물·경제/과학 트랙·수익 기술타일·보너스 타일·의회·인공물).
+  // 단 powerTokens 중 트왈라잇 인공물 art-income-2p3의 2개는 그릇1이 아니라 '그릇3에 직접' 올라가므로
+  // (서버 income: player.power3 += 2) 충전 여력을 늘리지 않는다 → 여력 계산에서 제외한다.
+  const bowl3OnlyTokens = (player.artifacts ?? []).includes('art-income-2p3') ? 2 : 0;
+  const bowl1Tokens = Math.max(0, preview.powerTokens - bowl3OnlyTokens);
   const order: IncomeOrderItem[] = [];
-  if (preview.powerTokens > 0) order.push({ type: 'tokens', amount: preview.powerTokens, id: 'inc-tokens' });
+  if (bowl1Tokens > 0) order.push({ type: 'tokens', amount: bowl1Tokens, id: 'inc-tokens' });
   if (preview.powerCharge > 0) order.push({ type: 'power', amount: preview.powerCharge, id: 'inc-power' });
   if (order.length === 0) return false; // 파워 수익이 없으면 저절로 찰 일도 없다
 

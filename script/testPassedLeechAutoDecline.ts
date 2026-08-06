@@ -16,12 +16,14 @@ function makeGame(opts: {
 	bonusTile?: string;
 	p1: number; p2: number; p3: number;
 	gaiaformerPower?: number;
+	artifacts?: string[];
 }): GaiaGameState {
 	const player: any = {
 		name: 'P', faction: opts.faction ?? 'terran',
 		power1: opts.p1, power2: opts.p2, power3: opts.p3,
 		gaiaformerPower: opts.gaiaformerPower ?? 0,
 		bonusTile: opts.bonusTile ?? null,
+		artifacts: opts.artifacts ?? [],
 		techTiles: [], coveredTechTiles: [], federations: [],
 		research: { terraforming: 0, navigation: 0, artificialIntelligence: 0, gaiaProject: 0, economy: 0, science: 0 },
 		hasPassed: true,
@@ -92,6 +94,21 @@ console.log('수익만으로 풀파워가 되는가? (true = 묻지 않고 자�
 	const a = isPowerLeechPointlessAfterIncome(withGaia, 'p');
 	const b = isPowerLeechPointlessAfterIncome(without, 'p');
 	check('가이아 토큰 유무가 판정을 바꾸지 않음', a === b, true, `(있음=${a}, 없음=${b})`);
+}
+
+// 트왈라잇 인공물 art-income-2p3: 토큰 2개가 '그릇3에 직접' 올라가 충전 여력을 늘리지 않는다.
+//   (수익 미리보기는 powerTokens로 보고하지만 서버는 power3 += 2 — 그릇1 토큰과 구분해야 한다)
+//   여력1 + 파워수익4 상태에서 이 인공물이 있어도 여력은 그대로 → 자동 거절이 유지돼야 한다.
+{
+	const g = makeGame({ bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, artifacts: ['art-income-2p3'] });
+	check('인공물 2p3 토큰은 그릇3행 → 여력 안 늘림', isPowerLeechPointlessAfterIncome(g, 'p'), true);
+}
+// 대조: 같은 수량이라도 '그릇1로 가는' 토큰(보너스 타일)이면 여력이 늘어 계속 물어봐야 한다
+{
+	const g = makeGame({ bonusTile: 'bon-1o-2tokens', p1: 0, p2: 1, p3: 5 });
+	const p: any = g.players['p'];
+	p.research.economy = 3; // 파워 수익 확보
+	check('보너스 타일 토큰은 그릇1행 → 여력 늘어남', isPowerLeechPointlessAfterIncome(g, 'p'), false);
 }
 
 console.log('');
