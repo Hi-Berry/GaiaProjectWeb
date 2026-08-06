@@ -2218,26 +2218,186 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       }
       return max;
     }
-    case 'fm_planet_types': {
+    case 'fm_planet_types':
       // 행성 유형은 란티다 기생 광산 제외 (1K/Type·패스보너스 등 다른 유형 점수와 일관).
-      // 상태창/getPlayerPlanetTypesForGeodens와 동일하게: space/deep_space 제외, lost_planet·가상광산(소행성/원시) 포함.
-      const types = new Set<string>();
-      for (const t of map) {
-        if (t.ownerId === playerId && t.structure != null && t.structure !== 'ship') {
-          if (t.structure === 'lost_planet_mine') types.add('lost_planet');
-          else if (t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
-        }
-      }
-      if (player.virtualMineAsteroid) types.add('asteroid');
-      if (player.virtualMineProto) types.add('proto');
-      return types.size;
-    }
+      // 규칙은 getOwnedPlanetTypes 하나로 통일: space/deep_space 제외, lost_planet·가상광산(소행성/원시) 포함.
+      return getOwnedPlanetTypes(game, playerId).size;
     case 'fm_asteroid_buildings':
       return map.filter(t => t.type === 'asteroid' && ((t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId)).length
         + (player.virtualMineAsteroid ? 1 : 0);
     default:
       return 0;
   }
+}
+
+// ============================================================================
+// 패스(Pass) 점수 계산 — 서버 정산과 클라 미리보기의 단일 출처(single source of truth).
+//   [2026-08-06] 기존엔 server/gameState.ts passRound(라운드6/1-5 두 벌) + applyAdvancedTechTilePassEffect,
+//   client Game.tsx passBonusVp/advPassItems가 각자 계산해 미리보기와 정산이 반복적으로 어긋났다
+//   (가이아포머 개수·브릿지 섹터 기생광산·행성유형 등). 아래 함수들만 쓰도록 통일.
+//   규칙 기준은 '서버 정산' 동작을 그대로 옮긴 것이며, 어긋났던 부분은 서버 쪽을 정답으로 삼는다.
+// ============================================================================
+
+/** 이 타일을 플레이어가 '건물'로 점유하는가 (우주선·빈칸 제외. 란티다 기생광산은 미포함) */
+export function isOwnedBuilding(t: HexTile, playerId: string): boolean {
+  return t.ownerId === playerId && t.structure != null && t.structure !== 'ship';
+}
+
+/** 이 타일에서 플레이어가 섹터를 '점유'하는가 — 내 건물 또는 란티다 기생광산 */
+export function tileOccupiesSector(t: HexTile, playerId: string): boolean {
+  return isOwnedBuilding(t, playerId) || t.parasiticMine?.ownerId === playerId;
+}
+
+/** 플레이어가 점유한 [lo,hi] 범위의 '서로 다른 섹터' 수 (기생광산 포함) */
+export function countOccupiedSectors(game: GaiaGameState, playerId: string, lo: number, hi: number): number {
+  const out = new Set<number>();
+  for (const t of game.map) {
+    if (t.sector >= lo && t.sector <= hi && tileOccupiesSector(t, playerId)) out.add(t.sector);
+  }
+  return out.size;
+}
+
+/** 외곽(C) 섹터 = 11~18 */
+export const OUTER_SECTOR_RANGE = { lo: 11, hi: 18 } as const;
+
+/** 보유 행성 유형 집합. 잊혀진 행성·가상 광산(인공물 소행성/원시) 포함, space/deep_space·기생광산 제외.
+ *  (패스 보너스 'planet_type' / 고급타일 adv-pass-1vp-type / 최종미션 fm_planet_types / 기오덴 의회 공용) */
+export function getOwnedPlanetTypes(game: GaiaGameState, playerId: string): Set<string> {
+  const types = new Set<string>();
+  for (const t of game.map) {
+    if (!isOwnedBuilding(t, playerId)) continue;
+    if (t.structure === 'lost_planet_mine') types.add('lost_planet');
+    else if (t.type !== 'space' && t.type !== 'deep_space') types.add(t.type);
+  }
+  const player = game.players[playerId];
+  if (player?.virtualMineAsteroid) types.add('asteroid');
+  if (player?.virtualMineProto) types.add('proto');
+  return types;
+}
+
+/** 패스/보너스/기술타일용 광산 수: 일반 광산 + 기생광산 + 가상광산(소행성/원시) + 잊혀진 행성 */
+export function getMineCountForPassAndBonuses(game: GaiaGameState, playerId: string): number {
+  const player = game.players[playerId];
+  let n = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine').length;
+  n += game.map.filter(t => t.parasiticMine?.ownerId === playerId).length;
+  if (player?.virtualMineAsteroid) n += 1;
+  if (player?.virtualMineProto) n += 1;
+  n += game.map.filter(t => t.ownerId === playerId && t.structure === 'lost_planet_mine').length;
+  return n;
+}
+
+/** 보너스 타일 'Pass: N VP per Gaiaformer'용: 파괴되지 않고 남아있는 포머 수.
+ *  = 개인판 보유(발타크 QIC 잠금분 포함) + 맵에서 가이아포밍 중인 것. (소행성에 쓰여 파괴된 건 제외) */
+export function countRemainingGaiaformers(game: GaiaGameState, playerId: string): number {
+  const player = game.players[playerId];
+  if (!player) return 0;
+  const onBoard = player.gaiaformers ?? 0; // 발타크 QIC 잠금분은 gaiaformers에서 차감되지 않으므로 이미 포함됨
+  const onMap = game.map.filter(t => t.hasGaiaformer && t.gaiaformerOwnerId === playerId).length;
+  return onBoard + onMap;
+}
+
+export type PassBonusType = NonNullable<BonusTile['passBonus']>['type'];
+
+/** 보너스 타일 패스 보너스의 '개수'(VP 배수 적용 전) */
+export function getPassBonusCount(game: GaiaGameState, playerId: string, type: PassBonusType): number {
+  const owned = game.map.filter(t => isOwnedBuilding(t, playerId));
+  switch (type) {
+    case 'big_building':
+      return owned.filter(t => t.structure === 'academy' || t.structure === 'planetary_institute').length;
+    case 'mine':
+      return getMineCountForPassAndBonuses(game, playerId);
+    case 'trading_station':
+      return owned.filter(t => t.structure === 'trading_station').length;
+    case 'research_lab':
+      return owned.filter(t => t.structure === 'research_lab').length;
+    case 'gaiaformer':
+      return countRemainingGaiaformers(game, playerId);
+    case 'planet_type':
+      return getOwnedPlanetTypes(game, playerId).size;
+    case 'gaia':
+      return owned.filter(t => t.type === 'gaia').length;
+    case 'bridge_sector':
+      return countOccupiedSectors(game, playerId, OUTER_SECTOR_RANGE.lo, OUTER_SECTOR_RANGE.hi);
+    default:
+      return 0;
+  }
+}
+
+export interface PassBonusTileResult {
+  tileId: string;
+  type: PassBonusType;
+  /** 개당 VP */
+  vpPer: number;
+  count: number;
+  /** count * vpPer */
+  vp: number;
+}
+
+/** 현재 보유 보너스 타일의 패스 보너스. 타일이 없거나 패스 보너스가 없으면 null */
+export function computeBonusTilePassVp(game: GaiaGameState, playerId: string): PassBonusTileResult | null {
+  const player = game.players[playerId];
+  if (!player?.bonusTile) return null;
+  const tile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
+  if (!tile?.passBonus) return null;
+  const count = getPassBonusCount(game, playerId, tile.passBonus.type);
+  return { tileId: tile.id, type: tile.passBonus.type, vpPer: tile.passBonus.vp, count, vp: count * tile.passBonus.vp };
+}
+
+export interface PassAdvTechResult {
+  tileId: string;
+  count: number;
+  /** 개당 VP */
+  vpPer: number;
+  /** count * vpPer */
+  vp: number;
+  /** 로그용 사유 문구 */
+  reason: string;
+}
+
+/** 고급 기술 타일(adv-pass-*)의 패스 보너스 목록. 보유 순서대로 반환 */
+export function computeAdvancedTechPassVp(game: GaiaGameState, playerId: string): PassAdvTechResult[] {
+  const player = game.players[playerId];
+  const results: PassAdvTechResult[] = [];
+  if (!player?.techTiles) return results;
+  for (const tileId of player.techTiles) {
+    let count: number;
+    let vpPer: number;
+    let reason: string;
+    if (tileId === 'adv-pass-1vp-type') {
+      count = getOwnedPlanetTypes(game, playerId).size; vpPer = 1; reason = '1 per planet type';
+    } else if (tileId === 'adv-pass-3vp-lab') {
+      count = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab').length; vpPer = 3; reason = '3 per lab';
+    } else if (tileId === 'adv-pass-3vp-fed') {
+      count = getFederationEntries(player).length; vpPer = 3; reason = '3 per federation';
+    } else if (tileId === 'adv-pass-2vp-asteroid') {
+      // 인공물 가상광산 소행성도 카운트(상태창/행성유형과 일관)
+      count = game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length + (player.virtualMineAsteroid ? 1 : 0);
+      vpPer = 2; reason = '2 per asteroid';
+    } else if (tileId === 'adv-pass-2vp-outer') {
+      count = countOccupiedSectors(game, playerId, OUTER_SECTOR_RANGE.lo, OUTER_SECTOR_RANGE.hi); vpPer = 2; reason = '2 per outer sector';
+    } else {
+      continue;
+    }
+    results.push({ tileId, count, vpPer, vp: count * vpPer, reason });
+  }
+  return results;
+}
+
+export interface PassScorePreview {
+  bonusTile: PassBonusTileResult | null;
+  advTiles: PassAdvTechResult[];
+  bonusVp: number;
+  advVp: number;
+  totalVp: number;
+}
+
+/** 지금 패스하면 얻는 총 VP (보너스 타일 + 고급 기술 타일). 서버 정산·클라 미리보기 공용 */
+export function computePassScorePreview(game: GaiaGameState, playerId: string): PassScorePreview {
+  const bonusTile = computeBonusTilePassVp(game, playerId);
+  const advTiles = computeAdvancedTechPassVp(game, playerId);
+  const bonusVp = bonusTile?.vp ?? 0;
+  const advVp = advTiles.reduce((s, a) => s + a.vp, 0);
+  return { bonusTile, advTiles, bonusVp, advVp, totalVp: bonusVp + advVp };
 }
 
 /** 특정 미션에 대해 특정 플레이어가 획득할 VP 계산 (순위 기반) */

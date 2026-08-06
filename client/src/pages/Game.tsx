@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, computePassScorePreview } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -3495,96 +3495,18 @@ export default function Game() {
           const currentBonusTile = currentPlayer?.bonusTile ? ALL_BONUS_TILES.find(t => t.id === currentPlayer.bonusTile) : null;
           const selectedBonusTile = confirmPassWithTileId && confirmPassWithTileId !== 'dummy' ? ALL_BONUS_TILES.find(t => t.id === confirmPassWithTileId) : null;
 
-          let passBonusVp = 0;
-          if (currentBonusTile?.passBonus && playerId && currentPlayer) {
-            const counts = getStructureCountsForPlayer(game, playerId);
-            const { type, vp } = currentBonusTile.passBonus;
-            const myMapTiles = game.map.filter(t => t.ownerId === playerId);
-            switch (type) {
-              case 'mine':
-                passBonusVp = counts.mineCount * vp; break;
-              case 'trading_station':
-                passBonusVp = counts.tsCount * vp; break;
-              case 'research_lab':
-                passBonusVp = counts.labCount * vp; break;
-              case 'big_building':
-                passBonusVp = (counts.piCount + counts.academyLeft + counts.academyRight) * vp; break;
-              case 'gaiaformer':
-                // 맵에 있는 가이아포머 (이미 지어진 거 말고 트랜스딤 등에 얹혀진 거) + 내 가이아포머 구역 트랙 값
-                // 실제 계산: 내가 가진 최대 가이아포머 수 (테라포밍+광산 지어져서 파괴된 거 빼고)
-                // 간단히: 현재 열린 가이아포머 컴포넌트 전체 개수 활용, 또는 맵 위 + 개인판
-                passBonusVp = (currentPlayer.gaiaformers ?? 0) * vp; // 편의상 개인판 대기중인 것만 (서버 로직과 동일해야 함)
-                // 서버의 정확한 로직: 맵 위(hasGaiaformer=true & owner=나) + 개인판(player.gaiaformers) => 파괴 안 된 전체 개수
-                const activeGaiaformersOnMap = game.map.filter(t => t.hasGaiaformer && currentPlayer.pendingGaiaformerTiles?.includes(t.id)).length;
-                const nextRoundGaiaformers = currentPlayer.gaiaformerPlacedThisRound?.length ?? 0;
-                passBonusVp = ((currentPlayer.gaiaformers ?? 0) + activeGaiaformersOnMap + nextRoundGaiaformers) * vp;
-                break;
-              case 'gaia':
-                passBonusVp = myMapTiles.filter(t => t.type === 'gaia' && t.structure != null && t.structure !== 'ship').length * vp;
-                break;
-              case 'planet_type': {
-                // [버그수정 2026-08-06 사용자: "패스 창에만 검은 행성·인공물 소행성이 빠진다"]
-                //   기존 naive 집계는 ①lost_planet_mine을 t.type('space')으로 세어 유형을 놓치고
-                //   ②가상광산(인공물 소행성/원시)을 아예 안 셌다. 로그(서버 정산)는 정상이라 미리보기만 어긋났음.
-                //   shared getFinalMissionValue의 'fm_planet_types' / 서버 getPlayerPlanetTypesForGeodens와 동일 규칙으로 통일.
-                const ptypes = new Set<string>();
-                for (const t of myMapTiles) {
-                  if (t.structure == null || t.structure === 'ship') continue;
-                  if (t.structure === 'lost_planet_mine') ptypes.add('lost_planet');
-                  else if (t.type !== 'space' && t.type !== 'deep_space') ptypes.add(t.type);
-                }
-                if ((currentPlayer as any).virtualMineAsteroid) ptypes.add('asteroid');
-                if ((currentPlayer as any).virtualMineProto) ptypes.add('proto');
-                passBonusVp = ptypes.size * vp;
-                break;
-              }
-              case 'bridge_sector':
-                // 서버 로직과 동일하게 "외곽 브릿지 섹터(11~18)"만 카운트
-                passBonusVp = new Set(
-                  myMapTiles
-                    .filter(
-                      t =>
-                        t.structure != null &&
-                        t.structure !== 'ship' &&
-                        typeof t.sector === 'number' &&
-                        t.sector >= 11 &&
-                        t.sector <= 18
-                    )
-                    .map(t => t.sector)
-                ).size * vp;
-                break;
-            }
-          }
-
-          // 고급 기술 타일 패스 보너스 (서버 applyAdvancedTechTilePassEffect와 동일 계산)
-          const advPassItems: { tile: (typeof ALL_ADVANCED_TECH_TILES)[number]; vp: number }[] = [];
-          if (playerId && currentPlayer) {
-            const myTiles = game.map.filter(t => t.ownerId === playerId);
-            const occupiesSector = (t: (typeof game.map)[number]) =>
-              (t.ownerId === playerId && !!t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId;
-            for (const tid of currentPlayer.techTiles ?? []) {
-              const tile = ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
-              if (!tile) continue;
-              let vp: number;
-              if (tid === 'adv-pass-1vp-type') { // [버그수정 2026-08-06] 잊혀진 행성(lost_planet_mine)·가상광산 누락 → 행성유형 규칙 통일
-                const ts = new Set<string>();
-                for (const t of myTiles) {
-                  if (!t.structure || t.structure === 'ship') continue;
-                  if (t.structure === 'lost_planet_mine') ts.add('lost_planet');
-                  else if (t.type !== 'space' && t.type !== 'deep_space') ts.add(t.type);
-                }
-                if ((currentPlayer as any).virtualMineAsteroid) ts.add('asteroid');
-                if ((currentPlayer as any).virtualMineProto) ts.add('proto');
-                vp = ts.size;
-              }
-              else if (tid === 'adv-pass-3vp-lab') vp = myTiles.filter(t => t.structure === 'research_lab').length * 3;
-              else if (tid === 'adv-pass-3vp-fed') vp = getFederationEntries(currentPlayer).length * 3;
-              else if (tid === 'adv-pass-2vp-asteroid') vp = (myTiles.filter(t => t.type === 'asteroid').length + ((currentPlayer as any).virtualMineAsteroid ? 1 : 0)) * 2; // [버그수정 2026-08-06] 인공물 가상광산 소행성 누락(서버 2091과 일치)
-              else if (tid === 'adv-pass-2vp-outer') vp = new Set(game.map.filter(t => typeof t.sector === 'number' && t.sector >= 11 && t.sector <= 18 && occupiesSector(t)).map(t => t.sector)).size * 2;
-              else continue;
-              advPassItems.push({ tile, vp });
-            }
-          }
+          // [2026-08-06] 패스 점수 미리보기는 서버 정산과 같은 shared 함수로 계산한다.
+          //   예전엔 여기서 따로 세느라(가이아포머 이중계산·브릿지 섹터 기생광산 누락·행성유형 규칙 차이 등)
+          //   미리보기와 로그가 반복적으로 어긋났다. 계산 규칙을 바꿔야 하면 shared/gameConfig.ts만 고칠 것.
+          const passPreview = playerId && currentPlayer ? computePassScorePreview(game, playerId) : null;
+          const passBonusVp = passPreview?.bonusVp ?? 0;
+          const advPassItems: { tile: (typeof ALL_ADVANCED_TECH_TILES)[number]; vp: number }[] =
+            (passPreview?.advTiles ?? [])
+              .map(item => {
+                const tile = ALL_ADVANCED_TECH_TILES.find(t => t.id === item.tileId);
+                return tile ? { tile, vp: item.vp } : null;
+              })
+              .filter((x): x is { tile: (typeof ALL_ADVANCED_TECH_TILES)[number]; vp: number } => x != null);
 
           // 패스 전 경고: 이번 라운드에 아직 안 쓴 1회용 특수 액션(4pw 기술타일·아카데미 QIC·의회 액션·종족 스페셜 등) 검출.
           // 라운드 전환 시 서버에서 usedTechActions/usedSpecialActions/usedBonusAction/PI액션이 리셋되므로, 패스하면 이번 라운드분은 영구히 날아간다.
