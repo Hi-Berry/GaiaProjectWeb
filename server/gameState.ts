@@ -2164,9 +2164,9 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 			// 연구 트랙에 올려둔 연방 1장은 create_game 시 해당 종류 풀에서 이미 -1 반영됨 — TF5 획득 시 풀을 또 줄이지 않음
 			const reward = rewardId ? FEDERATION_REWARDS.find(r => r.id === rewardId) : undefined;
 			if (reward) {
-				// [사용자 2026-08-03] 로그에 연방 타일 이미지가 뜨도록 tileId에 보상 id를 실어 보낸다
-				//   (클라 GameLog는 tileId가 fed-* 면 Federation_N.gif를 렌더 — 연방 형성 로그와 동일한 모양).
-				addGameLog(game, playerId, 'Gained Federation', `테라포밍 5 보상 · ${reward.label}`, reward.id);
+				// [사용자 2026-08-03] 다른 로그처럼 영문 액션명 + 연방 타일 이미지로 표시.
+				//   tileId에 보상 id를 실으면 클라 GameLog가 Federation_N.gif를 렌더(액션명 무관 — 같은 날 규칙 확장).
+				addGameLog(game, playerId, 'Terra Reward', reward.label, reward.id);
 				addScore(game, playerId, reward.vp, 'other', { source: 'Terraforming 5 Reward' });
 				if ('ore' in reward && reward.ore) player.ore += reward.ore;
 				if ('credits' in reward && reward.credits) player.credits += reward.credits;

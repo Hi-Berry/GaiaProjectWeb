@@ -299,7 +299,10 @@ export function GameLog({
     }
 
     // Federations (트왈라잇 연방 재수령 등은 log.tileId에 연방 보상 id가 담김)
-    if (/Formed Federation|Gained Federation|Federation|Spaceship Fed/i.test(actionText) || /gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+/i.test(details)) {
+    // [사용자 2026-08-03] 액션명이 'Federation'을 안 담아도(예: Terra Reward) tileId가 연방 보상 id면 이미지 표시
+    if (/Formed Federation|Gained Federation|Federation|Spaceship Fed/i.test(actionText)
+      || /gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+/i.test(details)
+      || (!!log.tileId && /^(gleens-fed-|ship-fed-|fed-)/i.test(log.tileId))) {
       const tidMatch = log.tileId && /^(gleens-fed-|ship-fed-|fed-)/i.test(log.tileId) ? log.tileId : undefined;
       const fedMatch = tidMatch ? [tidMatch, tidMatch] : details.match(/\b(gleens-fed-[a-z0-9-]+|ship-fed-[a-z0-9-]+|fed-[a-z0-9-]+)\b/i);
       if (fedMatch) {
