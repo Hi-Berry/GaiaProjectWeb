@@ -1,5 +1,6 @@
 /**
- * 검증: 롤백 횟수 집계와 게임 종료 로그 요약 (사용자 요청 2026-08-06 "롤백도 몇번씩 했는지 로그에 남겨줘").
+ * 검증: 롤백 횟수 집계와 요약 문자열 (사용자 요청 2026-08-06 "롤백도 몇번씩 했는지").
+ *   요약은 게임 종료 시 서버 로그에만 남긴다 — 게임 로그(플레이어 화면)에는 띄우지 않는다(사용자).
  *
  * 집계를 game 객체가 아니라 모듈 레벨 Map(gameId 기준)에 두는 게 핵심이다.
  * 롤백은 게임 상태를 스냅샷으로 통째 복원하므로, game 안에 세면 카운터까지 같이 되감긴다.
@@ -25,7 +26,7 @@ const check = (name: string, actual: unknown, expected: unknown) => {
 	if (!ok) failed++;
 };
 
-check('롤백 전에는 요약 없음(로그 줄 안 생김)', buildRollbackSummary(game), null);
+check('롤백 전에는 요약 없음(아무것도 안 남김)', buildRollbackSummary(game), null);
 
 countRollback(game.id, 'pA');
 check('1회 — 요청자 이름과 횟수', buildRollbackSummary(game), '총 1회 (가마우지 1회)');
@@ -49,5 +50,5 @@ check('이름 없으면 id로 대체', buildRollbackSummary(gone), '총 4회 (pA
 
 console.log('');
 if (failed > 0) { console.log(`실패 ${failed}건`); process.exit(1); }
-console.log('OK: 롤백 횟수가 요청자별·GM별로 집계되고 종료 로그 한 줄로 요약됩니다.');
+console.log('OK: 롤백 횟수가 요청자별·GM별로 집계되고 서버 로그 요약 한 줄로 만들어집니다.');
 process.exit(0); // 임포트로 뜬 서버가 프로세스를 붙잡고 있으므로 명시적 종료

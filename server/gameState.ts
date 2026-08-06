@@ -1580,10 +1580,10 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 
 	if (!game.gameLog) game.gameLog = [];
 	game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Game Finished', details: '최종 점수 정산', round: game.roundNumber });
-	// [2026-08-06 사용자 요청] 이 게임에서 롤백이 몇 번 있었는지 종료 로그에 한 줄로 남긴다.
+	// [2026-08-06 사용자] 롤백 횟수는 집계는 하되 게임 로그(플레이어 화면)에는 띄우지 않는다 — 서버 로그에만 남김.
 	{
 		const rb = buildRollbackSummary(game);
-		if (rb) game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Rollback', details: rb, round: game.roundNumber });
+		if (rb) log(`[ROLLBACK-SUMMARY] ${game.id} ${rb}`, 'game', game.id);
 	}
 	applyFinalMissionScoring(game);
 	for (const pid of game.turnOrder) {
@@ -7968,10 +7968,10 @@ export function executePassRound(
 			// 게임 종료 마커 — 최종 점수 정산 로그들보다 먼저 (시스템 로그, 특정 플레이어 없음)
 			if (!game.gameLog) game.gameLog = [];
 			game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Game Finished', details: '최종 점수 정산', round: game.roundNumber });
-			// [2026-08-06 사용자 요청] 이 게임에서 롤백이 몇 번 있었는지 종료 로그에 한 줄로 남긴다.
+			// [2026-08-06 사용자] 롤백 횟수는 집계는 하되 게임 로그(플레이어 화면)에는 띄우지 않는다 — 서버 로그에만 남김.
 			{
 				const rb = buildRollbackSummary(game);
-				if (rb) game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Rollback', details: rb, round: game.roundNumber });
+				if (rb) log(`[ROLLBACK-SUMMARY] ${game.id} ${rb}`, 'game', game.id);
 			}
 			applyFinalMissionScoring(game);
 			// Research Track End Bonus
