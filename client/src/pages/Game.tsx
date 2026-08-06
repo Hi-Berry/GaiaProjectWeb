@@ -3522,9 +3522,22 @@ export default function Game() {
               case 'gaia':
                 passBonusVp = myMapTiles.filter(t => t.type === 'gaia' && t.structure != null && t.structure !== 'ship').length * vp;
                 break;
-              case 'planet_type':
-                passBonusVp = new Set(myMapTiles.filter(t => t.structure != null && t.structure !== 'ship').map(t => t.type)).size * vp;
+              case 'planet_type': {
+                // [버그수정 2026-08-06 사용자: "패스 창에만 검은 행성·인공물 소행성이 빠진다"]
+                //   기존 naive 집계는 ①lost_planet_mine을 t.type('space')으로 세어 유형을 놓치고
+                //   ②가상광산(인공물 소행성/원시)을 아예 안 셌다. 로그(서버 정산)는 정상이라 미리보기만 어긋났음.
+                //   shared getFinalMissionValue의 'fm_planet_types' / 서버 getPlayerPlanetTypesForGeodens와 동일 규칙으로 통일.
+                const ptypes = new Set<string>();
+                for (const t of myMapTiles) {
+                  if (t.structure == null || t.structure === 'ship') continue;
+                  if (t.structure === 'lost_planet_mine') ptypes.add('lost_planet');
+                  else if (t.type !== 'space' && t.type !== 'deep_space') ptypes.add(t.type);
+                }
+                if ((currentPlayer as any).virtualMineAsteroid) ptypes.add('asteroid');
+                if ((currentPlayer as any).virtualMineProto) ptypes.add('proto');
+                passBonusVp = ptypes.size * vp;
                 break;
+              }
               case 'bridge_sector':
                 // 서버 로직과 동일하게 "외곽 브릿지 섹터(11~18)"만 카운트
                 passBonusVp = new Set(
@@ -3553,10 +3566,20 @@ export default function Game() {
               const tile = ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
               if (!tile) continue;
               let vp: number;
-              if (tid === 'adv-pass-1vp-type') vp = new Set(myTiles.filter(t => t.structure && t.type !== 'space').map(t => t.type)).size;
+              if (tid === 'adv-pass-1vp-type') { // [버그수정 2026-08-06] 잊혀진 행성(lost_planet_mine)·가상광산 누락 → 행성유형 규칙 통일
+                const ts = new Set<string>();
+                for (const t of myTiles) {
+                  if (!t.structure || t.structure === 'ship') continue;
+                  if (t.structure === 'lost_planet_mine') ts.add('lost_planet');
+                  else if (t.type !== 'space' && t.type !== 'deep_space') ts.add(t.type);
+                }
+                if ((currentPlayer as any).virtualMineAsteroid) ts.add('asteroid');
+                if ((currentPlayer as any).virtualMineProto) ts.add('proto');
+                vp = ts.size;
+              }
               else if (tid === 'adv-pass-3vp-lab') vp = myTiles.filter(t => t.structure === 'research_lab').length * 3;
               else if (tid === 'adv-pass-3vp-fed') vp = getFederationEntries(currentPlayer).length * 3;
-              else if (tid === 'adv-pass-2vp-asteroid') vp = myTiles.filter(t => t.type === 'asteroid').length * 2;
+              else if (tid === 'adv-pass-2vp-asteroid') vp = (myTiles.filter(t => t.type === 'asteroid').length + ((currentPlayer as any).virtualMineAsteroid ? 1 : 0)) * 2; // [버그수정 2026-08-06] 인공물 가상광산 소행성 누락(서버 2091과 일치)
               else if (tid === 'adv-pass-2vp-outer') vp = new Set(game.map.filter(t => typeof t.sector === 'number' && t.sector >= 11 && t.sector <= 18 && occupiesSector(t)).map(t => t.sector)).size * 2;
               else continue;
               advPassItems.push({ tile, vp });
