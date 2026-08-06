@@ -724,7 +724,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         const advTile = game.extraAdvancedTechTile!;
                                                         const isTaken = Object.values(game.players).some(p => p.techTiles?.includes(advTile.id));
                                                         return isTaken ? (
-                                                            <div className="w-full h-full flex items-center justify-center bg-black/50 text-[6px] text-zinc-600 font-bold">TAKEN</div>
+                                                            <div className="w-full h-full flex items-center justify-center bg-black/50 text-[6px] text-cyan-600/70 font-black uppercase tracking-wider" title={`획득됨${Object.values(game.players).find(p => p.techTiles?.includes(advTile.id))?.name ? ` — ${Object.values(game.players).find(p => p.techTiles?.includes(advTile.id))!.name}` : ''}`}>획득됨</div>
                                                         ) : (
                                                             <>
                                                                 {advTile.image ? (
@@ -1300,6 +1300,31 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     const extra = game.extraAdvancedTechTile;
                                     const cond = game.extraAdvancedTechCondition;
                                     const condLabel = cond === '25vp' ? '25 VP+' : '3 우주선';
+
+                                    // [추가 2026-08-06 사용자 요청] 공용(7번째) 고급 타일도 트랙 고급 타일처럼 '획득됨'을 표시.
+                                    //   여긴 획득 여부를 아예 안 봐서, 누가 이미 가져갔는데도 계속 남아 있어
+                                    //   아직 가져갈 수 있는 것처럼 보였다(서버는 중복 획득을 거부). 누가 가져갔는지도 같이 표기.
+                                    const takerId = Object.keys(game.players).find(pid => game.players[pid]?.techTiles?.includes(extra.id));
+                                    if (takerId) {
+                                        const takerName = game.players[takerId]?.name;
+                                        return (
+                                            <div className="relative shrink-0 w-full sm:w-auto sm:min-w-[160px] rounded border-2 border-dashed border-cyan-500/20 bg-cyan-950/20 overflow-hidden">
+                                                <div className="absolute top-0 left-0 z-10 px-2 py-1 text-[9px] font-black uppercase tracking-wider bg-cyan-500/30 text-cyan-100/80 rounded-br">
+                                                    {condLabel}
+                                                </div>
+                                                <div className="w-full h-full min-h-[3.5rem] p-2 pt-6 pb-2 flex items-center justify-center gap-2">
+                                                    {extra.image && (
+                                                        <img src={extra.image} alt={extra.label} className="h-10 w-auto object-contain opacity-25 grayscale" />
+                                                    )}
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-[10px] font-black text-cyan-600/80 uppercase tracking-wider">획득됨</span>
+                                                        {takerName && <span className="text-[9px] text-zinc-500 truncate" title={takerName}>{takerName}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
                                     const canTakeExtra = pendingTech && onSelectAdvancedTechTile && playerId
                                         && countGreenFederations(game.players[playerId]) >= 1
                                         && (game.players[playerId]?.techTiles || []).filter((id: string) => !isTechTileCovered(game.players[playerId], id) && !id.startsWith('adv-')).length >= 1
