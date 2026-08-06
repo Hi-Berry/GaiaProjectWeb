@@ -505,7 +505,7 @@ export interface GaiaGameState {
   /** Eclipse 액션3: 6C 지불 후 소행성 광산 건설할 타일 선택 대기 */
   pendingEclipseAsteroidMine?: { playerId: string; shipTileId: string } | null;
   /** 우주선 기술 타일 3개 중 하나 획득 시: 하단 풀 3개처럼 6개 트랙 중 원하는 트랙 1칸 진행 선택 대기 */
-  pendingShipTechTrackAdvance?: { playerId: string } | null;
+  pendingShipTechTrackAdvance?: { playerId: string; fromItars?: boolean } | null;
   /** 고급 기술 타일 획득 시: 덮을 일반 타일 선택 대기 → 선택 후 pendingAdvancedTechTrackAdvance로 트랙 1칸 선택 */
   /** fromItarsExchange: 아이타 의회(가이아 토큰 4개) 교환에서 온 고급 타일 — 후속 트랙 전진이 메인 액션을 소모하면 안 됨 */
   pendingAdvancedTechCover?: { playerId: string; advancedTileId: string; trackId?: ResearchTrack; fromItarsExchange?: boolean } | null;

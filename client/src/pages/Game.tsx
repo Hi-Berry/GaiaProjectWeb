@@ -1588,12 +1588,18 @@ export default function Game() {
   const pendingTurnEndPlayerName = pendingTurnEndPlayerId ? (game.players[pendingTurnEndPlayerId]?.name ?? pendingTurnEndPlayerId) : null;
   // [의회 대기 2026-07-26, 사용자] 아이타/테란 의회 능력(가이아 단계 선택)이 진행 중이면 다른 플레이어는 대기 —
   // 서버가 메인 액션을 막고(councilPendingActive), 여기선 파워 수락 대기와 같은 안내 배너를 띄운다.
-  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit || (game as any).pendingTinkeroidSpecialChoice;
+  // [버그수정 2026-08-03 사용자] 아이타 교환은 '4토큰 → 타일 선택 → (남으면) 다시 4토큰'의 반복인데, 타일 고르는
+  //   구간엔 pendingItarsGaiaformerExchange가 null이라 안내 배너가 깜빡이며 사라졌다. 서버 가드(councilPendingActive)는
+  //   이미 그 구간(pendingTechTileSelection[itars_pi_exchange])을 막고 있으므로 배너도 같은 조건으로 맞춰 끝까지 유지.
+  const itarsTechPick = (game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange'
+    ? { playerId: (game as any).pendingTechTileSelection.playerId } : null;
+  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || itarsTechPick
+    || (game as any).pendingTerranCouncilBenefit || (game as any).pendingTinkeroidSpecialChoice;
   const councilPendingInfo = councilPendingRaw && councilPendingRaw.playerId !== playerId
     ? {
       name: game.players[councilPendingRaw.playerId]?.name ?? '플레이어',
-      kind: (game as any).pendingItarsGaiaformerExchange ? '아이타' : (game as any).pendingTerranCouncilBenefit ? '테란' : '팅커로이드',
-      what: ((game as any).pendingItarsGaiaformerExchange || (game as any).pendingTerranCouncilBenefit) ? '의회 능력 처리 중' : '특수 타일 선택 중',
+      kind: ((game as any).pendingItarsGaiaformerExchange || itarsTechPick) ? '아이타' : (game as any).pendingTerranCouncilBenefit ? '테란' : '팅커로이드',
+      what: ((game as any).pendingItarsGaiaformerExchange || itarsTechPick || (game as any).pendingTerranCouncilBenefit) ? '의회 능력 처리 중' : '특수 타일 선택 중',
     }
     : null;
   const pendingPowerWaiters = (() => {

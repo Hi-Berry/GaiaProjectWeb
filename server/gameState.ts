@@ -6311,7 +6311,10 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			// 광산 건설부터 우선 수행
 			game.pendingShipTechMine = { playerId };
 		} else {
-			game.pendingShipTechTrackAdvance = { playerId };
+			// [버그수정 2026-08-03 사용자] 아이타 의회 교환에서 온 우주선 타일이면 표시 — 후속 트랙 전진이
+			//   '내 턴'에 해소돼도 메인 액션을 소모하면 안 된다(타일 즉시효과). 예전엔 2TF+Mine만 예외라
+			//   Nav+1/1O3K를 고르면 hasDoneMainAction=true가 돼 액션을 못 하고 다음 사람으로 넘어갔음.
+			game.pendingShipTechTrackAdvance = { playerId, fromItars: wasItarsExchange };
 		}
 		// [룰 2026-07-13 사용자 확정] 아이타 교환에서 온 선택이면 잔여 토큰 체인 이어가기 —
 		// 우주선 후속 pending(트랙전진/광산)은 '내 턴 아닐 때' 해소를 이미 지원(6860대 주석)하므로 공존 가능.
@@ -7805,7 +7808,9 @@ export function executeAdvanceTech(
 		// 보상 해소가 내 턴이 아니면(예: Itars 교환) 현재 플레이어 턴 상태를 건드리지 않음.
 		// [버그수정 2026-08-05 사용자] 아이타 교환에서 온 2TF+Mine의 후속 트랙 전진은 '내 턴'에 해소되더라도
 		//   메인 액션을 소모하면 안 된다(광산 쪽과 동일 이유 — 타일 즉시효과. 아래 몇 줄 뒤에서 이 플래그를 소비).
-		if (isMyTurn && !(game as any).itarsExchangeResumeAfterShipMine) game.hasDoneMainAction = true;
+		// [버그수정 2026-08-03 사용자] fromItars 추가 — 아이타 의회 교환 유래(2TF+Mine 외 Nav+1/1O3K 포함)는
+		//   내 턴에 해소해도 메인 액션 미소모. 예전엔 2TF+Mine만 예외라 아이타가 1턴일 때 액션 없이 턴이 넘어갔다.
+		if (isMyTurn && !(game as any).itarsExchangeResumeAfterShipMine && !pendingShipTech.fromItars) game.hasDoneMainAction = true;
 
 		// 2TF+Mine 관련 순서 조정을 위해 기존 로직 제거 (이제 광산 건설 완료 시 트랙 전진이 트리거됨)
 
