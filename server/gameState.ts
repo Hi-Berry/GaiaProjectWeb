@@ -437,6 +437,28 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
  *  실측: gzip(level1) 스냅샷당 ~5KB, dedup 후 게임당 수십~백 개 → 1MB 미만. */
 type TurnHistoryEntry = { seq: number; round: number; playerId: string; playerName: string; currentPlayerIndex: number; gz: Buffer; gameLogSeqAt: number; humanActionJournalLength: number; ts: number };
 const turnHistories = new Map<string, TurnHistoryEntry[]>();
+
+/** [롤백 집계 2026-08-06 사용자 요청] 게임별 롤백 횟수 (요청자별 + GM).
+ *  게임 객체가 아니라 여기(모듈 레벨)에 두는 이유: 롤백은 게임 상태를 스냅샷으로 통째 복원하므로
+ *  game 안에 세면 카운터까지 같이 되감긴다. 밖에 두면 되감기와 무관하게 누적된다. */
+const rollbackCounts = new Map<string, { total: number; byPlayer: Record<string, number>; admin: number }>();
+export function countRollback(gameId: string, actorId: string | null): void {
+	const c = rollbackCounts.get(gameId) ?? { total: 0, byPlayer: {}, admin: 0 };
+	c.total++;
+	if (actorId) c.byPlayer[actorId] = (c.byPlayer[actorId] ?? 0) + 1;
+	else c.admin++;
+	rollbackCounts.set(gameId, c);
+}
+/** 게임 종료 시 로그에 남길 롤백 요약. 롤백이 없었으면 null. */
+export function buildRollbackSummary(game: GaiaGameState): string | null {
+	const c = rollbackCounts.get(game.id);
+	if (!c || c.total === 0) return null;
+	const parts = Object.entries(c.byPlayer)
+		.sort((a, b) => b[1] - a[1])
+		.map(([pid, n]) => `${game.players[pid]?.name ?? pid} ${n}회`);
+	if (c.admin > 0) parts.push(`GM ${c.admin}회`);
+	return `총 ${c.total}회${parts.length ? ` (${parts.join(', ')})` : ''}`;
+}
 const TURN_HISTORY_CAP = 300; // 안전 상한(게임당). dedup 후엔 보통 이보다 훨씬 적음.
 
 function pushTurnHistory(game: ServerGameState, playerId: string): void {
@@ -1558,6 +1580,11 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 
 	if (!game.gameLog) game.gameLog = [];
 	game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Game Finished', details: '최종 점수 정산', round: game.roundNumber });
+	// [2026-08-06 사용자 요청] 이 게임에서 롤백이 몇 번 있었는지 종료 로그에 한 줄로 남긴다.
+	{
+		const rb = buildRollbackSummary(game);
+		if (rb) game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Rollback', details: rb, round: game.roundNumber });
+	}
 	applyFinalMissionScoring(game);
 	for (const pid of game.turnOrder) {
 		const p = game.players[pid];
@@ -1585,6 +1612,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 	game.currentPhase = 'gameEnd';
 	turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
+	rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
 	saveFinalGameState(game);
 	flushGameData(game);
 	clampPlayerResources(game);
@@ -3136,6 +3164,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_deleted', { gameId });
 				games.delete(gameId);
 				turnHistories.delete(gameId);
+				rollbackCounts.delete(gameId);
 				log(`Game ${gameId} deleted (last human left lobby)`, 'game', gameId);
 				return;
 			}
@@ -3431,6 +3460,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				required, approvals: [],
 			};
 			if (required.length === 0) { // 다른 사람(사람) 없음 → 즉시 실행
+				countRollback(gameId, playerId);
 				executeRollbackToHistory(io, game, hist, target);
 				callback?.({ ok: true }); return;
 			}
@@ -3451,7 +3481,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (pr.required.every((id: string) => pr.approvals.includes(id))) {
 				const hist = turnHistories.get(gameId) || [];
 				const target = hist.find(h => h.seq === pr.seq);
-				if (target) executeRollbackToHistory(io, game, hist, target);
+				if (target) { countRollback(gameId, pr.requesterId); executeRollbackToHistory(io, game, hist, target); }
 				else { (game as any).pendingRollback = null; emitGameUpdated(io, game); }
 			} else {
 				emitGameUpdated(io, game);
@@ -3470,6 +3500,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			io.to(gameId).emit('game_deleted', { gameId });
 			games.delete(gameId);
 			turnHistories.delete(gameId); // [롤백] 히스토리 메모리 정리
+			rollbackCounts.delete(gameId);
 			log(`Game ${gameId} deleted by host ${playerId}`, 'game', gameId);
 			callback?.({ ok: true });
 		});
@@ -3904,6 +3935,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clearFreeActionUndo(restored);
 			restored.turnStartState = { [playerId]: buildTurnStartStateEntryForPlayer(restored, playerId) };
 			restored.prevTurnStartState = undefined;
+			countRollback(gameId, null); // GM 되감기 (좌석이 아니므로 admin으로 집계)
 			// 진행 중이던 봇 루프 무효화: 옛 game 객체에 취소 플래그 + 락 해제 → 옛 루프 정지, 새 게임에서 재시작
 			(game as any).botCanceled = true;
 			cancelBotExecution(gameId);
@@ -7936,6 +7968,11 @@ export function executePassRound(
 			// 게임 종료 마커 — 최종 점수 정산 로그들보다 먼저 (시스템 로그, 특정 플레이어 없음)
 			if (!game.gameLog) game.gameLog = [];
 			game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Game Finished', details: '최종 점수 정산', round: game.roundNumber });
+			// [2026-08-06 사용자 요청] 이 게임에서 롤백이 몇 번 있었는지 종료 로그에 한 줄로 남긴다.
+			{
+				const rb = buildRollbackSummary(game);
+				if (rb) game.gameLog.push({ timestamp: Date.now(), playerId: '', playerName: 'Game', action: 'Rollback', details: rb, round: game.roundNumber });
+			}
 			applyFinalMissionScoring(game);
 			// Research Track End Bonus
 			for (const pid of game.turnOrder) {
@@ -7970,6 +8007,7 @@ export function executePassRound(
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
 			turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
+			rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
 			saveFinalGameState(game);
 			flushGameData(game);
 			clampPlayerResources(game); emitGameUpdated(io, game);
