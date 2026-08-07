@@ -5138,14 +5138,16 @@ export default function Game() {
                               ] as const).map(b => {
                                 const none = b.have === 0;
                                 const full = b.have >= b.max;
+                                // [2026-08-07 사용자] 초록은 관례상 '가능/진행'이라 다 지었는데 더 지을 수 있어 보였다.
+                                //   빗금은 글자를 가려서 기각 → 색으로만 구분. 다 지음 = 붉은 계열(막힘/한도 도달).
                                 const box = full
-                                  ? 'border-emerald-400/70 bg-emerald-500/85'
+                                  ? 'border-rose-400/50 bg-rose-500/60'
                                   : none
                                     ? 'border-dashed border-white/15 bg-transparent'
                                     : 'border-white/10 bg-white/5';
-                                const labelCls = full ? 'text-emerald-950/70' : none ? 'text-zinc-600' : 'text-zinc-400';
-                                const numCls = full ? 'text-emerald-950' : none ? 'text-zinc-600' : 'text-zinc-100';
-                                const maxCls = full ? 'text-emerald-950/60' : none ? 'text-zinc-700' : 'text-zinc-500';
+                                const labelCls = full ? 'text-rose-100/70' : none ? 'text-zinc-600' : 'text-zinc-400';
+                                const numCls = full ? 'text-rose-50' : none ? 'text-zinc-600' : 'text-zinc-100';
+                                const maxCls = full ? 'text-rose-100/60' : none ? 'text-zinc-700' : 'text-zinc-500';
                                 return (
                                   <span
                                     key={b.key}
