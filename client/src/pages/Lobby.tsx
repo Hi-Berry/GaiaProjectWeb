@@ -218,6 +218,10 @@ export default function Lobby() {
     }
     try {
       setWatching(gameId);
+      // [버그수정 2026-08-07 사용자] 관전만 이름을 저장하지 않아, 이름을 고쳐서 Watch로 들어가면
+      //   그 판에선 새 이름으로 보여도 다음에 로비를 열면 이름칸이 예전 이름으로 돌아왔다.
+      //   방 만들기/참가/이어하기와 동일하게 저장한다.
+      localStorage.setItem('gaia-playerName', playerName.trim());
       const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim());
       storeSpectatorId(gameId, spectatorId);
       toast({
