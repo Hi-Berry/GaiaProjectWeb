@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type ComponentProps, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
@@ -153,6 +153,75 @@ function MiniScaledContent({ panelWidth, children, className }: { panelWidth: nu
       </div>
     </div>
   );
+}
+
+/** 라운드당 1회용 특수 액션 하나의 상태 (상태창 상세에서 실행하는 것들) */
+type SpecialActionState = { key: string; label: string; short: string; used: boolean };
+
+/**
+ * 한 플레이어의 '라운드 1회용 특수 액션' 목록과 사용 여부.
+ * [2026-08-07 사용자] 남의 액션이 남았는지(예: 고급타일 3O·1Q+5C, 아카데미 QIC) 보려고 상태창을
+ *   계속 열었다 닫았다 하는 게 번거롭다 → 패널에 칩으로 상시 표시하려고, 패스 경고에 있던
+ *   동일 열거 로직을 여기로 모아 양쪽이 같은 목록을 쓰게 한다.
+ * 고급 타일에 덮인 기술 타일은 액션을 못 쓰므로 목록에서 제외한다.
+ */
+function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialActionState[] {
+  const p = game.players?.[pid];
+  if (!p) return [];
+  const out: SpecialActionState[] = [];
+  const used = p.usedSpecialActions ?? [];
+  const hasPI = game.map?.some(t => t.ownerId === pid && t.structure === 'planetary_institute') ?? false;
+
+  // 1) 기술 타일 액션 (ACT: 4P / 3K / 3O / 1Q+5C)
+  (p.techTiles ?? []).forEach(tid => {
+    const tile = ALL_TECH_TILES.find(t => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
+    if (!tile?.specialAction) return;
+    if ((p.coveredTechTiles ?? []).includes(tid)) return;
+    out.push({
+      key: `tech:${tid}`,
+      label: `기술: ${tile.label}`,
+      short: `기술:${tile.label}`, // 상태창 상세 버튼과 동일 표기(사용자)
+      used: (p.usedTechActions ?? []).includes(tid),
+    });
+  });
+
+  // 2) 보너스 타일 특수 액션
+  const bonus = p.bonusTile ? ALL_BONUS_TILES.find(t => t.id === p.bonusTile) : null;
+  if (bonus?.specialAction) {
+    const names: Record<string, string> = { terraform_step: '1테라', gaia_project: '가이아', range_3: '+3거리' };
+    const actionLabel = names[bonus.specialAction] ?? bonus.specialAction;
+    out.push({
+      key: 'bonus',
+      label: `보너스: ${actionLabel}`,
+      short: `보너스 Special: ${actionLabel}`, // 상태창 상세 버튼과 동일 표기(사용자)
+      used: !!p.usedBonusAction,
+    });
+  }
+
+  // 3) 오른쪽 아카데미: 1QIC (발타크는 4C)
+  if (game.map?.some(t => t.ownerId === pid && t.structure === 'academy' && t.academyType === 'right')) {
+    const isBal = p.faction === 'bal_tak';
+    out.push({
+      key: 'academy-qic',
+      label: isBal ? '아카데미(4C)' : '아카데미(1QIC)',
+      short: isBal ? '아카데미(4C)' : '아카데미(QIC)', // 상태창 상세와 동일
+      used: used.includes('academy-qic'),
+    });
+  }
+
+  // 4) 종족 스페셜 (의회 필요한 것은 의회 보유 시에만)
+  if (p.faction === 'bescods') out.push({ key: 'bescods', label: '매안: 최저트랙+1', short: '매안:최저트랙+1', used: used.includes('bescods-advance-lowest') });
+  if (p.faction === 'ivits') out.push({ key: 'ivits', label: '하이브: 우주정거장', short: '하이브:우주정거장', used: !!p.usedIvitsSpaceStationThisRound });
+  if (p.faction === 'moweyip' && hasPI) out.push({ key: 'moweyip', label: '모웨이드: 링', short: '모웨이드:링', used: used.includes('moweyip-place-ring') });
+  if (p.faction === 'ambas' && hasPI) out.push({ key: 'ambas', label: '엠바스: PI-광산 교체', short: '엠바스:PI-Mine교체', used: used.includes('ambas-swap-pi-mine') });
+  if (p.faction === 'firaks' && hasPI) out.push({ key: 'firaks', label: '파이락: 다운그레이드', short: '파이락:다운그레이드', used: used.includes('firaks-downgrade') });
+  if (p.faction === 'gleens') out.push({ key: 'gleens', label: '글린: +2항해', short: '글린:+2항해', used: used.includes('gleens-2nav') });
+  if (p.faction === 'space_giants') out.push({ key: 'space_giants', label: '거인: 2테라', short: '거인:2테라', used: used.includes('space_giants-2tf') });
+  if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
+    const nm = p.tinkeroidRoundSpecialId.replace('tinkeroid-', '');
+    out.push({ key: 'tinkeroids', label: `팅커: ${nm}`, short: `팅커:${nm}`, used: used.includes('tinkeroid-special') });
+  }
+  return out;
 }
 
 export default function Game() {
@@ -1227,23 +1296,52 @@ export default function Game() {
 
   // [사용자] FA 모드 종족 특수 프리액션 버튼 — 내 상태창 카드 '바깥 왼쪽'(데스크톱)에 fixed로 띄우려고
   //  카드 DOM 위치를 추적한다. 훅은 반드시 조기 return 위에서 호출(로딩 중에도 동일 개수 유지).
-  const youCardRef = useRef<HTMLDivElement | null>(null);
-  const [faStripPos, setFaStripPos] = useState<{ top: number; left: number; height: number } | null>(null);
-  const trackFaStrip = freeActionMode && !isMobileViewport && isSidebarOpen;
+  // [2026-08-07 사용자] 같은 '카드 바깥 왼쪽' 자리에 남의 카드도 스트립을 띄운다
+  //   (내 카드=프리액션 버튼, 남의 카드=남은 특수 액션) → 카드 위치를 플레이어별로 추적.
+  // [2026-08-07 사용자] 스트립(내 카드=프리액션 버튼 / 남의 카드=남은 특수 액션)은 카드 '바깥 왼쪽'에 붙는다.
+  //   예전엔 position:fixed + JS 좌표 추적이었는데, 상태창 목록이 컴포지터 스크롤이라 메인 스레드가 읽는
+  //   좌표가 항상 한 프레임 뒤처져 스크롤할 때 스트립이 밀려 보였다(rAF로 매 프레임 갱신해도 동일).
+  //   → 스크롤 영역 '안'에 두고 카드의 자식으로 절대배치한다. 카드와 같은 레이어라 원리적으로 밀리지 않고,
+  //     목록 밖으로 나가면 컨테이너 overflow에 잘려 자동으로 사라진다.
+  //   [2026-08-07 사용자] 카드 안(스크롤 영역)으로 넣어 보니 목록 왼쪽 여백만큼 상태창이 좁아져 기각.
+  //   → 상태창 폭을 그대로 두려고 fixed 방식으로 되돌린다. 컴포지터 스크롤에서 한 프레임 밀리는 건
+  //     이 방식의 한계(기존 프리액션 버튼도 동일). 매 프레임 갱신으로 최대한 줄이고,
+  //     카드가 목록 밖으로 나가면 스트립도 숨긴다.
+  const trackCardStrips = !isMobileViewport && isSidebarOpen;
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const stripRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const playerListScrollRef = useRef<HTMLDivElement | null>(null);
+  const applyStripPos = useRef<() => void>(() => { });
+  applyStripPos.current = () => {
+    const cont = playerListScrollRef.current;
+    const cr = cont ? cont.getBoundingClientRect() : null;
+    // 레이아웃 스래싱을 피하려고 '전부 읽고 → 전부 쓴다'
+    const reads: Array<{ strip: HTMLDivElement; r: DOMRect | null }> = [];
+    for (const [pid, strip] of Object.entries(stripRefs.current)) {
+      if (!strip) continue;
+      const card = cardRefs.current[pid];
+      reads.push({ strip, r: card ? card.getBoundingClientRect() : null });
+    }
+    for (const { strip, r } of reads) {
+      // 카드가 목록 밖으로 스크롤돼 나갔거나 목록 자체가 안 보이면 스트립도 숨긴다
+      // (예전엔 스트립만 남아 로그 옆에 떠 있었음 — 사용자 관찰)
+      const offList = !r || r.height <= 0 || r.left <= 0
+        || (cr ? (cr.width <= 0 || r.bottom <= cr.top + 2 || r.top >= cr.bottom - 2) : false);
+      if (offList) { strip.style.visibility = 'hidden'; continue; }
+      strip.style.top = `${r!.top}px`;
+      strip.style.left = `${r!.left}px`;
+      strip.style.height = `${r!.height}px`;
+      strip.style.visibility = 'visible';
+    }
+  };
+  useLayoutEffect(() => { applyStripPos.current(); });
   useEffect(() => {
-    if (!trackFaStrip) { setFaStripPos((p) => (p === null ? p : null)); return; }
-    const update = () => {
-      const el = youCardRef.current;
-      if (!el) { setFaStripPos((p) => (p === null ? p : null)); return; }
-      const r = el.getBoundingClientRect();
-      setFaStripPos((prev) => (prev && Math.abs(prev.top - r.top) < 0.5 && Math.abs(prev.left - r.left) < 0.5 && Math.abs(prev.height - r.height) < 0.5) ? prev : { top: r.top, left: r.left, height: r.height });
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true); // 사이드바 내부 스크롤도 캡처
-    const iv = window.setInterval(update, 250); // 카드 높이/자원 변동 폴백
-    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); window.clearInterval(iv); };
-  }, [trackFaStrip]);
+    if (!trackCardStrips) return;
+    let raf = 0;
+    const tick = () => { applyStripPos.current(); raf = window.requestAnimationFrame(tick); };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [trackCardStrips]);
 
   if (loading) {
     return (
@@ -3521,40 +3619,10 @@ export default function Game() {
 
           // 패스 전 경고: 이번 라운드에 아직 안 쓴 1회용 특수 액션(4pw 기술타일·아카데미 QIC·의회 액션·종족 스페셜 등) 검출.
           // 라운드 전환 시 서버에서 usedTechActions/usedSpecialActions/usedBonusAction/PI액션이 리셋되므로, 패스하면 이번 라운드분은 영구히 날아간다.
-          const unusedAbilities: string[] = [];
-          if (playerId && currentPlayer) {
-            const used = currentPlayer.usedSpecialActions ?? [];
-            const hasStructure = (s: string) => game.map?.some(t => t.ownerId === playerId && t.structure === s) ?? false;
-            const hasPI = hasStructure('planetary_institute');
-            // 1) 기술 타일 액션 (예: ACT: 4P, ACT: 3K, ACT: 3O, ACT: 1Q+5C)
-            (currentPlayer.techTiles ?? []).forEach(tid => {
-              const tile = ALL_TECH_TILES.find(t => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find(t => t.id === tid);
-              if (tile?.specialAction && !(currentPlayer.usedTechActions ?? []).includes(tid)
-                && !(currentPlayer.coveredTechTiles ?? []).includes(tid)) unusedAbilities.push(`기술: ${tile.label}`);
-            });
-            // 2) 보너스 타일 특수 액션 (1테라/가이아/+3거리)
-            if (currentBonusTile?.specialAction && !currentPlayer.usedBonusAction) {
-              const names: Record<string, string> = { terraform_step: '1테라', gaia_project: '가이아', range_3: '+3거리' };
-              unusedAbilities.push(`보너스: ${names[currentBonusTile.specialAction] ?? currentBonusTile.specialAction}`);
-            }
-            // 3) 아카데미(오른쪽) QIC/4C 액션 — 사용자가 말한 "1qic"
-            if (game.map?.some(t => t.ownerId === playerId && t.structure === 'academy' && t.academyType === 'right') && !used.includes('academy-qic')) {
-              unusedAbilities.push(currentPlayer.faction === 'bal_tak' ? '아카데미(4C)' : '아카데미(1QIC)');
-            }
-            // 4) [제거 2026-07-07 사용자] 하드쉬 할라 의회 변환은 프리액션(반복 가능 변환)이지 1회용 특수액션이
-            //    아니므로 패스 경고 목록에 넣지 않는다 — HH 플레이어가 패스할 때마다 잔소리로 뜨던 문제.
-            // 5) 종족 스페셜 액션 (PI 필요한 것은 PI 보유 시에만)
-            if (currentPlayer.faction === 'bescods' && !used.includes('bescods-advance-lowest')) unusedAbilities.push('매안: 최저트랙+1');
-            if (currentPlayer.faction === 'ivits' && !currentPlayer.usedIvitsSpaceStationThisRound) unusedAbilities.push('하이브: 우주정거장');
-            if (currentPlayer.faction === 'moweyip' && hasPI && !used.includes('moweyip-place-ring')) unusedAbilities.push('모웨이드: 링');
-            if (currentPlayer.faction === 'ambas' && hasPI && !used.includes('ambas-swap-pi-mine')) unusedAbilities.push('엠바스: PI-광산 교체');
-            if (currentPlayer.faction === 'firaks' && hasPI && !used.includes('firaks-downgrade')) unusedAbilities.push('파이락: 다운그레이드');
-            if (currentPlayer.faction === 'gleens' && !used.includes('gleens-2nav')) unusedAbilities.push('글린: +2항해');
-            if (currentPlayer.faction === 'space_giants' && !used.includes('space_giants-2tf')) unusedAbilities.push('거인: 2테라');
-            if (currentPlayer.faction === 'tinkeroids' && currentPlayer.tinkeroidRoundSpecialId && !used.includes('tinkeroid-special')) {
-              unusedAbilities.push(`팅커: ${currentPlayer.tinkeroidRoundSpecialId.replace('tinkeroid-', '')}`);
-            }
-          }
+          // [2026-08-07] 목록 열거는 getSpecialActionsForPlayer 하나로 통일 — 패널 칩과 같은 기준.
+          const unusedAbilities: string[] = (playerId && currentPlayer)
+            ? getSpecialActionsForPlayer(game, playerId).filter(a => !a.used).map(a => a.label)
+            : [];
 
           return (
             <AlertDialog open={!!confirmPassWithTileId} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
@@ -4666,10 +4734,12 @@ export default function Game() {
 
       </main>
 
-      {/* [사용자] FA 모드 종족 특수 프리액션 — 내 상태창 카드 '바깥 왼쪽'에 떠있는 세로 버튼(데스크톱). 카드 DOM 위치를 추적해 fixed로 그림 */}
-      {showYouFaStrip && faStripPos && (
+      {/* [사용자] FA 모드 종족 특수 프리액션 — 내 상태창 카드 '바깥 왼쪽'에 떠있는 세로 버튼(데스크톱).
+          좌표는 applyStripPos가 DOM에 직접 쓴다(리렌더를 거치면 스크롤에 더 크게 밀림). */}
+      {showYouFaStrip && playerId && (
         <div
-          style={{ position: 'fixed', top: faStripPos.top, left: faStripPos.left, height: faStripPos.height }}
+          ref={(el) => { stripRefs.current[playerId] = el; }}
+          style={{ position: 'fixed', visibility: 'hidden' }}
           className="z-[85] flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none"
         >
           {faVisibleActs.map((a, i) => (
@@ -4683,7 +4753,6 @@ export default function Game() {
               {a.label}
             </button>
           ))}
-          {/* [사용자] 전종족 공통 Undo / Undo All — 되돌릴 게 있을 때만 표시(불가능시 숨김) */}
           {faShowUndo && faVisibleActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
           {faShowUndo && (
             <button
@@ -4707,6 +4776,32 @@ export default function Game() {
           )}
         </div>
       )}
+
+      {/* [2026-08-07 사용자] 남의 카드 '바깥 왼쪽' — 내 카드의 프리액션 버튼과 같은 자리에,
+          그 사람이 아직 안 쓴 특수 액션(고급타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)을 띄운다.
+          상태창 상세를 열었다 닫았다 하지 않고 한눈에 보려는 것(사용자). 표시 전용이라 클릭 동작은 없다. */}
+      {trackCardStrips && game?.players && Object.keys(game.players).filter(pid => pid !== playerId).map(pid => {
+        const acts = getSpecialActionsForPlayer(game, pid).filter(a => !a.used);
+        if (acts.length === 0) return null;
+        return (
+          <div
+            key={pid}
+            ref={(el) => { stripRefs.current[pid] = el; }}
+            style={{ position: 'fixed', visibility: 'hidden' }}
+            className="z-[84] flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none"
+          >
+            {acts.map(a => (
+              <span
+                key={a.key}
+                title={`${game.players[pid]?.name}: ${a.label} — 아직 사용 가능`}
+                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-cyan-400/50 bg-zinc-900/90 text-cyan-200 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+              >
+                {a.short}
+              </span>
+            ))}
+          </div>
+        );
+      })}
 
       {/* Right Sidebar — 분할 모드(세로 Info)에선 하단-우측 사분면(top-1/2 ~ bottom-0) */}
       <div
@@ -4741,7 +4836,7 @@ export default function Game() {
               ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / splitStatusZoom}%`, zoom: splitStatusZoom } as CSSProperties)
               : isMobileViewport ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties) : undefined}
           >
-            <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
+            <div ref={playerListScrollRef} className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
               {/* 연방 구현: GameBoard의 줌 컨트롤 좌측으로 이동됨 */}
 
 
@@ -4968,7 +5063,7 @@ export default function Game() {
                 return (
                   <Popover key={id} open={expandedPlayerId === id} onOpenChange={(open) => setExpandedPlayerId(open ? id : null)}>
                     <div
-                      ref={isYou ? youCardRef : undefined}
+                      ref={(el) => { cardRefs.current[id] = el; }}
                       onMouseEnter={() => setHoveredPlayerId(id)}
                       onMouseLeave={() => setHoveredPlayerId(null)}
                       className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
