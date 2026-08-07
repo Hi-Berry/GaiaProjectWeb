@@ -156,7 +156,7 @@ function MiniScaledContent({ panelWidth, children, className }: { panelWidth: nu
 }
 
 /** 라운드당 1회용 특수 액션 하나의 상태 (상태창 상세에서 실행하는 것들) */
-type SpecialActionState = { key: string; label: string; short: string; used: boolean };
+type SpecialActionState = { key: string; label: string; short: string; used: boolean; actionId: string };
 
 /**
  * 한 플레이어의 '라운드 1회용 특수 액션' 목록과 사용 여부.
@@ -179,6 +179,7 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
     if ((p.coveredTechTiles ?? []).includes(tid)) return;
     out.push({
       key: `tech:${tid}`,
+      actionId: tid,
       label: `기술: ${tile.label}`,
       short: `기술:${tile.label}`, // 상태창 상세 버튼과 동일 표기(사용자)
       used: (p.usedTechActions ?? []).includes(tid),
@@ -192,6 +193,7 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
     const actionLabel = names[bonus.specialAction] ?? bonus.specialAction;
     out.push({
       key: 'bonus',
+      actionId: 'bonusAction',
       label: `보너스: ${actionLabel}`,
       short: `보너스 Special: ${actionLabel}`, // 상태창 상세 버튼과 동일 표기(사용자)
       used: !!p.usedBonusAction,
@@ -203,6 +205,7 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
     const isBal = p.faction === 'bal_tak';
     out.push({
       key: 'academy-qic',
+      actionId: 'academy-qic',
       label: isBal ? '아카데미(4C)' : '아카데미(1QIC)',
       short: isBal ? '아카데미(4C)' : '아카데미(QIC)', // 상태창 상세와 동일
       used: used.includes('academy-qic'),
@@ -210,16 +213,16 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
   }
 
   // 4) 종족 스페셜 (의회 필요한 것은 의회 보유 시에만)
-  if (p.faction === 'bescods') out.push({ key: 'bescods', label: '매안: 최저트랙+1', short: '매안:최저트랙+1', used: used.includes('bescods-advance-lowest') });
-  if (p.faction === 'ivits') out.push({ key: 'ivits', label: '하이브: 우주정거장', short: '하이브:우주정거장', used: !!p.usedIvitsSpaceStationThisRound });
-  if (p.faction === 'moweyip' && hasPI) out.push({ key: 'moweyip', label: '모웨이드: 링', short: '모웨이드:링', used: used.includes('moweyip-place-ring') });
-  if (p.faction === 'ambas' && hasPI) out.push({ key: 'ambas', label: '엠바스: PI-광산 교체', short: '엠바스:PI-Mine교체', used: used.includes('ambas-swap-pi-mine') });
-  if (p.faction === 'firaks' && hasPI) out.push({ key: 'firaks', label: '파이락: 다운그레이드', short: '파이락:다운그레이드', used: used.includes('firaks-downgrade') });
-  if (p.faction === 'gleens') out.push({ key: 'gleens', label: '글린: +2항해', short: '글린:+2항해', used: used.includes('gleens-2nav') });
-  if (p.faction === 'space_giants') out.push({ key: 'space_giants', label: '거인: 2테라', short: '거인:2테라', used: used.includes('space_giants-2tf') });
+  if (p.faction === 'bescods') out.push({ key: 'bescods', actionId: 'bescods-advance-lowest', label: '매안: 최저트랙+1', short: '매안:최저트랙+1', used: used.includes('bescods-advance-lowest') });
+  if (p.faction === 'ivits') out.push({ key: 'ivits', actionId: 'ivits-space-station', label: '하이브: 우주정거장', short: '하이브:우주정거장', used: !!p.usedIvitsSpaceStationThisRound });
+  if (p.faction === 'moweyip' && hasPI) out.push({ key: 'moweyip', actionId: 'moweyip-place-ring', label: '모웨이드: 링', short: '모웨이드:링', used: used.includes('moweyip-place-ring') });
+  if (p.faction === 'ambas' && hasPI) out.push({ key: 'ambas', actionId: 'ambas-swap-pi-mine', label: '엠바스: PI-광산 교체', short: '엠바스:PI-Mine교체', used: used.includes('ambas-swap-pi-mine') });
+  if (p.faction === 'firaks' && hasPI) out.push({ key: 'firaks', actionId: 'firaks-downgrade', label: '파이락: 다운그레이드', short: '파이락:다운그레이드', used: used.includes('firaks-downgrade') });
+  if (p.faction === 'gleens') out.push({ key: 'gleens', actionId: 'gleens-2nav', label: '글린: +2항해', short: '글린:+2항해', used: used.includes('gleens-2nav') });
+  if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '거인: 2테라', short: '거인:2테라', used: used.includes('space_giants-2tf') });
   if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
     const nm = p.tinkeroidRoundSpecialId.replace('tinkeroid-', '');
-    out.push({ key: 'tinkeroids', label: `팅커: ${nm}`, short: `팅커:${nm}`, used: used.includes('tinkeroid-special') });
+    out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${nm}`, short: `팅커:${nm}`, used: used.includes('tinkeroid-special') });
   }
   return out;
 }
@@ -4754,71 +4757,98 @@ export default function Game() {
 
       </main>
 
-      {/* [사용자] FA 모드 종족 특수 프리액션 — 내 상태창 카드 '바깥 왼쪽'에 떠있는 세로 버튼(데스크톱).
+      {/* 카드 '바깥 왼쪽' 스트립 — 플레이어당 하나.
+          · 내 카드: FA 모드일 때 종족 특수 프리액션 버튼(+Undo) — 누를 수 있음
+          · 모든 카드(내 것 포함): 아직 안 쓴 특수 액션(고급타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)
+            [2026-08-07 사용자] 처음엔 남의 카드에만 띄웠는데, 정작 본인 것(예: 파이락 다운그레이드)이
+            안 보여 헷갈린다는 지적 → 내 카드에도 같이 띄운다. 표시 전용이며 실행은 상태창 상세에서.
           좌표는 applyStripPos가 DOM에 직접 쓴다(리렌더를 거치면 스크롤에 더 크게 밀림). */}
-      {showYouFaStrip && playerId && (
-        <div
-          ref={(el) => { stripRefs.current[playerId] = el; }}
-          style={{ position: 'fixed', visibility: 'hidden' }}
-          className="z-[85] flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none"
-        >
-          {faVisibleActs.map((a, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => { if (!isCurrentTurn || !gameId) return; a.run(); }}
-              title="종족 특수 프리액션 (FA)"
-              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
-            >
-              {a.label}
-            </button>
-          ))}
-          {faShowUndo && faVisibleActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
-          {faShowUndo && (
-            <button
-              type="button"
-              onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, 1); }}
-              title="프리액션 한 단계 되돌리기"
-              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
-            >
-              ↩ Undo
-            </button>
-          )}
-          {faShowUndo && (
-            <button
-              type="button"
-              onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
-              title="이 턴의 프리액션 전부 되돌리기"
-              className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
-            >
-              ↩ Undo All
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* [2026-08-07 사용자] 남의 카드 '바깥 왼쪽' — 내 카드의 프리액션 버튼과 같은 자리에,
-          그 사람이 아직 안 쓴 특수 액션(고급타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)을 띄운다.
-          상태창 상세를 열었다 닫았다 하지 않고 한눈에 보려는 것(사용자). 표시 전용이라 클릭 동작은 없다. */}
-      {trackCardStrips && showSpecialStrips && game?.players && Object.keys(game.players).filter(pid => pid !== playerId).map(pid => {
-        const acts = getSpecialActionsForPlayer(game, pid).filter(a => !a.used);
-        if (acts.length === 0) return null;
+      {trackCardStrips && game?.players && Object.keys(game.players).map(pid => {
+        const isMe = pid === playerId;
+        const showFa = isMe && showYouFaStrip;
+        const acts = showSpecialStrips ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
+        if (!showFa && acts.length === 0) return null;
         return (
           <div
             key={pid}
             ref={(el) => { stripRefs.current[pid] = el; }}
             style={{ position: 'fixed', visibility: 'hidden' }}
-            className="z-[84] flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none"
+            className={`${isMe ? 'z-[85]' : 'z-[84]'} flex flex-col justify-center gap-1 pr-1 -translate-x-full pointer-events-none`}
           >
-            {acts.map(a => (
-              <span
-                key={a.key}
-                title={`${game.players[pid]?.name}: ${a.label} — 아직 사용 가능`}
-                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-cyan-400/50 bg-zinc-900/90 text-cyan-200 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+            {showFa && faVisibleActs.map((a, i) => (
+              <button
+                key={`fa-${i}`}
+                type="button"
+                onClick={() => { if (!isCurrentTurn || !gameId) return; a.run(); }}
+                title="종족 특수 프리액션 (FA)"
+                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-amber-400/60 bg-zinc-900/90 text-amber-200 hover:bg-amber-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
               >
-                {a.short}
-              </span>
+                {a.label}
+              </button>
             ))}
+            {showFa && faShowUndo && faVisibleActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
+            {showFa && faShowUndo && (
+              <button
+                type="button"
+                onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, 1); }}
+                title="프리액션 한 단계 되돌리기"
+                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+              >
+                ↩ Undo
+              </button>
+            )}
+            {showFa && faShowUndo && (
+              <button
+                type="button"
+                onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
+                title="이 턴의 프리액션 전부 되돌리기"
+                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+              >
+                ↩ Undo All
+              </button>
+            )}
+            {showFa && acts.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
+            {acts.map(a => {
+              // [2026-08-07 사용자] 내 카드 칩은 눌러서 바로 실행. 남의 것은 표시 전용이라 색을 분리한다
+              //   (내 것 = 초록 계열 '실행 가능' / 남의 것 = 시안 '정보'). 실행 분기는 상태창 상세와 동일.
+              const canUseNow = isMe && isCurrentTurn && !game.hasDoneMainAction;
+              if (!isMe) {
+                return (
+                  <span
+                    key={a.key}
+                    title={`${game.players[pid]?.name}: ${a.label} — 아직 사용 가능`}
+                    className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-cyan-400/50 bg-zinc-900/90 text-cyan-200 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+                  >
+                    {a.short}
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={a.key}
+                  type="button"
+                  disabled={!canUseNow}
+                  title={canUseNow ? `${a.label} — 눌러서 사용` : `${a.label} — 지금은 사용할 수 없습니다(내 차례·메인 액션 전에만)`}
+                  onClick={() => {
+                    if (!canUseNow || !gameId) return;
+                    const id = a.actionId;
+                    if (id === 'bonusAction') GameClient.useBonusAction(gameId);
+                    else if (id === 'ivits-space-station') setIvitsSpaceStationMode(true);
+                    else if (id === 'bescods-advance-lowest') setBescodsAdvanceLowestOpen(true);
+                    else if (id === 'ambas-swap-pi-mine') setAmbasSwapPiMineMode(true);
+                    else if (id === 'moweyip-place-ring') setMoweyipPlaceRingMode(true);
+                    else if (id === 'firaks-downgrade') setFiraksDowngradeMode(true);
+                    else if (id === 'tech-act-4p' || id === 'adv-act-3k' || id === 'adv-act-3o' || id === 'adv-act-1q-5c') GameClient.useTechAction(gameId, id);
+                    else GameClient.useSpecialAction(gameId, id);
+                  }}
+                  className={`pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border leading-none whitespace-nowrap shadow-lg backdrop-blur ${canUseNow
+                    ? 'border-emerald-400/60 bg-zinc-900/90 text-emerald-200 hover:bg-emerald-500/30 cursor-pointer'
+                    : 'border-white/10 bg-zinc-900/70 text-zinc-500 cursor-not-allowed'}`}
+                >
+                  {a.short}
+                </button>
+              );
+            })}
           </div>
         );
       })}
