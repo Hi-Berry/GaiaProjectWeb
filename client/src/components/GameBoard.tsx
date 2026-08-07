@@ -1550,10 +1550,12 @@ export function GameBoard({
                       const pos = satelliteLayout(sats.length);
                       const scale = sats.length <= 4 ? 1 : 0.7; // 1개짜리 크기 그대로 유지(4개까지)
                       // [버그수정] 같은 칸에 우주정거장(중앙 기어)이 있으면 위성이 그 밑에 가려 안 보였음.
-                      //   위성 그룹을 우하단 모서리로 비키고 살짝 축소해 기어·위성 둘 다 보이게.
+                      //   위성 그룹을 우하단 모서리로 비켜 기어·위성 둘 다 보이게 한다.
+                      // [2026-08-07 사용자] 비키는 위치는 좋은데 같이 걸어둔 scale(0.62) 때문에 위성이 너무 작아져
+                      //   다른 칸의 위성과 크기가 달라 보였다 → 축소는 빼고 위치만 옮긴다(크기는 일반 칸과 동일).
                       const coexistStation = !!tile.spaceStation;
                       return (
-                        <g pointerEvents="none" transform={coexistStation ? 'translate(1.7 1.7) scale(0.62)' : undefined}>
+                        <g pointerEvents="none" transform={coexistStation ? 'translate(1.7 1.7)' : undefined}>
                           {sats.map((s, idx) => (
                             <g key={s.key} transform={`translate(${pos[idx].x}, ${pos[idx].y})`}>
                               <SatelliteCube color={s.color} scale={scale} />
