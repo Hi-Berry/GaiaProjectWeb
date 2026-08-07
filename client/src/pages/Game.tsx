@@ -1307,6 +1307,15 @@ export default function Game() {
   //   → 상태창 폭을 그대로 두려고 fixed 방식으로 되돌린다. 컴포지터 스크롤에서 한 프레임 밀리는 건
   //     이 방식의 한계(기존 프리액션 버튼도 동일). 매 프레임 갱신으로 최대한 줄이고,
   //     카드가 목록 밖으로 나가면 스트립도 숨긴다.
+  // [2026-08-07 사용자] 정신 사나울 수 있어 '?' 안내창(데스크톱 설정)에서 끌 수 있게. 기본 ON.
+  const [showSpecialStrips, setShowSpecialStrips] = useState<boolean>(() => {
+    try { return localStorage.getItem('special-action-strip') !== 'off'; } catch { return true; }
+  });
+  useEffect(() => {
+    const onChange = (e: Event) => setShowSpecialStrips(!!(e as CustomEvent).detail);
+    window.addEventListener('special-action-strip-change', onChange);
+    return () => window.removeEventListener('special-action-strip-change', onChange);
+  }, []);
   const trackCardStrips = !isMobileViewport && isSidebarOpen;
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const stripRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -4780,7 +4789,7 @@ export default function Game() {
       {/* [2026-08-07 사용자] 남의 카드 '바깥 왼쪽' — 내 카드의 프리액션 버튼과 같은 자리에,
           그 사람이 아직 안 쓴 특수 액션(고급타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)을 띄운다.
           상태창 상세를 열었다 닫았다 하지 않고 한눈에 보려는 것(사용자). 표시 전용이라 클릭 동작은 없다. */}
-      {trackCardStrips && game?.players && Object.keys(game.players).filter(pid => pid !== playerId).map(pid => {
+      {trackCardStrips && showSpecialStrips && game?.players && Object.keys(game.players).filter(pid => pid !== playerId).map(pid => {
         const acts = getSpecialActionsForPlayer(game, pid).filter(a => !a.used);
         if (acts.length === 0) return null;
         return (

@@ -289,6 +289,42 @@ function NotifyToggle() {
   );
 }
 
+/** 데스크톱 전용: 남의 상태창 카드 옆 '남은 특수 액션' 스트립 표시 여부.
+ *  [2026-08-07 사용자] 정신 사나울 수 있어 끌 수 있게. 기본 ON. localStorage+커스텀이벤트로 Game.tsx와 동기화. */
+function SpecialActionStripToggle() {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('special-action-strip') === 'off') setOn(false);
+  }, []);
+  const choose = (v: boolean) => {
+    setOn(v);
+    localStorage.setItem('special-action-strip', v ? 'on' : 'off');
+    window.dispatchEvent(new CustomEvent('special-action-strip-change', { detail: v }));
+  };
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-cyan-400">
+        남은 특수 액션 표시
+      </h3>
+      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold text-zinc-200">다른 사람 카드 옆에 표시</div>
+          <div className="text-[9px] leading-snug text-zinc-500">
+            아직 안 쓴 특수 액션(기술타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)을 카드 왼쪽에 띄웁니다.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => choose(!on)}
+          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${on ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+        >
+          {on ? '표시' : '숨김'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /** 모바일 전용: Info 오버레이(좌하단 i 버튼) 레이아웃 선택 — 가로(드래그 페이지) vs 세로(3창 합쳐 스크롤). localStorage+커스텀이벤트로 Game.tsx와 동기화. */
 function TechViewSelector() {
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal');
@@ -433,7 +469,7 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
           style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
         >
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
-          <div className="hidden md:block"><NotifyToggle /></div>
+          <div className="hidden md:block"><NotifyToggle /><SpecialActionStripToggle /></div>
           <div className="md:hidden"><TechViewSelector /><PinchZoomSelector /></div>
           {gameId && playerId && <ContinueOnDeviceSection gameId={gameId} playerId={playerId} />}
           <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
