@@ -4827,8 +4827,9 @@ export default function Game() {
                 <button
                   key={a.key}
                   type="button"
-                  disabled={!canUseNow}
-                  title={canUseNow ? `${a.label} — 눌러서 사용` : `${a.label} — 지금은 사용할 수 없습니다(내 차례·메인 액션 전에만)`}
+                  // [2026-08-07 사용자] 지금 못 쓴다고 회색으로 바꾸지 않는다 —
+                  //   턴이 도는 동안 회색이면 '이미 썼다'로 오해된다. 색은 그대로 두고 눌러도 반응만 없게.
+                  title={canUseNow ? `${a.label} — 눌러서 사용` : `${a.label} — 아직 안 썼습니다 (내 차례에 메인 액션으로 사용)`}
                   onClick={() => {
                     if (!canUseNow || !gameId) return;
                     const id = a.actionId;
@@ -4841,9 +4842,7 @@ export default function Game() {
                     else if (id === 'tech-act-4p' || id === 'adv-act-3k' || id === 'adv-act-3o' || id === 'adv-act-1q-5c') GameClient.useTechAction(gameId, id);
                     else GameClient.useSpecialAction(gameId, id);
                   }}
-                  className={`pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border leading-none whitespace-nowrap shadow-lg backdrop-blur ${canUseNow
-                    ? 'border-emerald-400/60 bg-zinc-900/90 text-emerald-200 hover:bg-emerald-500/30 cursor-pointer'
-                    : 'border-white/10 bg-zinc-900/70 text-zinc-500 cursor-not-allowed'}`}
+                  className={`pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-emerald-400/60 bg-zinc-900/90 text-emerald-200 leading-none whitespace-nowrap shadow-lg backdrop-blur ${canUseNow ? 'hover:bg-emerald-500/30 cursor-pointer' : 'cursor-default'}`}
                 >
                   {a.short}
                 </button>
