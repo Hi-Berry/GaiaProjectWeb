@@ -57,8 +57,9 @@ check('1파워 → 0VP, 토큰이 2그릇', run({ hasPI: true, amount: 1, piAddF
 check('3파워 → 여력 2까지만, 1VP', run({ hasPI: true, amount: 3, piAddFirst: true }), { p1: 0, p2: 0, p3: 6, vpPaid: 1 });
 
 console.log('타클론 의회 + 풀파워(0/0/5) — 파워 먼저');
-// 받을 게 없으므로 0충전·0VP, 그다음 토큰 1개가 그릇1에 남는다
-check('2파워 → 충전 0, 0VP, 토큰은 1그릇', run({ hasPI: true, amount: 2, piAddFirst: false }), { p1: 1, p2: 0, p3: 5, vpPaid: 0 });
+// [2026-08-07 사용자] 받을 게 없으면 '파워를 받는 행동'이 아니므로 의회 토큰도 생기지 않는다.
+//   (클라는 이 순서를 못 고르게 잠그고, 서버도 같은 판정을 한다)
+check('2파워 → 충전 0, 0VP, 토큰도 안 생김', run({ hasPI: true, amount: 2, piAddFirst: false }), { p1: 0, p2: 0, p3: 5, vpPaid: 0 });
 
 console.log('타클론 의회 없음 + 풀파워(0/0/5)');
 check('의회 없으면 아무 일 없음', run({ hasPI: false, amount: 2, piAddFirst: true }), { p1: 0, p2: 0, p3: 5, vpPaid: 0 });

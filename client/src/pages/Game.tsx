@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, computePassScorePreview } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
@@ -4002,13 +4002,20 @@ export default function Game() {
                       </div>
                     </div>
 
-                    {currentPlayer?.faction === 'taklons' && (
+                    {currentPlayer?.faction === 'taklons' && (() => {
+                      // [2026-08-07 사용자] 풀파워(충전 여력 0)면 '파워 먼저'는 받을 게 없어 의미가 없다
+                      //   (충전이 0이면 의회 토큰도 안 생긴다) -> 그때는 '토큰 먼저'로 잠그고 그것만 묻는다.
+                      const hasTakPI = !!game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute');
+                      const atFullPower = getMaxPowerGain(currentPlayer as PlayerState) === 0;
+                      const lockPiFirst = hasTakPI && atFullPower;
+                      return (
                       <div className="flex items-center gap-2 md:border-r md:border-white/10 md:pr-4">
                         <Button
                           size="sm"
                           variant="ghost"
-                          className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferBrainFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
-                          onClick={() => setPowerOfferBrainFirst(prev => !prev)}
+                          disabled={lockPiFirst}
+                          className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${lockPiFirst ? 'opacity-40 cursor-not-allowed text-zinc-600' : powerOfferBrainFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
+                          onClick={() => { if (lockPiFirst) return; setPowerOfferBrainFirst(prev => !prev); }}
                           title="브레인 스톤 우선 수령 토글 (충전 시 브레인을 먼저 올릴지)"
                         >
                           Brain First
@@ -4017,15 +4024,18 @@ export default function Game() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferPiAddFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
-                            onClick={() => setPowerOfferPiAddFirst(prev => !prev)}
-                            title="의회 토큰을 충전 '전에' 추가 (켜면 그 토큰도 이번 충전으로 올라간다 — 풀파워여도 받을 수 있음)"
+                            className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${(lockPiFirst || powerOfferPiAddFirst) ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}${lockPiFirst ? ' cursor-default' : ''}`}
+                            onClick={() => { if (lockPiFirst) return; setPowerOfferPiAddFirst(prev => !prev); }}
+                            title={lockPiFirst
+                              ? "풀파워라 '파워 먼저'로는 받을 게 없습니다 — 토큰을 먼저 추가해야 그 토큰을 올릴 수 있어 이 순서로 고정됩니다"
+                              : "의회 토큰을 충전 '전에' 추가 (켜면 그 토큰도 이번 충전으로 올라간다)"}
                           >
                             PI 1st
                           </Button>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     <div className="flex items-center gap-1.5">
                       <Button
@@ -4042,7 +4052,7 @@ export default function Game() {
                         size="sm"
                         className="h-7 px-4 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase shadow-lg shadow-blue-900/20"
                         onClick={() => {
-                          if (gameId) GameClient.respondPowerOffer(gameId, offer.id, true, currentPlayer?.faction === 'taklons' ? powerOfferBrainFirst : undefined, currentPlayer?.faction === 'taklons' ? powerOfferPiAddFirst : undefined);
+                          if (gameId) GameClient.respondPowerOffer(gameId, offer.id, true, currentPlayer?.faction === 'taklons' ? powerOfferBrainFirst : undefined, currentPlayer?.faction === 'taklons' ? (powerOfferPiAddFirst || (getMaxPowerGain(currentPlayer as PlayerState) === 0 && !!game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute'))) : undefined);
                         }}
                       >
                         Accept

@@ -1657,8 +1657,11 @@ function applyPlayerPowerCharge(game: GaiaGameState, playerId: string, amount: n
 				player.power1 = (player.power1 || 0) + 1;
 				chargePowerTaklons(player, amount, brainFirst);
 			} else {
+				// [2026-08-07 사용자] '파워 먼저'인데 충전이 0이면(=풀파워) 애초에 '파워를 받는 행동'이 아니므로
+				//   의회 토큰도 생기지 않는다. 클라가 이 순서를 못 고르게 막아두었지만 서버에서도 동일하게 판정한다.
+				const charged = amount > 0 && getMaxPowerGain(player) > 0;
 				chargePowerTaklons(player, amount, brainFirst);
-				player.power1 = (player.power1 || 0) + 1;
+				if (charged) player.power1 = (player.power1 || 0) + 1;
 			}
 		} else {
 			chargePowerTaklons(player, amount, brainFirst);
