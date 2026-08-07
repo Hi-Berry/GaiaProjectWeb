@@ -5123,13 +5123,41 @@ export default function Game() {
                               </div>
                             </div>
 
-                            {/* Buildings */}
-                            <div className="flex justify-between items-baseline mb-0.5 md:mb-1 text-[10px] md:text-xs text-zinc-500 font-mono tracking-tighter md:tracking-normal w-full">
-                              M<span className="text-amber-300/90">{counts.physicalMineCount}</span>/{BUILDING_LIMITS.mine}
-                              <span className="mx-0.5 md:mx-1">TS</span><span className="text-yellow-400/90">{counts.tsCount}</span>/{BUILDING_LIMITS.trading_station}
-                              <span className="mx-0.5 md:mx-1">Lab</span><span className="text-blue-400/90">{counts.labCount}</span>/{BUILDING_LIMITS.research_lab}
-                              <span className="mx-0.5 md:mx-1">PI</span><span className="text-purple-400/90">{counts.piCount}</span>/{BUILDING_LIMITS.planetary_institute}
-                              <span className="mx-0.5 md:mx-1">A</span><span className="text-indigo-400/90">{counts.academyLeft}+{counts.academyRight}</span>/{BUILDING_LIMITS.academy}
+                            {/* Buildings — [2026-08-07 사용자] 갯수가 잘 안 보이고 '없음/다 지음'이 인지가 안 된다는 의견.
+                                기존엔 라벨·갯수·한도가 전부 같은 크기·비슷한 톤이라 PI0/1과 PI1/1이 시각적으로 구분이 안 됐다.
+                                → 칸(칩)으로 나누고 '상태'로만 색을 준다(건물 종류별 색은 쓰지 않음, 사용자 지시):
+                                  없음=점선·흐림 / 여유=옅은 배경 / 다 지음=꽉 찬 배경+어두운 글자.
+                                갯수는 굵고 크게, /한도는 작고 흐리게. */}
+                            <div className="flex justify-between items-stretch gap-0.5 md:gap-1 mb-0.5 md:mb-1 font-mono w-full">
+                              {([
+                                { key: 'M', label: 'M', have: counts.physicalMineCount, max: BUILDING_LIMITS.mine, text: `${counts.physicalMineCount}` },
+                                { key: 'TS', label: 'TS', have: counts.tsCount, max: BUILDING_LIMITS.trading_station, text: `${counts.tsCount}` },
+                                { key: 'Lab', label: 'Lab', have: counts.labCount, max: BUILDING_LIMITS.research_lab, text: `${counts.labCount}` },
+                                { key: 'PI', label: 'PI', have: counts.piCount, max: BUILDING_LIMITS.planetary_institute, text: `${counts.piCount}` },
+                                { key: 'A', label: 'A', have: counts.academyLeft + counts.academyRight, max: BUILDING_LIMITS.academy, text: `${counts.academyLeft}+${counts.academyRight}` },
+                              ] as const).map(b => {
+                                const none = b.have === 0;
+                                const full = b.have >= b.max;
+                                const box = full
+                                  ? 'border-emerald-400/70 bg-emerald-500/85'
+                                  : none
+                                    ? 'border-dashed border-white/15 bg-transparent'
+                                    : 'border-white/10 bg-white/5';
+                                const labelCls = full ? 'text-emerald-950/70' : none ? 'text-zinc-600' : 'text-zinc-400';
+                                const numCls = full ? 'text-emerald-950' : none ? 'text-zinc-600' : 'text-zinc-100';
+                                const maxCls = full ? 'text-emerald-950/60' : none ? 'text-zinc-700' : 'text-zinc-500';
+                                return (
+                                  <span
+                                    key={b.key}
+                                    className={`flex-1 min-w-0 flex items-baseline justify-center gap-[1px] whitespace-nowrap rounded border px-0.5 py-[2px] leading-none tabular-nums ${box}`}
+                                    title={`${b.label} ${b.have}/${b.max}${full ? ' — 더 지을 수 없음' : none ? ' — 아직 없음' : ''}`}
+                                  >
+                                    <span className={`text-[7px] md:text-[8px] ${labelCls}`}>{b.label}</span>
+                                    <span className={`text-[11px] md:text-[13px] font-black ${numCls}`}>{b.text}</span>
+                                    <span className={`text-[7px] md:text-[8px] ${maxCls}`}>/{b.max}</span>
+                                  </span>
+                                );
+                              })}
                             </div>
 
                             {/* Resources & Power / Gaiaformers */}
