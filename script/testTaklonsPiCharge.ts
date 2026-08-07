@@ -17,7 +17,7 @@ const ioStub: any = { to: () => ({ emit: () => { } }), emit: () => { } };
 const ME = 'p_tak', SRC = 'p_src';
 
 /** 풀파워(모두 3그릇) 타클론 + 의회. amount 파워 제안을 수락시킨다. */
-function run(opts: { hasPI: boolean; amount: number; p1?: number; p2?: number; p3?: number; score?: number }) {
+function run(opts: { hasPI: boolean; amount: number; piAddFirst: boolean; p1?: number; p2?: number; p3?: number; score?: number }) {
   const me = createInitialPlayerState('Tak') as any;
   me.faction = 'taklons';
   me.power1 = opts.p1 ?? 0; me.power2 = opts.p2 ?? 0; me.power3 = opts.p3 ?? 5;
@@ -39,7 +39,7 @@ function run(opts: { hasPI: boolean; amount: number; p1?: number; p2?: number; p
     pendingPowerOffers: [{ id: 'o1', targetPlayerId: ME, sourcePlayerId: SRC, amount: opts.amount, vpCost: Math.max(0, opts.amount - 1), tileId: 't', responded: false }],
   };
   const before = me.score;
-  executeRespondPowerOffer(ioStub, game, ME, 'o1', true, true, undefined);
+  executeRespondPowerOffer(ioStub, game, ME, 'o1', true, true, opts.piAddFirst);
   return { p1: me.power1, p2: me.power2, p3: me.power3, vpPaid: before - me.score };
 }
 
@@ -50,22 +50,26 @@ const check = (name: string, got: any, want: any) => {
   if (!ok) failed++;
 };
 
-console.log('타클론 의회 + 풀파워(0/0/5)');
-// 2파워 제안: 토큰 생성 → 2충전으로 1→2→3 → 3그릇 6개, 1VP 지불
-check('2파워 → 1VP, 토큰이 3그릇까지', run({ hasPI: true, amount: 2 }), { p1: 0, p2: 0, p3: 6, vpPaid: 1 });
-// 1파워 제안: 토큰 생성 → 1충전으로 1→2 → 2그릇에 1개, 무료
-check('1파워 → 0VP, 토큰이 2그릇', run({ hasPI: true, amount: 1 }), { p1: 0, p2: 1, p3: 5, vpPaid: 0 });
-// 3파워 제안: 토큰 1개는 2칸까지만 흡수 → 2만 충전되고 1VP (여력 초과분은 못 받음)
-check('3파워 → 여력 2까지만, 1VP', run({ hasPI: true, amount: 3 }), { p1: 0, p2: 0, p3: 6, vpPaid: 1 });
+console.log('타클론 의회 + 풀파워(0/0/5) — 토큰 먼저');
+// 토큰 생성 → 2충전으로 1→2→3 → 3그릇 6개, 1VP 지불
+check('2파워 → 1VP, 토큰이 3그릇까지', run({ hasPI: true, amount: 2, piAddFirst: true }), { p1: 0, p2: 0, p3: 6, vpPaid: 1 });
+check('1파워 → 0VP, 토큰이 2그릇', run({ hasPI: true, amount: 1, piAddFirst: true }), { p1: 0, p2: 1, p3: 5, vpPaid: 0 });
+check('3파워 → 여력 2까지만, 1VP', run({ hasPI: true, amount: 3, piAddFirst: true }), { p1: 0, p2: 0, p3: 6, vpPaid: 1 });
+
+console.log('타클론 의회 + 풀파워(0/0/5) — 파워 먼저');
+// 받을 게 없으므로 0충전·0VP, 그다음 토큰 1개가 그릇1에 남는다
+check('2파워 → 충전 0, 0VP, 토큰은 1그릇', run({ hasPI: true, amount: 2, piAddFirst: false }), { p1: 1, p2: 0, p3: 5, vpPaid: 0 });
 
 console.log('타클론 의회 없음 + 풀파워(0/0/5)');
-check('의회 없으면 아무 일 없음', run({ hasPI: false, amount: 2 }), { p1: 0, p2: 0, p3: 5, vpPaid: 0 });
+check('의회 없으면 아무 일 없음', run({ hasPI: false, amount: 2, piAddFirst: true }), { p1: 0, p2: 0, p3: 5, vpPaid: 0 });
 
 console.log('타클론 의회 + 여유 있음(2/0/3)');
-// 기존 여력 4 + 의회 토큰 2 = 6. 2파워면 기존 토큰 2개가 1→2로: (0,2,3) + 새 토큰 1그릇
-check('2파워 → 토큰 먼저 생성 후 2충전', run({ hasPI: true, amount: 2, p1: 2, p2: 0, p3: 3 }), { p1: 1, p2: 2, p3: 3, vpPaid: 1 });
+// 토큰 먼저: 토큰 추가 후 2충전 → 기존 토큰 2개 중 2개가 1→2
+check('토큰 먼저 · 2파워', run({ hasPI: true, amount: 2, piAddFirst: true, p1: 2, p2: 0, p3: 3 }), { p1: 1, p2: 2, p3: 3, vpPaid: 1 });
+// 파워 먼저: 2충전 먼저(1→2 두 개) 후 토큰 추가
+check('파워 먼저 · 2파워', run({ hasPI: true, amount: 2, piAddFirst: false, p1: 2, p2: 0, p3: 3 }), { p1: 1, p2: 2, p3: 3, vpPaid: 1 });
 
 console.log('');
 if (failed > 0) { console.log(`실패 ${failed}건`); process.exit(1); }
-console.log('OK: 의회 토큰을 먼저 만들고 제안된 파워를 받습니다.');
+console.log('OK: 두 순서(파워 먼저 / 토큰 먼저)가 각각 다르게, 의도대로 동작합니다.');
 process.exit(0);

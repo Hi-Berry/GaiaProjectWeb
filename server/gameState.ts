@@ -1217,7 +1217,7 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 	for (const { playerId, maxPower, tileId } of nearbyPlayers) {
 		const targetPlayer = game.players[playerId];
 		// [2026-08-07 사용자] 타클론 의회는 토큰을 먼저 만들고 파워를 받으므로 그만큼 여력이 더 있다.
-		const potentialGain = getMaxPowerGainWithTaklonsPI(game, playerId);
+		const potentialGain = getMaxPowerGainForOrder(game, playerId, true);
 
 		// 이타르(Itars) 의회 보유 시: 파워 수신 대신 가이아 구역에 파워 토큰 1개 추가 가능 (상시 선택)
 		// 여기서는 일단 일반적인 파워 수신 가능 여부만 체크하고, 실제 처리 시 이타르 룰 적용
@@ -1345,7 +1345,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 		const autoAcceptOne = offer.vpCost === 0 && targetPlayer.faction !== 'itars' && targetPlayer.faction !== 'taklons';
 		if (isBot) {
 			// [버그수정 2026-07-28] stale 오퍼 값 대신 현재 충전여력·점수로 재계산(순차 leech로 여력 줄면 그만큼만·무료).
-			const capNow = getMaxPowerGainWithTaklonsPI(game, offer.targetPlayerId);
+			const capNow = getMaxPowerGainForOrder(game, offer.targetPlayerId, false); // 봇은 '파워 먼저'
 			const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
 			const vpNow = Math.max(0, chargeNow - 1);
 			if (shouldBotAcceptPowerOffer(game, offer.targetPlayerId, chargeNow, vpNow)) {
@@ -1621,12 +1621,17 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 }
 
 /** 특정 플레이어에 대해 파워 충전 처리 (타클론 브레인스톤 및 의회 보너스 포함) */
-/** 타클론 의회 보유자는 수령 시 토큰 1개(그릇1)를 먼저 만들므로 충전 여력이 +2 늘어난다.
- *  (그릇1 토큰 하나는 1→2, 2→3으로 두 칸을 흡수) — 오퍼 금액·수락 시 재계산에 공통으로 쓴다. */
-function getMaxPowerGainWithTaklonsPI(game: GaiaGameState, playerId: string): number {
+/** 충전 여력. 타클론 의회 보유자가 '토큰 먼저(piAddFirst)'를 고르면 그릇1 토큰 1개가 먼저 생기므로
+ *  여력이 +2 늘어난다(그릇1 토큰 하나는 1→2, 2→3 두 칸을 흡수).
+ *  [2026-08-07 사용자] 두 순서는 모두 유효한 선택이다 —
+ *    · 파워 먼저: 받을 수 있는 만큼 받고 그다음 토큰 1개 추가 (여력은 평소와 동일)
+ *    · 토큰 먼저: 토큰 1개 추가하고 그다음 받을 수 있는 만큼 받음 (여력 +2)
+ *  오퍼 '표시 금액'은 최대치(토큰 먼저 기준)로 만들고, 실제 충전량은 수락 시 고른 순서로 재계산한다. */
+function getMaxPowerGainForOrder(game: GaiaGameState, playerId: string, piAddFirst: boolean): number {
 	const player = game.players[playerId];
 	if (!player) return 0;
 	const base = getMaxPowerGain(player);
+	if (!piAddFirst) return base;
 	const hasPI = player.faction === 'taklons' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 	return hasPI ? base + 2 : base;
 }
@@ -1642,14 +1647,19 @@ function applyPlayerPowerCharge(game: GaiaGameState, playerId: string, amount: n
 
 	if (isTaklons) {
 		if (hasPI) {
-			// [버그수정 2026-08-07 사용자] 타클론 의회는 "토큰 1개를 만들고 그다음 주어진 파워를 받는" 것이다.
-			//   따라서 토큰은 항상 충전 '전에' 그릇1에 생기고, 그 토큰도 이번 충전으로 함께 올라간다.
-			//   (예: 풀파워에서 2파워 제안 → 토큰 생성 → 2충전으로 그 토큰이 1→2→3그릇, VP는 2−1=1점)
-			//   기존엔 순서에 따라 토큰을 나중에 더하기도 했고 "순서는 표시용일 뿐 추가 충전은 없다"고 주석까지
-			//   달려 있었는데, 그러면 풀파워에서 어느 쪽을 골라도 '1그릇에 토큰 1개'로 끝나 의회 능력이 죽었다.
-			void piAddFirst; // 순서는 더 이상 선택 대상이 아님(항상 토큰 먼저)
-			player.power1 = (player.power1 || 0) + 1;
-			chargePowerTaklons(player, amount, brainFirst);
+			// [2026-08-07 사용자] 두 순서 모두 유효한 선택이다.
+			//   · 토큰 먼저: 그릇1에 토큰 1개를 만든 뒤 충전 → 그 토큰도 이번 충전으로 올라간다
+			//     (풀파워에서 2파워 제안 → 토큰 생성 → 2충전으로 1→2→3그릇, VP 2−1=1점)
+			//   · 파워 먼저: 받을 수 있는 만큼 먼저 받고 그다음 토큰 1개 추가(그 토큰은 이번엔 안 올라감)
+			//   예전엔 "순서는 표시용일 뿐 추가 충전은 없다"는 주석과 함께 충전량이 토큰 추가 전 여력으로
+			//   고정돼 있어, 풀파워에선 어느 쪽을 골라도 '1그릇에 토큰 1개'로 끝나 선택이 무의미했다.
+			if (piAddFirst) {
+				player.power1 = (player.power1 || 0) + 1;
+				chargePowerTaklons(player, amount, brainFirst);
+			} else {
+				chargePowerTaklons(player, amount, brainFirst);
+				player.power1 = (player.power1 || 0) + 1;
+			}
 		} else {
 			chargePowerTaklons(player, amount, brainFirst);
 		}
@@ -6111,7 +6121,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 				// [버그수정 2026-07-28 사용자] 오퍼 값(amount/vpCost)은 생성 시점(stale) — 일괄 수락은 큰 것부터
 				//   순차 처리라 앞 수락으로 충전여력·점수가 줄면 뒤 오퍼는 그만큼만 충전/무료여야 함 → 현재값으로 재계산.
-				const capNow = getMaxPowerGainWithTaklonsPI(game, offer.targetPlayerId);
+				const capNow = getMaxPowerGainForOrder(game, offer.targetPlayerId, false); // 봇은 '파워 먼저'
 				const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
 				const vpNow = Math.max(0, chargeNow - 1);
 				offer.responded = true;
@@ -9341,7 +9351,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 		//   가득) 기준이라 stale. 한 턴 2회 leech(연구소+광산/검은행성 등)에서 첫 수락으로 충전여력·점수가 줄면
 		//   두 번째는 '실제 충전 가능분'만·그만큼의 VP만 내야 하는데(예: 1충전=무료) 옛 값으로 과다 차감하던 문제.
 		//   → 응답 시점의 현재 충전여력·점수로 재계산(줄면 그만큼만; 여력 여유면 원래 값과 동일).
-		const capNow = getMaxPowerGainWithTaklonsPI(game, actualTargetId);
+		const capNow = getMaxPowerGainForOrder(game, actualTargetId, piAddFirst === true);
 		const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
 		const vpNow = Math.max(0, chargeNow - 1);
 		addScore(game, actualTargetId, -vpNow, 'powerReceived');

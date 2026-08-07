@@ -520,8 +520,10 @@ export default function Game() {
   const [pendingRebellionMineToTS, setPendingRebellionMineToTS] = useState<string | null>(null);
   /** 테란 의회: 가이아포머 토큰 해택 선택 (4→QIC/K, 3→O, 1→C) */
   const [terranCouncilChoice, setTerranCouncilChoice] = useState({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
-  /** 타클론 파워 수신 선택: 브레인 스톤을 먼저 올릴지. [2026-08-07] 의회 토큰은 항상 충전 '전에' 생기므로 순서 선택 제거 */
+  /** 타클론 파워 수신 선택. Brain First = 충전 시 브레인을 먼저 올릴지.
+   *  PI 1st = 의회 토큰을 충전 '전에' 추가할지(켜면 그 토큰도 이번 충전으로 올라가고, 그만큼 받는 파워·VP가 늘 수 있음). */
   const [powerOfferBrainFirst, setPowerOfferBrainFirst] = useState(true);
+  const [powerOfferPiAddFirst, setPowerOfferPiAddFirst] = useState(false);
   /** 한 컴퓨터 4인플: 방장 브라우저인지 (턴 바뀔 때 조작 플레이어 자동 전환용) */
   const isHostSessionRef = useRef(
     gameId ? localStorage.getItem(`is-host-${gameId}`) === 'true' : false
@@ -4011,6 +4013,17 @@ export default function Game() {
                         >
                           Brain First
                         </Button>
+                        {game?.map && game.map.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={`h-7 px-2 text-[9px] font-bold uppercase transition-colors ${powerOfferPiAddFirst ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500'}`}
+                            onClick={() => setPowerOfferPiAddFirst(prev => !prev)}
+                            title="의회 토큰을 충전 '전에' 추가 (켜면 그 토큰도 이번 충전으로 올라간다 — 풀파워여도 받을 수 있음)"
+                          >
+                            PI 1st
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -4029,7 +4042,7 @@ export default function Game() {
                         size="sm"
                         className="h-7 px-4 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase shadow-lg shadow-blue-900/20"
                         onClick={() => {
-                          if (gameId) GameClient.respondPowerOffer(gameId, offer.id, true, currentPlayer?.faction === 'taklons' ? powerOfferBrainFirst : undefined);
+                          if (gameId) GameClient.respondPowerOffer(gameId, offer.id, true, currentPlayer?.faction === 'taklons' ? powerOfferBrainFirst : undefined, currentPlayer?.faction === 'taklons' ? powerOfferPiAddFirst : undefined);
                         }}
                       >
                         Accept
