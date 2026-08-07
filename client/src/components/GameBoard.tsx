@@ -1535,37 +1535,10 @@ export function GameBoard({
                       );
                     })()}
 
-                    {/* 위성 표시 — 각진 입체 정육면체. 같은 칸에 여러 개면 배치 정리 */}
-                    {(() => {
-                      // [테스트] 모든 보드 칸에 종족색 순환으로 위성 1개씩 → 색별 가시성 확인용
-                      const sats: Array<{ key: string; color: string }> = (FORCE_TEST_SATELLITES && tile.sector !== 90)
-                        ? [{ key: 'test', color: FACTIONS[tileIdx % FACTIONS.length].color }]
-                        : satelliteOwnerIds
-                          .map(ownerId => {
-                            const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
-                            return fac ? { key: ownerId, color: colorOverrides?.[ownerId] || fac.color } : null;
-                          })
-                          .filter((x): x is { key: string; color: string } => x !== null);
-                      if (sats.length === 0) return null;
-                      const pos = satelliteLayout(sats.length);
-                      const scale = sats.length <= 4 ? 1 : 0.7; // 1개짜리 크기 그대로 유지(4개까지)
-                      // [버그수정] 같은 칸에 우주정거장(중앙 기어)이 있으면 위성이 그 밑에 가려 안 보였음.
-                      //   위성 그룹을 우하단 모서리로 비켜 기어·위성 둘 다 보이게 한다.
-                      // [2026-08-07 사용자] 비키는 위치는 좋은데 같이 걸어둔 scale(0.62) 때문에 위성이 너무 작아져
-                      //   다른 칸의 위성과 크기가 달라 보였다 → 축소는 빼고 위치만 옮긴다(크기는 일반 칸과 동일).
-                      const coexistStation = !!tile.spaceStation;
-                      return (
-                        <g pointerEvents="none" transform={coexistStation ? 'translate(1.7 1.7)' : undefined}>
-                          {sats.map((s, idx) => (
-                            <g key={s.key} transform={`translate(${pos[idx].x}, ${pos[idx].y})`}>
-                              <SatelliteCube color={s.color} scale={scale} />
-                            </g>
-                          ))}
-                        </g>
-                      );
-                    })()}
-
-                    {/* 하이브 우주정거장: 위성(사각형)과 구분되도록 톱니(기어) 모양 */}
+                    {/* 하이브 우주정거장: 위성(사각형)과 구분되도록 톱니(기어) 모양.
+                        [2026-08-07 사용자] 위성보다 '먼저' 그려 바닥에 깔리게 한다 —
+                        예전엔 기어를 나중에 그려 위성을 덮었고, 그래서 위성 그룹을 우하단으로 비켜 놨었다.
+                        바닥에 깔면 위성은 다른 칸과 완전히 동일하게(위치·크기 그대로) 그려도 기어가 뒤로 보인다. */}
                     {tile.spaceStation && (() => {
                       const ssOwner = game.players[tile.spaceStation!.ownerId];
                       const ssFac = ssOwner?.faction ? FACTIONS.find(f => f.id === ssOwner.faction) : null;
@@ -1580,6 +1553,33 @@ export function GameBoard({
                       return (
                         <g>
                           <polygon points={gearPoints} fill={colorOverrides?.[tile.spaceStation!.ownerId] || ssFac?.color || '#888'} stroke="#000" strokeWidth="0.15" opacity="0.95" />
+                        </g>
+                      );
+                    })()}
+
+                    {/* 위성 표시 — 각진 입체 정육면체. 같은 칸에 여러 개면 배치 정리 */}
+                    {(() => {
+                      // [테스트] 모든 보드 칸에 종족색 순환으로 위성 1개씩 → 색별 가시성 확인용
+                      const sats: Array<{ key: string; color: string }> = (FORCE_TEST_SATELLITES && tile.sector !== 90)
+                        ? [{ key: 'test', color: FACTIONS[tileIdx % FACTIONS.length].color }]
+                        : satelliteOwnerIds
+                          .map(ownerId => {
+                            const fac = game.players[ownerId]?.faction ? FACTIONS.find(f => f.id === game.players[ownerId].faction) : null;
+                            return fac ? { key: ownerId, color: colorOverrides?.[ownerId] || fac.color } : null;
+                          })
+                          .filter((x): x is { key: string; color: string } => x !== null);
+                      if (sats.length === 0) return null;
+                      const pos = satelliteLayout(sats.length);
+                      const scale = sats.length <= 4 ? 1 : 0.7; // 1개짜리 크기 그대로 유지(4개까지)
+                      // [2026-08-07 사용자] 우주정거장은 위에서 '바닥에 깔고' 그리므로, 위성은 정거장 유무와
+                      //   무관하게 다른 칸과 똑같이 그린다(비키기·축소 없음).
+                      return (
+                        <g pointerEvents="none">
+                          {sats.map((s, idx) => (
+                            <g key={s.key} transform={`translate(${pos[idx].x}, ${pos[idx].y})`}>
+                              <SatelliteCube color={s.color} scale={scale} />
+                            </g>
+                          ))}
                         </g>
                       );
                     })()}
