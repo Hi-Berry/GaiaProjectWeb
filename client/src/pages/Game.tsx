@@ -6157,6 +6157,23 @@ export default function Game() {
         </button>
       )}
 
+      {/* [버그 2026-08-10, 사용자 "모바일 종료 이후 점수 보기 버튼 안 보이네"]
+          '최종 점수 보기' 버튼은 좌측 사이드바 안에만 있는데 그 사이드바가 hidden md:flex라 모바일에선 통째로 안 보였다.
+          결과창은 종료 시 1회 자동으로 뜨지만 한 번 닫으면 모바일에선 다시 열 방법이 없었음 → 하단 중앙에 전용 버튼.
+          이 시점엔 프리액션 버튼(같은 하단 영역)이 phase!=='main'이라 사라져 있어 겹치지 않는다. */}
+      {game && isMobileViewport && game.currentPhase === 'gameEnd' && !showGameEndScore && (
+        <button
+          type="button"
+          aria-label="최종 점수 보기"
+          onClick={() => setShowGameEndScore(true)}
+          className="md:hidden fixed left-1/2 -translate-x-1/2 z-[116] flex items-center gap-1.5 rounded-full border border-amber-300/50 bg-amber-600/95 px-4 py-2.5 text-xs font-black text-white shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur active:scale-95 transition-transform"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+        >
+          <Trophy className="w-4 h-4" />
+          최종 점수
+        </button>
+      )}
+
       {/* 모바일 프리액션 버튼 — 내 턴(본게임)에만 노출. 좌하단 채팅 옆(메뉴 자리)에 아이콘만·원형(채팅/메뉴와 동일 크기).
           모바일엔 'f' 단축키가 없어 진입 수단이 없던 것 보완(사용자). 누르면 프리액션 다이얼로그(자원/파워 변환). */}
       {game && isMobileViewport && !isSpectator && isMyTurn && game.currentPhase === 'main' && (
