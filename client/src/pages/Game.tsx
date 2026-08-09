@@ -4000,7 +4000,13 @@ export default function Game() {
               .map(offer => {
                 if (!offer) return null;
                 const sourcePlayer = game.players[offer.sourcePlayerId];
-                const vpTooLow = offer.vpCost > (currentPlayer?.score || 0);
+                // [버그수정 2026-08-09 사용자] 한 턴에 파워를 두 번 받는 경우(예: 연구소 → 2TF+무료광산) 두 번째 오퍼의
+                //   amount/vpCost는 '생성 시점' 값이라 첫 충전이 반영되지 않은 숫자가 창에 떴다. 서버는 수락 시점에
+                //   현재 충전여력·점수로 재계산해 실제로는 더 적게/무료로 받는다 → 표시도 같은 식으로 맞춘다.
+                const capNowUi = getMaxPowerGain(currentPlayer as PlayerState);
+                const shownAmount = Math.min(offer.amount, capNowUi, (currentPlayer?.score ?? 0) + 1);
+                const shownVpCost = Math.max(0, shownAmount - 1);
+                const vpTooLow = shownVpCost > (currentPlayer?.score || 0);
 
                 return (
                   <motion.div
@@ -4022,7 +4028,7 @@ export default function Game() {
 
                       <div className="flex items-center gap-4 shrink-0">
                         <div className="flex flex-col items-center">
-                          <span className="text-lg font-black text-blue-400 leading-none">+{offer.amount}</span>
+                          <span className="text-lg font-black text-blue-400 leading-none">+{shownAmount}</span>
                           <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">Power</span>
                         </div>
                         {/* 타클론 의회: 수락 시 토큰 +1(그릇1) — 풀파워(+0 Power)여도 수락 가치가 있음을 표시 */}
@@ -4033,7 +4039,7 @@ export default function Game() {
                           </div>
                         )}
                         <div className="flex flex-col items-center">
-                          <span className={`text-lg font-black leading-none ${vpTooLow ? 'text-red-500' : 'text-zinc-300'}`}>{offer.vpCost}</span>
+                          <span className={`text-lg font-black leading-none ${vpTooLow ? 'text-red-500' : 'text-zinc-300'}`}>{shownVpCost}</span>
                           <span className="text-[8px] uppercase text-zinc-500 font-bold tracking-tighter">VP Cost</span>
                         </div>
                       </div>
