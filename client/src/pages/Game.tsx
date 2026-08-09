@@ -53,24 +53,33 @@ import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCE
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3R: 테라1스텝·1QIC·4파워 / 4–6R: 3K·2QIC·테라3스텝)
- *  [사용자 2026-08-09] 예전 '1 TF + 광산 건설' 표기는 오해 — 실제로는 테라포밍 스텝만 주고 광산은 직접 짓는다(보너스 타일 테라 액션과 동일). */
+ *  [사용자 2026-08-09] 예전 '1 TF + 광산 건설' 표기는 오해 — 실제로는 테라포밍 단계만 주고 광산은 직접 짓는다(보너스 타일 테라 액션과 동일). */
 const TINKEROID_SPECIAL_LABELS: Record<string, string> = {
-  'tinkeroid-1tf-mine': '테라포밍 1스텝',
+  'tinkeroid-1tf-mine': 'Terraform 1 Step',
   'tinkeroid-1qic': '1 QIC',
-  'tinkeroid-4power': '4 파워',
-  'tinkeroid-3k': '3 지식',
+  'tinkeroid-4power': '4 Power',
+  'tinkeroid-3k': '3 Knowledge',
   'tinkeroid-2qic': '2 QIC',
-  'tinkeroid-3tf-mine': '테라포밍 3스텝',
+  'tinkeroid-3tf-mine': 'Terraform 3 Steps',
 };
 /** 칩(스트립)용 짧은 표기 — 다른 종족 칩(스자:2테라 등)과 '테라' 용어 통일 */
 const TINKEROID_SPECIAL_SHORT: Record<string, string> = {
-  'tinkeroid-1tf-mine': '1테라',
-  'tinkeroid-1qic': '1QIC',
-  'tinkeroid-4power': '4파워',
-  'tinkeroid-3k': '3지식',
-  'tinkeroid-2qic': '2QIC',
-  'tinkeroid-3tf-mine': '3테라',
+  'tinkeroid-1tf-mine': '1 Step',
+  'tinkeroid-1qic': '1 QIC',
+  'tinkeroid-4power': '4 Power',
+  'tinkeroid-3k': '3 Knowledge',
+  'tinkeroid-2qic': '2 QIC',
+  'tinkeroid-3tf-mine': '3 Step',
 };
+/** [용어 2026-08-09 사용자] 액션형 기술타일 칩 표기 — 접두는 'Act', 내용은 줄임말 대신 전체 표기 */
+const TECH_ACT_FULL: Record<string, string> = {
+  'tech-act-4p': '4 Power',
+  'adv-act-3k': '3 Knowledge',
+  'adv-act-3o': '3 Ore',
+  'adv-act-1q-5c': '1 QIC + 5 Credits',
+};
+/** 위 표에 없으면 타일 라벨의 'ACT: ' 접두만 떼서 사용(신규 타일 대비) */
+const techActLabel = (id: string, label: string) => TECH_ACT_FULL[id] ?? label.replace(/^ACT:\s*/, '');
 
 /** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). 인덱스 1~6 = 1tf-mine,1qic,4power,3k,2qic,3tf-mine */
 const TINKEROID_SPECIAL_IMAGES: Record<string, string> = {
@@ -166,7 +175,9 @@ function MiniScaledContent({ panelWidth, children, className }: { panelWidth: nu
 }
 
 /** 라운드당 1회용 특수 액션 하나의 상태 (상태창 상세에서 실행하는 것들) */
-type SpecialActionState = { key: string; label: string; short: string; used: boolean; actionId: string };
+type SpecialActionKind = 'tech' | 'bonus' | 'academy' | 'faction';
+/** [2026-08-09 사용자] 칩에서 종족 이름을 빼는 대신, 종족 고유 능력은 색으로 구분한다(kind='faction'). */
+type SpecialActionState = { key: string; label: string; short: string; used: boolean; actionId: string; kind: SpecialActionKind };
 
 /**
  * 한 플레이어의 '라운드 1회용 특수 액션' 목록과 사용 여부.
@@ -190,8 +201,10 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
     out.push({
       key: `tech:${tid}`,
       actionId: tid,
-      label: `기술: ${tile.label}`,
-      short: `기술:${tile.label}`, // 상태창 상세 버튼과 동일 표기(사용자)
+      label: `Act: ${techActLabel(tid, tile.label)}`,
+      // [용어 정리 2026-08-09 사용자] 칩은 폭이 좁은데 타일 라벨이 'ACT: 4P'라 '기술:ACT: 4P'로 중복 표기됐다 → 접두 제거
+      short: `Act: ${techActLabel(tid, tile.label)}`,
+      kind: 'tech' as const,
       used: (p.usedTechActions ?? []).includes(tid),
     });
   });
@@ -199,13 +212,14 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
   // 2) 보너스 타일 특수 액션
   const bonus = p.bonusTile ? ALL_BONUS_TILES.find(t => t.id === p.bonusTile) : null;
   if (bonus?.specialAction) {
-    const names: Record<string, string> = { terraform_step: '1테라', gaia_project: '가이아', range_3: '+3거리' };
+    const names: Record<string, string> = { terraform_step: '1 Step', gaia_project: 'Gaia', range_3: '+3 Range' };
     const actionLabel = names[bonus.specialAction] ?? bonus.specialAction;
     out.push({
       key: 'bonus',
       actionId: 'bonusAction',
-      label: `보너스: ${actionLabel}`,
-      short: `보너스 Special: ${actionLabel}`, // 상태창 상세 버튼과 동일 표기(사용자)
+      label: `Bonus Tile: ${actionLabel}`,
+      short: `Bonus Tile: ${actionLabel}`, // [2026-08-09 사용자] '보너스 Special:' 중복 표기 정리
+      kind: 'bonus' as const,
       used: !!p.usedBonusAction,
     });
   }
@@ -216,26 +230,27 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
     out.push({
       key: 'academy-qic',
       actionId: 'academy-qic',
-      label: isBal ? '아카데미(4C)' : '아카데미(1QIC)',
-      short: isBal ? '아카데미(4C)' : '아카데미(QIC)', // 상태창 상세와 동일
+      label: isBal ? 'Academy: 4 Credits' : 'Academy: 1 QIC',
+      short: isBal ? 'Academy: 4 Credits' : 'Academy: 1 QIC',
+      kind: 'academy' as const,
       used: used.includes('academy-qic'),
     });
   }
 
   // 4) 종족 스페셜 (의회 필요한 것은 의회 보유 시에만)
-  if (p.faction === 'bescods') out.push({ key: 'bescods', actionId: 'bescods-advance-lowest', label: '매안: 최저트랙+1', short: '매안:최저트랙+1', used: used.includes('bescods-advance-lowest') });
-  if (p.faction === 'ivits') out.push({ key: 'ivits', actionId: 'ivits-space-station', label: '하이브: 우주정거장', short: '하이브:우주정거장', used: !!p.usedIvitsSpaceStationThisRound });
-  if (p.faction === 'moweyip' && hasPI) out.push({ key: 'moweyip', actionId: 'moweyip-place-ring', label: '모웨이드: 링', short: '모웨이드:링', used: used.includes('moweyip-place-ring') });
-  if (p.faction === 'ambas' && hasPI) out.push({ key: 'ambas', actionId: 'ambas-swap-pi-mine', label: '엠바스: PI-광산 교체', short: '엠바스:PI-Mine교체', used: used.includes('ambas-swap-pi-mine') });
-  if (p.faction === 'firaks' && hasPI) out.push({ key: 'firaks', actionId: 'firaks-downgrade', label: '파이락: 다운그레이드', short: '파이락:다운그레이드', used: used.includes('firaks-downgrade') });
-  if (p.faction === 'gleens') out.push({ key: 'gleens', actionId: 'gleens-2nav', label: '글린: +2항해', short: '글린:+2항해', used: used.includes('gleens-2nav') });
-  if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '스자: 2테라', short: '스자:2테라', used: used.includes('space_giants-2tf') });
+  if (p.faction === 'bescods') out.push({ key: 'bescods', actionId: 'bescods-advance-lowest', label: '매안: Lowest Track +1', short: '매안:Lowest Track +1', kind: 'faction', used: used.includes('bescods-advance-lowest') });
+  if (p.faction === 'ivits') out.push({ key: 'ivits', actionId: 'ivits-space-station', label: '하이브: Space Station', short: '하이브:Space Station', kind: 'faction', used: !!p.usedIvitsSpaceStationThisRound });
+  if (p.faction === 'moweyip' && hasPI) out.push({ key: 'moweyip', actionId: 'moweyip-place-ring', label: '모웨이드: Ring', short: '모웨이드:Ring', kind: 'faction', used: used.includes('moweyip-place-ring') });
+  if (p.faction === 'ambas' && hasPI) out.push({ key: 'ambas', actionId: 'ambas-swap-pi-mine', label: '엠바스: Swap PI-Mine', short: '엠바스:Swap PI-Mine', kind: 'faction', used: used.includes('ambas-swap-pi-mine') });
+  if (p.faction === 'firaks' && hasPI) out.push({ key: 'firaks', actionId: 'firaks-downgrade', label: '파이락: Downgrade', short: '파이락:Downgrade', kind: 'faction', used: used.includes('firaks-downgrade') });
+  if (p.faction === 'gleens') out.push({ key: 'gleens', actionId: 'gleens-2nav', label: '글린: +2 Nav', short: '글린:+2 Nav', kind: 'faction', used: used.includes('gleens-2nav') });
+  if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '스자: 2 Step', short: '스자:2 Step', kind: 'faction', used: used.includes('space_giants-2tf') });
   if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
     // [사용자 2026-08-09] 예전엔 ID 접두어만 떼서 '1tf-mine'처럼 원시 문자열이 노출됐다 → 한글 라벨 사용.
-    //   칩은 폭이 좁아 짧은 표기(1테라), 상세는 '테라포밍 1스텝'.
+    //   [용어 통일 2026-08-09] 칩=‘N테라’(폭 좁음), 문장·상세=‘테라포밍 N단계’.
     const full = TINKEROID_SPECIAL_LABELS[p.tinkeroidRoundSpecialId] ?? p.tinkeroidRoundSpecialId;
     const nmShort = TINKEROID_SPECIAL_SHORT[p.tinkeroidRoundSpecialId] ?? full;
-    out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${full}`, short: `팅커:${nmShort}`, used: used.includes('tinkeroid-special') });
+    out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${full}`, short: `팅커:${nmShort}`, kind: 'faction', used: used.includes('tinkeroid-special') });
   }
   return out;
 }
@@ -3237,7 +3252,11 @@ export default function Game() {
 
               // Check if planet is unreachable even with all QIC
               // 단, 내 포머가 이미 설치/회수대기 중인 칸은 거리 체크 면제 (배치 시 거리 QIC 지불 완료)
-              if (!isPendingGaiaBuild && minDist > maxPossibleRange) {
+              // [버그수정 2026-08-09 사용자] 우주선 연방 보상 '무한거리 무료광산'(ship-fed-mine-free)도 거리 체크 면제 —
+              //   서버엔 이 건설에 거리 체크가 아예 없는데(전용 분기) 클라 게이트가 'too far away'로 막고 있었다.
+              //   같은 함수의 hasDoneMainAction 게이트엔 이미 예외가 있었으나 사거리 게이트에만 누락됐다.
+              const isFedFreeMineBuild = game.pendingSpaceshipFedMine?.playerId === playerId;
+              if (!isPendingGaiaBuild && !isFedFreeMineBuild && minDist > maxPossibleRange) {
                 toast({
                   title: 'Cannot Build',
                   description: `Planet is too far away. Distance: ${minDist}, Max range with ${player.qic} QIC: ${maxPossibleRange}`,
@@ -3268,7 +3287,9 @@ export default function Game() {
                   return;
                 }
               } else {
-                if (player.ore < (potentialCost.ore ?? 0) || player.credits < (potentialCost.credits ?? 0) || player.qic < (potentialCost.qic ?? 0)) {
+                // [버그수정 2026-08-09] 무한거리 무료광산은 서버가 '낼 수 있으면 청구, 못 내면 면제'로 항상 건설을 받아준다(데드락 방지 규칙).
+                //   클라가 '자원 부족'으로 막으면 그 규칙이 무력화되므로 예외 처리.
+                if (!isFedFreeMineBuild && (player.ore < (potentialCost.ore ?? 0) || player.credits < (potentialCost.credits ?? 0) || player.qic < (potentialCost.qic ?? 0))) {
                   toast({
                     title: 'Cannot Build',
                     description: `Not enough resources. Required: ${potentialCost.ore ?? 0}O, ${potentialCost.credits ?? 0}C, ${potentialCost.qic ?? 0}QIC`,
@@ -4844,7 +4865,7 @@ export default function Game() {
                   type="button"
                   // [2026-08-07 사용자] 지금 못 쓴다고 회색으로 바꾸지 않는다 —
                   //   턴이 도는 동안 회색이면 '이미 썼다'로 오해된다. 색은 그대로 두고 눌러도 반응만 없게.
-                  title={canUseNow ? `${a.label} — 눌러서 사용` : `${a.label} — 아직 안 썼습니다 (내 차례에 메인 액션으로 사용)`}
+                  title={`${a.kind === 'faction' ? '종족 고유 능력 · ' : ''}${a.label}${canUseNow ? ' — 눌러서 사용' : ' — 아직 안 썼습니다 (내 차례에 메인 액션으로 사용)'}`}
                   onClick={() => {
                     if (!canUseNow || !gameId) return;
                     const id = a.actionId;
@@ -4857,6 +4878,8 @@ export default function Game() {
                     else if (id === 'tech-act-4p' || id === 'adv-act-3k' || id === 'adv-act-3o' || id === 'adv-act-1q-5c') GameClient.useTechAction(gameId, id);
                     else GameClient.useSpecialAction(gameId, id);
                   }}
+                  // [2026-08-09 사용자] 종족 고유 능력은 색/기호 대신 '종족 이름' 접두로 구분한다
+                  //   (색은 거의 모든 색조가 이미 종족색이라 혼동, ★ 기호는 두 렌더 경로에서 불일치했음).
                   className={`pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-emerald-400/60 bg-zinc-900/90 text-emerald-200 leading-none whitespace-nowrap shadow-lg backdrop-blur ${canUseNow ? 'hover:bg-emerald-500/30 cursor-pointer' : 'cursor-default'}`}
                 >
                   {a.short}
@@ -5529,7 +5552,7 @@ export default function Game() {
                               const bonusUsed = !!p.usedBonusAction;
                               // 내 턴, 메인 액션 전, 스페셜 액션이 있는 보너스 타일이면 클릭으로 바로 액션 실행 (상태창 안 열고)
                               const canUseBonus = isYou && isCurrentTurn && !game.hasDoneMainAction && !!tile.specialAction && !bonusUsed;
-                              const actionNames: Record<string, string> = { terraform_step: '1테라', gaia_project: '가이아', range_3: '+3거리' };
+                              const actionNames: Record<string, string> = { terraform_step: '1 Step', gaia_project: 'Gaia', range_3: '+3 Range' };
                               return (
                                 <img
                                   src={`/image/BoostTile_${bonusIndex + 1}.jpg`}
@@ -5777,7 +5800,7 @@ export default function Game() {
                           {hasBonusDetailRow && bonusForDetail?.specialAction && (() => {
                             const bonus = bonusForDetail;
                             const actionNames: Record<string, string> = {
-                              'terraform_step': '1테라',
+                              'terraform_step': '1 Step',
                               'gaia_project': '가이아',
                               'range_3': '+3거리'
                             };
@@ -5817,7 +5840,7 @@ export default function Game() {
                                   const isUsed = p.usedTechActions?.includes(tid) ?? false;
                                   actionNodes.push(
                                     renderActionBtn(
-                                      isUsed, canDoMain, tid, `기술:${tile.label}`,
+                                      isUsed, canDoMain, tid, `Act: ${techActLabel(tid, tile.label)}`,
                                       'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold',
                                       'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold hover:bg-amber-500/40',
                                       `기술 타일: ${tile.label}`
@@ -5910,7 +5933,7 @@ export default function Game() {
                                 if (p.faction === 'space_giants') {
                                   actionNodes.push(
                                     renderActionBtn(
-                                      (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '스자:2테라',
+                                      (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '스자:2 Step',
                                       'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold',
                                       'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold hover:bg-orange-500/40'
                                     )

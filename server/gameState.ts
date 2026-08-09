@@ -8479,7 +8479,7 @@ export function executeUseSpecialAction(
 		player.usedSpecialActions.push('tinkeroid-special');
 		if (actionId === 'tinkeroid-1tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 Terraform Step', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '테라포밍 1단계', actionId);
 		} else if (actionId === 'tinkeroid-1qic') {
 			grantQic(game, playerId, 1);
 			game.hasDoneMainAction = true;
@@ -8498,7 +8498,7 @@ export function executeUseSpecialAction(
 			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', actionId);
 		} else if (actionId === 'tinkeroid-3tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Terraform Steps', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '테라포밍 3단계', actionId);
 		}
 		applied = true;
 	}
@@ -8544,7 +8544,7 @@ export function executeUseBonusAction(
 		case 'terraform_step':
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
 			player.usedBonusAction = true;
-			addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
+			addGameLog(game, playerId, 'Bonus Action', '테라포밍 1단계');
 			log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
 			break;
 		case 'gaia_project':
@@ -9543,9 +9543,11 @@ export function executeBotFederation(
 		...selectedPlanetIds,
 	]));
 
-	const unitLabel = isIvits ? '우주정거장' : '위성';
+	// [문구 통일 2026-08-09 사용자] 사람 경로(소켓)는 'Formed federation (...)' 영문인데 봇 경로만 한글이라
+	//   같은 게임 로그에 두 표기가 섞였다 → 영문으로 통일. (봇 경로엔 건물 파워 합계가 없어 위성/QIC 수만 표기)
+	const unitLabel = isIvits ? 'QIC' : (numEmpty === 1 ? 'satellite' : 'satellites');
 	// 한 줄 통합: 위성 수 텍스트 + 연방 보상 이미지(tileId=rewardId). 'reward: 라벨'·'+VP' 텍스트는 생략
-	addGameLog(game, playerId, 'Federation', `연방 형성 (${numEmpty} ${unitLabel})`, rewardId);
+	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel})`, rewardId);
 	// [버그수정 2026-07-12 사용자 발견] 봇 연방 경로에 라운드미션(rs8 연방=5VP) 적용이 통째로 누락 —
 	// 사람은 소켓 경로(federation_select_reward)에서 받는데 봇만 못 받아 실게임에서 연방당 5VP 손해.
 	// addGameLog 뒤에 호출해 "(+5VP Round Federation)" 주석이 Federation 행에 병합되게 한다.
