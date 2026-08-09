@@ -745,6 +745,12 @@ export function GameLog({
                       const subPlayer = subLog.playerId ? game.players[subLog.playerId] : undefined;
                       const subColor = subPlayer?.faction ? FACTIONS.find(f => f.id === subPlayer.faction)?.color : undefined;
                       const cleanText = subLog.text.replace(`↳ ${subLog.playerName} `, '').replace('↳ ', '');
+                      // [사용자 2026-08-09] 파워 수락/거절 서브로그는 이름이 문장 끝에 붙어 여러 명이 섞이면 구분이 어렵다
+                      //   → 이름을 앞으로 빼고 종족색으로 칠한다(왼쪽 색 테두리와 같은 색이라 색만으로 식별 가능).
+                      const subName = subLog.playerName ?? '';
+                      const bodyText = subName && cleanText.endsWith(subName)
+                        ? cleanText.slice(0, cleanText.length - subName.length).trim()
+                        : cleanText;
 
                       return (
                         <div
@@ -756,7 +762,10 @@ export function GameLog({
                             lineHeight: `${10 * textScale}px`,
                           }}
                         >
-                          <span className="text-zinc-200 font-medium">{cleanText}</span>
+                          {subName && (
+                            <span className="font-black" style={{ color: subColor ?? '#e4e4e7' }}>{subName}</span>
+                          )}
+                          <span className="text-zinc-200 font-medium">{bodyText}</span>
                         </div>
                       );
                     })}
