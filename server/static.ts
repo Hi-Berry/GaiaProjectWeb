@@ -2,6 +2,20 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 
+/** [배포 반영 2026-08-09, 사용자] 빌드 시 vite가 dist/public/build-id.txt에 남긴 ID.
+ *  프로세스 시작 시 1회만 읽는다(배포 = 새 컨테이너 = 새 값). dev에는 파일이 없어 null. */
+let cachedBuildId: string | null | undefined;
+export function getClientBuildId(): string | null {
+	if (cachedBuildId !== undefined) return cachedBuildId;
+	try {
+		const p = path.resolve(__dirname, "public", "build-id.txt");
+		cachedBuildId = fs.readFileSync(p, "utf8").trim() || null;
+	} catch {
+		cachedBuildId = null;
+	}
+	return cachedBuildId;
+}
+
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
   if (!fs.existsSync(distPath)) {

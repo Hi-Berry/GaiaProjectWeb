@@ -6,6 +6,7 @@ import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './index';
+import { getClientBuildId } from './static';
 import { setSeatPassword, findSeatByPassword } from './accounts';
 import { StateCloner } from './ai/stateCloner';
 import type {
@@ -2948,6 +2949,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
+
+		// [배포 반영 2026-08-09, 사용자] 배포하면 서버가 재시작 → 모든 클라가 재접속한다. 그 순간이
+		//   "네 번들 최신이니?"를 물어볼 가장 확실한 타이밍. 클라는 자기 __BUILD_ID__와 비교해 배너를 띄운다.
+		socket.emit('server_build', { buildId: getClientBuildId() });
 
 		/**
 		 * (Dev/Tuning) AI Evaluator 가중치 런타임 변경.

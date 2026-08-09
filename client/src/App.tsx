@@ -8,6 +8,7 @@ import Game from "@/pages/Game";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { preloadImages } from "@/lib/imagePreloader";
+import { useAppUpdate } from "@/lib/appUpdate";
 
 const PRELOAD_IMAGES = [
   ...Array.from({ length: 10 }, (_, i) => `/image/BoostTile_${i + 1}.jpg`),
@@ -22,6 +23,23 @@ function Router() {
       <Route path="/game/:matchID" component={Game} />
       <Route component={NotFound} />
     </Switch>
+  );
+}
+
+/** 새 버전이 배포됐을 때 뜨는 얇은 상단 띠. 게임 UI를 가리지 않도록 화면 최상단·중앙 정렬만 차지한다. */
+function UpdateBanner() {
+  const { updateReady, reload } = useAppUpdate();
+  if (!updateReady) return null;
+  return (
+    <div className="fixed top-0 left-1/2 -translate-x-1/2 z-[300] pointer-events-none w-full flex justify-center px-2 pt-1">
+      <button
+        onClick={reload}
+        className="pointer-events-auto flex items-center gap-2 rounded-full bg-amber-500 px-3 py-1 text-[11px] font-black text-black shadow-lg shadow-black/40 hover:bg-amber-400 active:scale-95 transition"
+      >
+        <span>새 버전이 배포되었습니다</span>
+        <span className="rounded-full bg-black/20 px-2 py-0.5">새로고침</span>
+      </button>
+    </div>
   );
 }
 
@@ -48,6 +66,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
+        <UpdateBanner />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>
