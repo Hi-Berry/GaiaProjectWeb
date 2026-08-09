@@ -8488,7 +8488,7 @@ export function executeUseSpecialAction(
 		player.usedSpecialActions.push('tinkeroid-special');
 		if (actionId === 'tinkeroid-1tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '테라포밍 1단계', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 Terraform Step', actionId);
 		} else if (actionId === 'tinkeroid-1qic') {
 			grantQic(game, playerId, 1);
 			game.hasDoneMainAction = true;
@@ -8507,7 +8507,7 @@ export function executeUseSpecialAction(
 			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', actionId);
 		} else if (actionId === 'tinkeroid-3tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '테라포밍 3단계', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Terraform Steps', actionId);
 		}
 		applied = true;
 	}
@@ -8553,7 +8553,7 @@ export function executeUseBonusAction(
 		case 'terraform_step':
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
 			player.usedBonusAction = true;
-			addGameLog(game, playerId, 'Bonus Action', '테라포밍 1단계');
+			addGameLog(game, playerId, 'Bonus Action', '1 Terraform Step');
 			log(`Player ${player.name} activated bonus action: 1 terraform step (Total: ${player.pendingTerraformSteps})`, 'game', undefined, { simulation: (game as any).simulation });
 			break;
 		case 'gaia_project':

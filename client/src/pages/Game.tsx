@@ -62,7 +62,7 @@ const TINKEROID_SPECIAL_LABELS: Record<string, string> = {
   'tinkeroid-2qic': '2 QIC',
   'tinkeroid-3tf-mine': 'Terraform 3 Steps',
 };
-/** 칩(스트립)용 짧은 표기 — 다른 종족 칩(스자:2테라 등)과 '테라' 용어 통일 */
+/** 칩(스트립)용 짧은 표기 — 다른 종족 칩(스자:2 Step 등)과 'Step' 용어 통일 */
 const TINKEROID_SPECIAL_SHORT: Record<string, string> = {
   'tinkeroid-1tf-mine': '1 Step',
   'tinkeroid-1qic': '1 QIC',
@@ -247,7 +247,7 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
   if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '스자: 2 Step', short: '스자:2 Step', kind: 'faction', used: used.includes('space_giants-2tf') });
   if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
     // [사용자 2026-08-09] 예전엔 ID 접두어만 떼서 '1tf-mine'처럼 원시 문자열이 노출됐다 → 한글 라벨 사용.
-    //   [용어 통일 2026-08-09] 칩=‘N테라’(폭 좁음), 문장·상세=‘테라포밍 N단계’.
+    //   [용어 통일 2026-08-09] 칩=‘N Step’(폭 좁음), 버튼·로그=‘Terraform N Step(s)’.
     const full = TINKEROID_SPECIAL_LABELS[p.tinkeroidRoundSpecialId] ?? p.tinkeroidRoundSpecialId;
     const nmShort = TINKEROID_SPECIAL_SHORT[p.tinkeroidRoundSpecialId] ?? full;
     out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${full}`, short: `팅커:${nmShort}`, kind: 'faction', used: used.includes('tinkeroid-special') });
