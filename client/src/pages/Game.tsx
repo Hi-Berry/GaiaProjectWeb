@@ -4766,7 +4766,9 @@ export default function Game() {
       {trackCardStrips && game?.players && Object.keys(game.players).map(pid => {
         const isMe = pid === playerId;
         const showFa = isMe && showYouFaStrip;
-        const acts = showSpecialStrips ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
+        // [사용자 2026-08-07] 패스한 사람은 이번 라운드에 특수 액션을 쓸 수 없으므로 스트립을 띄우지 않는다.
+        const passedThisRound = !!game.players[pid]?.hasPassed;
+        const acts = (showSpecialStrips && !passedThisRound) ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
         if (!showFa && acts.length === 0) return null;
         return (
           <div
