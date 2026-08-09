@@ -1335,14 +1335,14 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 					playerName: targetPlayer.name,
 					text: `↳ Received Power +1P ${targetPlayer.name}`
 				});
-				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (패스/마지막 라운드 자동)`, offer.tileId);
+				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (auto)`, offer.tileId);
 			} else if (offer.amount >= 2) {
 				const added = addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
-					text: `↳ Declined Power (패스 후 −${Math.max(0, offer.amount - 1)}VP 회피) ${targetPlayer.name}`
+					text: `↳ Declined Power (auto: passed) ${targetPlayer.name}`
 				});
-				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스/마지막 라운드)`, offer.tileId);
+				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `from ${sourcePlayer?.name} (auto: passed)`, offer.tileId);
 			}
 			continue;
 		}
@@ -1356,9 +1356,9 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 			const added = addSubLogToLastAction(game, sourcePlayerId, {
 				playerId: offer.targetPlayerId,
 				playerName: targetPlayer.name,
-				text: `↳ Declined Power (패스·수익만으로 풀파워${offer.vpCost > 0 ? ` / −${offer.vpCost}VP 회피` : ''}) ${targetPlayer.name}`
+				text: `↳ Declined Power (auto: bowls full) ${targetPlayer.name}`
 			});
-			if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스 후 수익만으로 풀파워)`, offer.tileId);
+			if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `from ${sourcePlayer?.name} (auto: bowls full)`, offer.tileId);
 			continue;
 		}
 
@@ -1384,7 +1384,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
-					text: `↳ Declined Power (-${vpNow}VP avoided) ${targetPlayer.name}`
+					text: `↳ Declined Power ${targetPlayer.name}`
 				});
 			}
 			continue;
