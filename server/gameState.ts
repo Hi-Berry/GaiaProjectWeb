@@ -1498,9 +1498,18 @@ export function executeCancelEclipseResearch(io: SocketIOServer, game: ServerGam
 	const pending = game.pendingEclipseResearch;
 	if (!pending || pending.playerId !== playerId) return false;
 	const player = game.players[playerId];
-	player.knowledge = (player.knowledge || 0) + 2;
-	player.power3 = (player.power3 || 0) + 3;
-	player.power1 = Math.max(0, (player.power1 || 0) - 3);
+	// [취소 정확도 2026-08-07 사용자] 지불 직전 스냅샷이 있으면 그대로 복원(종족 무관 정확).
+	// 예전엔 power3+3/power1-3 하드코딩이라 타클론(브레인스톤)·네블라(토큰 환산)에서 토큰이 어긋났다.
+	const pre = (pending as any).pre;
+	if (pre) {
+		player.knowledge = pre.knowledge;
+		player.power1 = pre.power1; player.power2 = pre.power2; player.power3 = pre.power3;
+		if (pre.brainStoneBowl !== undefined) (player as any).brainStoneBowl = pre.brainStoneBowl;
+	} else {
+		player.knowledge = (player.knowledge || 0) + 2;
+		player.power3 = (player.power3 || 0) + 3;
+		player.power1 = Math.max(0, (player.power1 || 0) - 3);
+	}
 	const shipState = game.spaceships?.[pending.shipTileId];
 	if (shipState && shipState.usedActionIndices) {
 		shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 2);
@@ -4348,6 +4357,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					} else if ((player.power3 ?? 0) < shipPowerTokens(3)) {
 						return;
 					}
+					// [취소 정확도 2026-08-07 사용자] 지불 직전 스냅샷 — 취소 시 종족별 경로(타클론 브레인/네블라 환산)를 정확히 되돌린다
+					const preEclipse = { knowledge: player.knowledge ?? 0, power1: player.power1 ?? 0, power2: player.power2 ?? 0, power3: player.power3 ?? 0, brainStoneBowl: (player as any).brainStoneBowl };
 					player.knowledge -= 2;
 					if (player.faction === 'taklons') {
 						spendTaklonsPower(player, 3, 3, true);
@@ -4359,7 +4370,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					game.pendingEclipseResearch = { playerId, shipTileId };
+					game.pendingEclipseResearch = { playerId, shipTileId, pre: preEclipse };
 					addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId, { actionIndex, shipTileId });
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
@@ -8879,6 +8890,8 @@ export function executeUseShipAction(
 			} else if ((player.power3 ?? 0) < 3) {
 				return false;
 			}
+			// [취소 정확도 2026-08-07 사용자] 지불 직전 스냅샷 — 취소 시 종족별 경로(타클론 브레인/네블라 환산)를 정확히 되돌린다
+			const preEclipseBot = { knowledge: player.knowledge ?? 0, power1: player.power1 ?? 0, power2: player.power2 ?? 0, power3: player.power3 ?? 0, brainStoneBowl: (player as any).brainStoneBowl };
 			player.knowledge -= 2;
 			if (player.faction === 'taklons') {
 				spendTaklonsPower(player, 3, 3, true);
@@ -8890,7 +8903,7 @@ export function executeUseShipAction(
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
-			game.pendingEclipseResearch = { playerId, shipTileId };
+			game.pendingEclipseResearch = { playerId, shipTileId, pre: preEclipseBot };
 			addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); emitGameUpdated(io, game);

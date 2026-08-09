@@ -501,7 +501,11 @@ export interface GaiaGameState {
   /** TF Mars 액션2: 포밍 보너스 타일과 동일 = 가이아 프로젝트 액션 1회 (Transdim에 가이아포머 배치) */
   pendingTFMarsGaiaProject?: { playerId: string; shipTileId: string } | null;
   /** Eclipse 액션2: 2K+3P 지불 후 올릴 연구 트랙 선택 대기 */
-  pendingEclipseResearch?: { playerId: string; shipTileId: string } | null;
+  pendingEclipseResearch?: {
+    playerId: string; shipTileId: string;
+    /** [취소 정확도 2026-08-07] 지불 직전 스냅샷 — 종족별 지불 경로(타클론 브레인/네블라 토큰환산)를 그대로 되돌리기 위함 */
+    pre?: { knowledge: number; power1: number; power2: number; power3: number; brainStoneBowl?: number };
+  } | null;
   /** Eclipse 액션3: 6C 지불 후 소행성 광산 건설할 타일 선택 대기 */
   pendingEclipseAsteroidMine?: { playerId: string; shipTileId: string } | null;
   /** 우주선 기술 타일 3개 중 하나 획득 시: 하단 풀 3개처럼 6개 트랙 중 원하는 트랙 1칸 진행 선택 대기 */
