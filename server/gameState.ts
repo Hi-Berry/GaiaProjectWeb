@@ -125,7 +125,29 @@ const AI_BOTS_ENABLED = isAiEnabled();
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
 const GAME_LOG_TAIL = 40;
 const _emitStats: Record<string, { n: number; raw: number; gz: number }> = {};
+/** [대역폭 2026-08-07, 사용자] 실측: 게임당 emit 4,000~5,500회(압축 후 47~67MB/수신자) — 액션 1회에 20~29회.
+ *  원인은 "상태를 바꿀 때마다 보낸다"는 관행(165개 호출 지점)이고, 같은 이벤트 루프 tick 안에서 연달아 나가는
+ *  emit은 화면상 구분되지 않는다(브라우저는 마지막 상태만 그림). → tick 단위로 합쳐 마지막 1회만 실제 전송.
+ *  ★사용자 경험 불변 보장: (1) tick 경계를 넘는 emit(봇 순차 진행·타이머·소켓 응답)은 그대로 각각 나감
+ *  (2) 합쳐지는 건 '같은 tick 안의 중간 상태'뿐이라 클라가 보던 최종 상태와 동일 (3) EMIT_COALESCE=0으로 즉시 해제. */
+const _pendingEmit = new Map<string, { io: any; game: any }>();
+function flushPendingEmit(gameId: string) {
+	const p = _pendingEmit.get(gameId);
+	if (!p) return;
+	_pendingEmit.delete(gameId);
+	// ★정합성: 이 tick에 롤백/리셋으로 game 객체가 통째로 교체됐거나(games.set) 방이 삭제됐을 수 있다.
+	//   항상 현재 등록된 게임을 우선 사용하고, 삭제됐으면 아무것도 보내지 않는다(유령 상태 방송 방지).
+	const cur = games.get(gameId);
+	if (!cur) return;
+	emitGameUpdatedNow(p.io, cur);
+}
 export function emitGameUpdated(io: any, game: any) {
+	if (process.env.EMIT_COALESCE === '0' || !game?.id) { emitGameUpdatedNow(io, game); return; }
+	const had = _pendingEmit.has(game.id);
+	_pendingEmit.set(game.id, { io, game });   // 항상 최신 game 참조로 갱신
+	if (!had) queueMicrotask(() => flushPendingEmit(game.id));
+}
+function emitGameUpdatedNow(io: any, game: any) {
 	const logArr = game.gameLog || [];
 	const payload = logArr.length > GAME_LOG_TAIL
 		? { ...game, gameLog: logArr.slice(-GAME_LOG_TAIL), gameLogStart: logArr.length - GAME_LOG_TAIL, gameLogLen: logArr.length }
@@ -506,7 +528,7 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	const cut = hist.findIndex(h => h.seq === entry.seq);
 	if (cut >= 0) hist.splice(cut + 1);
 	log(`[ROLLBACK] ${game.id} → seq ${entry.seq} (R${entry.round} ${entry.playerName} 턴 시작)`, 'game', game.id);
-	io.to(game.id).emit('game_updated', restored);
+	emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback): ${err}`, 'error'));
 }
 
@@ -3979,7 +4001,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			games.set(gameId, restored);
 			clampPlayerResources(restored);
 			log(`Admin: rolled back turn for ${restored.players[playerId]?.name ?? playerId}`, 'game', gameId);
-			io.to(gameId).emit('game_updated', restored);
+			emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 			callback?.({ ok: true, playerName: restored.players[playerId]?.name });
 			executeBotTurnIfNeeded(io, restored).catch(err => {
 				log(`Bot turn execution error (admin_rollback_turn): ${err}`, 'error');
@@ -4790,7 +4812,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				games.set(gameId, restored);
 
 				clampPlayerResources(restored);
-				io.to(gameId).emit('game_updated', restored);
+				emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 			} else {
 				// 하위 호환성용 (기존 필드 복구)
 				game.players[playerId] = deepClone(startState.playerState);
@@ -5063,7 +5085,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					log(`[BRAIN-UNDO-DIAG] live→restored | live{bowl=${_diagLive.bowl} gaia=${_diagLive.gaia} p1=${_diagLive.p1} p2=${_diagLive.p2} p3=${_diagLive.p3}} restored{bowl=${(player as any).brainStoneBowl} gaia=${(player as any).brainStoneInGaia} p1=${player.power1} p2=${player.power2} p3=${player.power3}}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 				addGameLog(restoredGame, playerId, 'Undo Free Action', `Reverted ${popCount} free action step(s)`);
-				io.to(gameId).emit('game_updated', restoredGame);
+				emitGameUpdated(io, restoredGame); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 			} catch (err) {
 				log(`Failed to restore freeActionUndoStack: ${err}`, 'error');
 			}
@@ -6200,7 +6222,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					hideHeavyServerFields(restored);
 					games.set(gameId, restored);
 					clampPlayerResources(restored);
-					io.to(gameId).emit('game_updated', restored);
+					emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 				} else {
 					game.players[playerId] = deepClone(startState.playerState);
 					game.map = deepClone(startState.mapState);
