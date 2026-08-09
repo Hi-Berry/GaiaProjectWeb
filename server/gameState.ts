@@ -6790,7 +6790,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [사용자 2026-08-01] 테라포밍 스텝 구매 상태(3PW/보너스/TF마스 3C)에서는 1스텝 이상 소모되는 행성만 건설 허용.
 	// 가이아·포밍된 행성(스텝 0)은 스텝을 안 쓰고 지어져 스텝이 남고, 메인 액션 후에도 6472 우회로
 	// '포밍한 곳 공짜 광산'이 가능했던 exploit 차단. 봇은 제외(교착 방지 — 봇은 이 경로를 악용하지 않음).
-	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine
+	// [예외 확대 2026-08-09 사용자] '2TF+무료광산'류(우주선 기술타일 ship-tech-2tf-mine, 우주선 연방 3TF+무료광산,
+	//   아이타 교환 2TF+Mine)는 타일이 광산 자체를 주는 보상이라 테라 스텝을 안 쓰고 모행성(0스텝)에 지어도 정당하다.
+	//   위 exploit(스텝만 사놓고 0스텝 행성에 공짜 광산)과 구분되므로 가드에서 제외한다.
+	const isGrantedFreeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree
+		|| game.pendingShipTechMine?.playerId === playerId;
+	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine && !isGrantedFreeMine
 		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
 		const stepsNeeded = (tile.type === 'gaia' || tile.type === 'transdim' || isPendingGaiaBuild)
 			? 0 : getTerraformStepsForFaction(game, player.faction!, tile.type);
