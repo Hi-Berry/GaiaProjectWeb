@@ -61,6 +61,15 @@ const TINKEROID_SPECIAL_LABELS: Record<string, string> = {
   'tinkeroid-2qic': '2 QIC',
   'tinkeroid-3tf-mine': '3 TF + 광산 건설',
 };
+/** 칩(스트립)용 짧은 표기 — 다른 종족 칩(스자:2테라 등)과 '테라' 용어 통일 */
+const TINKEROID_SPECIAL_SHORT: Record<string, string> = {
+  'tinkeroid-1tf-mine': '1테라+광산',
+  'tinkeroid-1qic': '1QIC',
+  'tinkeroid-4power': '4파워',
+  'tinkeroid-3k': '3지식',
+  'tinkeroid-2qic': '2QIC',
+  'tinkeroid-3tf-mine': '3테라+광산',
+};
 
 /** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). 인덱스 1~6 = 1tf-mine,1qic,4power,3k,2qic,3tf-mine */
 const TINKEROID_SPECIAL_IMAGES: Record<string, string> = {
@@ -219,10 +228,13 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
   if (p.faction === 'ambas' && hasPI) out.push({ key: 'ambas', actionId: 'ambas-swap-pi-mine', label: '엠바스: PI-광산 교체', short: '엠바스:PI-Mine교체', used: used.includes('ambas-swap-pi-mine') });
   if (p.faction === 'firaks' && hasPI) out.push({ key: 'firaks', actionId: 'firaks-downgrade', label: '파이락: 다운그레이드', short: '파이락:다운그레이드', used: used.includes('firaks-downgrade') });
   if (p.faction === 'gleens') out.push({ key: 'gleens', actionId: 'gleens-2nav', label: '글린: +2항해', short: '글린:+2항해', used: used.includes('gleens-2nav') });
-  if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '거인: 2테라', short: '거인:2테라', used: used.includes('space_giants-2tf') });
+  if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '스자: 2테라', short: '스자:2테라', used: used.includes('space_giants-2tf') });
   if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
-    const nm = p.tinkeroidRoundSpecialId.replace('tinkeroid-', '');
-    out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${nm}`, short: `팅커:${nm}`, used: used.includes('tinkeroid-special') });
+    // [사용자 2026-08-09] 예전엔 ID 접두어만 떼서 '1tf-mine'처럼 원시 문자열이 노출됐다 → 한글 라벨 사용.
+    //   칩은 폭이 좁아 짧은 표기(1테라+광산), 상세 라벨은 기존 표기(1 TF + 광산 건설) 유지.
+    const full = TINKEROID_SPECIAL_LABELS[p.tinkeroidRoundSpecialId] ?? p.tinkeroidRoundSpecialId;
+    const nmShort = TINKEROID_SPECIAL_SHORT[p.tinkeroidRoundSpecialId] ?? full;
+    out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${full}`, short: `팅커:${nmShort}`, used: used.includes('tinkeroid-special') });
   }
   return out;
 }
@@ -5897,7 +5909,7 @@ export default function Game() {
                                 if (p.faction === 'space_giants') {
                                   actionNodes.push(
                                     renderActionBtn(
-                                      (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '거인:2테라',
+                                      (p as any).usedSpecialActions?.includes('space_giants-2tf') ?? false, canDoMain, 'space_giants-2tf', '스자:2테라',
                                       'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold',
                                       'bg-orange-500/20 text-orange-400 border-orange-500/40 font-bold hover:bg-orange-500/40'
                                     )
