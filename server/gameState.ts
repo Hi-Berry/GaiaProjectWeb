@@ -8479,7 +8479,7 @@ export function executeUseSpecialAction(
 		player.usedSpecialActions.push('tinkeroid-special');
 		if (actionId === 'tinkeroid-1tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 Terraform Step', actionId);
 		} else if (actionId === 'tinkeroid-1qic') {
 			grantQic(game, playerId, 1);
 			game.hasDoneMainAction = true;
@@ -8498,7 +8498,7 @@ export function executeUseSpecialAction(
 			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', actionId);
 		} else if (actionId === 'tinkeroid-3tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Terraform Steps', actionId);
 		}
 		applied = true;
 	}

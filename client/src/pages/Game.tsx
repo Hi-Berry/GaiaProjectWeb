@@ -52,23 +52,24 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 
-/** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3라운드: 1TF+광산, 1QIC, 4파워 / 4–6라운드: 3K, 2QIC, 3TF+광산) */
+/** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3R: 테라1스텝·1QIC·4파워 / 4–6R: 3K·2QIC·테라3스텝)
+ *  [사용자 2026-08-09] 예전 '1 TF + 광산 건설' 표기는 오해 — 실제로는 테라포밍 스텝만 주고 광산은 직접 짓는다(보너스 타일 테라 액션과 동일). */
 const TINKEROID_SPECIAL_LABELS: Record<string, string> = {
-  'tinkeroid-1tf-mine': '1 TF + 광산 건설',
+  'tinkeroid-1tf-mine': '테라포밍 1스텝',
   'tinkeroid-1qic': '1 QIC',
   'tinkeroid-4power': '4 파워',
   'tinkeroid-3k': '3 지식',
   'tinkeroid-2qic': '2 QIC',
-  'tinkeroid-3tf-mine': '3 TF + 광산 건설',
+  'tinkeroid-3tf-mine': '테라포밍 3스텝',
 };
 /** 칩(스트립)용 짧은 표기 — 다른 종족 칩(스자:2테라 등)과 '테라' 용어 통일 */
 const TINKEROID_SPECIAL_SHORT: Record<string, string> = {
-  'tinkeroid-1tf-mine': '1테라+광산',
+  'tinkeroid-1tf-mine': '1테라',
   'tinkeroid-1qic': '1QIC',
   'tinkeroid-4power': '4파워',
   'tinkeroid-3k': '3지식',
   'tinkeroid-2qic': '2QIC',
-  'tinkeroid-3tf-mine': '3테라+광산',
+  'tinkeroid-3tf-mine': '3테라',
 };
 
 /** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). 인덱스 1~6 = 1tf-mine,1qic,4power,3k,2qic,3tf-mine */
@@ -231,7 +232,7 @@ function getSpecialActionsForPlayer(game: GameState, pid: string): SpecialAction
   if (p.faction === 'space_giants') out.push({ key: 'space_giants', actionId: 'space_giants-2tf', label: '스자: 2테라', short: '스자:2테라', used: used.includes('space_giants-2tf') });
   if (p.faction === 'tinkeroids' && p.tinkeroidRoundSpecialId) {
     // [사용자 2026-08-09] 예전엔 ID 접두어만 떼서 '1tf-mine'처럼 원시 문자열이 노출됐다 → 한글 라벨 사용.
-    //   칩은 폭이 좁아 짧은 표기(1테라+광산), 상세 라벨은 기존 표기(1 TF + 광산 건설) 유지.
+    //   칩은 폭이 좁아 짧은 표기(1테라), 상세는 '테라포밍 1스텝'.
     const full = TINKEROID_SPECIAL_LABELS[p.tinkeroidRoundSpecialId] ?? p.tinkeroidRoundSpecialId;
     const nmShort = TINKEROID_SPECIAL_SHORT[p.tinkeroidRoundSpecialId] ?? full;
     out.push({ key: 'tinkeroids', actionId: p.tinkeroidRoundSpecialId, label: `팅커: ${full}`, short: `팅커:${nmShort}`, used: used.includes('tinkeroid-special') });
