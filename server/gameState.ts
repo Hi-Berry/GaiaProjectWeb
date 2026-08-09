@@ -5481,7 +5481,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.pendingSpaceshipFedMine?.playerId !== playerId) return;
 			game.pendingSpaceshipFedMine = null;
-			addGameLog(game, playerId, 'Spaceship Fed', '무료 광산 배치 포기');
+			addGameLog(game, playerId, 'Spaceship Fed', 'Skipped free mine placement');
 			emitGameUpdated(io, game);
 		});
 
@@ -6871,7 +6871,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 		}
 
-		addGameLog(game, playerId, 'Spaceship Fed', `Mine 무한거리 (기본무료${fedTerraOre ? `, ${fedTerraOre}O 테라포밍` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC 가이아` : ''})`, tileId);
+		addGameLog(game, playerId, 'Spaceship Fed', `Mine unlimited range (Free${fedTerraOre ? `, ${fedTerraOre}O terraform` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC gaia` : ''})`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_mine');
 		if (rm7Qualify) applyRoundMissionScore(game, playerId, 'new_sector');
 		if (tile.type === 'gaia') applyRoundMissionScore(game, playerId, 'build_gaia');
@@ -7201,7 +7201,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	}
 	// 비용 표기는 실제 청구액(freeMine이면 0) 기준 — 기존엔 '1O, 2C'를 하드코딩해 무료 광산(우주선 연방 보상 등)에도 비용이 찍히던 버그(사용자 관찰)
 	const costDetails = freeMine
-		? `무료${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
+		? `Free${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
 		: `${standardMineOre}O, ${standardMineCredits}C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
 	for (const seg of gaiaMineVpSegments) appendVpSegmentToLastLog(game, playerId, seg.vp, seg.reason);
