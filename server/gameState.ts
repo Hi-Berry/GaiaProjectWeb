@@ -4605,29 +4605,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			const pending = game.pendingEclipseResearch;
-			if (!pending || pending.playerId !== playerId) return;
-
-			// 자원 롤백
-			const player = game.players[playerId];
-			player.knowledge = (player.knowledge || 0) + 2;
-			player.power3 = (player.power3 || 0) + 3;
-			player.power1 = Math.max(0, (player.power1 || 0) - 3);
-
-			// 사용된 액션 인덱스 롤백 (액션 인덱스 2번)
-			const shipState = game.spaceships?.[pending.shipTileId];
-			if (shipState && shipState.usedActionIndices) {
-				shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 2);
-				shipState.actionsUsed = shipState.usedActionIndices.length;
-			}
-
-			// 메인 액션 사용 취소
-			game.hasDoneMainAction = false;
-			game.pendingEclipseResearch = null;
-			// [로그 잔류 버그수정] 취소인데 "Eclipse: 2K+3P → Research (choose track)" placeholder 로그가 남던 것 제거
-			//   (자원만 수동 환불하고 로그/seq는 안 건드려, 이후 다른 액션 로그와 함께 둘 다 남던 사용자 관찰).
-			removeLastGameLogEntry(game, playerId, 'Eclipse: 2K+3P → Research');
-			clampPlayerResources(game); emitGameUpdated(io, game);
+			// [버그수정 2026-08-10 사용자 제보 "타클론 2K+3P 취소하면 토큰이 생김"]
+			//   여기서 knowledge+2 / power3+3 / power1-3을 하드코딩 환불하던 것 → executeCancelEclipseResearch로 위임.
+			//   지불부(:4439)가 남기는 pre 스냅샷을 그 함수가 그대로 되돌린다. 하드코딩은 종족별 지불 경로와 어긋났다:
+			//   타클론이 브레인(=3파워)으로 내면 power3는 줄지 않고 브레인만 3그릇→1그릇인데, 환불은 power3에 3개를
+			//   새로 만들고 넣은 적 없는 power1에서 3개를 빼려 해 토큰이 통째로 늘었다(네블라 의회 반값 환산도 동일).
+			//   795d59a가 봇 폴백용 executeCancelEclipseResearch만 고치고 이 사람용 핸들러를 놓쳤던 것.
+			executeCancelEclipseResearch(io, game, playerId);
 		});
 
 		// Eclipse 액션3(6C 소행성) 취소: 6C 환불 + 액션 사용 롤백 (건설 가능 소행성이 없을 때 진행 불가 해소)
