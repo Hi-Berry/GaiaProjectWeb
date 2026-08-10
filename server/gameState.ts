@@ -4439,7 +4439,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					const preEclipse = { knowledge: player.knowledge ?? 0, power1: player.power1 ?? 0, power2: player.power2 ?? 0, power3: player.power3 ?? 0, brainStoneBowl: (player as any).brainStoneBowl };
 					player.knowledge -= 2;
 					if (player.faction === 'taklons') {
-						spendTaklonsPower(player, 3, 3, true);
+						// [버그수정 2026-08-10] useBrain을 true로 못박아 '브레인 보존' 설정을 무시했다 —
+						//   같은 핸들러의 다른 배 액션 3곳(:4265 :4329 :4384)은 모두 taklonsBrainPriority를 따른다.
+						//   보존을 골라도 3그릇 브레인이 항상 소모돼 큰 액션용으로 아껴둘 수 없었다.
+						//   (보존인데 일반토큰이 모자라면 spendTaklonsPower가 알아서 브레인으로 폴백하므로 액션은 막히지 않는다)
+						spendTaklonsPower(player, 3, 3, player.taklonsBrainPriority ?? true);
 					} else {
 						player.power3 -= shipPowerTokens(3);
 						player.power1 = (player.power1 || 0) + shipPowerTokens(3);

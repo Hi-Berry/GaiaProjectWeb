@@ -23,8 +23,8 @@ const SHIP = 'ship_tile_1';
 type Power = { power1: number; power2: number; power3: number; brainStoneBowl?: 1 | 2 | 3 };
 
 /** 지불 직전 상태 → 이클립스 2K+3P 지불 → pending 세팅까지, use_ship_action(:4430) 경로를 그대로 재현 */
-function setup(faction: string, start: Power & { knowledge: number }, hasNevlasPI = false) {
-	const player: any = { name: 'Me', faction, knowledge: start.knowledge, ore: 0, credits: 0, qic: 0, ...start };
+function setup(faction: string, start: Power & { knowledge: number }, hasNevlasPI = false, brainPriority = true) {
+	const player: any = { name: 'Me', faction, knowledge: start.knowledge, ore: 0, credits: 0, qic: 0, taklonsBrainPriority: brainPriority, ...start };
 	const game: any = {
 		id: 'g', currentPhase: 'main',
 		players: { [ME]: player },
@@ -38,7 +38,7 @@ function setup(faction: string, start: Power & { knowledge: number }, hasNevlasP
 	const pre = { knowledge: player.knowledge, power1: player.power1, power2: player.power2, power3: player.power3, brainStoneBowl: player.brainStoneBowl };
 	player.knowledge -= 2;
 	if (faction === 'taklons') {
-		spendTaklonsPower(player, 3, 3, true);
+		spendTaklonsPower(player, 3, 3, player.taklonsBrainPriority ?? true);
 	} else {
 		player.power3 -= shipPowerTokens(3);
 		player.power1 = (player.power1 || 0) + shipPowerTokens(3);
@@ -75,6 +75,25 @@ const check = (name: string, actual: unknown, expected: unknown) => {
 	check('타클론(브레인 2그릇) 지불 — 일반토큰 3개가 1그릇으로', snap(player), { k: 2, p1: 4, p2: 2, p3: 0, bs: 2 });
 	executeCancelEclipseResearch(ioStub, game, ME);
 	check('타클론(브레인 2그릇) 취소 — 원복', snap(player), { k: 4, p1: 1, p2: 2, p3: 3, bs: 2 });
+}
+
+// '브레인 보존'(taklonsBrainPriority=false)이면 브레인을 아끼고 일반 토큰으로 낸다.
+// (기존엔 이 액션만 useBrain=true로 못박혀 설정을 무시하고 브레인을 항상 썼다 — 다른 배 액션 3곳은 설정을 따름)
+{
+	const before = { knowledge: 4, power1: 0, power2: 0, power3: 3, brainStoneBowl: 3 as const };
+	const { game, player } = setup('taklons', before, false, false);
+	check('브레인 보존 — 일반토큰 3개로 지불, 브레인은 3그릇 유지', snap(player), { k: 2, p1: 3, p2: 0, p3: 0, bs: 3 });
+	executeCancelEclipseResearch(ioStub, game, ME);
+	check('브레인 보존 취소 — 원복', snap(player), { k: 4, p1: 0, p2: 0, p3: 3, bs: 3 });
+}
+
+// 브레인 보존이어도 일반 토큰이 모자라면 브레인으로 폴백해 액션이 막히지 않는다.
+{
+	const before = { knowledge: 4, power1: 0, power2: 0, power3: 1, brainStoneBowl: 3 as const };
+	const { game, player } = setup('taklons', before, false, false);
+	check('보존인데 일반토큰 부족 — 브레인 폴백', snap(player), { k: 2, p1: 0, p2: 0, p3: 1, bs: 1 });
+	executeCancelEclipseResearch(ioStub, game, ME);
+	check('폴백 취소 — 원복', snap(player), { k: 4, p1: 0, p2: 0, p3: 1, bs: 3 });
 }
 
 // 네블라 의회: 3그릇 토큰 1개 = 파워 2 → 3파워를 토큰 2개로 낸다. 하드코딩 3개 환불이면 1개가 늘었다.
