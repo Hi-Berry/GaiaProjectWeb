@@ -1095,6 +1095,53 @@ function computeConnectedFederation(
 	return { planetIds, power, connected };
 }
 
+/** [불필요 위성 재검사 2026-08-10 사용자 지적] 위성 일부를 뺀 상태에서도, 원래 연방에 들어간 건물들만으로
+ *  요구 파워를 채우는 연결 덩어리가 남는지. 남으면 그 위성은 없어도 됐던 것.
+ *
+ *  기존엔 computeConnectedFederation에 '클릭 목록'을 그대로 넘겨 재검사했는데, 그 함수는 시드가 비면
+ *  connected=false를 돌려준다(선택 없음 = 판정 불가). 위성만 클릭한 사람은 그 위성을 빼는 순간 시드가 0개가 돼
+ *  '연방 불가'로 잘못 읽혀 경고가 안 떴고, 건물까지 클릭한 사람만 경고를 받았다 — 같은 보드인데 클릭 순서로 갈렸다.
+ *  그래서 시드를 클릭 목록이 아니라 '원래 컴포넌트의 건물'에서 잡는다. 위성을 빼면 컴포넌트가 쪼개질 뿐이므로
+ *  조각들만 확인하면 되고, 연방과 무관한 다른 곳의 건물 덩어리는 시드가 아니라 오탐이 되지 않는다. */
+export function federationFormsWithoutSatellite(
+	game: ServerGameState,
+	playerId: string,
+	satelliteHexIds: string[],
+	seedBuildingIds: Set<string> | string[],
+	requiredPower: number
+): boolean {
+	const fedHexes = new Set(game.playerFederationHexes?.[playerId] ?? []);
+	const satSet = new Set(satelliteHexIds);
+	const ownedBuilding = (t: HexTile) =>
+		(t.ownerId === playerId && t.structure != null && t.structure !== 'ship') ||
+		t.parasiticMine?.ownerId === playerId ||
+		t.spaceStation?.ownerId === playerId;
+	const passable = (t: HexTile) => !fedHexes.has(t.id) && (satSet.has(t.id) || ownedBuilding(t));
+	const visited = new Set<string>();
+	const seeds = Array.isArray(seedBuildingIds) ? seedBuildingIds : Array.from(seedBuildingIds);
+	for (const seedId of seeds) {
+		if (visited.has(seedId)) continue;
+		const seed = game.map.find(t => t.id === seedId);
+		if (!seed || !passable(seed)) continue;
+		const comp = new Set<string>([seedId]);
+		const queue = [seedId];
+		visited.add(seedId);
+		while (queue.length) {
+			const cid = queue.shift()!; // shift는 find 술어 밖에서 (1122줄과 같은 함정)
+			const cur = game.map.find(t => t.id === cid);
+			if (!cur) continue;
+			for (const n of getNeighbors(game.map, cur)) {
+				if (comp.has(n.id) || !passable(n)) continue;
+				comp.add(n.id); visited.add(n.id); queue.push(n.id);
+			}
+		}
+		const buildings = new Set<string>();
+		comp.forEach(id => { const t = game.map.find(x => x.id === id); if (t && ownedBuilding(t)) buildings.add(id); });
+		if (getFederationBuildingPower(game, playerId, buildings, satelliteHexIds) >= requiredPower) return true;
+	}
+	return false;
+}
+
 /** Ivits(하이브) 연방 연결성: 선택한 위성·건물·우주정거장이 (내 건물망 + 기존 연방 칸을 통과해) 하나로 연결되는지.
  *  통과 가능: 선택 위성 + 내 건물/우주정거장/기생광산 + 기존 연방 칸. 새로 선택한 모든 칸이 한 컴포넌트면 connected.
  *  (Ivits는 완성 시 파워만 검사했어서 A옆·B옆 따로 위성을 놓아도 연방이 서던 버그 수정용.) */
@@ -5617,12 +5664,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 					return;
 				}
 				// 불필요한 위성 경고: 위성 하나를 빼도 연결+파워 충족이면 토큰 낭비 → 확인 후 진행 (force=true면 통과)
+				// [2026-08-10 사용자 지적] 판정 시드를 '클릭 목록'이 아니라 '이번 연방에 든 건물(net.planetIds)'에서 잡는다.
+				// 예전 방식은 위성만 클릭한 경우 위성을 빼면 시드가 비어 판정 불가 → 경고가 안 떴다(클릭 순서로 갈림).
 				if (!force && selectedHexIds.length > 0) {
-					const redundantCount = selectedHexIds.filter(sid => {
-						const reduced = selectedHexIds.filter(id => id !== sid);
-						const test = computeConnectedFederation(game, playerId, reduced, selectedSpaceStationHexIds, selectedPlanetIds);
-						return test.connected && test.power >= requiredPower;
-					}).length;
+					const redundantCount = selectedHexIds.filter(sid =>
+						federationFormsWithoutSatellite(game, playerId, selectedHexIds.filter(id => id !== sid), net.planetIds, requiredPower)
+					).length;
 					if (redundantCount > 0) {
 						log(`Federation complete warning: ${redundantCount} redundant satellite(s)`, 'game', undefined, { simulation: (game as any).simulation });
 						socket.emit('federation_redundant_warning', { count: redundantCount });
