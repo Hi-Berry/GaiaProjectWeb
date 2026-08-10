@@ -9964,6 +9964,15 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	const gaiaLevel = player.research.gaiaProject || 0;
 	let powerToMove = 0;
 
+	// [버그수정 2026-08-10 사용자 "왜 타클론 브레인스톤으로 포밍 못해?"] 브레인 스톤도 토큰 1개로 센다.
+	//   연방 위성·인공물 비용(spendPowerTokens :811)은 2026-06-29에 이미 반영됐는데, 가이아포밍은 그 헬퍼를 안 쓰고
+	//   손으로 그릇을 비우는 탓에 power1+2+3만 봐서 브레인이 계산에 아예 안 잡혔다(버튼은 활성인데 조용히 실패).
+	//   일반 토큰을 먼저 다 쓰고 '부족분 1개'만 브레인으로 충당한다 — 브레인은 파워로 낼 땐 3인데 여기선 1이라 아깝다.
+	//   쓴 브레인은 가이아 영역으로(brainStoneInGaia) → 가이아 단계에 그릇1로 복귀(:2678). gaiaformerPower는 일반
+	//   토큰만 세야 한다(브레인은 저 경로로 따로 돌아오므로, 같이 세면 복귀 때 없던 일반 토큰이 1개 생긴다).
+	const brainAvailForGaia = (player.faction === 'taklons' && player.brainStoneBowl != null
+		&& !player.brainStoneInGaia && !player.brainStoneSpent) ? 1 : 0;
+
 	const pendingGaia = game.pendingTFMarsGaiaProject;
 	// [버그수정 2026-07-20] 소유자 미확인: 다른 플레이어의 pending('bonus-gaia')이 남아 있으면 내 일반 배치가
 	// 무료 즉포로 오판(반대로 pending이 어긋나면 즉포가 유료 오판될 수도) — playerId 일치까지 요구.
@@ -9975,8 +9984,8 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 		else if (gaiaLevel >= 3 && gaiaLevel < 4) powerToMove = 4;
 		else if (gaiaLevel >= 4) powerToMove = 3;
 		else return false;
-		// 총 보유 토큰 검증을 차감 전에 완료
-		if (((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0)) < powerToMove) return false;
+		// 총 보유 토큰 검증을 차감 전에 완료 (타클론 브레인 스톤 1개 포함)
+		if (((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvailForGaia) < powerToMove) return false;
 	}
 
 	// ---- 여기부터 성공 확정: 자원 차감/플래그 소모 ----
@@ -9999,7 +10008,16 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 		player.power3 = (player.power3 || 0) - movedFrom3;
 		remaining -= movedFrom3;
 
-		player.gaiaformerPower = (player.gaiaformerPower || 0) + powerToMove;
+		// 일반 토큰으로 모자란 마지막 1개만 브레인 스톤으로 (가이아 영역으로 이동 → 가이아 단계에 그릇1 복귀)
+		let brainMoved = 0;
+		if (remaining > 0 && brainAvailForGaia) {
+			player.brainStoneInGaia = true;
+			brainMoved = 1;
+			remaining -= 1;
+			addGameLog(game, playerId, 'Taklons: Brain Stone', 'Moved to Gaia (counts as 1 token)', tileId);
+		}
+
+		player.gaiaformerPower = (player.gaiaformerPower || 0) + (powerToMove - brainMoved);
 	}
 
 	player.gaiaformers = (player.gaiaformers || 0) - 1;
