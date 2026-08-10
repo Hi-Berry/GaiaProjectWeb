@@ -2734,14 +2734,13 @@ export default function Game() {
         document.body
       )}
 
-      {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
-      {/* [사용자 2026-08-01] 의회/수입/파워 대기 배너가 미니뷰(z-110)에 가려짐 — 배너 떠 있는 동안만 사이드바를 위(z-135)로 */}
-      <div className={`absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col ${(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) ? 'z-[135]' : 'z-[50]'} pointer-events-none *:pointer-events-auto`}>
-        {/* [사용자 2026-08-01] 의회/수입/파워 배너가 툴바 flow에 끼어 미니뷰 토글 버튼을 밀어냈다 되돌리던 문제 —
-            배너를 absolute 오버레이로 분리: 버튼은 제자리 고정, 배너가 떠 있는 동안만 위에 '덮이고' 끝나면 다시 드러남 */}
-        {(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) && (
-        <div className="absolute top-0 left-0 right-0 z-[120] p-2 pointer-events-auto">
-          <div className="rounded-xl bg-zinc-950/90 backdrop-blur-md p-1.5 space-y-2 shadow-2xl">
+      {/* 의회/수입/파워 대기 배너 — 사이드바 '밖'의 형제 오버레이.
+          [사용자 2026-08-01] 배너를 툴바 flow에서 빼 미니뷰 토글 버튼이 밀렸다 되돌아오던 레이아웃 점프 제거.
+          [사용자 2026-08-10] 예전엔 배너가 떠 있는 동안 사이드바 '전체'를 z-135로 올려 미니뷰(z-110)를 넘겼는데,
+            좌하단 버튼들도 같은 컨테이너라 함께 딸려 올라가 미니뷰 위로 튀어나왔다 → 배너만 올린다. */}
+      {(councilPendingInfo || incomeWaiters.length > 0 || (pendingTurnEndPlayerName && pendingPowerWaiters.length > 0)) && (
+      <div className="absolute left-0 top-0 w-64 md:w-80 z-[135] hidden md:block p-2 pointer-events-none">
+          <div className="rounded-xl bg-zinc-950/90 backdrop-blur-md p-1.5 space-y-2 shadow-2xl pointer-events-auto">
           {councilPendingInfo && (
             <div className="bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 rounded-lg px-3 py-2 text-xs md:text-sm">
               <div className="flex items-start gap-2">
@@ -2820,9 +2819,12 @@ export default function Game() {
             </div>
           )}
           </div>
-        </div>
-        )}
+      </div>
+      )}
 
+      {/* Sidebar Overlay (Left) — 모바일에선 숨김(미니뷰 토글·방장 전환 UI 제거), 대신 우하단 Info 버튼으로 3페이지 오버레이 사용 */}
+      {/* z는 항상 50 — 배너 때문에 올리지 않는다(위 주석 참고). 미니뷰(z-110)가 좌하단 버튼을 계속 덮어야 정상. */}
+      <div className="absolute left-0 top-0 bottom-0 w-64 md:w-80 transition-all duration-300 hidden md:flex flex-col z-[50] pointer-events-none *:pointer-events-auto">
         {/* 상단 툴바: 미니뷰 토글 및 (방장 전용) 플레이어 전환 */}
         <div className="p-2 border-border space-y-2 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none block w-full max-w-full relative z-[110]">
           <div className="flex gap-1 items-end bg-black/80 rounded-lg p-1 md:p-0 md:bg-transparent shadow-xl md:shadow-none">
