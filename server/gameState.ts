@@ -6,6 +6,7 @@ import type { Server as HTTPServer } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './index';
+import { getClientBuildId } from './static';
 import { setSeatPassword, findSeatByPassword } from './accounts';
 import { StateCloner } from './ai/stateCloner';
 import type {
@@ -125,7 +126,29 @@ const AI_BOTS_ENABLED = isAiEnabled();
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
 const GAME_LOG_TAIL = 40;
 const _emitStats: Record<string, { n: number; raw: number; gz: number }> = {};
+/** [대역폭 2026-08-07, 사용자] 실측: 게임당 emit 4,000~5,500회(압축 후 47~67MB/수신자) — 액션 1회에 20~29회.
+ *  원인은 "상태를 바꿀 때마다 보낸다"는 관행(165개 호출 지점)이고, 같은 이벤트 루프 tick 안에서 연달아 나가는
+ *  emit은 화면상 구분되지 않는다(브라우저는 마지막 상태만 그림). → tick 단위로 합쳐 마지막 1회만 실제 전송.
+ *  ★사용자 경험 불변 보장: (1) tick 경계를 넘는 emit(봇 순차 진행·타이머·소켓 응답)은 그대로 각각 나감
+ *  (2) 합쳐지는 건 '같은 tick 안의 중간 상태'뿐이라 클라가 보던 최종 상태와 동일 (3) EMIT_COALESCE=0으로 즉시 해제. */
+const _pendingEmit = new Map<string, { io: any; game: any }>();
+function flushPendingEmit(gameId: string) {
+	const p = _pendingEmit.get(gameId);
+	if (!p) return;
+	_pendingEmit.delete(gameId);
+	// ★정합성: 이 tick에 롤백/리셋으로 game 객체가 통째로 교체됐거나(games.set) 방이 삭제됐을 수 있다.
+	//   항상 현재 등록된 게임을 우선 사용하고, 삭제됐으면 아무것도 보내지 않는다(유령 상태 방송 방지).
+	const cur = games.get(gameId);
+	if (!cur) return;
+	emitGameUpdatedNow(p.io, cur);
+}
 export function emitGameUpdated(io: any, game: any) {
+	if (process.env.EMIT_COALESCE === '0' || !game?.id) { emitGameUpdatedNow(io, game); return; }
+	const had = _pendingEmit.has(game.id);
+	_pendingEmit.set(game.id, { io, game });   // 항상 최신 game 참조로 갱신
+	if (!had) queueMicrotask(() => flushPendingEmit(game.id));
+}
+function emitGameUpdatedNow(io: any, game: any) {
 	const logArr = game.gameLog || [];
 	const payload = logArr.length > GAME_LOG_TAIL
 		? { ...game, gameLog: logArr.slice(-GAME_LOG_TAIL), gameLogStart: logArr.length - GAME_LOG_TAIL, gameLogLen: logArr.length }
@@ -506,7 +529,7 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	const cut = hist.findIndex(h => h.seq === entry.seq);
 	if (cut >= 0) hist.splice(cut + 1);
 	log(`[ROLLBACK] ${game.id} → seq ${entry.seq} (R${entry.round} ${entry.playerName} 턴 시작)`, 'game', game.id);
-	io.to(game.id).emit('game_updated', restored);
+	emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback): ${err}`, 'error'));
 }
 
@@ -1360,14 +1383,14 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 					playerName: targetPlayer.name,
 					text: `↳ Received Power +1P ${targetPlayer.name}`
 				});
-				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (패스/마지막 라운드 자동)`, offer.tileId);
+				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (auto)`, offer.tileId);
 			} else if (offer.amount >= 2) {
 				const added = addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
-					text: `↳ Declined Power (패스 후 −${Math.max(0, offer.amount - 1)}VP 회피) ${targetPlayer.name}`
+					text: `↳ Declined Power (auto: passed) ${targetPlayer.name}`
 				});
-				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스/마지막 라운드)`, offer.tileId);
+				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `from ${sourcePlayer?.name} (auto: passed)`, offer.tileId);
 			}
 			continue;
 		}
@@ -1381,9 +1404,9 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 			const added = addSubLogToLastAction(game, sourcePlayerId, {
 				playerId: offer.targetPlayerId,
 				playerName: targetPlayer.name,
-				text: `↳ Declined Power (패스·수익만으로 풀파워${offer.vpCost > 0 ? ` / −${offer.vpCost}VP 회피` : ''}) ${targetPlayer.name}`
+				text: `↳ Declined Power (auto: bowls full) ${targetPlayer.name}`
 			});
-			if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `${sourcePlayer?.name}의 ${offer.amount}파워 제안 자동 거절 (패스 후 수익만으로 풀파워)`, offer.tileId);
+			if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `from ${sourcePlayer?.name} (auto: bowls full)`, offer.tileId);
 			continue;
 		}
 
@@ -1409,7 +1432,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
-					text: `↳ Declined Power (-${vpNow}VP avoided) ${targetPlayer.name}`
+					text: `↳ Declined Power ${targetPlayer.name}`
 				});
 			}
 			continue;
@@ -1545,9 +1568,18 @@ export function executeCancelEclipseResearch(io: SocketIOServer, game: ServerGam
 	const pending = game.pendingEclipseResearch;
 	if (!pending || pending.playerId !== playerId) return false;
 	const player = game.players[playerId];
-	player.knowledge = (player.knowledge || 0) + 2;
-	player.power3 = (player.power3 || 0) + 3;
-	player.power1 = Math.max(0, (player.power1 || 0) - 3);
+	// [취소 정확도 2026-08-07 사용자] 지불 직전 스냅샷이 있으면 그대로 복원(종족 무관 정확).
+	// 예전엔 power3+3/power1-3 하드코딩이라 타클론(브레인스톤)·네블라(토큰 환산)에서 토큰이 어긋났다.
+	const pre = (pending as any).pre;
+	if (pre) {
+		player.knowledge = pre.knowledge;
+		player.power1 = pre.power1; player.power2 = pre.power2; player.power3 = pre.power3;
+		if (pre.brainStoneBowl !== undefined) (player as any).brainStoneBowl = pre.brainStoneBowl;
+	} else {
+		player.knowledge = (player.knowledge || 0) + 2;
+		player.power3 = (player.power3 || 0) + 3;
+		player.power1 = Math.max(0, (player.power1 || 0) - 3);
+	}
 	const shipState = game.spaceships?.[pending.shipTileId];
 	if (shipState && shipState.usedActionIndices) {
 		shipState.usedActionIndices = shipState.usedActionIndices.filter(idx => idx !== 2);
@@ -2584,6 +2616,10 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			player.gleensNavBonusActive = false;
 			// [버그수정 2026-06-25] Ivits 우주정거장 플래그도 여기(canonical per-round 리셋)서 리셋 — 기존엔 6844(전원패스 분기)에만 있어, 그 경로를 못 타면 플래그가 true로 막혀 봇이 정거장을 못 놓고 여러 라운드 idle 패스(사용자 관찰: R2-4 통째 패스, 도달가능 빈칸 多).
 			player.usedIvitsSpaceStationThisRound = false;
+			// [버그수정 2026-08-09 사용자] 팅커로이드 라운드 특수타일은 '새로 고를 때 덮어쓰기'만 하고 라운드 전환에
+			//   비워지지 않아, 새 라운드가 시작됐는데 아직 안 고른 구간에 지난 라운드 타일이 칩으로 떠 있었다
+			//   (usedSpecialActions가 리셋되며 '아직 안 씀' 상태로 보임). → 여기서 비우고, 선택 완료 시 다시 채운다.
+			if (player.faction === 'tinkeroids') player.tinkeroidRoundSpecialId = undefined;
 			// [버그수정 2026-06-19] 타클론 브레인 스톤(가이아 영역) 복귀는 여기(income loop, 충전 적용 전)서 하면
 			// 그릇1으로 돌아온 직후 이 라운드 income 충전이 브레인스톤을 끌어올려버린다(사용자 관찰).
 			// 표준 순서(income 충전 → 가이아 단계 토큰 복귀)대로, 가이아포머 토큰 복귀와 같은 위치(income 이후)로 옮김.
@@ -2960,6 +2996,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
+
+		// [배포 반영 2026-08-09, 사용자] 배포하면 서버가 재시작 → 모든 클라가 재접속한다. 그 순간이
+		//   "네 번들 최신이니?"를 물어볼 가장 확실한 타이밍. 클라는 자기 __BUILD_ID__와 비교해 배너를 띄운다.
+		socket.emit('server_build', { buildId: getClientBuildId() });
 
 		/**
 		 * (Dev/Tuning) AI Evaluator 가중치 런타임 변경.
@@ -4017,7 +4057,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			games.set(gameId, restored);
 			clampPlayerResources(restored);
 			log(`Admin: rolled back turn for ${restored.players[playerId]?.name ?? playerId}`, 'game', gameId);
-			io.to(gameId).emit('game_updated', restored);
+			emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 			callback?.({ ok: true, playerName: restored.players[playerId]?.name });
 			executeBotTurnIfNeeded(io, restored).catch(err => {
 				log(`Bot turn execution error (admin_rollback_turn): ${err}`, 'error');
@@ -4395,6 +4435,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					} else if ((player.power3 ?? 0) < shipPowerTokens(3)) {
 						return;
 					}
+					// [취소 정확도 2026-08-07 사용자] 지불 직전 스냅샷 — 취소 시 종족별 경로(타클론 브레인/네블라 환산)를 정확히 되돌린다
+					const preEclipse = { knowledge: player.knowledge ?? 0, power1: player.power1 ?? 0, power2: player.power2 ?? 0, power3: player.power3 ?? 0, brainStoneBowl: (player as any).brainStoneBowl };
 					player.knowledge -= 2;
 					if (player.faction === 'taklons') {
 						spendTaklonsPower(player, 3, 3, true);
@@ -4406,7 +4448,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					shipState.actionsUsed = shipState.usedActionIndices.length;
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
-					game.pendingEclipseResearch = { playerId, shipTileId };
+					game.pendingEclipseResearch = { playerId, shipTileId, pre: preEclipse };
 					addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId, { actionIndex, shipTileId });
 					game.hasDoneMainAction = true;
 					clampPlayerResources(game); emitGameUpdated(io, game);
@@ -4826,7 +4868,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				games.set(gameId, restored);
 
 				clampPlayerResources(restored);
-				io.to(gameId).emit('game_updated', restored);
+				emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 			} else {
 				// 하위 호환성용 (기존 필드 복구)
 				game.players[playerId] = deepClone(startState.playerState);
@@ -5099,7 +5141,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					log(`[BRAIN-UNDO-DIAG] live→restored | live{bowl=${_diagLive.bowl} gaia=${_diagLive.gaia} p1=${_diagLive.p1} p2=${_diagLive.p2} p3=${_diagLive.p3}} restored{bowl=${(player as any).brainStoneBowl} gaia=${(player as any).brainStoneInGaia} p1=${player.power1} p2=${player.power2} p3=${player.power3}}`, 'game', undefined, { simulation: (game as any).simulation });
 				}
 				addGameLog(restoredGame, playerId, 'Undo Free Action', `Reverted ${popCount} free action step(s)`);
-				io.to(gameId).emit('game_updated', restoredGame);
+				emitGameUpdated(io, restoredGame); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 			} catch (err) {
 				log(`Failed to restore freeActionUndoStack: ${err}`, 'error');
 			}
@@ -5491,7 +5533,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.pendingSpaceshipFedMine?.playerId !== playerId) return;
 			game.pendingSpaceshipFedMine = null;
-			addGameLog(game, playerId, 'Spaceship Fed', '무료 광산 배치 포기');
+			addGameLog(game, playerId, 'Spaceship Fed', 'Skipped free mine placement');
 			emitGameUpdated(io, game);
 		});
 
@@ -6236,7 +6278,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					hideHeavyServerFields(restored);
 					games.set(gameId, restored);
 					clampPlayerResources(restored);
-					io.to(gameId).emit('game_updated', restored);
+					emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 				} else {
 					game.players[playerId] = deepClone(startState.playerState);
 					game.map = deepClone(startState.mapState);
@@ -6800,7 +6842,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [사용자 2026-08-01] 테라포밍 스텝 구매 상태(3PW/보너스/TF마스 3C)에서는 1스텝 이상 소모되는 행성만 건설 허용.
 	// 가이아·포밍된 행성(스텝 0)은 스텝을 안 쓰고 지어져 스텝이 남고, 메인 액션 후에도 6472 우회로
 	// '포밍한 곳 공짜 광산'이 가능했던 exploit 차단. 봇은 제외(교착 방지 — 봇은 이 경로를 악용하지 않음).
-	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine
+	// [예외 확대 2026-08-09 사용자] '2TF+무료광산'류(우주선 기술타일 ship-tech-2tf-mine, 우주선 연방 3TF+무료광산,
+	//   아이타 교환 2TF+Mine)는 타일이 광산 자체를 주는 보상이라 테라 스텝을 안 쓰고 모행성(0스텝)에 지어도 정당하다.
+	//   위 exploit(스텝만 사놓고 0스텝 행성에 공짜 광산)과 구분되므로 가드에서 제외한다.
+	const isGrantedFreeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree
+		|| game.pendingShipTechMine?.playerId === playerId;
+	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine && !isGrantedFreeMine
 		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
 		const stepsNeeded = (tile.type === 'gaia' || tile.type === 'transdim' || isPendingGaiaBuild)
 			? 0 : getTerraformStepsForFaction(game, player.faction!, tile.type);
@@ -6876,7 +6923,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 		}
 
-		addGameLog(game, playerId, 'Spaceship Fed', `Mine 무한거리 (기본무료${fedTerraOre ? `, ${fedTerraOre}O 테라포밍` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC 가이아` : ''})`, tileId);
+		addGameLog(game, playerId, 'Spaceship Fed', `Mine unlimited range (Free${fedTerraOre ? `, ${fedTerraOre}O terraform` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC gaia` : ''})`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_mine');
 		if (rm7Qualify) applyRoundMissionScore(game, playerId, 'new_sector');
 		if (tile.type === 'gaia') applyRoundMissionScore(game, playerId, 'build_gaia');
@@ -7206,7 +7253,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	}
 	// 비용 표기는 실제 청구액(freeMine이면 0) 기준 — 기존엔 '1O, 2C'를 하드코딩해 무료 광산(우주선 연방 보상 등)에도 비용이 찍히던 버그(사용자 관찰)
 	const costDetails = freeMine
-		? `무료${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
+		? `Free${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
 		: `${standardMineOre}O, ${standardMineCredits}C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
 	for (const seg of gaiaMineVpSegments) appendVpSegmentToLastLog(game, playerId, seg.vp, seg.reason);
@@ -8493,7 +8540,7 @@ export function executeUseSpecialAction(
 		player.usedSpecialActions.push('tinkeroid-special');
 		if (actionId === 'tinkeroid-1tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 1;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '1 TF + Build Mine (bonus tile)', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '1 Terraform Step', actionId);
 		} else if (actionId === 'tinkeroid-1qic') {
 			grantQic(game, playerId, 1);
 			game.hasDoneMainAction = true;
@@ -8512,7 +8559,7 @@ export function executeUseSpecialAction(
 			addGameLog(game, playerId, 'Tinkeroid: Special', '2 QIC', actionId);
 		} else if (actionId === 'tinkeroid-3tf-mine') {
 			player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
-			addGameLog(game, playerId, 'Tinkeroid: Special', '3 TF + Build Mine', actionId);
+			addGameLog(game, playerId, 'Tinkeroid: Special', '3 Terraform Steps', actionId);
 		}
 		applied = true;
 	}
@@ -8926,6 +8973,8 @@ export function executeUseShipAction(
 			} else if ((player.power3 ?? 0) < 3) {
 				return false;
 			}
+			// [취소 정확도 2026-08-07 사용자] 지불 직전 스냅샷 — 취소 시 종족별 경로(타클론 브레인/네블라 환산)를 정확히 되돌린다
+			const preEclipseBot = { knowledge: player.knowledge ?? 0, power1: player.power1 ?? 0, power2: player.power2 ?? 0, power3: player.power3 ?? 0, brainStoneBowl: (player as any).brainStoneBowl };
 			player.knowledge -= 2;
 			if (player.faction === 'taklons') {
 				spendTaklonsPower(player, 3, 3, true);
@@ -8937,7 +8986,7 @@ export function executeUseShipAction(
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
-			game.pendingEclipseResearch = { playerId, shipTileId };
+			game.pendingEclipseResearch = { playerId, shipTileId, pre: preEclipseBot };
 			addGameLog(game, playerId, 'Eclipse: 2K+3P → Research', '(choose track)', shipTileId);
 			game.hasDoneMainAction = true;
 			clampPlayerResources(game); emitGameUpdated(io, game);
@@ -9555,9 +9604,11 @@ export function executeBotFederation(
 		...selectedPlanetIds,
 	]));
 
-	const unitLabel = isIvits ? '우주정거장' : '위성';
+	// [문구 통일 2026-08-09 사용자] 사람 경로(소켓)는 'Formed federation (...)' 영문인데 봇 경로만 한글이라
+	//   같은 게임 로그에 두 표기가 섞였다 → 영문으로 통일. (봇 경로엔 건물 파워 합계가 없어 위성/QIC 수만 표기)
+	const unitLabel = isIvits ? 'QIC' : (numEmpty === 1 ? 'satellite' : 'satellites');
 	// 한 줄 통합: 위성 수 텍스트 + 연방 보상 이미지(tileId=rewardId). 'reward: 라벨'·'+VP' 텍스트는 생략
-	addGameLog(game, playerId, 'Federation', `연방 형성 (${numEmpty} ${unitLabel})`, rewardId);
+	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel})`, rewardId);
 	// [버그수정 2026-07-12 사용자 발견] 봇 연방 경로에 라운드미션(rs8 연방=5VP) 적용이 통째로 누락 —
 	// 사람은 소켓 경로(federation_select_reward)에서 받는데 봇만 못 받아 실게임에서 연방당 5VP 손해.
 	// addGameLog 뒤에 호출해 "(+5VP Round Federation)" 주석이 Federation 행에 병합되게 한다.

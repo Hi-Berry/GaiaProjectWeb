@@ -655,8 +655,13 @@ export function GameLog({
                       const bonusHero = isBonus && isBonusTileLog;
 
                       // 보너스: 높이를 텍스트 한 줄에 맞춤 — 과한 고정 높이 + contain은 위아래 빈 띠만 만듦
+                      // [사용자 2026-08-09] 인공물(105x82, 가로 1.28배)이 정사각 28x28 + object-cover라 좌우가 잘렸다.
+                      //   세로(h-7)는 유지하고 가로만 비율에 맞춰 넓혀 object-contain으로 전체가 보이게 한다.
+                      const isArtifact = /\/image\/Art\d+\.png$/.test(primaryImg.src ?? '');
                       const wrapperClass = bonusHero
                         ? `h-9 w-[5rem] sm:h-10 sm:w-[5.5rem] overflow-hidden flex-shrink-0 flex items-center justify-center ${isPowerAction ? 'opacity-60 grayscale' : ''}`
+                        : isArtifact
+                          ? `h-7 w-9 rounded-sm overflow-hidden flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
                         : isBonus
                           ? `h-7 w-12 rounded-sm overflow-visible flex-shrink-0 ${isPowerAction ? 'opacity-60 grayscale' : ''}`
                           : isTech || isMission
@@ -665,6 +670,8 @@ export function GameLog({
 
                       const imgClass = bonusHero
                         ? 'h-full w-full min-h-0 min-w-0 object-contain object-center -rotate-90 origin-center scale-[2.0]'
+                        : isArtifact
+                          ? 'w-full h-full object-contain object-center'
                         : isBonus
                           ? 'w-full h-full object-contain scale-[2.0] origin-center'
                           : isTech || isMission
@@ -738,6 +745,12 @@ export function GameLog({
                       const subPlayer = subLog.playerId ? game.players[subLog.playerId] : undefined;
                       const subColor = subPlayer?.faction ? FACTIONS.find(f => f.id === subPlayer.faction)?.color : undefined;
                       const cleanText = subLog.text.replace(`↳ ${subLog.playerName} `, '').replace('↳ ', '');
+                      // [사용자 2026-08-09] 파워 수락/거절 서브로그: 여러 명이 섞이면 누구 것인지 구분이 어려워 이름을 종족색으로 칠한다.
+                      //   단 위치는 원래대로 문장 뒤(색만 추가) — 앞으로 뺐더니 읽는 순서가 바뀌어 어색하다는 피드백.
+                      const subName = subLog.playerName ?? '';
+                      const bodyText = subName && cleanText.endsWith(subName)
+                        ? cleanText.slice(0, cleanText.length - subName.length).trim()
+                        : cleanText;
 
                       return (
                         <div
@@ -749,7 +762,10 @@ export function GameLog({
                             lineHeight: `${10 * textScale}px`,
                           }}
                         >
-                          <span className="text-zinc-200 font-medium">{cleanText}</span>
+                          <span className="text-zinc-200 font-medium">{bodyText}</span>
+                          {subName && (
+                            <span className="font-black" style={{ color: subColor ?? '#e4e4e7' }}>{subName}</span>
+                          )}
                         </div>
                       );
                     })}

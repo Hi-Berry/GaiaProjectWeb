@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import os from "os";
 import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
+import { serveStatic, getClientBuildId } from "./static";
 import { setupGameServer, setHumanCandidateHook } from "./gameState";
 import { BotLogic } from "./ai/bot";
 import { StateCloner } from "./ai/stateCloner";
@@ -106,6 +106,13 @@ app.use((req, res, next) => {
   app.get("/api/status", (_req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.json(getPublicStatus());
+  });
+
+  // [배포 반영 2026-08-09, 사용자] 현재 서버가 서빙 중인 클라 빌드 ID. 소켓이 끊긴 상태에서도
+  //   폴링으로 확인할 수 있게 HTTP로도 노출. dev면 null(=배너 비활성).
+  app.get("/api/version", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json({ buildId: getClientBuildId() });
   });
 
   // [상태 페이지 실시간 안내 2026-08-04, 사용자] '여기서 플레이하세요'를 재배포·재시작 없이 즉시 지정/해제.
