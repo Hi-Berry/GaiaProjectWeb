@@ -172,10 +172,12 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
             <span className="text-[9px] font-black uppercase tracking-wide text-emerald-400">남은 땅 (유형별)</span>
             <span className="text-[9px] text-zinc-500">합계 {total}</span>
           </div>
-          {/* 열 수는 폭에 맞춰 자동 — 넓히면 3·4열로 늘어난다(영어 라벨이 길어 최소 96px 확보) */}
+          {/* 열 수는 폭에 맞춰 자동 — 넓히면 3·4열로 늘어난다(영어 라벨이 길어 최소 84px 확보).
+              [사용자 2026-08-11] 1fr이면 칸이 폭에 맞춰 늘어나 이름과 숫자가 멀어진다 → max-content로 칸을 내용
+              크기에 묶고 justify-start. 남는 폭은 열 사이가 아니라 오른쪽에 남는다. */}
           <div
-            className="grid gap-x-2 gap-y-0.5 overflow-y-auto custom-scrollbar"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', height: `${listHeight}px` }}
+            className="grid gap-x-3 gap-y-0.5 overflow-y-auto custom-scrollbar"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(84px, max-content))', justifyContent: 'start', height: `${listHeight}px` }}
           >
             {counts.map((c) => (
               <div key={c.type} className="flex items-center gap-1 min-w-0" title={c.label}>
