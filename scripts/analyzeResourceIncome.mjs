@@ -28,6 +28,10 @@ const showFaction = args.includes('--faction');
 const showGames = args.includes('--games');
 
 /** 4인 전원 사람 게임만 (봇이 섞이면 자원 흐름 성격이 달라짐) */
+/** [사용자 2026-08-11] 4인처럼 보이지만 실제로는 두 사람이 계정 2개씩 쓴 판 — 사람 단위 통계에서 제외.
+ *  2026-07-15_fi1njhdj: chrome·Hi = 하이 / 산타·디애박 = 디애박. */
+const EXCLUDE_GAMES = new Set(['2026-07-15_fi1njhdj.json']);
+
 function isAllHuman4(g) {
 	const keys = Object.keys(g.players || {});
 	if (keys.length !== 4) return false;
@@ -65,6 +69,7 @@ const perGame = [];
 for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
 	let g;
 	try { g = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch { continue; }
+	if (EXCLUDE_GAMES.has(f)) continue;
 	if (!isAllHuman4(g)) continue;
 	if (!(g.actionJournal || []).length) continue;
 	const per = analyze(g);
