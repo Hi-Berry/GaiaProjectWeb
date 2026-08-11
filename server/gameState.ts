@@ -4737,7 +4737,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
-			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed);
+			// 실패 사유는 요청자에게만 (방 전체 브로드캐스트 X)
+			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed, (message) => socket.emit('game_error', { message }));
 		});
 
 		// 하이브(이비츠) 우주정거장 배치: 빈 공간(space/deep_space), 내 건물·우주정거장에서 거리 계산, Nav 범위 밖이면 2거리당 1 QIC. 다른 플레이어 위성 허용, 내 위성 있으면 불가. 라운드당 1회.
@@ -9930,7 +9931,8 @@ export function executeEnterSpaceship(io: SocketIOServer, game: ServerGameState,
 	return null;
 }
 
-export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, qicUsed?: number): boolean {
+/** onFail: 실패 사유를 요청자에게만 안내하는 콜백(소켓 핸들러가 주입). 봇 경로는 안 넘겨 조용히 false. */
+export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState, playerId: string, tileId: string, qicUsed?: number, onFail?: (message: string) => void): boolean {
 	if (!game || game.currentPhase !== 'main') return false;
 	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return false;
 	const fromTFMars = game.pendingTFMarsGaiaProject?.playerId === playerId;
@@ -9985,7 +9987,13 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 		else if (gaiaLevel >= 4) powerToMove = 3;
 		else return false;
 		// 총 보유 토큰 검증을 차감 전에 완료 (타클론 브레인 스톤 1개 포함)
-		if (((player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvailForGaia) < powerToMove) return false;
+		// [사용자 2026-08-10] 예전엔 조용히 return false — 클라가 토큰 수를 검사하지 않아 버튼은 활성인데
+		//   눌러도 무반응이었다. 종족 공통으로 사유를 안내한다(브레인 보유 시 개수에 포함해 표기).
+		const haveTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvailForGaia;
+		if (haveTokens < powerToMove) {
+			onFail?.(`가이아 포밍을 위한 토큰이 부족합니다. (필요: ${powerToMove}, 보유: ${haveTokens}${brainAvailForGaia ? ' — 브레인 스톤 1개 포함' : ''})`);
+			return false;
+		}
 	}
 
 	// ---- 여기부터 성공 확정: 자원 차감/플래그 소모 ----

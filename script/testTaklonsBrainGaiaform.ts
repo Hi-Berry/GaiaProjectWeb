@@ -86,6 +86,26 @@ const check = (name: string, actual: unknown, expected: unknown) => {
 	check('  그릇 1→2→3 순으로 비우고 브레인 충당', snap(player), { p1: 0, p2: 0, p3: 0, bs: 2, inGaia: true, gfPower: 5 });
 }
 
+// [사용자 2026-08-10] 토큰 부족은 조용히 실패하지 않고 사유를 안내한다 — 종족 공통.
+{
+	const { game } = makeGame({ power1: 1, power2: 0, power3: 0 }, 4, 'terran');
+	let msg: string | null = null;
+	executePlaceGaiaformer(ioStub, game, ME, 'td', 0, (m) => { msg = m; });
+	check('일반 종족 토큰 부족 — 사유 안내', msg, '가이아 포밍을 위한 토큰이 부족합니다. (필요: 3, 보유: 1)');
+}
+{
+	const { game } = makeGame({ power1: 1, power2: 0, power3: 0, brainStoneBowl: 3 }, 4);
+	let msg: string | null = null;
+	executePlaceGaiaformer(ioStub, game, ME, 'td', 0, (m) => { msg = m; });
+	check('타클론 — 브레인 1개를 보유 수에 포함해 안내', msg, '가이아 포밍을 위한 토큰이 부족합니다. (필요: 3, 보유: 2 — 브레인 스톤 1개 포함)');
+}
+{
+	const { game } = makeGame({ power1: 3, power2: 0, power3: 0 }, 4, 'terran');
+	let msg: string | null = null;
+	check('성공 시엔 안내 없음', executePlaceGaiaformer(ioStub, game, ME, 'td', 0, (m) => { msg = m; }), true);
+	check('  msg 없음', msg, null);
+}
+
 // 타클론이 아니면 아무 변화 없어야 한다(회귀 방지).
 {
 	const { game, player } = makeGame({ power1: 1, power2: 1, power3: 0 }, 4, 'terran');
