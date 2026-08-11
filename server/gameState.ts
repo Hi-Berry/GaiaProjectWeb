@@ -126,7 +126,7 @@ const AI_BOTS_ENABLED = isAiEnabled();
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
 const GAME_LOG_TAIL = 40;
-const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number }> = {};
+const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number; dEmpty: number }> = {};
 /** [계측 전용 2026-08-11, 사용자 질문 "델타로 바꾸면 얼마나 절감?"]
  *  실제 전송은 그대로 두고, '만약 델타로 보냈다면' 크기가 얼마였을지만 재서 비교한다(EMIT_BYTES=1일 때만 동작).
  *  재는 델타 방식은 실제 구현 가능한 형태로 맞췄다:
@@ -135,10 +135,10 @@ const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: num
  *   - players: 사람 수만큼이라 바뀐 사람만 {pid: player}.
  *  이 셋만으로 대부분을 잡는다. 전체 재전송이 필요한 경우(첫 emit·구조 변경)는 dFull로 따로 센다. */
 const _emitPrev = new Map<string, any>();
-function measureDeltaSize(gameId: string, payload: any): { bytes: number; full: boolean } {
+function measureDeltaSize(gameId: string, payload: any): { bytes: number; full: boolean; empty: boolean } {
 	const prev = _emitPrev.get(gameId);
 	_emitPrev.set(gameId, payload);
-	if (!prev) return { bytes: zlib.deflateRawSync(Buffer.from(JSON.stringify(payload))).length, full: true };
+	if (!prev) return { bytes: zlib.deflateRawSync(Buffer.from(JSON.stringify(payload))).length, full: true, empty: false };
 	const delta: any = {};
 	for (const k of Object.keys(payload)) {
 		if (k === 'map' || k === 'players') continue;
@@ -160,7 +160,10 @@ function measureDeltaSize(gameId: string, payload: any): { bytes: number; full: 
 		}
 		if (Object.keys(changed).length) delta.players$ = changed;
 	}
-	return { bytes: zlib.deflateRawSync(Buffer.from(JSON.stringify(delta))).length, full: false };
+	// [2026-08-11] '아무것도 안 바뀐 emit'이 몇 %인지 따로 센다 — 델타 절감률이 이 비율에 크게 좌우된다.
+	//   이게 많다면 델타 프로토콜보다 '변화 없으면 아예 안 보낸다'가 훨씬 싸고 안전한 개선이다.
+	const empty = Object.keys(delta).length === 0;
+	return { bytes: zlib.deflateRawSync(Buffer.from(JSON.stringify(delta))).length, full: false, empty };
 }
 /** [대역폭 2026-08-07, 사용자] 실측: 게임당 emit 4,000~5,500회(압축 후 47~67MB/수신자) — 액션 1회에 20~29회.
  *  원인은 "상태를 바꿀 때마다 보낸다"는 관행(165개 호출 지점)이고, 같은 이벤트 루프 tick 안에서 연달아 나가는
@@ -193,10 +196,10 @@ function emitGameUpdatedNow(io: any, game: any) {
 	if (process.env.EMIT_BYTES) {
 		try {
 			const s = JSON.stringify(payload);
-			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0, dRaw: 0, dGz: 0, dFull: 0 });
+			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0, dRaw: 0, dGz: 0, dFull: 0, dEmpty: 0 });
 			st.n++; st.raw += s.length; st.gz += zlib.deflateRawSync(Buffer.from(s)).length;
 			const d = measureDeltaSize(game.id, payload);
-			st.dGz += d.bytes; if (d.full) st.dFull++;
+			st.dGz += d.bytes; if (d.full) st.dFull++; if (d.empty) st.dEmpty++;
 			if (game.currentPhase === 'gameEnd') {
 				fs.appendFileSync('data/emit-bytes.log', JSON.stringify({ id: game.id, ...st }) + '\n');
 				delete _emitStats[game.id];
