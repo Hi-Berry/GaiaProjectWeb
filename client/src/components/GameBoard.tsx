@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight, Ruler } from 'lucide-react';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
+import { UtilityPanel } from '@/components/UtilityPanel';
 import { fireTurnNotification } from '@/lib/turnNotify';
 import { applyViewportMeta } from '@/lib/viewMode';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
@@ -532,6 +533,33 @@ export function GameBoard({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // [사용자 2026-08-11] 편의기능 창 — 열림 상태만 보존, 내용(거리 측정)은 순수 클라 로컬이라 서버와 무관.
+  const [utilityOpen, setUtilityOpen] = useState(() => {
+    try { return localStorage.getItem('gaia-utility-open') === '1'; } catch { return false; }
+  });
+  useEffect(() => { try { localStorage.setItem('gaia-utility-open', utilityOpen ? '1' : '0'); } catch { /* noop */ } }, [utilityOpen]);
+  const [measureMode, setMeasureMode] = useState<'A' | 'B' | null>(null);
+  const [measureA, setMeasureA] = useState<string | null>(null);
+  const [measureB, setMeasureB] = useState<string | null>(null);
+  const clearMeasure = useCallback(() => { setMeasureA(null); setMeasureB(null); setMeasureMode(null); }, []);
+  // 창을 닫으면 맵 위의 A·B 표시도 같이 정리(닫아 놓고 표식만 남아 헷갈리지 않게)
+  useEffect(() => { if (!utilityOpen) clearMeasure(); }, [utilityOpen, clearMeasure]);
+  // 기본 위치를 '맵 영역 우하단'으로 — 우측 상태창/로그 폭만큼 띄운다. 사이드바 폭 변경도 따라가게 ResizeObserver.
+  const [mapAnchorRight, setMapAnchorRight] = useState(12);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setMapAnchorRight(Math.max(8, Math.round(window.innerWidth - r.right + 12)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => { ro.disconnect(); window.removeEventListener('resize', update); };
+  }, []);
+
   // 내 차례 데스크톱 알림: "내 차례 아님 → 내 차례" 전환 시 (백그라운드 탭일 때) 알림.
   const isMyTurnForNotify = !!playerId && game.turnOrder?.[game.currentPlayerIndex] === playerId;
   const prevMyTurnRef = useRef<boolean | null>(null);
@@ -768,6 +796,13 @@ export function GameBoard({
   }, [game.federationMode?.playerId, game.federationMode?.toggleSeq, game.federationMode?.selectedHexIds, game.federationMode?.selectedPlanetIds, game.federationMode?.selectedSpaceStationHexIds, playerId]);
 
   const handleTileClick = useCallback((tile: HexTile) => {
+    // [편의기능] 거리 측정 선택 중이면 그 칸을 A/B로 찍고 끝 — 타일 상세 패널은 열지 않는다.
+    //   다른 어떤 모드보다 먼저 처리한다(측정은 순수 조회라 게임 액션을 건드리면 안 됨).
+    if (measureMode && !hasDragged) {
+      if (measureMode === 'A') setMeasureA(tile.id); else setMeasureB(tile.id);
+      setMeasureMode(null);
+      return;
+    }
     if (ivitsSpaceStationMode && !hasDragged) {
       setSelectedTile(tile);
       return;
@@ -831,7 +866,7 @@ export function GameBoard({
     if (!hasDragged) {
       setSelectedTile(tile);
     }
-  }, [ivitsSpaceStationMode, ambasSwapPiMineMode, onAmbasSwapPiMine, firaksDowngradeMode, onFiraksDowngradeSelectLab, moweyipPlaceRingMode, onMoweyipPlaceRing, hasDragged, isFederationMode, onFederationToggleHex, game.satellites, playerId, onEclipseBuildAsteroidMine, isEclipseAsteroidMode, eclipseBuildableTileIds, eclipseNeededQic, onTwilightTSUpgrade, twilightTSSelectableIds, onRebellionMineToTS, rebellionMineSelectableIds]);
+  }, [measureMode, ivitsSpaceStationMode, ambasSwapPiMineMode, onAmbasSwapPiMine, firaksDowngradeMode, onFiraksDowngradeSelectLab, moweyipPlaceRingMode, onMoweyipPlaceRing, hasDragged, isFederationMode, onFederationToggleHex, game.satellites, playerId, onEclipseBuildAsteroidMine, isEclipseAsteroidMode, eclipseBuildableTileIds, eclipseNeededQic, onTwilightTSUpgrade, twilightTSSelectableIds, onRebellionMineToTS, rebellionMineSelectableIds]);
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
@@ -1601,6 +1636,22 @@ export function GameBoard({
                       </text>
                     )}
 
+                    {/* [편의기능] 거리 측정 A·B 표식 — 건물 위에 올라오도록 헥스 children 맨 끝에서 그린다 */}
+                    {(measureA === tile.id || measureB === tile.id) && (() => {
+                      const mark = measureA === tile.id ? 'A' : 'B';
+                      return (
+                        <g pointerEvents="none">
+                          <circle r="1.5" cy="-0.2" fill="#0c4a6e" stroke="#38bdf8" strokeWidth="0.28" opacity="0.95" />
+                          <text
+                            y="-0.2"
+                            style={{ fill: '#e0f2fe', fontSize: '2px', fontWeight: 900, textAnchor: 'middle', dominantBaseline: 'central', fontFamily: 'monospace' }}
+                          >
+                            {mark}
+                          </text>
+                        </g>
+                      );
+                    })()}
+
                   </Hexagon>
                 );
               })}
@@ -1754,6 +1805,17 @@ export function GameBoard({
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
+            {/* [사용자 2026-08-11] 편의기능 창 토글 — 그리드·?(도움말) 위 */}
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => setUtilityOpen((v) => !v)}
+              data-testid="button-toggle-utility"
+              title="편의기능 (남은 땅 · 거리 측정기)"
+              className={utilityOpen ? 'text-sky-300 hover:text-sky-200 ring-1 ring-sky-400/60' : 'text-zinc-300 hover:text-white'}
+            >
+              <Ruler className="w-4 h-4" />
+            </Button>
             <Button
               size="icon"
               variant="secondary"
@@ -1782,6 +1844,19 @@ export function GameBoard({
         </div>
 
         <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
+
+        {utilityOpen && (
+          <UtilityPanel
+            game={game}
+            onClose={() => setUtilityOpen(false)}
+            anchorRightPx={mapAnchorRight}
+            measureMode={measureMode}
+            setMeasureMode={setMeasureMode}
+            measureA={measureA}
+            measureB={measureB}
+            onClearMeasure={clearMeasure}
+          />
+        )}
 
       </div>
 
