@@ -87,7 +87,7 @@ const pct = (n, d) => (d ? (100 * n / d).toFixed(0) + '%' : '-');
 
 console.log(`4인 전원 사람 게임 ${gameCount}판 · 참가 ${MIN}판 이상인 사람만`);
 console.log('');
-const head = ['플레이어'.padEnd(12), '참가'.padStart(4), ...ROUNDS.map((r) => `R${r}`.padStart(5)), '한판이라도'.padStart(9)];
+const head = ['플레이어'.padEnd(12), '참가'.padStart(4), ...ROUNDS.map((r) => `R${r}`.padStart(5)), '한번이라도'.padStart(9)];
 if (showEnter) head.push('탑승'.padStart(6));
 console.log(head.join(' '));
 console.log('-'.repeat(head.join(' ').length));
