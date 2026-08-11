@@ -3,7 +3,7 @@ import { createServer } from "http";
 import os from "os";
 import { registerRoutes } from "./routes";
 import { serveStatic, getClientBuildId } from "./static";
-import { setupGameServer, setHumanCandidateHook } from "./gameState";
+import { setupGameServer, setHumanCandidateHook, getRoomStats } from "./gameState";
 import { attachNetStats, getNetStats, mb } from "./netStats";
 import { BotLogic } from "./ai/bot";
 import { StateCloner } from "./ai/stateCloner";
@@ -244,8 +244,10 @@ process.on('uncaughtException', (err) => {
       const hours = Math.max(1e-6, (now - lastNetAt) / 3600000);
       lastOut = net.outBytes;
       lastNetAt = now;
+      // 관전자도 game_updated를 그대로 받으므로 송신량은 '방 인원 수'에 비례한다 → 같이 찍어야 숫자가 해석된다.
+      const room = getRoomStats();
       log(
-        `Network: out=${mb(net.outBytes)}MB in=${mb(net.inBytes)}MB (+${mb(dOut)}MB, ${mb(dOut / hours)}MB/h) conns=${net.liveConns}/${net.totalConns}`,
+        `Network: out=${mb(net.outBytes)}MB in=${mb(net.inBytes)}MB (+${mb(dOut)}MB, ${mb(dOut / hours)}MB/h) conns=${net.liveConns}/${net.totalConns} games=${room.games} seats=${room.players} spectators=${room.spectators}`,
         "system",
       );
     }, 10000);

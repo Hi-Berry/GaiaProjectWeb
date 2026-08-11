@@ -302,6 +302,20 @@ export function getPublicStatus() {
 		ts: Date.now(),
 	};
 }
+/** [사용자 2026-08-11] 네트워크 로그용 방 규모 요약.
+ *  대역폭은 game_updated를 '방 인원 수'만큼 곱해 나가므로, 송신량을 해석하려면 관전자 수가 같이 있어야 한다
+ *  (관전자도 플레이어와 똑같이 전체 상태를 받는다). 숨은 관전 아이디는 connectedSpectators에 애초에 안 들어간다. */
+export function getRoomStats(): { games: number; players: number; spectators: number } {
+	let players = 0, spectators = 0, n = 0;
+	for (const g of Array.from(games.values())) {
+		if ((g as any).simulation || g.currentPhase === 'gameEnd') continue;
+		n++;
+		players += Object.keys(g.players || {}).length;
+		spectators += ((g as any).connectedSpectators?.length ?? 0);
+	}
+	return { games: n, players, spectators };
+}
+
 /** AI 봇 사용 가능 여부 — Render 환경변수로 서버별 지정 (AI_ENABLED / AI_AVAILABLE / AI_BOTS_ENABLED 중 아무거나).
  *  미설정이면 true. '0'/'false'/'off'/'no'면 false. 상태 페이지 표기용. */
 export function isAiEnabled(): boolean {
@@ -523,7 +537,10 @@ function logGameNetUsage(game: GaiaGameState): void {
 	if (typeof base !== 'number') return;
 	const net = getNetStats();
 	const used = net.outBytes - base;
-	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
+	const spec = (game as any).connectedSpectators?.length ?? 0;
+	const seats = Object.keys(game.players || {}).length;
+	const bots = (game as any).botPlayerIds?.length ?? 0;
+	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (좌석 ${seats}[봇 ${bots}] 관전 ${spec} · 동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
 }
 
 /** 게임 종료 시 로그에 남길 롤백 요약. 롤백이 없었으면 null. */
