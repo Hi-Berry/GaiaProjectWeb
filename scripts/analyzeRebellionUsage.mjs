@@ -18,7 +18,10 @@ import path from 'path';
 
 const DIR = path.join(process.cwd(), 'data', 'human-games');
 const ROUNDS = [1, 2, 3, 4, 5, 6];
-const ACTIONS = new Set(['Rebellion: 2K → 1Q 2C', 'Rebellion: Gain tech tile', 'Rebellion: Mine → TS']);
+// [사용자 2026-08-11] 3정큐 액션(기술타일 획득) 하나만 센다 — 다른 두 액션(2K→1Q2C, Mine→TS)은 제외.
+//   이 슬롯은 라운드당 1개뿐이라 한 라운드에 최대 1명 → 4인 합산이 100%를 넘지 않는다.
+//   'Rebellion: Gained Tech Tile'은 이 액션의 해소 로그(짝)이므로 세지 않는다.
+const ACTIONS = new Set(['Rebellion: Gain tech tile']);
 
 const args = process.argv.slice(2);
 const MIN = Number(args[args.indexOf('--min') + 1]) || 5;
@@ -47,7 +50,11 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
 	let g;
 	try { g = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch { continue; }
 	if (!isAllHuman4(g)) continue;
-	const log = g.fullGameLog || [];
+	// [사용자 2026-08-11] fullGameLog는 append 전용이라 '되돌린(리셋·롤백) 액션'이 그대로 남는다
+	//   (humanGameLogger.ts:158 — 리셋이 gameLog만 자르고 여긴 안 건드림). 실제로 79판 중 4판에서
+	//   같은 라운드에 2명이 3정큐를 쓴 것처럼 보였다. actionJournal은 리셋 시 함께 잘리므로 이쪽을 쓴다
+	//   (gameLog와 대조해 네 판 모두 일치 확인). actionJournal이 없는 옛 로그만 gameLog로 폴백.
+	const log = (g.actionJournal && g.actionJournal.length) ? g.actionJournal : (g.gameLog || []);
 	if (!log.length) continue;
 	gameCount++;
 
