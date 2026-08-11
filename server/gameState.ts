@@ -127,7 +127,9 @@ const AI_BOTS_ENABLED = isAiEnabled();
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
 const GAME_LOG_TAIL = 40;
-const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number; dEmpty: number; dBad: number }> = {};
+const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number; dEmpty: number; dBad: number; noop: number; noopGz: number }> = {};
+/** 직전 emit의 직렬화 문자열 — no-op(바이트 동일) 판정 전용 */
+const _emitPrevStr = new Map<string, string>();
 /** [계측 전용 2026-08-11, 사용자 질문 "델타로 바꾸면 얼마나 절감?"]
  *  실제 전송은 그대로 두고, '만약 델타로 보냈다면' 크기가 얼마였을지만 재서 비교한다(EMIT_BYTES=1일 때만 동작).
  *  재는 델타 방식은 실제 구현 가능한 형태로 맞췄다:
@@ -280,16 +282,29 @@ function emitGameUpdatedNow(io: any, game: any) {
 	if (process.env.EMIT_BYTES) {
 		try {
 			const s = JSON.stringify(payload);
-			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0, dRaw: 0, dGz: 0, dFull: 0, dEmpty: 0, dBad: 0 });
+			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0, dRaw: 0, dGz: 0, dFull: 0, dEmpty: 0, dBad: 0, noop: 0, noopGz: 0 });
+			// [사용자 질문 "no-op 차단은 얼마나 절감?"] 직전 emit과 '바이트까지 동일'한 횟수·크기.
+			//   델타 기계장치와 무관하게 직렬화 문자열만 비교하므로 참조 공유 같은 함정이 없다(설계상 정확).
+			//   이게 곧 '안 보내도 됐던 양'이다.
+			{
+				const prevS = _emitPrevStr.get(game.id);
+				_emitPrevStr.set(game.id, s);
+				if (prevS === s) { st.noop++; st.noopGz += wireBytes(s); }
+			}
 			// 기준선도 델타와 같은 규칙(1KB 미만 비압축)으로 재야 공정한 비교가 된다
 			st.n++; st.raw += Buffer.byteLength(s); st.gz += wireBytes(s);
 			const d = measureDeltaSize(game.id, payload);
 			st.dGz += d.bytes; st.dRaw += d.raw; if (d.full) st.dFull++; if (d.empty) st.dEmpty++; if (d.bad) st.dBad++;
+			// 중간 경과도 남긴다 — 게임이 끝날 때까지(수십 분) 기다리지 않고 비율을 볼 수 있게
+			if (st.n % 500 === 0) {
+				log(`[EMIT-STATS] ${game.id} n=${st.n} noop=${st.noop}(${(100 * st.noop / st.n).toFixed(1)}%) gz=${mb(st.gz)}MB noopGz=${mb(st.noopGz)}MB deltaGz=${mb(st.dGz)}MB bad=${st.dBad}`, 'system');
+			}
 			if (game.currentPhase === 'gameEnd') {
 				fs.appendFileSync('data/emit-bytes.log', JSON.stringify({ id: game.id, ...st }) + '\n');
 				delete _emitStats[game.id];
 				_emitPrev.delete(game.id);
 				_emitRecon.delete(game.id);
+				_emitPrevStr.delete(game.id);
 			}
 		} catch { /* 계측 실패 무시 */ }
 	}
@@ -630,6 +645,7 @@ const _netOutAtGameStart = new Map<string, number>();
 function clearGameMeasurementState(gameId: string): void {
 	_emitPrev.delete(gameId);
 	_emitRecon.delete(gameId);
+	_emitPrevStr.delete(gameId);
 	_netOutAtGameStart.delete(gameId);
 	delete _emitStats[gameId];
 }
