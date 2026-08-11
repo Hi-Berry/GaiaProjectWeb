@@ -66,6 +66,44 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // 크기 조절 — 채팅창과 동일하게 폭 + 목록 높이. 앵커가 우하단이라 핸들은 좌측·상단에 둔다.
+  const [width, setWidth] = useState(() => { try { const v = Number(localStorage.getItem('gaia-utility-w')); return v >= 200 ? v : 236; } catch { return 236; } });
+  const [listHeight, setListHeight] = useState(() => { try { const v = Number(localStorage.getItem('gaia-utility-h')); return v >= 60 ? v : 118; } catch { return 118; } });
+  const widthRef = useRef(width); widthRef.current = width;
+  const listHeightRef = useRef(listHeight); listHeightRef.current = listHeight;
+  useEffect(() => { try { localStorage.setItem('gaia-utility-w', String(width)); } catch { /* noop */ } }, [width]);
+  useEffect(() => { try { localStorage.setItem('gaia-utility-h', String(listHeight)); } catch { /* noop */ } }, [listHeight]);
+
+  const startResize = useCallback((e: React.PointerEvent, axis: 'w' | 'h' | 'both') => {
+    e.preventDefault(); e.stopPropagation();
+    const sx = e.clientX, sy = e.clientY, sw = widthRef.current, sh = listHeightRef.current;
+    // 우하단 앵커(pos=null)면 CSS right/bottom이 고정이라 보정 불필요.
+    // 드래그 위치 모드(pos, left/top 앵커)에선 커진 만큼 x·y를 당겨 '오른쪽·아래변 고정'을 유지한다.
+    const baseX = posRef.current?.x ?? null;
+    const baseY = posRef.current?.y ?? null;
+    const onMove = (ev: PointerEvent) => {
+      if (axis !== 'h') {
+        const newW = Math.max(200, Math.min(window.innerWidth * 0.9, sw - (ev.clientX - sx))); // 왼쪽으로 끌수록 넓게
+        setWidth(newW);
+        if (baseX != null) setPos((p) => (p ? { x: Math.max(0, baseX - (newW - sw)), y: p.y } : p));
+      }
+      if (axis !== 'w') {
+        const newH = Math.max(60, Math.min(window.innerHeight * 0.7, sh - (ev.clientY - sy))); // 위로 끌수록 높게
+        setListHeight(newH);
+        if (baseY != null) setPos((p) => (p ? { x: p.x, y: Math.max(0, baseY - (newH - sh)) } : p));
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.userSelect = '';
+      try { if (posRef.current) localStorage.setItem('gaia-utility-pos', JSON.stringify(posRef.current)); } catch { /* noop */ }
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, []);
   const startDrag = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button, input, textarea')) return;
     e.preventDefault();
@@ -106,12 +144,19 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
         ? { left: pos.x, top: pos.y }
         : { right: anchorRightPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
     >
-      <div className="w-[236px] bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl overflow-hidden" style={{ width: `${width}px` }}>
+        {/* 크기 조절 핸들: 좌측=가로, 상단=세로, 좌상단 코너=동시 (우하단 앵커 기준) */}
+        <div onPointerDown={(e) => startResize(e, 'w')} className="absolute top-0 bottom-0 left-0 w-1.5 cursor-ew-resize hover:bg-primary/40 z-20" title="드래그: 너비 조절" />
+        <div onPointerDown={(e) => startResize(e, 'h')} className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-primary/40 z-20" title="드래그: 높이 조절" />
+        <div onPointerDown={(e) => startResize(e, 'both')} className="absolute top-0 left-0 w-3 h-3 cursor-nwse-resize z-30" title="드래그: 크기 조절" />
         <div
           className="flex items-center justify-between px-2.5 py-1.5 border-b border-white/10 bg-zinc-900/60 cursor-grab active:cursor-grabbing select-none touch-none"
           onPointerDown={startDrag}
-          onDoubleClick={() => { setPos(null); try { localStorage.removeItem('gaia-utility-pos'); } catch { /* noop */ } }}
-          title="드래그: 위치 이동 · 더블클릭: 기본 위치로"
+          onDoubleClick={() => {
+            setPos(null); setWidth(236); setListHeight(118);
+            try { localStorage.removeItem('gaia-utility-pos'); localStorage.removeItem('gaia-utility-w'); localStorage.removeItem('gaia-utility-h'); } catch { /* noop */ }
+          }}
+          title="드래그: 위치 이동 · 더블클릭: 기본 위치·크기로"
         >
           <span className="text-[11px] font-black uppercase tracking-widest text-zinc-200 flex items-center gap-1.5">
             <span className="text-zinc-500">⠿</span>편의기능
@@ -127,8 +172,11 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
             <span className="text-[9px] font-black uppercase tracking-wide text-emerald-400">남은 땅 (유형별)</span>
             <span className="text-[9px] text-zinc-500">합계 {total}</span>
           </div>
-          {/* 영어 라벨은 Titanium·Transdim처럼 길어 3열이면 잘린다 → 2열 */}
-          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+          {/* 열 수는 폭에 맞춰 자동 — 넓히면 3·4열로 늘어난다(영어 라벨이 길어 최소 96px 확보) */}
+          <div
+            className="grid gap-x-2 gap-y-0.5 overflow-y-auto custom-scrollbar"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', height: `${listHeight}px` }}
+          >
             {counts.map((c) => (
               <div key={c.type} className="flex items-center gap-1 min-w-0" title={c.label}>
                 <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: PLANET_COLORS[c.type] ?? '#888' }} />
