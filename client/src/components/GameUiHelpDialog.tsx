@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { applyViewportMeta, canOfferPcViewMode, isPcViewMode, setPcViewMode } from '@/lib/viewMode';
 import {
   Dialog,
   DialogContent,
@@ -373,10 +374,8 @@ function PinchZoomSelector() {
   const choose = (v: boolean) => {
     setOn(v);
     localStorage.setItem('page-pinch-zoom', v ? 'on' : 'off');
-    const meta = document.querySelector('meta[name="viewport"]');
-    if (meta) meta.setAttribute('content', v
-      ? 'width=device-width, initial-scale=1.0'
-      : 'width=device-width, initial-scale=1.0, maximum-scale=1');
+    // [2026-08-11] meta를 직접 쓰지 않는다 — PC 모드도 같은 meta를 쓰므로 나중에 바꾼 쪽이 상대 설정을 지웠다.
+    applyViewportMeta();
     window.dispatchEvent(new CustomEvent('page-pinch-zoom-change', { detail: v }));
   };
   return (
@@ -400,6 +399,50 @@ function PinchZoomSelector() {
             className={`flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${!on ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
           >
             줌 OFF<div className="text-[8px] font-normal opacity-70 mt-0.5">맵만 줌 (기존 방식)</div>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * [사용자 2026-08-11] 폴드 펼침·태블릿처럼 '모바일로 잡히지만 화면은 넉넉한' 기기용 보기 방식 선택.
+ * PC 모드는 viewport 폭을 1280으로 선언해 md: 레이아웃을 켠다 → 상태창 아래에 로그가 같이 나온다.
+ * 일반 폰에는 아예 안 보인다(canOfferPcViewMode). 켠 뒤엔 되돌릴 수 있게 항상 보인다.
+ */
+function ViewModeSelector() {
+  const [show, setShow] = useState(false);
+  const [pc, setPc] = useState(false);
+  useEffect(() => {
+    setShow(canOfferPcViewMode());
+    setPc(isPcViewMode());
+  }, []);
+  if (!show) return null;
+  const choose = (v: boolean) => { setPcViewMode(v); setPc(v); };
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-400">
+        보기 방식 (큰 화면 기기)
+      </h3>
+      <div className="px-2 py-1.5 space-y-1.5">
+        <div className="text-[9px] leading-snug text-zinc-500">
+          PC 모드는 상태창 아래에 로그가 같이 나옵니다. 글자가 작아지면 화면 줌을 켜서 확대하세요.
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => choose(false)}
+            className={`flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${!pc ? 'border-sky-400/60 bg-sky-500/20 text-sky-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+          >
+            모바일 모드<div className="text-[8px] font-normal opacity-70 mt-0.5">상태창 / 로그 탭 전환</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => choose(true)}
+            className={`flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${pc ? 'border-sky-400/60 bg-sky-500/20 text-sky-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+          >
+            PC 모드<div className="text-[8px] font-normal opacity-70 mt-0.5">상태창 아래 로그 같이</div>
           </button>
         </div>
       </div>
@@ -471,6 +514,8 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
           <div className="hidden md:block"><NotifyToggle /><SpecialActionStripToggle /></div>
           <div className="md:hidden"><TechViewSelector /><PinchZoomSelector /></div>
+          {/* md:hidden 밖에 둔다 — PC 모드를 켜면 md:가 켜져 이 안에 있으면 되돌릴 버튼이 사라진다 */}
+          <ViewModeSelector />
           {gameId && playerId && <ContinueOnDeviceSection gameId={gameId} playerId={playerId} />}
           <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
             <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 / 종족</h3>

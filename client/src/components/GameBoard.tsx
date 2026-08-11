@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight } from 'lucide-react';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import { fireTurnNotification } from '@/lib/turnNotify';
+import { applyViewportMeta } from '@/lib/viewMode';
 import type { GaiaGameState, HexTile, PlanetType, StructureType, ResearchTrack } from '@shared/gameConfig';
 import {
   PLANET_COLORS,
@@ -412,10 +413,9 @@ export function GameBoard({
   // 맵 자체의 핀치줌/휠줌/줌버튼은 끈다. viewport meta의 maximum-scale=1이 브라우저 줌을 막는 원인.
   const [pagePinchZoom, setPagePinchZoom] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('page-pinch-zoom') === 'on');
   useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]');
-    if (meta) meta.setAttribute('content', pagePinchZoom
-      ? 'width=device-width, initial-scale=1.0'
-      : 'width=device-width, initial-scale=1.0, maximum-scale=1');
+    // [2026-08-11] meta를 직접 쓰면 마운트할 때마다 PC 모드(width=1280)를 device-width로 되돌려 놓는다
+    //   — 같은 meta를 쓰는 두 설정(PC 모드·화면 줌)을 한 곳에서 조합해 쓰도록 통일.
+    applyViewportMeta();
     const onChange = (e: Event) => setPagePinchZoom(Boolean((e as CustomEvent).detail));
     window.addEventListener('page-pinch-zoom-change', onChange);
     return () => window.removeEventListener('page-pinch-zoom-change', onChange);
