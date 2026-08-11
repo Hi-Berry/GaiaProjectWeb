@@ -10,7 +10,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { PLANET_COLORS, getDistance, type GaiaGameState, type HexTile, type PlanetType } from '@shared/gameConfig';
 
-/** 건물을 지을 수 있는 행성만 — space/deep_space·우주선·소행성 등 특수칸 제외 */
+/**
+ * 건물을 지을 수 있는 칸만 — space/deep_space와 우주선 칸은 제외.
+ * [사용자 2026-08-11] 원시행성(proto)·소행성(asteroid)도 광산을 짓는 땅이라 포함한다.
+ *   잊혀진 행성(lost_planet)은 빈 우주칸에 '나중에 놓는' 보상이라 처음부터 남은 땅이 아니므로 제외.
+ */
 const COUNTED_PLANETS: Array<{ type: PlanetType; label: string }> = [
   { type: 'terra', label: 'Terra' },
   { type: 'oxide', label: 'Oxide' },
@@ -21,6 +25,8 @@ const COUNTED_PLANETS: Array<{ type: PlanetType; label: string }> = [
   { type: 'ice', label: 'Ice' },
   { type: 'gaia', label: 'Gaia' },
   { type: 'transdim', label: 'Transdim' },
+  { type: 'proto', label: 'Proto' },
+  { type: 'asteroid', label: 'Asteroid' },
 ];
 
 /** 아직 비어 있는 칸인지 — 건물·기생광산·가이아포머 어느 것도 없어야 '남은 땅' */
