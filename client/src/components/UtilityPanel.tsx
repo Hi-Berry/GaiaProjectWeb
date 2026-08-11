@@ -41,6 +41,10 @@ function Section({ id, title, accent, children }: { id: string; title: string; a
   );
 }
 
+/** [사용자 2026-08-11] 예상 점수는 계산 검증 전이라 이 이름들에게만 보인다.
+ *  검증이 끝나면 이 배열을 비우면(=[]) 전원에게 열린다. 보안 장치가 아니라 임시 노출 제한이다. */
+const SCORE_PREVIEW_NAMES = ['하이'];
+
 /** 지금 패스하면 받게 될 점수 — 서버 정산과 같은 shared 함수만 사용(규칙 복제 금지) */
 function projectScore(game: GaiaGameState, pid: string) {
   const p = game.players[pid];
@@ -183,8 +187,12 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
   }));
   const total = counts.reduce((s, c) => s + c.n, 0);
 
+  // 검증 단계: 지정된 이름의 좌석일 때만 예상 점수를 노출(관전자는 좌석이 없으므로 미노출)
+  const myName = (playerId && game.players?.[playerId]?.name) ? game.players[playerId].name.trim() : '';
+  const canSeeScore = SCORE_PREVIEW_NAMES.length === 0 || SCORE_PREVIEW_NAMES.includes(myName);
+
   // 예상 점수 — 높은 순으로. 계산 실패(옛 게임 등)해도 패널 전체가 죽지 않게 방어.
-  const projections = (game.turnOrder ?? Object.keys(game.players ?? {}))
+  const projections = !canSeeScore ? [] : (game.turnOrder ?? Object.keys(game.players ?? {}))
     .filter((pid) => game.players?.[pid])
     .map((pid) => {
       try { return { pid, s: projectScore(game, pid) }; }
@@ -224,7 +232,8 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           </button>
         </div>
 
-        {/* 1) 예상 점수 — 지금 패스하면 어떻게 끝나는지 */}
+        {/* 1) 예상 점수 — 지금 패스하면 어떻게 끝나는지. 검증 전이라 지정된 이름에게만 노출 */}
+        {canSeeScore && (
         <Section id="score" title="예상 점수 (지금 패스 시)" accent="text-amber-400">
           <div className="space-y-1">
             {projections.map(({ pid, s }) => {
@@ -254,6 +263,7 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
             패스=라운드 부스터+고급기술 · 트랙=3/4/5칸당 4·8·12 · 미션=순위 정산(18/12/6) · 자원=남은 자원÷3
           </div>
         </Section>
+        )}
 
         {/* 2) 남은 땅 */}
         <Section id="land" title={`남은 땅 (합계 ${total})`} accent="text-emerald-400">
