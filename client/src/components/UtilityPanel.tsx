@@ -12,15 +12,15 @@ import { PLANET_COLORS, getDistance, type GaiaGameState, type HexTile, type Plan
 
 /** 건물을 지을 수 있는 행성만 — space/deep_space·우주선·소행성 등 특수칸 제외 */
 const COUNTED_PLANETS: Array<{ type: PlanetType; label: string }> = [
-  { type: 'terra', label: '테라' },
-  { type: 'oxide', label: '산화' },
-  { type: 'volcanic', label: '화산' },
-  { type: 'desert', label: '사막' },
-  { type: 'swamp', label: '늪' },
-  { type: 'titanium', label: '타이타늄' },
-  { type: 'ice', label: '얼음' },
-  { type: 'gaia', label: '가이아' },
-  { type: 'transdim', label: '트랜스딤' },
+  { type: 'terra', label: 'Terra' },
+  { type: 'oxide', label: 'Oxide' },
+  { type: 'volcanic', label: 'Volcanic' },
+  { type: 'desert', label: 'Desert' },
+  { type: 'swamp', label: 'Swamp' },
+  { type: 'titanium', label: 'Titanium' },
+  { type: 'ice', label: 'Ice' },
+  { type: 'gaia', label: 'Gaia' },
+  { type: 'transdim', label: 'Transdim' },
 ];
 
 /** 아직 비어 있는 칸인지 — 건물·기생광산·가이아포머 어느 것도 없어야 '남은 땅' */
@@ -121,12 +121,13 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
             <span className="text-[9px] font-black uppercase tracking-wide text-emerald-400">남은 땅 (유형별)</span>
             <span className="text-[9px] text-zinc-500">합계 {total}</span>
           </div>
-          <div className="grid grid-cols-3 gap-x-1.5 gap-y-0.5">
+          {/* 영어 라벨은 Titanium·Transdim처럼 길어 3열이면 잘린다 → 2열 */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
             {counts.map((c) => (
               <div key={c.type} className="flex items-center gap-1 min-w-0" title={c.label}>
                 <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: PLANET_COLORS[c.type] ?? '#888' }} />
-                <span className="text-[9px] text-zinc-400 truncate">{c.label}</span>
-                <span className={`text-[10px] font-bold ml-auto ${c.n === 0 ? 'text-zinc-600' : 'text-zinc-100'}`}>{c.n}</span>
+                <span className="text-[10px] text-zinc-400 truncate">{c.label}</span>
+                <span className={`text-[11px] font-bold ml-auto ${c.n === 0 ? 'text-zinc-600' : 'text-zinc-100'}`}>{c.n}</span>
               </div>
             ))}
           </div>

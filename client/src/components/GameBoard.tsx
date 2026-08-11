@@ -1636,15 +1636,20 @@ export function GameBoard({
                       </text>
                     )}
 
-                    {/* [편의기능] 거리 측정 A·B 표식 — 건물 위에 올라오도록 헥스 children 맨 끝에서 그린다 */}
+                    {/* [편의기능] 거리 측정 A·B 표식 — 건물 위에 올라오도록 헥스 children 맨 끝에서 그린다.
+                        [사용자 2026-08-11] 작아서 안 보임 → 칸 전체(r=4.15 기준)를 채우는 링 + 큰 글자로.
+                        링 안은 옅게만 칠하고 글자는 어두운 외곽선을 둘러, 밑의 건물도 같이 보이게 한다. */}
                     {(measureA === tile.id || measureB === tile.id) && (() => {
                       const mark = measureA === tile.id ? 'A' : 'B';
                       return (
                         <g pointerEvents="none">
-                          <circle r="1.5" cy="-0.2" fill="#0c4a6e" stroke="#38bdf8" strokeWidth="0.28" opacity="0.95" />
+                          <circle r="3.9" fill="#38bdf8" fillOpacity="0.15" stroke="#38bdf8" strokeWidth="0.5" />
                           <text
-                            y="-0.2"
-                            style={{ fill: '#e0f2fe', fontSize: '2px', fontWeight: 900, textAnchor: 'middle', dominantBaseline: 'central', fontFamily: 'monospace' }}
+                            y="0"
+                            stroke="#082f49"
+                            strokeWidth="0.75"
+                            paintOrder="stroke"
+                            style={{ fill: '#e0f2fe', fontSize: '5px', fontWeight: 900, textAnchor: 'middle', dominantBaseline: 'central', fontFamily: 'monospace', opacity: 0.95 }}
                           >
                             {mark}
                           </text>
