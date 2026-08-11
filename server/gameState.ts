@@ -145,6 +145,9 @@ function snapshotOf(payload: any): PrevSnap {
 	const top = new Map<string, string>();
 	for (const k of Object.keys(payload)) {
 		if (k === 'map' || k === 'players') continue;
+		// [리뷰 2026-08-11] undefined는 JSON에서 통째로 사라진다 → '키 없음'과 같게 취급해야
+		//   pendingTurnEndPlayerId 같은 필드가 undefined로 바뀌는 순간을 삭제로 잡을 수 있다.
+		if (payload[k] === undefined) continue;
 		top.set(k, JSON.stringify(payload[k]));
 	}
 	const tiles = Array.isArray(payload.map) ? payload.map.map((t: unknown) => JSON.stringify(t)) : [];
@@ -185,7 +188,8 @@ function stableStr(v: any): string {
  *  불일치가 1건이라도 나오면 그 절감률은 의미가 없다 — 로그의 dBad로 확인할 것. */
 const _emitRecon = new Map<string, any>();
 
-function measureDeltaSize(gameId: string, payload: any): { bytes: number; raw: number; full: boolean; empty: boolean; bad: boolean } {
+/** 계측 전용 — 단위 테스트(script/testEmitDelta.ts)에서 직접 호출한다. 게임 로직은 이 함수를 쓰지 않는다. */
+export function measureDeltaSize(gameId: string, payload: any): { bytes: number; raw: number; full: boolean; empty: boolean; bad: boolean } {
 	const prev = _emitPrev.get(gameId);
 	_emitPrev.set(gameId, snapshotOf(payload));
 	if (!prev) {
@@ -197,6 +201,9 @@ function measureDeltaSize(gameId: string, payload: any): { bytes: number; raw: n
 	const seenTop = new Set<string>();
 	for (const k of Object.keys(payload)) {
 		if (k === 'map' || k === 'players') continue;
+		// undefined로 바뀐 키는 seenTop에 넣지 않는다 → 아래에서 $del로 잡힌다.
+		//   (delta[k] = undefined로 넣으면 JSON.stringify가 키째로 지워 버려 클라엔 아무 것도 안 간다)
+		if (payload[k] === undefined) continue;
 		seenTop.add(k);
 		const s = JSON.stringify(payload[k]);
 		if (s !== prev.top.get(k)) delta[k] = payload[k];
@@ -617,6 +624,15 @@ export function countRollback(gameId: string, actorId: string | null): void {
 }
 /** 게임 시작 시점의 프로세스 누적 송신량(게임 객체 밖 — 클라 payload에 실리지 않게) */
 const _netOutAtGameStart = new Map<string, number>();
+/** [리뷰 2026-08-11] 방을 삭제할 때도 계측 부수상태를 같이 버린다.
+ *  EMIT_BYTES=1로 진행 중 게임을 삭제하면 _emitRecon(전체 상태 복원본)·_emitPrev가 그대로 남아 누수가 된다.
+ *  게임 종료 경로엔 이미 정리가 있지만 '방 삭제'는 그 경로를 안 탄다. */
+function clearGameMeasurementState(gameId: string): void {
+	_emitPrev.delete(gameId);
+	_emitRecon.delete(gameId);
+	_netOutAtGameStart.delete(gameId);
+	delete _emitStats[gameId];
+}
 /** 방 크기 조회용 io 참조 (setupGameServer에서 주입) */
 let _io: SocketIOServer | null = null;
 
@@ -3149,6 +3165,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 		perMessageDeflate: { threshold: 1024 },
 	});
 	_io = io; // 방 인원(=실제 수신 소켓 수) 조회용 — 관전자 목록이 아니라 어댑터의 방 크기를 쓴다
+	// [리뷰 2026-08-11 운영 주의] EMIT_BYTES는 emit마다 다중 직렬화·압축·전체 상태 대조를 돈다.
+	//   실서버에 켜두면 지연이 생긴다 → 켜져 있으면 눈에 띄게 경고를 남긴다(격리된 테스트 서버 전용).
+	if (process.env.EMIT_BYTES) {
+		log('[WARN] EMIT_BYTES=1 — emit마다 직렬화·압축·복원검증을 수행합니다. 계측용이며 운영 서버에서는 끄세요.', 'system');
+	}
 
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
@@ -3439,6 +3460,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				games.delete(gameId);
 				turnHistories.delete(gameId);
 				rollbackCounts.delete(gameId);
+				clearGameMeasurementState(gameId);
 				log(`Game ${gameId} deleted (last human left lobby)`, 'game', gameId);
 				return;
 			}
@@ -3775,6 +3797,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			games.delete(gameId);
 			turnHistories.delete(gameId); // [롤백] 히스토리 메모리 정리
 			rollbackCounts.delete(gameId);
+			clearGameMeasurementState(gameId);
 			log(`Game ${gameId} deleted by host ${playerId}`, 'game', gameId);
 			callback?.({ ok: true });
 		});
