@@ -127,7 +127,7 @@ const AI_BOTS_ENABLED = isAiEnabled();
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
 const GAME_LOG_TAIL = 40;
-const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number; dEmpty: number }> = {};
+const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number; dEmpty: number; dBad: number }> = {};
 /** [계측 전용 2026-08-11, 사용자 질문 "델타로 바꾸면 얼마나 절감?"]
  *  실제 전송은 그대로 두고, '만약 델타로 보냈다면' 크기가 얼마였을지만 재서 비교한다(EMIT_BYTES=1일 때만 동작).
  *  재는 델타 방식은 실제 구현 가능한 형태로 맞췄다:
@@ -135,36 +135,112 @@ const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: num
  *   - map: 타일 수가 많고 매번 몇 칸만 바뀌므로 바뀐 인덱스만 [{i, t}].
  *   - players: 사람 수만큼이라 바뀐 사람만 {pid: player}.
  *  이 셋만으로 대부분을 잡는다. 전체 재전송이 필요한 경우(첫 emit·구조 변경)는 dFull로 따로 센다. */
-const _emitPrev = new Map<string, any>();
-function measureDeltaSize(gameId: string, payload: any): { bytes: number; full: boolean; empty: boolean } {
-	const prev = _emitPrev.get(gameId);
-	_emitPrev.set(gameId, payload);
-	if (!prev) return { bytes: zlib.deflateRawSync(Buffer.from(JSON.stringify(payload))).length, full: true, empty: false };
-	const delta: any = {};
+/** 직전 emit의 '값' 스냅샷. [리뷰 2026-08-11 지적] payload는 {...game} 얕은 복사라 players·map이 게임 객체와
+ *  같은 참조다. 그대로 들고 있으면 서버가 제자리에서 값을 바꿀 때 '이전 상태'도 같이 바뀌어 전부 '변화 없음'으로
+ *  오판했다(첫 측정의 99.8% 절감은 이 버그 때문). 참조 대신 직렬화 문자열을 키 단위로 보관해 변이와 무관하게 만든다. */
+type PrevSnap = { top: Map<string, string>; tiles: string[]; players: Map<string, string> };
+const _emitPrev = new Map<string, PrevSnap>();
+
+function snapshotOf(payload: any): PrevSnap {
+	const top = new Map<string, string>();
 	for (const k of Object.keys(payload)) {
 		if (k === 'map' || k === 'players') continue;
-		if (JSON.stringify(payload[k]) !== JSON.stringify(prev[k])) delta[k] = payload[k];
+		top.set(k, JSON.stringify(payload[k]));
 	}
-	if (Array.isArray(payload.map) && Array.isArray(prev.map) && payload.map.length === prev.map.length) {
+	const tiles = Array.isArray(payload.map) ? payload.map.map((t: unknown) => JSON.stringify(t)) : [];
+	const players = new Map<string, string>();
+	if (payload.players) for (const pid of Object.keys(payload.players)) players.set(pid, JSON.stringify(payload.players[pid]));
+	return { top, tiles, players };
+}
+
+/** WebSocket 실제 전송 크기 근사. perMessageDeflate threshold=1024(:3057)라 1KB 미만은 압축되지 않고 원본이 나간다.
+ *  [리뷰 지적] 항상 deflate 크기를 쓰면 작은 델타를 실제보다 작게 계산한다 → 임계값을 그대로 반영한다. */
+function wireBytes(json: string): number {
+	const raw = Buffer.byteLength(json);
+	return raw < 1024 ? raw : zlib.deflateRawSync(Buffer.from(json)).length;
+}
+
+/** 클라가 받은 델타를 적용하는 쪽. 실제와 같게 JSON 왕복을 거친 값만 넣는다(참조 공유 재발 방지). */
+function applyDelta(recon: any, deltaJson: string): void {
+	const d = JSON.parse(deltaJson);
+	for (const k of Object.keys(d)) {
+		if (k === '$del' || k === 'map$' || k === 'players$' || k === 'players$del') continue;
+		recon[k] = d[k];
+	}
+	if (d.$del) for (const k of d.$del) delete recon[k];
+	if (d.map$) for (const { i, t } of d.map$) recon.map[i] = t;
+	if (d.players$) for (const pid of Object.keys(d.players$)) recon.players[pid] = d.players$[pid];
+	if (d.players$del) for (const pid of d.players$del) delete recon.players[pid];
+}
+
+/** 키 순서 차이로 인한 오탐을 없앤 비교용 직렬화 (필드 삭제 후 재추가 시 순서가 바뀔 수 있음) */
+function stableStr(v: any): string {
+	return JSON.stringify(v, (_k, val) =>
+		(val && typeof val === 'object' && !Array.isArray(val))
+			? Object.keys(val).sort().reduce((o: any, k) => { o[k] = val[k]; return o; }, {})
+			: val);
+}
+
+/** [리뷰 2026-08-11] 델타를 적용한 결과가 원본과 같은지 매 emit 검증한다. 이게 있었으면 참조 공유 버그를 즉시 잡았다.
+ *  불일치가 1건이라도 나오면 그 절감률은 의미가 없다 — 로그의 dBad로 확인할 것. */
+const _emitRecon = new Map<string, any>();
+
+function measureDeltaSize(gameId: string, payload: any): { bytes: number; raw: number; full: boolean; empty: boolean; bad: boolean } {
+	const prev = _emitPrev.get(gameId);
+	_emitPrev.set(gameId, snapshotOf(payload));
+	if (!prev) {
+		const j = JSON.stringify(payload);
+		_emitRecon.set(gameId, JSON.parse(j)); // 첫 emit = 전체 전송 → 클라 상태는 이것과 동일
+		return { bytes: wireBytes(j), raw: Buffer.byteLength(j), full: true, empty: false, bad: false };
+	}
+	const delta: any = {};
+	const seenTop = new Set<string>();
+	for (const k of Object.keys(payload)) {
+		if (k === 'map' || k === 'players') continue;
+		seenTop.add(k);
+		const s = JSON.stringify(payload[k]);
+		if (s !== prev.top.get(k)) delta[k] = payload[k];
+	}
+	// [리뷰 지적] 사라진 최상위 키를 표현하지 않으면 클라가 옛 값을 계속 들고 있어 복원이 안 된다.
+	const delTop: string[] = [];
+	prev.top.forEach((_v, k) => { if (!seenTop.has(k)) delTop.push(k); });
+	if (delTop.length) delta.$del = delTop;
+
+	if (Array.isArray(payload.map) && payload.map.length === prev.tiles.length) {
 		const changed: Array<{ i: number; t: unknown }> = [];
 		for (let i = 0; i < payload.map.length; i++) {
-			if (JSON.stringify(payload.map[i]) !== JSON.stringify(prev.map[i])) changed.push({ i, t: payload.map[i] });
+			if (JSON.stringify(payload.map[i]) !== prev.tiles[i]) changed.push({ i, t: payload.map[i] });
 		}
 		if (changed.length) delta.map$ = changed;
 	} else if (payload.map) {
 		delta.map = payload.map; // 길이가 바뀌면(잊혀진 행성 등) 통째로
 	}
-	if (payload.players && prev.players) {
+
+	if (payload.players) {
 		const changed: Record<string, unknown> = {};
+		const seenPid = new Set<string>();
 		for (const pid of Object.keys(payload.players)) {
-			if (JSON.stringify(payload.players[pid]) !== JSON.stringify(prev.players[pid])) changed[pid] = payload.players[pid];
+			seenPid.add(pid);
+			if (JSON.stringify(payload.players[pid]) !== prev.players.get(pid)) changed[pid] = payload.players[pid];
 		}
+		const delPid: string[] = [];
+		prev.players.forEach((_v, pid) => { if (!seenPid.has(pid)) delPid.push(pid); });
 		if (Object.keys(changed).length) delta.players$ = changed;
+		if (delPid.length) delta.players$del = delPid; // [리뷰 지적] 퇴장한 좌석 표현
 	}
+
 	// [2026-08-11] '아무것도 안 바뀐 emit'이 몇 %인지 따로 센다 — 델타 절감률이 이 비율에 크게 좌우된다.
 	//   이게 많다면 델타 프로토콜보다 '변화 없으면 아예 안 보낸다'가 훨씬 싸고 안전한 개선이다.
 	const empty = Object.keys(delta).length === 0;
-	return { bytes: zlib.deflateRawSync(Buffer.from(JSON.stringify(delta))).length, full: false, empty };
+	const j = JSON.stringify(delta);
+	// 델타를 실제로 적용해 원본과 대조 — 하나라도 어긋나면 절감률은 무의미하다
+	let bad = false;
+	const recon = _emitRecon.get(gameId);
+	if (recon) {
+		applyDelta(recon, j);
+		bad = stableStr(recon) !== stableStr(payload);
+	}
+	return { bytes: wireBytes(j), raw: Buffer.byteLength(j), full: false, empty, bad };
 }
 /** [대역폭 2026-08-07, 사용자] 실측: 게임당 emit 4,000~5,500회(압축 후 47~67MB/수신자) — 액션 1회에 20~29회.
  *  원인은 "상태를 바꿀 때마다 보낸다"는 관행(165개 호출 지점)이고, 같은 이벤트 루프 tick 안에서 연달아 나가는
@@ -197,14 +273,16 @@ function emitGameUpdatedNow(io: any, game: any) {
 	if (process.env.EMIT_BYTES) {
 		try {
 			const s = JSON.stringify(payload);
-			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0, dRaw: 0, dGz: 0, dFull: 0, dEmpty: 0 });
-			st.n++; st.raw += s.length; st.gz += zlib.deflateRawSync(Buffer.from(s)).length;
+			const st = (_emitStats[game.id] ??= { n: 0, raw: 0, gz: 0, dRaw: 0, dGz: 0, dFull: 0, dEmpty: 0, dBad: 0 });
+			// 기준선도 델타와 같은 규칙(1KB 미만 비압축)으로 재야 공정한 비교가 된다
+			st.n++; st.raw += Buffer.byteLength(s); st.gz += wireBytes(s);
 			const d = measureDeltaSize(game.id, payload);
-			st.dGz += d.bytes; if (d.full) st.dFull++; if (d.empty) st.dEmpty++;
+			st.dGz += d.bytes; st.dRaw += d.raw; if (d.full) st.dFull++; if (d.empty) st.dEmpty++; if (d.bad) st.dBad++;
 			if (game.currentPhase === 'gameEnd') {
 				fs.appendFileSync('data/emit-bytes.log', JSON.stringify({ id: game.id, ...st }) + '\n');
 				delete _emitStats[game.id];
 				_emitPrev.delete(game.id);
+				_emitRecon.delete(game.id);
 			}
 		} catch { /* 계측 실패 무시 */ }
 	}
@@ -305,15 +383,23 @@ export function getPublicStatus() {
 /** [사용자 2026-08-11] 네트워크 로그용 방 규모 요약.
  *  대역폭은 game_updated를 '방 인원 수'만큼 곱해 나가므로, 송신량을 해석하려면 관전자 수가 같이 있어야 한다
  *  (관전자도 플레이어와 똑같이 전체 상태를 받는다). 숨은 관전 아이디는 connectedSpectators에 애초에 안 들어간다. */
-export function getRoomStats(): { games: number; players: number; spectators: number } {
-	let players = 0, spectators = 0, n = 0;
+export function getRoomStats(): { games: number; players: number; spectators: number; receivers: number } {
+	let players = 0, spectators = 0, receivers = 0, n = 0;
 	for (const g of Array.from(games.values())) {
 		if ((g as any).simulation || g.currentPhase === 'gameEnd') continue;
 		n++;
 		players += Object.keys(g.players || {}).length;
 		spectators += ((g as any).connectedSpectators?.length ?? 0);
+		receivers += roomSize(g.id);
 	}
-	return { games: n, players, spectators };
+	return { games: n, players, spectators, receivers };
+}
+
+/** [리뷰 2026-08-11 지적] 대역폭에 곱해지는 건 '실제 방에 있는 소켓 수'다. connectedSpectators는
+ *  숨은 관전자(:3512에서 일부러 제외하지만 방에는 들어간다)를 빼고, 다중 탭·재접속 소켓도 못 센다.
+ *  어댑터의 방 크기가 정확한 수신자 수 — 없으면 0(계측용이라 실패해도 게임엔 영향 없음). */
+function roomSize(gameId: string): number {
+	try { return _io?.sockets?.adapter?.rooms?.get(gameId)?.size ?? 0; } catch { return 0; }
 }
 
 /** AI 봇 사용 가능 여부 — Render 환경변수로 서버별 지정 (AI_ENABLED / AI_AVAILABLE / AI_BOTS_ENABLED 중 아무거나).
@@ -529,18 +615,24 @@ export function countRollback(gameId: string, actorId: string | null): void {
 	else c.admin++;
 	rollbackCounts.set(gameId, c);
 }
+/** 게임 시작 시점의 프로세스 누적 송신량(게임 객체 밖 — 클라 payload에 실리지 않게) */
+const _netOutAtGameStart = new Map<string, number>();
+/** 방 크기 조회용 io 참조 (setupGameServer에서 주입) */
+let _io: SocketIOServer | null = null;
+
 /** [사용자 2026-08-11] 게임 종료 시 '이 게임이 도는 동안 서버가 내보낸 양'을 남긴다.
  *  프로세스 전체 합계라 동시 진행 게임이 있으면 섞인다 → 그때는 동시 게임 수를 함께 찍어 오해를 막는다.
  *  한 판만 도는 서버(자기대국·테스트)에서는 사실상 그 게임의 순수 사용량이다. */
 function logGameNetUsage(game: GaiaGameState): void {
-	const base = (game as any).netOutAtStart;
+	const base = _netOutAtGameStart.get(game.id);
 	if (typeof base !== 'number') return;
+	_netOutAtGameStart.delete(game.id);
 	const net = getNetStats();
 	const used = net.outBytes - base;
 	const spec = (game as any).connectedSpectators?.length ?? 0;
 	const seats = Object.keys(game.players || {}).length;
 	const bots = (game as any).botPlayerIds?.length ?? 0;
-	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (좌석 ${seats}[봇 ${bots}] 관전 ${spec} · 동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
+	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (좌석 ${seats}[봇 ${bots}] 관전 ${spec} 수신소켓 ${roomSize(game.id)} · 동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
 }
 
 /** 게임 종료 시 로그에 남길 롤백 요약. 롤백이 없었으면 null. */
@@ -3056,6 +3148,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// ~25KB → ~6-8KB (3-4배 절감). 1KB 미만 소형 메시지는 압축 오버헤드가 손해라 임계값으로 제외.
 		perMessageDeflate: { threshold: 1024 },
 	});
+	_io = io; // 방 인원(=실제 수신 소켓 수) 조회용 — 관전자 목록이 아니라 어댑터의 방 크기를 쓴다
 
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
@@ -3295,7 +3388,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			hideHeavyServerFields(game);
 			// [사용자 2026-08-11] 이 게임이 도는 동안 서버 전체가 내보낸 양을 재기 위한 기준점.
 			//   프로세스 단위 합계라 동시에 여러 게임이 돌면 그만큼 섞인다 — 종료 로그에 그 사실을 함께 표기한다.
-			(game as any).netOutAtStart = getNetStats().outBytes;
+			//   [리뷰 지적] game 객체에 두면 enumerable이라 클라 payload·저장 로그에까지 실린다 → 바깥 Map에 보관.
+			_netOutAtGameStart.set(gameId, getNetStats().outBytes);
 			games.set(gameId, game);
 			game.hostSocketId = socket.id;
 			playerGameMap.set(playerId, gameId);

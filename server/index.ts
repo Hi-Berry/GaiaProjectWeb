@@ -247,7 +247,7 @@ process.on('uncaughtException', (err) => {
       // 관전자도 game_updated를 그대로 받으므로 송신량은 '방 인원 수'에 비례한다 → 같이 찍어야 숫자가 해석된다.
       const room = getRoomStats();
       log(
-        `Network: out=${mb(net.outBytes)}MB in=${mb(net.inBytes)}MB (+${mb(dOut)}MB, ${mb(dOut / hours)}MB/h) conns=${net.liveConns}/${net.totalConns} games=${room.games} seats=${room.players} spectators=${room.spectators}`,
+        `Network: out=${mb(net.outBytes)}MB in=${mb(net.inBytes)}MB (+${mb(dOut)}MB, ${mb(dOut / hours)}MB/h) conns=${net.liveConns}/${net.totalConns} games=${room.games} seats=${room.players} spectators=${room.spectators} receivers=${room.receivers}`,
         "system",
       );
     }, 10000);
