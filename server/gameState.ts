@@ -10,6 +10,12 @@ import { log } from './index';
 import { getClientBuildId } from './static';
 import { setSeatPassword, findSeatByPassword } from './accounts';
 import { StateCloner } from './ai/stateCloner';
+import {
+	GAME_SYNC_PROTOCOL,
+	applyGameStateDelta,
+	buildClientGameState,
+	type GameStateDelta,
+} from '@shared/gameSync';
 import type {
 	GaiaGameState,
 	PlayerState,
@@ -78,6 +84,7 @@ import {
 	countOccupiedSectors,
 	tileOccupiesSector as sharedTileOccupiesSector,
 	RESEARCH_TRACK_END_BONUS,
+	endgameLeftoverUnits,
 	RESEARCH_TRACKS,
 	isHiddenSpectatorName,
 	type ScoreBreakdown,
@@ -126,10 +133,80 @@ const AI_BOTS_ENABLED = isAiEnabled();
 /** [대역폭 2단계 2026-07-26, 사용자] gameLog는 후반 100KB+로 최대 잔여 항목 — 액션 브로드캐스트엔 꼬리만
  *  보내고(전체 길이/시작 인덱스 동봉) 클라가 병합·보관. 전체 로그는 입장/재접속 콜백(callback({game}))이 담당
  *  → 늦게 들어와도/재접해도 처음부터 다 보임. {...game} 스프레드는 non-enumerable 무거운 필드도 자동 제외. */
-const GAME_LOG_TAIL = 40;
 const _emitStats: Record<string, { n: number; raw: number; gz: number; dRaw: number; dGz: number; dFull: number; dEmpty: number; dBad: number; noop: number; noopGz: number }> = {};
 /** 직전 emit의 직렬화 문자열 — no-op(바이트 동일) 판정 전용 */
 const _emitPrevStr = new Map<string, string>();
+
+type GameSyncState = {
+	revision: number;
+	game: Record<string, unknown>;
+	json: string;
+};
+const _gameSyncStates = new Map<string, GameSyncState>();
+const DELTA_ROOM_PREFIX = '__game_delta_v1__:';
+const deltaRoomName = (gameId: string) => `${DELTA_ROOM_PREFIX}${gameId}`;
+const GAME_DELTA_ENABLED = process.env.GAME_DELTA_ENABLED !== '0';
+
+export function createGameDelta(
+	prev: Record<string, unknown>,
+	next: Record<string, unknown>,
+): GameStateDelta {
+	const delta: GameStateDelta = {};
+	const set: Record<string, unknown> = {};
+	const remove: string[] = [];
+
+	for (const key of Object.keys(next)) {
+		if (key === 'map' || key === 'players') continue;
+		if (JSON.stringify(next[key]) !== JSON.stringify(prev[key])) set[key] = next[key];
+	}
+	for (const key of Object.keys(prev)) {
+		if (key !== 'map' && key !== 'players' && !(key in next)) remove.push(key);
+	}
+	if (Object.keys(set).length) delta.set = set;
+	if (remove.length) delta.remove = remove;
+
+	const prevMap = Array.isArray(prev.map) ? prev.map : [];
+	const nextMap = Array.isArray(next.map) ? next.map : [];
+	if (prevMap.length !== nextMap.length) {
+		delta.map = { replace: nextMap };
+	} else {
+		const updates: Array<{ index: number; value: unknown }> = [];
+		for (let i = 0; i < nextMap.length; i++) {
+			if (JSON.stringify(nextMap[i]) !== JSON.stringify(prevMap[i])) {
+				updates.push({ index: i, value: nextMap[i] });
+			}
+		}
+		if (updates.length) delta.map = { updates };
+	}
+
+	const prevPlayers = (prev.players && typeof prev.players === 'object' && !Array.isArray(prev.players))
+		? prev.players as Record<string, unknown> : {};
+	const nextPlayers = (next.players && typeof next.players === 'object' && !Array.isArray(next.players))
+		? next.players as Record<string, unknown> : {};
+	const playerSet: Record<string, unknown> = {};
+	const playerRemove: string[] = [];
+	for (const id of Object.keys(nextPlayers)) {
+		if (JSON.stringify(nextPlayers[id]) !== JSON.stringify(prevPlayers[id])) playerSet[id] = nextPlayers[id];
+	}
+	for (const id of Object.keys(prevPlayers)) {
+		if (!(id in nextPlayers)) playerRemove.push(id);
+	}
+	if (Object.keys(playerSet).length || playerRemove.length) {
+		delta.players = {};
+		if (Object.keys(playerSet).length) delta.players.set = playerSet;
+		if (playerRemove.length) delta.players.remove = playerRemove;
+	}
+	return delta;
+}
+
+function ensureGameSyncState(game: GaiaGameState): GameSyncState {
+	const existing = _gameSyncStates.get(game.id);
+	if (existing) return existing;
+	const publicGame = buildClientGameState(game, true);
+	const state = { revision: 0, game: publicGame, json: JSON.stringify(publicGame) };
+	_gameSyncStates.set(game.id, state);
+	return state;
+}
 /** [계측 전용 2026-08-11, 사용자 질문 "델타로 바꾸면 얼마나 절감?"]
  *  실제 전송은 그대로 두고, '만약 델타로 보냈다면' 크기가 얼마였을지만 재서 비교한다(EMIT_BYTES=1일 때만 동작).
  *  재는 델타 방식은 실제 구현 가능한 형태로 맞췄다:
@@ -268,16 +345,19 @@ function flushPendingEmit(gameId: string) {
 	emitGameUpdatedNow(p.io, cur);
 }
 export function emitGameUpdated(io: any, game: any) {
+	// MCTS 복제 상태는 같은 game.id를 사용한다. pending map에 넣으면 flush 시 실제 games 상태로 바뀌어
+	// 계측 revision을 오염시키므로 큐에 넣기 전 차단해야 한다.
+	if (game?.simulation) return;
 	if (process.env.EMIT_COALESCE === '0' || !game?.id) { emitGameUpdatedNow(io, game); return; }
 	const had = _pendingEmit.has(game.id);
 	_pendingEmit.set(game.id, { io, game });   // 항상 최신 game 참조로 갱신
 	if (!had) queueMicrotask(() => flushPendingEmit(game.id));
 }
 function emitGameUpdatedNow(io: any, game: any) {
-	const logArr = game.gameLog || [];
-	const payload = logArr.length > GAME_LOG_TAIL
-		? { ...game, gameLog: logArr.slice(-GAME_LOG_TAIL), gameLogStart: logArr.length - GAME_LOG_TAIL, gameLogLen: logArr.length }
-		: { ...game, gameLogStart: 0, gameLogLen: logArr.length };
+	// MCTS/정책 탐색은 실제 방이 아닌 dummyIo를 사용한다. 네트워크 동기화·계측 상태와 절대 섞지 않는다.
+	if (game?.simulation) return;
+
+	const payload = buildClientGameState(game, true);
 	// [계측, EMIT_BYTES=1일 때만] 게임당 emit 바이트 실측(원본+deflate 근사 — 실제 스트림 압축은 이보다 유리)
 	if (process.env.EMIT_BYTES) {
 		try {
@@ -308,7 +388,52 @@ function emitGameUpdatedNow(io: any, game: any) {
 			}
 		} catch { /* 계측 실패 무시 */ }
 	}
-	io.to(game.id).emit('game_updated', payload);
+
+	const currentJson = JSON.stringify(payload);
+	if (!GAME_DELTA_ENABLED) {
+		io.to(game.id).emit('game_updated', payload);
+		return;
+	}
+	const previous = _gameSyncStates.get(game.id);
+	const deltaRoom = deltaRoomName(game.id);
+
+	if (!previous) {
+		// 아직 sync_game을 받은 클라이언트가 없는 초기 상태. 기존 클라이언트에는 전체 상태를 보낸다.
+		_gameSyncStates.set(game.id, { revision: 1, game: payload, json: currentJson });
+		io.to(game.id).emit('game_updated', payload);
+		return;
+	}
+
+	if (previous.json === currentJson) {
+		// 새 프로토콜 클라이언트에는 보낼 변화가 없다. 구버전에는 기존 동작을 유지해 혼합 배포를 안전하게 한다.
+		io.to(game.id).except(deltaRoom).emit('game_updated', payload);
+		return;
+	}
+
+	const revision = previous.revision + 1;
+	const delta = createGameDelta(previous.game, payload);
+	// 서버에서도 실제 적용 결과를 확인한다. 실패하면 해당 업데이트만 전체 스냅샷으로 폴백한다.
+	let useFullSnapshot = false;
+	try {
+		useFullSnapshot = JSON.stringify(applyGameStateDelta(previous.game, delta)) !== currentJson;
+	} catch {
+		useFullSnapshot = true;
+	}
+	const deltaMessage = { gameId: game.id, baseRevision: previous.revision, revision, delta };
+	if (!useFullSnapshot) {
+		// 패치가 전체 상태에 가까우면 압축 효율과 복구 단순성을 위해 전체 스냅샷이 더 낫다.
+		useFullSnapshot = Buffer.byteLength(JSON.stringify(deltaMessage)) >= Buffer.byteLength(currentJson) * 0.8;
+	}
+
+	_gameSyncStates.set(game.id, { revision, game: payload, json: currentJson });
+
+	// 구버전 클라이언트는 전체 상태, 새 클라이언트는 델타(또는 큰 변경 시 전체 스냅샷)를 받는다.
+	io.to(game.id).except(deltaRoom).emit('game_updated', payload);
+	if (useFullSnapshot) {
+		io.to(deltaRoom).emit('game_sync', { gameId: game.id, revision, game: payload });
+	} else {
+		io.to(deltaRoom).emit('game_delta', deltaMessage);
+	}
 }
 
 /** [대역폭 2026-07-26, 사용자: 하루 10GB] game_updated가 액션마다 게임 전체(893KB)를 방 전원에 emit —
@@ -646,6 +771,7 @@ function clearGameMeasurementState(gameId: string): void {
 	_emitPrev.delete(gameId);
 	_emitRecon.delete(gameId);
 	_emitPrevStr.delete(gameId);
+	_gameSyncStates.delete(gameId);
 	_netOutAtGameStart.delete(gameId);
 	delete _emitStats[gameId];
 }
@@ -1966,7 +2092,8 @@ function setSpectatorConnected(game: any, spectatorId: string, on: boolean) {
 
 function joinGameRoom(socket: { id: string; rooms: Set<string>; join: (r: string) => void; leave: (r: string) => void }, gameId: string) {
 	for (const r of Array.from(socket.rooms)) {
-		if (r !== socket.id && r !== gameId && games.has(r)) socket.leave(r);
+		if (r === socket.id || r === gameId) continue;
+		if (games.has(r) || r.startsWith(DELTA_ROOM_PREFIX)) socket.leave(r);
 	}
 	socket.join(gameId);
 }
@@ -2313,27 +2440,7 @@ export function scoreTerminalStateForRollout(game: ServerGameState): void {
 	}
 }
 
-/** [룰 2026-07-11 사용자 확정] 종료 잔여자원 정산 시 파워 자동 환산:
- *  2그릇을 전부 번(2토큰→1개 3그릇행) → 3그릇 전체를 크레딧으로(기본 1C, 네뷸라 의회 보유 시 2C,
- *  타클론 브레인스톤은 3C — 2그릇에 있으면 일반토큰 1개를 번 비용으로 쓰고 이동) 후 합산. /3은 호출부에서.
- *  (기존엔 파워 미포함 → 플레이어가 패스 전 수동 변환 노가다를 해야 했음) */
-function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: PlayerState): number {
-	let sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
-	const hasPI = game.map.some(t => t.ownerId === pid && t.structure === 'planetary_institute');
-	const rate = (p.faction === 'nevlas' && hasPI) ? 2 : 1;
-	let n2 = p.power2 ?? 0;
-	const n3 = p.power3 ?? 0;
-	let brainC = 0;
-	// !brainStoneInGaia: 우주선 입장으로 브레인이 가이아 영역에 있으면(:9699 — brainStoneBowl은 안 지워짐)
-	// 이번 라운드엔 쓸 수 없으므로 환산 대상이 아니다. 다른 브레인 사용처(1B→3C, 번, 파워지불)와 동일한 가드.
-	// (잠재 버그였음: R6 우주선 입장 후 종료 시 부당 +3유닛 → 최대 +1VP. 실측 571판 중 발생 0건)
-	if (p.faction === 'taklons' && !p.brainStoneInGaia) {
-		if (p.brainStoneBowl === 3) brainC = 3;
-		else if (p.brainStoneBowl === 2 && n2 >= 1) { brainC = 3; n2 -= 1; } // 이동 번 비용: 일반토큰 1개
-	}
-	sum += (n3 + Math.floor(n2 / 2)) * rate + brainC;
-	return sum;
-}
+
 
 export function qualifiesForNewSectorRoundMission(game: GaiaGameState, playerId: string, tileId: string, sector?: number): boolean {
 	const tile = game.map.find(t => t.id === tileId || String(t.id) === tileId);
@@ -3193,6 +3300,32 @@ export function setupGameServer(httpServer: HTTPServer) {
 		// [배포 반영 2026-08-09, 사용자] 배포하면 서버가 재시작 → 모든 클라가 재접속한다. 그 순간이
 		//   "네 번들 최신이니?"를 물어볼 가장 확실한 타이밍. 클라는 자기 __BUILD_ID__와 비교해 배너를 띄운다.
 		socket.emit('server_build', { buildId: getClientBuildId() });
+
+		/**
+		 * 델타 동기화 기준점 요청.
+		 * 먼저 대기 중 emit을 비워 서버 revision을 현재 상태까지 전진시킨 뒤, 이 소켓만 델타 방에 넣는다.
+		 * 구버전 클라이언트는 이 이벤트를 호출하지 않아 계속 game_updated 전체 상태를 받는다.
+		 */
+		socket.on('sync_game', ({ gameId, protocol }, callback) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+
+			flushPendingEmit(gameId);
+			const current = buildClientGameState(game, true);
+			const currentJson = JSON.stringify(current);
+			const known = _gameSyncStates.get(gameId);
+			if (known && known.json !== currentJson) emitGameUpdatedNow(io, game);
+			const sync = ensureGameSyncState(game);
+
+			if (GAME_DELTA_ENABLED && protocol === GAME_SYNC_PROTOCOL && socket.rooms.has(gameId)) {
+				socket.join(deltaRoomName(gameId));
+			}
+			callback?.({
+				protocol: GAME_DELTA_ENABLED ? GAME_SYNC_PROTOCOL : 0,
+				revision: sync.revision,
+				game: buildClientGameState(game, false),
+			});
+		});
 
 		/**
 		 * (Dev/Tuning) AI Evaluator 가중치 런타임 변경.

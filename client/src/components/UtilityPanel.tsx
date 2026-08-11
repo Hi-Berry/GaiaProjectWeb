@@ -2,13 +2,60 @@
  * [사용자 2026-08-11] 편의기능 창 — 맵 우하단(로그를 안 가리게 맵 영역 기준)에 뜨는 보조 패널.
  * 채팅창처럼 헤더를 잡고 이동, X로 접기(메뉴 버튼으로 다시 열기). 순수 클라 기능이라 서버 통신 없음.
  *
- *  1) 남은 땅: 맵에 아직 아무도 안 지은 행성을 유형별로 센다.
- *  2) 거리 측정기: A/B로 칸 두 개를 찍으면 헥스 거리를 보여준다.
+ *  1) 예상 점수: 지금 당장 패스하면 얼마로 끝나는지 (현재/패스/트랙/미션/자원/비딩).
+ *  2) 남은 땅: 맵에 아직 아무도 안 지은 행성을 유형별로 센다.
+ *  3) 거리 측정기: A/B로 칸 두 개를 찍으면 헥스 거리를 보여준다.
  *     최종미션 '의회-아카데미 거리'(fm_pi_academy_distance)와 같은 getDistance를 쓴다.
+ *
+ * [사용자 2026-08-11] 넣을 기능이 계속 늘어날 예정이라 각 항목을 제목 클릭으로 여닫는 접이식으로 둔다.
+ *   열림 상태는 항목별로 localStorage에 남아 다음에 열 때 그대로 복원된다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import { PLANET_COLORS, getDistance, type GaiaGameState, type HexTile, type PlanetType } from '@shared/gameConfig';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
+import {
+  PLANET_COLORS, FACTIONS, RESEARCH_TRACKS, RESEARCH_TRACK_END_BONUS,
+  computeBonusTilePassVp, computeAdvancedTechPassVp, getFinalMissionVp, endgameLeftoverUnits,
+  type GaiaGameState, type HexTile, type PlanetType, type ResearchTrack,
+} from '@shared/gameConfig';
+import { getDistance } from '@shared/gameConfig';
+
+/** 접이식 항목 — 제목을 누르면 열리고 다시 누르면 닫힌다. 상태는 항목별 localStorage. */
+function Section({ id, title, accent, children }: { id: string; title: string; accent: string; children: React.ReactNode }) {
+  const key = `gaia-utility-sec-${id}`;
+  const [open, setOpen] = useState(() => {
+    try { const v = localStorage.getItem(key); return v === null ? id === 'score' : v === '1'; } catch { return id === 'score'; }
+  });
+  useEffect(() => { try { localStorage.setItem(key, open ? '1' : '0'); } catch { /* noop */ } }, [key, open]);
+  return (
+    <div className="border-b border-white/10 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-1 px-2 py-1.5 hover:bg-white/5 transition-colors"
+      >
+        {open ? <ChevronDown className="w-3 h-3 shrink-0 text-zinc-500" /> : <ChevronRight className="w-3 h-3 shrink-0 text-zinc-500" />}
+        <span className={`text-[9px] font-black uppercase tracking-wide ${accent}`}>{title}</span>
+      </button>
+      {open && <div className="px-2.5 pb-2">{children}</div>}
+    </div>
+  );
+}
+
+/** 지금 패스하면 받게 될 점수 — 서버 정산과 같은 shared 함수만 사용(규칙 복제 금지) */
+function projectScore(game: GaiaGameState, pid: string) {
+  const p = game.players[pid];
+  const passTile = computeBonusTilePassVp(game, pid)?.vp ?? 0;
+  const passAdv = computeAdvancedTechPassVp(game, pid).reduce((s, r) => s + r.vp, 0);
+  const track = RESEARCH_TRACKS.reduce((s, t) => {
+    const lv = p.research?.[t.id as ResearchTrack] ?? 0;
+    return s + (lv >= 5 ? RESEARCH_TRACK_END_BONUS[5] : lv >= 4 ? RESEARCH_TRACK_END_BONUS[4] : lv >= 3 ? RESEARCH_TRACK_END_BONUS[3] : 0);
+  }, 0);
+  const mission = (game.finalMissionIds ?? []).reduce((s, m) => s + getFinalMissionVp(game, pid, m), 0);
+  const leftover = Math.floor(endgameLeftoverUnits(game, pid, p) / 3);
+  const bid = -(p.factionBidVp ?? 0);
+  const now = p.score ?? 0;
+  return { now, pass: passTile + passAdv, track, mission, leftover, bid, total: now + passTile + passAdv + track + mission + leftover + bid };
+}
 
 /**
  * 건물을 지을 수 있는 칸만 — space/deep_space와 우주선 칸은 제외.
@@ -44,12 +91,14 @@ export interface UtilityPanelProps {
   anchorRightPx: number;
   measureMode: 'A' | 'B' | null;
   setMeasureMode: (m: 'A' | 'B' | null) => void;
+  /** 내 좌석 강조용 */
+  playerId?: string | null;
   measureA: string | null;
   measureB: string | null;
   onClearMeasure: () => void;
 }
 
-export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMeasureMode, measureA, measureB, onClearMeasure }: UtilityPanelProps) {
+export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMode, setMeasureMode, measureA, measureB, onClearMeasure }: UtilityPanelProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 위치 드래그 — 채팅창과 동일 방식. null이면 기본(맵 우하단) 앵커.
@@ -134,6 +183,15 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
   }));
   const total = counts.reduce((s, c) => s + c.n, 0);
 
+  // 예상 점수 — 높은 순으로. 계산 실패(옛 게임 등)해도 패널 전체가 죽지 않게 방어.
+  const projections = (game.turnOrder ?? Object.keys(game.players ?? {}))
+    .filter((pid) => game.players?.[pid])
+    .map((pid) => {
+      try { return { pid, s: projectScore(game, pid) }; }
+      catch { return { pid, s: { now: game.players[pid].score ?? 0, pass: 0, track: 0, mission: 0, leftover: 0, bid: 0, total: game.players[pid].score ?? 0 } }; }
+    })
+    .sort((a, b) => b.s.total - a.s.total);
+
   const tileLabel = (t: HexTile | null) => (t ? `${t.q},${t.r}` : '—');
 
   return (
@@ -166,12 +224,39 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
           </button>
         </div>
 
-        {/* 1) 남은 땅 */}
-        <div className="px-2.5 py-1.5 border-b border-white/10">
-          <div className="flex items-baseline justify-between mb-1">
-            <span className="text-[9px] font-black uppercase tracking-wide text-emerald-400">남은 땅 (유형별)</span>
-            <span className="text-[9px] text-zinc-500">합계 {total}</span>
+        {/* 1) 예상 점수 — 지금 패스하면 어떻게 끝나는지 */}
+        <Section id="score" title="예상 점수 (지금 패스 시)" accent="text-amber-400">
+          <div className="space-y-1">
+            {projections.map(({ pid, s }) => {
+              const p = game.players[pid];
+              const color = FACTIONS.find((f) => f.id === p.faction)?.color ?? '#a1a1aa';
+              const isMe = pid === playerId;
+              return (
+                <div key={pid} className={`rounded border px-1.5 py-1 ${isMe ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/8 bg-zinc-900/50'}`}>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: color }} />
+                    <span className={`text-[10px] font-bold truncate ${isMe ? 'text-amber-100' : 'text-zinc-300'}`}>{p.name}</span>
+                    <span className="ml-auto text-[13px] font-black text-amber-300 leading-none">{s.total}</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0 text-[9px] text-zinc-500">
+                    <span>현재 <b className="text-zinc-300 font-bold">{s.now}</b></span>
+                    <span>패스 <b className="text-zinc-300 font-bold">+{s.pass}</b></span>
+                    <span>트랙 <b className="text-zinc-300 font-bold">+{s.track}</b></span>
+                    <span>미션 <b className="text-zinc-300 font-bold">+{s.mission}</b></span>
+                    <span>자원 <b className="text-zinc-300 font-bold">+{s.leftover}</b></span>
+                    {s.bid !== 0 && <span>비딩 <b className="text-red-400 font-bold">{s.bid}</b></span>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          <div className="mt-1 text-[8px] leading-snug text-zinc-600">
+            패스=라운드 부스터+고급기술 · 트랙=3/4/5칸당 4·8·12 · 미션=순위 정산(18/12/6) · 자원=남은 자원÷3
+          </div>
+        </Section>
+
+        {/* 2) 남은 땅 */}
+        <Section id="land" title={`남은 땅 (합계 ${total})`} accent="text-emerald-400">
           {/* 열 수는 폭에 맞춰 자동 — 넓히면 3·4열로 늘어난다(영어 라벨이 길어 최소 84px 확보).
               [사용자 2026-08-11] 1fr이면 칸이 폭에 맞춰 늘어나 이름과 숫자가 멀어진다 → max-content로 칸을 내용
               크기에 묶고 justify-start. 남는 폭은 열 사이가 아니라 오른쪽에 남는다. */}
@@ -187,11 +272,10 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
               </div>
             ))}
           </div>
-        </div>
+        </Section>
 
-        {/* 2) 거리 측정기 */}
-        <div className="px-2.5 py-1.5">
-          <div className="text-[9px] font-black uppercase tracking-wide text-sky-400 mb-1">거리 측정기</div>
+        {/* 3) 거리 측정기 */}
+        <Section id="dist" title="거리 측정기" accent="text-sky-400">
           <div className="flex gap-1 mb-1.5">
             {(['A', 'B'] as const).map((k) => {
               const active = measureMode === k;
@@ -231,7 +315,7 @@ export function UtilityPanel({ game, onClose, anchorRightPx, measureMode, setMea
             )}
           </div>
           <div className="mt-1 text-[8px] leading-snug text-zinc-600">최종미션 &apos;의회-아카데미 거리&apos;와 같은 계산입니다. 내 화면에서만 보입니다.</div>
-        </div>
+        </Section>
       </div>
     </div>
   );

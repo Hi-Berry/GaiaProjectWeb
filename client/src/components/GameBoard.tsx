@@ -1855,6 +1855,7 @@ export function GameBoard({
             game={game}
             onClose={() => setUtilityOpen(false)}
             anchorRightPx={mapAnchorRight}
+            playerId={playerId}
             measureMode={measureMode}
             setMeasureMode={setMeasureMode}
             measureA={measureA}

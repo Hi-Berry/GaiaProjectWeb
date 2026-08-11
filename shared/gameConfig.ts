@@ -128,6 +128,28 @@ export interface ScoreBreakdown {
 /** 연구 트랙 게임 종료 보너스: 3단계 4점, 4단계 8점, 5단계 12점 (트랙별 해당 단계 도달 시) */
 export const RESEARCH_TRACK_END_BONUS: Record<number, number> = { 3: 4, 4: 8, 5: 12 };
 
+/** [룰 2026-07-11 사용자 확정] 종료 잔여자원 정산 시 파워 자동 환산:
+ *  2그릇을 전부 번(2토큰→1개 3그릇행) → 3그릇 전체를 크레딧으로(기본 1C, 네뷸라 의회 보유 시 2C,
+ *  타클론 브레인스톤은 3C — 2그릇에 있으면 일반토큰 1개를 번 비용으로 쓰고 이동) 후 합산. /3은 호출부에서.
+ *  (기존엔 파워 미포함 → 플레이어가 패스 전 수동 변환 노가다를 해야 했음) */
+export function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: PlayerState): number {
+	let sum = (p.ore ?? 0) + (p.credits ?? 0) + (p.qic ?? 0) + (p.knowledge ?? 0);
+	const hasPI = game.map.some(t => t.ownerId === pid && t.structure === 'planetary_institute');
+	const rate = (p.faction === 'nevlas' && hasPI) ? 2 : 1;
+	let n2 = p.power2 ?? 0;
+	const n3 = p.power3 ?? 0;
+	let brainC = 0;
+	// !brainStoneInGaia: 우주선 입장으로 브레인이 가이아 영역에 있으면(:9699 — brainStoneBowl은 안 지워짐)
+	// 이번 라운드엔 쓸 수 없으므로 환산 대상이 아니다. 다른 브레인 사용처(1B→3C, 번, 파워지불)와 동일한 가드.
+	// (잠재 버그였음: R6 우주선 입장 후 종료 시 부당 +3유닛 → 최대 +1VP. 실측 571판 중 발생 0건)
+	if (p.faction === 'taklons' && !p.brainStoneInGaia) {
+		if (p.brainStoneBowl === 3) brainC = 3;
+		else if (p.brainStoneBowl === 2 && n2 >= 1) { brainC = 3; n2 -= 1; } // 이동 번 비용: 일반토큰 1개
+	}
+	sum += (n3 + Math.floor(n2 / 2)) * rate + brainC;
+	return sum;
+}
+
 /** [숨은 관전 아이디, 사용자 요청] 이 이름으로 관전에 들어오면 채팅창 "(관전자 : …)" 목록에 뜨지 않는다.
  *  개발/운영자가 진행 중인 게임을 들여다볼 때 플레이어에게 관전 사실을 안 알리기 위한 용도.
  *  관전(watch_game)에만 적용 — 좌석에 앉는 플레이어는 숨길 수 없다(게임 참가자라 항상 보여야 함).
