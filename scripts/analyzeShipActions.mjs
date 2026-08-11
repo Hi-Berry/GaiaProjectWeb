@@ -69,7 +69,16 @@ const ONLY = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const summaryOnly = args.includes('--summary');
 
 /** 같은 사람이 쓰는 다른 이름 — 표시 이름으로 합친다(한 게임에 동시 등장하면 동일인이 아니므로 합치면 안 됨) */
-const ALIAS = { '암가': '타클론안함' };
+/** 같은 사람이 쓰는 다른 이름 (사용자 확인). 넣기 전에 '두 이름이 한 게임에 동시 등장하지 않는지'를 반드시 검사한다
+ *  — 동시 등장하면 서로 다른 사람이고, 합치면 한 게임에 같은 사람이 2명이 되어 집계가 깨진다.
+ *  보류: 산타 → 디애박 (2026-07-15 게임에 둘이 함께 앉아 있어 확인 필요) */
+const ALIAS = {
+	'암가': '타클론안함',
+	'암컷가마우지': '타클론안함',
+	'김지선': '타클론안함',
+	'222': '하이',
+	'chrome': '하이',
+};
 const canon = (name) => ALIAS[name] || name;
 
 function isAllHuman4(g) {
