@@ -1,5 +1,6 @@
 import zlib from 'zlib';
 import { Server as SocketIOServer } from 'socket.io';
+import { getNetStats, mb } from './netStats';
 import { setActiveEvaluatorWeights, getActiveEvaluatorWeights, type EvaluatorWeights } from './ai/evaluator';
 import { MCTS } from './ai/mcts';
 import type { Server as HTTPServer } from 'http';
@@ -514,6 +515,17 @@ export function countRollback(gameId: string, actorId: string | null): void {
 	else c.admin++;
 	rollbackCounts.set(gameId, c);
 }
+/** [사용자 2026-08-11] 게임 종료 시 '이 게임이 도는 동안 서버가 내보낸 양'을 남긴다.
+ *  프로세스 전체 합계라 동시 진행 게임이 있으면 섞인다 → 그때는 동시 게임 수를 함께 찍어 오해를 막는다.
+ *  한 판만 도는 서버(자기대국·테스트)에서는 사실상 그 게임의 순수 사용량이다. */
+function logGameNetUsage(game: GaiaGameState): void {
+	const base = (game as any).netOutAtStart;
+	if (typeof base !== 'number') return;
+	const net = getNetStats();
+	const used = net.outBytes - base;
+	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
+}
+
 /** 게임 종료 시 로그에 남길 롤백 요약. 롤백이 없었으면 null. */
 export function buildRollbackSummary(game: GaiaGameState): string | null {
 	const c = rollbackCounts.get(game.id);
@@ -1697,6 +1709,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	{
 		const rb = buildRollbackSummary(game);
 		if (rb) log(`[ROLLBACK-SUMMARY] ${game.id} ${rb}`, 'game', game.id);
+			logGameNetUsage(game);
 	}
 	applyFinalMissionScoring(game);
 	for (const pid of game.turnOrder) {
@@ -3263,6 +3276,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.satellites = {};
 
 			hideHeavyServerFields(game);
+			// [사용자 2026-08-11] 이 게임이 도는 동안 서버 전체가 내보낸 양을 재기 위한 기준점.
+			//   프로세스 단위 합계라 동시에 여러 게임이 돌면 그만큼 섞인다 — 종료 로그에 그 사실을 함께 표기한다.
+			(game as any).netOutAtStart = getNetStats().outBytes;
 			games.set(gameId, game);
 			game.hostSocketId = socket.id;
 			playerGameMap.set(playerId, gameId);
@@ -8126,6 +8142,7 @@ export function executePassRound(
 			{
 				const rb = buildRollbackSummary(game);
 				if (rb) log(`[ROLLBACK-SUMMARY] ${game.id} ${rb}`, 'game', game.id);
+			logGameNetUsage(game);
 			}
 			applyFinalMissionScoring(game);
 			// Research Track End Bonus

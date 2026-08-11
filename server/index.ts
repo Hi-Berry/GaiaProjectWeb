@@ -4,6 +4,7 @@ import os from "os";
 import { registerRoutes } from "./routes";
 import { serveStatic, getClientBuildId } from "./static";
 import { setupGameServer, setHumanCandidateHook } from "./gameState";
+import { attachNetStats, getNetStats, mb } from "./netStats";
 import { BotLogic } from "./ai/bot";
 import { StateCloner } from "./ai/stateCloner";
 
@@ -191,6 +192,10 @@ app.use((req, res, next) => {
     httpServer.listen(port, onListening);
   }
 
+  // [사용자 2026-08-11] 실제 회선 송수신량 계측 — socket.io 업그레이드 전 TCP 단계부터 잡아야 하므로
+  //   setupGameServer보다 먼저 연결 훅을 건다.
+  attachNetStats(httpServer);
+
   // Setup Socket.IO game server
   setupGameServer(httpServer);
   log('Game server initialized on same port', 'socket.io');
@@ -215,6 +220,8 @@ process.on('uncaughtException', (err) => {
   if (mode !== 'off') {
     let lastRssMb = 0;
     let lastEmit = 0;
+    let lastOut = 0;
+    let lastNetAt = Date.now();
     const HEARTBEAT_MS = 5 * 60 * 1000;
     const DELTA_MB = 20;
     setInterval(() => {
@@ -228,6 +235,17 @@ process.on('uncaughtException', (err) => {
       lastEmit = now;
       log(
         `Memory usage: RSS=${rssMb.toFixed(2)}MB, HeapTotal=${(m.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(m.heapUsed / 1024 / 1024).toFixed(2)}MB, External=${(m.external / 1024 / 1024).toFixed(2)}MB`,
+        "system",
+      );
+      // [사용자 2026-08-11] 같은 주기로 실제 송수신량도 남긴다 — 누적 + 직전 로그 이후 증가분 + 시간당 환산.
+      //   하루 몇 GB인지 바로 읽히게 하는 게 목적이라 rate(MB/h)를 같이 찍는다.
+      const net = getNetStats();
+      const dOut = net.outBytes - lastOut;
+      const hours = Math.max(1e-6, (now - lastNetAt) / 3600000);
+      lastOut = net.outBytes;
+      lastNetAt = now;
+      log(
+        `Network: out=${mb(net.outBytes)}MB in=${mb(net.inBytes)}MB (+${mb(dOut)}MB, ${mb(dOut / hours)}MB/h) conns=${net.liveConns}/${net.totalConns}`,
         "system",
       );
     }, 10000);
