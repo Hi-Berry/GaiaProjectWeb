@@ -11,21 +11,31 @@
  *   'Entered Ship'(탑승)은 액션 실행이 아니므로 별도 집계.
  *
  * 사용: node scripts/analyzeRebellionUsage.mjs [--min N] [--enter]
- *   --min N  최소 참가 게임 수(기본 5)   --enter  탑승률도 같이 출력
+ *   --min N       최소 참가 게임 수(기본 5)
+ *   --action X    tech(3정큐·기본) | mine(1광3파워) | convert(2지식) | all
+ *   --enter       탑승률도 같이 출력
  */
 import fs from 'fs';
 import path from 'path';
 
 const DIR = path.join(process.cwd(), 'data', 'human-games');
 const ROUNDS = [1, 2, 3, 4, 5, 6];
-// [사용자 2026-08-11] 3정큐 액션(기술타일 획득) 하나만 센다 — 다른 두 액션(2K→1Q2C, Mine→TS)은 제외.
-//   이 슬롯은 라운드당 1개뿐이라 한 라운드에 최대 1명 → 4인 합산이 100%를 넘지 않는다.
-//   'Rebellion: Gained Tech Tile'은 이 액션의 해소 로그(짝)이므로 세지 않는다.
-const ACTIONS = new Set(['Rebellion: Gain tech tile']);
-
+// [사용자 2026-08-11] 어떤 리벨리온 액션을 셀지 --action으로 고른다. 각 슬롯은 라운드당 1개뿐이라
+//   한 라운드에 최대 1명 → 4인 합산이 100%를 넘지 않는다(all은 최대 3명이라 넘을 수 있음).
+//   'Rebellion: Gained Tech Tile'은 tech 액션의 해소 로그(짝)이므로 어느 경우에도 세지 않는다.
+const ACTION_SETS = {
+	tech: { label: '3정큐 (기술타일 획득)', ids: ['Rebellion: Gain tech tile'] },
+	mine: { label: '1광 3파워 (광산 → 교역소)', ids: ['Rebellion: Mine → TS'] },
+	convert: { label: '2지식 → 1정큐 2크레딧', ids: ['Rebellion: 2K → 1Q 2C'] },
+	all: { label: '전체 3종', ids: ['Rebellion: Gain tech tile', 'Rebellion: Mine → TS', 'Rebellion: 2K → 1Q 2C'] },
+};
 const args = process.argv.slice(2);
 const MIN = Number(args[args.indexOf('--min') + 1]) || 5;
 const showEnter = args.includes('--enter');
+
+const PICK = args[args.indexOf('--action') + 1];
+const SEL = ACTION_SETS[PICK] ?? ACTION_SETS.tech;
+const ACTIONS = new Set(SEL.ids);
 
 /** [사용자 2026-08-11] 같은 사람이 쓰는 다른 이름 — 표시 이름으로 합친다.
  *  두 이름이 한 게임에 동시에 나오면 동일인이 아니므로 합치면 안 된다(암가·타클론안함은 0판 확인). */
@@ -92,7 +102,7 @@ const rows = Array.from(stat.entries())
 
 const pct = (n, d) => (d ? (100 * n / d).toFixed(0) + '%' : '-');
 
-console.log(`4인 전원 사람 게임 ${gameCount}판 · 참가 ${MIN}판 이상인 사람만`);
+console.log(`4인 전원 사람 게임 ${gameCount}판 · 참가 ${MIN}판 이상 · 리벨리온 [${SEL.label}]`);
 console.log('');
 const head = ['플레이어'.padEnd(12), '참가'.padStart(4), ...ROUNDS.map((r) => `R${r}`.padStart(5)), '한번이라도'.padStart(9)];
 if (showEnter) head.push('탑승'.padStart(6));
