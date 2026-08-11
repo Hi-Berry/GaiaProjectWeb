@@ -1810,17 +1810,6 @@ export function GameBoard({
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
-            {/* [사용자 2026-08-11] 편의기능 창 토글 — 그리드·?(도움말) 위 */}
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={() => setUtilityOpen((v) => !v)}
-              data-testid="button-toggle-utility"
-              title="편의기능 (남은 땅 · 거리 측정기)"
-              className={utilityOpen ? 'text-sky-300 hover:text-sky-200 ring-1 ring-sky-400/60' : 'text-zinc-300 hover:text-white'}
-            >
-              <Ruler className="w-4 h-4" />
-            </Button>
             <Button
               size="icon"
               variant="secondary"
@@ -1830,6 +1819,17 @@ export function GameBoard({
               className={showTileBorders ? 'text-amber-300 hover:text-amber-200 ring-1 ring-amber-400/60' : 'text-zinc-300 hover:text-white'}
             >
               <Grid3x3 className="w-4 h-4" />
+            </Button>
+            {/* [사용자 2026-08-11] 편의기능 창 토글 — 그리드 아래, ?(도움말) 위 */}
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={() => setUtilityOpen((v) => !v)}
+              data-testid="button-toggle-utility"
+              title="편의기능 (남은 땅 · 거리 측정기)"
+              className={utilityOpen ? 'text-sky-300 hover:text-sky-200 ring-1 ring-sky-400/60' : 'text-zinc-300 hover:text-white'}
+            >
+              <Ruler className="w-4 h-4" />
             </Button>
             <Button
               size="icon"
