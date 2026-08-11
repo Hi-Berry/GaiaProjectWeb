@@ -484,6 +484,17 @@ export default function Game() {
   const splitStatusWidth = splitActive ? winW - splitInfoWidth : 0;
   const splitInfoZoom = splitActive ? splitInfoWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
   const splitStatusZoom = splitActive ? splitStatusWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
+  // [사용자 2026-08-10] 상태창/로그 탭바(=제목줄)는 zoom 밖의 고정요소라 22px로 고정이었다. 최대화하면
+  //   패널 내용은 zoom이 0.7 → 1.3배로 커지는데 탭바만 그대로라 상대적으로 납작해 보이고, 22px는 탭 타깃으로
+  //   너무 작아 '되돌리려고 다시 더블터치'가 어려웠다 → 최대화 중에는 탭바를 키운다.
+  //   또 최대화 시 top:0이라 노치/브라우저 UI에 물리므로 safe-area만큼 내리고, 패널 padding도 같이 맞춘다.
+  const mobileTabBarH = mobileZoomPanel === 'status' ? 34 : 22;
+  const mobileTabBarTop = mobileZoomPanel === 'status' ? 'env(safe-area-inset-top, 0px)' : (splitActive ? '50%' : 0);
+  const mobilePanelPadTop = mobileZoomPanel === 'status'
+    ? `calc(env(safe-area-inset-top, 0px) + ${mobileTabBarH}px)`
+    : `${mobileTabBarH}px`;
+  // 최대화(h-100dvh)는 홈 인디케이터 영역까지 덮어 마지막 줄이 가려진다 → 하단 safe-area만큼 비워 준다.
+  const mobilePanelPadBottom = mobileZoomPanel === 'status' ? 'env(safe-area-inset-bottom, 0px)' : '0px';
   // Info 오버레이 실제 폭/zoom: 분할 모드면 분할 폭, 아니면 좌측 풀하이트 오버레이 폭
   const infoEffectiveWidth = splitActive ? splitInfoWidth : infoOverlayWidth;
   const infoEffectiveZoom = splitActive ? splitInfoZoom : infoOverlayZoom;
@@ -4902,7 +4913,6 @@ export default function Game() {
       <div
         className={`
         z-[80]
-        ${isMobileViewport ? 'pt-[22px]' : ''}
         transition-[transform,opacity] duration-300 ease-in-out
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         ${splitActive
@@ -4910,7 +4920,11 @@ export default function Game() {
           : `${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'} right-0 top-0 bottom-0 max-w-[85vw] md:max-w-none relative`
         }
       `}
-        style={splitActive ? { width: splitStatusWidth } : (isSidebarOpen ? { width: effectiveSidebarWidth } : undefined)}
+        style={{
+          // pt는 탭바 높이(최대화 시 safe-area 포함)를 따라간다 — 예전엔 pt-[22px] 고정이라 탭바를 키우면 겹쳤다
+          ...(splitActive ? { width: splitStatusWidth } : (isSidebarOpen ? { width: effectiveSidebarWidth } : {})),
+          ...(isMobileViewport ? { paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom } : {}),
+        }}
       >
         {/* 사이드바 너비 리사이즈 핸들 (왼쪽 가장자리) */}
         {isSidebarOpen && (
@@ -6215,22 +6229,22 @@ export default function Game() {
           좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
       {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
         <div
-          className={`md:hidden fixed right-0 z-[113] flex text-[9px] font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
-          style={{ top: mobileZoomPanel === 'status' ? 0 : splitActive ? '50%' : 0, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
+          className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
+          style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
           onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'status' ? null : 'status')}
           title="더블터치: 전체화면 전환"
         >
           <button
             type="button"
             onClick={() => { setIsLogPanelOpen(false); setIsInfoOpen(false); }}
-            className={`flex-1 py-1 ${!isLogPanelOpen ? 'bg-blue-500/25 text-blue-100' : 'bg-zinc-900/95 text-zinc-500'}`}
+            className={`flex-1 h-full flex items-center justify-center ${!isLogPanelOpen ? 'bg-blue-500/25 text-blue-100' : 'bg-zinc-900/95 text-zinc-500'}`}
           >
             상태창
           </button>
           <button
             type="button"
             onClick={() => { setIsLogPanelOpen(true); setIsInfoOpen(false); }}
-            className={`flex-1 py-1 border-l border-white/10 ${isLogPanelOpen ? 'bg-blue-500/25 text-blue-100' : 'bg-zinc-900/95 text-zinc-500'}`}
+            className={`flex-1 h-full flex items-center justify-center border-l border-white/10 ${isLogPanelOpen ? 'bg-blue-500/25 text-blue-100' : 'bg-zinc-900/95 text-zinc-500'}`}
           >
             로그
           </button>
@@ -6241,7 +6255,7 @@ export default function Game() {
               aria-label="로그 필터 켜기/끄기"
               title="라운드·플레이어 필터 켜기/끄기"
               onClick={() => setLogFilterOpen((v) => !v)}
-              className={`shrink-0 w-7 py-1 border-l border-white/10 leading-none ${logFilterOpen ? 'bg-blue-500/40 text-white' : 'bg-zinc-900/95 text-zinc-400'}`}
+              className={`shrink-0 ${mobileZoomPanel === 'status' ? 'w-9' : 'w-7'} h-full flex items-center justify-center border-l border-white/10 leading-none ${logFilterOpen ? 'bg-blue-500/40 text-white' : 'bg-zinc-900/95 text-zinc-400'}`}
             >
               {logFilterOpen ? '−' : '+'}
             </button>
@@ -6252,8 +6266,8 @@ export default function Game() {
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && isLogPanelOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] pt-[22px] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
-          style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth, paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom }}
         >
           <div
             className="flex flex-col h-full overflow-hidden"
