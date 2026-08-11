@@ -24,6 +24,11 @@ const args = process.argv.slice(2);
 const MIN = Number(args[args.indexOf('--min') + 1]) || 5;
 const showEnter = args.includes('--enter');
 
+/** [사용자 2026-08-11] 같은 사람이 쓰는 다른 이름 — 표시 이름으로 합친다.
+ *  두 이름이 한 게임에 동시에 나오면 동일인이 아니므로 합치면 안 된다(암가·타클론안함은 0판 확인). */
+const ALIAS = { '암가': '타클론안함' };
+const canon = (name) => ALIAS[name] || name;
+
 function isAllHuman4(g) {
 	const keys = Object.keys(g.players || {});
 	if (keys.length !== 4) return false;
@@ -47,7 +52,7 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
 	gameCount++;
 
 	const nameOf = {};
-	for (const pid of Object.keys(g.players)) nameOf[pid] = g.players[pid].name;
+	for (const pid of Object.keys(g.players)) nameOf[pid] = canon(g.players[pid].name);
 	for (const pid of Object.keys(nameOf)) get(nameOf[pid]).games++;
 
 	// 이 게임에서 (사람, 라운드) 조합으로 실행 여부 · 탑승 여부
@@ -55,7 +60,7 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
 	const didAny = new Set();     // name
 	const entered = new Set();    // name
 	for (const e of log) {
-		const name = e.playerName || nameOf[e.playerId];
+		const name = canon(e.playerName || nameOf[e.playerId] || '');
 		if (!name) continue;
 		if (ACTIONS.has(e.action)) {
 			const r = Number(e.round);
