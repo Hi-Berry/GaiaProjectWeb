@@ -35,6 +35,7 @@ import {
 	isPowerLeechPointlessAfterIncome,
 	canSpendTaklonsPower,
 	spendTaklonsPower,
+	planTokenSpend,
 	createInitialPlayerState,
 	ALL_TECH_TILES,
 	ALL_ADVANCED_TECH_TILES,
@@ -810,27 +811,18 @@ export function hasNearbyPlayersForDiscount(game: ServerGameState, tile: HexTile
 /** 파워 토큰 소비: 1그릇 → 2그릇 → 3그릇 순. 성공 시 true */
 function spendPowerTokens(player: PlayerState, amount: number): boolean {
 	// [사용자 요청 2026-06-29] 타클론 브레인 스톤도 토큰 비용(연방 위성·인공물 등)에 1토큰으로 사용 가능.
-	//   일반 토큰(그릇1→2→3)을 우선 소모하고, 부족분 1개를 브레인 스톤으로 충당한다.
-	//   쓴 브레인은 가이아 영역으로 빼고(brainStoneInGaia), 이후 가이아 사이클로 그릇1 복귀(타클론 특성과 일치).
-	const hasBrain = player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia && !player.brainStoneSpent;
-	const brainAvail = hasBrain ? 1 : 0;
-	const total = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvail;
-	if (total < amount) return false;
-	let remaining = amount;
-	const from1 = Math.min(remaining, player.power1 || 0);
-	player.power1 = (player.power1 || 0) - from1;
-	remaining -= from1;
-	const from2 = Math.min(remaining, player.power2 || 0);
-	player.power2 = (player.power2 || 0) - from2;
-	remaining -= from2;
-	const from3 = Math.min(remaining, player.power3 || 0);
-	player.power3 = (player.power3 || 0) - from3;
-	remaining -= from3;
-	// 일반 토큰으로 모자란 마지막 1개는 브레인 스톤으로 충당 → 영구 소멸(복귀 없음, 사용자 요청).
-	if (remaining > 0 && hasBrain) {
+	// [사용자 2026-08-11] 어느 토큰을 낼지는 planTokenSpend가 결정한다(가이아포밍과 동일 규칙):
+	//   브레인 우선 = 파워용으로 아껴 모자랄 때만 / 브레인 보존 = 아래 그릇에 있으면 먼저 내보냄.
+	const plan = planTokenSpend(player, amount);
+	if (!plan) return false;
+	player.power1 = (player.power1 || 0) - plan.from1;
+	player.power2 = (player.power2 || 0) - plan.from2;
+	player.power3 = (player.power3 || 0) - plan.from3;
+	// 연방 위성·인공물은 토큰이 게임에서 아예 제거되므로 브레인도 영구 소멸(복귀 없음, 사용자 확정 룰).
+	// 가이아포밍은 가이아 영역으로 갔다가 돌아오는 것과 다른 점.
+	if (plan.useBrain) {
 		player.brainStoneSpent = true;
 		player.brainStoneBowl = undefined;
-		remaining -= 1;
 	}
 	return true;
 }
@@ -9974,6 +9966,7 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	//   토큰만 세야 한다(브레인은 저 경로로 따로 돌아오므로, 같이 세면 복귀 때 없던 일반 토큰이 1개 생긴다).
 	const brainAvailForGaia = (player.faction === 'taklons' && player.brainStoneBowl != null
 		&& !player.brainStoneInGaia && !player.brainStoneSpent) ? 1 : 0;
+	let tokenPlan: ReturnType<typeof planTokenSpend> = null;
 
 	const pendingGaia = game.pendingTFMarsGaiaProject;
 	// [버그수정 2026-07-20] 소유자 미확인: 다른 플레이어의 pending('bonus-gaia')이 남아 있으면 내 일반 배치가
@@ -9989,8 +9982,9 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 		// 총 보유 토큰 검증을 차감 전에 완료 (타클론 브레인 스톤 1개 포함)
 		// [사용자 2026-08-10] 예전엔 조용히 return false — 클라가 토큰 수를 검사하지 않아 버튼은 활성인데
 		//   눌러도 무반응이었다. 종족 공통으로 사유를 안내한다(브레인 보유 시 개수에 포함해 표기).
-		const haveTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvailForGaia;
-		if (haveTokens < powerToMove) {
+		tokenPlan = planTokenSpend(player, powerToMove);
+		if (!tokenPlan) {
+			const haveTokens = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainAvailForGaia;
 			onFail?.(`가이아 포밍을 위한 토큰이 부족합니다. (필요: ${powerToMove}, 보유: ${haveTokens}${brainAvailForGaia ? ' — 브레인 스톤 1개 포함' : ''})`);
 			return false;
 		}
@@ -10002,29 +9996,20 @@ export function executePlaceGaiaformer(io: SocketIOServer, game: ServerGameState
 	if (player.gleensNavBonusActive) player.gleensNavBonusActive = false;
 	player.qic -= qicToUse;
 
-	if (!immediateBuildable) {
-		let remaining = powerToMove;
-		const movedFrom1 = Math.min(remaining, player.power1 || 0);
-		player.power1 = (player.power1 || 0) - movedFrom1;
-		remaining -= movedFrom1;
+	if (!immediateBuildable && tokenPlan) {
+		player.power1 = (player.power1 || 0) - tokenPlan.from1;
+		player.power2 = (player.power2 || 0) - tokenPlan.from2;
+		player.power3 = (player.power3 || 0) - tokenPlan.from3;
 
-		const movedFrom2 = Math.min(remaining, player.power2 || 0);
-		player.power2 = (player.power2 || 0) - movedFrom2;
-		remaining -= movedFrom2;
-
-		const movedFrom3 = Math.min(remaining, player.power3 || 0);
-		player.power3 = (player.power3 || 0) - movedFrom3;
-		remaining -= movedFrom3;
-
-		// 일반 토큰으로 모자란 마지막 1개만 브레인 스톤으로 (가이아 영역으로 이동 → 가이아 단계에 그릇1 복귀)
+		// 브레인은 가이아 영역으로 → 가이아 단계에 그릇1로 복귀(:2678). 연방/인공물의 영구 소멸과 다르다.
 		let brainMoved = 0;
-		if (remaining > 0 && brainAvailForGaia) {
+		if (tokenPlan.useBrain) {
 			player.brainStoneInGaia = true;
 			brainMoved = 1;
-			remaining -= 1;
 			addGameLog(game, playerId, 'Taklons: Brain Stone', 'Moved to Gaia (counts as 1 token)', tileId);
 		}
 
+		// gaiaformerPower는 일반 토큰만 — 브레인은 위 경로로 따로 돌아오므로 같이 세면 토큰이 1개 생긴다
 		player.gaiaformerPower = (player.gaiaformerPower || 0) + (powerToMove - brainMoved);
 	}
 

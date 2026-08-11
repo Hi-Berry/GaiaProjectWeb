@@ -1387,6 +1387,43 @@ export function restorePlayerPowerSnapshot(
   }
 }
 
+/**
+ * [사용자 2026-08-11] '토큰 N개' 비용(연방 위성·인공물·가이아포밍)을 그릇별로 어떻게 낼지 계획한다.
+ * 브레인 스톤은 파워로 낼 땐 3이지만 개수 비용에선 1개다. 그릇은 1→2→3 순으로 비운다(덜 충전된 것부터).
+ *
+ * - 브레인 우선(taklonsBrainPriority !== false): 브레인은 큰 파워 액션용으로 아껴 두는 설정이므로
+ *   토큰 비용에는 쓰지 않는다. 단 일반 토큰이 모자라면 마지막 1개를 충당한다(안 그러면 액션 자체가 불가).
+ * - 브레인 보존(false): 어차피 파워로 안 쓸 브레인이라 토큰 비용으로 내보내는 편이 이득일 수 있다.
+ *   브레인이 '마지막으로 손대는 그릇'보다 아래 그릇에 있으면 그 그릇 토큰 1개 대신 브레인을 낸다.
+ *   예) 6개 필요 · 브레인 1그릇 · 6번째가 2그릇 → 2그릇 토큰을 남기고 브레인을 낸다. 더 충전된 토큰이
+ *   남으므로 손해가 없다. 같은 그릇이면 브레인(파워 3)이 더 값지니 그대로 둔다.
+ */
+export function planTokenSpend(
+  player: PlayerState,
+  amount: number
+): { from1: number; from2: number; from3: number; useBrain: boolean } | null {
+  const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+  const hasBrain = player.faction === 'taklons' && player.brainStoneBowl != null
+    && !player.brainStoneInGaia && !player.brainStoneSpent;
+  if (amount <= 0) return { from1: 0, from2: 0, from3: 0, useBrain: false };
+  if (p1 + p2 + p3 + (hasBrain ? 1 : 0) < amount) return null;
+
+  let rem = amount;
+  const from1 = Math.min(rem, p1); rem -= from1;
+  const from2 = Math.min(rem, p2); rem -= from2;
+  const from3 = Math.min(rem, p3); rem -= from3;
+
+  // 일반 토큰만으로 모자람 → 설정과 무관하게 브레인으로 마지막 1개 충당
+  if (rem > 0) return { from1, from2, from3, useBrain: true };
+  // 충분함 → '브레인 보존'일 때만 아래 그릇 브레인과 맞바꾼다
+  if (!hasBrain || player.taklonsBrainPriority !== false) return { from1, from2, from3, useBrain: false };
+  const highest = from3 > 0 ? 3 : from2 > 0 ? 2 : from1 > 0 ? 1 : 0;
+  if (highest === 0 || (player.brainStoneBowl ?? 1) >= highest) return { from1, from2, from3, useBrain: false };
+  if (highest === 3) return { from1, from2, from3: from3 - 1, useBrain: true };
+  if (highest === 2) return { from1, from2: from2 - 1, from3, useBrain: true };
+  return { from1: from1 - 1, from2, from3, useBrain: true };
+}
+
 /** 타클론: 해당 그릇에서 낼 수 있는 파워 값 (브레인 스톤 = 3, 일반 = 1) */
 export function getTaklonsBowlPowerValue(player: PlayerState, bowl: 1 | 2 | 3): number {
   if (player.brainStoneInGaia) {

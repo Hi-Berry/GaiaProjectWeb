@@ -86,6 +86,36 @@ const check = (name: string, actual: unknown, expected: unknown) => {
 	check('  그릇 1→2→3 순으로 비우고 브레인 충당', snap(player), { p1: 0, p2: 0, p3: 0, bs: 2, inGaia: true, gfPower: 5 });
 }
 
+// [사용자 2026-08-11] '브레인 보존'이면 아래 그릇의 브레인을 먼저 내보낸다.
+// 사용자 예시: 6개 필요 · 브레인 1그릇 · 6번째 토큰이 2그릇 → 2그릇 토큰을 남기고 브레인을 낸다.
+{
+	const { game, player } = makeGame({ power1: 5, power2: 2, power3: 0, brainStoneBowl: 1 }, 1);
+	player.taklonsBrainPriority = false;
+	check('보존: 6개 필요, 브레인 1그릇 + 6번째가 2그릇 → 브레인 사용', executePlaceGaiaformer(ioStub, game, ME, 'td'), true);
+	check('  2그릇 토큰 2개 보존, 브레인이 가이아로', snap(player), { p1: 0, p2: 2, p3: 0, bs: 1, inGaia: true, gfPower: 5 });
+}
+// 같은 판이라도 '브레인 우선'이면 브레인을 아끼고 2그릇 토큰을 낸다(기존 동작).
+{
+	const { game, player } = makeGame({ power1: 5, power2: 2, power3: 0, brainStoneBowl: 1 }, 1);
+	player.taklonsBrainPriority = true;
+	check('우선: 같은 판에서 브레인 미사용', executePlaceGaiaformer(ioStub, game, ME, 'td'), true);
+	check('  2그릇에서 1개 가져감', snap(player), { p1: 0, p2: 1, p3: 0, bs: 1, inGaia: false, gfPower: 6 });
+}
+// 보존이어도 브레인이 '마지막 그릇'과 같거나 위면 그대로 둔다 — 브레인(파워3)이 더 값지다.
+{
+	const { game, player } = makeGame({ power1: 0, power2: 4, power3: 3, brainStoneBowl: 3 }, 1);
+	player.taklonsBrainPriority = false;
+	check('보존: 브레인 3그릇 = 마지막 그릇 → 미사용', executePlaceGaiaformer(ioStub, game, ME, 'td'), true);
+	check('  브레인 3그릇 그대로', snap(player), { p1: 0, p2: 0, p3: 1, bs: 3, inGaia: false, gfPower: 6 });
+}
+// 보존인데 브레인이 아래 그릇이고 마지막 그릇이 3그릇인 경우도 맞바꾼다.
+{
+	const { game, player } = makeGame({ power1: 2, power2: 0, power3: 2, brainStoneBowl: 1 }, 4);
+	player.taklonsBrainPriority = false;
+	check('보존: 3개 필요, 브레인 1그릇 + 3번째가 3그릇 → 브레인 사용', executePlaceGaiaformer(ioStub, game, ME, 'td'), true);
+	check('  3그릇 토큰 2개 보존', snap(player), { p1: 0, p2: 0, p3: 2, bs: 1, inGaia: true, gfPower: 2 });
+}
+
 // [사용자 2026-08-10] 토큰 부족은 조용히 실패하지 않고 사유를 안내한다 — 종족 공통.
 {
 	const { game } = makeGame({ power1: 1, power2: 0, power3: 0 }, 4, 'terran');
