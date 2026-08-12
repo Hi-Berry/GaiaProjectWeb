@@ -1,5 +1,10 @@
 import { io, Socket } from 'socket.io-client';
 import type { GaiaGameState as GameState, PlayerState, StructureType, ResearchTrack } from '@shared/gameConfig';
+import {
+  GAME_SYNC_PROTOCOL,
+  type GameDeltaMessage,
+  type GameSyncMessage,
+} from '@shared/gameSync';
 
 export type { GameState, PlayerState, StructureType, ResearchTrack };
 
@@ -117,6 +122,18 @@ export const GameClient = {
       const s = getSocket();
       s.emit('get_game', { gameId }, (response: any) => {
         if (response.error) reject(new Error(response.error));
+        else resolve(response);
+      });
+    });
+  },
+
+  /** 전체 기준점 + revision을 받아 델타 스트림을 시작하거나 어긋난 상태를 자동 복구한다. */
+  syncGame(gameId: string): Promise<{ game: GameState; revision: number; protocol: number }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.timeout(4000).emit('sync_game', { gameId, protocol: GAME_SYNC_PROTOCOL }, (timeoutError: Error | null, response: any) => {
+        if (timeoutError) { reject(new Error('Game sync timed out')); return; }
+        if (response?.error) reject(new Error(response.error));
         else resolve(response);
       });
     });
@@ -657,6 +674,18 @@ export const GameClient = {
     const s = getSocket();
     s.on('game_updated', callback);
     return () => s.off('game_updated', callback);
+  },
+
+  onGameDelta(callback: (message: GameDeltaMessage) => void) {
+    const s = getSocket();
+    s.on('game_delta', callback);
+    return () => s.off('game_delta', callback);
+  },
+
+  onGameSync(callback: (message: GameSyncMessage) => void) {
+    const s = getSocket();
+    s.on('game_sync', callback);
+    return () => s.off('game_sync', callback);
   },
 
   onGameError(callback: (err: { message: string }) => void) {

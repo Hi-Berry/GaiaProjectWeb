@@ -51,6 +51,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 
 import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
+import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3R: 테라1스텝·1QIC·4파워 / 4–6R: 3K·2QIC·테라3스텝)
  *  [사용자 2026-08-09] 예전 '1 TF + 광산 건설' 표기는 오해 — 실제로는 테라포밍 단계만 주고 광산은 직접 짓는다(보너스 타일 테라 액션과 동일). */
@@ -573,6 +574,7 @@ export default function Game() {
   // [대역폭 2026-07-26] 서버가 game_updated엔 gameLog 꼬리(40개)+인덱스만 보냄 → 여기서 병합·보관.
   // 전체 로그는 입장/재접속 콜백(full 페이로드)이 시드 — 늦게 들어와도/재접해도 처음부터 다 보임.
   const gameLogArchiveRef = useRef<{ gameId: string | null; log: NonNullable<GameState['gameLog']> }>({ gameId: null, log: [] });
+  const gameWireRef = useRef<{ gameId: string; revision: number; game: Record<string, unknown> } | null>(null);
   const mergeGameLog = useCallback((g: any) => {
     if (!g || !Array.isArray(g.gameLog)) return;
     const arch = gameLogArchiveRef.current;
@@ -849,6 +851,58 @@ export default function Game() {
       return;
     }
 
+    const applyAuthoritativeGame = (updatedGame: GameState) => {
+      if (updatedGame.id !== gameId) return;
+      if (updatedGame.hostId === playerId) isHostSessionRef.current = true;
+      // 낙관적 프리액션보다 뒤처진 권위 패킷만 UI에서 건너뛴다.
+      // wire 기준점/revision은 이벤트 핸들러에서 먼저 전진하므로 다음 델타 적용에는 영향이 없다.
+      const isSelfTurn = updatedGame.turnOrder?.[updatedGame.currentPlayerIndex] === playerId;
+      const serverFreeCount = (updatedGame as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length ?? 0;
+      const bursting = Date.now() - GameClient.lastOptimisticFreeActionAt() < 2000;
+      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount > 0 && serverFreeCount < GameClient.getLastAppliedServerFreeCount()) {
+        return;
+      }
+      GameClient.syncOptimisticFreeCount(serverFreeCount);
+      if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
+      else GameClient.noteAppliedServerFreeCount(serverFreeCount);
+      mergeGameLog(updatedGame);
+      setGame(updatedGame);
+      const isCurrentPlayer = updatedGame.turnOrder[updatedGame.currentPlayerIndex] === playerId;
+      if (isCurrentPlayer && updatedGame.hasDoneMainAction) {
+        setPendingAction(null);
+        setAdvanceTechDialog((prev) => (prev.open ? { open: false, trackId: null } : prev));
+        setPendingTwilightTSUpgrade(null);
+        setPendingRebellionMineToTS(null);
+      }
+    };
+
+    let syncInFlight: Promise<void> | null = null;
+    const installFullSync = (response: { game: GameState; revision: number }) => {
+      const current = gameWireRef.current;
+      if (current?.gameId === gameId && current.revision > response.revision) return;
+      const fullGame = response.game;
+      gameWireRef.current = {
+        gameId,
+        revision: response.revision,
+        game: buildClientGameState(fullGame, true),
+      };
+      applyAuthoritativeGame(fullGame);
+    };
+    const requestFullSync = () => {
+      if (syncInFlight) return syncInFlight;
+      syncInFlight = GameClient.syncGame(gameId)
+        .then(installFullSync)
+        .finally(() => { syncInFlight = null; });
+      return syncInFlight;
+    };
+    const hasGameLogGap = (wireGame: Record<string, unknown>) => {
+      const start = wireGame.gameLogStart;
+      const archive = gameLogArchiveRef.current;
+      return typeof start === 'number'
+        && archive.gameId === gameId
+        && archive.log.length < start;
+    };
+
     const fetchGame = async () => {
       try {
         const storedPlayerId = getStoredPlayerId(gameId);
@@ -856,9 +910,8 @@ export default function Game() {
 
         if (storedPlayerId) {
           try {
-            const { game: gameData } = await GameClient.rejoinGame(gameId, storedPlayerId);
-            mergeGameLog(gameData);
-            setGame(gameData);
+            await GameClient.rejoinGame(gameId, storedPlayerId);
+            await requestFullSync();
             setLoading(false);
             return;
           } catch {
@@ -867,9 +920,8 @@ export default function Game() {
 
         if (storedSpectatorId) {
           try {
-            const { game: gameData } = await GameClient.rejoinGame(gameId, storedSpectatorId);
-            mergeGameLog(gameData);
-            setGame(gameData);
+            await GameClient.rejoinGame(gameId, storedSpectatorId);
+            await requestFullSync();
             setPlayerId(null);
             setIsSpectator(true);
             setLoading(false);
@@ -879,9 +931,10 @@ export default function Game() {
           }
         }
 
-        const { game: gameData } = await GameClient.getGame(gameId);
-        mergeGameLog(gameData);
-        setGame(gameData);
+        // 직접 URL로 연 공개 조회도 동일한 전체 스냅샷 형식을 사용한다.
+        // 방에 참가하지 않은 소켓은 델타 방에 들어가지 않으므로 기존처럼 실시간 구독은 하지 않는다.
+        await GameClient.getGame(gameId);
+        await requestFullSync();
         if (storedSpectatorId) {
           setPlayerId(null);
           setIsSpectator(true);
@@ -927,41 +980,44 @@ export default function Game() {
     window.addEventListener('focus', resyncNow);    // iOS에서 visibilitychange가 안 오는 경우 대비
     window.addEventListener('pageshow', resyncNow); // 뒤로가기 캐시(bfcache)로 복귀할 때
 
-    const unsubGame = GameClient.onGameUpdated((updatedGame) => {
-      if (updatedGame.id !== gameId) return;
-      if (updatedGame.hostId === playerId) isHostSessionRef.current = true;
-      // [낙관적 동기화 v2] 프리액션 연타 시, 서버가 이전 프리액션을 처리하며 보낸 옛 패킷이 뒤늦게 도착해
-      // 더 최신인 화면 상태를 옛 상태로 덮어써 되돌아가는 rubber-banding 방지.
-      // (v1 버그) 스킵 기준이 'serverFreeCount < optimisticCount'였는데, 자원 소진 후/추가 연타로 optimisticCount가
-      //   서버를 영구 추월하면 모든 패킷이 스킵돼 UI가 2초 동안 동결됐다(사용자 관찰: "3개쯤 변하고 더 눌러도 무반응,
-      //   새로고침하면 다 적용"). → 기준을 '이미 적용한 서버 카운트보다 후퇴(stale)하는 패킷만 스킵'(단조 진행)으로 변경.
-      //   연타 중에도 서버 카운트가 오르면 매 패킷을 적용하므로 동결되지 않음. undo는 기준선을 함께 낮춰 정상 반영.
-      const isSelfTurn = updatedGame.turnOrder?.[updatedGame.currentPlayerIndex] === playerId;
-      const serverFreeCount = (updatedGame as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length ?? 0;
-      const bursting = Date.now() - GameClient.lastOptimisticFreeActionAt() < 2000; // 폐색 방지용 시간 폴백
-      // [버그수정 2026-07-06] serverFreeCount > 0 조건 추가. 진짜 stale 프리액션 echo는 항상 count≥1(프리액션이
-      //   스택에 push했으므로). count 0 = 서버가 free 컨텍스트를 리셋한 authoritative 상태 — 보너스타일 액션(range_3/
-      //   terraform_step)은 saveActionStartState→clearFreeActionUndo로 스택을 비워(count 0) hasDoneMainAction도 안 바꿔서,
-      //   프리액션 직후(버스트 중) 누르면 0 < lastApplied로 오판돼 스킵 → 다음 스텝/안내창 안 뜨고 F5해야 보이던 버그.
-      //   count 0은 절대 stale echo가 아니므로 스킵 대상에서 제외.
-      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount > 0 && serverFreeCount < GameClient.getLastAppliedServerFreeCount()) {
-        return; // 이미 보여준 것보다 뒤처진(stale) 자기-프리액션 echo — 무시
+    // 구버전 서버/초기 capability 협상 전에는 전체 상태 이벤트도 계속 받을 수 있다.
+    const unsubGame = GameClient.onGameUpdated((updatedGame) => applyAuthoritativeGame(updatedGame));
+
+    const unsubDelta = GameClient.onGameDelta((message: GameDeltaMessage) => {
+      if (message.gameId !== gameId) return;
+      const wire = gameWireRef.current;
+      // 중복/지연 도착한 패킷은 이미 반영된 상태이므로 재동기화 없이 버린다.
+      if (wire?.gameId === gameId && message.revision <= wire.revision) return;
+      if (!wire || wire.gameId !== gameId || wire.revision !== message.baseRevision) {
+        void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
+        return;
       }
-      GameClient.syncOptimisticFreeCount(serverFreeCount); // 권위 상태 채택 → 카운트 재동기화
-      // 단조 기준선 갱신: 새 컨텍스트(카운트 0, 턴 전환/메인액션 후)면 0으로 리셋, 아니면 최고치 유지.
-      if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
-      else GameClient.noteAppliedServerFreeCount(serverFreeCount);
-      mergeGameLog(updatedGame);
-      setGame(updatedGame);
-      // 자동 전환은 useEffect(game?.turnOrder, currentPlayerIndex)에서 처리
-      // 메인 액션을 이미 한 상태면 추가 액션 선택 불가 → 대기 중인 선택 초기화
-      const isCurrentPlayer = updatedGame.turnOrder[updatedGame.currentPlayerIndex] === playerId;
-      if (isCurrentPlayer && updatedGame.hasDoneMainAction) {
-        setPendingAction(null);
-        setAdvanceTechDialog((prev) => (prev.open ? { open: false, trackId: null } : prev));
-        setPendingTwilightTSUpgrade(null);
-        setPendingRebellionMineToTS(null);
+      try {
+        const nextWire = applyGameStateDelta(wire.game, message.delta);
+        gameWireRef.current = { gameId, revision: message.revision, game: nextWire };
+        if (hasGameLogGap(nextWire)) {
+          void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
+          return;
+        }
+        // mergeGameLog가 gameLog를 전체 아카이브로 교체하므로 wire 기준점과 별도 객체를 사용한다.
+        const uiGame = JSON.parse(JSON.stringify(nextWire)) as GameState;
+        applyAuthoritativeGame(uiGame);
+      } catch {
+        void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
       }
+    });
+
+    const unsubSync = GameClient.onGameSync((message: GameSyncMessage) => {
+      if (message.gameId !== gameId) return;
+      const current = gameWireRef.current;
+      if (current?.gameId === gameId && message.revision <= current.revision) return;
+      gameWireRef.current = { gameId, revision: message.revision, game: message.game };
+      if (hasGameLogGap(message.game)) {
+        void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
+        return;
+      }
+      const uiGame = JSON.parse(JSON.stringify(message.game)) as GameState;
+      applyAuthoritativeGame(uiGame);
     });
 
     const unsubError = GameClient.onError((err) => {
@@ -1002,6 +1058,8 @@ export default function Game() {
       window.removeEventListener('focus', resyncNow);
       window.removeEventListener('pageshow', resyncNow);
       unsubGame();
+      unsubDelta();
+      unsubSync();
       unsubError();
       unsubGameError();
       unsubFedRedundant();
