@@ -10028,8 +10028,13 @@ export function executeConvertResource(
 			player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.ore = (player.ore ?? 0) + 1;
 			logDesc = '2P → 1O'; success = true;
 		} else if (isTaklons) {
+			// [사용자 2026-08-12] 브레인으로 바꿔도 '3P → 1O'로만 찍혀 뭘 썼는지 알 수 없었다
+			//   (1B→3C는 전용 타입이라 티가 났는데 이쪽은 일반 파워 타입 재사용). 실제 소비를 보고 표기한다.
+			const bs0 = player.brainStoneBowl;
 			if (canSpendTaklonsPower(player, 3, 3) && spendTaklonsPower(player, 3, 3, useBrain ?? true)) {
-				player.ore = (player.ore ?? 0) + 1; logDesc = '3P → 1O'; success = true;
+				player.ore = (player.ore ?? 0) + 1;
+				logDesc = (bs0 === 3 && player.brainStoneBowl === 1) ? '1B → 1O' : '3P → 1O';
+				success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 3) {
 			player.power3! -= 3; player.power1 = (player.power1 ?? 0) + 3; player.ore = (player.ore ?? 0) + 1;
@@ -10054,8 +10059,11 @@ export function executeConvertResource(
 			player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; grantQic(game, playerId, 1);
 			logDesc = '2P → 1Q'; success = true;
 		} else if (isTaklons) {
+			const bs0 = player.brainStoneBowl;
 			if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? true)) {
-				grantQic(game, playerId, 1); logDesc = '4P → 1Q'; success = true;
+				grantQic(game, playerId, 1);
+				logDesc = (bs0 === 3 && player.brainStoneBowl === 1) ? '1B+1P → 1Q' : '4P → 1Q';
+				success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 4) {
 			player.power3! -= 4; player.power1 = (player.power1 ?? 0) + 4; grantQic(game, playerId, 1);
@@ -10073,7 +10081,7 @@ export function executeConvertResource(
 			if ((player.power3 ?? 0) >= 1 && spendTaklonsPower(player, 3, 1, false)) {
 				player.credits += 1; logDesc = '1P → 1C'; success = true;
 			} else if (brainInBowl3 && spendTaklonsPower(player, 3, 3, true)) {
-				player.credits += 3; logDesc = 'Brain 3P → 3C'; success = true;
+				player.credits += 3; logDesc = '1B → 3C'; success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 1) {
 			player.power3! -= 1; player.power1 = (player.power1 ?? 0) + 1; player.credits = (player.credits ?? 0) + 1;
@@ -10108,8 +10116,11 @@ export function executeConvertResource(
 			player.power3! -= 2; player.power1 = (player.power1 ?? 0) + 2; player.knowledge = (player.knowledge ?? 0) + 1;
 			logDesc = '2P → 1K'; success = true;
 		} else if (isTaklons) {
+			const bs0 = player.brainStoneBowl;
 			if (canSpendTaklonsPower(player, 3, 4) && spendTaklonsPower(player, 3, 4, useBrain ?? true)) {
-				player.knowledge = (player.knowledge ?? 0) + 1; logDesc = '4P → 1K'; success = true;
+				player.knowledge = (player.knowledge ?? 0) + 1;
+				logDesc = (bs0 === 3 && player.brainStoneBowl === 1) ? '1B+1P → 1K' : '4P → 1K';
+				success = true;
 			}
 		} else if ((player.power3 ?? 0) >= 4) {
 			player.power3! -= 4; player.power1 = (player.power1 ?? 0) + 4; player.knowledge = (player.knowledge ?? 0) + 1;
