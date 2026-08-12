@@ -3588,6 +3588,29 @@ export default function Game() {
           const iAmRequired = !!playerId && pr.required.includes(playerId);
           const iApproved = !!playerId && pr.approvals.includes(playerId);
           const need = pr.required.length, got = pr.approvals.length;
+          // [사용자 2026-08-12] '2/3'만 보여선 누가 안 눌렀는지 알 수 없어 기다리기만 했다 → 사람별로 표기.
+          //   pr.required = 동의가 필요한 사람(요청자 제외), pr.approvals = 이미 동의한 사람.
+          const roster = pr.required.map((pid) => {
+            const p = game.players?.[pid];
+            return {
+              pid,
+              name: p?.name ?? pid,
+              color: playerColorOverrides?.[pid] ?? FACTIONS.find((f) => f.id === p?.faction)?.color ?? '#a1a1aa',
+              ok: pr.approvals.includes(pid),
+            };
+          });
+          const RosterList = () => (
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              {roster.map((r) => (
+                <span key={r.pid} className={`flex items-center gap-1.5 text-[11px] ${r.ok ? 'text-emerald-300' : 'text-zinc-500'}`}>
+                  <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: r.color, opacity: r.ok ? 1 : 0.45 }} />
+                  <span className={r.ok ? 'font-bold' : ''}>{r.name}</span>
+                  <span aria-hidden="true">{r.ok ? '✓' : '…'}</span>
+                  <span className="sr-only">{r.ok ? '동의함' : '대기 중'}</span>
+                </span>
+              ))}
+            </div>
+          );
           if (iAmRequired && !iApproved) {
             return (
               <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -3603,7 +3626,10 @@ export default function Game() {
                       {pr.undoneActions.map((a, i) => (<div key={i} className="text-zinc-300">• {a}</div>))}
                     </div>
                   )}
-                  <div className="text-[11px] text-zinc-500">현재 동의 {got}/{need}</div>
+                  <div className="rounded-lg border border-white/10 bg-black/30 p-2 space-y-1">
+                    <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">현재 동의 {got}/{need}</div>
+                    <RosterList />
+                  </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false)}>거절</Button>
                     <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
@@ -3613,8 +3639,10 @@ export default function Game() {
             );
           }
           return (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-full border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 shadow-lg backdrop-blur">
-              ↩ 롤백 대기 중: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 shadow-lg backdrop-blur">
+              <div>↩ 롤백 대기 중: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>
+              {/* 누구를 기다리는지 보이게 — 내가 이미 동의했거나 대상이 아니어도 진행 상황은 알아야 한다 */}
+              <div className="mt-1"><RosterList /></div>
             </div>
           );
         })()}
