@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import { createServer } from "http";
 import os from "os";
 import { registerRoutes } from "./routes";
@@ -32,6 +33,14 @@ function getConnectionUrls(port: number): { local: string; lan: string[] } {
 
 const app = express();
 const httpServer = createServer(app);
+
+// [대역폭 2026-08-12, 사용자] 정적 파일이 무압축으로 나가고 있었다 — 클라 번들 998KB + CSS가 그대로 전송.
+//   실측: 압축 대상 1.09MB → gzip 0.31MB (72% 절감). 배포로 파일명이 바뀔 때마다 전원이 다시 받으므로
+//   배포가 잦을수록 누적이 크다(캐시는 immutable로 이미 걸려 있어 재방문은 0바이트).
+//   ※ socket.io는 httpServer에 직접 붙어 Express 미들웨어를 안 타므로 여기 영향 없음
+//     (게임 트래픽은 자체 perMessageDeflate로 이미 압축 중 — gameState.ts:3057).
+//   ※ 이미지/폰트처럼 이미 압축된 형식은 compression이 기본 필터로 건너뛴다.
+app.use(compression());
 
 declare module "http" {
   interface IncomingMessage {
