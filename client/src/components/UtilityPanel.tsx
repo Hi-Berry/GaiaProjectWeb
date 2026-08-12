@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
+import { getStoredSpectatorId } from '@/lib/gameClient';
 import {
   PLANET_COLORS, FACTIONS, RESEARCH_TRACKS, RESEARCH_TRACK_END_BONUS,
   computeBonusTilePassVp, computeAdvancedTechPassVp, getFinalMissionVp, endgameLeftoverUnits,
@@ -188,7 +189,18 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
   const total = counts.reduce((s, c) => s + c.n, 0);
 
   // 검증 단계: 지정된 이름의 좌석일 때만 예상 점수를 노출(관전자는 좌석이 없으므로 미노출)
-  const myName = (playerId && game.players?.[playerId]?.name) ? game.players[playerId].name.trim() : '';
+  // [사용자 2026-08-12] 좌석뿐 아니라 관전자 이름으로도 판정한다 — 관전은 playerId가 없어
+  //   좌석 이름만 보던 기존 코드에서는 예상 점수가 아예 안 떴다(검증하려고 관전으로 들어가면 못 봄).
+  //   관전자 이름은 서버가 game.spectatorNames에 넣어 준다(숨은 관전 아이디는 애초에 안 들어감).
+  const myName = (() => {
+    const seat = playerId ? game.players?.[playerId]?.name : null;
+    if (seat) return seat.trim();
+    try {
+      const sid = getStoredSpectatorId(game.id);
+      const names = (game as unknown as { spectatorNames?: Record<string, string> }).spectatorNames;
+      return sid && names?.[sid] ? names[sid].trim() : '';
+    } catch { return ''; }
+  })();
   const canSeeScore = SCORE_PREVIEW_NAMES.length === 0 || SCORE_PREVIEW_NAMES.includes(myName);
 
   // 예상 점수 — 높은 순으로. 계산 실패(옛 게임 등)해도 패널 전체가 죽지 않게 방어.
