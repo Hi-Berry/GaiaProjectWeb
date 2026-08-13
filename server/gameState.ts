@@ -9955,7 +9955,10 @@ export function executeBotFederation(
 	//   같은 게임 로그에 두 표기가 섞였다 → 영문으로 통일. (봇 경로엔 건물 파워 합계가 없어 위성/QIC 수만 표기)
 	const unitLabel = isIvits ? 'QIC' : (numEmpty === 1 ? 'satellite' : 'satellites');
 	// 한 줄 통합: 위성 수 텍스트 + 연방 보상 이미지(tileId=rewardId). 'reward: 라벨'·'+VP' 텍스트는 생략
-	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel})`, rewardId);
+	// [리플레이 2026-08-13] 봇 경로는 사람과 달리 'Federation Reward' 줄을 안 남긴다(로그 한 줄로 통합).
+	//   그래서 사람 쪽에만 fedHexes를 붙이면 봇이 낀 게임(전체의 6할)에서 연방 재생이 뚫린다 → 여기에도 붙인다.
+	const botFedHexes = Array.from(new Set([...selectedHexIds, ...selectedPlanetIds]));
+	addGameLog(game, playerId, 'Federation', `Formed federation (${numEmpty} ${unitLabel})`, rewardId, { fedHexes: botFedHexes });
 	// [버그수정 2026-07-12 사용자 발견] 봇 연방 경로에 라운드미션(rs8 연방=5VP) 적용이 통째로 누락 —
 	// 사람은 소켓 경로(federation_select_reward)에서 받는데 봇만 못 받아 실게임에서 연방당 5VP 손해.
 	// addGameLog 뒤에 호출해 "(+5VP Round Federation)" 주석이 Federation 행에 병합되게 한다.
