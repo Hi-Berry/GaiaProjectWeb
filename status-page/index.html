@@ -54,12 +54,12 @@ const INSTANCES = [
   //   sslip.io(IP를 그대로 호스트명으로 바꿔주는 공개 DNS)를 쓴다 — Let's Encrypt가 IP에는
   //   인증서를 안 내주기 때문. 나중에 도메인을 붙이면 Caddyfile 첫 줄과 이 URL만 바꾸면 된다.
   //   ※ http(:5000)로 두면 https인 이 페이지에서 혼합 콘텐츠로 차단돼 항상 '응답 없음'이 된다.
-  { name: '메인 서버', url: 'https://172-104-86-178.sslip.io' },
-  { name: '서버 1', url: 'https://gaiaprojectweb.onrender.com' },
-  { name: '서버 2', url: 'https://gaiaprojectweb-1.onrender.com' },
-  { name: '서버 3', url: 'https://gaiaprojectweb-49wr.onrender.com' },
-  { name: '서버 4', url: 'https://gaiaprojectweb-8plp.onrender.com' },
-  { name: '서버 5', url: 'https://gaiaprojectweb-tvog.onrender.com' },
+  { name: '메인 서버', url: 'https://172-104-86-178.sslip.io', main: true },
+  { name: '예비 서버 1', url: 'https://gaiaprojectweb.onrender.com' },
+  { name: '예비 서버 2', url: 'https://gaiaprojectweb-1.onrender.com' },
+  { name: '예비 서버 3', url: 'https://gaiaprojectweb-49wr.onrender.com' },
+  { name: '예비 서버 4', url: 'https://gaiaprojectweb-8plp.onrender.com' },
+  { name: '예비 서버 5', url: 'https://gaiaprojectweb-tvog.onrender.com' },
 ];
 
 async function check(inst){
@@ -86,8 +86,15 @@ function render(list){
   //   여러 서버에 지정이 남아 있으면 가장 최근에 지정된 것(noticeAt 최대)을 쓴다 → 새로 지정할 때 나머지를
   //   일일이 해제할 필요 없이 URL 하나로 전환된다. 지정이 없으면 기존 자동 추천 로직 그대로.
   const pinned = ups.filter(x=>x.recommend).sort((a,b)=>b.noticeAt-a.noticeAt)[0];
-  const humanOnly = ups.filter(x=>!x.ai);
-  const auto = humanOnly.sort((a,b)=>(b.humans-a.humans)||(b.games-a.games))[0];
+  // [사용자 2026-08-13] 메인 서버 중심으로 전환: 기본은 메인에서 플레이하고, 메인이 게임 중이면
+  //   비어 있는 예비 서버로 보낸다. '플레이 가능' = 켜져 있고 진행 중 게임이 없는 서버.
+  const main = ups.find(x=>x.main);
+  const spares = ups.filter(x=>!x.main);
+  const freeSpares = spares.filter(x=>x.games===0);
+  const mainFree = main && main.games===0;
+  // 강조할 카드: 지정 > 비어 있는 메인 > 비어 있는 예비(사람 전용 우선) > 없음
+  const auto = mainFree ? main
+    : (freeSpares.filter(x=>!x.ai)[0] || freeSpares[0]);
   const best = pinned || auto;
   const grid = document.getElementById('grid');
   grid.innerHTML = list.map(x=>{
@@ -95,7 +102,9 @@ function render(list){
     const isPinned = pinned && x.url===pinned.url;
     const meta = x.state==='up'
       ? `진행 중 게임 ${x.games} · 접속 인원 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능 — AI 연산으로 느려 사람 대전 비추천':'🙅 AI 봇 없음(사람 전용)'}`
-        + (isPinned?' · 👉 여기서 플레이하세요':(best&&x.url===best.url&&x.humans>0&&!x.ai?' · 🔥 사람 대전은 여기!':''))
+        + (isPinned ? ' · 👉 여기서 플레이하세요'
+            : (best && x.url===best.url ? (x.humans>0?' · 🔥 여기서 플레이하세요':' · 👉 여기서 플레이하세요') : ''))
+        + (x.games>0 ? ' · ⛔ 게임 진행 중' : '')
       : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
     // 안내 문구는 지정 여부와 무관하게 표시 — '점검 중' 같은 알림도 서버별로 띄울 수 있게
     const noticeLine = (x.state==='up' && x.notice) ? `<div class="notice">📢 ${esc(x.notice)}</div>` : '';
@@ -111,11 +120,20 @@ function render(list){
     b.innerHTML = `👉 <b>${esc(pinned.name)}</b> 에서 플레이하세요`
       + (pinned.notice?` — ${esc(pinned.notice)}`:'')
       + (pinned.humans>0?` (지금 ${pinned.humans}명 접속 중)`:'');
-  } else if(auto){
-    b.innerHTML = `👉 사람 대전 추천: <b>${esc(auto.name)}</b> (사람 전용 서버)` + (auto.humans>0?` — 지금 ${auto.humans}명 접속 중!`:'');
+  } else if(mainFree){
+    b.innerHTML = `👉 <b>${esc(main.name)}</b>에서 플레이하세요`
+      + (main.humans>0?` (지금 ${main.humans}명 접속 중)`:'');
+  } else if(main){
+    // 메인이 게임 중 — 예비 서버 중 비어 있는 곳으로 안내
+    b.innerHTML = `⚠️ <b>${esc(main.name)}</b>에서 게임 진행 중입니다. 예비 서버 중에 플레이 가능한 곳에서 플레이해주세요.`
+      + (freeSpares.length?` — 지금 비어 있는 곳: <b>${freeSpares.map(x=>esc(x.name)).join(', ')}</b>`
+                          :' — 지금은 예비 서버도 모두 게임 중입니다.');
+  } else if(freeSpares.length){
+    // 메인이 응답 없음
+    b.innerHTML = '⚠️ 메인 서버가 응답하지 않습니다. 예비 서버 중에 플레이 가능한 곳에서 플레이해주세요.'
+      + ` — 지금 비어 있는 곳: <b>${freeSpares.map(x=>esc(x.name)).join(', ')}</b>`;
   } else if(ups.length){
-    // 사람 전용 서버가 하나도 안 열려 있음 — AI 봇 서버는 추천하지 않고 안내만
-    b.innerHTML = '⚠️ 지금 사람 전용 서버가 없습니다. 아래 서버는 AI 봇 대전용이며, AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.';
+    b.innerHTML = '⚠️ 지금 플레이 가능한(비어 있는) 서버가 없습니다. 모두 게임 진행 중이거나 응답이 없습니다.';
   } else {
     b.innerHTML = '⚠️ 지금 모든 서버가 응답하지 않습니다. 잠시 후 새로고침 해보세요.';
   }
