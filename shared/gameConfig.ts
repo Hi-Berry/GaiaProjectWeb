@@ -1468,6 +1468,49 @@ export function canSpendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, p
   return count >= powerValue; // no brain or use only regular
 }
 
+/**
+ * 타클론: 3그릇에서 powerValue를 내기 위해 2그릇을 몇 번 태워야 하는지 계획한다.
+ * (다른 종족은 '3그릇 토큰 수'로 단순 계산되지만 타클론은 브레인 스톤이 3그릇에서 3파워로 세어져
+ *  토큰 개수와 파워 값이 어긋난다 — 그래서 전용 계산이 필요하다.)
+ *
+ * 서버 executeBurnPower의 두 갈래를 그대로 반영한다:
+ *   ① 브레인이 2그릇 → 번 1회 = 2그릇 일반토큰 **1개** 소모 + 브레인이 3그릇으로 (가용 파워 +3)
+ *      (브레인 자체가 태우는 2파워 중 1파워로 취급되기 때문)
+ *   ② 그 외 → 번 1회 = 2그릇 일반토큰 **2개** 소모 + 3그릇에 1개 (가용 파워 +1)
+ *
+ * @returns `{ burns: 0 }` 이미 지불 가능 · `{ burns: n, brainBurnFirst }` n번 태우면 가능 · `null` 태워도 불가능
+ */
+export function planTaklonsPowerBurns(
+  player: PlayerState,
+  powerValue: number
+): { burns: number; brainBurnFirst: boolean } | null {
+  if (player.faction !== 'taklons') return null;
+  const brainUsable = !player.brainStoneInGaia && player.brainStoneBowl != null;
+  let avail = (player.power3 ?? 0) + (brainUsable && player.brainStoneBowl === 3 ? 3 : 0);
+  if (avail >= powerValue) return { burns: 0, brainBurnFirst: false };
+
+  let bowl2 = player.power2 ?? 0;
+  let burns = 0;
+  let brainBurnFirst = false;
+
+  // ① 브레인이 2그릇이면 첫 번이 브레인을 3그릇으로 올린다(일반토큰 1개만 쓰고 +3파워)
+  if (brainUsable && player.brainStoneBowl === 2 && bowl2 >= 1) {
+    bowl2 -= 1;
+    avail += 3;
+    burns += 1;
+    brainBurnFirst = true;
+    if (avail >= powerValue) return { burns, brainBurnFirst };
+  }
+
+  // ② 나머지는 일반 번(2개 소모 → +1파워)
+  while (avail < powerValue && bowl2 >= 2) {
+    bowl2 -= 2;
+    avail += 1;
+    burns += 1;
+  }
+  return avail >= powerValue ? { burns, brainBurnFirst } : null;
+}
+
 /** 타클론: 브레인 스톤 없이 해당 그릇의 일반 토큰만으로 powerValue를 낼 수 있는지 */
 export function canSpendTaklonsPowerWithoutBrain(player: PlayerState, fromBowl: 1 | 2 | 3, powerValue: number): boolean {
   const count = fromBowl === 1 ? (player.power1 ?? 0) : fromBowl === 2 ? (player.power2 ?? 0) : (player.power3 ?? 0);

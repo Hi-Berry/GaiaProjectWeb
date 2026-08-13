@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
@@ -334,8 +334,9 @@ export default function Game() {
   const nevlasOreChainRef = useRef<{ expectP3: number; expectOre: number } | null>(null);
   /** 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기(1소모+1이동)로 충당할지 확인 다이얼로그 */
   const [confirmBurnAction, setConfirmBurnAction] = useState<
-    | { kind: 'power'; actionId: string; burns: number; closeResearchOverlay?: boolean }
-    | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; burns: number; label: string; fromOverlay?: boolean }
+    // brainBurnFirst: 타클론 전용 — 첫 번째 태우기가 '2그릇 브레인 → 3그릇'이라 일반토큰을 1개만 쓴다
+    | { kind: 'power'; actionId: string; burns: number; brainBurnFirst?: boolean; closeResearchOverlay?: boolean }
+    | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; burns: number; brainBurnFirst?: boolean; label: string; fromOverlay?: boolean }
     | null
   >(null);
   /** 하이브 우주정거장 배치 모드: 켜면 안내 모달 표시, 다른 액션 차단, 빈 우주 클릭 후 배치하면 종료 */
@@ -1492,9 +1493,15 @@ export default function Game() {
         const hasNevlasPI = cur.faction === 'nevlas' && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
         const needTokens = hasNevlasPI ? Math.ceil((action.cost as number) / 2) : (action.cost as number);
         if (cur.faction === 'taklons') {
-          // 타클론은 브레인 스톤 선택지가 있어 자동 태우기 제외
+          // [사용자 2026-08-13] 타클론도 자동 태우기 지원. 브레인이 3그릇인데 모자란 경우(일반 번)와
+          //   브레인이 2그릇이라 태우면 3그릇으로 올라가는 경우 둘 다 planTaklonsPowerBurns가 계산한다.
           if (!canSpendTaklonsPower(cur, 3, action.cost as number)) {
-            toast({ title: '파워 부족', description: '3그릇(브레인 스톤 포함)에서 낼 파워가 부족합니다.', variant: 'destructive' });
+            const plan = planTaklonsPowerBurns(cur, action.cost as number);
+            if (!plan) {
+              toast({ title: '파워 부족', description: '3그릇(브레인 스톤 포함)이 부족하고, 2그릇 태우기로도 충당할 수 없습니다.', variant: 'destructive' });
+              return;
+            }
+            setConfirmBurnAction({ kind: 'power', actionId, burns: plan.burns, brainBurnFirst: plan.brainBurnFirst, closeResearchOverlay: options?.closeResearchOverlay });
             return;
           }
         } else if ((cur.power3 ?? 0) < needTokens) {
@@ -1577,7 +1584,18 @@ export default function Game() {
       if (cost.ore && (cur.ore ?? 0) < cost.ore) { toast({ title: '광물 부족', description: `${cost.ore} 광물이 필요합니다.`, variant: 'destructive' }); return; }
       if (cost.knowledge && (cur.knowledge ?? 0) < cost.knowledge) { toast({ title: '지식 부족', description: `${cost.knowledge} 지식이 필요합니다.`, variant: 'destructive' }); return; }
       if (cost.credits && (cur.credits ?? 0) < cost.credits) { toast({ title: '크레딧 부족', description: `${cost.credits} 크레딧이 필요합니다.`, variant: 'destructive' }); return; }
-      // 타클론은 브레인 스톤 선택지가 있어 서버 검증에 맡김 (자동 태우기 제외)
+      // [사용자 2026-08-13] 타클론도 보드 파워 액션과 동일하게 자동 태우기 확인창을 띄운다.
+      //   (서버는 canSpendTaklonsPower로 막고 조용히 무시하므로 이전엔 안내조차 없었다.)
+      if (cost.power && cur.faction === 'taklons' && !canSpendTaklonsPower(cur, 3, cost.power)) {
+        const plan = planTaklonsPowerBurns(cur, cost.power);
+        if (!plan) {
+          toast({ title: '파워 부족', description: '3그릇(브레인 스톤 포함)이 부족하고, 2그릇 태우기로도 충당할 수 없습니다.', variant: 'destructive' });
+          return;
+        }
+        const label = SHIP_TOAST_LABELS[shipTile.type]?.[actionIndex - 1] ?? `${SHIP_TOAST_NAMES[shipTile.type]} 액션 ${actionIndex}`;
+        setConfirmBurnAction({ kind: 'ship', shipTileId, actionIndex, targetTileId, burns: plan.burns, brainBurnFirst: plan.brainBurnFirst, label, fromOverlay: options?.fromOverlay });
+        return;
+      }
       if (cost.power && cur.faction !== 'taklons') {
         const hasNevlasPI = cur.faction === 'nevlas' && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
         const needTokens = hasNevlasPI ? Math.ceil(cost.power / 2) : cost.power;
@@ -4239,10 +4257,12 @@ export default function Game() {
 
         {/* 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기로 충당할지 확인 */}
         {confirmBurnAction && gameId && (() => {
-          const { burns } = confirmBurnAction;
+          const { burns, brainBurnFirst } = confirmBurnAction;
           const label = confirmBurnAction.kind === 'power'
             ? (game.powerActions?.find(a => a.id === confirmBurnAction.actionId)?.label ?? confirmBurnAction.actionId)
             : confirmBurnAction.label;
+          // 타클론 브레인 번(첫 회)은 2그릇 일반토큰을 1개만 쓴다 — 나머지 번은 2개씩
+          const bowl2Used = brainBurnFirst ? 1 + (burns - 1) * 2 : burns * 2;
           return (
             <AlertDialog open={true} onOpenChange={(open) => !open && setConfirmBurnAction(null)}>
               <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-md">
@@ -4251,9 +4271,14 @@ export default function Game() {
                     파워를 태우고 액션할까요?
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-zinc-300">
-                    3그릇 파워가 <strong className="text-purple-300">{burns}개</strong> 부족합니다.
-                    2그릇에서 <strong className="text-purple-300">{burns}개</strong>를 태우면(추가로 {burns}개가 3그릇으로 이동, 총 2그릇 {burns * 2}개 사용)
+                    3그릇 파워가 부족합니다. 2그릇 태우기 <strong className="text-purple-300">{burns}회</strong>
+                    (2그릇 토큰 <strong className="text-purple-300">{bowl2Used}개</strong> 사용)로
                     바로 <strong className="text-white">{label}</strong> 액션을 실행할 수 있습니다.
+                    {brainBurnFirst && (
+                      <span className="block mt-1 text-amber-300">
+                        첫 태우기로 2그릇의 브레인 스톤이 3그릇으로 이동합니다(일반 토큰 1개만 소모).
+                      </span>
+                    )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
