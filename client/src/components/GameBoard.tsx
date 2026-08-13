@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight, Ruler } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import { UtilityPanel } from '@/components/UtilityPanel';
 import { fireTurnNotification } from '@/lib/turnNotify';
@@ -1850,7 +1851,11 @@ export function GameBoard({
 
         <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
 
-        {utilityOpen && (
+        {/* [사용자 2026-08-13] 모바일에서 창을 끌면 맵도 같이 움직이던 문제 —
+            이 패널이 맵 컨테이너 '안'에 렌더돼 터치 이벤트가 맵의 팬 핸들러(onTouchStart/Move, :1223)로
+            버블링됐다. 채팅창은 Game.tsx에서 맵 바깥에 렌더돼 원래 이 문제가 없다.
+            → 같은 조건이 되도록 body로 포털. position:fixed라 화면 위치는 그대로다. */}
+        {utilityOpen && createPortal(
           <UtilityPanel
             game={game}
             onClose={() => setUtilityOpen(false)}
@@ -1861,7 +1866,8 @@ export function GameBoard({
             measureA={measureA}
             measureB={measureB}
             onClearMeasure={clearMeasure}
-          />
+          />,
+          document.body
         )}
 
       </div>
