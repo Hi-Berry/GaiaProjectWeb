@@ -23,3 +23,8 @@ data/status-notice.json
 # Supabase 서비스 키 (fetch-supabase-games.bat용) — 절대 커밋 금지
 scripts/supabase-key.txt
 .render-hooks
+
+# pm2 환경변수 설정(실값·시크릿 포함) — 서버마다 다르므로 커밋하지 않음. 템플릿은 ecosystem.config.example.cjs
+ecosystem.config.cjs
+.env
+.env.*
