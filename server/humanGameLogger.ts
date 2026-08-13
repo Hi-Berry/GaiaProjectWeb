@@ -67,6 +67,11 @@ type HumanGamePayload = {
   // 봇 self-play 로그(final_state)는 이미 map을 저장하는데 human export만 누락이던 비대칭 수정.
   // export 페이로드 전용(게임객체/브로드캐스트/UI 무영향).
   map: GaiaGameState['map'];
+  /** [2026-08-13] 이 게임이 도는 동안 서버가 내보낸 양(바이트) + 그때의 방 구성.
+   *  대역폭 개선(압축·델타 등) 전후를 저장 로그만으로 비교하기 위한 값 — [NET-USAGE] 로그는
+   *  서버 컨테이너에만 남아 Render에선 재시작 시 사라지고 받아갈 수도 없었다.
+   *  프로세스 전체 누적의 구간 차이라 concurrentGames>1이면 다른 게임 트래픽이 섞인다. */
+  netUsage?: { outBytes: number; seats: number; bots: number; spectators: number; receivers: number; concurrentGames: number };
 };
 
 function summarizePlayer(player?: PlayerState | null) {
@@ -213,6 +218,7 @@ function buildPayload(game: GaiaGameState & {
     fullGameLog: takeFullGameLog(game.id),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
+    netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
   };
 }
 
@@ -245,6 +251,7 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     fullGameLog: peekFullGameLog(game.id),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
+    netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
     inProgress: true,
     snapshotAt: now,
   };

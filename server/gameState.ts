@@ -773,6 +773,7 @@ function clearGameMeasurementState(gameId: string): void {
 	_emitPrevStr.delete(gameId);
 	_gameSyncStates.delete(gameId);
 	_netOutAtGameStart.delete(gameId);
+	_netUsageAtEnd.delete(gameId);
 	delete _emitStats[gameId];
 }
 /** 방 크기 조회용 io 참조 (setupGameServer에서 주입) */
@@ -781,6 +782,13 @@ let _io: SocketIOServer | null = null;
 /** [사용자 2026-08-11] 게임 종료 시 '이 게임이 도는 동안 서버가 내보낸 양'을 남긴다.
  *  프로세스 전체 합계라 동시 진행 게임이 있으면 섞인다 → 그때는 동시 게임 수를 함께 찍어 오해를 막는다.
  *  한 판만 도는 서버(자기대국·테스트)에서는 사실상 그 게임의 순수 사용량이다. */
+/** [사용자 2026-08-13] 게임 저장 파일에 실을 대역폭 측정치.
+ *  [NET-USAGE] 로그는 서버 컨테이너의 logs/에만 남아 Render에선 재시작 시 사라지고 받아갈 수도 없었다
+ *  → 사람들이 실제로 다운로드하는 게임 JSON에 같이 실어 사후 분석이 가능하게 한다. */
+const _netUsageAtEnd = new Map<string, {
+	outBytes: number; seats: number; bots: number; spectators: number; receivers: number; concurrentGames: number;
+}>();
+
 function logGameNetUsage(game: GaiaGameState): void {
 	const base = _netOutAtGameStart.get(game.id);
 	if (typeof base !== 'number') return;
@@ -790,6 +798,14 @@ function logGameNetUsage(game: GaiaGameState): void {
 	const spec = (game as any).connectedSpectators?.length ?? 0;
 	const seats = Object.keys(game.players || {}).length;
 	const bots = (game as any).botPlayerIds?.length ?? 0;
+	_netUsageAtEnd.set(game.id, {
+		outBytes: used, seats, bots, spectators: spec, receivers: roomSize(game.id), concurrentGames: games.size,
+	});
+	// humanGameLogger가 export 페이로드에 실을 수 있게 게임 객체에 붙인다. non-enumerable이라
+	// game_updated 브로드캐스트·스냅샷 JSON에는 안 실린다(hideHeavyServerFields와 같은 수법).
+	Object.defineProperty(game, '__netUsage', {
+		value: _netUsageAtEnd.get(game.id), writable: true, configurable: true, enumerable: false,
+	});
 	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (좌석 ${seats}[봇 ${bots}] 관전 ${spec} 수신소켓 ${roomSize(game.id)} · 동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
 }
 
