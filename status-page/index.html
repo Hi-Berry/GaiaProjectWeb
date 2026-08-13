@@ -26,6 +26,11 @@
   .notice{font-size:.8rem;color:#fcd34d;margin-top:.25rem;word-break:break-word}
   .warn{color:#fca5a5}
   .banner{max-width:560px;width:100%;background:#4f46e51a;border:1px solid #4f46e555;border-radius:12px;padding:.8rem 1rem;font-size:.9rem;margin-bottom:1rem;display:none}
+  .links{width:100%;max-width:560px;margin-top:1.4rem;display:flex;flex-direction:column;gap:.6rem}
+  a.link{display:flex;align-items:center;gap:.7rem;background:#141a2a;border:1px solid #ffffff14;border-radius:12px;padding:.8rem 1rem;color:#e5e7eb;text-decoration:none}
+  a.link:hover{border-color:#4f46e5aa}
+  a.link .name{font-weight:700;font-size:.9rem}
+  a.link .meta{font-size:.78rem;color:#94a3b8;margin-top:.15rem}
   .foot{color:#64748b;font-size:.75rem;margin-top:1.6rem}
 </style>
 </head>
@@ -34,11 +39,21 @@
 <div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 초록 서버에서 플레이하세요 — 사람 대전 상대는 사람 많은 곳으로!<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
 <div class="banner" id="banner"></div>
 <div class="grid" id="grid"></div>
+<div class="links">
+  <a class="link" href="https://hikary.pythonanywhere.com" target="_blank" rel="noopener">
+    <span style="font-size:1.3rem">📊</span>
+    <span class="info"><span class="name">기록 사이트 바로 가기</span><span class="meta" style="display:block">전적·기록 확인</span></span>
+  </a>
+</div>
 <div class="foot">30초마다 자동 갱신 · 응답 없음 = 이번 달 무료 용량 소진</div>
 <script>
 // ★ 여기에 운영 중인 인스턴스를 추가/수정하세요 (이름, 주소)
 const INSTANCES = [
-  { name: '서버 1 (메인)', url: 'https://gaiaprojectweb.onrender.com' },
+  // ★ 최상위 메인 서버 (자체 호스팅). 아래 onrender 인스턴스들보다 위에 표시된다.
+  //   주의: 이 페이지를 https로 열면 브라우저가 http 주소로의 fetch를 혼합 콘텐츠로 차단해
+  //   상태가 항상 '응답 없음'으로 보인다. 페이지를 http로 열거나 이 서버에 https를 붙여야 한다.
+  { name: '메인 서버', url: 'http://172.104.86.178:5000' },
+  { name: '서버 1', url: 'https://gaiaprojectweb.onrender.com' },
   { name: '서버 2', url: 'https://gaiaprojectweb-1.onrender.com' },
   { name: '서버 3', url: 'https://gaiaprojectweb-49wr.onrender.com' },
   { name: '서버 4', url: 'https://gaiaprojectweb-8plp.onrender.com' },
