@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
@@ -1507,6 +1507,28 @@ export default function Game() {
     return (p.ore ?? 0) >= shortfall ? shortfall : null;
   };
 
+  /** [사용자 지적 2026-08-13] 위성·인공물로 **어차피 사라질 3그릇 토큰**을 지불 직전에 1P→1C로 긁는다.
+   *  토큰 개수는 그대로 유지되므로(3그릇 → 1그릇) 비용은 동일하고 크레딧만 공짜로 남는다.
+   *  네블라스 의회는 토큰당 2C라 더 크다. 순수 이득이라 별도 확인 없이 실행하고 토스트로만 알린다.
+   *  @returns 긁은 크레딧 수(0이면 아무것도 안 함) */
+  const cashDoomedBowl3 = (need: number): number => {
+    if (!gameId || !currentPlayer) return 0;
+    const n = doomedBowl3Tokens(currentPlayer, need);
+    for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
+    return n;
+  };
+
+  /** 위와 같지만 '광물→토큰 변환을 방금 보낸 직후'용. 그 변환은 아직 서버 브로드캐스트 전이라
+   *  클라 상태에 안 보이므로 낙관적으로 반영한다. 부족분만큼만 바꿨으므로 변환 후 총 토큰 = 필요 수
+   *  → 3그릇 일반 토큰은 **전부** 소멸 확정이다(제노스는 방금 만든 것도 3그릇). */
+  const cashDoomedBowl3After = (need: number, oreConverted: number, xenos: boolean): number => {
+    if (!gameId || !currentPlayer) return 0;
+    void need;
+    const n = (currentPlayer.power3 ?? 0) + (xenos ? oreConverted : 0);
+    for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
+    return n;
+  };
+
   /** 연방 완료 공용 핸들러: 위성 토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
   const handleFederationComplete = (force = false) => {
     if (!gameId || !currentPlayer) return;
@@ -1523,6 +1545,8 @@ export default function Game() {
       //   '중복 위성 + 토큰 부족'이 겹치면 광물을 바꾼 뒤 경고를 보고 취소할 수 있다(프리액션 Undo로 회수 가능).
       //   드문 조합이라 그대로 두되, 그 상황의 정답은 보통 '중복 위성을 빼는 것'이다.
       if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
+      const cashed = cashDoomedBowl3(need);
+      if (cashed > 0) toast({ title: '3그릇 토큰 회수', description: `위성으로 사라질 토큰 ${cashed}개를 먼저 크레딧으로 바꿨습니다.` });
     }
     GameClient.federationComplete(gameId, force);
   };
@@ -1541,6 +1565,8 @@ export default function Game() {
       setConfirmOreToToken({ kind: 'artifact', artifactId, converts, need: ART_TOKEN_COST, label });
       return;
     }
+    const cashed = cashDoomedBowl3(ART_TOKEN_COST);
+    if (cashed > 0) toast({ title: '3그릇 토큰 회수', description: `인공물로 사라질 토큰 ${cashed}개를 먼저 크레딧으로 바꿨습니다.` });
     GameClient.takeTwilightArtifact(gameId, artifactId);
   };
 
@@ -4408,12 +4434,16 @@ export default function Game() {
                     <strong className="text-white">{what}</strong>에 파워 토큰이 부족합니다.
                     광물 <strong className="text-orange-300">{converts}개</strong>를 토큰으로 바꾸면
                     (1O → 1 토큰{toBowl3 ? ', 제노스는 3그릇' : ', 1그릇'}) 바로 진행할 수 있습니다.
-                    {toBowl3 && (
-                      <span className="block mt-1 text-emerald-300">
-                        3그릇에 들어가므로 소멸 직전에 1P → 1C로 바꿔 <strong>크레딧 {converts}개</strong>를 먼저 챙깁니다
-                        (토큰은 1그릇으로 내려가 그대로 위성에 쓰입니다).
-                      </span>
-                    )}
+                    {(() => {
+                      // 변환 후 총 토큰 = 필요 수 → 3그릇 일반 토큰은 전부 소멸 확정. 그 전에 크레딧으로 긁는다.
+                      const cash = (currentPlayer?.power3 ?? 0) + (toBowl3 ? converts : 0);
+                      return cash > 0 ? (
+                        <span className="block mt-1 text-emerald-300">
+                          어차피 사라질 3그릇 토큰 {cash}개는 소멸 직전에 1P → 1C로 바꿔
+                          <strong> 크레딧 {cash}개</strong>를 먼저 챙깁니다(토큰은 1그릇으로 내려가 그대로 비용에 쓰입니다).
+                        </span>
+                      ) : null;
+                    })()}
                     <span className="block mt-1 text-amber-300">
                       이 토큰은 위성·인공물로 나가면 게임에서 완전히 제거됩니다(그릇으로 안 돌아옴).
                     </span>
@@ -4427,11 +4457,10 @@ export default function Game() {
                     className="bg-orange-600 hover:bg-orange-500 text-white font-bold"
                     onClick={() => {
                       for (let i = 0; i < converts; i++) GameClient.convertResource(gameId, '1ore-to-1token');
-                      // [사용자 지적 2026-08-13] 제노스는 1O→토큰이 3그릇에 들어간다. 이 자동화는 '부족분만큼만'
-                      //   바꾸므로 변환 후 총 토큰 수 = 필요 수 → 어차피 전부 소멸한다. 3그릇인 채로 없애면
-                      //   그 자리값이 그냥 버려지므로, 소멸 직전에 1P→1C로 크레딧을 긁고 1그릇으로 내려보낸다.
-                      //   (토큰 수는 그대로 유지되어 위성 비용은 동일 — 순수 이득)
-                      if (toBowl3) for (let i = 0; i < converts; i++) GameClient.convertResource(gameId, '1power-to-1credit');
+                      // [사용자 지적 2026-08-13] 소멸이 확정된 3그릇 토큰은 지불 직전에 크레딧으로 긁는다.
+                      //   제노스는 1O→토큰이 3그릇에 들어가서 특히 크지만, 규칙 자체는 전 종족 공통이다.
+                      //   변환 직후 상태는 서버 브로드캐스트 전이라 낙관적으로 계산한다(광물→토큰 converts개 반영).
+                      cashDoomedBowl3After(need, converts, toBowl3);
                       if (confirmOreToToken.kind === 'federation') GameClient.federationComplete(gameId, confirmOreToToken.force ?? false);
                       else GameClient.takeTwilightArtifact(gameId, confirmOreToToken.artifactId);
                       setConfirmOreToToken(null);

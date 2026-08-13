@@ -1478,6 +1478,21 @@ export function countSpendableTokens(player: PlayerState): number {
 }
 
 /**
+ * 위성·인공물처럼 토큰을 **게임에서 제거**하는 비용에서, 어차피 3그릇에서 빠져나갈 일반 토큰 수.
+ *
+ * planTokenSpend가 1→2→3 순으로 빼므로 3그릇에서 나가는 개수 = min(p3, max(0, need − p1 − p2)).
+ * 이 토큰들은 어차피 사라지므로, 지불 직전에 1P→1C로 크레딧을 긁고 1그릇으로 내려보내면
+ * **토큰 개수는 그대로(비용 동일)인데 크레딧만 공짜로 남는다.**
+ *
+ * 브레인 스톤은 세지 않는다(p3는 일반 토큰만) — 반환값만큼만 변환하면 1P→1C가 브레인에
+ * 손대는 분기로 넘어가지 않는다.
+ */
+export function doomedBowl3Tokens(player: PlayerState, need: number): number {
+  const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+  return Math.max(0, Math.min(p3, need - p1 - p2));
+}
+
+/**
  * 타클론: 3그릇에서 powerValue를 내기 위해 2그릇을 몇 번 태워야 하는지 계획한다.
  * (다른 종족은 '3그릇 토큰 수'로 단순 계산되지만 타클론은 브레인 스톤이 3그릇에서 3파워로 세어져
  *  토큰 개수와 파워 값이 어긋난다 — 그래서 전용 계산이 필요하다.)

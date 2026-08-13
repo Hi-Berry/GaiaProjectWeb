@@ -11,7 +11,7 @@
  *
  * 사용: PORT=5097 npx tsx script/testOreToTokenCover.ts
  */
-import { countSpendableTokens } from '../shared/gameConfig';
+import { countSpendableTokens, doomedBowl3Tokens } from '../shared/gameConfig';
 import { executeConvertResource } from '../server/gameState';
 
 const ioStub: any = { to: () => ({ emit: () => { } }), emit: () => { } };
@@ -107,6 +107,36 @@ console.log('\n⑥ 제노스: 3그릇 토큰을 소멸 직전에 크레딧으로
 	check('크레딧을 부족분만큼 챙김', player.credits === beforeCredits + shortfall, `credits=${player.credits}`);
 	check('토큰 수는 그대로(위성 비용 동일)', countSpendableTokens(player) === need, `토큰=${countSpendableTokens(player)}`);
 	check('토큰이 1그릇으로 내려옴', player.power3 === 0 && player.power1 === 3, `p1=${player.power1} p3=${player.power3}`);
+	check('여전히 지불 가능', canPay(player, need) === true);
+}
+
+console.log('\n⑦ 소멸 확정 3그릇 토큰 계산(doomedBowl3Tokens) — 전 종족 공통');
+{
+	// planTokenSpend가 1→2→3 순으로 빼므로, 3그릇에서 나가는 수만 긁어야 한다(더 긁으면 살아남을 토큰을 내림)
+	const cases: Array<[S, number, number, string]> = [
+		[{ p1: 0, p2: 0, p3: 3, ore: 0 }, 2, 2, '1·2그릇 없음 → 필요 수만큼'],
+		[{ p1: 2, p2: 0, p3: 3, ore: 0 }, 2, 0, '1그릇으로 다 충당 → 3그릇 안 건드림'],
+		[{ p1: 1, p2: 1, p3: 4, ore: 0 }, 3, 1, '1+2그릇 2개 쓰고 3그릇 1개'],
+		[{ p1: 0, p2: 0, p3: 2, ore: 0 }, 5, 2, '모자라도 3그릇 보유분 이상은 안 셈'],
+		[{ p1: 5, p2: 5, p3: 5, ore: 0 }, 3, 0, '여유 많으면 0'],
+	];
+	for (const [st, need, expect, name] of cases) {
+		const { player } = mk(st);
+		const d = doomedBowl3Tokens(player, need);
+		check(name, d === expect, `need=${need} → ${d} (기대 ${expect})`);
+	}
+}
+
+console.log('\n⑧ 긁은 뒤에도 토큰 수가 같아 비용이 그대로이다');
+{
+	const need = 3;
+	const { game, player } = mk({ p1: 1, p2: 0, p3: 2, ore: 0 });
+	const before = countSpendableTokens(player);
+	const d = doomedBowl3Tokens(player, need);
+	for (let i = 0; i < d; i++) executeConvertResource(ioStub, game, ME, '1power-to-1credit');
+	check('크레딧을 소멸분만큼 획득', player.credits === d, `d=${d} credits=${player.credits}`);
+	check('토큰 총수 불변', countSpendableTokens(player) === before, `${before} → ${countSpendableTokens(player)}`);
+	check('3그릇이 1그릇으로 이동', player.power3 === 0 && player.power1 === 3, `p1=${player.power1} p3=${player.power3}`);
 	check('여전히 지불 가능', canPay(player, need) === true);
 }
 
