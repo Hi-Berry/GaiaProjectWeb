@@ -93,6 +93,23 @@ console.log('\n⑤ 타클론 브레인이 마지막 1토큰 역할을 한다');
 	check('2토큰은 불가', canPay(player, 2) === false);
 }
 
+console.log('\n⑥ 제노스: 3그릇 토큰을 소멸 직전에 크레딧으로 긁어도 위성 비용은 그대로');
+{
+	const need = 3;
+	const { game, player } = mk({ p1: 2, p2: 0, p3: 0, ore: 1, faction: 'xenos' });
+	const shortfall = need - countSpendableTokens(player);
+	check('부족분 1', shortfall === 1, `shortfall=${shortfall}`);
+	for (let i = 0; i < shortfall; i++) executeConvertResource(ioStub, game, ME, '1ore-to-1token');
+	check('제노스 토큰이 3그릇에', player.power3 === 1, `p1=${player.power1} p3=${player.power3}`);
+	const beforeCredits = player.credits;
+	// 소멸 직전 1P→1C: 3그릇 → 1그릇으로 내려가면서 크레딧 획득
+	for (let i = 0; i < shortfall; i++) executeConvertResource(ioStub, game, ME, '1power-to-1credit');
+	check('크레딧을 부족분만큼 챙김', player.credits === beforeCredits + shortfall, `credits=${player.credits}`);
+	check('토큰 수는 그대로(위성 비용 동일)', countSpendableTokens(player) === need, `토큰=${countSpendableTokens(player)}`);
+	check('토큰이 1그릇으로 내려옴', player.power3 === 0 && player.power1 === 3, `p1=${player.power1} p3=${player.power3}`);
+	check('여전히 지불 가능', canPay(player, need) === true);
+}
+
 console.log('');
 if (failed > 0) { console.log(`실패 ${failed}건`); process.exit(1); }
 console.log('OK: 부족분만큼 광물을 바꾸면 연방·인공물 토큰 비용이 성립합니다.');

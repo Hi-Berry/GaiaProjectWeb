@@ -4407,7 +4407,13 @@ export default function Game() {
                   <AlertDialogDescription className="text-zinc-300">
                     <strong className="text-white">{what}</strong>에 파워 토큰이 부족합니다.
                     광물 <strong className="text-orange-300">{converts}개</strong>를 토큰으로 바꾸면
-                    (1O → 1 토큰{toBowl3 ? ', 3그릇' : ', 1그릇'}) 바로 진행할 수 있습니다.
+                    (1O → 1 토큰{toBowl3 ? ', 제노스는 3그릇' : ', 1그릇'}) 바로 진행할 수 있습니다.
+                    {toBowl3 && (
+                      <span className="block mt-1 text-emerald-300">
+                        3그릇에 들어가므로 소멸 직전에 1P → 1C로 바꿔 <strong>크레딧 {converts}개</strong>를 먼저 챙깁니다
+                        (토큰은 1그릇으로 내려가 그대로 위성에 쓰입니다).
+                      </span>
+                    )}
                     <span className="block mt-1 text-amber-300">
                       이 토큰은 위성·인공물로 나가면 게임에서 완전히 제거됩니다(그릇으로 안 돌아옴).
                     </span>
@@ -4421,6 +4427,11 @@ export default function Game() {
                     className="bg-orange-600 hover:bg-orange-500 text-white font-bold"
                     onClick={() => {
                       for (let i = 0; i < converts; i++) GameClient.convertResource(gameId, '1ore-to-1token');
+                      // [사용자 지적 2026-08-13] 제노스는 1O→토큰이 3그릇에 들어간다. 이 자동화는 '부족분만큼만'
+                      //   바꾸므로 변환 후 총 토큰 수 = 필요 수 → 어차피 전부 소멸한다. 3그릇인 채로 없애면
+                      //   그 자리값이 그냥 버려지므로, 소멸 직전에 1P→1C로 크레딧을 긁고 1그릇으로 내려보낸다.
+                      //   (토큰 수는 그대로 유지되어 위성 비용은 동일 — 순수 이득)
+                      if (toBowl3) for (let i = 0; i < converts; i++) GameClient.convertResource(gameId, '1power-to-1credit');
                       if (confirmOreToToken.kind === 'federation') GameClient.federationComplete(gameId, confirmOreToToken.force ?? false);
                       else GameClient.takeTwilightArtifact(gameId, confirmOreToToken.artifactId);
                       setConfirmOreToToken(null);
