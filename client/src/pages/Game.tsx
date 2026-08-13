@@ -339,6 +339,13 @@ export default function Game() {
     | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; burns: number; brainBurnFirst?: boolean; label: string; fromOverlay?: boolean }
     | null
   >(null);
+  /** [사용자 2026-08-13] 발타크 전용 — QIC 액션인데 QIC가 모자랄 때 '포머 → QIC' 변환 확인.
+   *  타클론 파워 태우기(confirmBurnAction)와 같은 형태. 포머는 이번 라운드 잠기므로 반드시 확인을 받는다. */
+  const [confirmQicConvert, setConfirmQicConvert] = useState<
+    | { kind: 'power'; actionId: string; converts: number; closeResearchOverlay?: boolean }
+    | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; converts: number; label: string; fromOverlay?: boolean }
+    | null
+  >(null);
   /** 하이브 우주정거장 배치 모드: 켜면 안내 모달 표시, 다른 액션 차단, 빈 우주 클릭 후 배치하면 종료 */
   const [ivitsSpaceStationMode, setIvitsSpaceStationMode] = useState(false);
   /** 엠바스(Ambas) Special: 의회↔광산 교체 모드 (광산 클릭 시 교체 실행) */
@@ -1482,6 +1489,13 @@ export default function Game() {
 
   const currentPlayer = playerId ? game.players[playerId] : null;
 
+  /** 발타크가 지금 QIC로 바꿀 수 있는 포머 수 (개인판 보유분 − 이번 라운드 이미 QIC로 쓴 잠금분).
+   *  서버 getEffectiveGaiaformers와 동일 정의. 맵에 배치된 포머는 gaiaformers에 안 들어 있어 자연히 제외된다. */
+  const balTakSpareGaiaformers = (p: typeof currentPlayer): number => {
+    if (!p || p.faction !== 'bal_tak') return 0;
+    return Math.max(0, (p.gaiaformers ?? 0) - ((p as { balTakGaiaformersUsedForQic?: number }).balTakGaiaformersUsedForQic ?? 0));
+  };
+
   /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
   const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
     if (!gameId || game.hasDoneMainAction) return;
@@ -1516,6 +1530,12 @@ export default function Game() {
         }
       }
       if (action.costType === 'qic' && (cur.qic ?? 0) < action.cost) {
+        // [사용자 2026-08-13] 발타크는 남은 포머를 QIC로 바꿔 메울 수 있다 — 타클론 태우기와 같은 확인 흐름.
+        const converts = (action.cost as number) - (cur.qic ?? 0);
+        if (balTakSpareGaiaformers(cur) >= converts) {
+          setConfirmQicConvert({ kind: 'power', actionId, converts, closeResearchOverlay: options?.closeResearchOverlay });
+          return;
+        }
         toast({ title: 'QIC 부족', description: 'QIC가 부족합니다.', variant: 'destructive' });
         return;
       }
@@ -1580,7 +1600,16 @@ export default function Game() {
     const cur = currentPlayer;
     const cost = shipTile ? SHIP_ACTION_COSTS[shipTile.type]?.[actionIndex] : undefined;
     if (shipTile && cur && cost) {
-      if (cost.qic && (cur.qic ?? 0) < cost.qic) { toast({ title: 'QIC 부족', description: `${cost.qic} QIC가 필요합니다.`, variant: 'destructive' }); return; }
+      if (cost.qic && (cur.qic ?? 0) < cost.qic) {
+        // [사용자 2026-08-13] 발타크: 부족분만큼 포머를 QIC로 변환할 수 있으면 확인창(보드 QIC 액션과 동일)
+        const converts = cost.qic - (cur.qic ?? 0);
+        if (balTakSpareGaiaformers(cur) >= converts) {
+          const label = SHIP_TOAST_LABELS[shipTile.type]?.[actionIndex - 1] ?? `${SHIP_TOAST_NAMES[shipTile.type]} 액션 ${actionIndex}`;
+          setConfirmQicConvert({ kind: 'ship', shipTileId, actionIndex, targetTileId, converts, label, fromOverlay: options?.fromOverlay });
+          return;
+        }
+        toast({ title: 'QIC 부족', description: `${cost.qic} QIC가 필요합니다.`, variant: 'destructive' }); return;
+      }
       if (cost.ore && (cur.ore ?? 0) < cost.ore) { toast({ title: '광물 부족', description: `${cost.ore} 광물이 필요합니다.`, variant: 'destructive' }); return; }
       if (cost.knowledge && (cur.knowledge ?? 0) < cost.knowledge) { toast({ title: '지식 부족', description: `${cost.knowledge} 지식이 필요합니다.`, variant: 'destructive' }); return; }
       if (cost.credits && (cur.credits ?? 0) < cost.credits) { toast({ title: '크레딧 부족', description: `${cost.credits} 크레딧이 필요합니다.`, variant: 'destructive' }); return; }
@@ -4299,6 +4328,53 @@ export default function Game() {
                     }}
                   >
                     OK (태우고 실행)
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
+
+        {/* [발타크] QIC 부족 → 포머를 QIC로 바꿔서 바로 실행할지 확인 */}
+        {confirmQicConvert && gameId && (() => {
+          const { converts } = confirmQicConvert;
+          const label = confirmQicConvert.kind === 'power'
+            ? (game.powerActions?.find(a => a.id === confirmQicConvert.actionId)?.label ?? confirmQicConvert.actionId)
+            : confirmQicConvert.label;
+          const spare = balTakSpareGaiaformers(currentPlayer);
+          return (
+            <AlertDialog open={true} onOpenChange={(open) => !open && setConfirmQicConvert(null)}>
+              <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
+                    가이아포머를 QIC로 바꿀까요?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    QIC가 부족합니다. 가이아포머 <strong className="text-cyan-300">{converts}개</strong>를 QIC로 바꾸면
+                    바로 <strong className="text-white">{label}</strong> 액션을 실행할 수 있습니다.
+                    <span className="block mt-1 text-amber-300">
+                      쓴 포머는 이번 라운드 동안 잠깁니다(가이아 프로젝트·소행성 광산에 못 씀). 변환 후 남는 포머 {spare - converts}개.
+                    </span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+                    onClick={() => {
+                      for (let i = 0; i < converts; i++) GameClient.useBalTakGaiaformerToQic(gameId);
+                      if (confirmQicConvert.kind === 'power') {
+                        if (confirmQicConvert.closeResearchOverlay) setIsResearchOpen(false);
+                        GameClient.usePowerAction(gameId, confirmQicConvert.actionId);
+                      } else {
+                        proceedShipAction(confirmQicConvert.shipTileId, confirmQicConvert.actionIndex, confirmQicConvert.targetTileId, { fromOverlay: confirmQicConvert.fromOverlay });
+                      }
+                      setConfirmQicConvert(null);
+                    }}
+                  >
+                    OK (변환하고 실행)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
