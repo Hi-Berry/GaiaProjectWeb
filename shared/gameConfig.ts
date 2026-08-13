@@ -1469,6 +1469,15 @@ export function canSpendTaklonsPower(player: PlayerState, fromBowl: 1 | 2 | 3, p
 }
 
 /**
+ * 연방 위성·인공물처럼 '토큰 개수'로 내는 비용에 지금 낼 수 있는 총 토큰 수.
+ * 타클론 브레인 스톤도 1토큰으로 센다(서버 spendPowerTokens/planTokenSpend와 동일 규칙).
+ */
+export function countSpendableTokens(player: PlayerState): number {
+  const brain = (player.faction === 'taklons' && player.brainStoneBowl != null && !player.brainStoneInGaia) ? 1 : 0;
+  return (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0) + brain;
+}
+
+/**
  * 타클론: 3그릇에서 powerValue를 내기 위해 2그릇을 몇 번 태워야 하는지 계획한다.
  * (다른 종족은 '3그릇 토큰 수'로 단순 계산되지만 타클론은 브레인 스톤이 3그릇에서 3파워로 세어져
  *  토큰 개수와 파워 값이 어긋난다 — 그래서 전용 계산이 필요하다.)

@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
@@ -344,6 +344,13 @@ export default function Game() {
   const [confirmQicConvert, setConfirmQicConvert] = useState<
     | { kind: 'power'; actionId: string; converts: number; closeResearchOverlay?: boolean }
     | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; converts: number; label: string; fromOverlay?: boolean }
+    | null
+  >(null);
+  /** [사용자 2026-08-13] 연방 위성 / 인공물처럼 '토큰 개수'로 내는 비용이 모자랄 때
+   *  부족분만큼 1O→1토큰(표준 프리액션)으로 메울지 확인. 타클론 태우기·발타크 포머와 같은 형태. */
+  const [confirmOreToToken, setConfirmOreToToken] = useState<
+    | { kind: 'federation'; converts: number; need: number; force?: boolean }
+    | { kind: 'artifact'; artifactId: string; converts: number; need: number; label: string }
     | null
   >(null);
   /** 하이브 우주정거장 배치 모드: 켜면 안내 모달 표시, 다른 액션 차단, 빈 우주 클릭 후 배치하면 종료 */
@@ -1488,6 +1495,54 @@ export default function Game() {
   }
 
   const currentPlayer = playerId ? game.players[playerId] : null;
+
+  /** 토큰 비용(연방 위성·인공물)이 모자랄 때 1O→1토큰으로 메울 수 있는지 판정.
+   *  @returns 부족분(=변환 횟수). 0이면 그냥 진행, null이면 광물로도 불가능 → 안내만. */
+  const oreToTokenShortfall = (need: number): number | null => {
+    const p = currentPlayer;
+    if (!p) return null;
+    const have = countSpendableTokens(p);
+    if (have >= need) return 0;
+    const shortfall = need - have;
+    return (p.ore ?? 0) >= shortfall ? shortfall : null;
+  };
+
+  /** 연방 완료 공용 핸들러: 위성 토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
+  const handleFederationComplete = (force = false) => {
+    if (!gameId || !currentPlayer) return;
+    const fm = game.federationMode;
+    // 하이브는 위성 대신 QIC로 잇는다(1O→1토큰과 무관) → 기존대로 서버 검증에 맡김
+    if (fm && fm.playerId === playerId && currentPlayer.faction !== 'ivits') {
+      const need = fm.selectedHexIds?.length ?? 0;
+      const converts = oreToTokenShortfall(need);
+      if (converts === null) {
+        toast({ title: '파워 토큰 부족', description: `위성 ${need}개가 필요한데 토큰도 광물도 부족합니다.`, variant: 'destructive' });
+        return;
+      }
+      // 알려진 순서 한계: 불필요 위성 경고는 서버가 토큰 검사보다 먼저 내는데, 이 변환 확인은 그보다 앞선다.
+      //   '중복 위성 + 토큰 부족'이 겹치면 광물을 바꾼 뒤 경고를 보고 취소할 수 있다(프리액션 Undo로 회수 가능).
+      //   드문 조합이라 그대로 두되, 그 상황의 정답은 보통 '중복 위성을 빼는 것'이다.
+      if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
+    }
+    GameClient.federationComplete(gameId, force);
+  };
+
+  /** 인공물 획득 공용 핸들러: 6토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
+  const handleTakeTwilightArtifact = (artifactId: string) => {
+    if (!gameId || !currentPlayer) return;
+    const ART_TOKEN_COST = 6; // 서버 take_twilight_artifact의 spendPowerTokens(player, 6)와 동일
+    const converts = oreToTokenShortfall(ART_TOKEN_COST);
+    if (converts === null) {
+      toast({ title: '파워 토큰 부족', description: `인공물은 토큰 ${ART_TOKEN_COST}개가 필요한데 토큰도 광물도 부족합니다.`, variant: 'destructive' });
+      return;
+    }
+    if (converts > 0) {
+      const label = ARTIFACTS.find(a => a.id === artifactId)?.label ?? artifactId;
+      setConfirmOreToToken({ kind: 'artifact', artifactId, converts, need: ART_TOKEN_COST, label });
+      return;
+    }
+    GameClient.takeTwilightArtifact(gameId, artifactId);
+  };
 
   /** 발타크가 지금 QIC로 바꿀 수 있는 포머 수 (개인판 보유분 − 이번 라운드 이미 QIC로 쓴 잠금분).
    *  서버 getEffectiveGaiaformers와 동일 정의. 맵에 배치된 포머는 gaiaformers에 안 들어 있어 자연히 제외된다. */
@@ -2760,7 +2815,7 @@ export default function Game() {
       }}
       onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
       onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
-      onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
+      onTakeTwilightArtifact={(artId) => handleTakeTwilightArtifact(artId)}
       onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
       onEndTurn={() => GameClient.endTurn(gameId!)}
       onResetTurn={() => GameClient.resetTurn(gameId!)}
@@ -3288,7 +3343,7 @@ export default function Game() {
             showFactionSelectButton={((game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect') && currentPlayer && !currentPlayer.faction) || false}
             onFederationToggleMode={() => gameId && GameClient.federationToggleMode(gameId)}
             onFederationToggleHex={(tileId) => gameId && GameClient.federationToggleHex(gameId, tileId)}
-            onFederationComplete={() => gameId && GameClient.federationComplete(gameId)}
+            onFederationComplete={() => handleFederationComplete(false)}
             ivitsSpaceStationMode={ivitsSpaceStationMode}
             onCancelIvitsSpaceStation={() => setIvitsSpaceStationMode(false)}
             onPlaceIvitsSpaceStation={(tileId) => {
@@ -3319,7 +3374,7 @@ export default function Game() {
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
             onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
-            onTakeTwilightArtifact={(artifactId) => GameClient.takeTwilightArtifact(gameId!, artifactId)}
+            onTakeTwilightArtifact={(artifactId) => handleTakeTwilightArtifact(artifactId)}
             onEclipseBuildAsteroidMine={(tileId, qicToSpend) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId, qicToSpend)}
             zoomValue={mapZoom}
             panValue={mapPan}
@@ -3746,7 +3801,7 @@ export default function Game() {
                     onSelectTechTile: (techTileId, trackId) => { selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: false }); },
                     onSelectAdvancedTechTile: (advancedTileId, trackId) => { if (gameId) GameClient.selectAdvancedTechTile(gameId, advancedTileId, trackId); },
                     onConfirmAdvancedTechCover: (coverTileId) => { if (gameId) GameClient.confirmAdvancedTechCover(gameId, coverTileId); },
-                    onTakeTwilightArtifact: (artifactId) => { if (gameId) GameClient.takeTwilightArtifact(gameId, artifactId); },
+                    onTakeTwilightArtifact: (artifactId) => handleTakeTwilightArtifact(artifactId),
                     onUseAcademyQic: () => {
                       if (game.hasDoneMainAction) return;
                       if (gameId) GameClient.useSpecialAction(gameId, 'academy-qic');
@@ -4273,7 +4328,7 @@ export default function Game() {
                 <AlertDialogAction
                   className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
                   onClick={() => {
-                    GameClient.federationComplete(gameId, true);
+                    handleFederationComplete(true);
                     setFederationRedundantWarning(null);
                   }}
                 >
@@ -4328,6 +4383,50 @@ export default function Game() {
                     }}
                   >
                     OK (태우고 실행)
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
+
+        {/* 토큰 비용(연방 위성 / 인공물) 부족 → 광물을 토큰으로 바꿔서 바로 진행할지 확인 */}
+        {confirmOreToToken && gameId && (() => {
+          const { converts, need } = confirmOreToToken;
+          const what = confirmOreToToken.kind === 'federation'
+            ? `연방 (위성 ${need}개)`
+            : `인공물 ${confirmOreToToken.label} (토큰 ${need}개)`;
+          const toBowl3 = currentPlayer?.faction === 'xenos'; // 제노스는 1O→토큰이 3그릇으로 (서버 규칙)
+          return (
+            <AlertDialog open={true} onOpenChange={(open) => !open && setConfirmOreToToken(null)}>
+              <AlertDialogContent className="bg-zinc-950 border-white/10 text-zinc-100 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white font-black uppercase tracking-wider">
+                    광물을 토큰으로 바꿀까요?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-300">
+                    <strong className="text-white">{what}</strong>에 파워 토큰이 부족합니다.
+                    광물 <strong className="text-orange-300">{converts}개</strong>를 토큰으로 바꾸면
+                    (1O → 1 토큰{toBowl3 ? ', 3그릇' : ', 1그릇'}) 바로 진행할 수 있습니다.
+                    <span className="block mt-1 text-amber-300">
+                      이 토큰은 위성·인공물로 나가면 게임에서 완전히 제거됩니다(그릇으로 안 돌아옴).
+                    </span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-orange-600 hover:bg-orange-500 text-white font-bold"
+                    onClick={() => {
+                      for (let i = 0; i < converts; i++) GameClient.convertResource(gameId, '1ore-to-1token');
+                      if (confirmOreToToken.kind === 'federation') GameClient.federationComplete(gameId, confirmOreToToken.force ?? false);
+                      else GameClient.takeTwilightArtifact(gameId, confirmOreToToken.artifactId);
+                      setConfirmOreToToken(null);
+                    }}
+                  >
+                    OK (변환하고 진행)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -6737,7 +6836,7 @@ export default function Game() {
                 }}
                 onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
                 onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
-                onTakeTwilightArtifact={(artId) => GameClient.takeTwilightArtifact(gameId!, artId)}
+                onTakeTwilightArtifact={(artId) => handleTakeTwilightArtifact(artId)}
                 onUseAcademyQic={() => GameClient.useSpecialAction(gameId!, 'academy-qic')}
                 onEndTurn={() => GameClient.endTurn(gameId!)}
                 onResetTurn={() => GameClient.resetTurn(gameId!)}
