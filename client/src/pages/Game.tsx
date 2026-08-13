@@ -1562,6 +1562,21 @@ export default function Game() {
   /** 인공물 획득 공용 핸들러: 6토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
   const handleTakeTwilightArtifact = (artifactId: string) => {
     if (!gameId || !currentPlayer) return;
+    // [사용자 리뷰 2026-08-13] 자원을 건드리기 전에 서버 전제조건을 먼저 확인한다.
+    //   변환과 본 액션은 원자적이지 않아서, 본 액션이 거절되면 변환만 남는다. 서버가
+    //   take_twilight_artifact에서 조용히 return하는 조건들(내 턴/메인 단계/메인액션 미수행/
+    //   트왈라이트 탑승/슬롯 존재)을 여기서 미리 걸러 그 창을 닫는다.
+    if (game.currentPhase !== 'main' || game.turnOrder?.[game.currentPlayerIndex] !== playerId) return;
+    if (game.hasDoneMainAction) {
+      toast({ title: '이미 메인 액션을 했습니다', description: '인공물 획득은 메인 액션이라 이번 턴에는 할 수 없습니다.', variant: 'destructive' });
+      return;
+    }
+    const twilightTile = game.map?.find(t => t.type === 'ship_twilight');
+    if (!twilightTile || !(currentPlayer.spaceshipsEntered ?? []).includes(twilightTile.id)) {
+      toast({ title: '트왈라이트 미탑승', description: '인공물은 트왈라이트에 탑승한 뒤에 가져올 수 있습니다.', variant: 'destructive' });
+      return;
+    }
+    if (!(game.twilightArtifactSlots ?? []).includes(artifactId)) return;
     const ART_TOKEN_COST = 6; // 서버 take_twilight_artifact의 spendPowerTokens(player, 6)와 동일
     const converts = oreToTokenShortfall(ART_TOKEN_COST);
     if (converts === null) {
@@ -1578,12 +1593,18 @@ export default function Game() {
     GameClient.takeTwilightArtifact(gameId, artifactId);
   };
 
-  /** 발타크가 지금 QIC로 바꿀 수 있는 포머 수 (개인판 보유분 − 이번 라운드 이미 QIC로 쓴 잠금분).
-   *  서버 getEffectiveGaiaformers와 동일 정의. 맵에 배치된 포머는 gaiaformers에 안 들어 있어 자연히 제외된다. */
-  const balTakSpareGaiaformers = (p: typeof currentPlayer): number => {
-    if (!p || p.faction !== 'bal_tak') return 0;
-    return Math.max(0, (p.gaiaformers ?? 0) - ((p as { balTakGaiaformersUsedForQic?: number }).balTakGaiaformersUsedForQic ?? 0));
+  /** 지금 실제로 쓸 수 있는 가이아포머 수 = 개인판 보유분 − 발타크가 이번 라운드 QIC로 써서 잠근 분.
+   *  서버 getEffectiveGaiaformers와 동일 정의. 맵에 배치된 포머는 gaiaformers에 안 들어 있어 자연히 제외된다.
+   *  [사용자 리뷰 2026-08-13] GameBoard의 소행성 판정은 잠금을 빼는데 Game.tsx 건설 확인은 안 빼서
+   *    두 경로가 어긋나 있었다(포머를 다 QIC로 바꾼 뒤 소행성을 누르면 클라 통과 → 서버 거절). 여기로 통일. */
+  const availableGaiaformers = (p: typeof currentPlayer): number => {
+    if (!p) return 0;
+    const locked = p.faction === 'bal_tak' ? ((p as { balTakGaiaformersUsedForQic?: number }).balTakGaiaformersUsedForQic ?? 0) : 0;
+    return Math.max(0, (p.gaiaformers ?? 0) - locked);
   };
+  /** 발타크가 지금 QIC로 바꿀 수 있는 포머 수 (다른 종족은 이 능력 자체가 없어 0). */
+  const balTakSpareGaiaformers = (p: typeof currentPlayer): number =>
+    (p && p.faction === 'bal_tak') ? availableGaiaformers(p) : 0;
 
   /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
   const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
@@ -3477,7 +3498,7 @@ export default function Game() {
 
               // 소행성은 가이아 포머 체크만 필요 — 단 기생광산은 포머 불필요(이미 정착된 땅에 기생)
               if (tile.type === 'asteroid' && !isLantidaParasitic) {
-                if (!player.gaiaformers || player.gaiaformers <= 0) {
+                if (availableGaiaformers(player) <= 0) {
                   toast({
                     title: 'Cannot Build',
                     description: 'You need at least 1 Gaiaformer to build on an Asteroid.',
