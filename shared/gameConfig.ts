@@ -556,7 +556,8 @@ export interface GaiaGameState {
   /** 연방 구현 모드: 빈공간(위성)·내 건물 행성·내 우주정거장 칸 선택 중. 빈공간만 위성/QIC 소모, 건물/우주정거장은 연방 계산 기준점만 */
   federationMode?: { playerId: string; selectedHexIds: string[]; selectedPlanetIds?: string[]; selectedSpaceStationHexIds?: string[]; toggleSeq?: number } | null;
   /** 연방 모드에서 클릭할 때마다 서버가 채우는 미리보기: 포함될 건물·파워·필요 파워 */
-  federationPreview?: { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected?: boolean } | null;
+  /** redundant: 지금 선택에서 빼도 연방이 성립하는 위성 수(서버 경고와 동일 계산). 클라가 '완료' 전에 안내 순서를 정하는 데 쓴다. */
+  federationPreview?: { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected?: boolean; redundant?: number } | null;
   /** 연방 완료 후 보상 선택 대기 (선택된 빈공간 수 = 소모한 파워토큰 수) */
   pendingFederationReward?: { playerId: string; selectedHexIds: string[]; selectedPlanetIds?: string[]; selectedSpaceStationHexIds?: string[]; spentTokens: number } | null;
   /** 우주선 연방 "광산 1개 무료 (Nav 무시)" 보상: 빈 행성 클릭 시 무료 광산 배치 대기 */

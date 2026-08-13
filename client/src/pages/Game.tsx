@@ -1546,9 +1546,12 @@ export default function Game() {
         toast({ title: '파워 토큰 부족', description: `위성 ${need}개가 필요한데 토큰도 광물도 부족합니다.`, variant: 'destructive' });
         return;
       }
-      // 알려진 순서 한계: 불필요 위성 경고는 서버가 토큰 검사보다 먼저 내는데, 이 변환 확인은 그보다 앞선다.
-      //   '중복 위성 + 토큰 부족'이 겹치면 광물을 바꾼 뒤 경고를 보고 취소할 수 있다(프리액션 Undo로 회수 가능).
-      //   드문 조합이라 그대로 두되, 그 상황의 정답은 보통 '중복 위성을 빼는 것'이다.
+      // [사용자 지적 2026-08-13] 자원을 건드리기 전에 '불필요 위성' 경고부터 통과시킨다.
+      //   예전 순서(변환 → 서버 호출 → 경고 → Cancel)는 취소해도 광물이 이미 바뀐 뒤였다.
+      //   서버가 federationPreview.redundant로 같은 계산을 미리 내려주므로 여기서 먼저 물어볼 수 있다.
+      //   경고에서 OK를 누르면 force=true로 다시 들어와 이 분기를 건너뛰고 변환 단계로 넘어간다.
+      const redundant = game.federationPreview?.redundant ?? 0;
+      if (!force && redundant > 0) { setFederationRedundantWarning({ count: redundant }); return; }
       if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
       const gained = cashDoomedBowl3(need);
       if (gained > 0) toast({ title: '3그릇 토큰 회수', description: `위성으로 사라질 토큰을 먼저 크레딧 ${gained}개로 바꿨습니다.` });

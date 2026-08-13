@@ -1528,7 +1528,7 @@ function computeIvitsFederationConnected(
 }
 
 /** 연방 모드 선택 기준으로 포함될 건물·파워 미리보기 계산 */
-function computeFederationPreview(game: ServerGameState, playerId: string): { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected: boolean } | null {
+function computeFederationPreview(game: ServerGameState, playerId: string): { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected: boolean; redundant: number } | null {
 	const mode = game.federationMode;
 	if (!mode || mode.playerId !== playerId) return null;
 	const isIvits = game.players[playerId]?.faction === 'ivits';
@@ -1583,7 +1583,17 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 		const t = game.map.find(x => x.id === hexId);
 		if (t?.spaceStation?.ownerId === playerId && !planetIds.has(hexId)) items.push({ tileId: hexId, label: '우주정거장', power: 1 });
 	}
-	return { power, requiredPower, items, connected };
+	// [사용자 2026-08-13] 불필요 위성 수를 미리보기에 실어 보낸다 — federation_complete가 던지는 경고와
+	//   같은 계산(federationFormsWithoutSatellite)이다. 클라가 '완료'를 누르기 전에 알 수 있어야
+	//   '광물→토큰 변환'과 '불필요 위성 경고'의 순서를 바로잡을 수 있다(변환은 경고를 통과한 뒤에).
+	//   하이브는 위성이 아니라 QIC로 잇고 서버도 그 경고를 내지 않으므로 0.
+	let redundant = 0;
+	if (!isIvits && selectedHexIds.length > 0 && connected && power >= requiredPower) {
+		redundant = selectedHexIds.filter(sid =>
+			federationFormsWithoutSatellite(game, playerId, selectedHexIds.filter(id => id !== sid), planetIds, requiredPower)
+		).length;
+	}
+	return { power, requiredPower, items, connected, redundant };
 }
 
 /** 연방에 속한 본인 건물/우주정거장 바로 옆에 건설한 타일이면 해당 타일도 연방에 포함시킴 */
