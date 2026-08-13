@@ -2741,6 +2741,35 @@ export class BotLogic {
                 const upMean = upVals.length ? upVals.reduce((a, b) => a + b, 0) / upVals.length : 0;
                 const upBase = upScores ? uniqueCandidates.map((c, i) => c.type === 'upgrade_structure' ? crs0[i] : null).filter((x): x is number => x !== null) : [];
                 const upAnchor = upBase.length ? upBase.reduce((a, b) => a + b, 0) / upBase.length : 0;
+                // [flag: researchRankerSort] 연구 전용 랭커 — 업글/ship과 동일한 '그룹 위치는 앵커로 고정, 그룹
+                // 내부 순서만 학습 점수' 형태. 오프라인 게이트는 소비 형태 그대로(연구 후보들 사이 top-1) 측정:
+                // 무작위 23.41% · 봇 현재 순서 39.64% · 랭커 58.93%(+19.30%p ± 1.26, 15.4σ, 5-폴드 3,819결정).
+                // (upgradeRankerSort는 그룹내 top-1이 무작위 미만이라 −3.85 기각됐다 — 여기선 반대 상황.)
+                const resScores = (getPlayerFlag(playerId, 'researchRankerSort', false) || getPlayerFlag(playerId, 'researchRankerPermute', false))
+                    ? this.researchRankerScores(game, playerId, uniqueCandidates) : null;
+                const resVals = resScores ? resScores.filter((x): x is number => x !== null) : [];
+                const resMean = resVals.length ? resVals.reduce((a, b) => a + b, 0) / resVals.length : 0;
+                const resBase = resScores ? uniqueCandidates.map((c, i) => c.type === 'advance_research' ? crs0[i] : null).filter((x): x is number => x !== null) : [];
+                const resAnchor = resBase.length ? resBase.reduce((a, b) => a + b, 0) / resBase.length : 0;
+                // [flag: researchRankerPermute] 위 ×12 형태의 교정판. 측정(40판 paired): researchRankerSort는
+                // 승률 17.5%(7:33, p=0.000)·VP −5.07로 기각됐는데 **행동은 의도대로 발동**했다(경제상승 −0.33·
+                // R4+경제 −0.35·가이아포밍 +0.08). 즉 실패 원인은 '어느 트랙'이 아니라 편차 ×12가 연구 후보를
+                // 그룹 밖으로 밀어 **타입 간 순서까지 바꾼 것**(업글 랭커 −3.85도 동일 ×12 형태, 우주선은 v2.1
+                // −4.04 → v2.2 ±1e-4 축소로 살아난 전례).
+                // 이 판은 축소 대신 **치환**: 연구 후보들이 이미 갖고 있던 crs0 점수 다중집합을 그대로 두고,
+                // 랭커 선호 순서대로 그 슬롯들을 재배정한다. 타입 간 위치(=레벨 정보)는 한 톨도 안 변하고
+                // 바뀌는 건 '연구 후보끼리 누가 어느 슬롯을 갖나'뿐 — rankerNeutralizeUpgTech(−1.13)가 잃었던
+                // 레벨 정보 손실도 없다.
+                const resPermuted: Record<number, number> = {};
+                if (resScores) {
+                    const idxs = uniqueCandidates.map((c, i) => (c.type === 'advance_research' && resScores[i] !== null) ? i : -1).filter(i => i >= 0);
+                    if (idxs.length >= 2 && getPlayerFlag(playerId, 'researchRankerPermute', false)) {
+                        const slots = idxs.map(i => crs0[i]).sort((a, b) => b - a);
+                        const byRank = idxs.slice().sort((a, b) => resScores[b]! - resScores[a]!);
+                        // 슬롯 값이 동률이면 최종 정렬의 안정성(a.i - b.i)이 치환을 되돌리므로 rank로 미세 분리
+                        byRank.forEach((i, k) => { resPermuted[i] = slots[k] - k * 1e-6; });
+                    }
+                }
                 const shipScores = uniqueCandidates.map((c, i) => (crsV2 && c.type === 'use_ship_action' && (c.params as any)?.shipTileId != null) ? crsV2[i] : null);
                 const shipVals = shipScores.filter((x): x is number => x !== null);
                 const shipMean = shipVals.length ? shipVals.reduce((a, b) => a + b, 0) / shipVals.length : 0;
@@ -2766,6 +2795,11 @@ export class BotLogic {
                     else if (upScores && c.type === 'upgrade_structure' && upScores[i] !== null) {
                         // 업글 그룹의 평균 위치(upAnchor)는 유지하고, 그 안에서만 학습 점수 편차로 재정렬
                         s = upAnchor + (upScores[i]! - upMean) * 12;
+                    }
+                    else if (resPermuted[i] !== undefined) s = resPermuted[i];
+                    else if (resScores && getPlayerFlag(playerId, 'researchRankerSort', false) && c.type === 'advance_research' && resScores[i] !== null) {
+                        // 연구 그룹의 평균 위치(resAnchor)는 유지, 그 안에서만 학습 점수 편차로 재정렬
+                        s = resAnchor + (resScores[i]! - resMean) * 12;
                     }
                     else if (!isShip) s = crs0[i];
                     // [v2.2] 편차를 그대로 더하면(v2.1) ship 절반이 med 아래로 → top-N 컷 탈락, 사용률 1.05→0.74 −4.04 기각.
@@ -2850,6 +2884,89 @@ export class BotLogic {
             f[12] = (tgt === 'research_lab' || tgt === 'academy') ? 1 : 0;
             f[13] = 0;
             let s = 0; for (let k = 0; k < 14; k++) s += W[k] * f[k];
+            return s;
+        });
+    }
+
+    /** [researchRankerSort] 연구 전용 랭커 — scripts/trainResearchRanker.mjs 피처와 *동일 순서/정규화* 필수.
+     *  advance_research 후보만 점수, 나머지는 null. 맵 전수 계산이라 root 결정에서만(호출부에서 !simulation 보장).
+     *
+     *  왜 만들었나(2026-08-13 실게임 진단, 07-12 이후 완주판 봇 171석/사람 97석):
+     *    트랙 배분이 볼륨과 무관하게 갈린다 — economy+nav 비중 봇 55% vs 사람 27%,
+     *    gaia+terra+AI 비중 봇 38% vs 사람 62%. 통합 랭커의 그룹내 연구 top-1은 49%로 약하다.
+     *  오프라인 게이트(5-폴드 CV, 3,819결정, 소비 형태와 동일한 '연구 후보들 사이 top-1'):
+     *    무작위 23.41% · 봇 현재 순서 39.64% · **랭커 58.93% (+19.30%p ± 1.26 = 15.4σ)** → 통과. */
+    private static _resRanker: { featDim: number; tracks: string[]; w: number[] } | null | undefined;
+    static researchRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): (number | null)[] | null {
+        if (this._resRanker === undefined) {
+            try { this._resRanker = JSON.parse(nodeFs.readFileSync('server/ai/researchRanker.json', 'utf8')); }
+            catch { this._resRanker = null; }
+        }
+        const M = this._resRanker;
+        const W = M?.w;
+        if (!W || !M || W.length !== M.featDim) return null;
+        const player = game.players[playerId];
+        if (!player) return null;
+        const TR = M.tracks;
+        const FEATS = M.featDim;
+
+        const research = player.research ?? ({} as Record<string, number>);
+        const round = game.roundNumber ?? 1;
+        const power = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+        const mineT = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+        const levels = TR.map(t => research[t as ResearchTrack] ?? 0);
+        const meanLevel = levels.reduce((a, b) => a + b, 0) / (TR.length || 1);
+        const hasFed = getFederationEntries(player).length > 0;
+        const tiles = (player.techTiles ?? []).length;
+
+        // 트랙별 '기회' 피처 — 학습 스크립트와 동일 정의(미점유 대상만, 사거리는 nav 레벨 기준)
+        let oppTerra = 0, oppNav = 0, oppGaia = 0;
+        if (mineT.length) {
+            const nav = research.navigation ?? 0;
+            const rng = getRange(nav);
+            const rngNext = getRange(nav + 1);
+            const near = (tile: { q: number; r: number }, r: number) => mineT.some(p => getDistance(p, tile) <= r);
+            for (const tile of game.map) {
+                const ty = tile.type;
+                if (!ty || ty === 'space' || ty === 'deep_space' || ty === 'lost_fleet_ship') continue;
+                if (tile.structure || tile.hasGaiaformer) continue;
+                if (ty === 'transdim') { if (near(tile, rng + 2)) oppGaia++; continue; }
+                const st = getTerraformStepsForFaction(game, player.faction!, ty);
+                if (st >= 1 && st <= 3 && near(tile, rng)) oppTerra++;
+                if (near(tile, rngNext) && !near(tile, rng)) oppNav++;
+            }
+        }
+
+        return cands.map(c => {
+            if (c.type !== 'advance_research') return null;
+            const track = String((c.params as { trackId?: string } | undefined)?.trackId ?? '');
+            const ti = TR.indexOf(track);
+            if (ti < 0) return null;
+            const L = research[track as ResearchTrack] ?? 0;
+            const f = new Array(FEATS).fill(0);
+            f[ti] = 1;
+            f[6] = L / 5;
+            if (L <= 4) f[7 + L] = 1;
+            f[12] = round / 6;
+            f[13] = round <= 2 ? 1 : 0;
+            f[14] = round >= 5 ? 1 : 0;
+            f[15] = Math.min(player.ore ?? 0, 20) / 10;
+            f[16] = Math.min(player.credits ?? 0, 40) / 20;
+            f[17] = Math.min(player.knowledge ?? 0, 20) / 10;
+            f[18] = Math.min(player.qic ?? 0, 10) / 5;
+            f[19] = Math.min(power, 24) / 12;
+            f[20] = Math.min(mineT.length, 24) / 12;
+            f[21] = hasFed && L === 4 ? 1 : 0;
+            f[22] = (L - meanLevel) / 3;
+            f[23] = Math.min(tiles, 20) / 10;
+            f[24 + ti] = f[13];
+            f[30 + ti] = L === 0 ? 1 : 0;
+            f[40 + ti] = L >= 3 ? 1 : 0;
+            if (track === 'terraforming') f[36] = Math.min(oppTerra, 16) / 8;
+            else if (track === 'navigation') f[37] = Math.min(oppNav, 10) / 5;
+            else if (track === 'gaiaProject') f[38] = Math.min(oppGaia, 10) / 5;
+            let s = 0;
+            for (let k = 0; k < FEATS; k++) if (f[k]) s += W[k] * f[k];
             return s;
         });
     }
