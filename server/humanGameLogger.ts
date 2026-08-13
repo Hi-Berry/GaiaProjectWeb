@@ -72,6 +72,12 @@ type HumanGamePayload = {
    *  서버 컨테이너에만 남아 Render에선 재시작 시 사라지고 받아갈 수도 없었다.
    *  프로세스 전체 누적의 구간 차이라 concurrentGames>1이면 다른 게임 트래픽이 섞인다. */
   netUsage?: { outBytes: number; seats: number; bots: number; spectators: number; receivers: number; concurrentGames: number };
+  /** [리플레이 2026-08-13] 연방 재생에 필요한 두 가지 — 저장 맵에 없던 값이라 지금까지 연방 경계선을 그릴 수 없었다.
+   *  satellites: 칸 id → 위성을 놓은 플레이어들 (서버는 타일이 아니라 game.satellites에 따로 들고 있다)
+   *  playerFederationHexes: 플레이어 → 연방에 편입된 칸 목록 (최종 상태)
+   *  시점별 변화는 gameLog의 Federation Reward 항목에 실린 fedHexes로 따라간다. */
+  satellites?: Record<string, string | string[]>;
+  playerFederationHexes?: Record<string, string[]>;
 };
 
 function summarizePlayer(player?: PlayerState | null) {
@@ -219,6 +225,8 @@ function buildPayload(game: GaiaGameState & {
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
     netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
+    satellites: (game as { satellites?: HumanGamePayload['satellites'] }).satellites,
+    playerFederationHexes: (game as { playerFederationHexes?: HumanGamePayload['playerFederationHexes'] }).playerFederationHexes,
   };
 }
 
@@ -252,6 +260,8 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
     netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
+    satellites: (game as { satellites?: HumanGamePayload['satellites'] }).satellites,
+    playerFederationHexes: (game as { playerFederationHexes?: HumanGamePayload['playerFederationHexes'] }).playerFederationHexes,
     inProgress: true,
     snapshotAt: now,
   };

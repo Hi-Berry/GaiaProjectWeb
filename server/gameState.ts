@@ -2180,7 +2180,7 @@ export function finalizeLogSnap(game: GaiaGameState, playerId: string) {
 	(game as any)._snapBase[playerId] = s;
 }
 
-export function addGameLog(game: GaiaGameState, playerId: string, action: string, details?: string, tileId?: string, meta?: { actionIndex?: number; shipTileId?: string }) {
+export function addGameLog(game: GaiaGameState, playerId: string, action: string, details?: string, tileId?: string, meta?: { actionIndex?: number; shipTileId?: string; fedHexes?: string[] }) {
 	if ((game as any).simulation) return;
 	if (!game.gameLog) {
 		game.gameLog = [];
@@ -2228,6 +2228,8 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 			tileId,
 			round: game.roundNumber, // [계측] 라운드별 행동 분해용(초반 TS 타이밍 등). h2h가 e.round로 버킷팅.
 			seq: (game as any).gameLogSeq, // [롤백] 이 엔트리 시점의 단조 seq — 로그에서 '여기로 롤백' 매핑용
+			// [리플레이 2026-08-13] 이 액션으로 연방에 편입된 칸 — 없으면 필드 자체가 안 실린다
+			fedHexes: meta?.fedHexes,
 		});
 	}
 
@@ -6103,6 +6105,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.pendingFederationReward || game.pendingFederationReward.playerId !== playerId) return;
 
 			const player = game.players[playerId];
+			// [리플레이 2026-08-13 사용자] 이 연방으로 편입되는 칸 목록 — 로그에 남겨 두면 나중에
+			//   '어떤 건물이 연방 건물이 되었는지'를 시점별로 재생할 수 있다(기존엔 개수만 남았다).
+			//   아래 playerFederationHexes 갱신과 같은 값이며, 로그가 먼저 쓰이므로 여기서 미리 계산한다.
+			const _pfr = game.pendingFederationReward;
+			const newFedHexes = Array.from(new Set([
+				...(_pfr.selectedHexIds ?? []), ...(_pfr.selectedPlanetIds ?? []), ...(_pfr.selectedSpaceStationHexIds ?? []),
+			]));
 			const byShip = game.spaceshipFederationByShip || {};
 			const shipRewardIds = Object.values(byShip);
 			const isSpaceshipReward = shipRewardIds.includes(rewardId) && !isSpaceshipFederationRewardTaken(game, rewardId);
@@ -6133,7 +6142,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 				if (!shipReward) return;
 				rewardLabel = shipReward.label;
-				addGameLog(game, playerId, 'Federation Reward', rewardLabel, rewardId);
+				addGameLog(game, playerId, 'Federation Reward', rewardLabel, rewardId, { fedHexes: newFedHexes });
 			} else {
 				const reward = FEDERATION_REWARDS.find(r => r.id === rewardId);
 				if (!reward) return;
@@ -6147,7 +6156,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (rf.knowledge) fedParts.push(`+${rf.knowledge}K`);
 				if (rf.qic) fedParts.push(`+${rf.qic}Q`);
 				if (rf.powerTokens) fedParts.push(`+${rf.powerTokens}PW`);
-				addGameLog(game, playerId, 'Federation Reward', fedParts.join(' '), rewardId);
+				addGameLog(game, playerId, 'Federation Reward', fedParts.join(' '), rewardId, { fedHexes: newFedHexes });
 				addScore(game, playerId, reward.vp, 'other', { source: '연방 ' + rewardLabel, noLog: true });
 				if ('ore' in reward && reward.ore) player.ore += reward.ore;
 				if ('credits' in reward && reward.credits) player.credits += reward.credits;
