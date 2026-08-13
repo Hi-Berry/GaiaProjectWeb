@@ -1507,6 +1507,10 @@ export default function Game() {
     return (p.ore ?? 0) >= shortfall ? shortfall : null;
   };
 
+  /** 3그릇 토큰 1개를 1P→1C로 바꿀 때 실제로 받는 크레딧. 네뷸라 의회는 2C(서버 convert와 동일). */
+  const creditsPerBowl3Token = (currentPlayer?.faction === 'nevlas'
+    && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) ? 2 : 1;
+
   /** [사용자 지적 2026-08-13] 위성·인공물로 **어차피 사라질 3그릇 토큰**을 지불 직전에 1P→1C로 긁는다.
    *  토큰 개수는 그대로 유지되므로(3그릇 → 1그릇) 비용은 동일하고 크레딧만 공짜로 남는다.
    *  네블라스 의회는 토큰당 2C라 더 크다. 순수 이득이라 별도 확인 없이 실행하고 토스트로만 알린다.
@@ -1515,8 +1519,9 @@ export default function Game() {
     if (!gameId || !currentPlayer) return 0;
     const n = doomedBowl3Tokens(currentPlayer, need);
     for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
-    return n;
+    return n * creditsPerBowl3Token;
   };
+
 
   /** 위와 같지만 '광물→토큰 변환을 방금 보낸 직후'용. 그 변환은 아직 서버 브로드캐스트 전이라
    *  클라 상태에 안 보이므로 낙관적으로 반영한다. 부족분만큼만 바꿨으므로 변환 후 총 토큰 = 필요 수
@@ -1545,8 +1550,8 @@ export default function Game() {
       //   '중복 위성 + 토큰 부족'이 겹치면 광물을 바꾼 뒤 경고를 보고 취소할 수 있다(프리액션 Undo로 회수 가능).
       //   드문 조합이라 그대로 두되, 그 상황의 정답은 보통 '중복 위성을 빼는 것'이다.
       if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
-      const cashed = cashDoomedBowl3(need);
-      if (cashed > 0) toast({ title: '3그릇 토큰 회수', description: `위성으로 사라질 토큰 ${cashed}개를 먼저 크레딧으로 바꿨습니다.` });
+      const gained = cashDoomedBowl3(need);
+      if (gained > 0) toast({ title: '3그릇 토큰 회수', description: `위성으로 사라질 토큰을 먼저 크레딧 ${gained}개로 바꿨습니다.` });
     }
     GameClient.federationComplete(gameId, force);
   };
@@ -1565,8 +1570,8 @@ export default function Game() {
       setConfirmOreToToken({ kind: 'artifact', artifactId, converts, need: ART_TOKEN_COST, label });
       return;
     }
-    const cashed = cashDoomedBowl3(ART_TOKEN_COST);
-    if (cashed > 0) toast({ title: '3그릇 토큰 회수', description: `인공물로 사라질 토큰 ${cashed}개를 먼저 크레딧으로 바꿨습니다.` });
+    const gained = cashDoomedBowl3(ART_TOKEN_COST);
+    if (gained > 0) toast({ title: '3그릇 토큰 회수', description: `인공물로 사라질 토큰을 먼저 크레딧 ${gained}개로 바꿨습니다.` });
     GameClient.takeTwilightArtifact(gameId, artifactId);
   };
 
@@ -4439,8 +4444,8 @@ export default function Game() {
                       const cash = (currentPlayer?.power3 ?? 0) + (toBowl3 ? converts : 0);
                       return cash > 0 ? (
                         <span className="block mt-1 text-emerald-300">
-                          어차피 사라질 3그릇 토큰 {cash}개는 소멸 직전에 1P → 1C로 바꿔
-                          <strong> 크레딧 {cash}개</strong>를 먼저 챙깁니다(토큰은 1그릇으로 내려가 그대로 비용에 쓰입니다).
+                          어차피 사라질 3그릇 토큰 {cash}개는 소멸 직전에 1P → {creditsPerBowl3Token}C로 바꿔
+                          <strong> 크레딧 {cash * creditsPerBowl3Token}개</strong>를 먼저 챙깁니다(토큰은 1그릇으로 내려가 그대로 비용에 쓰입니다).
                         </span>
                       ) : null;
                     })()}
