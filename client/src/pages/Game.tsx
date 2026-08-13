@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
@@ -1519,7 +1519,15 @@ export default function Game() {
     if (!gameId || !currentPlayer) return 0;
     const n = doomedBowl3Tokens(currentPlayer, need);
     for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
-    return n * creditsPerBowl3Token;
+    let gained = n * creditsPerBowl3Token;
+    // [사용자 리뷰 2026-08-13] 브레인 스톤도 소멸이 확정이면 같이 긁는다 — 1P→1C가 브레인을
+    //   없애지 않고 1그릇으로 내리면서 3크레딧을 주고, 브레인은 1그릇에서도 토큰 1개로 세어진다.
+    //   (일반 3그릇 토큰을 위에서 전부 긁은 뒤라 이 호출이 브레인 분기로 간다.)
+    if (isBrainCashableBeforeTokenCost(currentPlayer, need)) {
+      GameClient.convertResource(gameId, '1power-to-1credit');
+      gained += 3;
+    }
+    return gained;
   };
 
 
@@ -1528,10 +1536,17 @@ export default function Game() {
    *  → 3그릇 일반 토큰은 **전부** 소멸 확정이다(제노스는 방금 만든 것도 3그릇). */
   const cashDoomedBowl3After = (need: number, oreConverted: number, xenos: boolean): number => {
     if (!gameId || !currentPlayer) return 0;
-    void need;
     const n = (currentPlayer.power3 ?? 0) + (xenos ? oreConverted : 0);
     for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
-    return n;
+    let gained = n * creditsPerBowl3Token;
+    // 광물→토큰 후 상태를 낙관적으로 반영해 브레인 소멸 여부를 본다(일반 토큰이 oreConverted만큼 늘었다).
+    const after = { ...currentPlayer, [xenos ? 'power3' : 'power1']:
+      ((xenos ? currentPlayer.power3 : currentPlayer.power1) ?? 0) + oreConverted } as typeof currentPlayer;
+    if (after && isBrainCashableBeforeTokenCost(after, need)) {
+      GameClient.convertResource(gameId, '1power-to-1credit');
+      gained += 3;
+    }
+    return gained;
   };
 
   /** 연방 완료 공용 핸들러: 위성 토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
@@ -4466,10 +4481,15 @@ export default function Game() {
                     {(() => {
                       // 변환 후 총 토큰 = 필요 수 → 3그릇 일반 토큰은 전부 소멸 확정. 그 전에 크레딧으로 긁는다.
                       const cash = (currentPlayer?.power3 ?? 0) + (toBowl3 ? converts : 0);
-                      return cash > 0 ? (
+                      // 변환 후 상태 기준으로 브레인까지 긁는지 판단(3크레딧 추가)
+                      const afterP = currentPlayer ? { ...currentPlayer, [toBowl3 ? 'power3' : 'power1']:
+                        ((toBowl3 ? currentPlayer.power3 : currentPlayer.power1) ?? 0) + converts } as typeof currentPlayer : null;
+                      const brainC = (afterP && isBrainCashableBeforeTokenCost(afterP, need)) ? 3 : 0;
+                      return (cash > 0 || brainC > 0) ? (
                         <span className="block mt-1 text-emerald-300">
-                          어차피 사라질 3그릇 토큰 {cash}개는 소멸 직전에 1P → {creditsPerBowl3Token}C로 바꿔
-                          <strong> 크레딧 {cash * creditsPerBowl3Token}개</strong>를 먼저 챙깁니다(토큰은 1그릇으로 내려가 그대로 비용에 쓰입니다).
+                          어차피 사라질 3그릇 토큰{cash > 0 ? ` ${cash}개` : ''}{brainC > 0 ? '과 브레인 스톤' : ''}은 소멸 직전에
+                          1P → C로 바꿔 <strong>크레딧 {cash * creditsPerBowl3Token + brainC}개</strong>를 먼저 챙깁니다
+                          (전부 1그릇으로 내려가 그대로 비용에 쓰입니다).
                         </span>
                       ) : null;
                     })()}

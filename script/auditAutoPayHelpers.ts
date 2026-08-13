@@ -13,7 +13,7 @@
  */
 import {
 	countSpendableTokens, doomedBowl3Tokens, planTokenSpend,
-	planTaklonsPowerBurns, canSpendTaklonsPower,
+	planTaklonsPowerBurns, canSpendTaklonsPower, isBrainCashableBeforeTokenCost,
 } from '../shared/gameConfig';
 import { executeConvertResource, executeBurnPower } from '../server/gameState';
 
@@ -84,17 +84,20 @@ for (const base of FACTIONS) {
 			const a = mk(st);
 			const have = countSpendableTokens(a.player);
 			let aOk = false;
-			if (have >= need) {
+			const cashAll = () => {
 				const d = doomedBowl3Tokens(a.player, need);
 				for (let i = 0; i < d; i++) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
+				// 브레인도 소멸 확정이면 같이 긁는다(1B → 3C, 브레인은 1그릇으로 이동)
+				if (isBrainCashableBeforeTokenCost(a.player, need)) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
+			};
+			if (have >= need) {
+				cashAll();
 				aOk = pay(a.player, need);
 			} else {
 				const short = need - have;
 				if ((a.player.ore ?? 0) >= short) {
 					for (let i = 0; i < short; i++) executeConvertResource(ioStub, a.game, ME, '1ore-to-1token');
-					// 변환 후 총 토큰 = 필요 수 → 3그릇 일반 토큰은 전부 소멸 확정
-					const cash = a.player.power3 ?? 0;
-					for (let i = 0; i < cash; i++) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
+					cashAll();
 					aOk = pay(a.player, need);
 				}
 			}
@@ -119,6 +122,32 @@ for (const base of FACTIONS) {
 		}
 }
 console.log(`  ${checked}조합 검사 · 실패 ${failed}건`);
+
+// ─────────────────────────────────────────────────────────────
+// 위 감사는 '나빠지지 않음'만 본다 → 브레인 회수가 실제로 발동해 3크레딧을 버는지 양성 확인.
+console.log('\n①-b 브레인 소멸 확정 시 3크레딧을 실제로 챙기는가');
+{
+	let fired = 0, gainOk = 0;
+	for (const preserveBrain of [false, true])
+		for (let p1 = 0; p1 <= 3; p1++) for (let p2 = 0; p2 <= 3; p2++) for (let p3 = 0; p3 <= 3; p3++)
+			for (let need = 1; need <= 6; need++) {
+				const st: St = { faction: 'taklons', p1, p2, p3, ore: 0, brain: 3, preserveBrain };
+				const b = mk(st); const bOk = pay(b.player, need); const bc = snap(b.player).credits;
+				const a = mk(st);
+				if (countSpendableTokens(a.player) < need) continue;
+				if (!isBrainCashableBeforeTokenCost(a.player, need)) continue;
+				fired++;
+				const d = doomedBowl3Tokens(a.player, need);
+				for (let i = 0; i < d; i++) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
+				executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');   // 브레인 회수
+				const aOk = pay(a.player, need);
+				const ac = snap(a.player).credits;
+				if (bOk && aOk && ac >= bc + 3) gainOk++;
+				else fail(`브레인 회수 이득 미확인 (기준 ${bc} → 자동 ${ac}, 지불 ${bOk}/${aOk}) — p=${p1},${p2},${p3} need=${need}${preserveBrain ? '/보존' : ''}`);
+			}
+	console.log(`  발동 ${fired}조합 · 3크레딧 확인 ${gainOk}건`);
+	if (fired === 0) fail('브레인 회수가 한 번도 발동하지 않음(사실상 죽은 코드)');
+}
 
 // ─────────────────────────────────────────────────────────────
 console.log('\n② 타클론 태우기 계획 — 계획대로 태우면 반드시 지불 가능해지는가');

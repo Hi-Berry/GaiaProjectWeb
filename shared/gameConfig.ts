@@ -1494,6 +1494,27 @@ export function doomedBowl3Tokens(player: PlayerState, need: number): number {
 }
 
 /**
+ * 위성·인공물 토큰 비용에서 **타클론 브레인 스톤도 소멸이 확정**이라 미리 크레딧으로 긁어도 되는가.
+ *
+ * 조건: 브레인이 3그릇에 있고(그래야 1P→1C가 `1B → 3C` 분기를 탄다) 일반 토큰만으로는 비용이
+ * 모자란 경우 — planTokenSpend는 from1→2→3을 채우고 남으면(rem>0) 반드시 브레인을 쓰므로,
+ * `일반토큰 합 < 필요수`면 브레인 소멸이 확정이다.
+ *
+ * 이때 1P→1C는 브레인을 **없애지 않고 1그릇으로 내리면서 3크레딧**을 준다(spendTaklonsPower).
+ * 브레인은 1그릇에 있어도 토큰 비용에서 1개로 세어지므로 비용은 그대로 = 공짜 3크레딧.
+ *
+ * ※ 반드시 doomedBowl3Tokens만큼 일반 3그릇 토큰을 먼저 긁은 뒤에 호출해야 한다
+ *   (1P→1C가 일반 토큰을 우선 쓰기 때문). 위 조건이면 그 값이 곧 p3 전량이라 자연히 성립한다.
+ */
+export function isBrainCashableBeforeTokenCost(player: PlayerState, need: number): boolean {
+  if (player.faction !== 'taklons') return false;
+  if (player.brainStoneInGaia || player.brainStoneSpent) return false;
+  if (player.brainStoneBowl !== 3) return false;
+  const regular = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+  return regular < need;
+}
+
+/**
  * 타클론: 3그릇에서 powerValue를 내기 위해 2그릇을 몇 번 태워야 하는지 계획한다.
  * (다른 종족은 '3그릇 토큰 수'로 단순 계산되지만 타클론은 브레인 스톤이 3그릇에서 3파워로 세어져
  *  토큰 개수와 파워 값이 어긋난다 — 그래서 전용 계산이 필요하다.)
