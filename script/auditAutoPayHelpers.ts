@@ -15,7 +15,7 @@ import {
 	countSpendableTokens, doomedBowl3Tokens, planTokenSpend,
 	planTaklonsPowerBurns, canSpendTaklonsPower, isBrainCashableBeforeTokenCost,
 } from '../shared/gameConfig';
-import { executeConvertResource, executeBurnPower } from '../server/gameState';
+import { executeConvertResource, executeBurnPower, cashDoomedBowl3Tokens } from '../server/gameState';
 
 const ioStub: any = { to: () => ({ emit: () => { } }), emit: () => { } };
 const ME = 'p_a';
@@ -84,12 +84,8 @@ for (const base of FACTIONS) {
 			const a = mk(st);
 			const have = countSpendableTokens(a.player);
 			let aOk = false;
-			const cashAll = () => {
-				const d = doomedBowl3Tokens(a.player, need);
-				for (let i = 0; i < d; i++) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
-				// 브레인도 소멸 확정이면 같이 긁는다(1B → 3C, 브레인은 1그릇으로 이동)
-				if (isBrainCashableBeforeTokenCost(a.player, need)) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
-			};
+			// 회수는 서버가 지불 직전에 한다(gameState.cashDoomedBowl3Tokens) → 실제 프로덕션 함수를 그대로 태운다
+			const cashAll = () => { cashDoomedBowl3Tokens(a.game, ME, need); };
 			if (have >= need) {
 				cashAll();
 				aOk = pay(a.player, need);
@@ -137,9 +133,7 @@ console.log('\n①-b 브레인 소멸 확정 시 3크레딧을 실제로 챙기�
 				if (countSpendableTokens(a.player) < need) continue;
 				if (!isBrainCashableBeforeTokenCost(a.player, need)) continue;
 				fired++;
-				const d = doomedBowl3Tokens(a.player, need);
-				for (let i = 0; i < d; i++) executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');
-				executeConvertResource(ioStub, a.game, ME, '1power-to-1credit');   // 브레인 회수
+				cashDoomedBowl3Tokens(a.game, ME, need);   // 일반 3그릇 + 브레인 회수(서버 실제 함수)
 				const aOk = pay(a.player, need);
 				const ac = snap(a.player).credits;
 				if (bOk && aOk && ac >= bc + 3) gainOk++;

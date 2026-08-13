@@ -43,6 +43,8 @@ import {
 	canSpendTaklonsPower,
 	spendTaklonsPower,
 	planTokenSpend,
+	doomedBowl3Tokens,
+	isBrainCashableBeforeTokenCost,
 	createInitialPlayerState,
 	ALL_TECH_TILES,
 	ALL_ADVANCED_TECH_TILES,
@@ -1145,6 +1147,49 @@ export function hasNearbyPlayersForDiscount(game: ServerGameState, tile: HexTile
 }
 
 /** 파워 토큰 소비: 1그릇 → 2그릇 → 3그릇 순. 성공 시 true */
+/**
+ * 위성·인공물처럼 토큰을 **게임에서 제거**하는 비용을 내기 직전, 어차피 사라질 3그릇 토큰을
+ * 크레딧으로 회수한다(표준 프리액션 1P→1C와 동일 규칙). 토큰은 1그릇으로 내려가므로 개수가
+ * 유지되어 비용은 그대로고 크레딧만 남는다 = 순수 이득.
+ *
+ * [사용자 리뷰 2026-08-13] 원래 클라가 변환을 여러 번 emit하고 본 액션을 이어 보내던 것을
+ *   여기로 옮겼다. 이유 두 가지:
+ *     ① 원자성 — 본 액션이 거절되면 회수만 남는 창이 사라진다(같은 핸들러 안에서 처리).
+ *     ② 클라가 '광물→토큰 변환 후 상태'를 낙관적으로 추측할 필요가 없다. 서버는 지불 시점의
+ *        실제 상태를 보므로 추측이 사라진다.
+ *   (광물→토큰은 사용자 광물을 쓰는 것이라 동의가 필요해 클라 확인창에 그대로 남는다.)
+ *
+ * @returns 회수한 크레딧 수(0이면 아무것도 안 함)
+ */
+export function cashDoomedBowl3Tokens(game: ServerGameState, playerId: string, need: number): number {
+	const player = game.players[playerId];
+	if (!player) return 0;
+	const hasNevlasPI = player.faction === 'nevlas'
+		&& game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+	const perToken = hasNevlasPI ? 2 : 1;   // 네뷸라 의회: 3그릇 토큰 1개 = 2크레딧
+
+	const n = doomedBowl3Tokens(player, need);
+	let gained = 0;
+	if (n > 0) {
+		player.power3 = (player.power3 ?? 0) - n;
+		player.power1 = (player.power1 ?? 0) + n;
+		player.credits = (player.credits ?? 0) + n * perToken;
+		gained += n * perToken;
+	}
+	// 브레인도 소멸이 확정이면 같이 — 1P→1C의 타클론 분기(1B → 3C)와 동일하게 3크레딧,
+	//   브레인은 소멸이 아니라 1그릇으로 이동(토큰 비용에서 여전히 1개로 세어진다).
+	if (isBrainCashableBeforeTokenCost(player, need)) {
+		player.brainStoneBowl = 1;
+		player.credits = (player.credits ?? 0) + 3;
+		gained += 3;
+	}
+	if (gained > 0) {
+		addGameLog(game, playerId, 'Free Actions',
+			`소멸 예정 3그릇 회수 → ${gained}C${n > 0 ? ` (토큰 ${n}개${perToken === 2 ? ', 의회 2C' : ''})` : ''}`);
+	}
+	return gained;
+}
+
 function spendPowerTokens(player: PlayerState, amount: number): boolean {
 	// [사용자 요청 2026-06-29] 타클론 브레인 스톤도 토큰 비용(연방 위성·인공물 등)에 1토큰으로 사용 가능.
 	// [사용자 2026-08-11] 어느 토큰을 낼지는 planTokenSpend가 결정한다(가이아포밍과 동일 규칙):
@@ -4858,6 +4903,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const slots = game.twilightArtifactSlots ?? [];
 			const slotIdx = slots.findIndex(s => s === artifactId);
 			if (slotIdx === -1 || !ARTIFACTS.some(a => a.id === artifactId)) return;
+			// 회수(3그릇→크레딧)는 지불이 확실히 성공할 때만 — 아니면 서버 안에서 같은 비원자성이 생긴다.
+			//   (연방 경로는 위에서 totalPower를 먼저 검사하므로 이 가드가 이미 있다.)
+			if (!planTokenSpend(player, 6)) return;
+			cashDoomedBowl3Tokens(game, playerId, 6);
 			if (!spendPowerTokens(player, 6)) return;
 
 			saveActionStartState(game, playerId);
@@ -6086,6 +6135,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					io.to(gameId).emit('game_error', { message: `파워 토큰이 부족합니다. (필요: ${numEmpty}, 보유: ${totalPower})` });
 					return;
 				}
+				cashDoomedBowl3Tokens(game, playerId, numEmpty);
 				if (!spendPowerTokens(player, numEmpty)) {
 					io.to(gameId).emit('game_error', { message: '파워 토큰 소비에 실패했습니다.' });
 					return;

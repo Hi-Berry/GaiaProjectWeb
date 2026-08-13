@@ -1507,47 +1507,12 @@ export default function Game() {
     return (p.ore ?? 0) >= shortfall ? shortfall : null;
   };
 
-  /** 3그릇 토큰 1개를 1P→1C로 바꿀 때 실제로 받는 크레딧. 네뷸라 의회는 2C(서버 convert와 동일). */
+  /** [사용자 리뷰 2026-08-13] '소멸 확정 3그릇 토큰 → 크레딧' 회수는 **서버**가 지불 직전에 한다
+   *  (gameState.ts cashDoomedBowl3Tokens). 클라에서 프리액션을 여러 번 emit하던 방식은
+   *  ①본 액션이 거절되면 회수만 남고 ②'광물→토큰 후 상태'를 낙관적으로 추측해야 했다.
+   *  여기서는 확인창에 보여줄 예상 크레딧만 계산한다(실제 반영은 서버). */
   const creditsPerBowl3Token = (currentPlayer?.faction === 'nevlas'
     && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) ? 2 : 1;
-
-  /** [사용자 지적 2026-08-13] 위성·인공물로 **어차피 사라질 3그릇 토큰**을 지불 직전에 1P→1C로 긁는다.
-   *  토큰 개수는 그대로 유지되므로(3그릇 → 1그릇) 비용은 동일하고 크레딧만 공짜로 남는다.
-   *  네블라스 의회는 토큰당 2C라 더 크다. 순수 이득이라 별도 확인 없이 실행하고 토스트로만 알린다.
-   *  @returns 긁은 크레딧 수(0이면 아무것도 안 함) */
-  const cashDoomedBowl3 = (need: number): number => {
-    if (!gameId || !currentPlayer) return 0;
-    const n = doomedBowl3Tokens(currentPlayer, need);
-    for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
-    let gained = n * creditsPerBowl3Token;
-    // [사용자 리뷰 2026-08-13] 브레인 스톤도 소멸이 확정이면 같이 긁는다 — 1P→1C가 브레인을
-    //   없애지 않고 1그릇으로 내리면서 3크레딧을 주고, 브레인은 1그릇에서도 토큰 1개로 세어진다.
-    //   (일반 3그릇 토큰을 위에서 전부 긁은 뒤라 이 호출이 브레인 분기로 간다.)
-    if (isBrainCashableBeforeTokenCost(currentPlayer, need)) {
-      GameClient.convertResource(gameId, '1power-to-1credit');
-      gained += 3;
-    }
-    return gained;
-  };
-
-
-  /** 위와 같지만 '광물→토큰 변환을 방금 보낸 직후'용. 그 변환은 아직 서버 브로드캐스트 전이라
-   *  클라 상태에 안 보이므로 낙관적으로 반영한다. 부족분만큼만 바꿨으므로 변환 후 총 토큰 = 필요 수
-   *  → 3그릇 일반 토큰은 **전부** 소멸 확정이다(제노스는 방금 만든 것도 3그릇). */
-  const cashDoomedBowl3After = (need: number, oreConverted: number, xenos: boolean): number => {
-    if (!gameId || !currentPlayer) return 0;
-    const n = (currentPlayer.power3 ?? 0) + (xenos ? oreConverted : 0);
-    for (let i = 0; i < n; i++) GameClient.convertResource(gameId, '1power-to-1credit');
-    let gained = n * creditsPerBowl3Token;
-    // 광물→토큰 후 상태를 낙관적으로 반영해 브레인 소멸 여부를 본다(일반 토큰이 oreConverted만큼 늘었다).
-    const after = { ...currentPlayer, [xenos ? 'power3' : 'power1']:
-      ((xenos ? currentPlayer.power3 : currentPlayer.power1) ?? 0) + oreConverted } as typeof currentPlayer;
-    if (after && isBrainCashableBeforeTokenCost(after, need)) {
-      GameClient.convertResource(gameId, '1power-to-1credit');
-      gained += 3;
-    }
-    return gained;
-  };
 
   /** 연방 완료 공용 핸들러: 위성 토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
   const handleFederationComplete = (force = false) => {
@@ -1568,8 +1533,6 @@ export default function Game() {
       const redundant = game.federationPreview?.redundant ?? 0;
       if (!force && redundant > 0) { setFederationRedundantWarning({ count: redundant }); return; }
       if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
-      const gained = cashDoomedBowl3(need);
-      if (gained > 0) toast({ title: '3그릇 토큰 회수', description: `위성으로 사라질 토큰을 먼저 크레딧 ${gained}개로 바꿨습니다.` });
     }
     GameClient.federationComplete(gameId, force);
   };
@@ -1603,8 +1566,6 @@ export default function Game() {
       setConfirmOreToToken({ kind: 'artifact', artifactId, converts, need: ART_TOKEN_COST, label });
       return;
     }
-    const gained = cashDoomedBowl3(ART_TOKEN_COST);
-    if (gained > 0) toast({ title: '3그릇 토큰 회수', description: `인공물로 사라질 토큰을 먼저 크레딧 ${gained}개로 바꿨습니다.` });
     GameClient.takeTwilightArtifact(gameId, artifactId);
   };
 
@@ -4506,10 +4467,6 @@ export default function Game() {
                     className="bg-orange-600 hover:bg-orange-500 text-white font-bold"
                     onClick={() => {
                       for (let i = 0; i < converts; i++) GameClient.convertResource(gameId, '1ore-to-1token');
-                      // [사용자 지적 2026-08-13] 소멸이 확정된 3그릇 토큰은 지불 직전에 크레딧으로 긁는다.
-                      //   제노스는 1O→토큰이 3그릇에 들어가서 특히 크지만, 규칙 자체는 전 종족 공통이다.
-                      //   변환 직후 상태는 서버 브로드캐스트 전이라 낙관적으로 계산한다(광물→토큰 converts개 반영).
-                      cashDoomedBowl3After(need, converts, toBowl3);
                       if (confirmOreToToken.kind === 'federation') GameClient.federationComplete(gameId, confirmOreToToken.force ?? false);
                       else GameClient.takeTwilightArtifact(gameId, confirmOreToToken.artifactId);
                       setConfirmOreToToken(null);
