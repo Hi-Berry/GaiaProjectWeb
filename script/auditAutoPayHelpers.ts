@@ -144,6 +144,30 @@ console.log('\n①-b 브레인 소멸 확정 시 3크레딧을 실제로 챙기�
 }
 
 // ─────────────────────────────────────────────────────────────
+// 클라 토스트는 서버가 회수할 크레딧을 **예측**해서 보여준다(부족분 없는 경로 전용).
+// 예측이 서버와 어긋나면 토스트가 거짓말을 하므로 그 일치를 못박는다.
+console.log('\n①-c 클라 예측 = 서버 실제 회수액');
+{
+	let n = 0;
+	for (const base of FACTIONS)
+		for (let p1 = 0; p1 <= 3; p1++) for (let p2 = 0; p2 <= 3; p2++) for (let p3 = 0; p3 <= 3; p3++)
+			for (let need = 1; need <= 6; need++) {
+				const st: St = { ...base, p1, p2, p3, ore: 0 };
+				const { game, player } = mk(st);
+				if (countSpendableTokens(player) < need) continue;   // 부족분 있는 경로는 확인창이 안내 → 예측 안 씀
+				const perToken = base.nevlasPI ? 2 : 1;              // Game.tsx creditsPerBowl3Token과 동일
+				const predicted = doomedBowl3Tokens(player, need) * perToken
+					+ (isBrainCashableBeforeTokenCost(player, need) ? 3 : 0);
+				const before = player.credits ?? 0;
+				const actual = cashDoomedBowl3Tokens(game, ME, need);
+				n++;
+				if (predicted !== actual) fail(`예측 ${predicted} ≠ 실제 ${actual} — ${base.faction}${base.nevlasPI ? '/PI' : ''}${base.brain ? `/brain${base.brain}` : ''} p=${p1},${p2},${p3} need=${need}`);
+				if ((player.credits ?? 0) - before !== actual) fail(`반환값과 실제 크레딧 증가 불일치 — need=${need}`);
+			}
+	console.log(`  ${n}조합 대조`);
+}
+
+// ─────────────────────────────────────────────────────────────
 console.log('\n② 타클론 태우기 계획 — 계획대로 태우면 반드시 지불 가능해지는가');
 let tChecked = 0; const tFailBefore = failed;
 for (const brain of [null, 1, 2, 3] as Brain[]) for (const preserveBrain of [false, true])

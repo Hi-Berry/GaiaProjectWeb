@@ -1514,6 +1514,15 @@ export default function Game() {
   const creditsPerBowl3Token = (currentPlayer?.faction === 'nevlas'
     && game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) ? 2 : 1;
 
+  /** 서버가 지불 직전에 회수할 크레딧 수를 미리 계산한다 (서버 cashDoomedBowl3Tokens와 동일 산식).
+   *  ★ 광물→토큰 변환이 없는 경로에서만 쓴다 — 그 경우 클라 상태가 서버의 지불 시점 상태와 같아
+   *  예측이 정확하다. 변환이 끼는 경로는 확인창이 이미 안내하므로 토스트가 필요 없다. */
+  const predictBowl3Cash = (need: number): number => {
+    if (!currentPlayer) return 0;
+    return doomedBowl3Tokens(currentPlayer, need) * creditsPerBowl3Token
+      + (isBrainCashableBeforeTokenCost(currentPlayer, need) ? 3 : 0);
+  };
+
   /** 연방 완료 공용 핸들러: 위성 토큰이 모자라면 1O→1토큰 변환 확인 후 진행 */
   const handleFederationComplete = (force = false) => {
     if (!gameId || !currentPlayer) return;
@@ -1533,6 +1542,9 @@ export default function Game() {
       const redundant = game.federationPreview?.redundant ?? 0;
       if (!force && redundant > 0) { setFederationRedundantWarning({ count: redundant }); return; }
       if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
+      // 서버가 조용히 회수하므로(게임 로그에만 남음) 여기서 이유를 알려준다
+      const cash = predictBowl3Cash(need);
+      if (cash > 0) toast({ title: '3그릇 토큰 회수', description: `위성으로 사라질 3그릇을 크레딧 ${cash}개로 먼저 회수합니다.` });
     }
     GameClient.federationComplete(gameId, force);
   };
@@ -1566,6 +1578,8 @@ export default function Game() {
       setConfirmOreToToken({ kind: 'artifact', artifactId, converts, need: ART_TOKEN_COST, label });
       return;
     }
+    const cash = predictBowl3Cash(ART_TOKEN_COST);
+    if (cash > 0) toast({ title: '3그릇 토큰 회수', description: `인공물로 사라질 3그릇을 크레딧 ${cash}개로 먼저 회수합니다.` });
     GameClient.takeTwilightArtifact(gameId, artifactId);
   };
 
