@@ -1989,14 +1989,17 @@ export function GameBoard({
             {!ivitsSpaceStationMode && (
               <>
                 {/* 우주선 입장: 메인 단계에서만 표시 (세팅 단계에서는 무반응 방지) */}
-                {selectedTile.type?.startsWith('ship_') && currentPlayer && playerId && game.spaceships?.[selectedTile.id] && (
+                {/* [사용자 2026-08-14] 관전자도 우주선을 누르면 기술타일·연방보상·액션 사용현황을 볼 수 있어야 한다.
+                    (기존엔 currentPlayer && playerId를 요구해 관전자는 타일 이름만 보였다.)
+                    좌석이 없으면 조작 UI 없이 읽기전용으로만 보여준다. */}
+                {selectedTile.type?.startsWith('ship_') && game.spaceships?.[selectedTile.id] && (
                   (() => {
                     const ship = game.spaceships[selectedTile.id];
                     const shipName = SHIP_NAMES[selectedTile.type] || selectedTile.type;
-                    const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
-                    const isInShip = ship.occupants.includes(playerId);
-                    const brainTok = (currentPlayer.faction === 'taklons' && currentPlayer.brainStoneBowl != null && !currentPlayer.brainStoneInGaia) ? 1 : 0;
-                    const totalPower = (currentPlayer.power1 ?? 0) + (currentPlayer.power2 ?? 0) + (currentPlayer.power3 ?? 0) + brainTok;
+                    const isMyTurn = !!playerId && game.turnOrder[game.currentPlayerIndex] === playerId;
+                    const isInShip = !!playerId && ship.occupants.includes(playerId);
+                    const brainTok = (currentPlayer?.faction === 'taklons' && currentPlayer.brainStoneBowl != null && !currentPlayer.brainStoneInGaia) ? 1 : 0;
+                    const totalPower = (currentPlayer?.power1 ?? 0) + (currentPlayer?.power2 ?? 0) + (currentPlayer?.power3 ?? 0) + brainTok;
 
                     // 우주선 기술타일 (탑승/미탑승 공통 표시)
                     const techId = game.shipTechByShip?.[selectedTile.type] ?? SHIP_TECH_BY_SHIP[selectedTile.type];
@@ -2101,21 +2104,22 @@ export function GameBoard({
                       );
                     }
 
-                    // === 미탑승: 입장 가능하면 입장 UI, 아니면 안내 메시지 ===
-                    const enteredCount = currentPlayer.spaceshipsEntered?.length ?? 0;
-                    const vpCost = currentPlayer.faction === 'bal_tak' ? 7 : 5;
-                    const needVP = (currentPlayer.score ?? 0) < vpCost;
-                    const isItarsOrNevlas = currentPlayer.faction === 'itars' || currentPlayer.faction === 'nevlas';
+                    // === 미탑승(또는 관전): 입장 UI는 좌석이 있을 때만, 정보는 공통 표시 ===
+                    const seated = !!currentPlayer && !!playerId;
+                    const enteredCount = currentPlayer?.spaceshipsEntered?.length ?? 0;
+                    const vpCost = currentPlayer?.faction === 'bal_tak' ? 7 : 5;
+                    const needVP = (currentPlayer?.score ?? 0) < vpCost;
+                    const isItarsOrNevlas = currentPlayer?.faction === 'itars' || currentPlayer?.faction === 'nevlas';
                     const needToken = isItarsOrNevlas && totalPower < 1;
-                    const baseRange = getEffectiveBaseRange(currentPlayer);
+                    const baseRange = currentPlayer ? getEffectiveBaseRange(currentPlayer) : 0;
                     const rangeTiles = game.map.filter((t: HexTile) =>
                       (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId
                     );
                     const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                     const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                    const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer.qic ?? 0) * 2);
-                    const qicOk = neededQIC <= (currentPlayer.qic ?? 0);
-                    const canEnter = isMyTurn && game.currentPhase === 'main' && enteredCount < 3 && !!onEnterSpaceship;
+                    const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer?.qic ?? 0) * 2);
+                    const qicOk = neededQIC <= (currentPlayer?.qic ?? 0);
+                    const canEnter = seated && isMyTurn && game.currentPhase === 'main' && enteredCount < 3 && !!onEnterSpaceship;
 
                     return (
                       <div className="space-y-2 p-2 bg-zinc-900/60 rounded-lg border border-white/10">
@@ -2174,10 +2178,17 @@ export function GameBoard({
                             </div>
                           </div>
                         )}
-                        <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>
-                        {!isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
-                        {isMyTurn && game.currentPhase !== 'main' && <p className="text-[11px] text-zinc-400">우주선 입장은 메인(액션) 단계에서 가능합니다.</p>}
-                        {isMyTurn && game.currentPhase === 'main' && enteredCount >= 3 && <p className="text-[11px] text-zinc-400">이미 우주선 3척에 탑승하여 더 탈 수 없습니다.</p>}
+                        {!seated && (
+                          <p className="text-[11px] text-zinc-400">
+                            탑승 중: {ship.occupants.length
+                              ? ship.occupants.map(id => game.players[id]?.name ?? id).join(', ')
+                              : '없음'}
+                          </p>
+                        )}
+                        {seated && <p className="text-[11px] text-amber-400">아직 이 우주선에 탑승하지 않았습니다.</p>}
+                        {seated && !isMyTurn && <p className="text-[11px] text-zinc-400">내 턴에 입장할 수 있습니다.</p>}
+                        {seated && isMyTurn && game.currentPhase !== 'main' && <p className="text-[11px] text-zinc-400">우주선 입장은 메인(액션) 단계에서 가능합니다.</p>}
+                        {seated && isMyTurn && game.currentPhase === 'main' && enteredCount >= 3 && <p className="text-[11px] text-zinc-400">이미 우주선 3척에 탑승하여 더 탈 수 없습니다.</p>}
                         {canEnter && (
                           <>
                             <p className="text-xs text-zinc-300">{vpCost} VP로 입장{isItarsOrNevlas && ' · 1 토큰 (1→2→3그릇)'}</p>
@@ -2195,7 +2206,7 @@ export function GameBoard({
                               size="sm"
                               disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
                               onClick={() => {
-                                onEnterSpaceship!(selectedTile.id, !!currentPlayer.rangeBonusActive, neededQIC);
+                                onEnterSpaceship!(selectedTile.id, !!currentPlayer?.rangeBonusActive, neededQIC);
                                 setSelectedTile(null);
                               }}
                             >
