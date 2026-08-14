@@ -147,6 +147,15 @@ export function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: Player
 		else if (p.brainStoneBowl === 2 && n2 >= 1) { brainC = 3; n2 -= 1; } // 이동 번 비용: 일반토큰 1개
 	}
 	sum += (n3 + Math.floor(n2 / 2)) * rate + brainC;
+	// [사용자 2026-08-14] 발타크: 개인판에 남은 가이아포머는 프리액션으로 1개당 1 QIC가 되므로
+	//   잔여 자원 정산에 포함한다. 안 넣으면 '마지막 패스 전에 포머→QIC를 N번 눌러야 손해를 안 본다'는
+	//   숨은 조작을 요구하게 된다(누르든 안 누르든 같은 점수가 되도록 맞춘 것).
+	//   ※ 이미 QIC로 바꾼 분(balTakGaiaformersUsedForQic)은 p.qic에 들어가 있으므로 빼야 이중계산이 안 된다.
+	//   ※ 맵에서 가이아포밍 중인 포머는 p.gaiaformers에 없어 자연히 제외된다.
+	//   ※ 잠금분도 '패스 보너스(포머당 VP)'에는 그대로 세어지므로(countRemainingGaiaformers) 그쪽과 충돌 없음.
+	if (p.faction === 'bal_tak') {
+		sum += Math.max(0, (p.gaiaformers ?? 0) - (p.balTakGaiaformersUsedForQic ?? 0));
+	}
 	return sum;
 }
 
