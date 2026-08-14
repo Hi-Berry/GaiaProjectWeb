@@ -2,7 +2,8 @@
  * [사용자 2026-08-11] 편의기능 창 — 맵 우하단(로그를 안 가리게 맵 영역 기준)에 뜨는 보조 패널.
  * 채팅창처럼 헤더를 잡고 이동, X로 접기(메뉴 버튼으로 다시 열기). 순수 클라 기능이라 서버 통신 없음.
  *
- *  1) 예상 점수: 지금 당장 패스하면 얼마로 끝나는지 (현재/패스/트랙/미션/자원/비딩).
+ *  1) 예상 점수: '지금 이 보드로 게임이 끝나면' 몇 점인지 (현재/패스/트랙/미션/자원/비딩).
+ *     최종 예상 점수가 아니다 — 남은 라운드의 패스 보너스·미션 진행분은 안 들어간다.
  *  2) 남은 땅: 맵에 아직 아무도 안 지은 행성을 유형별로 센다.
  *  3) 거리 측정기: A/B로 칸 두 개를 찍으면 헥스 거리를 보여준다.
  *     최종미션 '의회-아카데미 거리'(fm_pi_academy_distance)와 같은 getDistance를 쓴다.
@@ -268,9 +269,9 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           </button>
         </div>
 
-        {/* 1) 예상 점수 — 지금 패스하면 어떻게 끝나는지. 검증 전이라 지정된 이름에게만 노출 */}
+        {/* 1) 예상 점수 — '지금 이 보드로 게임이 끝나면' 몇 점인지. 남은 라운드의 패스·미션은 안 들어간다. */}
         {canSeeScore && (
-        <Section id="score" title="예상 점수 (지금 패스 시)" accent="text-amber-400">
+        <Section id="score" title="예상 점수 (지금 끝나면)" accent="text-amber-400">
           <div className="space-y-1">
             {projections.map(({ pid, s }) => {
               const p = game.players[pid];
@@ -284,12 +285,14 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
                     <span className="ml-auto text-[13px] font-black text-amber-300 leading-none">{s.total}</span>
                   </div>
                   <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0 text-[9px] text-zinc-500">
+                    {/* 이미 서버 점수에 반영된 항목은 0으로 오므로 숨긴다 — '+0'이 남으면 아직 못 받은 것처럼 보인다 */}
                     <span>현재 <b className="text-zinc-300 font-bold">{s.now}</b></span>
-                    <span>패스 <b className="text-zinc-300 font-bold">+{s.pass}</b></span>
-                    <span>트랙 <b className="text-zinc-300 font-bold">+{s.track}</b></span>
-                    <span>미션 <b className="text-zinc-300 font-bold">+{s.mission}</b></span>
-                    <span>자원 <b className="text-zinc-300 font-bold">+{s.leftover}</b></span>
+                    {s.pass !== 0 && <span>패스 <b className="text-zinc-300 font-bold">+{s.pass}</b></span>}
+                    {s.track !== 0 && <span>트랙 <b className="text-zinc-300 font-bold">+{s.track}</b></span>}
+                    {s.mission !== 0 && <span>미션 <b className="text-zinc-300 font-bold">+{s.mission}</b></span>}
+                    {s.leftover !== 0 && <span>자원 <b className="text-zinc-300 font-bold">+{s.leftover}</b></span>}
                     {s.bid !== 0 && <span>비딩 <b className="text-red-400 font-bold">{s.bid}</b></span>}
+                    {p.hasPassed && game.currentPhase !== 'gameEnd' && <span className="text-zinc-600">패스함</span>}
                   </div>
                 </div>
               );
@@ -297,6 +300,8 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           </div>
           <div className="mt-1 text-[8px] leading-snug text-zinc-600">
             패스=라운드 부스터+고급기술 · 트랙=3/4/5칸당 4·8·12 · 미션=순위 정산(18/12/6) · 자원=남은 자원÷3
+            <br />이미 받은 점수(패스한 사람의 패스분, 종료 후 정산분)는 '현재'에 들어 있어 다시 더하지 않습니다.
+            <br />남은 라운드의 패스·미션 진행분은 빠져 있어 최종 예상치는 아닙니다.
           </div>
         </Section>
         )}
