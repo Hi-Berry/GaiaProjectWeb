@@ -13,7 +13,8 @@
   .card{background:#141a2a;border:1px solid #ffffff14;border-radius:14px;padding:1rem 1.2rem;display:flex;align-items:center;gap:1rem}
   .dot{width:14px;height:14px;border-radius:50%;flex:none}
   .up{background:#22c55e;box-shadow:0 0 10px #22c55e88}
-  .busy{background:#f97316;box-shadow:0 0 10px #f9731688}
+  /* [사용자 2026-08-14] 게임 진행 중은 색 점보다 정지 아이콘이 직관적 — 점 슬롯에 이모지를 그대로 놓는다 */
+  .dot.ico{background:none;box-shadow:none;width:16px;height:16px;line-height:16px;font-size:15px;text-align:center}
   .down{background:#ef4444}
   .wait{background:#eab308;animation:p 1.2s infinite}
   @keyframes p{50%{opacity:.35}}
@@ -37,7 +38,7 @@
 </head>
 <body>
 <h1>🪐 Gaia Project 서버 현황</h1>
-<div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 비어 있음 · 🟠 게임 진행 중 · 🔴 응답 없음<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
+<div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 비어 있음 · ⛔ 게임 진행 중 · 🔴 응답 없음<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
 <div class="banner" id="banner"></div>
 <div class="grid" id="grid"></div>
 <div class="links">
@@ -101,7 +102,9 @@ function render(list){
   const grid = document.getElementById('grid');
   grid.innerHTML = list.map(x=>{
     // [사용자 2026-08-14] 상태는 왼쪽 점 하나로만 표현한다 — 오른쪽에 또 아이콘을 붙이니 카드마다 2개씩 보였다.
-    const cls = x.state==='up' ? (x.games>0?'busy':'up') : x.state==='wait' ? 'wait' : 'down';
+    const busy = x.state==='up' && x.games>0;
+    const cls = x.state==='up' ? 'up' : x.state==='wait' ? 'wait' : 'down';
+    const dotHtml = busy ? '<div class="dot ico">⛔</div>' : `<div class="dot ${cls}"></div>`;
     const isPinned = pinned && x.url===pinned.url;
     const meta = x.state==='up'
       // 제일 먼저 답해야 할 질문은 '여기서 지금 시작할 수 있나'다 → 그것부터 표시.
@@ -112,7 +115,7 @@ function render(list){
     // 안내 문구는 지정 여부와 무관하게 표시 — '점검 중' 같은 알림도 서버별로 띄울 수 있게
     const noticeLine = (x.state==='up' && x.notice) ? `<div class="notice">📢 ${esc(x.notice)}</div>` : '';
     return `<div class="card ${isPinned?'pinned':(best&&x.url===best.url?'best':'')}">
-      <div class="dot ${cls}"></div>
+      ${dotHtml}
       <div class="info"><div class="name">${esc(x.name)}</div><div class="meta">${meta}</div>${noticeLine}</div>
       <a class="go" href="${x.url}" target="_blank" rel="noopener">${x.state==='up'?'플레이':'접속 시도'}</a>
     </div>`;
