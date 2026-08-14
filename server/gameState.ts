@@ -770,6 +770,7 @@ const _netOutAtGameStart = new Map<string, number>();
  *  EMIT_BYTES=1로 진행 중 게임을 삭제하면 _emitRecon(전체 상태 복원본)·_emitPrev가 그대로 남아 누수가 된다.
  *  게임 종료 경로엔 이미 정리가 있지만 '방 삭제'는 그 경로를 안 탄다. */
 function clearGameMeasurementState(gameId: string): void {
+	rollbackCounts.delete(gameId);   // 방이 사라지면 집계도 버린다(모듈 레벨 Map이라 안 지우면 누수)
 	_emitPrev.delete(gameId);
 	_emitRecon.delete(gameId);
 	_emitPrevStr.delete(gameId);
@@ -809,6 +810,25 @@ function logGameNetUsage(game: GaiaGameState): void {
 		value: _netUsageAtEnd.get(game.id), writable: true, configurable: true, enumerable: false,
 	});
 	log(`[NET-USAGE] ${game.id} out=${mb(used)}MB (좌석 ${seats}[봇 ${bots}] 관전 ${spec} 수신소켓 ${roomSize(game.id)} · 동시 게임 ${games.size}개, 접속 ${net.liveConns})`, 'game', game.id);
+}
+
+/** [사용자 2026-08-14] 롤백 집계를 **게임 export에 싣는다**.
+ *  기존엔 buildRollbackSummary 결과가 서버 로그 파일에만 남아, 다운로드한 게임 JSON으로는
+ *  누가 몇 번 되돌렸는지 알 수 없었다(NET-USAGE와 같은 문제 — 로그는 컨테이너 안에만 있고
+ *  재시작하면 사라진다). 사후 통계를 내려면 파일에 있어야 한다.
+ *
+ *  롤백이 0회여도 붙인다 — 필드가 없으면 '구버전 서버'이고 0이면 '진짜 안 했다'로 구분된다.
+ *  non-enumerable이라 game_updated 브로드캐스트·스냅샷 JSON에는 실리지 않는다(__netUsage와 동일). */
+function attachRollbackStats(game: GaiaGameState): void {
+	const c = rollbackCounts.get(game.id);
+	const byPlayer: Record<string, { name: string; count: number }> = {};
+	for (const [pid, n] of Object.entries(c?.byPlayer ?? {})) {
+		byPlayer[pid] = { name: game.players[pid]?.name ?? pid, count: n };
+	}
+	Object.defineProperty(game, '__rollbacks', {
+		value: { total: c?.total ?? 0, admin: c?.admin ?? 0, byPlayer },
+		writable: true, configurable: true, enumerable: false,
+	});
 }
 
 /** 게임 종료 시 로그에 남길 롤백 요약. 롤백이 없었으면 null. */
@@ -2047,6 +2067,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	{
 		const rb = buildRollbackSummary(game);
 		if (rb) log(`[ROLLBACK-SUMMARY] ${game.id} ${rb}`, 'game', game.id);
+			attachRollbackStats(game);
 			logGameNetUsage(game);
 	}
 	applyFinalMissionScoring(game);
@@ -8510,6 +8531,7 @@ export function executePassRound(
 			{
 				const rb = buildRollbackSummary(game);
 				if (rb) log(`[ROLLBACK-SUMMARY] ${game.id} ${rb}`, 'game', game.id);
+			attachRollbackStats(game);
 			logGameNetUsage(game);
 			}
 			applyFinalMissionScoring(game);

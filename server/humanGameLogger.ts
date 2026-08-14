@@ -72,6 +72,9 @@ type HumanGamePayload = {
    *  서버 컨테이너에만 남아 Render에선 재시작 시 사라지고 받아갈 수도 없었다.
    *  프로세스 전체 누적의 구간 차이라 concurrentGames>1이면 다른 게임 트래픽이 섞인다. */
   netUsage?: { outBytes: number; seats: number; bots: number; spectators: number; receivers: number; concurrentGames: number };
+  /** [사용자 2026-08-14] 되돌리기(롤백) 집계. total=전체, admin=GM 되감기, byPlayer=좌석별.
+   *  필드 자체가 없으면 구버전 서버에서 저장된 게임이고, total:0이면 실제로 한 번도 안 한 것. */
+  rollbacks?: { total: number; admin: number; byPlayer: Record<string, { name: string; count: number }> };
   /** [리플레이 2026-08-13] 연방 재생에 필요한 두 가지 — 저장 맵에 없던 값이라 지금까지 연방 경계선을 그릴 수 없었다.
    *  satellites: 칸 id → 위성을 놓은 플레이어들 (서버는 타일이 아니라 game.satellites에 따로 들고 있다)
    *  playerFederationHexes: 플레이어 → 연방에 편입된 칸 목록 (최종 상태)
@@ -225,6 +228,7 @@ function buildPayload(game: GaiaGameState & {
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
     netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
+    rollbacks: (game as { __rollbacks?: HumanGamePayload['rollbacks'] }).__rollbacks,
     satellites: (game as { satellites?: HumanGamePayload['satellites'] }).satellites,
     playerFederationHexes: (game as { playerFederationHexes?: HumanGamePayload['playerFederationHexes'] }).playerFederationHexes,
   };
@@ -260,6 +264,7 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
     netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
+    rollbacks: (game as { __rollbacks?: HumanGamePayload['rollbacks'] }).__rollbacks,
     satellites: (game as { satellites?: HumanGamePayload['satellites'] }).satellites,
     playerFederationHexes: (game as { playerFederationHexes?: HumanGamePayload['playerFederationHexes'] }).playerFederationHexes,
     inProgress: true,
