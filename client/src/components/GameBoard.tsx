@@ -1851,10 +1851,11 @@ export function GameBoard({
 
         <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
 
-        {/* [사용자 2026-08-13] 모바일에서 창을 끌면 맵도 같이 움직이던 문제 —
-            이 패널이 맵 컨테이너 '안'에 렌더돼 터치 이벤트가 맵의 팬 핸들러(onTouchStart/Move, :1223)로
-            버블링됐다. 채팅창은 Game.tsx에서 맵 바깥에 렌더돼 원래 이 문제가 없다.
-            → 같은 조건이 되도록 body로 포털. position:fixed라 화면 위치는 그대로다. */}
+        {/* body로 포털 — 맵 컨테이너의 stacking context/overflow에서 벗어나기 위함.
+            ※ 정정(2026-08-14): 이 포털은 '맵이 같이 끌리던' 문제의 해법이 아니었다.
+               React 이벤트는 DOM이 아니라 컴포넌트 트리를 따라 버블링하므로 포털해도
+               여기 onTouchStart/Move(:1219-1224)로 그대로 올라온다.
+               실제 해법은 UtilityPanel 루트에서 touch/mouse를 stopPropagation 하는 것. */}
         {utilityOpen && createPortal(
           <UtilityPanel
             game={game}

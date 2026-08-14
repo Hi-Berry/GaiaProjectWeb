@@ -221,6 +221,18 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
       style={pos
         ? { left: pos.x, top: pos.y }
         : { right: anchorRightPx, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+      // [사용자 재보고 2026-08-14] 모바일에서 창을 끌면 맵도 같이 움직이던 문제의 진짜 원인.
+      //   ★ React 이벤트는 DOM 트리가 아니라 **컴포넌트 트리**를 따라 버블링한다 — createPortal로
+      //   body에 옮겨도 GameBoard의 onTouchStart/onTouchMove(:1219-1224)로 그대로 올라간다.
+      //   드래그·리사이즈는 pointer 이벤트로 처리하는데, 터치 한 번은 pointer와 touch 이벤트를
+      //   둘 다 발생시키므로 pointer 쪽 stopPropagation만으론 touch가 그대로 새어나간다.
+      //   → 패널 루트에서 touch/mouse 계열을 직접 끊는다. preventDefault는 하지 않아 패널 내부
+      //   스크롤·버튼은 정상 동작한다.
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseMove={(e) => e.stopPropagation()}
     >
       <div className="relative bg-black/85 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl overflow-hidden" style={{ width: `${width}px` }}>
         {/* 크기 조절 핸들: 좌측=가로, 상단=세로, 좌상단 코너=동시 (우하단 앵커 기준) */}
