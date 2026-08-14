@@ -5204,26 +5204,36 @@ export default function Game() {
                 {a.label}
               </button>
             ))}
-            {showFa && faShowUndo && faVisibleActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
-            {showFa && faShowUndo && (
-              <button
-                type="button"
-                onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, 1); }}
-                title="프리액션 한 단계 되돌리기"
-                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
-              >
-                ↩ Undo
-              </button>
-            )}
-            {showFa && faShowUndo && (
-              <button
-                type="button"
-                onClick={() => { if (!gameId) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
-                title="이 턴의 프리액션 전부 되돌리기"
-                className="pointer-events-auto text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
-              >
-                ↩ Undo All
-              </button>
+            {/* [사용자 2026-08-14] "발타크 스페셜을 2~3번 누르고 싶은데 한 번 누르면 그 자리에 Undo가 생겨
+                버튼 위치가 바뀐다" — 스트립은 카드 높이에 고정(applyStripPos)인데 내용물이 justify-center라,
+                Undo 2개가 나타나면 **중앙 정렬이 다시 계산돼** 위쪽 버튼들이 밀렸다.
+                → Undo 자리를 처음부터 비워둔다(항상 렌더, 쓸 수 없을 땐 invisible). 기하가 변하지 않아
+                  같은 버튼을 연속으로 누를 수 있다. */}
+            {showFa && faVisibleActs.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
+            {/* Undo 2개는 한 줄로 — 예약 높이를 1줄로 줄여 특수 액션이 많은 종족에서도 카드 높이를 덜 먹는다 */}
+            {showFa && (
+              <div className={`flex gap-1 ${faShowUndo ? '' : 'invisible pointer-events-none'}`}>
+                <button
+                  type="button"
+                  aria-hidden={!faShowUndo}
+                  tabIndex={faShowUndo ? 0 : -1}
+                  onClick={() => { if (!gameId || !faShowUndo) return; GameClient.undoFreeAction(gameId, 1); }}
+                  title="프리액션 한 단계 되돌리기"
+                  className="pointer-events-auto flex-1 text-[10px] font-bold px-1.5 py-1 rounded border border-sky-400/60 bg-zinc-900/90 text-sky-200 hover:bg-sky-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+                >
+                  ↩1
+                </button>
+                <button
+                  type="button"
+                  aria-hidden={!faShowUndo}
+                  tabIndex={faShowUndo ? 0 : -1}
+                  onClick={() => { if (!gameId || !faShowUndo) return; GameClient.undoFreeAction(gameId, faUndoDepth); }}
+                  title="이 턴의 프리액션 전부 되돌리기"
+                  className="pointer-events-auto flex-1 text-[10px] font-bold px-1.5 py-1 rounded border border-rose-400/60 bg-zinc-900/90 text-rose-200 hover:bg-rose-500/30 leading-none whitespace-nowrap shadow-lg backdrop-blur"
+                >
+                  ↩All
+                </button>
+              </div>
             )}
             {showFa && acts.length > 0 && <div className="pointer-events-none h-px bg-white/15" />}
             {acts.map(a => {
