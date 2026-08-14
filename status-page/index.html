@@ -13,6 +13,7 @@
   .card{background:#141a2a;border:1px solid #ffffff14;border-radius:14px;padding:1rem 1.2rem;display:flex;align-items:center;gap:1rem}
   .dot{width:14px;height:14px;border-radius:50%;flex:none}
   .up{background:#22c55e;box-shadow:0 0 10px #22c55e88}
+  .busy{background:#f97316;box-shadow:0 0 10px #f9731688}
   .down{background:#ef4444}
   .wait{background:#eab308;animation:p 1.2s infinite}
   @keyframes p{50%{opacity:.35}}
@@ -36,7 +37,7 @@
 </head>
 <body>
 <h1>🪐 Gaia Project 서버 현황</h1>
-<div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 초록 = 접속 가능 · ⛔ = 이미 게임 진행 중<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
+<div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 비어 있음 · 🟠 게임 진행 중 · 🔴 응답 없음<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
 <div class="banner" id="banner"></div>
 <div class="grid" id="grid"></div>
 <div class="links">
@@ -99,12 +100,13 @@ function render(list){
   const best = pinned || auto;
   const grid = document.getElementById('grid');
   grid.innerHTML = list.map(x=>{
-    const cls = x.state==='up'?'up':x.state==='wait'?'wait':'down';
+    // [사용자 2026-08-14] 상태는 왼쪽 점 하나로만 표현한다 — 오른쪽에 또 아이콘을 붙이니 카드마다 2개씩 보였다.
+    const cls = x.state==='up' ? (x.games>0?'busy':'up') : x.state==='wait' ? 'wait' : 'down';
     const isPinned = pinned && x.url===pinned.url;
     const meta = x.state==='up'
       // 제일 먼저 답해야 할 질문은 '여기서 지금 시작할 수 있나'다 → 그것부터 표시.
       //   접속 인원은 게임이 아직 안 열렸어도 누가 모여 있는지 알려주므로 남긴다.
-      ? `${x.games>0?`⛔ 게임 진행 중 (${x.games})`:'🟢 비어 있음'} · 접속 ${x.humans}명 · ${x.ai?'🤖 AI 봇 가능 — 느림':'🙅 AI 봇 없음'}`
+      ? `${x.games>0?`게임 진행 중 (${x.games})`:'비어 있음'} · 접속 ${x.humans}명 · ${x.ai?'AI 봇 가능 — 느림':'AI 봇 없음'}`
         + ((isPinned || (best && x.url===best.url)) ? ' · 👉 여기서 플레이하세요' : '')
       : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
     // 안내 문구는 지정 여부와 무관하게 표시 — '점검 중' 같은 알림도 서버별로 띄울 수 있게
