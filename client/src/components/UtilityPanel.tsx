@@ -46,18 +46,30 @@ function Section({ id, title, accent, children }: { id: string; title: string; a
  *  검증이 끝나면 이 배열을 비우면(=[]) 전원에게 열린다. 보안 장치가 아니라 임시 노출 제한이다. */
 const SCORE_PREVIEW_NAMES = ['하이'];
 
-/** 지금 패스하면 받게 될 점수 — 서버 정산과 같은 shared 함수만 사용(규칙 복제 금지) */
+/** '지금 이 보드로 게임이 끝나면 몇 점인가' — 서버 정산과 같은 shared 함수만 사용(규칙 복제 금지).
+ *
+ *  ★ 이중계산 주의 (리뷰 2026-08-14): 서버는 각 항목을 **발생 시점에 곧바로 score에 넣는다**.
+ *    - 패스 VP: 패스하는 순간 addScore(bonusTilePass) + addScore(techTiles)  → gameState.ts:8501, :2595
+ *    - 종료 정산: addScore(researchTracks / remainingResources / finalMissions) + 비딩 차감 → :2084 :2091 :2495 :2094
+ *    그래서 이미 반영된 항목을 또 더하면 안 된다:
+ *      · 이미 패스한 사람 → pass 제외 (안 그러면 한 명이라도 패스한 뒤부터 순위가 부풀었다)
+ *      · 게임 종료 후    → track·mission·leftover·bid 전부 제외 (안 그러면 거의 두 배로 보였다)
+ */
 function projectScore(game: GaiaGameState, pid: string) {
   const p = game.players[pid];
-  const passTile = computeBonusTilePassVp(game, pid)?.vp ?? 0;
-  const passAdv = computeAdvancedTechPassVp(game, pid).reduce((s, r) => s + r.vp, 0);
-  const track = RESEARCH_TRACKS.reduce((s, t) => {
+  const ended = game.currentPhase === 'gameEnd';
+  // 패스 점수는 '아직 패스 안 한 사람'에게만 예상치로 더한다.
+  const willPass = !ended && !p.hasPassed;
+  const passTile = willPass ? (computeBonusTilePassVp(game, pid)?.vp ?? 0) : 0;
+  const passAdv = willPass ? computeAdvancedTechPassVp(game, pid).reduce((s, r) => s + r.vp, 0) : 0;
+  // 종료 정산 항목은 아직 안 끝났을 때만 예상치로 더한다(끝났으면 score에 이미 들어 있다).
+  const track = ended ? 0 : RESEARCH_TRACKS.reduce((s, t) => {
     const lv = p.research?.[t.id as ResearchTrack] ?? 0;
     return s + (lv >= 5 ? RESEARCH_TRACK_END_BONUS[5] : lv >= 4 ? RESEARCH_TRACK_END_BONUS[4] : lv >= 3 ? RESEARCH_TRACK_END_BONUS[3] : 0);
   }, 0);
-  const mission = (game.finalMissionIds ?? []).reduce((s, m) => s + getFinalMissionVp(game, pid, m), 0);
-  const leftover = Math.floor(endgameLeftoverUnits(game, pid, p) / 3);
-  const bid = -(p.factionBidVp ?? 0);
+  const mission = ended ? 0 : (game.finalMissionIds ?? []).reduce((s, m) => s + getFinalMissionVp(game, pid, m), 0);
+  const leftover = ended ? 0 : Math.floor(endgameLeftoverUnits(game, pid, p) / 3);
+  const bid = ended ? 0 : -(p.factionBidVp ?? 0);
   const now = p.score ?? 0;
   return { now, pass: passTile + passAdv, track, mission, leftover, bid, total: now + passTile + passAdv + track + mission + leftover + bid };
 }
