@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { GameClient, getSocket, storeSpectatorId } from '@/lib/gameClient';
+import { GameClient, getSocket, storeSpectatorId, getStoredSpectatorId } from '@/lib/gameClient';
 import { Users, Plus, RefreshCw, Play, LogIn, Eye, Clock, Crown } from 'lucide-react';
 
 interface GameInfo {
@@ -222,7 +222,9 @@ export default function Lobby() {
       //   그 판에선 새 이름으로 보여도 다음에 로비를 열면 이름칸이 예전 이름으로 돌아왔다.
       //   방 만들기/참가/이어하기와 동일하게 저장한다.
       localStorage.setItem('gaia-playerName', playerName.trim());
-      const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim());
+      // 이 기기가 예전에 이 게임을 관전한 적 있으면 그 ID를 재사용한다 —
+      //   안 그러면 Watch를 누를 때마다 새 관전 ID가 생겨 관전자 목록에 같은 이름이 쌓인다(2026-08-14).
+      const { spectatorId } = await GameClient.watchGame(gameId, playerName.trim(), getStoredSpectatorId(gameId) ?? undefined);
       storeSpectatorId(gameId, spectatorId);
       toast({
         title: '관전 시작',

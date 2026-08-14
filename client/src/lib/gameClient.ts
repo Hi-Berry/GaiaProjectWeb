@@ -107,10 +107,12 @@ export const GameClient = {
     });
   },
 
-  watchGame(gameId: string, name?: string): Promise<{ gameId: string; spectatorId: string; game: GameState }> {
+  /** spectatorId: 예전에 이 게임에서 쓰던 관전 ID. 주면 서버가 새로 만들지 않고 재사용한다
+   *  (안 주면 다시 관전할 때마다 새 ID가 생겨 채팅 관전자 목록에 같은 이름이 쌓였다 — 2026-08-14). */
+  watchGame(gameId: string, name?: string, spectatorId?: string): Promise<{ gameId: string; spectatorId: string; game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('watch_game', { gameId, name }, (response: any) => {
+      s.emit('watch_game', { gameId, name, spectatorId }, (response: any) => {
         if (response.error) reject(new Error(response.error));
         else resolve(response);
       });

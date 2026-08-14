@@ -3857,16 +3857,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
 
-		socket.on('watch_game', ({ gameId, name }: { gameId: string; name?: string }, callback) => {
+		socket.on('watch_game', ({ gameId, name, spectatorId: prevId }: { gameId: string; name?: string; spectatorId?: string }, callback) => {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
 
 			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
 			// [사용자 2026-08-01] Join처럼 관전도 이름 필수 — 채팅/관전자 목록 표기에 쓰임
 			if (!specName) { callback({ error: '관전하려면 이름을 입력하세요.' }); return; }
-			const spectatorId = 'spec-' + generatePlayerId();
+
+			// [버그수정 2026-08-14, 리뷰] 같은 사람이 관전을 다시 시작할 때마다 유령 이름이 쌓이던 문제.
+			//   ① 이 소켓이 이미 다른 관전 ID로 붙어 있었으면 그 ID를 먼저 목록에서 뺀다.
+			//      (기존엔 socketToSpectatorMap을 덮어쓰기만 해서, 연결이 끊겨도 '지금 매핑된 ID'만
+			//       정리되고 예전 ID는 connectedSpectators에 게임 끝까지 남았다.)
+			const staleId = socketToSpectatorMap.get(socket.id);
+			if (staleId) {
+				const staleGameId = spectatorToGameMap.get(staleId);
+				const staleGame = staleGameId ? games.get(staleGameId) : undefined;
+				if (staleGame) setSpectatorConnected(staleGame, staleId, false);
+				spectatorToGameMap.delete(staleId);
+				socketToSpectatorMap.delete(socket.id);
+			}
+			//   ② 예전에 이 게임에서 쓰던 관전 ID를 클라가 보내오면 그대로 재사용한다(새로 만들지 않음).
+			//      rejoin_game 대신 watch_game으로 재사용하는 이유: 이름을 바꿔 다시 관전할 때
+			//      새 이름이 반영되어야 하는데 rejoin_game은 이름을 받지 않는다.
+			const reusable = typeof prevId === 'string' && game.spectatorIds?.includes(prevId) ? prevId : null;
+			const spectatorId = reusable ?? ('spec-' + generatePlayerId());
 			if (!game.spectatorIds) game.spectatorIds = [];
-			game.spectatorIds.push(spectatorId);
+			if (!reusable) game.spectatorIds.push(spectatorId);
 			// [숨은 관전 아이디] HIDDEN_SPECTATOR_NAME('---')이면 이름을 game 객체에 아예 기록하지 않고
 			//   connectedSpectators에도 넣지 않는다 → 채팅창 관전자 목록에 안 뜨는 건 물론, game_updated 브로드캐스트·
 			//   롤백 gz 스냅샷 어디에도 흔적이 없어 devtools로 payload를 열어봐도 보이지 않는다.
@@ -3874,7 +3891,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const hiddenSpectator = isHiddenSpectatorName(specName);
 			if (hiddenSpectator) {
 				hiddenSpectatorIds.add(spectatorId);
+				// 재사용 ID가 예전에 일반 관전자였다면 이름/목록 흔적을 지운다(숨김으로 전환)
+				if ((game as any).spectatorNames) delete (game as any).spectatorNames[spectatorId];
+				setSpectatorConnected(game, spectatorId, false);
 			} else {
+				hiddenSpectatorIds.delete(spectatorId); // 숨김 → 일반으로 전환하는 경우
 				if (!(game as any).spectatorNames) (game as any).spectatorNames = {};
 				(game as any).spectatorNames[spectatorId] = specName;
 				setSpectatorConnected(game, spectatorId, true);
