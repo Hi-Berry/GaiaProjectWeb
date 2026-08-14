@@ -3729,9 +3729,16 @@ export class BotLogic {
         //   건설/연구/파워로 감(연방 씨앗 보존). fedMinTrim("작게 자주") 모델과 정합.
         // [정제] blunt(연방건물 전부 제외)는 TS→랩(엔진)까지 막아 −3.56(연구소 −0.24). 랩/PI(지식·능력=실이득)는 연방건물이라도
         //   허용하고, mine→TS(수입전환+파워범프)·아카데미(파워범프)만 제외 = 아까운 낭비만 컷.
+        // [flag: fedAcademyOutside] 2026-08-14 후보 프로브: 사람 수 중 봇 후보에 없는 것 top2가 'Academy 1,322건'.
+        //   원인이 바로 이 목록 — 아카데미가 engine에 없어서, 재료인 연구소가 연방 안이면 아카 후보가 **하드 컷**된다.
+        //   연구소는 파워2라 연방 재료로 거의 항상 들어가므로 사실상 '연방을 만든 뒤엔 아카를 못 짓는' 상태가 된다.
+        //   (실게임 표본: 사람 아카 업글 29건 중 28건이 연방 타일.)
+        //   아카데미는 기술타일 공급원(실전 최대 갭 3.9 vs 9.3)이자 큰건물 미션 대상이라 '파워범프 낭비'로만 보면 손해다.
+        //   전면 허용은 안 한다 — 엔진업글과 같은 규칙(fedEngineUpgOutside)을 적용해 **비연방 대안이 있으면 그쪽에 올린다**.
         const isEngineUpgrade = (c: ScoredUpgrade) => {
             const tgt = (c.action.params as any)?.target;
-            return tgt === 'research_lab' || tgt === 'planetary_institute';
+            if (tgt === 'research_lab' || tgt === 'planetary_institute') return true;
+            return getPlayerFlag(playerId, 'fedAcademyOutside', true) && String(tgt ?? '').startsWith('academy');
         };
         // [flag: fedEngineUpgOutside] 사용자 관찰(2026-07-06 "여전히 연방 내부 티어업이 많다"): noFedTierUp이 엔진업글
         //   (연구소/PI)은 연방건물이어도 '항상' 통과시켜, MCTS가 −450 점수를 무시하고 연방 안 TS를 연구소/PI로 올림.
