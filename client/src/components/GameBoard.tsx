@@ -5,6 +5,11 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight, Ruler } from 'lucide-react';
+
+/** [사용자 2026-08-14] 메뉴의 맵 확대/축소/초기화 3버튼 표시 여부.
+ *  거의 안 쓴다는 사용자 판단으로 숨김. 줌은 핀치·휠, 초기화는 더블탭/재진입으로 대체 가능.
+ *  버튼만 감춘 것이라 handleZoomIn/Out/Reset과 키보드·휠 경로는 그대로 살아 있다. */
+const SHOW_MAP_ZOOM_BUTTONS = false;
 import { createPortal } from 'react-dom';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import { UtilityPanel } from '@/components/UtilityPanel';
@@ -1784,33 +1789,38 @@ export function GameBoard({
                 ×{playerDetailScale}
               </Button>
             )}
-            {!pagePinchZoom && (<>
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={handleZoomIn}
-              data-testid="button-zoom-in"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={handleZoomOut}
-              data-testid="button-zoom-out"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </Button>
+            {/* [사용자 2026-08-14] 확대·축소·초기화 3버튼은 거의 안 써서 일단 숨김.
+                손가락 핀치/휠 줌과 드래그 팬이 있어 기능 자체는 그대로 쓸 수 있다.
+                되살리려면 SHOW_MAP_ZOOM_BUTTONS를 true로. */}
+            {SHOW_MAP_ZOOM_BUTTONS && (<>
+              {!pagePinchZoom && (<>
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={handleZoomIn}
+                data-testid="button-zoom-in"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={handleZoomOut}
+                data-testid="button-zoom-out"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </Button>
+              </>)}
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={handleReset}
+                data-testid="button-reset-view"
+                title="맵 보기 초기화"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </Button>
             </>)}
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={handleReset}
-              data-testid="button-reset-view"
-              title="맵 보기 초기화"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </Button>
             <Button
               size="icon"
               variant="secondary"
