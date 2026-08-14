@@ -1432,6 +1432,18 @@ export default function Game() {
     window.addEventListener('special-action-strip-change', onChange);
     return () => window.removeEventListener('special-action-strip-change', onChange);
   }, []);
+
+  // [2026-08-14 사용자] 좌하단 액션 버튼 묶음(Free Actions / Tactical / Research / 특수 액션) 표시 여부.
+  //   거의 안 쓴다는 판단으로 **기본 숨김**. '?' 안내창에서 켤 수 있다.
+  //   숨겨도 기능은 단축키(F·T·R)와 미니창 고정으로 그대로 쓸 수 있다.
+  const [showLeftActionButtons, setShowLeftActionButtons] = useState<boolean>(() => {
+    try { return localStorage.getItem('left-action-buttons') === 'on'; } catch { return false; }
+  });
+  useEffect(() => {
+    const onChange = (e: Event) => setShowLeftActionButtons(!!(e as CustomEvent).detail);
+    window.addEventListener('left-action-buttons-change', onChange);
+    return () => window.removeEventListener('left-action-buttons-change', onChange);
+  }, []);
   const trackCardStrips = !isMobileViewport && isSidebarOpen;
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const stripRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -3172,7 +3184,8 @@ export default function Game() {
         )}
         <div className="mt-auto flex flex-col justify-end pointer-events-none">
 
-        {/* 왼쪽 하단 액션 버튼 토글 */}
+        {/* 왼쪽 하단 액션 버튼 토글 — '?' 설정으로 켤 때만(기본 숨김, 사용자 2026-08-14) */}
+        {showLeftActionButtons && (
         <div className="pointer-events-auto p-2 md:hidden bg-zinc-950/80 backdrop-blur w-fit rounded-tr-xl relative z-[100] mt-auto">
           <Button
             variant="outline"
@@ -3184,6 +3197,9 @@ export default function Game() {
           </Button>
         </div>
 
+        )}
+
+        {showLeftActionButtons && (
         <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
           {(() => {
             // [사용자 2026-08-01] 수입/파워 수락 대기 중엔 서버가 프리액션을 거부(mainActionBlockedByPending)하므로 버튼도 숨김
@@ -3360,6 +3376,7 @@ export default function Game() {
             </Button>
           )}
         </div>
+        )}
         </div>
       </div>
 

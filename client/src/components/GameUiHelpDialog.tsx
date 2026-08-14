@@ -326,6 +326,43 @@ function SpecialActionStripToggle() {
   );
 }
 
+/** 좌하단 액션 버튼 묶음(Free Actions / Tactical Overview / Research Board / 특수 액션) 표시 여부.
+ *  [2026-08-14 사용자] 거의 안 쓴다 → **기본 숨김**. 모바일 가로에서만 보이던 묶음이라 존재도 잘 안 알려져 있었다.
+ *  숨겨도 기능은 다른 경로로 다 쓸 수 있다(키보드 F/T/R, 미니창 고정, 데스크톱 사이드바). */
+function LeftActionButtonsToggle() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('left-action-buttons') === 'on') setOn(true);
+  }, []);
+  const choose = (v: boolean) => {
+    setOn(v);
+    localStorage.setItem('left-action-buttons', v ? 'on' : 'off');
+    window.dispatchEvent(new CustomEvent('left-action-buttons-change', { detail: v }));
+  };
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-cyan-400">
+        좌하단 액션 버튼
+      </h3>
+      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold text-zinc-200">Free Actions · Tactical · Research 버튼 묶음</div>
+          <div className="text-[9px] leading-snug text-zinc-500">
+            기본 숨김. 숨겨도 단축키(F·T·R)와 미니창 고정으로 똑같이 쓸 수 있습니다.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => choose(!on)}
+          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${on ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+        >
+          {on ? '표시' : '숨김'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /** 모바일 전용: Info 오버레이(좌하단 i 버튼) 레이아웃 선택 — 가로(드래그 페이지) vs 세로(3창 합쳐 스크롤). localStorage+커스텀이벤트로 Game.tsx와 동기화. */
 function TechViewSelector() {
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal');
@@ -514,6 +551,8 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
           <div className="hidden md:block"><NotifyToggle /><SpecialActionStripToggle /></div>
           <div className="md:hidden"><TechViewSelector /><PinchZoomSelector /></div>
+          {/* 좌하단 액션 버튼은 데스크톱·모바일(가로) 양쪽에 뜨므로 md 분기 밖에 둔다 */}
+          <LeftActionButtonsToggle />
           {/* md:hidden 밖에 둔다 — PC 모드를 켜면 md:가 켜져 이 안에 있으면 되돌릴 버튼이 사라진다 */}
           <ViewModeSelector />
           {gameId && playerId && <ContinueOnDeviceSection gameId={gameId} playerId={playerId} />}
