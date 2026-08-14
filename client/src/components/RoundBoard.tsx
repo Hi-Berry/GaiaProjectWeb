@@ -91,10 +91,13 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                             transform: `translateX(-50%) rotate(${angle}deg) translateY(${-radius}px)`,
                                             zIndex: isCurrent ? 30 : 10 + index,
                                         }}
-                                        className={`group flex flex-col items-center transition-all duration-500 ${isCurrent && isSelected
+                                        // [사용자 2026-08-14] 지난 라운드는 어둡게 깔아두되, 마우스를 올린 순간에는
+                                        //   원래 밝기로 돌려 미션 내용을 읽을 수 있게 한다(미니뷰에서 안 보인다는 지적).
+                                        //   겹쳐 쌓인 카드라 z도 같이 올려야 위 카드에 가리지 않는다.
+                                        className={`group relative flex flex-col items-center transition-all duration-300 ${isCurrent && isSelected
                                             ? 'scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.15)] z-30'
                                             : isPast && isSelected
-                                                ? 'opacity-20 grayscale brightness-[0.3] contrast-75'
+                                                ? 'opacity-20 grayscale brightness-[0.3] contrast-75 hover:opacity-100 hover:grayscale-0 hover:brightness-100 hover:contrast-100 hover:z-40'
                                                 : 'opacity-90 hover:opacity-100'
                                             }`}
                                     >
@@ -106,7 +109,7 @@ export function RoundBoard({ game, playerId, onEndGame, isMini = false }: RoundB
                                                         alt={tile.condition}
                                                         loading="eager"
                                                         decoding="sync"
-                                                        className={`w-full h-full object-contain ${isCurrent ? 'brightness-110 saturate-[1.1]' : isPast ? 'brightness-50' : 'opacity-90'
+                                                        className={`w-full h-full object-contain transition-[filter] duration-200 ${isCurrent ? 'brightness-110 saturate-[1.1]' : isPast ? 'brightness-50 group-hover:brightness-100' : 'opacity-90'
                                                             }`}
                                                     />
                                                 </div>
