@@ -7293,15 +7293,9 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [예외 확대 2026-08-09 사용자] '2TF+무료광산'류(우주선 기술타일 ship-tech-2tf-mine, 우주선 연방 3TF+무료광산,
 	//   아이타 교환 2TF+Mine)는 타일이 광산 자체를 주는 보상이라 테라 스텝을 안 쓰고 모행성(0스텝)에 지어도 정당하다.
 	//   위 exploit(스텝만 사놓고 0스텝 행성에 공짜 광산)과 구분되므로 가드에서 제외한다.
-	// [예외 확대 2026-08-17 사용자] 란티다 기생광산도 같은 부류 — 기생은 '테라포밍 없이' 남의 행성에 짓는 능력이라
-	//   대상 행성의 필요 스텝과 무관하다. 그런데 가드가 행성 타입 기준으로만 판정해, 스텝을 들고 있으면
-	//   상대의 모행성 유형(0스텝) 행성에 기생하는 정당한 액션이 거부됐다(2TF+FreeMine 모행성 건과 동일 부류).
 	const isGrantedFreeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree
 		|| game.pendingShipTechMine?.playerId === playerId;
-	const isLantidsParasiteBuild = player.faction === 'lantids'
-		&& tile.structure != null && tile.ownerId != null && tile.ownerId !== playerId && !tile.parasiticMine;
 	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine && !isGrantedFreeMine
-		&& !isLantidsParasiteBuild
 		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
 		const stepsNeeded = (tile.type === 'gaia' || tile.type === 'transdim' || isPendingGaiaBuild)
 			? 0 : getTerraformStepsForFaction(game, player.faction!, tile.type);
