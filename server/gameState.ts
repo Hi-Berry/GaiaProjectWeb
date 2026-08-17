@@ -7293,6 +7293,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [예외 확대 2026-08-09 사용자] '2TF+무료광산'류(우주선 기술타일 ship-tech-2tf-mine, 우주선 연방 3TF+무료광산,
 	//   아이타 교환 2TF+Mine)는 타일이 광산 자체를 주는 보상이라 테라 스텝을 안 쓰고 모행성(0스텝)에 지어도 정당하다.
 	//   위 exploit(스텝만 사놓고 0스텝 행성에 공짜 광산)과 구분되므로 가드에서 제외한다.
+	// [주의 — 란티다 기생은 예외가 아니다 (사용자 확정 2026-08-17)] '스텝만 들고 있는' 상태(3PW/보너스/TF마스 3C)에서는
+	//   그 스텝을 반드시 써야 하므로 테라포밍이 없는 기생광산으로 넘어갈 수 없다 = 가드에 걸리는 게 정답.
+	//   2TF+무료광산 계열이 기생 가능한 건 '스텝'이 아니라 **광산 자체가 보상**이라 2TF를 안 쓰고 FreeMine만 쓸 수 있어서다
+	//   (3TF+무료광산 연방도 동일). 그 경우는 위 isGrantedFreeMine/isPendingSpaceshipFedMine로 이미 통과한다.
+	//   → 기생을 예외에 추가하면 안 된다(한 번 잘못 넣고 되돌린 이력 있음).
 	const isGrantedFreeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree
 		|| game.pendingShipTechMine?.playerId === playerId;
 	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine && !isGrantedFreeMine
