@@ -2429,7 +2429,9 @@ export function getFinalMissionValue(game: GaiaGameState, playerId: string, miss
       // 규칙은 getOwnedPlanetTypes 하나로 통일: space/deep_space 제외, lost_planet·가상광산(소행성/원시) 포함.
       return getOwnedPlanetTypes(game, playerId).size;
     case 'fm_asteroid_buildings':
-      return map.filter(t => t.type === 'asteroid' && ((t.ownerId === playerId && t.structure != null && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId)).length
+      // [사용자 확정 2026-08-17] 소행성은 란티다 기생 광산 제외 — 고급타일 'Pass:2VP/Asteroid'와 동일 규칙.
+      //   (기존엔 여기만 기생을 포함해, 같은 '소행성 위 건물 수'인데 패스 점수와 최종미션이 반대로 셌다.)
+      return map.filter(t => t.type === 'asteroid' && isOwnedBuilding(t, playerId)).length
         + (player.virtualMineAsteroid ? 1 : 0);
     default:
       return 0;
