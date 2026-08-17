@@ -3795,8 +3795,10 @@ export default function Game() {
                     <RosterList />
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false)}>거절</Button>
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
+                    {/* [사용자 2026-08-17] 실패가 조용히 묻히면 '버튼이 안 눌린다'로 보인다 → 사유를 토스트로 노출.
+                        playerId도 같이 보내 소켓 좌석 매핑이 비어 있어도 처리되게 한다. */}
+                    <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false, playerId).catch((e) => toast({ title: '롤백 거절 실패', description: e?.message || '', variant: 'destructive' }))}>거절</Button>
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true, playerId).catch((e) => toast({ title: '롤백 동의 실패', description: e?.message || '', variant: 'destructive' }))}>동의</Button>
                   </div>
                 </div>
               </div>
