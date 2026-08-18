@@ -1433,11 +1433,11 @@ export default function Game() {
     return () => window.removeEventListener('special-action-strip-change', onChange);
   }, []);
 
-  // [2026-08-14 사용자] 좌하단 액션 버튼 묶음(Free Actions / Tactical / Research / 특수 액션) 표시 여부.
-  //   거의 안 쓴다는 판단으로 **기본 숨김**. '?' 안내창에서 켤 수 있다.
-  //   숨겨도 기능은 단축키(F·T·R)와 미니창 고정으로 그대로 쓸 수 있다.
+  // 좌하단 액션 버튼 묶음(Free Actions / Tactical / Research / 특수 액션) 표시 여부.
+  //   [2026-08-18 사용자] **기본 표시**로 되돌림 (2026-08-14에 기본 숨김이었다 — 존재를 모르는 사람이 더 문제).
+  //   '?' 안내창에서 끌 수 있고, 껐던 사람은 'off'가 남아 있어 그대로 숨겨진다.
   const [showLeftActionButtons, setShowLeftActionButtons] = useState<boolean>(() => {
-    try { return localStorage.getItem('left-action-buttons') === 'on'; } catch { return false; }
+    try { return localStorage.getItem('left-action-buttons') !== 'off'; } catch { return true; }
   });
   useEffect(() => {
     const onChange = (e: Event) => setShowLeftActionButtons(!!(e as CustomEvent).detail);

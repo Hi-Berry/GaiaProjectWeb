@@ -327,12 +327,12 @@ function SpecialActionStripToggle() {
 }
 
 /** 좌하단 액션 버튼 묶음(Free Actions / Tactical Overview / Research Board / 특수 액션) 표시 여부.
- *  [2026-08-14 사용자] 거의 안 쓴다 → **기본 숨김**. 모바일 가로에서만 보이던 묶음이라 존재도 잘 안 알려져 있었다.
- *  숨겨도 기능은 다른 경로로 다 쓸 수 있다(키보드 F/T/R, 미니창 고정, 데스크톱 사이드바). */
+ *  [2026-08-18 사용자] **기본 표시**. (2026-08-14엔 기본 숨김이었다.)
+ *  꺼도 기능은 다른 경로로 다 쓸 수 있다(키보드 F/T/R, 미니창 고정, 데스크톱 사이드바). */
 function LeftActionButtonsToggle() {
-  const [on, setOn] = useState(false);
+  const [on, setOn] = useState(true);
   useEffect(() => {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('left-action-buttons') === 'on') setOn(true);
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('left-action-buttons') === 'off') setOn(false);
   }, []);
   const choose = (v: boolean) => {
     setOn(v);
@@ -348,7 +348,7 @@ function LeftActionButtonsToggle() {
         <div className="min-w-0">
           <div className="text-[10px] font-semibold text-zinc-200">Free Actions · Tactical · Research 버튼 묶음</div>
           <div className="text-[9px] leading-snug text-zinc-500">
-            기본 숨김. 숨겨도 단축키(F·T·R)와 미니창 고정으로 똑같이 쓸 수 있습니다.
+            기본 표시. 숨겨도 단축키(F·T·R)와 미니창 고정으로 똑같이 쓸 수 있습니다.
           </div>
         </div>
         <button
