@@ -69,10 +69,12 @@ const HELP_COLUMNS: HelpSection[][] = [
     {
       title: '맵 우측',
       items: [
-        { label: '메뉴', description: '상태창 on/off' },
+        { label: '≡', description: '맵 컨트롤 열기/닫기 (안에 상태창 on/off)', isKey: true },
         { label: '×2', description: '상세 팝오버 크기', isKey: true },
-        { label: '±/휠', description: '줌' },
-        { label: '↺', description: '뷰 초기화', isKey: true },
+        { label: '휠/핀치', description: '줌 (PC는 ± 버튼도)' },
+        { label: '↺', description: '뷰 초기화 (PC 전용 버튼)', isKey: true },
+        { label: '⊞', description: '구역(섹터) 구분선 on/off', isKey: true },
+        { label: '자', description: '편의기능 — 남은 땅 · 거리 측정기' },
         { label: '?', description: '이 안내', isKey: true },
         { label: '연방', description: '연방 구현 모드' },
       ],
@@ -123,6 +125,11 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   { q: '파워 충전(누수) 창이 떴어요.', a: '상대가 건물을 지으면 인접한 내게 파워 충전 제안이 옵니다. VP를 깎지 않는 무료 충전은 자동 수락되고, VP를 깎는 유료 충전만 수락/거절을 직접 고릅니다. 처리 전엔 다른 사람 액션이 잠깐 대기합니다.' },
   { q: '내 차례 알림음이 안 들려요.', a: '우측 상단 ? 안내창의 "알림음 크기"가 0이면 무음입니다. 탭을 다른 창에 둔 채로도 알림을 받으려면 같은 창의 "내 차례 데스크톱 알림"을 켜세요(https 또는 localhost 접속에서만 동작).' },
   { q: '발타크 포머는 QIC로 어떻게 바꾸나요?', a: '직접 바꾸려면 "FA ON"을 켜고 초록색 포머 동그라미를 클릭하거나, Free Action 창에서 "1 포머 → 1 QIC" 버튼을 누르세요. 그리고 사용하지 않은 포머는 패스하면 자동으로 QIC로 전환됩니다.' },
+  { q: '타클론인데 파워 충전 창이 매번 뜨고 선택지가 있어요.', a: '타클론은 VP를 안 깎는 무료 충전이라도 자동 수락되지 않습니다 — 어떻게 받느냐로 결과가 달라지기 때문이에요.\n· "Brain First"(기본 켜짐): 이번 충전에서 브레인 스톤부터 한 그릇 올립니다. 끄면 일반 토큰이 먼저 올라가고 브레인은 제자리예요.\n· 브레인 스톤은 쓸 때 파워 3개 값이라, 3그릇에 올려두면 큰 액션 하나를 혼자 감당합니다. 대신 한 번 쓰면 1그릇으로 내려가요.\n· 쓰는 쪽 기본값은 이 안내창의 "브레인 우선 / 브레인 보존" 버튼에서 바꿉니다(우선=큰 파워에 브레인부터, 보존=일반 토큰부터 써서 브레인 아끼기).' },
+  { q: '타클론 의회(PI)를 지으면 뭐가 달라지나요?', a: '파워를 받을 때마다 그릇1에 파워 토큰이 1개씩 더 생깁니다. 수락 창에 "+1 Token (PI)"로 표시돼요.\n· "PI 1st" 버튼으로 순서를 고릅니다. 켜면 토큰을 먼저 만든 뒤 충전해서 그 토큰까지 이번 충전에 올라가고, 끄면 받을 파워를 먼저 받은 뒤 토큰이 추가됩니다(그 토큰은 이번엔 안 올라감).\n· 풀파워라 받을 파워가 0이면 "파워 먼저"로는 아무 일도 안 일어나므로 토큰 먼저로 고정됩니다. 이때도 수락하면 토큰 1개는 얻으니 "+0 Power" 제안도 받을 가치가 있어요.' },
+  { q: '가이아 포머는 누가 썼는지 어떻게 아나요?', a: '상태창의 각 플레이어 카드에 포머가 점으로 늘 표시됩니다.\n· 청록색 = 아직 안 쓴 포머, 보라색 = 맵에 설치한 포머(발타크가 QIC로 바꿔 잠긴 것 포함), 빨간색 = 파괴된 포머, "No GF" = 가이아 트랙이 낮아 포머가 아예 없음.\n· 맵에서는 설치된 포머가 그 사람의 종족 색으로 그려집니다. 로그의 "Placed Gaiaformer" 항목으로 누가 언제 놓았는지도 볼 수 있어요.' },
+  { q: '건물을 몇 개 지었는지 어디서 보나요?', a: '상태창의 각 플레이어 카드 위쪽에 M · TS · Lab · PI · A 칩으로 늘 표시됩니다(광산 8 · 교역소 4 · 연구소 3 · 의회 1 · 아카데미 2).\n· 한도를 다 채운 칩은 붉게 채워집니다 — 그 건물은 더 못 짓는다는 뜻이에요. 하나도 없으면 점선으로 흐리게 표시됩니다.\n· A 칩의 "0+1"은 좌/우 아카데미를 나눠 센 것이고, M 숫자는 실제 광산 토큰(보드 광산 + 란티다 기생광산)만 셉니다. 잊혀진 행성과 인공물 가상 광산은 별도 토큰이라 한도에서 빠져요.' },
+  { q: '구역(섹터) 구분은 어떻게 보나요?', a: '맵 우측 상단 ≡(메뉴)를 눌러 컨트롤을 펼친 뒤 ⊞ 격자 버튼을 켜세요. 섹터 경계선만 그려집니다(같은 섹터 안쪽 선은 생략) — 안쪽 10개 타일과 외각이 한눈에 구분돼요. 켜둔 상태는 브라우저에 저장돼 다음 판에도 유지됩니다.' },
   { q: '다른 기기에서 이어하려면? (컴퓨터↔폰)', a: '두 가지 방법이 있어요.\n① 이 도움말 위의 "다른 기기로 이어하기 → 링크 복사"로 링크를 받아, 폰 등 다른 기기 브라우저에 붙여넣어 열면 그 자리 그대로 이어집니다(링크를 아는 사람은 그 자리를 조작할 수 있으니 같이 하는 사람에게만 공유).\n② 방을 만들 때 좌석 비밀번호를 정해뒀다면, 다른 기기에서 게임을 열고 "내 자리로 이어하기"에 이름·비번을 넣어 복귀할 수도 있어요.' },
 ];
 
@@ -581,6 +588,17 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
               </div>
             ))}
           </div>
+          {/* [사용자 2026-08-18] 화면 둘러보기 다시 보기 — GameBoard가 'start-ui-tour'를 받아 스포트라이트 안내를 켠다. */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('start-ui-tour'))}
+            className="mt-2 flex w-full items-center gap-2 rounded-md border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1.5 text-left transition-colors hover:bg-cyan-500/20"
+          >
+            <span className="text-[11px] font-black text-cyan-300">화면 둘러보기</span>
+            <span className="text-[9px] leading-snug text-zinc-400">건물 개수·포머·프리액션이 화면 어디 있는지 직접 짚어드립니다 (5단계)</span>
+            <span className="ml-auto text-[10px] font-bold text-cyan-300">시작 →</span>
+          </button>
+
           {/* [사용자] 자주 묻는 질문 — 도움말 하단 접이식 목록 */}
           <section className="mt-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
             <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-400">자주 묻는 질문 (FAQ)</h3>

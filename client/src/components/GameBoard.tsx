@@ -11,8 +11,77 @@ import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight, R
  *  (2026-08-14엔 양쪽 다 숨겼었다.) 폰 숨김은 버튼에 붙인 `hidden md:inline-flex`가 담당한다.
  *  버튼을 감춰도 handleZoomIn/Out/Reset과 키보드·휠 경로는 그대로 살아 있다. */
 const SHOW_MAP_ZOOM_BUTTONS = true;
+
+/** 첫 접속 둘러보기 단계 — 화면에 없는 대상(모바일에서 숨김 등)은 시작할 때 걸러진다.
+ *  본문 강조: Em=핵심 단어(흰색) · Btn=버튼/단축키 · C=색으로 뜻을 주는 값(포머 점 색 등). */
+const TOUR_STEPS: TourStep[] = [
+  {
+    sel: '[data-tour="buildings"]',
+    title: '건물은 몇 개 지었나',
+    body: (
+      <>
+        상태창 내 카드에 <Btn>M</Btn> <Btn>TS</Btn> <Btn>Lab</Btn> <Btn>PI</Btn> <Btn>A</Btn> 칩으로 늘 떠 있습니다.
+        <br />한도는 <Em>광산 8 · 교역소 4 · 연구소 3 · 의회 1 · 아카데미 2</Em>이고,
+        다 채운 칩은 <C tone="rose">붉게 채워져</C> <C tone="rose">더 못 짓는다</C>는 뜻입니다.
+        하나도 없으면 <Em>점선</Em>으로 흐리게 보입니다. 다른 사람 카드도 똑같이 나옵니다.
+      </>
+    ),
+  },
+  {
+    sel: '[data-tour="gaiaformers"]',
+    title: '가이아 포머는 누가 썼나',
+    body: (
+      <>
+        카드마다 포머가 <Em>점</Em>으로 표시됩니다.
+        <br /><C tone="teal">청록 = 아직 안 쓴 포머</C> · <C tone="purple">보라 = 맵에 설치한 포머</C> · <C tone="red">빨강 = 파괴된 포머</C>
+        <br />맵 위의 포머도 그 사람 <Em>종족 색</Em>으로 그려집니다.
+      </>
+    ),
+  },
+  {
+    sel: '[data-tour="mobile-tabs"]',
+    title: '상태창 ↔ 로그',
+    body: (
+      <>
+        폰에서는 이 탭으로 아래 칸을 바꿉니다.
+        <br /><Btn>상태창</Btn> 탭에서 <Em>건물 칩과 포머 점</Em>을 보고, <Btn>로그</Btn> 탭에서 기록을 보거나 <Em>롤백</Em>을 요청합니다.
+      </>
+    ),
+  },
+  {
+    sel: '[data-tour="left-actions"]',
+    title: '프리액션 · 보드 열기',
+    body: (
+      <>
+        <Btn>Free</Btn>로 <Em>자원 변환</Em>, <Btn>T</Btn>로 보너스 타일, <Btn>R</Btn>로 연구 보드를 엽니다(키보드 <Btn>F</Btn> <Btn>T</Btn> <Btn>R</Btn>도 같습니다).
+        <br />상태창 숫자를 눌러 바로 변환하려면 카드의 <C tone="amber">FA OFF</C>를 켜세요.
+      </>
+    ),
+  },
+  {
+    sel: '[data-tour="map-menu"]',
+    title: '맵 컨트롤',
+    body: (
+      <>
+        누르면 아래로 펼쳐집니다 — <Btn>±</Btn> <Btn>↺</Btn> 줌, <Btn>⊞</Btn> <Em>구역(섹터) 구분선</Em>,
+        <Btn>자</Btn> <Em>남은 땅 · 거리 측정기</Em>, 그리고 <Btn>?</Btn> 안내가 들어 있습니다.
+      </>
+    ),
+  },
+  {
+    sel: '[data-testid="button-ui-help"]',
+    title: '나머지는 여기에',
+    body: (
+      <>
+        <Em>단축키 표</Em>와 <Em>자주 묻는 질문</Em>이 모여 있습니다 — 연방 만들기, 롤백, 타클론 파워 받기, 다른 기기에서 이어하기 등.
+        <br />이 둘러보기도 <C tone="cyan">화면 둘러보기</C> 버튼으로 다시 볼 수 있습니다.
+      </>
+    ),
+  },
+];
 import { createPortal } from 'react-dom';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
+import { OnboardingTour, Em, Btn, C, type TourStep } from '@/components/OnboardingTour';
 import { UtilityPanel } from '@/components/UtilityPanel';
 import { fireTurnNotification } from '@/lib/turnNotify';
 import { applyViewportMeta } from '@/lib/viewMode';
@@ -409,6 +478,22 @@ export function GameBoard({
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
   const [isUiHelpOpen, setIsUiHelpOpen] = useState(false);
+  /** [사용자 2026-08-18] 첫 접속 안내 — 'UI 안내를 본 적 있는가'를 브라우저에 기록해 처음 한 번만 띄운다.
+   *  "포머 누가 썼는지" "건물 몇 개 지었는지" 같은 질문이 매번 반복돼서, 답이 있는 곳을 먼저 알려준다. */
+  const [showFirstVisit, setShowFirstVisit] = useState(() => {
+    try { return localStorage.getItem('ui-help-seen') !== '1'; } catch { return false; }
+  });
+  const dismissFirstVisit = () => {
+    try { localStorage.setItem('ui-help-seen', '1'); } catch { /* noop */ }
+    setShowFirstVisit(false);
+  };
+  /** 스포트라이트 둘러보기 실행 중 여부. '?' 안내창의 '화면 둘러보기' 버튼에서도 켤 수 있다. */
+  const [tourOn, setTourOn] = useState(false);
+  useEffect(() => {
+    const onStart = () => { setIsUiHelpOpen(false); setShowFirstVisit(false); setTourOn(true); };
+    window.addEventListener('start-ui-tour', onStart);
+    return () => window.removeEventListener('start-ui-tour', onStart);
+  }, []);
   // 타일 외곽 테두리 구분선 보기 토글 (각 칸 구분용)
   const [showTileBorders, setShowTileBorders] = useState(() => localStorage.getItem('show-tile-borders') === 'true');
   const [zoom, setZoomInternal] = useState(zoomValue ?? 1);
@@ -1756,6 +1841,7 @@ export function GameBoard({
               variant="secondary"
               className="rounded-full shadow-lg border border-primary/20 bg-background/80 backdrop-blur"
               onClick={onToggleMobileControls}
+              data-tour="map-menu"
               aria-label={mobileControlsOpen ? '맵 컨트롤 닫기' : '맵 컨트롤 열기'}
               title="맵 컨트롤 (상태창·배율·줌) 열기/닫기"
             >
@@ -1831,7 +1917,7 @@ export function GameBoard({
               variant="secondary"
               onClick={() => setShowTileBorders((v) => { const n = !v; localStorage.setItem('show-tile-borders', String(n)); return n; })}
               data-testid="button-toggle-tile-borders"
-              title="타일 외곽 테두리 구분선 보기 (각 칸 구분)"
+              title="구역(섹터) 구분선 보기 — 섹터 경계만 표시"
               className={showTileBorders ? 'text-amber-300 hover:text-amber-200 ring-1 ring-amber-400/60' : 'text-zinc-300 hover:text-white'}
             >
               <Grid3x3 className="w-4 h-4" />
@@ -1863,6 +1949,47 @@ export function GameBoard({
           </div>
           </div>
         </div>
+
+        {/* 첫 접속 안내 카드 — 한 번 닫거나 안내를 열면 다시 뜨지 않는다(브라우저별 기록). */}
+        {showFirstVisit && !isUiHelpOpen && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-x-0 bottom-5 z-[200] flex justify-center px-4 pointer-events-none">
+            <div className="pointer-events-auto w-full max-w-sm rounded-xl border border-cyan-400/30 bg-zinc-950/95 px-4 py-3 shadow-2xl backdrop-blur-md">
+              <div className="text-[12px] font-black tracking-wide text-cyan-300">처음이신가요?</div>
+              <div className="mt-1 text-[11px] leading-snug text-zinc-300">
+                건물 개수·가이아 포머 확인, 프리액션처럼 자주 묻는 것들이 화면 어디에 있는지 차례대로 짚어드립니다(5단계, 30초).
+                나중에 다시 보시려면 맵 우측 <span className="font-bold text-zinc-100">?</span> 버튼을 누르세요.
+              </div>
+              <div className="mt-2.5 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-3 text-[10px] font-bold uppercase text-zinc-400 hover:text-zinc-100"
+                  onClick={dismissFirstVisit}
+                >
+                  닫기
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-3 text-[10px] font-bold uppercase text-zinc-400 hover:text-zinc-100"
+                  onClick={() => { dismissFirstVisit(); setIsUiHelpOpen(true); }}
+                >
+                  글로 보기
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 bg-cyan-600 px-3 text-[10px] font-black uppercase text-white shadow-lg hover:bg-cyan-500"
+                  onClick={() => { dismissFirstVisit(); setTourOn(true); }}
+                >
+                  화면 둘러보기
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+        {tourOn && <OnboardingTour steps={TOUR_STEPS} onDone={() => { setTourOn(false); dismissFirstVisit(); }} />}
 
         <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
 

@@ -3200,7 +3200,7 @@ export default function Game() {
         )}
 
         {showLeftActionButtons && (
-        <div className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
+        <div data-tour="left-actions" className={`p-2 md:p-4 md:mt-0 space-y-2 pointer-events-none *:pointer-events-auto bg-black/80 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none ${isLeftPanelOpen ? 'block' : 'hidden md:block'} w-full max-w-full rounded-tr-lg relative z-[100]`}>
           {(() => {
             // [사용자 2026-08-01] 수입/파워 수락 대기 중엔 서버가 프리액션을 거부(mainActionBlockedByPending)하므로 버튼도 숨김
             const freeActionBlocked = ((game?.pendingPowerOffers?.length ?? 0) > 0)
@@ -5714,7 +5714,7 @@ export default function Game() {
                                 → 칸(칩)으로 나누고 '상태'로만 색을 준다(건물 종류별 색은 쓰지 않음, 사용자 지시):
                                   없음=점선·흐림 / 여유=옅은 배경 / 다 지음=꽉 찬 배경+어두운 글자.
                                 갯수는 굵고 크게, /한도는 작고 흐리게. */}
-                            <div className="flex justify-between items-stretch gap-0.5 md:gap-1 mb-0.5 md:mb-1 font-mono w-full">
+                            <div data-tour={isYou ? 'buildings' : undefined} className="flex justify-between items-stretch gap-0.5 md:gap-1 mb-0.5 md:mb-1 font-mono w-full">
                               {([
                                 { key: 'M', label: 'M', have: counts.physicalMineCount, max: BUILDING_LIMITS.mine, text: `${counts.physicalMineCount}` },
                                 { key: 'TS', label: 'TS', have: counts.tsCount, max: BUILDING_LIMITS.trading_station, text: `${counts.tsCount}` },
@@ -5816,7 +5816,7 @@ export default function Game() {
                               {/* Right: Gaiaformer & Power */}
                               <div className="flex flex-col gap-1 w-1/2 justify-center pl-2 border-l border-white/10">
                                 {/* Gaiaformers Row & Power Income */}
-                                <div className="flex justify-between items-center w-full min-h-[14px]" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
+                                <div data-tour={isYou ? 'gaiaformers' : undefined} className="flex justify-between items-center w-full min-h-[14px]" title="가이아포머 (불 켜진 점: 사용 가능, X: 소행성 파괴, 어두운 점: 맵 배치)">
                                   {(() => {
                                     // 발타크: 프리액션 모드에서 사용 가능한(잠기지 않은) 포머 클릭 → 1포머 → 1QIC
                                     const balTakAvail = (p.gaiaformers ?? 0) - ((p as any).balTakGaiaformersUsedForQic ?? 0);
@@ -6613,6 +6613,7 @@ export default function Game() {
         <div
           className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
           style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
+          data-tour="mobile-tabs"
           onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'status' ? null : 'status')}
           title="더블터치: 전체화면 전환"
         >
