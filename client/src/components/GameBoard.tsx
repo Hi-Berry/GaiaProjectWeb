@@ -6,10 +6,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, RotateCcw, Menu, X, HelpCircle, Grid3x3, PanelRight, Ruler } from 'lucide-react';
 
-/** [사용자 2026-08-14] 메뉴의 맵 확대/축소/초기화 3버튼 표시 여부.
- *  거의 안 쓴다는 사용자 판단으로 숨김. 줌은 핀치·휠, 초기화는 더블탭/재진입으로 대체 가능.
- *  버튼만 감춘 것이라 handleZoomIn/Out/Reset과 키보드·휠 경로는 그대로 살아 있다. */
-const SHOW_MAP_ZOOM_BUTTONS = false;
+/** 메뉴의 맵 확대/축소/초기화 3버튼 표시 여부.
+ *  [사용자 2026-08-18] **PC만 표시**로 복구 — 폰은 핀치·더블탭이 있어 그대로 숨긴다.
+ *  (2026-08-14엔 양쪽 다 숨겼었다.) 폰 숨김은 버튼에 붙인 `hidden md:inline-flex`가 담당한다.
+ *  버튼을 감춰도 handleZoomIn/Out/Reset과 키보드·휠 경로는 그대로 살아 있다. */
+const SHOW_MAP_ZOOM_BUTTONS = true;
 import { createPortal } from 'react-dom';
 import { GameUiHelpDialog } from '@/components/GameUiHelpDialog';
 import { UtilityPanel } from '@/components/UtilityPanel';
@@ -1789,24 +1790,27 @@ export function GameBoard({
                 ×{playerDetailScale}
               </Button>
             )}
-            {/* [사용자 2026-08-14] 확대·축소·초기화 3버튼은 거의 안 써서 일단 숨김.
-                손가락 핀치/휠 줌과 드래그 팬이 있어 기능 자체는 그대로 쓸 수 있다.
-                되살리려면 SHOW_MAP_ZOOM_BUTTONS를 true로. */}
+            {/* [사용자 2026-08-18] 확대·축소·초기화 3버튼: PC만 노출(`hidden md:inline-flex`).
+                폰은 핀치/더블탭으로 충분해 그대로 숨긴다 — 상태창 토글 버튼과 같은 방식. */}
             {SHOW_MAP_ZOOM_BUTTONS && (<>
               {!pagePinchZoom && (<>
               <Button
                 size="icon"
                 variant="secondary"
+                className="hidden md:inline-flex"
                 onClick={handleZoomIn}
                 data-testid="button-zoom-in"
+                title="맵 확대"
               >
                 <ZoomIn className="w-4 h-4" />
               </Button>
               <Button
                 size="icon"
                 variant="secondary"
+                className="hidden md:inline-flex"
                 onClick={handleZoomOut}
                 data-testid="button-zoom-out"
+                title="맵 축소"
               >
                 <ZoomOut className="w-4 h-4" />
               </Button>
@@ -1814,6 +1818,7 @@ export function GameBoard({
               <Button
                 size="icon"
                 variant="secondary"
+                className="hidden md:inline-flex"
                 onClick={handleReset}
                 data-testid="button-reset-view"
                 title="맵 보기 초기화"
