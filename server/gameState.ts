@@ -27,6 +27,7 @@ import type {
 import {
 	FACTIONS,
 	generateMap,
+	shuffled,
 	INITIAL_POWER_ACTIONS,
 	ECONOMY_INCOME,
 	ECONOMY_INCOME_POWER,
@@ -3525,7 +3526,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (password) setSeatPassword(gameId, playerId, playerName, password);
 
 			// Shuffle bonus tiles
-			const shuffledBonusTiles = [...ALL_BONUS_TILES].sort(() => Math.random() - 0.5);
+			const shuffledBonusTiles = shuffled(ALL_BONUS_TILES);
 
 			const game: ServerGameState = {
 				id: gameId,
@@ -3565,7 +3566,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// Randomize Standard Tech Tiles (9종류를 6트랙 + 3풀에 무작위 배정, 각 4개씩 스택)
 			const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
-			const allStandardTiles = [...ALL_TECH_TILES].sort(() => Math.random() - 0.5);
+			const allStandardTiles = shuffled(ALL_TECH_TILES);
 
 			// 6개는 트랙에 배정
 			tracks.forEach((track, i) => {
@@ -3596,7 +3597,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 
 			// Randomize Advanced Tech Tiles (7개: 6개는 트랙 4–5 사이, 1개는 하단 풀 오른쪽 슬롯)
-			const shuffledAdvanced = [...ALL_ADVANCED_TECH_TILES].sort(() => Math.random() - 0.5);
+			const shuffledAdvanced = shuffled(ALL_ADVANCED_TECH_TILES);
 			tracks.forEach((track, i) => {
 				game.advancedTechTilesByTrack[track] = shuffledAdvanced[i];
 			});
@@ -3607,7 +3608,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			initializeRoundMissions(game);
 
 			// 최종미션: 9개 중 2개 랜덤 선택
-			const shuffledFinal = [...FINAL_MISSION_IDS].sort(() => Math.random() - 0.5);
+			const shuffledFinal = shuffled(FINAL_MISSION_IDS);
 			game.finalMissionIds = shuffledFinal.slice(0, 2);
 
 			// 우주선 타일별 상태 초기화
@@ -3619,7 +3620,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			// 우주선 전용 기술 타일 3개를 3종 우주선에 매 게임 랜덤 배정
 			const shipTechIds = SHIP_TECH_TILES.map(t => t.id);
-			const shuffledShipTech = [...shipTechIds].sort(() => Math.random() - 0.5);
+			const shuffledShipTech = shuffled(shipTechIds);
 			game.shipTechByShip = {
 				ship_rebellion: shuffledShipTech[0],
 				ship_tf_mars: shuffledShipTech[1],
@@ -3634,16 +3635,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 트왈라잇 인공물: 13종 중 4개 랜덤 배치
 			const allArtifactIds = ARTIFACTS.map(a => a.id);
-			const shuffledArtifacts = [...allArtifactIds].sort(() => Math.random() - 0.5);
+			const shuffledArtifacts = shuffled(allArtifactIds);
 			game.twilightArtifactSlots = shuffledArtifacts.slice(0, 4);
 
 			// 연방 풀: 6종류 각 3개. 테라포밍 5단계에 랜덤 1종 배치 → 그 종은 풀에서 1개 차감(2개 남음)
 			game.federationPool = {};
 			FEDERATION_REWARDS.forEach(r => { game.federationPool![r.id] = 3; });
-			const shuffledFed = [...FEDERATION_REWARDS].sort(() => Math.random() - 0.5);
+			const shuffledFed = shuffled(FEDERATION_REWARDS);
 			game.federationOnTerraforming5 = shuffledFed[0].id;
 			game.federationPool![shuffledFed[0].id] -= 1;
-			const shuffledShipFed = [...SPACESHIP_FEDERATION_REWARDS].sort(() => Math.random() - 0.5);
+			const shuffledShipFed = shuffled(SPACESHIP_FEDERATION_REWARDS);
 			const shipTypes = ['ship_twilight', 'ship_rebellion', 'ship_tf_mars', 'ship_eclipse'];
 			game.spaceshipFederationByShip = {};
 			shipTypes.forEach((shipType, i) => { game.spaceshipFederationByShip![shipType] = shuffledShipFed[i].id; });
@@ -4200,8 +4201,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 3. 모든 플레이어에게 랜덤 팩션 및 턴 순서 배정 (무작위성 확보)
 			const playerIds = Object.keys(game.players);
-			const shuffledPlayerIds = [...playerIds].sort(() => Math.random() - 0.5);
-			const shuffledFactions = [...FACTIONS].sort(() => Math.random() - 0.5);
+			const shuffledPlayerIds = shuffled(playerIds);
+			const shuffledFactions = shuffled(FACTIONS);
 
 			const usedColors = new Set<string>();
 			const usedFactionIds = new Set<string>();
@@ -4594,7 +4595,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 모든 플레이어가 종족을 선택했으면 보너스 타일 선택으로 이동
 			const numPlayers = Object.keys(game.players).length;
-			const shuffledBonusTiles = [...ALL_BONUS_TILES].sort(() => Math.random() - 0.5);
+			const shuffledBonusTiles = shuffled(ALL_BONUS_TILES);
 			game.availableBonusTiles = shuffledBonusTiles.slice(0, numPlayers + 3);
 			game.currentPlayerIndex = game.turnOrder.length - 1;
 			game.pendingBonusSelection = game.turnOrder[game.currentPlayerIndex];
@@ -6355,7 +6356,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 		// 게임 시작 시 모든 라운드 미션을 미리 랜덤 선택
 		function initializeRoundMissions(game: GaiaGameState) {
-			const availableMissions = [...ROUND_MISSION_POOL].sort(() => Math.random() - 0.5);
+			const availableMissions = shuffled(ROUND_MISSION_POOL);
 			const selectedMissions: ScoringTile[] = [];
 			const usedIds: string[] = [];
 
@@ -7930,8 +7931,8 @@ function computeTwoExpansionDraw(game: ServerGameState): void {
 	));
 	const need = Math.max(1, 3 - fixed.length);
 	const remaining = HOME_PLANETS.filter(h => !fixed.includes(h));
-	const shuffled = remaining.slice().sort(() => Math.random() - 0.5);
-	(game as any).expansionTwoFactionDraw = { fixed, drawA: shuffled.slice(0, need), drawB: shuffled.slice(need, 2 * need) };
+	const shuffledHomes = shuffled(remaining);
+	(game as any).expansionTwoFactionDraw = { fixed, drawA: shuffledHomes.slice(0, need), drawB: shuffledHomes.slice(need, 2 * need) };
 }
 
 function applyMoweyipTinkeroidsExpansionPlanets(game: ServerGameState): void {

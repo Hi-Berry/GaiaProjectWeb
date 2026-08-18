@@ -2,17 +2,8 @@
  * 종족 비딩(경매) — gameState에서 executeSelectFaction 등을 주입받아 순환 참조 방지
  */
 import type { Server as SocketIOServer } from 'socket.io';
-import { FACTIONS, type FactionBiddingState } from '@shared/gameConfig';
+import { FACTIONS, shuffled, type FactionBiddingState } from '@shared/gameConfig';
 import type { ServerGameState } from './gameState';
-
-function shuffle<T>(arr: T[]): T[] {
-	const a = [...arr];
-	for (let i = a.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[a[i], a[j]] = [a[j], a[i]];
-	}
-	return a;
-}
 
 /** 서로 다른 행성 색상을 가진 N개 종족 ID (무작위) */
 export function pickDistinctFactionIdsForPlayerCount(n: number): string[] {
@@ -22,7 +13,7 @@ export function pickDistinctFactionIdsForPlayerCount(n: number): string[] {
 		if (!byColor.has(c)) byColor.set(c, []);
 		byColor.get(c)!.push(f.id);
 	}
-	const colors = shuffle(Array.from(byColor.keys()));
+	const colors = shuffled(Array.from(byColor.keys()));
 	const picked: string[] = [];
 	for (const color of colors) {
 		if (picked.length >= n) break;
@@ -31,7 +22,7 @@ export function pickDistinctFactionIdsForPlayerCount(n: number): string[] {
 	}
 	if (picked.length < n) {
 		const rest = FACTIONS.map(f => f.id).filter(id => !picked.includes(id));
-		for (const id of shuffle(rest)) {
+		for (const id of shuffled(rest)) {
 			if (picked.length >= n) break;
 			const fac = FACTIONS.find(f => f.id === id);
 			if (!fac) continue;
@@ -96,7 +87,7 @@ export function assignBotsForFactionBidding(
 ): string[] {
 	const bots = game.botPlayerIds ?? [];
 	const n = Object.keys(game.players).length;
-	const turns = shuffle(Array.from({ length: n }, (_, i) => i + 1));
+	const turns = shuffled(Array.from({ length: n }, (_, i) => i + 1));
 	let ti = 0;
 	for (const bid of bots) {
 		const p = game.players[bid];
@@ -182,7 +173,7 @@ export function initFactionBiddingPhase(
 ): void {
 	const n = Object.keys(game.players).length;
 	let pool = pickDistinctFactionIdsForPlayerCount(n);
-	pool = shuffle(pool);
+	pool = shuffled(pool);
 	// [테스트 전용 env EXPANSION_LOG_TEST] 모웨+팅커 둘 다 봇에게 강제 배정 → 두-확장 룰/A·B 표기 확인.
 	//   프로덕션(env 미설정) no-op. assignBots 전에 배정해 남은 슬롯은 정상 경매.
 	if (process.env.EXPANSION_LOG_TEST) {

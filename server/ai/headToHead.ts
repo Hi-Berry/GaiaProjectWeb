@@ -23,7 +23,7 @@ import { io as ioClient, type Socket } from 'socket.io-client';
 import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { generateMap, FACTIONS } from '../../shared/gameConfig';
+import { generateMap, FACTIONS, shuffled } from '../../shared/gameConfig';
 
 type Flags = Record<string, number | boolean>;
 type Variant = { label?: string; weights?: unknown; flags?: Flags };
@@ -39,9 +39,9 @@ type PlanEntry = { bPositions: number[]; fixedSetup?: { map: unknown[]; seatFact
 const PAIRED_PLAN: PlanEntry[] = [];
 /** 색 중복 없는 종족 n개 무작위 선택(그룹 고정용). */
 function pickFactionIds(n: number): string[] {
-    const shuffled = [...FACTIONS].sort(() => Math.random() - 0.5);
+    const mixed = shuffled(FACTIONS);
     const picked: string[] = []; const colors = new Set<string>();
-    for (const f of shuffled) {
+    for (const f of mixed) {
         const c = (f as { color?: string }).color; const id = (f as { id: string }).id;
         if (c && colors.has(c)) continue; if (c) colors.add(c); picked.push(id);
         if (picked.length === n) break;

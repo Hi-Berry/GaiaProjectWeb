@@ -2,6 +2,16 @@ import type { Game, Ctx } from 'boardgame.io';
 
 export const PLAYER_COUNT = 4;
 
+/** Fisher–Yates. `.sort(() => Math.random() - 0.5)` 는 비교가 비일관이라 앞쪽 원소가 앞 칸에 남는 편향이 있다. */
+export function shuffled<T>(arr: readonly T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export type ResearchTrack = 'terraforming' | 'navigation' | 'artificialIntelligence' | 'gaiaProject' | 'economy' | 'science';
 
 export const RESEARCH_TRACKS: { id: ResearchTrack; name: string; color: string }[] = [
@@ -658,7 +668,7 @@ export const FEDERATION_REWARDS = [
   { id: 'fed-12vp', label: '12 VP', vp: 12 },
 ] as const;
 
-/** 우주선 전용 연방 보상 (8종 중 매 게임 1개 랜덤 배치, 수량 1개) */
+/** 우주선 전용 연방 보상 (8종 중 매 게임 우주선 4척에 1개씩 균등 배치) */
 export const SPACESHIP_FEDERATION_REWARDS = [
   { id: 'ship-fed-4vp4k', label: '4VP 4K', vp: 4, knowledge: 4 },
   { id: 'ship-fed-8vp8c', label: '8 VP 8C', vp: 8, credits: 8 },
@@ -1720,12 +1730,12 @@ export function generateMap(): HexTile[] {
   let tileId = 1;
 
   // 1. Place 10 Main Sectors (Radius 2) with constrained randomization
-  const innerPool = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
-  const outerPool = [4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+  const innerPool = shuffled([0, 1, 2, 3]);
+  const outerPool = shuffled([4, 5, 6, 7, 8, 9]);
 
   const mid1 = innerPool.pop()!;
   const mid2 = innerPool.pop()!;
-  const remainingPool = [...innerPool, ...outerPool].sort(() => Math.random() - 0.5);
+  const remainingPool = shuffled([...innerPool, ...outerPool]);
 
   const baseLayouts: number[] = [];
   let remIdx = 0;
@@ -1805,13 +1815,13 @@ export function generateMap(): HexTile[] {
   // [버그수정 2026-06-18] 기존엔 우주선별 greedy로 놓다가 자리가 없으면 minDist를 3→2→1로 *완화*해서,
   // 앞 배치가 코너로 몰리면 4.5% 확률로 우주선이 거리<=3에 붙어 규칙을 위반했다. → 전역 집합 선택으로 교체.
   const availableCoords = [...internalCoords];
-  const remainingOthers = others.sort(() => Math.random() - 0.5);
+  const remainingOthers = shuffled(others);
 
   let chosenShipCoords: { q: number, r: number }[] | null = null;
   for (let attempt = 0; attempt < 300 && !chosenShipCoords; attempt++) {
-    const shuffled = [...internalCoords].sort(() => Math.random() - 0.5);
+    const coords = shuffled(internalCoords);
     const chosen: { q: number, r: number }[] = [];
-    for (const c of shuffled) {
+    for (const c of coords) {
       if (chosen.every(p => getDistance(p, c) > 3)) chosen.push(c);
       if (chosen.length === ships.length) break;
     }
@@ -1819,10 +1829,10 @@ export function generateMap(): HexTile[] {
   }
   // 안전장치: 이론상 거의 없지만 못 찾으면 임의 배치(맵 생성 실패 방지). 이때만 규칙이 완화될 수 있다.
   if (!chosenShipCoords) {
-    chosenShipCoords = [...internalCoords].sort(() => Math.random() - 0.5).slice(0, ships.length);
+    chosenShipCoords = shuffled(internalCoords).slice(0, ships.length);
   }
   // 선택된 좌표에 우주선 타입을 랜덤 매칭
-  const shuffledShipTypes = [...ships].sort(() => Math.random() - 0.5);
+  const shuffledShipTypes = shuffled(ships);
   const shipPlacements: { q: number, r: number, type: PlanetType }[] =
     chosenShipCoords.map((coord, i) => ({ ...coord, type: shuffledShipTypes[i] }));
   // 선택된 좌표를 availableCoords에서 제거(나머지는 asteroid/space/proto로 채워짐)
@@ -1949,7 +1959,7 @@ export const GaiaProjectGame: Game<GaiaGameState> = {
 
 
     // Shuffle and select bonus tiles (players + 3 extra)
-    const shuffledBonusTiles = [...ALL_BONUS_TILES].sort(() => Math.random() - 0.5);
+    const shuffledBonusTiles = shuffled(ALL_BONUS_TILES);
     const numBonusTiles = ctx.numPlayers + 3;
 
     const gState: GaiaGameState = {
@@ -1985,7 +1995,7 @@ export const GaiaProjectGame: Game<GaiaGameState> = {
     const n = ctx.numPlayers;
     const needed = 6 * n + 3;
     const repeated = Array.from({ length: Math.ceil(needed / ALL_TECH_TILES.length) }, () => [...ALL_TECH_TILES]).flat();
-    const shuffledStandard = repeated.sort(() => Math.random() - 0.5).slice(0, needed);
+    const shuffledStandard = shuffled(repeated).slice(0, needed);
     const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
     tracks.forEach((track, i) => {
       gState.techTilesByTrack[track] = shuffledStandard.slice(i * n, (i + 1) * n);
@@ -1995,13 +2005,13 @@ export const GaiaProjectGame: Game<GaiaGameState> = {
 
 
     // Randomize Advanced Tech Tiles (choose 6)
-    const shuffledAdvanced = [...ALL_ADVANCED_TECH_TILES].sort(() => Math.random() - 0.5);
+    const shuffledAdvanced = shuffled(ALL_ADVANCED_TECH_TILES);
     tracks.forEach((track, i) => {
       gState.advancedTechTilesByTrack[track] = shuffledAdvanced[i];
     });
 
     // 게임 시작 시 모든 라운드 미션을 미리 랜덤 선택
-    const availableMissions = [...ROUND_MISSION_POOL].sort(() => Math.random() - 0.5);
+    const availableMissions = shuffled(ROUND_MISSION_POOL);
     const selectedMissions: ScoringTile[] = [];
     const usedIds: string[] = [];
 
@@ -2328,12 +2338,11 @@ export function getGaiaBaseQic(factionId: string): number {
 export function computeExpansionThreeStepPlanets(otherHomePlanetsInSeven: PlanetType[]): PlanetType[] {
   const distinct = Array.from(new Set(otherHomePlanetsInSeven.filter(p => HOME_PLANETS.includes(p))));
   if (distinct.length >= 3) {
-    const shuffled = distinct.slice().sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 3);
+    return shuffled(distinct).slice(0, 3);
   }
   const remaining = HOME_PLANETS.filter(p => !distinct.includes(p));
   const need = 3 - distinct.length;
-  const shuffledRemaining = remaining.slice().sort(() => Math.random() - 0.5);
+  const shuffledRemaining = shuffled(remaining);
   return [...distinct, ...shuffledRemaining.slice(0, need)];
 }
 
