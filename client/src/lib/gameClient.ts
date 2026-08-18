@@ -322,10 +322,27 @@ export const GameClient = {
     });
   },
 
-  /** [롤백 투표] 요청받은 사람: 동의/거절 */
-  respondRollback(gameId: string, accept: boolean) {
-    const s = getSocket();
-    s.emit('respond_rollback', { gameId, accept });
+  /** [롤백 투표] 요청받은 사람: 동의/거절
+   *  [버그 2026-08-17 사용자 제보 "폰에서 롤백창 버튼이 반응 없다"] 예전엔 fire-and-forget이라
+   *  서버가 어떤 이유로 거부해도(좌석 매핑 없음 등) 화면에 아무 변화가 없어 원인을 알 수 없었다.
+   *  → 콜백으로 사유를 받고, playerId도 함께 보내 소켓 좌석 매핑이 비어도 처리되게 한다.
+   *  응답이 아예 안 오는 경우(구버전 서버·죽은 소켓)도 5초 후 실패로 알린다. */
+  respondRollback(gameId: string, accept: boolean, playerId?: string | null): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('서버 응답이 없습니다. 연결을 확인하고 다시 시도해 주세요.'));
+      }, 5000);
+      s.emit('respond_rollback', { gameId, accept, playerId: playerId ?? undefined }, (r: any) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (r?.error) reject(new Error(r.error)); else resolve();
+      });
+    });
   },
 
   selectIncomeItem(gameId: string, itemId: string) {

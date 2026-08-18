@@ -4029,13 +4029,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// 롤백 투표 응답: 한 명이라도 거절하면 취소, 필요한 사람 전원 승인 시 실행.
-		socket.on('respond_rollback', ({ gameId, accept }: { gameId: string; accept: boolean }) => {
+		// [버그 2026-08-17 사용자 제보 "폰에서 게임은 잘 되는데 롤백창 버튼만 반응이 없다"]
+		//   예전 코드는 실패를 전부 조용한 return으로 처리하고 콜백도 없었다 → 눌러도 화면에 아무 변화가 없고
+		//   로그도 남지 않아 원인 추적이 불가능했다(요청 쪽 request_rollback은 콜백으로 사유를 주는데 응답 쪽만 없었음).
+		//   ① 실패 사유를 콜백으로 돌려준다. ② 폰은 백그라운드 전환·NAT 끊김으로 소켓이 갈리면 좌석 매핑이 빌 수 있어,
+		//      delete_game과 같은 신뢰모델(playerId 자체가 비밀값)로 payload playerId를 폴백 인정한다.
+		//      단 그 id가 실제 이 방의 좌석이고 required에 든 사람일 때만 — 아니면 거부.
+		//   ③ 거부는 서버 로그에 남겨 다음 제보 때 바로 확인할 수 있게 한다.
+		socket.on('respond_rollback', ({ gameId, accept, playerId: claimedId }: { gameId: string; accept: boolean; playerId?: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const rej = (why: string) => { log(`respond_rollback rejected: ${why} (socket ${socket.id})`, 'game', gameId); callback?.({ error: why }); };
 			const game = games.get(gameId);
-			if (!game) return;
-			const playerId = socketToPlayerMap.get(socket.id);
-			if (!playerId) return;
+			if (!game) { rej('방을 찾을 수 없습니다.'); return; }
 			const pr = (game as any).pendingRollback;
-			if (!pr || !pr.required.includes(playerId)) return;
+			if (!pr) { rej('진행 중인 롤백 요청이 없습니다(이미 처리되었을 수 있습니다).'); return; }
+			const playerId = socketToPlayerMap.get(socket.id)
+				?? (claimedId && game.players[claimedId] ? claimedId : undefined);
+			if (!playerId) { rej('좌석 확인에 실패했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
+			if (!pr.required.includes(playerId)) { rej('이 롤백에 동의가 필요한 대상이 아닙니다.'); return; }
+			callback?.({ ok: true });
 			if (!accept) { (game as any).pendingRollback = null; emitGameUpdated(io, game); return; }
 			if (!pr.approvals.includes(playerId)) pr.approvals.push(playerId);
 			if (pr.required.every((id: string) => pr.approvals.includes(id))) {
@@ -7293,6 +7304,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	// [예외 확대 2026-08-09 사용자] '2TF+무료광산'류(우주선 기술타일 ship-tech-2tf-mine, 우주선 연방 3TF+무료광산,
 	//   아이타 교환 2TF+Mine)는 타일이 광산 자체를 주는 보상이라 테라 스텝을 안 쓰고 모행성(0스텝)에 지어도 정당하다.
 	//   위 exploit(스텝만 사놓고 0스텝 행성에 공짜 광산)과 구분되므로 가드에서 제외한다.
+	// [주의 — 란티다 기생은 예외가 아니다 (사용자 확정 2026-08-17)] '스텝만 들고 있는' 상태(3PW/보너스/TF마스 3C)에서는
+	//   그 스텝을 반드시 써야 하므로 테라포밍이 없는 기생광산으로 넘어갈 수 없다 = 가드에 걸리는 게 정답.
+	//   2TF+무료광산 계열이 기생 가능한 건 '스텝'이 아니라 **광산 자체가 보상**이라 2TF를 안 쓰고 FreeMine만 쓸 수 있어서다
+	//   (3TF+무료광산 연방도 동일). 그 경우는 위 isGrantedFreeMine/isPendingSpaceshipFedMine로 이미 통과한다.
+	//   → 기생을 예외에 추가하면 안 된다(한 번 잘못 넣고 되돌린 이력 있음).
 	const isGrantedFreeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree
 		|| game.pendingShipTechMine?.playerId === playerId;
 	if ((player.pendingTerraformSteps || 0) > 0 && !isPendingSpaceshipFedMine && !isGrantedFreeMine

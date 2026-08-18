@@ -3776,9 +3776,14 @@ export default function Game() {
             </div>
           );
           if (iAmRequired && !iApproved) {
+            // [버그 2026-08-17 사용자 제보 "폰에서 롤백창 버튼이 반응 없다"] 내용 높이가 화면보다 커지면
+            //   items-center 때문에 위아래로 동시에 넘쳐 '버튼이 화면 밖'으로 나가고, 오버레이에 스크롤이 없어
+            //   손이 닿지 않았다. 되돌릴 행동이 많거나(최근 8개까지 표기) 가로 모드일 때만 터져서 간헐적으로 보였다.
+            //   → 창 높이를 가시영역으로 제한하고, 본문만 스크롤시키고 버튼 줄은 항상 아래에 고정한다.
             return (
               <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="w-full max-w-md rounded-2xl border border-amber-500/40 bg-zinc-950 p-5 shadow-2xl space-y-3">
+                <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-amber-500/40 bg-zinc-950 shadow-2xl">
+                  <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-3 space-y-3">
                   <div className="text-amber-300 font-black text-lg">↩ 롤백 요청</div>
                   <p className="text-sm text-zinc-200 leading-relaxed">
                     <span className="font-bold text-white">{pr.requesterName}</span>님이 <span className="font-bold text-amber-200">{pr.label}</span>(으)로 되돌리자고 요청했습니다.
@@ -3794,9 +3799,13 @@ export default function Game() {
                     <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">현재 동의 {got}/{need}</div>
                     <RosterList />
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false)}>거절</Button>
-                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true)}>동의</Button>
+                  </div>
+                  {/* 버튼 줄은 스크롤 영역 밖 — 내용이 아무리 길어도 항상 화면 안에 남는다 */}
+                  <div className="flex gap-2 shrink-0 border-t border-white/10 p-5 pt-3">
+                    {/* [사용자 2026-08-17] 실패가 조용히 묻히면 '버튼이 안 눌린다'로 보인다 → 사유를 토스트로 노출.
+                        playerId도 같이 보내 소켓 좌석 매핑이 비어 있어도 처리되게 한다. */}
+                    <Button variant="outline" className="flex-1 border-red-500/40 text-red-300 hover:bg-red-950/40" onClick={() => gameId && GameClient.respondRollback(gameId, false, playerId).catch((e) => toast({ title: '롤백 거절 실패', description: e?.message || '', variant: 'destructive' }))}>거절</Button>
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold" onClick={() => gameId && GameClient.respondRollback(gameId, true, playerId).catch((e) => toast({ title: '롤백 동의 실패', description: e?.message || '', variant: 'destructive' }))}>동의</Button>
                   </div>
                 </div>
               </div>
