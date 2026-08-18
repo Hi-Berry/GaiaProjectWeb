@@ -36,7 +36,7 @@ const dist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + 
 function loadHomePlanets() {
 	const src = fs.readFileSync(path.join(process.cwd(), 'shared', 'gameConfig.ts'), 'utf8');
 	const m = {};
-	for (const [, id, home] of src.matchAll(/id:\s*'([a-z_]+)',\s*name:\s*'[^']*',\s*homePlanet:\s*'([a-z]+)'/g)) m[id] = home;
+	for (const [, id, home] of src.matchAll(/id:\s*'([a-z_]+)',\s*name:\s*(?:'[^']*'|"[^"]*"),\s*homePlanet:\s*'([a-z]+)'/g)) m[id] = home;
 	return m;
 }
 const HOME = loadHomePlanets();
