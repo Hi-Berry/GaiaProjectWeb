@@ -4287,7 +4287,10 @@ export default function Game() {
                     animate={{ y: 0, x: '-50%', opacity: 1 }}
                     exit={{ y: -50, x: '-50%', opacity: 0 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="fixed top-24 left-1/2 z-[65] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                    /* [사용자 2026-08-19] z-[65]였을 때 폰 전체화면 패널(z-110·113)이나 보드 오버레이(z-190·200) 뒤에
+                       가려 제안이 온 줄 모르고 다른 사람들이 대기하던 문제. 이 창은 남의 턴까지 멈추는 차단 UI라
+                       항상 맨 위여야 한다 → 둘러보기(z-400) 아래, 나머지 전부 위인 z-[210]. */
+                    className="fixed top-24 left-1/2 z-[210] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
                     style={isMobileViewport ? ({ zoom: 0.82 } as CSSProperties) : undefined}
                   >
                     <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
@@ -6692,19 +6695,34 @@ export default function Game() {
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 truncate">
               {infoLayout === 'vertical' ? '기술 · 우주선 · 라운드' : (infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스')}
             </span>
-            {infoLayout === 'horizontal' && (
-              <div className="flex items-center gap-1 shrink-0">
-                {[0, 1, 2].map((i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    aria-label={`페이지 ${i + 1}`}
-                    onClick={() => setInfoPage(i)}
-                    className={`h-1.5 rounded-full transition-all ${infoPage === i ? 'w-4 bg-emerald-300' : 'w-1.5 bg-white/25'}`}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {infoLayout === 'horizontal' && (
+                <div className="flex items-center gap-1 shrink-0">
+                  {[0, 1, 2].map((i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-label={`페이지 ${i + 1}`}
+                      onClick={() => setInfoPage(i)}
+                      className={`h-1.5 rounded-full transition-all ${infoPage === i ? 'w-4 bg-emerald-300' : 'w-1.5 bg-white/25'}`}
+                    />
+                  ))}
+                </div>
+              )}
+              {/* [사용자 2026-08-19] 전체화면 토글 — 헤더 더블터치도 되지만 얇은 줄이라 못 찾는다는 의견.
+                  우측 상태창은 큼직한 탭바가 그 역할을 해서 발견됐고, 여기는 버튼을 따로 둔다. */}
+              {splitActive && (
+                <button
+                  type="button"
+                  aria-label={mobileZoomPanel === 'info' ? '원래 크기로' : '전체화면으로'}
+                  title={mobileZoomPanel === 'info' ? '원래 크기로 (헤더 더블터치도 가능)' : '전체화면으로 (헤더 더블터치도 가능)'}
+                  onClick={() => setMobileZoomPanel((v) => (v === 'info' ? null : 'info'))}
+                  className="shrink-0 rounded border border-emerald-300/30 bg-emerald-400/10 px-1.5 py-px text-[11px] leading-none text-emerald-200 active:scale-95 transition-transform"
+                >
+                  {mobileZoomPanel === 'info' ? '⤡' : '⤢'}
+                </button>
+              )}
+            </div>
           </div>
           {infoLayout === 'vertical' ? (
             /* 세로 모드: 기술+우주선+파워(section='all') → 라운드·보너스 한 흐름으로 위아래 스크롤 */

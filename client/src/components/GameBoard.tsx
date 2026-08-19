@@ -487,6 +487,24 @@ export function GameBoard({
     try { localStorage.setItem('ui-help-seen', '1'); } catch { /* noop */ }
     setShowFirstVisit(false);
   };
+  /** [사용자 2026-08-18] 세로로 세운 모니터에서 폰 레이아웃이 나오던 문제 안내.
+   *  레이아웃 분기는 CSS 폭 768px 하나로 정해지는데(useIsMobile + Tailwind md:), 세로 모니터에
+   *  OS 배율 150%나 브라우저 확대가 걸리면 폭이 720px 등으로 잡혀 폰으로 판정된다.
+   *  PC 모드(viewport meta 폭 고정)는 데스크톱 브라우저가 meta를 무시하므로 해법이 못 된다 →
+   *  원인과 해결(확대 낮추기·창 넓히기)을 그 자리에서 알려주는 쪽이 실제로 통한다.
+   *  터치 기기(폰·태블릿)는 정상 동작이므로 제외한다. */
+  const [cssWidth, setCssWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+  useEffect(() => {
+    const onResize = () => setCssWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const [narrowHintHidden, setNarrowHintHidden] = useState(() => {
+    try { return localStorage.getItem('narrow-desktop-hint') === '1'; } catch { return true; }
+  });
+  const isTouchDevice = typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0;
+  const showNarrowHint = !narrowHintHidden && isMobileViewport && !isTouchDevice;
+
   /** 스포트라이트 둘러보기 실행 중 여부. '?' 안내창의 '화면 둘러보기' 버튼에서도 켤 수 있다. */
   const [tourOn, setTourOn] = useState(false);
   useEffect(() => {
@@ -495,7 +513,11 @@ export function GameBoard({
     return () => window.removeEventListener('start-ui-tour', onStart);
   }, []);
   // 타일 외곽 테두리 구분선 보기 토글 (각 칸 구분용)
-  const [showTileBorders, setShowTileBorders] = useState(() => localStorage.getItem('show-tile-borders') === 'true');
+  /** 구역(섹터) 구분선 — [사용자 2026-08-19] **기본 켜짐**. 예전엔 기본이 꺼짐이라 한 번도 안 켠
+   *  브라우저·기기에서는 매번 꺼진 채 시작했다. 끈 사람은 'false'가 남아 그대로 꺼져 있다. */
+  const [showTileBorders, setShowTileBorders] = useState(() => {
+    try { return localStorage.getItem('show-tile-borders') !== 'false'; } catch { return true; }
+  });
   const [zoom, setZoomInternal] = useState(zoomValue ?? 1);
   const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
   const isSyncingRef = useRef(false);
@@ -1949,6 +1971,37 @@ export function GameBoard({
           </div>
           </div>
         </div>
+
+        {/* 마우스 PC인데 폰 레이아웃일 때 — 원인(CSS 폭)과 해결법을 알려준다. 한 번 닫으면 다시 안 뜬다. */}
+        {showNarrowHint && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-x-0 top-3 z-[200] flex justify-center px-4 pointer-events-none">
+            <div className="pointer-events-auto w-full max-w-md rounded-lg border border-amber-400/35 bg-zinc-950/95 px-3.5 py-2.5 shadow-2xl backdrop-blur-md">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[11px] font-black tracking-wide text-amber-300">폰 레이아웃으로 보이는 중</span>
+                <span className="ml-auto font-mono text-[10px] tabular-nums text-zinc-500">화면 폭 {cssWidth}px</span>
+              </div>
+              <div className="mt-1 text-[11px] leading-snug text-zinc-400">
+                브라우저가 보고하는 폭이 <span className="font-bold text-zinc-100">768px 미만</span>이면 폰 화면으로 바뀝니다.
+                <span className="font-mono font-bold text-amber-200"> Ctrl+0</span>으로 확대를 되돌리거나 창을 넓히면 PC 화면이 됩니다.
+                세로로 세운 모니터라면 <span className="font-bold text-zinc-100">OS 배율(예: 150%)</span>도 폭을 줄입니다.
+              </div>
+              <div className="mt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2.5 text-[10px] font-bold uppercase text-zinc-400 hover:text-zinc-100"
+                  onClick={() => {
+                    try { localStorage.setItem('narrow-desktop-hint', '1'); } catch { /* noop */ }
+                    setNarrowHintHidden(true);
+                  }}
+                >
+                  다시 안 보기
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
         {/* 첫 접속 안내 카드 — 한 번 닫거나 안내를 열면 다시 뜨지 않는다(브라우저별 기록). */}
         {showFirstVisit && !isUiHelpOpen && typeof document !== 'undefined' && createPortal(
