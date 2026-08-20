@@ -522,7 +522,7 @@ export function GameBoard({
   const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
   const isSyncingRef = useRef(false);
   /** 팬 한도 함수 참조 — 복원 effect가 clampPan 정의보다 위에 있어 ref로 우회한다. */
-  const clampPanRef = useRef<(p: { x: number; y: number }) => { x: number; y: number }>((p) => p);
+  const clampPanRef = useRef<(next: { x: number; y: number }, prev: { x: number; y: number }) => { x: number; y: number }>((n) => n);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
 
@@ -606,7 +606,7 @@ export function GameBoard({
     if (panValue !== undefined && (Math.abs(panValue.x - pan.x) > 0.1 || Math.abs(panValue.y - pan.y) > 0.1)) {
       isSyncingRef.current = true;
       // 저장된 값이 다른 해상도에서 온 것이면 화면 밖일 수 있어 한도를 적용한다.
-      setPanInternal(clampPanRef.current(panValue));
+      setPanInternal(clampPanRef.current(panValue, pan));
       setTimeout(() => { isSyncingRef.current = false; }, 0);
     }
   }, [panValue?.x, panValue?.y]);
@@ -621,29 +621,39 @@ export function GameBoard({
 
   /**
    * [사용자 2026-08-20] 맵을 화면 밖으로 완전히 밀어내 찾지 못하는 일이 있었다 → 팬 한도.
-   * 맵은 1200×1000 SVG를 컨테이너 중앙에 두고 zoom으로 확대하므로, 화면과 맵이 겹치는 폭·높이가
-   * 각각 '맵과 화면 중 작은 쪽의 10%' 이상 남도록 pan을 제한한다(줌 아웃 상태에서도 항상 일부가 보인다).
-   * 컨테이너 크기를 못 읽는 시점(마운트 직전)에는 제한하지 않는다.
+   *
+   * 1차 구현은 SVG 박스(1200×1000)를 맵 크기로 썼는데, 실제 헥스 맵은 그 박스의 일부만 차지한다
+   * (HexGrid width=1200 viewBox="-50 -50 250 250"). 그래서 "박스의 10%"가 남아도 화면에는 빈 영역만
+   * 보여 여전히 맵이 사라졌다(사용자 재보고) → **그려진 내용(<g>)의 실제 경계**로 계산한다.
+   *
+   * 계산: 현재 내용 사각형 r과 컨테이너 c를 재고, 팬 변화량 Δ만큼 r이 평행이동한다는 사실을 이용해
+   * 겹치는 폭·높이가 keep 이상 남는 Δ 범위를 직접 푼다(줌 배율은 이미 r에 반영돼 있다).
    */
-  const clampPan = (next: { x: number; y: number }): { x: number; y: number } => {
+  const clampPan = (next: { x: number; y: number }, prev: { x: number; y: number }): { x: number; y: number } => {
     const el = containerRef.current;
     if (!el) return next;
-    const cw = el.clientWidth, ch = el.clientHeight;
-    if (cw < 5 || ch < 5) return next;
-    const z = zoomRef.current || 1;
-    const mapW = 1200 * z, mapH = 1000 * z;          // HexGrid 고정 크기 × 줌
-    const keepX = Math.max(24, 0.1 * Math.min(mapW, cw));
-    const keepY = Math.max(24, 0.1 * Math.min(mapH, ch));
-    const limX = (cw + mapW) / 2 - keepX;
-    const limY = (ch + mapH) / 2 - keepY;
-    return {
-      x: Math.max(-limX, Math.min(limX, next.x)),
-      y: Math.max(-limY, Math.min(limY, next.y)),
-    };
+    const svg = el.querySelector('svg');
+    const content = (svg?.querySelector('g') as SVGGraphicsElement | null) ?? svg;
+    if (!content) return next;
+    const r = content.getBoundingClientRect();
+    const c = el.getBoundingClientRect();
+    if (r.width < 5 || r.height < 5 || c.width < 5 || c.height < 5) return next;
+
+    const keepX = Math.max(24, 0.1 * Math.min(r.width, c.width));
+    const keepY = Math.max(24, 0.1 * Math.min(r.height, c.height));
+    // r + Δ 가 c 와 keep 이상 겹치도록: (r.right+Δ ≥ c.left+keep) 과 (r.left+Δ ≤ c.right-keep)
+    const dxMin = c.left + keepX - r.right;
+    const dxMax = c.right - keepX - r.left;
+    const dyMin = c.top + keepY - r.bottom;
+    const dyMax = c.bottom - keepY - r.top;
+
+    const dx = Math.max(dxMin, Math.min(dxMax, next.x - prev.x));
+    const dy = Math.max(dyMin, Math.min(dyMax, next.y - prev.y));
+    return { x: prev.x + dx, y: prev.y + dy };
   };
 
   const setPan = (v: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => {
-    setPanInternal(prev => clampPan(typeof v === 'function' ? v(prev) : v));
+    setPanInternal(prev => clampPan(typeof v === 'function' ? v(prev) : v, prev));
   };
   clampPanRef.current = clampPan;
 

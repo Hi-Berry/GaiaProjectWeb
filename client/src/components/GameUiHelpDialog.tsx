@@ -303,40 +303,60 @@ function NotifyToggle() {
   );
 }
 
-/** 데스크톱 전용: 남의 상태창 카드 옆 '남은 특수 액션' 스트립 표시 여부.
- *  [2026-08-07 사용자] 정신 사나울 수 있어 끌 수 있게. 기본 ON. localStorage+커스텀이벤트로 Game.tsx와 동기화. */
-function SpecialActionStripToggle() {
-  const [on, setOn] = useState(true);
-  useEffect(() => {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('special-action-strip') === 'off') setOn(false);
-  }, []);
-  const choose = (v: boolean) => {
-    setOn(v);
-    localStorage.setItem('special-action-strip', v ? 'on' : 'off');
-    window.dispatchEvent(new CustomEvent('special-action-strip-change', { detail: v }));
-  };
-  return (
-    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
-      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-cyan-400">
-        남은 특수 액션 표시
-      </h3>
-      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold text-zinc-200">다른 사람 카드 옆에 표시</div>
-          <div className="text-[9px] leading-snug text-zinc-500">
-            아직 안 쓴 특수 액션(기술타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)을 카드 왼쪽에 띄웁니다.
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => choose(!on)}
-          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${on ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
-        >
-          {on ? '표시' : '숨김'}
-        </button>
-      </div>
-    </section>
-  );
+/**
+ * [사용자 2026-08-20] '표시 ON/OFF' 두 개(좌하단 액션 버튼 · 남은 특수 액션 스트립)를 한 섹션으로 묶었다.
+ *  성격이 같은 화면 표시 설정이 서로 떨어져 있어 찾기 어려웠다. 토글은 각각 유지 —
+ *  둘을 하나로 합치면 개별 조절을 못 하게 된다(사용자 선택).
+ *  저장 키·이벤트는 그대로라 기존 설정이 이어진다: left-action-buttons / special-action-strip.
+ */
+function DisplayTogglesSection() {
+	const [leftOn, setLeftOn] = useState(true);
+	const [stripOn, setStripOn] = useState(true);
+	useEffect(() => {
+		if (typeof localStorage === 'undefined') return;
+		if (localStorage.getItem('left-action-buttons') === 'off') setLeftOn(false);
+		if (localStorage.getItem('special-action-strip') === 'off') setStripOn(false);
+	}, []);
+	const choose = (key: 'left-action-buttons' | 'special-action-strip', v: boolean) => {
+		if (key === 'left-action-buttons') setLeftOn(v); else setStripOn(v);
+		localStorage.setItem(key, v ? 'on' : 'off');
+		window.dispatchEvent(new CustomEvent(`${key}-change`, { detail: v }));
+	};
+	const btn = (on: boolean, onClick: () => void) => (
+		<button
+			type="button"
+			onClick={onClick}
+			className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${on ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+		>
+			{on ? '표시' : '숨김'}
+		</button>
+	);
+	return (
+		<section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+			<h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-cyan-400">
+				화면 표시
+			</h3>
+			<div className="flex items-center justify-between gap-3 px-2 py-1.5">
+				<div className="min-w-0">
+					<div className="text-[10px] font-semibold text-zinc-200">좌하단 Free Actions · Tactical · Research 버튼</div>
+					<div className="text-[9px] leading-snug text-zinc-500">
+						기본 표시. 숨겨도 단축키(F·T·R)와 미니창 고정으로 똑같이 쓸 수 있습니다.
+					</div>
+				</div>
+				{btn(leftOn, () => choose('left-action-buttons', !leftOn))}
+			</div>
+			{/* 스트립은 카드 위치를 따라다니는 기능이라 데스크톱 전용 — 폰에서는 줄 자체를 감춘다. */}
+			<div className="hidden md:flex items-center justify-between gap-3 border-t border-white/8 px-2 py-1.5">
+				<div className="min-w-0">
+					<div className="text-[10px] font-semibold text-zinc-200">다른 사람 카드 옆 남은 특수 액션</div>
+					<div className="text-[9px] leading-snug text-zinc-500">
+						아직 안 쓴 특수 액션(기술타일 3O·1Q+5C, 아카데미 QIC, 보너스 타일, 종족 스페셜)을 카드 왼쪽에 띄웁니다.
+					</div>
+				</div>
+				{btn(stripOn, () => choose('special-action-strip', !stripOn))}
+			</div>
+		</section>
+	);
 }
 
 /** [사용자 2026-08-20] 액션 음성 안내 — 턴이 넘어갈 때 "발타크 교역소 건설"처럼 읽어준다.
@@ -450,42 +470,6 @@ function ActionVoiceToggle() {
   );
 }
 
-/** 좌하단 액션 버튼 묶음(Free Actions / Tactical Overview / Research Board / 특수 액션) 표시 여부.
- *  [2026-08-18 사용자] **기본 표시**. (2026-08-14엔 기본 숨김이었다.)
- *  꺼도 기능은 다른 경로로 다 쓸 수 있다(키보드 F/T/R, 미니창 고정, 데스크톱 사이드바). */
-function LeftActionButtonsToggle() {
-  const [on, setOn] = useState(true);
-  useEffect(() => {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('left-action-buttons') === 'off') setOn(false);
-  }, []);
-  const choose = (v: boolean) => {
-    setOn(v);
-    localStorage.setItem('left-action-buttons', v ? 'on' : 'off');
-    window.dispatchEvent(new CustomEvent('left-action-buttons-change', { detail: v }));
-  };
-  return (
-    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
-      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-cyan-400">
-        좌하단 액션 버튼
-      </h3>
-      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold text-zinc-200">Free Actions · Tactical · Research 버튼 묶음</div>
-          <div className="text-[9px] leading-snug text-zinc-500">
-            기본 표시. 숨겨도 단축키(F·T·R)와 미니창 고정으로 똑같이 쓸 수 있습니다.
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => choose(!on)}
-          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${on ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
-        >
-          {on ? '표시' : '숨김'}
-        </button>
-      </div>
-    </section>
-  );
-}
 
 /** 모바일 전용: Info 오버레이(좌하단 i 버튼) 레이아웃 선택 — 가로(드래그 페이지) vs 세로(3창 합쳐 스크롤). localStorage+커스텀이벤트로 Game.tsx와 동기화. */
 function TechViewSelector() {
@@ -685,15 +669,15 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
           style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
         >
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
-          <div className="hidden md:block"><NotifyToggle /><SpecialActionStripToggle /></div>
+          <div className="hidden md:block"><NotifyToggle /></div>
           <div className="md:hidden"><TechViewSelector /><PinchZoomSelector /></div>
           {/* 좌하단 액션 버튼은 데스크톱·모바일(가로) 양쪽에 뜨므로 md 분기 밖에 둔다 */}
-          <LeftActionButtonsToggle />
+          <DisplayTogglesSection />
           {/* md:hidden 밖에 둔다 — PC 모드를 켜면 md:가 켜져 이 안에 있으면 되돌릴 버튼이 사라진다 */}
           <ViewModeSelector />
           {gameId && playerId && <ContinueOnDeviceSection gameId={gameId} playerId={playerId} />}
           <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
-            <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 / 종족</h3>
+            <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 조절</h3>
             <div className="flex items-center justify-between gap-3 px-2 py-1.5">
               <div className="text-[10px] font-semibold text-zinc-200">알림음 크기 (0=음소거)</div>
               <VolumeControl />
@@ -708,6 +692,9 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
               </div>
             )}
           </section>
+          {/* [사용자 2026-08-20] 소리 관련 설정을 한곳에 — 사운드 조절 바로 아래 */}
+          <ActionVoiceToggle />
+
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {HELP_COLUMNS.map((column, colIdx) => (
               <div key={colIdx} className="flex min-w-0 flex-col gap-2">
@@ -717,8 +704,6 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
               </div>
             ))}
           </div>
-          <ActionVoiceToggle />
-
           {/* [사용자 2026-08-18] 화면 둘러보기 다시 보기 — GameBoard가 'start-ui-tour'를 받아 스포트라이트 안내를 켠다. */}
           <button
             type="button"

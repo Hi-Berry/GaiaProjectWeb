@@ -666,6 +666,15 @@ export default function Game() {
       y: Math.max(0, Math.min(vh - VISIBLE_MIN, pos.y)),
     };
   };
+  /** [사용자 2026-08-20] 미니뷰 위치·크기도 판별 키로만 저장돼 새 방마다 기본값이었다.
+   *  맵 보기와 같은 방식으로 '마지막 값'을 함께 저장해 이어받는다(판별 값이 우선). */
+  const loadView = (perGame: string, last: string): string | null => {
+    try { return (gameId ? localStorage.getItem(perGame) : null) ?? localStorage.getItem(last); } catch { return null; }
+  };
+  const saveView = (perGame: string, last: string, v: string): void => {
+    try { if (gameId) localStorage.setItem(perGame, v); localStorage.setItem(last, v); } catch { /* noop */ }
+  };
+
   const [researchPos, setResearchPos] = useState(() => {
     const saved = loadView(`research-pos-${gameId}`, 'research-pos-last');
     const initial = saved ? JSON.parse(saved) : { x: 20, y: 90 };
@@ -686,15 +695,6 @@ export default function Game() {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
-
-  /** [사용자 2026-08-20] 미니뷰 위치·크기도 판별 키로만 저장돼 새 방마다 기본값이었다.
-   *  맵 보기와 같은 방식으로 '마지막 값'을 함께 저장해 이어받는다(판별 값이 우선). */
-  const loadView = (perGame: string, last: string): string | null => {
-    try { return (gameId ? localStorage.getItem(perGame) : null) ?? localStorage.getItem(last); } catch { return null; }
-  };
-  const saveView = (perGame: string, last: string, v: string): void => {
-    try { if (gameId) localStorage.setItem(perGame, v); localStorage.setItem(last, v); } catch { /* noop */ }
-  };
 
   const [researchMiniWidth, setResearchMiniWidth] = useState(() => {
     const saved = loadView(`research-mini-width-${gameId}`, 'research-mini-width-last');
