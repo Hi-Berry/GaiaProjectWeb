@@ -864,6 +864,11 @@ function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void
 		game.prevTurnStartState[playerId] = game.turnStartState[playerId];
 	}
 	game.turnStartState[playerId] = buildTurnStartStateEntryForPlayer(game, playerId);
+	/* [음성 안내 2026-08-20] turnStartState는 대역폭 때문에 non-enumerable(클라 전송 제외)이라
+	   클라이언트가 '턴이 바뀌었는지'를 알 방법이 없었다. 그래서 음성이 시간(3초)으로 턴을 추정했고,
+	   같은 턴에 두 번 읽히거나 연속 턴을 놓쳤다(사람 로그 실측: 수단→결과 쌍의 52%가 3초 이상).
+	   여기서 '턴 시작 시점의 로그 seq'만 숫자로 복사해 둔다 — 사람당 8바이트, 스냅샷 본체는 그대로 제외. */
+	game.turnMark = { ...(game.turnMark ?? {}), [playerId]: game.turnStartState[playerId].gameLogSeqAt ?? 0 };
 	pushTurnHistory(game, playerId);
 }
 

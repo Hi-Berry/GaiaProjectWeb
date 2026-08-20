@@ -511,6 +511,8 @@ export interface GaiaGameState {
   /** 플레이어 채팅 (최근 N개만 유지). 재접속/관전 시 히스토리 복원용으로 게임 상태에 보관 */
   chatMessages?: Array<{ id: string; senderId: string; name: string; faction?: string | null; isSpectator?: boolean; text: string; ts: number }>;
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
+  /** [음성 안내] 사람별 '턴 시작 시점의 로그 seq' — 턴이 바뀌었는지 판정용(turnStartState는 클라 전송 제외라 이것만 보낸다) */
+  turnMark?: Record<string, number>;
   turnStartState?: Record<string, {
     playerState: PlayerState;
     mapState: HexTile[];
