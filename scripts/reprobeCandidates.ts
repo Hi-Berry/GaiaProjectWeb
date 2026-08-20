@@ -26,6 +26,16 @@ const PROBE_FLAGS: Record<string, boolean | number> | null = flagArgIdx > 0 ? JS
 
 const DIR = 'data/human-games';
 const DETAILS = process.argv.includes('--details');
+const MINEGAP = process.argv.includes('--minegap');
+// --limit N: 앞의 N개 게임만 (리포트 경로 스모크용 — scripts/는 tsconfig include 밖이라 tsc가 안 잡는다)
+const LIMIT = process.argv.includes('--limit') ? Number(process.argv[process.argv.indexOf('--limit') + 1]) : 0;
+const mineWhy: Record<string, number> = {};
+const mineRank: Record<number, number> = {};   // 사람이 고른 타일의 봇 점수순 순위 분포
+let mineRankNone = 0;
+const mineSamples: Record<string, string[]> = {};
+const MINE_LEGEND: Record<string, Any> = (() => {
+    try { return JSON.parse(fs.readFileSync('data/mine-gap-legend.json', 'utf8')); } catch { return {}; }
+})();
 
 type Any = any;
 
@@ -52,6 +62,17 @@ function applyEvent(map: Map<string, Any>, formersActive: Record<string, Set<str
     if (/Placed Gaiaformer/i.test(a)) {
         t.hasGaiaformer = true; t.gaiaformerOwnerId = pid;
         (formersActive[pid] = formersActive[pid] || new Set()).add(tid);
+        return;
+    }
+    // [2026-08-19] 구조물 '변환' 이벤트 — 이걸 빼먹어서 광산이 줄지 않아 재구성이 광산 한도(8)에 걸린 것처럼
+    //   보였다(minegap 3,114건 중 439건 = 14%가 이 위양성). 위 업그레이드 분기와 달리 로그 문구가 종족·우주선 전용이라
+    //   따로 잡아야 한다.
+    if (/Rebellion: Mine\s*→\s*TS/i.test(a)) { t.ownerId = pid; t.structure = 'trading_station'; return; }
+    if (/Twilight: TS\s*→\s*Research Lab/i.test(a)) { t.ownerId = pid; t.structure = 'research_lab'; return; }
+    if (/Firaks: Downgrade/i.test(a)) { t.ownerId = pid; t.structure = 'trading_station'; return; }   // Lab→TS
+    if (/Ambas: Special/i.test(a)) {                                                                   // PI ↔ 광산 위치 교체
+        const pi = [...map.values()].find((x: Any) => x.ownerId === pid && x.structure === 'planetary_institute');
+        if (pi && t.ownerId === pid && t !== pi) { const tmp = t.structure; t.structure = pi.structure; pi.structure = tmp; }
         return;
     }
     if (/Lost Planet/i.test(a)) { t.ownerId = pid; t.structure = 'lost_planet_mine'; return; }
@@ -112,7 +133,9 @@ const tsWhy: Record<string, number> = {};
 const tsSamples: Record<string, string[]> = {};
 let decisions = 0, errors = 0;
 
-for (const f of files) {
+// --limit N: 최신 N판만 (옛 판은 후보 캡처가 없어 스모크에 쓸모없다)
+for (const f of (LIMIT ? files.slice(-LIMIT) : files)) {
+
     let g: Any; try { g = JSON.parse(fs.readFileSync(`${DIR}/${f}`, 'utf8')); } catch { continue; }
     if (!Array.isArray(g.map) || !g.map.length || !Array.isArray(g.actionJournal)) continue;
 
@@ -165,7 +188,10 @@ for (const f of files) {
         };
         if (PROBE_FLAGS) setPlayerVariant(pid, { flags: PROBE_FLAGS });
         let cands: Any[] = [];
+        // [--minegap] 표준 광산 갭의 '어느 게이트에서 잘렸나'를 봇 코드에서 직접 받는다(추정 미러링 금지).
+        BotLogic.mineTrace = MINEGAP ? new Map<string, string[]>() : null;
         try { cands = BotLogic.getCandidateMoves(game, pid) as Any[]; } catch (err) {
+            BotLogic.mineTrace = null;
             errors++;
             if (errors <= 5) console.log(`[ERR${errors}] ${f} R${e.round} ${e.action}: ${(err as Error)?.stack?.split('\n').slice(0, 3).join(' | ')}`);
             continue;
@@ -226,6 +252,29 @@ for (const f of files) {
             tsWhy[why] = (tsWhy[why] || 0) + 1;
             if ((tsSamples[why] = tsSamples[why] || []).length < 4) tsSamples[why].push(`R${r} ${me.faction} 광산${mineCnt} TS${tsCnt} O${me.ore}C${me.credits}${discounted ? ' 할인' : ''}`);
         }
+        // 표준 광산 갭 원인 분류 — 봇이 남긴 트레이스의 '마지막 태그' = 그 타일이 최종 탈락한 줄
+        if (MINEGAP && res.cls === 'build_mine' && !res.hit && !live.hit) {
+            const me = players[pid];
+            const trace = BotLogic.mineTrace?.get(e.tileId) ?? [];
+            const globalTrace = BotLogic.mineTrace?.get('*') ?? [];
+            const rankTag = trace.find((x: string) => x.startsWith('RANK'));
+            if (rankTag) { const r = Number(rankTag.slice(4)); mineRank[r] = (mineRank[r] || 0) + 1; }
+            else mineRankNone++;
+            const nonRank = trace.filter((x: string) => !x.startsWith('RANK'));
+            const last = nonRank[nonRank.length - 1];
+            const tile = byId.get(e.tileId);
+            const anyMine = cands.some((c: Any) => c.type === 'build_mine');
+            let why: string;
+            if (globalTrace.length) why = globalTrace[globalTrace.length - 1];
+            else if (!last) why = '트레이스 없음';
+            else if (last === 'PREFILTER') why = 'PREFILTER(맵 상단 필터)';
+            else why = 'L' + last;
+            const key = why + (anyMine ? ' [타 광산 후보 있음]' : ' [광산 후보 0]');
+            mineWhy[key] = (mineWhy[key] || 0) + 1;
+            if ((mineSamples[key] = mineSamples[key] || []).length < 3) {
+                mineSamples[key].push(`R${e.round} ${me.faction} ${tile?.type ?? '?'} O${me.ore}C${me.credits}Q${me.qic} nav${me.research?.navigation ?? 0} tf${me.research?.terraforming ?? 0}`);
+            }
+        }
         // 소행성 갭 원인 분류 (라이브 갭 ∧ 리프로브 갭 = 고신뢰 케이스만)
         if (res.cls === 'asteroid_mine' && !res.hit && !live.hit) {
             const me = players[pid];
@@ -279,6 +328,39 @@ for (const [nm, W, S] of [['PI', piWhy, piSamples], ['아카데미', acadWhy, ac
         console.log(`  ${k}: ${v}`);
         (S[k] || []).forEach(sm => console.log('     ·', sm));
     }
+}
+if (MINEGAP) {
+    const rows = Object.entries(mineWhy).sort((a, b) => b[1] - a[1]);
+    const tot = rows.reduce((a, r) => a + r[1], 0);
+    console.log(`\n표준 광산(build_mine) 갭 원인 — 라이브∧리프로브 교집합 ${tot}건`);
+    for (const [k, v] of rows) {
+        const m = k.match(/^L(\d+)/);
+        const leg = m ? MINE_LEGEND[m[1]] : null;
+        console.log(`  ${String(v).padStart(4)}건 (${(v / Math.max(1, tot) * 100).toFixed(1)}%) ${k}`);
+        if (leg) console.log(`        코드: ${String(leg.line).slice(0, 120)}`);
+        if (leg?.ctx?.length) console.log(`        문맥: ${leg.ctx.join(' / ').slice(0, 150)}`);
+        (mineSamples[k] || []).forEach(sm => console.log('        ·', sm));
+    }
+    // 순위 품질: 사람이 고른 타일이 봇 점수순 몇 위였나 — 수량 확대(mineTop6)가 기각된 뒤 남은 축
+    const ranks = Object.keys(mineRank).map(Number).sort((a, b) => a - b);
+    const rtot = ranks.reduce((a, r) => a + mineRank[r], 0);
+    console.log(`
+사람이 고른 광산 타일의 봇 점수 순위 (순위 잡힌 ${rtot}건 · 점수 없던 ${mineRankNone}건)`);
+    const buckets = [['1~4위(컷 안인데 미반환)', 0], ['5~8위', 0], ['9~12위', 0], ['13~20위', 0], ['21위+', 0]] as Array<[string, number]>;
+    for (const r of ranks) {
+        const n = mineRank[r];
+        if (r <= 4) buckets[0][1] += n;
+        else if (r <= 8) buckets[1][1] += n;
+        else if (r <= 12) buckets[2][1] += n;
+        else if (r <= 20) buckets[3][1] += n;
+        else buckets[4][1] += n;
+    }
+    let cum = 0;
+    for (const [k, v] of buckets) {
+        cum += v;
+        console.log(`  ${k.padEnd(24)} ${String(v).padStart(5)}건 (${(100 * v / Math.max(1, rtot)).toFixed(1)}%) · 누적 ${(100 * cum / Math.max(1, rtot)).toFixed(1)}%`);
+    }
+    console.log('  1~20위 개별: ' + ranks.filter((r) => r <= 20).map((r) => `${r}위 ${mineRank[r]}`).join(' · '));
 }
 console.log('\n주의: asteroid/gaia 관련은 포머 재구성 근사(중신뢰). form_federation/우주선/파워액션은 판정 제외.');
 process.exit(0); // index.ts 순환 임포트로 HTTP 서버가 떠 있어 명시 종료 필요

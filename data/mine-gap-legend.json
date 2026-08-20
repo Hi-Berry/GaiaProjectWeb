@@ -1,0 +1,227 @@
+{
+ "4448": {
+  "line": "if (resStarved && tile.type !== 'asteroid') continue;",
+  "ctx": [
+   "}",
+   "for (const tile of candidates) {",
+   "// [flag: asteroidCandOpen] 자원기아 패스: 1O2C가 안 드는 소행성만 후보화(그 외는 서버가 거부할 후보)"
+  ],
+  "afterPush": false
+ },
+ "4454": {
+  "line": "continue;",
+  "ctx": [
+   "// [flag: chainReachDefer] Z 경유 체인으로 0Q 도달 가능한 QIC점프는 유보",
+   "if (chainDefer && neededQicForRange > 0",
+   "&& chainZeroTiles.some(z => z.id !== tile.id && getDistance(z, tile) <= chainRange)) {"
+  ],
+  "afterPush": false
+ },
+ "4529": {
+  "line": "if (neededQicForRange > maxPayQicForMine) continue;",
+  "ctx": [
+   "}",
+   "// QIC 소모 제한 해제: QIC만 충분하다면 3거리, 4거리(QIC 3~4 소모) 점프도 교두보 가치가 높으면 시도 가능하도록 허용",
+   "// 발타크: 가용 가이아포머만큼 지갑 QIC 이전에 GF→QIC 프리액션으로 보충 가능"
+  ],
+  "afterPush": false
+ },
+ "4537": {
+  "line": "continue;",
+  "ctx": [
+   "if ((likelyNavThisTurn || navRaisableSoon) && neededQicForRange > 0) {",
+   "const probe: BotAction = { type: 'build_mine', params: { tileId: tile.id } };",
+   "if (this.willNavResearchSaveQIC(game, playerId, probe)) {"
+  ],
+  "afterPush": false
+ },
+ "4544": {
+  "line": "if (neededQicForRange > 1 && !allowBigQicJump) continue;",
+  "ctx": [
+   "// 따라서 2QIC 이상 점프는 거의 금지(매우 후반 + 진짜 교두보/가이아 같은 예외만 허용).",
+   "const isLate = round >= 6;",
+   "const allowBigQicJump = isLate && (bridgeheadBonus >= 180); // 후반에만, 그리고 교두보가 정말 큰 경우만"
+  ],
+  "afterPush": false
+ },
+ "4563": {
+  "line": "if (r <= 5 && nextM === 'build_gaia' && curM !== 'build_gaia' && curM !== 'build_mine') continue;",
+  "ctx": [
+   "const r = game.roundNumber ?? 1;",
+   "const curM = game.roundScoringTiles?.[r - 1]?.triggerType;",
+   "const nextM = game.roundScoringTiles?.[r]?.triggerType;"
+  ],
+  "afterPush": false
+ },
+ "4578": {
+  "line": "continue;",
+  "ctx": [
+   "if (getPlayerFlag(playerId, 'earlyGaiaQicCap', true) && (game.roundNumber ?? 1) <= 2",
+   "&& (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length",
+   "&& !alreadyFormed && totalQicNeeded >= 2) {"
+  ],
+  "afterPush": false
+ },
+ "4588": {
+  "line": "continue;",
+  "ctx": [
+   "&& !alreadyFormed && totalQicNeeded >= 1",
+   "&& !game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab')",
+   "&& game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) {"
+  ],
+  "afterPush": false
+ },
+ "4592": {
+  "line": "if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)",
+  "ctx": [
+   "{ BotLogic.traceMine(tile.id, 4588); continue; }",
+   "}",
+   "if (isGleens && !alreadyFormed) {"
+  ],
+  "afterPush": false
+ },
+ "4593": {
+  "line": "if (totalQicNeeded > maxPayQicForMine) continue;",
+  "ctx": [
+   "}",
+   "if (isGleens && !alreadyFormed) {",
+   "if (ore < 2 || credits < 2) { BotLogic.traceMine(tile.id, 4592); continue; } // 1O(mine) + 1O(gaia cost)"
+  ],
+  "afterPush": false
+ },
+ "4595": {
+  "line": "if (totalQicNeeded > maxPayQicForMine) continue;",
+  "ctx": [
+   "if (ore < 2 || credits < 2) { BotLogic.traceMine(tile.id, 4592); continue; } // 1O(mine) + 1O(gaia cost)",
+   "if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4593); continue; }",
+   "} else {"
+  ],
+  "afterPush": false
+ },
+ "4596": {
+  "line": "if (totalQicNeeded > 4) continue; // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용",
+  "ctx": [
+   "if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4593); continue; }",
+   "} else {",
+   "if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4595); continue; }"
+  ],
+  "afterPush": false
+ },
+ "4623": {
+  "line": "continue;",
+  "ctx": [
+   "score,",
+   "action: buildMineAction(tile.id, totalQicNeeded)",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4658": {
+  "line": "continue;",
+  "ctx": [
+   "score,",
+   "action: buildMineAction(tile.id, neededQicForRange)",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4677": {
+  "line": "continue;",
+  "ctx": [
+   "score += this.calculateThreatScore(game, playerId, tile);",
+   "score += rangeBonusValue;",
+   "scored.push({ tile, score, action: buildMineAction(tile.id, neededQicForRange) });"
+  ],
+  "afterPush": true
+ },
+ "4682": {
+  "line": "if (steps <= 0) continue;",
+  "ctx": [
+   "}",
+   "// 타종 행성 (테라포밍 필요)",
+   "const steps = getTerraformStepsForFaction(game, player.faction!, tile.type);"
+  ],
+  "afterPush": false
+ },
+ "4688": {
+  "line": "continue; // PI가 없으면 타종 행성은 짓지 않음",
+  "ctx": [
+   "if (player.faction === 'geodens') {",
+   "const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');",
+   "if (!hasPI) {"
+  ],
+  "afterPush": false
+ },
+ "4712": {
+  "line": "continue;",
+  "ctx": [
+   "score,",
+   "action: buildMineAction(tile.id, neededQicForRange)",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4744": {
+  "line": "continue;",
+  "ctx": [
+   "type: 'use_bonus_action', params: { actionId: 'terraform_step' }",
+   "})",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4759": {
+  "line": "continue;",
+  "ctx": [
+   "params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }",
+   "})",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4792": {
+  "line": "continue;",
+  "ctx": [
+   "params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }",
+   "})",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4805": {
+  "line": "continue;",
+  "ctx": [
+   "if (remainingSteps === 1) {",
+   "const gain1 = game.powerActions.find(a => a.id === 'gain-1-step' && !a.isUsed);",
+   "if (gain1 && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {"
+  ],
+  "afterPush": false
+ },
+ "4819": {
+  "line": "continue;",
+  "ctx": [
+   "params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }",
+   "})",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4846": {
+  "line": "continue;",
+  "ctx": [
+   "params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }",
+   "})",
+   "});"
+  ],
+  "afterPush": false
+ },
+ "4867": {
+  "line": "continue;",
+  "ctx": [
+   "params: { shipTileId: tfMarsShip.id, actionIndex: 3 }",
+   "})",
+   "});"
+  ],
+  "afterPush": false
+ }
+}

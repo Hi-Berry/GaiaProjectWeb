@@ -4213,6 +4213,17 @@ export class BotLogic {
             && myPl.some(p => getDistance(p, t) <= rng));
     }
 
+    /** [진단 2026-08-19] 광산 후보 탈락 추적. null이면 완전 무비용(프로덕션 기본).
+     *  scripts/reprobeCandidates.ts --minegap 이 켜서 "사람이 지은 그 타일이 어느 줄에서 잘렸나"를 받는다.
+     *  라벨 = 이 파일의 원본 줄 번호. 해설은 data/mine-gap-legend.json 참조. */
+    static mineTrace: Map<string, string[]> | null = null;
+    static traceMine(tileId: string, tag: string | number): void {
+        const m = BotLogic.mineTrace;
+        if (!m) return;
+        const a = m.get(tileId);
+        if (a) a.push(String(tag)); else m.set(tileId, [String(tag)]);
+    }
+
     private static findBuildActions(game: ServerGameState, playerId: string): BotAction[] {
         const player = game.players[playerId];
         const ore = player.ore ?? 0;
@@ -4251,6 +4262,7 @@ export class BotLogic {
 
         // 광산 상한(8) 도달 시 광산/파워콤보(3P→스텝 후 광산) 후보를 만들지 않음 — 프리액션만 실행되고 build_mine 실패하는 버그 방지
         if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+            BotLogic.traceMine('*', 'EARLY:광산한도8');
             const alt = this.findAlternativeBuildAction(game, playerId);
             return alt ? [alt] : [];
         }
@@ -4260,6 +4272,7 @@ export class BotLogic {
         // 사람 소행성 건설 34건이 후보에 없던 룰 불일치. 기아여도 소행성 전용 패스는 계속 진행.
         const resStarved = ore < 1 || credits < 2;
         if (resStarved && !getPlayerFlag(playerId, 'asteroidCandOpen', true)) {
+            BotLogic.traceMine('*', 'EARLY:자원기아+소행성닫힘');
             // Ore/Credit 부족 시에도 Eclipse 6C 소행성이나 파워 콤보 가능한지 확인
             const alt = this.findAlternativeBuildAction(game, playerId);
             return alt ? [alt] : [];
@@ -4274,7 +4287,7 @@ export class BotLogic {
             (t.ownerId === playerId && t.structure) ||
             (t.spaceStation && (t.spaceStation as any).ownerId === playerId)
         );
-        if (myPlanets.length === 0) return [];
+        if (myPlanets.length === 0) { BotLogic.traceMine('*', 'EARLY:내건물0'); return []; }
 
         const range = this.getEffectiveNavRangeForStandardMine(player);
         const tfLevel = player.research.terraforming ?? 0;
@@ -4331,6 +4344,12 @@ export class BotLogic {
             !(t.hasGaiaformer && (t.gaiaformerOwnerId == null || t.gaiaformerOwnerId !== playerId)) &&
             !(t.hasGaiaformer && t.gaiaformerOwnerId === playerId && !player.pendingGaiaformerTiles?.includes(t.id))
         );
+
+        if (BotLogic.mineTrace) {
+            // 루프에 들어가지도 못한 칸(맵 상단 필터에서 제외)도 사유로 남긴다
+            const inLoop = new Set(candidates.map(c => c.id));
+            for (const t of game.map) if (!inLoop.has(t.id)) BotLogic.traceMine(t.id, 'PREFILTER');
+        }
 
         interface ScoredCandidate {
             tile: HexTile;
@@ -4445,13 +4464,13 @@ export class BotLogic {
 
         for (const tile of candidates) {
             // [flag: asteroidCandOpen] 자원기아 패스: 1O2C가 안 드는 소행성만 후보화(그 외는 서버가 거부할 후보)
-            if (resStarved && tile.type !== 'asteroid') continue;
+            if (resStarved && tile.type !== 'asteroid') { BotLogic.traceMine(tile.id, 4448); continue; }
             const dist = Math.min(...myPlanets.map(p => getDistance(p, tile)));
             const neededQicForRange = Math.max(0, Math.ceil((dist - range) / 2));
             // [flag: chainReachDefer] Z 경유 체인으로 0Q 도달 가능한 QIC점프는 유보
             if (chainDefer && neededQicForRange > 0
                 && chainZeroTiles.some(z => z.id !== tile.id && getDistance(z, tile) <= chainRange)) {
-                continue;
+                { BotLogic.traceMine(tile.id, 4454); continue; }
             }
 
             let qicPenalty = neededQicForRange * 60; // 사용자 피드백: 거리(QIC) 페널티 2배 상향
@@ -4526,7 +4545,7 @@ export class BotLogic {
 
             // QIC 소모 제한 해제: QIC만 충분하다면 3거리, 4거리(QIC 3~4 소모) 점프도 교두보 가치가 높으면 시도 가능하도록 허용
             // 발타크: 가용 가이아포머만큼 지갑 QIC 이전에 GF→QIC 프리액션으로 보충 가능
-            if (neededQicForRange > maxPayQicForMine) continue;
+            if (neededQicForRange > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4529); continue; }
 
             // 정책: 이번 턴에 Nav를 올릴 가능성이 높다면(지식>=4이고 navigation이 최우선 트랙),
             // Nav 업그레이드로 QIC 소모를 줄일 수 있는 타일에 대해 QIC 점프 광산을 미리 짓지 않게 한다.
@@ -4534,14 +4553,14 @@ export class BotLogic {
             if ((likelyNavThisTurn || navRaisableSoon) && neededQicForRange > 0) {
                 const probe: BotAction = { type: 'build_mine', params: { tileId: tile.id } };
                 if (this.willNavResearchSaveQIC(game, playerId, probe)) {
-                    continue;
+                    { BotLogic.traceMine(tile.id, 4537); continue; }
                 }
             }
             // 정책 변경: QIC로 거리 점프는 게임 전체적으로 1~2회가 적정.
             // 따라서 2QIC 이상 점프는 거의 금지(매우 후반 + 진짜 교두보/가이아 같은 예외만 허용).
             const isLate = round >= 6;
             const allowBigQicJump = isLate && (bridgeheadBonus >= 180); // 후반에만, 그리고 교두보가 정말 큰 경우만
-            if (neededQicForRange > 1 && !allowBigQicJump) continue;
+            if (neededQicForRange > 1 && !allowBigQicJump) { BotLogic.traceMine(tile.id, 4544); continue; }
             // 1QIC 점프도 기본적으로 매우 큰 페널티를 줘서 "Nav 올리고 가자"로 유도
             if (neededQicForRange === 1) {
                 qicPenalty += (round <= 4 ? 220 : 160);
@@ -4560,7 +4579,7 @@ export class BotLogic {
                     const r = game.roundNumber ?? 1;
                     const curM = game.roundScoringTiles?.[r - 1]?.triggerType;
                     const nextM = game.roundScoringTiles?.[r]?.triggerType;
-                    if (r <= 5 && nextM === 'build_gaia' && curM !== 'build_gaia' && curM !== 'build_mine') continue;
+                    if (r <= 5 && nextM === 'build_gaia' && curM !== 'build_gaia' && curM !== 'build_mine') { BotLogic.traceMine(tile.id, 4563); continue; }
                 }
                 // 가이아 행성: 기본 비용 추가 (일반 종족 1 QIC, 글린스 1 Ore, 확장 종족 2 QIC 등)
                 const isGleens = player.faction === 'gleens';
@@ -4575,7 +4594,7 @@ export class BotLogic {
                 if (getPlayerFlag(playerId, 'earlyGaiaQicCap', true) && (game.roundNumber ?? 1) <= 2
                     && (game.botPlayerIds?.length ?? 0) < Object.keys(game.players).length
                     && !alreadyFormed && totalQicNeeded >= 2) {
-                    continue;
+                    { BotLogic.traceMine(tile.id, 4578); continue; }
                 }
                 // [flag: qicMineLabGate] 사용자 관찰(2026-07-15): "R1에 1QIC 광산 안 지으면 연구소 지을 수
                 // 있는데 계속 그걸 날리고 감" — 실측: R1-2 QIC 가이아 광산 봇 91% vs 사람 48%, 'QIC광산 짓고
@@ -4585,15 +4604,15 @@ export class BotLogic {
                     && !alreadyFormed && totalQicNeeded >= 1
                     && !game.map.some(t => t.ownerId === playerId && t.structure === 'research_lab')
                     && game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) {
-                    continue;
+                    { BotLogic.traceMine(tile.id, 4588); continue; }
                 }
 
                 if (isGleens && !alreadyFormed) {
-                    if (ore < 2 || credits < 2) continue; // 1O(mine) + 1O(gaia cost)
-                    if (totalQicNeeded > maxPayQicForMine) continue;
+                    if (ore < 2 || credits < 2) { BotLogic.traceMine(tile.id, 4592); continue; } // 1O(mine) + 1O(gaia cost)
+                    if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4593); continue; }
                 } else {
-                    if (totalQicNeeded > maxPayQicForMine) continue;
-                    if (totalQicNeeded > 4) continue; // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용
+                    if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4595); continue; }
+                    if (totalQicNeeded > 4) { BotLogic.traceMine(tile.id, 4596); continue; } // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용
                 }
 
                 let score = (neededQicForRange === 0 ? 300 : 250) - qicPenalty + bridgeheadBonus; // 가이아 건설 베이스 점수 대폭 상향
@@ -4620,7 +4639,7 @@ export class BotLogic {
                     score,
                     action: buildMineAction(tile.id, totalQicNeeded)
                 });
-                continue;
+                { BotLogic.traceMine(tile.id, 4623); continue; }
             }
 
             // 모행성 (테라포밍 불필요)
@@ -4655,7 +4674,7 @@ export class BotLogic {
                         score,
                         action: buildMineAction(tile.id, neededQicForRange)
                     });
-                    continue;
+                    { BotLogic.traceMine(tile.id, 4658); continue; }
                 }
             }
 
@@ -4674,18 +4693,18 @@ export class BotLogic {
                 score += this.calculateThreatScore(game, playerId, tile);
                 score += rangeBonusValue;
                 scored.push({ tile, score, action: buildMineAction(tile.id, neededQicForRange) });
-                continue;
+                { BotLogic.traceMine(tile.id, 4677); continue; }
             }
 
             // 타종 행성 (테라포밍 필요)
             const steps = getTerraformStepsForFaction(game, player.faction!, tile.type);
-            if (steps <= 0) continue;
+            if (steps <= 0) { BotLogic.traceMine(tile.id, 4682); continue; }
 
             // [사용자 전략] 기오덴(Geodens)은 PI가 없으면 새로운 행성 유형(모행성과 가이아 제외)에 테라포밍 및 확장하는 것을 절대 금지
             if (player.faction === 'geodens') {
                 const hasPI = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
                 if (!hasPI) {
-                    continue; // PI가 없으면 타종 행성은 짓지 않음
+                    { BotLogic.traceMine(tile.id, 4688); continue; } // PI가 없으면 타종 행성은 짓지 않음
                 }
             }
 
@@ -4709,7 +4728,7 @@ export class BotLogic {
                     score,
                     action: buildMineAction(tile.id, neededQicForRange)
                 });
-                continue;
+                { BotLogic.traceMine(tile.id, 4712); continue; }
             }
 
             // [flag: rangeBuildOnly] 거리보너스(range_3/트왈3거리/글린) 활성 중엔 그 액션의 뒤가 {광산·포머·소행성·우주선} 빌드로
@@ -4741,7 +4760,7 @@ export class BotLogic {
                         type: 'use_bonus_action', params: { actionId: 'terraform_step' }
                     })
                 });
-                continue;
+                { BotLogic.traceMine(tile.id, 4744); continue; }
             }
             // 파워 액션 콤보: 3P→1삽 (gain-1-step, cost 3P) — 이어서 이 타일에 광산 가능할 때만
             if (remainingSteps === 1 && !rangeBoostActive) {
@@ -4756,7 +4775,7 @@ export class BotLogic {
                                 params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }
                             })
                         });
-                        continue;
+                        { BotLogic.traceMine(tile.id, 4759); continue; }
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 3) {
                         // [버그수정 2026-07-04] burn 1회 = bowl3 +1뿐 — 기존엔 번 1개만 붙여 실행 시 "Insufficient Power 3"
                         // 277회/일 실패(→강제 pass 턴 낭비). 부족분(3-power3)만큼 번 반복 부착. 타클론은 브레인 회계 특수라 1회 유지.
@@ -4789,7 +4808,7 @@ export class BotLogic {
                                 params: { actionId: 'gain-1-step', useBrain: player.faction === 'taklons' }
                             })
                         });
-                        continue;
+                        { BotLogic.traceMine(tile.id, 4792); continue; }
                         }
                     }
                 }
@@ -4802,7 +4821,7 @@ export class BotLogic {
                 if (remainingSteps === 1) {
                     const gain1 = game.powerActions.find(a => a.id === 'gain-1-step' && !a.isUsed);
                     if (gain1 && this.canCompleteMineOnTileAfterExtraPending(game, playerId, tile.id, 1)) {
-                        continue;
+                        { BotLogic.traceMine(tile.id, 4805); continue; }
                     }
                 }
                 const stepAction = game.powerActions.find(a => a.id === 'gain-2-steps' && !a.isUsed);
@@ -4816,7 +4835,7 @@ export class BotLogic {
                                 params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }
                             })
                         });
-                        continue;
+                        { BotLogic.traceMine(tile.id, 4819); continue; }
                     } else if (power3 + Math.floor((player.power2 ?? 0) / 2) >= 5) {
                         // [버그수정 2026-07-04] 위 gain-1-step과 동일 — 부족분(5-power3)만큼 번 반복 부착.
                         const burns2 = player.faction === 'taklons' ? 1 : Math.max(1, 5 - power3);
@@ -4843,7 +4862,7 @@ export class BotLogic {
                                 params: { actionId: 'gain-2-steps', useBrain: player.faction === 'taklons' }
                             })
                         });
-                        continue;
+                        { BotLogic.traceMine(tile.id, 4846); continue; }
                         }
                     }
                 }
@@ -4864,7 +4883,7 @@ export class BotLogic {
                                 params: { shipTileId: tfMarsShip.id, actionIndex: 3 }
                             })
                         });
-                        continue;
+                        { BotLogic.traceMine(tile.id, 4867); continue; }
                     }
                 }
             }
@@ -4999,17 +5018,28 @@ export class BotLogic {
 
         scored.sort((a, b) => b.score - a.score);
 
+        // [진단] 정렬 후 순위를 타일별로 남긴다 — "사람이 고른 타일이 봇 점수순 몇 위였나"를 재기 위함.
+        //   mineTop6(수량 확대)이 h2h −1.69로 기각된 뒤 남은 축 = 순위 품질. 프로덕션은 mineTrace가 null이라 무비용.
+        if (BotLogic.mineTrace) scored.forEach((sc, i) => BotLogic.traceMine(sc.tile.id, 'RANK' + (i + 1)));
+
         // 상위 후보 반환
         const results: BotAction[] = [];
         const seenActions = new Set<string>();
 
-        for (const s of scored.slice(0, 8)) { // 더 다양한 광산 후보를 고려하도록 상향 (5->8)
+        // [flag: mineTop6] 리프로브 실측(2026-08-19, minegap): 표준 광산 갭 3,096건 중 **41.5%(1,286건)** 가
+        //   "후보로 만들어 점수까지 매겼는데 반환 상한에 밀린" 경우였다. 즉 생성 갭이 아니라 컷 문제.
+        //   실제 구속조건은 아래 slice(0,8)이 아니라 results >= 4 — 스캔은 8까지 하고 반환은 4개였다.
+        //   같은 축의 선례가 asteroidCandOpen(소행성 한 칸 예약)이고, 이번엔 일반 광산 슬롯을 4→6으로 연다.
+        //   MCTS 분기가 늘어 탐색이 얕아지는 반대급부가 있으므로 기본 OFF, head2head로 판정.
+        const mineTop6 = getPlayerFlag(playerId, 'mineTop6', false);
+        const mineCap = mineTop6 ? 6 : 4;
+        for (const s of scored.slice(0, mineTop6 ? 12 : 8)) { // 스캔 폭(중복 액션 스킵 때문에 상한보다 넓게)
             const act = s.action;
             const key = JSON.stringify(act);
             if (!seenActions.has(key)) {
                 seenActions.add(key);
                 results.push(act);
-                if (results.length >= 4) break; // 3->4개로 상향
+                if (results.length >= mineCap) break;
             }
         }
 
