@@ -651,6 +651,28 @@ export default function Game() {
   const [isBonusPinned, setIsBonusPinned] = useState(
     gameId ? localStorage.getItem(`is-bonus-pinned-${gameId}`) === 'true' : false
   );
+
+  /** [사용자 2026-08-20] 단일 미니뷰 — 연구·우주선·Tactical을 창 하나의 3탭으로. 미니뷰가 화면을 많이
+   *  가린다는 의견에서 나왔다. PC 전용(폰은 이미 하단 분할 구조). 켜면 미니보드 버튼도 1개만 남는다. */
+  const [singleMini, setSingleMini] = useState<boolean>(() => {
+    try { return localStorage.getItem('single-mini-view') === 'on'; } catch { return false; }
+  });
+  useEffect(() => {
+    const onChange = (e: Event) => setSingleMini(!!(e as CustomEvent).detail);
+    window.addEventListener('single-mini-view-change', onChange);
+    return () => window.removeEventListener('single-mini-view-change', onChange);
+  }, []);
+  /** 단일 미니뷰 탭: 0=연구 1=우주선 2=Tactical */
+  const [singleMiniPage, setSingleMiniPage] = useState<number>(() => {
+    const n = Number((() => { try { return localStorage.getItem('single-mini-page'); } catch { return null; } })());
+    return n === 1 || n === 2 ? n : 0;
+  });
+  const gotoMiniPage = (n: number) => {
+    const v = Math.max(0, Math.min(2, n));
+    setSingleMiniPage(v);
+    try { localStorage.setItem('single-mini-page', String(v)); } catch { /* noop */ }
+  };
+
   // 미니뷰(Tactical Overview)는 한 번 열면 언마운트하지 않고 CSS로만 숨긴다 → 재오픈 시 이미지 재로딩 깜빡임 방지.
   const [bonusMiniMounted, setBonusMiniMounted] = useState(isBonusPinned);
   useEffect(() => { if (isBonusPinned) setBonusMiniMounted(true); }, [isBonusPinned]);
@@ -1246,6 +1268,13 @@ export default function Game() {
         setIsBonusTilesOpen(prev => !prev);
         setIsResearchOpen(false);
       }
+      // [사용자 2026-08-20] 단일 미니뷰가 열려 있을 때 ←/→ 로 탭 이동. 창이 없을 때는 아무 일도 안 한다
+      //   (맵·다른 UI가 화살표를 쓰지 않아 충돌 없음). 수정키 조합은 브라우저 기능이라 건드리지 않는다.
+      if (singleMini && isResearchPinned && !e.altKey && !e.ctrlKey && !e.metaKey
+        && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        gotoMiniPage(singleMiniPage + (e.key === 'ArrowRight' ? 1 : -1));
+      }
       if (e.key === 'Escape') {
         setIsResearchOpen(false);
         setIsBonusTilesOpen(false);
@@ -1255,7 +1284,7 @@ export default function Game() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isResearchOpen, isBonusTilesOpen, isResearchPinned, isBonusPinned, gameId]);
+  }, [isResearchOpen, isBonusTilesOpen, isResearchPinned, isBonusPinned, gameId, singleMini, singleMiniPage]);
 
   // 개발 중: 테스트 모드일 때 종족 선택 단계에서 하이브(ivits) 자동 선택
   useEffect(() => {
@@ -3224,22 +3253,23 @@ export default function Game() {
                 size="icon"
                 className="h-9 w-9 shrink-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:text-purple-400 dark:hover:bg-purple-900/50"
                 onClick={() => {
-                  const newVal = !(isResearchPinned && isBonusPinned);
+                  // 단일 미니뷰 모드에서는 이 버튼 하나가 그 창을 켜고 끈다(보너스 창은 쓰지 않는다).
+                  const newVal = singleMini ? !isResearchPinned : !(isResearchPinned && isBonusPinned);
                   setIsResearchPinned(newVal);
-                  setIsBonusPinned(newVal);
+                  if (!singleMini) setIsBonusPinned(newVal);
                   if (gameId) {
                     localStorage.setItem(`is-research-pinned-${gameId}`, String(newVal));
-                    localStorage.setItem(`is-bonus-pinned-${gameId}`, String(newVal));
+                    if (!singleMini) localStorage.setItem(`is-bonus-pinned-${gameId}`, String(newVal));
                   }
                 }}
-                title="모든 미니보드 켜기/끄기 (Toggle All Mini Boards)"
+                title={singleMini ? '미니뷰 켜기/끄기 (연구·우주선·Tactical 3탭)' : '모든 미니보드 켜기/끄기 (Toggle All Mini Boards)'}
               >
                 <Layers className="w-4 h-4" />
               </Button>
               <Button
                 variant={isResearchPinned ? 'default' : 'outline'}
                 size="icon"
-                className={`h-9 w-9 shrink-0 ${isResearchPinned ? 'bg-blue-600 hover:bg-blue-500' : ''}`}
+                className={`h-9 w-9 shrink-0 ${singleMini ? 'hidden' : ''} ${isResearchPinned ? 'bg-blue-600 hover:bg-blue-500' : ''}`}
                 onClick={() => {
                   const newVal = !isResearchPinned;
                   setIsResearchPinned(newVal);
@@ -3252,7 +3282,7 @@ export default function Game() {
               <Button
                 variant={isBonusPinned ? 'default' : 'outline'}
                 size="icon"
-                className={`h-9 w-9 shrink-0 ${isBonusPinned ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
+                className={`h-9 w-9 shrink-0 ${singleMini ? 'hidden' : ''} ${isBonusPinned ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
                 onClick={() => {
                   const newVal = !isBonusPinned;
                   setIsBonusPinned(newVal);
@@ -7007,9 +7037,44 @@ export default function Game() {
               className="bg-blue-900/40 px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing border-b border-white/10"
               onPointerDown={(e) => researchDragControls.start(e)}
             >
+              {singleMini ? (
+                /* [사용자 2026-08-20] 단일 미니뷰 헤더 — 모바일 세로 오버레이와 같은 3탭 구성.
+                   PC라 스와이프가 없으니 좌우 버튼을 둔다. 탭 자체도 눌러서 바로 이동. */
+                <div className="flex items-center gap-1 min-w-0" onPointerDown={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    aria-label="이전 탭"
+                    disabled={singleMiniPage === 0}
+                    onClick={() => gotoMiniPage(singleMiniPage - 1)}
+                    className="h-5 w-5 shrink-0 rounded text-blue-200 disabled:opacity-30 hover:bg-white/10"
+                  >
+                    ◀
+                  </button>
+                  {['Research', 'Ships', 'Tactical'].map((label, i) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => gotoMiniPage(i)}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-tight transition-colors ${singleMiniPage === i ? 'bg-blue-500/30 text-white' : 'text-blue-200/60 hover:text-blue-100'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    aria-label="다음 탭"
+                    disabled={singleMiniPage === 2}
+                    onClick={() => gotoMiniPage(singleMiniPage + 1)}
+                    className="h-5 w-5 shrink-0 rounded text-blue-200 disabled:opacity-30 hover:bg-white/10"
+                  >
+                    ▶
+                  </button>
+                </div>
+              ) : (
               <span className="text-[11px] font-black uppercase text-blue-200 flex items-center gap-2 select-none">
                 <FlaskConical className="w-3.5 h-3.5" /> Research Board
               </span>
+              )}
               <Button variant="ghost" size="icon" className="h-5 w-5 text-blue-300 hover:text-white" onClick={() => { setIsResearchPinned(false); localStorage.setItem(`is-research-pinned-${gameId}`, 'false'); }}>
                 ✕
               </Button>
@@ -7021,6 +7086,12 @@ export default function Game() {
               onWheel={(e) => e.stopPropagation()}
             >
               <MiniScaledContent panelWidth={researchMiniWidth}>
+                {singleMini ? (
+                  /* 모바일 오버레이와 같은 렌더러를 재사용 — 규칙·핸들러가 갈라지지 않게. */
+                  singleMiniPage === 0 ? renderInfoResearch('tech')
+                    : singleMiniPage === 1 ? renderInfoResearch('ships')
+                      : renderInfoRoundBonus()
+                ) : (
                 <ResearchBoard
                   game={game}
                   playerId={playerId}
@@ -7053,6 +7124,7 @@ export default function Game() {
                 onResetTurn={() => GameClient.resetTurn(gameId!)}
                 onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
                 />
+                )}
               </MiniScaledContent>
             </div>
             {/* Right Resize Handle */}
@@ -7093,7 +7165,7 @@ export default function Game() {
               saveView(`bonus-pos-${gameId}`, 'bonus-pos-last', JSON.stringify(newPos));
             }}
             // 닫아도 언마운트하지 않고 display:none으로만 숨김 → RoundBoard 이미지 DOM 유지(재오픈 즉시 표시)
-            className={`fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0 ${isBonusPinned ? '' : 'hidden'}`}
+            className={`fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0 ${isBonusPinned && !singleMini ? '' : 'hidden'}`}
             style={{ width: bonusMiniWidth, height: bonusMiniHeight, maxHeight: '95vh' }}
           >
             <div

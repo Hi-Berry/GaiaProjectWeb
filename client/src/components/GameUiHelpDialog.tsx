@@ -62,6 +62,7 @@ const HELP_COLUMNS: HelpSection[][] = [
         { label: '로그', description: '모바일: 우하단 버튼으로 상태창↔로그 토글' },
         { label: '로그%', description: '로그창 상단 슬라이더로 글자 크기 100~300%' },
         { label: '⤢', description: '폰 세로: 정보창(기술타일)·상태창을 전체화면으로 (헤더 더블터치도 가능)', isKey: true },
+        { label: '←/→', description: '단일 미니뷰 탭 이동 (Research · Ships · Tactical)', isKey: true },
         { label: '미니창', description: '핀·드래그·리사이즈' },
         { label: 'Income', description: '수익 선택' },
       ],
@@ -312,13 +313,17 @@ function NotifyToggle() {
 function DisplayTogglesSection() {
 	const [leftOn, setLeftOn] = useState(true);
 	const [stripOn, setStripOn] = useState(true);
+	const [singleOn, setSingleOn] = useState(false);
 	useEffect(() => {
 		if (typeof localStorage === 'undefined') return;
 		if (localStorage.getItem('left-action-buttons') === 'off') setLeftOn(false);
 		if (localStorage.getItem('special-action-strip') === 'off') setStripOn(false);
+		if (localStorage.getItem('single-mini-view') === 'on') setSingleOn(true);
 	}, []);
-	const choose = (key: 'left-action-buttons' | 'special-action-strip', v: boolean) => {
-		if (key === 'left-action-buttons') setLeftOn(v); else setStripOn(v);
+	const choose = (key: 'left-action-buttons' | 'special-action-strip' | 'single-mini-view', v: boolean) => {
+		if (key === 'left-action-buttons') setLeftOn(v);
+		else if (key === 'special-action-strip') setStripOn(v);
+		else setSingleOn(v);
 		localStorage.setItem(key, v ? 'on' : 'off');
 		window.dispatchEvent(new CustomEvent(`${key}-change`, { detail: v }));
 	};
@@ -354,6 +359,17 @@ function DisplayTogglesSection() {
 					</div>
 				</div>
 				{btn(stripOn, () => choose('special-action-strip', !stripOn))}
+			</div>
+			{/* [사용자 2026-08-20] 미니뷰가 화면을 너무 많이 가린다는 의견 → 창 하나에 3탭으로 합치는 모드.
+			    PC 전용(폰은 이미 하단 분할·탭 구조라 해당 없음). */}
+			<div className="hidden md:flex items-center justify-between gap-3 border-t border-white/8 px-2 py-1.5">
+				<div className="min-w-0">
+					<div className="text-[10px] font-semibold text-zinc-200">단일 미니뷰 (창 1개 · 상단 3탭)</div>
+					<div className="text-[9px] leading-snug text-zinc-500">
+						Research · Ships · Tactical을 창 하나에서 탭으로 넘깁니다(←/→ 키로도 이동). 켜면 미니보드 버튼도 1개만 남습니다.
+					</div>
+				</div>
+				{btn(singleOn, () => choose('single-mini-view', !singleOn))}
 			</div>
 		</section>
 	);
