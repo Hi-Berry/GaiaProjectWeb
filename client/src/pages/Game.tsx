@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
-import { actionLabel, enqueueParts, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
+import { actionParts, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -1340,22 +1340,36 @@ export default function Game() {
     if (!isVoiceOn() || !game) { voiceLogMarkRef.current = log.length; return; }
     const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 줄어도 안전
     for (const raw of log.slice(from)) {
-      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number };
-      const label = actionLabel(e.action ?? '', e.details ?? '');
-      if (!label || !e.playerId) continue;
-      // [사용자 2026-08-20] 한 턴에 한 번, 그 턴의 '첫' 액션만 읽는다.
-      //   "파워 액션 → 광산 건설", "티에프 테라포밍 → 광산 건설"처럼 수단과 결과가 각각 로그로 남아
-      //   두 번 울렸다(실측 17%). 이 둘은 클릭이 1초 이상 벌어져 타임스탬프로는 못 걸러진다
-      //   → 턴 경계(hasDoneMainAction이 false로 리셋되는 시점)를 window로 세어 판정한다.
+      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number; tileId?: string };
+      const parts = actionParts(e.action ?? '', e.details ?? '', e.tileId);
+      if (!parts || !e.playerId) continue;
+      /* [사용자 2026-08-20] 기술 타일 획득·연방 보상은 '무엇을 얻었나'가 정보라 따로 읽는다.
+         이건 대개 연구소 건설·연방 형성의 후속 로그라 아래 한 턴 1회 규칙에 걸려 무음이 된다 →
+         이것만 예외로 통과시킨다. 대신 같은 턴이면 호칭을 빼 "발타크 …"가 두 번 나오지 않게. */
+      const isTechGain = isFollowupInfo(e.action ?? '');
+      /* [사용자 2026-08-20] 한 턴에 한 번, 그 턴의 '첫' 액션만 읽는다.
+         "파워 액션 → 광산 건설"처럼 수단과 결과가 각각 로그로 남아 두 번 울렸다(실측 17%).
+
+         턴 판정은 서버가 주는 turnMark(그 사람의 턴 시작 로그 seq)를 쓴다. 예전엔
+         hasDoneMainAction이 false로 돌아가는 '순간'을 세었는데, 서버에서 그걸 세우는 곳이 9군데로
+         흩어져 있고 React가 한 틱의 소켓 이벤트를 묶으면 그 순간을 못 보고 지나쳐 다음 액션이 무음이 됐다.
+         그 구멍을 3초 규칙으로 막았더니 이번엔 같은 턴이 두 번 읽혔다(실측: 수단→결과 쌍의 52%).
+         turnMark는 '순간'이 아니라 상태에 실려 오는 값이라 놓칠 수가 없다 → 시간 추정을 걷어냈다.
+         turnMark가 없는 옛 서버·관전 경로에서는 예전 방식(window + 3초)으로 되돌아간다. */
       const ts = e.timestamp ?? Date.now();
-      const win = actionWindowRef.current;
+      const mark = game.turnMark?.[e.playerId];
+      const win = mark ?? actionWindowRef.current;
       const sameWindow = announcedWindowRef.current[e.playerId] === win;
-      const longGap = ts - (lastVoiceAtRef.current[e.playerId] ?? 0) >= 3000;
-      if (sameWindow && !longGap) continue;   // 같은 턴의 후속 로그 → 무음
-      announcedWindowRef.current[e.playerId] = win;
+      const longGap = mark === undefined && ts - (lastVoiceAtRef.current[e.playerId] ?? 0) >= 3000;
+      if (sameWindow && !longGap && !isTechGain) continue;   // 같은 턴의 후속 로그 → 무음
+      const skipWho = isTechGain && sameWindow;
+      // 준비 동작(사거리 올리기 등)은 턴의 안내 1회를 쓰지 않는다 → 뒤에 오는 본 액션도 읽힌다.
+      const isEnabler = parts.length === 1 && ENABLER_LABELS.has(parts[0]);
+      if (!isEnabler) announcedWindowRef.current[e.playerId] = win;
       lastVoiceAtRef.current[e.playerId] = ts;
       const p = game.players?.[e.playerId];
-      enqueueParts([whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? '', label]);
+      const who = skipWho ? '' : (whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? '');
+      enqueueParts([who, ...parts]);
     }
     voiceLogMarkRef.current = log.length;
   }, [game?.gameLog?.length, game?.hasDoneMainAction, game]);

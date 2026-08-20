@@ -33,6 +33,9 @@ VOICES = {
     'f': ('ko-KR-SunHiNeural', 'female'),
     'm': ('ko-KR-InJoonNeural', 'male'),
 }
+MIN_BYTES = 2000  # 이보다 작은 mp3는 생성 실패로 봄(가장 짧은 '패스'도 10KB다)
+BAD: list[str] = []  # 끝까지 못 받은 조각 목록
+
 RATE = '+15%'   # 판당 수십 번 들으므로 조금 빠르게 (사용자 확인)
 
 TRACKS = ['테라포밍', '거리', '인공지능', '가이아', '경제', '과학']
@@ -54,6 +57,21 @@ def collect_phrases() -> list[str]:
     body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)      # 블록 주석
     body = re.sub(r"//[^\n]*", "", body)                   # 줄 주석
     labels = [t for t in re.findall(r"'([^']+)'", body) if re.search(r"[가-힣]", t)]
+
+    # 기술 타일 이름(TECH_TILE_KO) + 머리말 — RULES 밖에 있어 따로 뽑는다.
+    #   '기술타일'/'고급 기술타일' + 타일이름 + '연구 <트랙>' 3조각으로 읽으므로 조합 문구는 만들지 않는다
+    #   (통문장이면 타일 30 × 트랙 6 = 180개).
+    m3 = re.search(r"TECH_TILE_KO[^{]*[{](.*?)[}];", src, re.S)
+    tiles = re.findall(r":\s*'([^']+)'", m3.group(1)) if m3 else []
+    labels += ['기술타일', '고급 기술타일'] + tiles
+
+    # 보너스 타일 이름(BONUS_TILE_KO) — 패스할 때 '패스' + 타일이름 2조각으로 읽는다
+    m4 = re.search(r"BONUS_TILE_KO[^{]*[{](.*?)[}];", src, re.S)
+    labels += re.findall(r":\s*'([^']+)'", m4.group(1)) if m4 else []
+
+    # 조립형 문구 목록(EXTRA_CLIP_PHRASES) — 연방 보상처럼 숫자·자원을 붙여 만드는 것들
+    m5 = re.search(r"EXTRA_CLIP_PHRASES[^\[]*\[(.*?)\];", src, re.S)
+    labels += re.findall(r"'([^']+)'", m5.group(1)) if m5 else []
 
     # 탑승은 `${SHIP_KO(d)} 탑승` 형태라 배 이름 4종 + 조합을 직접 만든다
     ships = ['리벨리온', '트왈라잇', '이클립스', '티에프', '우주선']
@@ -80,10 +98,19 @@ async def gen(voice_id: str, folder: str, phrases: list[str]) -> dict:
     for i, text in enumerate(phrases, 1):
         k = key_of(text)
         path = os.path.join(d, k + '.mp3')
-        if not os.path.exists(path):
+        # [버그수정 2026-08-20] edge-tts가 간혹 빈 응답을 줘 0바이트 mp3가 저장된다(실측 113건 중 1건).
+        #   '이미 있으면 건너뛴다'만 보면 다시 돌려도 그 조각은 영구히 빈 파일로 남고, 클라이언트는
+        #   onerror로 그냥 넘어가므로 그 단어만 조용히 빠진다(눈에 안 띄는 종류의 고장).
+        #   → 너무 작은 파일은 없는 것으로 보고 다시 받는다.
+        for _ in range(3):
+            if os.path.exists(path) and os.path.getsize(path) >= MIN_BYTES:
+                break
             await edge_tts.Communicate(text, voice_id, rate=RATE).save(path)
+        size = os.path.getsize(path)
+        if size < MIN_BYTES:
+            BAD.append(f'{folder}/{text}')
         manifest[text] = k
-        print(f'  [{i:2}/{len(phrases)}] {text}  →  {folder}/{k}.mp3  ({os.path.getsize(path)}B)')
+        print(f'  [{i:2}/{len(phrases)}] {text}  →  {folder}/{k}.mp3  ({size}B)' + ('  ← 빈 파일!' if size < MIN_BYTES else ''))
     return manifest
 
 
@@ -117,6 +144,12 @@ async def main():
     )
     print(f'\n완료 — 조각 {len(phrases)}개 × 목소리 {len(manifest["voices"])}종 · 총 {total/1024:.0f}KB')
     print(f'manifest: client/public/voice/manifest.json')
+    if BAD:
+        print('')
+        print('경고 — 받지 못한 조각 (다시 실행하면 이 파일만 다시 받는다):')
+        for b in BAD:
+            print('   ' + b)
+        sys.exit(1)
 
 
 asyncio.run(main())
