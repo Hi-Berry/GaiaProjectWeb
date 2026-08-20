@@ -20,6 +20,7 @@ import {
   fireTestNotification,
 } from '@/lib/turnNotify';
 import { VolumeControl } from '@/components/VolumeControl';
+import { getVoiceRate, getVoiceWho, isVoiceOn, setVoiceOn, setVoiceRate, setVoiceWho, speak, type VoiceWho } from '@/lib/speech';
 import { GameClient } from '@/lib/gameClient';
 
 interface HelpItem {
@@ -334,6 +335,71 @@ function SpecialActionStripToggle() {
   );
 }
 
+/** [사용자 2026-08-20] 액션 음성 안내 — 턴이 넘어갈 때 "발타크 교역소 건설"처럼 읽어준다.
+ *  기본 꺼짐(음악 들으며 하는 사람에겐 방해). 속도는 판당 수십 번 들으므로 기본 1.4배. */
+function ActionVoiceToggle() {
+  const [on, setOn] = useState(false);
+  const [rate, setRate] = useState(1.4);
+  const [who, setWho] = useState<VoiceWho>('faction');
+  useEffect(() => { setOn(isVoiceOn()); setRate(getVoiceRate()); setWho(getVoiceWho()); }, []);
+  const toggle = (v: boolean) => {
+    setOn(v);
+    setVoiceOn(v);
+    if (v) speak('음성 안내를 켰습니다');   // 켠 즉시 확인 + 자동재생 잠금 해제
+  };
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-cyan-400">
+        액션 음성 안내
+      </h3>
+      <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold text-zinc-200">턴이 넘어갈 때 읽어주기</div>
+          <div className="text-[9px] leading-snug text-zinc-500">
+            방금 끝난 액션 하나만 읽습니다. 호칭은 종족/사람 이름 중 고를 수 있고, 폰은 무음 스위치를 끄셔야 들립니다.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => toggle(!on)}
+          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold transition-colors ${on ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+        >
+          {on ? '켜짐' : '꺼짐'}
+        </button>
+      </div>
+      {on && (
+        <div className="border-t border-white/8 px-2 py-1.5">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="shrink-0 text-[9px] text-zinc-500">호칭</span>
+            {([['faction', '종족 이름', '발타크 교역소 건설'], ['player', '사람 이름', '시리 교역소 건설']] as Array<[VoiceWho, string, string]>).map(([v, label, sample]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => { setWho(v); setVoiceWho(v); speak(sample); }}
+                className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${who === v ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+                title={`예: ${sample}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-zinc-500 shrink-0">속도</span>
+            <input
+              type="range" min="0.8" max="2" step="0.1" value={rate}
+              onChange={(e) => { const v = Number(e.target.value); setRate(v); setVoiceRate(v); }}
+              onMouseUp={() => speak('발타크 교역소 건설')}
+              onTouchEnd={() => speak('발타크 교역소 건설')}
+              className="flex-1 accent-cyan-400"
+            />
+            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-zinc-300">{rate.toFixed(1)}x</span>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** 좌하단 액션 버튼 묶음(Free Actions / Tactical Overview / Research Board / 특수 액션) 표시 여부.
  *  [2026-08-18 사용자] **기본 표시**. (2026-08-14엔 기본 숨김이었다.)
  *  꺼도 기능은 다른 경로로 다 쓸 수 있다(키보드 F/T/R, 미니창 고정, 데스크톱 사이드바). */
@@ -589,6 +655,8 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
               </div>
             ))}
           </div>
+          <ActionVoiceToggle />
+
           {/* [사용자 2026-08-18] 화면 둘러보기 다시 보기 — GameBoard가 'start-ui-tour'를 받아 스포트라이트 안내를 켠다. */}
           <button
             type="button"

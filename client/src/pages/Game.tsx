@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
+import { actionPhrase, isVoiceOn, primeSpeech, speak } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -578,6 +579,9 @@ export default function Game() {
   const [pendingRebellionMineToTS, setPendingRebellionMineToTS] = useState<string | null>(null);
   /** 테란 의회: 가이아포머 토큰 해택 선택 (4→QIC/K, 3→O, 1→C) */
   const [terranCouncilChoice, setTerranCouncilChoice] = useState({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
+  /** 음성 안내용 턴 경계 — 이 인덱스 이후 로그가 '방금 끝난 턴'이다. */
+  const voiceLogMarkRef = useRef(0);
+
   /** [사용자 2026-08-20] 패스 확인창의 '안 쓴 특수 액션' 경고에 효과음.
    *  경고 문구는 렌더 안에서 계산되지만 소리는 창이 '열릴 때 한 번'만 나야 하므로 여기서 따로 판정한다.
    *  (렌더 중 재생하면 리렌더마다 울린다.) */
@@ -1250,6 +1254,18 @@ export default function Game() {
     }
   }, [game?.pendingTerranCouncilBenefit?.playerId, playerId]);
 
+  // [사용자 2026-08-20] 음성 안내는 첫 사용자 제스처 뒤에만 재생이 허용된다(모바일 자동재생 정책).
+  //   접속 직후 몇 턴이 조용하다가 갑자기 나오는 일을 막으려고 첫 탭에서 한 번 잠금을 푼다.
+  useEffect(() => {
+    const unlock = () => primeSpeech();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
   // Turn behavior notification sounds
   useEffect(() => {
     if (!game || !game.turnOrder || game.currentPlayerIndex === undefined) return;
@@ -1265,6 +1281,30 @@ export default function Game() {
       } else if (!isMyTurn && activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
         playOtherTurnSound();
       }
+      // [사용자 2026-08-20] 액션 음성 안내 — "턴이 넘어가는 순간"에 방금 끝난 턴의 액션을 읽는다.
+      //   로그 줄마다 읽으면 프리액션·되돌리기까지 쏟아져 혼란스럽다는 판단. 여기가 정확히 턴당 1회 지점이다.
+      // [버그수정] 처음엔 뒤에서부터 첫 일치를 읽었는데, "티에프 테라포밍 → Built Mine"처럼 삽을 받고 광산을 지으면
+      //   뒤쪽 광산만 읽혀 실제로 고른 액션(우주선)이 사라졌다(사용자 관찰). → 턴 경계를 기억해 **순서대로** 훑고,
+      //   서로 다른 문구가 둘 이상이면 앞의 두 개를 이어 읽는다("티에프 테라포밍, 광산 건설").
+      const finishedBy = lastActivePlayerRef.current;
+      const log = game.gameLog ?? [];
+      if (isVoiceOn() && finishedBy && finishedBy !== activePlayerId) {
+        const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 로그가 줄어도 안전
+        const window = from > 0 ? log.slice(from) : log.slice(-60);   // 마크가 없으면 최근 60줄로 대체
+        const fac = game.players?.[finishedBy]?.faction ?? undefined;
+        const nm = game.players?.[finishedBy]?.name ?? undefined;
+        const said: string[] = [];
+        for (const raw of window) {
+          const e = raw as { playerId?: string; action?: string; details?: string };
+          if (e.playerId !== finishedBy) continue;                    // 남의 누수·수신 로그 제외
+          const phrase = actionPhrase(e.action ?? '', e.details ?? '', fac, nm);
+          if (!phrase || said.includes(phrase)) continue;             // 무음 대상·중복 제외
+          said.push(phrase);
+          if (said.length >= 2) break;                               // 길어지면 다음 턴을 덮으므로 2개까지
+        }
+        if (said.length) speak(said.join(', '));
+      }
+      voiceLogMarkRef.current = log.length;   // 다음 턴의 시작 지점
       lastActivePlayerRef.current = activePlayerId;
       lastWasMyTurnRef.current = isMyTurn;
     }
