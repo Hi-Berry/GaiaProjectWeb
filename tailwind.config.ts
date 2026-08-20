@@ -96,10 +96,25 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        // [사용자 2026-08-20] 패스창 '안 쓴 특수 액션' 경고 박스 — 소리와 함께 계속 깜빡인다.
+        // 껐다 켜는 방식(opacity 0↔1)은 글자가 사라져 읽기 나쁘므로 배경·테두리·글로우만 왕복시킨다.
+        "warn-blink": {
+          "0%, 100%": {
+            backgroundColor: "rgb(245 158 11 / 0.10)",
+            borderColor: "rgb(245 158 11 / 0.40)",
+            boxShadow: "0 0 0 0 rgb(245 158 11 / 0)",
+          },
+          "50%": {
+            backgroundColor: "rgb(245 158 11 / 0.28)",
+            borderColor: "rgb(245 158 11 / 0.95)",
+            boxShadow: "0 0 14px 1px rgb(245 158 11 / 0.35)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "warn-blink": "warn-blink 1.1s ease-in-out infinite",
       },
     },
   },

@@ -131,6 +131,61 @@ export function playPowerReceiveSound() {
 }
 
 /**
+ * 부드러운 주의 알림 — 낮은 음역의 사인파 펄스를 두 번. 사이렌(triangle 왕복)이 "쨍하고 기분 나쁘다"는
+ * 지적을 받아 교체했다(2026-08-20). 귀를 찌르는 성분을 없애는 게 요지:
+ *   ① sine — 배음이 없어 날카로움이 안 생긴다(triangle/square는 고배음이 쨍함의 원인)
+ *   ② lowpass 900Hz — 남은 고역까지 깎는다
+ *   ③ 느린 어택(0.04s) — 시작의 '딱/쨍' 트랜지언트를 없애 부드럽게 들어온다
+ *   ④ 낮은 음역(F4·C4) — 같은 음량에서 체감 자극이 훨씬 덜하다
+ * 대신 '두 번 울린다'는 리듬으로 경고성을 유지한다.
+ */
+function playSoftPulses(freqs: number[], pulseSec: number, gapSec: number, volume: number) {
+    try {
+        const v = volume * volumeMultiplier();
+        if (v <= 0) return; // 음소거(0단계)
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(900, ctx.currentTime);
+        filter.Q.setValueAtTime(0.7, ctx.currentTime);   // 공진 없이 완만하게
+        filter.connect(ctx.destination);
+
+        const peak = Math.min(0.8, v);
+        freqs.forEach((f, i) => {
+            const t0 = ctx.currentTime + i * (pulseSec + gapSec);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(f, t0);
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.linearRampToValueAtTime(peak, t0 + 0.04);              // 느린 어택
+            gain.gain.setValueAtTime(peak, t0 + pulseSec * 0.55);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + pulseSec);    // 자연스러운 감쇠
+            osc.connect(gain);
+            gain.connect(filter);
+            osc.start(t0);
+            osc.stop(t0 + pulseSec + 0.02);
+        });
+    } catch (error) {
+        console.warn('Failed to play pulses:', error);
+    }
+}
+
+/**
+ * [사용자 2026-08-20] 패스 확인창에 '아직 안 쓴 특수 액션' 경고가 떴을 때.
+ * 변경 이력: 하강 2음("한 번 울려서 경고 같지 않다") → 사이렌 왕복("쨍하고 기분 나쁘다") → 지금(낮은 사인파 2펄스).
+ * 놓치면 그 라운드 특수 액션이 사라지는 경고라 두 번 울리되, 음색은 부드럽게 둔다.
+ * 음량은 알림음 설정을 따르고 0단계면 안 난다.
+ */
+export function playPassWarnSound() {
+    playSoftPulses([349.23, 293.66], 0.26, 0.10, 0.22);   // F4 → D4 (완만한 하강 2펄스)
+}
+
+/**
  * 게임 종료 효과음(~3초). 볼륨 설정을 존중(playBeep 경유).
  * - 1등(isWinner): C5–E5–G5–C6 상승 아르페지오 + 마지막 C장3화음 지속(축하 팡파레).
  * - 그 외: 부드러운 2음 하강(중립 마무리).

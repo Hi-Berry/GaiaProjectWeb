@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound } from '@/lib/audio';
+import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -578,6 +578,21 @@ export default function Game() {
   const [pendingRebellionMineToTS, setPendingRebellionMineToTS] = useState<string | null>(null);
   /** 테란 의회: 가이아포머 토큰 해택 선택 (4→QIC/K, 3→O, 1→C) */
   const [terranCouncilChoice, setTerranCouncilChoice] = useState({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
+  /** [사용자 2026-08-20] 패스 확인창의 '안 쓴 특수 액션' 경고에 효과음.
+   *  경고 문구는 렌더 안에서 계산되지만 소리는 창이 '열릴 때 한 번'만 나야 하므로 여기서 따로 판정한다.
+   *  (렌더 중 재생하면 리렌더마다 울린다.) */
+  const passWarnCount = (confirmPassWithTileId && game && playerId)
+    ? getSpecialActionsForPlayer(game, playerId).filter(a => !a.used).length
+    : 0;
+  // [사용자 2026-08-20] 한 번만 울리면 놓친다 → 창이 열려 있는 동안 계속 반복. 닫으면(=cleanup) 즉시 멈춘다.
+  //   간격 1.8초 = 소리 길이(약 0.6초) + 여백. 언마운트·경고 해소 시에도 clearInterval로 정리된다.
+  useEffect(() => {
+    if (!confirmPassWithTileId || passWarnCount <= 0) return;
+    playPassWarnSound();
+    const id = setInterval(playPassWarnSound, 1800);
+    return () => clearInterval(id);
+  }, [confirmPassWithTileId, passWarnCount]);
+
   /** 타클론 파워 수신 선택. Brain First = 충전 시 브레인을 먼저 올릴지.
    *  PI 1st = 의회 토큰을 충전 '전에' 추가할지(켜면 그 토큰도 이번 충전으로 올라가고, 그만큼 받는 파워·VP가 늘 수 있음). */
   const [powerOfferBrainFirst, setPowerOfferBrainFirst] = useState(true);
@@ -4016,7 +4031,7 @@ export default function Game() {
                     경고가 1개라도 있으면 Ok 버튼 색도 경고색(앰버)으로 바꿔 한 번 더 알린다. */}
                 <div className="sticky bottom-0 -mx-6 -mb-6 px-6 pb-6 pt-3 bg-zinc-950/95 backdrop-blur border-t border-white/10 space-y-3">
                   {unusedAbilities.length > 0 && (
-                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 animate-warn-blink motion-reduce:animate-none">
                       <p className="text-amber-300 font-bold text-sm flex items-center gap-1.5">
                         ⚠️ 아직 안 쓴 특수 액션이 {unusedAbilities.length}개 있어요
                       </p>
