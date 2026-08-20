@@ -20,7 +20,7 @@ import {
   fireTestNotification,
 } from '@/lib/turnNotify';
 import { VolumeControl } from '@/components/VolumeControl';
-import { getVoiceRate, getVoiceWho, isVoiceOn, setVoiceOn, setVoiceRate, setVoiceWho, speak, type VoiceWho } from '@/lib/speech';
+import { getVoiceName, getVoiceRate, getVoiceStyle, getVoiceWho, isVoiceOn, listKoVoices, setVoiceName, setVoiceOn, setVoiceRate, setVoiceStyle, setVoiceWho, speakParts, type VoiceStyle, type VoiceWho } from '@/lib/speech';
 import { GameClient } from '@/lib/gameClient';
 
 interface HelpItem {
@@ -258,7 +258,10 @@ function NotifyToggle() {
         </button>
       </div>
 
-      {/* 커스텀 문구 (스텔스용) — 비워두면 기본 문구 사용 */}
+      {/* 커스텀 문구 (스텔스용) — 비워두면 기본 문구 사용.
+          [사용자 2026-08-20] 다른 설정들처럼 '켠 뒤에만' 펼친다. 껐는데도 입력칸·버튼이 상시
+          열려 있어 안내창이 길어지고 불편했다(알림을 안 쓰는 사람에겐 쓸 일 없는 영역). */}
+      {on && (
       <div className="border-t border-white/8 px-2 py-1.5 space-y-1.5">
         <div className="text-[9px] text-zinc-500">알림 문구 (비워두면 기본값). 회사 등에서 무난한 문구로 바꿔두기 좋아요.</div>
         <input
@@ -295,6 +298,7 @@ function NotifyToggle() {
           </button>
         </div>
       </div>
+      )}
     </section>
   );
 }
@@ -341,11 +345,21 @@ function ActionVoiceToggle() {
   const [on, setOn] = useState(false);
   const [rate, setRate] = useState(1.4);
   const [who, setWho] = useState<VoiceWho>('faction');
-  useEffect(() => { setOn(isVoiceOn()); setRate(getVoiceRate()); setWho(getVoiceWho()); }, []);
+  const [voices, setVoices] = useState<Array<{ name: string; localService: boolean }>>([]);
+  const [voiceName, setVName] = useState('');
+  const [style, setStyle] = useState<VoiceStyle>('female');
+  useEffect(() => {
+    setOn(isVoiceOn()); setRate(getVoiceRate()); setWho(getVoiceWho()); setVName(getVoiceName()); setStyle(getVoiceStyle());
+    const load = () => setVoices(listKoVoices().map((v) => ({ name: v.name, localService: v.localService })));
+    load();
+    // 안드로이드는 목록이 비동기로 채워진다
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.addEventListener?.('voiceschanged', load);
+    return () => { window.speechSynthesis?.removeEventListener?.('voiceschanged', load); };
+  }, []);
   const toggle = (v: boolean) => {
     setOn(v);
     setVoiceOn(v);
-    if (v) speak('음성 안내를 켰습니다');   // 켠 즉시 확인 + 자동재생 잠금 해제
+    if (v) speakParts(['발타크', '교역소 건설']);   // 켠 즉시 확인 + 자동재생 잠금 해제
   };
   return (
     <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
@@ -369,13 +383,15 @@ function ActionVoiceToggle() {
       </div>
       {on && (
         <div className="border-t border-white/8 px-2 py-1.5">
+          {/* 호칭 선택은 기기 음성일 때만 — 조각 모드엔 사람 이름 mp3가 없다(종족명으로 고정) */}
+          {style === 'device' && (
           <div className="mb-1.5 flex items-center gap-2">
             <span className="shrink-0 text-[9px] text-zinc-500">호칭</span>
             {([['faction', '종족 이름', '발타크 교역소 건설'], ['player', '사람 이름', '시리 교역소 건설']] as Array<[VoiceWho, string, string]>).map(([v, label, sample]) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => { setWho(v); setVoiceWho(v); speak(sample); }}
+                onClick={() => { setWho(v); setVoiceWho(v); speakParts([sample.split(' ')[0], sample.split(' ').slice(1).join(' ')]); }}
                 className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${who === v ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
                 title={`예: ${sample}`}
               >
@@ -383,13 +399,47 @@ function ActionVoiceToggle() {
               </button>
             ))}
           </div>
+          )}
+          {/* [사용자 2026-08-20] 목소리 — female/male은 미리 만든 신경망 mp3(client/public/voice),
+              device는 브라우저 내장 TTS. 윈도우 크롬 내장 음성이 기계음이라 조각을 기본으로 둔다. */}
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="shrink-0 text-[9px] text-zinc-500">목소리</span>
+            {([['female', '여성'], ['male', '남성'], ['device', '기기 음성']] as Array<[VoiceStyle, string]>).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => { setStyle(v); setVoiceStyle(v); speakParts(['발타크', '교역소 건설']); }}
+                className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${style === v ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* [사용자 2026-08-20] 음성 고르기 — 같은 기기에도 세대가 다른 음성이 섞여 있어(구형 SAPI vs OneCore vs
+              신경망) 기본값만으로는 기계음처럼 들릴 수 있다. 목록은 품질 좋은 순으로 정렬해 둔다. */}
+          {style === 'device' && voices.length > 1 && (
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="shrink-0 text-[9px] text-zinc-500">음성</span>
+              <select
+                value={voiceName}
+                onChange={(e) => { setVName(e.target.value); setVoiceName(e.target.value); speakParts(['발타크', '교역소 건설']); }}
+                className="min-w-0 flex-1 rounded border border-white/10 bg-zinc-900/70 px-1.5 py-1 text-[10px] text-zinc-100"
+              >
+                <option value="">자동 (가장 좋은 것)</option>
+                {voices.map((v) => (
+                  <option key={v.name} value={v.name}>{v.name}{v.localService ? '' : ' (온라인)'}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-zinc-500 shrink-0">속도</span>
             <input
               type="range" min="0.8" max="2" step="0.1" value={rate}
               onChange={(e) => { const v = Number(e.target.value); setRate(v); setVoiceRate(v); }}
-              onMouseUp={() => speak('발타크 교역소 건설')}
-              onTouchEnd={() => speak('발타크 교역소 건설')}
+              onMouseUp={() => speakParts(['발타크', '교역소 건설'])}
+              onTouchEnd={() => speakParts(['발타크', '교역소 건설'])}
               className="flex-1 accent-cyan-400"
             />
             <span className="w-8 shrink-0 text-right font-mono text-[10px] text-zinc-300">{rate.toFixed(1)}x</span>
@@ -611,7 +661,19 @@ interface GameUiHelpDialogProps {
 export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTaklonsBrain, taklonsBrainPriority, onOpenAdmin }: GameUiHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100">
+      {/* [사용자 2026-08-20] 창 안에서 휠/터치로 스크롤하면 맵이 확대·이동되던 문제.
+          이 창은 GameBoard의 맵 컨테이너 JSX 안에 있고(GameBoard.tsx:1328~2069), Radix가 body로 포털해도
+          React 이벤트는 컴포넌트 트리를 따라 버블링해 맵의 onWheel/onTouchMove로 올라간다.
+          → 편의기능 창(UtilityPanel)과 같은 방식으로 루트에서 끊는다. 내부 요소의 자체 처리에는 영향 없다. */}
+      <DialogContent
+        className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseMove={(e) => e.stopPropagation()}
+      >
         <DialogHeader className="shrink-0 space-y-0 border-b border-white/10 px-3 py-2 pr-10">
           <DialogTitle className="text-sm font-bold text-white">UI · 단축키 안내</DialogTitle>
           <DialogDescription className="text-[10px] leading-none text-zinc-500">

@@ -125,7 +125,17 @@ export function OnboardingTour({ steps, onDone }: { steps: TourStep[]; onDone: (
   const isLast = idx >= total - 1;
 
   return createPortal(
-    <div className="fixed inset-0 z-[400]" role="dialog" aria-label="화면 둘러보기">
+    <div
+      className="fixed inset-0 z-[400]"
+      role="dialog"
+      aria-label="화면 둘러보기"
+      /* 도움말 창과 같은 이유 — 이 오버레이도 맵 컨테이너 JSX 안이라 휠/터치가 맵 줌으로 올라간다. */
+      onWheel={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseMove={(e) => e.stopPropagation()}
+    >
       {/* 스포트라이트: 구멍 하나만 두고 바깥 전체를 어둡게 덮는다(클릭도 막는다) */}
       {rect ? (
         <div

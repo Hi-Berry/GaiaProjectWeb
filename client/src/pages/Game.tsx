@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
-import { actionPhrase, isVoiceOn, primeSpeech, speak } from '@/lib/speech';
+import { actionLabel, enqueueParts, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -581,6 +581,13 @@ export default function Game() {
   const [terranCouncilChoice, setTerranCouncilChoice] = useState({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
   /** 음성 안내용 턴 경계 — 이 인덱스 이후 로그가 '방금 끝난 턴'이다. */
   const voiceLogMarkRef = useRef(0);
+  /** 음성 안내 '한 턴에 한 번' 판정용.
+   *  actionWindow: hasDoneMainAction이 false로 돌아올 때마다(=새 턴 시작) 1 증가.
+   *  announcedWindow: 사람별로 마지막에 안내한 window — 같은 window면 후속 로그를 읽지 않는다.
+   *  lastVoiceAt: 업데이트가 뭉쳐 와서 window 전환을 못 본 경우의 보조 판정(3초 이상 벌어지면 새 액션). */
+  const actionWindowRef = useRef(0);
+  const announcedWindowRef = useRef<Record<string, number>>({});
+  const lastVoiceAtRef = useRef<Record<string, number>>({});
 
   /** [사용자 2026-08-20] 패스 확인창의 '안 쓴 특수 액션' 경고에 효과음.
    *  경고 문구는 렌더 안에서 계산되지만 소리는 창이 '열릴 때 한 번'만 나야 하므로 여기서 따로 판정한다.
@@ -1266,6 +1273,39 @@ export default function Game() {
     };
   }, []);
 
+  // [사용자 2026-08-20] 액션 음성 안내 — 로그에 '메인 액션'이 붙을 때마다 하나씩 읽는다.
+  //   처음엔 '현재 플레이어 변경'을 트리거로 썼는데, 혼자 남아 연속으로 턴을 가져가면 사람이 안 바뀌어
+  //   마지막에 한 번만 울렸다(사용자 관찰). 프리액션·되돌리기·결과성 로그는 actionLabel이 null이라 무음이고,
+  //   연속 액션은 speech.ts의 큐가 순서대로 처리한다.
+  useEffect(() => {
+    const log = game?.gameLog ?? [];
+    // 턴이 새로 시작되면(메인 액션 미수행 상태) 다음 안내를 허용한다.
+    if (game && !game.hasDoneMainAction) actionWindowRef.current += 1;
+    // 첫 진입(또는 재접속)에는 과거 로그를 읽지 않는다 — 마크만 현재 위치로 맞춘다.
+    if (voiceLogMarkRef.current === 0 && log.length) { voiceLogMarkRef.current = log.length; return; }
+    if (!isVoiceOn() || !game) { voiceLogMarkRef.current = log.length; return; }
+    const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 줄어도 안전
+    for (const raw of log.slice(from)) {
+      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number };
+      const label = actionLabel(e.action ?? '', e.details ?? '');
+      if (!label || !e.playerId) continue;
+      // [사용자 2026-08-20] 한 턴에 한 번, 그 턴의 '첫' 액션만 읽는다.
+      //   "파워 액션 → 광산 건설", "티에프 테라포밍 → 광산 건설"처럼 수단과 결과가 각각 로그로 남아
+      //   두 번 울렸다(실측 17%). 이 둘은 클릭이 1초 이상 벌어져 타임스탬프로는 못 걸러진다
+      //   → 턴 경계(hasDoneMainAction이 false로 리셋되는 시점)를 window로 세어 판정한다.
+      const ts = e.timestamp ?? Date.now();
+      const win = actionWindowRef.current;
+      const sameWindow = announcedWindowRef.current[e.playerId] === win;
+      const longGap = ts - (lastVoiceAtRef.current[e.playerId] ?? 0) >= 3000;
+      if (sameWindow && !longGap) continue;   // 같은 턴의 후속 로그 → 무음
+      announcedWindowRef.current[e.playerId] = win;
+      lastVoiceAtRef.current[e.playerId] = ts;
+      const p = game.players?.[e.playerId];
+      enqueueParts([whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? '', label]);
+    }
+    voiceLogMarkRef.current = log.length;
+  }, [game?.gameLog?.length, game?.hasDoneMainAction, game]);
+
   // Turn behavior notification sounds
   useEffect(() => {
     if (!game || !game.turnOrder || game.currentPlayerIndex === undefined) return;
@@ -1281,30 +1321,6 @@ export default function Game() {
       } else if (!isMyTurn && activePlayerId && activePlayerId !== lastActivePlayerRef.current) {
         playOtherTurnSound();
       }
-      // [사용자 2026-08-20] 액션 음성 안내 — "턴이 넘어가는 순간"에 방금 끝난 턴의 액션을 읽는다.
-      //   로그 줄마다 읽으면 프리액션·되돌리기까지 쏟아져 혼란스럽다는 판단. 여기가 정확히 턴당 1회 지점이다.
-      // [버그수정] 처음엔 뒤에서부터 첫 일치를 읽었는데, "티에프 테라포밍 → Built Mine"처럼 삽을 받고 광산을 지으면
-      //   뒤쪽 광산만 읽혀 실제로 고른 액션(우주선)이 사라졌다(사용자 관찰). → 턴 경계를 기억해 **순서대로** 훑고,
-      //   서로 다른 문구가 둘 이상이면 앞의 두 개를 이어 읽는다("티에프 테라포밍, 광산 건설").
-      const finishedBy = lastActivePlayerRef.current;
-      const log = game.gameLog ?? [];
-      if (isVoiceOn() && finishedBy && finishedBy !== activePlayerId) {
-        const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 로그가 줄어도 안전
-        const window = from > 0 ? log.slice(from) : log.slice(-60);   // 마크가 없으면 최근 60줄로 대체
-        const fac = game.players?.[finishedBy]?.faction ?? undefined;
-        const nm = game.players?.[finishedBy]?.name ?? undefined;
-        const said: string[] = [];
-        for (const raw of window) {
-          const e = raw as { playerId?: string; action?: string; details?: string };
-          if (e.playerId !== finishedBy) continue;                    // 남의 누수·수신 로그 제외
-          const phrase = actionPhrase(e.action ?? '', e.details ?? '', fac, nm);
-          if (!phrase || said.includes(phrase)) continue;             // 무음 대상·중복 제외
-          said.push(phrase);
-          if (said.length >= 2) break;                               // 길어지면 다음 턴을 덮으므로 2개까지
-        }
-        if (said.length) speak(said.join(', '));
-      }
-      voiceLogMarkRef.current = log.length;   // 다음 턴의 시작 지점
       lastActivePlayerRef.current = activePlayerId;
       lastWasMyTurnRef.current = isMyTurn;
     }
