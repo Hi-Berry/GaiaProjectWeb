@@ -397,6 +397,20 @@ const RULES: Array<[RegExp, string | ((d: string) => string)]> = [
 	//   이미 무음이라 타클론만 소리가 나는 게 앞뒤가 안 맞았다(사람 로그 60판에 281건). 이름도 틀렸다
 	//   ('Taklons: Brain Stone'은 가이아 영역 이동이라 태우는 게 아니다). 뒤따르는 본 액션이 대신 읽힌다.
 	[/Special$/i, '종족 특수 액션'],
+	/* [사용자 2026-08-20] '인공물 획득'만으로는 무엇인지 알 수 없다는 지적.
+	   로그가 `Artifact: <효과>`로 이미 갈려 있다(사람 로그 실측 11종). */
+	[/^Artifact: Federation benefit/i, '인공물 연방 보상'],
+	[/^Artifact: Spaceship Fed/i, '인공물 우주선 연방'],
+	[/^Artifact: Gaia/i, '인공물 가이아 점수'],
+	[/^Artifact: Science/i, '인공물 과학 점수'],
+	[/^Artifact: Tracks/i, '인공물 트랙 점수'],
+	[/^Artifact: 3\+Planet types/i, '인공물 행성종류 점수'],
+	[/^Artifact: Bridge/i, '인공물 외곽 점수'],
+	[/^Artifact:.*virtual mine \(asteroid/i, '인공물 소행성 광산'],
+	[/^Artifact:.*virtual mine \(proto/i, '인공물 원시행성 광산'],
+	[/^Artifact: 3K 1Q/i, '인공물 지식 정큐'],
+	[/^Artifact: 3O 3C/i, '인공물 광석 크레딧'],
+	[/^Artifact: 2O 5C/i, '인공물 광석 크레딧'],
 	[/^Take.*Artifact|^Artifact/i, '인공물 획득'],
 	[/^Pass|^pass_round/i, '패스'],
 ];
