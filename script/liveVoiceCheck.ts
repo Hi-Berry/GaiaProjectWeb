@@ -62,4 +62,14 @@ socket.on('game_updated', (game: any) => {
 		process.exit(noMark === 0 && marksChanged > 0 ? 0 : 1);
 	}
 });
-setTimeout(() => { console.log('시간 초과'); process.exit(1); }, 240000);
+/** 시간이 다 돼도 그때까지 모인 결과를 낸다 — 예전엔 '시간 초과'만 찍고 끝나 판정을 못 했다.
+ *  프로덕션 번들은 봇 속도 조절이 토큰 없이 막혀 있어 한 판이 느리다(정상 동작). */
+function report(reason: string): never {
+	console.log(lines.slice(0, 60).join('\n'));
+	console.log('');
+	console.log(`[${reason}] 안내 대상 로그 ${seen}건 · 읽음 ${said} · turnMark 없는 건 ${noMark} · 턴 표시 변경 관측 ${marksChanged}회`);
+	const ok = seen > 0 && noMark === 0 && marksChanged > 0;
+	console.log(ok ? 'OK: 모든 안내가 서버 턴 표시로 판정됐다' : '실패: turnMark 누락 또는 턴 표시 변경 없음');
+	process.exit(ok ? 0 : 1);
+}
+setTimeout(() => report('시간 상한'), Number(process.env.TIMEOUT_MS ?? 240000));
