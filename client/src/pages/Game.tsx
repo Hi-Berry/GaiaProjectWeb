@@ -667,8 +667,10 @@ export default function Game() {
     const n = Number((() => { try { return localStorage.getItem('single-mini-page'); } catch { return null; } })());
     return n === 1 || n === 2 ? n : 0;
   });
+  /** [사용자 2026-08-20] 탭 이동은 순환 — Tactical에서 → 누르면 Research로, Research에서 ←면 Tactical로.
+   *  끝에서 막히면 한 방향으로 되돌아가야 해서 3탭에서는 순환이 손이 덜 간다. */
   const gotoMiniPage = (n: number) => {
-    const v = Math.max(0, Math.min(2, n));
+    const v = ((n % 3) + 3) % 3;
     setSingleMiniPage(v);
     try { localStorage.setItem('single-mini-page', String(v)); } catch { /* noop */ }
   };
@@ -7058,9 +7060,8 @@ export default function Game() {
                   <button
                     type="button"
                     aria-label="이전 탭"
-                    disabled={singleMiniPage === 0}
                     onClick={() => gotoMiniPage(singleMiniPage - 1)}
-                    className="h-5 w-5 shrink-0 rounded text-blue-200 disabled:opacity-30 hover:bg-white/10"
+                    className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10"
                   >
                     ◀
                   </button>
@@ -7077,9 +7078,8 @@ export default function Game() {
                   <button
                     type="button"
                     aria-label="다음 탭"
-                    disabled={singleMiniPage === 2}
                     onClick={() => gotoMiniPage(singleMiniPage + 1)}
-                    className="h-5 w-5 shrink-0 rounded text-blue-200 disabled:opacity-30 hover:bg-white/10"
+                    className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10"
                   >
                     ▶
                   </button>
