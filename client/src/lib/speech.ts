@@ -232,10 +232,26 @@ function speakOnce(list: string[]): Promise<void> {
 	return loadManifest().then((m) => {
 		const keys = m ? list.map((t) => m.phrases?.[t]).filter(Boolean) as string[] : [];
 		if (m && keys.length === list.length) {
-			const rate = Math.max(0.7, Math.min(1.6, 0.75 + (getVoiceRate() - 1) * 0.5));
+			// 조각을 보통 속도로 만들었으므로 기본값(1.4)에서 배속 1.0이 되게 맞춘다.
+			// 슬라이더를 올리면 그만큼 빨라진다(0.8→0.76배, 2.0→1.24배).
+			const rate = Math.max(0.7, Math.min(1.6, 1 + (getVoiceRate() - 1.4) * 0.4));
 			return playClips(keys, style, rate);
 		}
-		speak(list.join(', '));   // 조각 누락 → 기기 TTS 대체(대기 없이)
+		/* [버그수정 2026-08-20] 예전엔 여기서 기다리지 않고 끝냈다 → 큐가 곧바로 다음 안내를 재생해
+		   기기 TTS와 조각이 겹쳐 들렸다(사용자: "소리가 꼬인다"). 끝날 때까지 기다린다. */
+		return new Promise<void>((resolve) => {
+			if (!supported()) { resolve(); return; }
+			try {
+				if (!voiceLookupDone) pickKoVoice();
+				const u = new SpeechSynthesisUtterance(list.join(', '));
+				u.lang = 'ko-KR';
+				u.rate = getVoiceRate();
+				if (koVoice) u.voice = koVoice;
+				u.onend = () => resolve();
+				u.onerror = () => resolve();
+				window.speechSynthesis.speak(u);
+			} catch { resolve(); }
+		});
 	});
 }
 
