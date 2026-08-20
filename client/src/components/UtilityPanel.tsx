@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { getStoredSpectatorId } from '@/lib/gameClient';
 import {
-  PLANET_COLORS, FACTIONS, RESEARCH_TRACKS, RESEARCH_TRACK_END_BONUS,
+  PLANET_COLORS, FACTIONS, RESEARCH_TRACKS, RESEARCH_TRACK_END_BONUS, isHiddenSpectatorName,
   computeBonusTilePassVp, computeAdvancedTechPassVp, getFinalMissionVp, endgameLeftoverUnits,
   type GaiaGameState, type HexTile, type PlanetType, type ResearchTrack,
 } from '@shared/gameConfig';
@@ -52,6 +52,10 @@ function Section({ id, title, accent, children }: { id: string; title: string; a
  *
  *  좌석이 없는 관전으로 들어가도 보이게 하려고, 이름은 좌석 → spectatorNames[관전ID] 순으로 찾는다. */
 const SCORE_PREVIEW_NAMES = ['하이'];
+/** [사용자 2026-08-20] 숨은 관전 아이디('---')도 예상 점수를 볼 수 있게 —
+ *  관전자 목록에 안 뜨는 아이디라 정보 공개 범위가 넓어지지 않는다(어차피 좌석이 없다). */
+const scorePreviewAllowed = (name: string) => SCORE_PREVIEW_NAMES.length === 0
+  || SCORE_PREVIEW_NAMES.includes(name) || isHiddenSpectatorName(name);
 
 /** '지금 이 보드로 게임이 끝나면 몇 점인가' — 서버 정산과 같은 shared 함수만 사용(규칙 복제 금지).
  *
@@ -220,7 +224,7 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
       return sid && names?.[sid] ? names[sid].trim() : '';
     } catch { return ''; }
   })();
-  const canSeeScore = SCORE_PREVIEW_NAMES.length === 0 || SCORE_PREVIEW_NAMES.includes(myName);
+  const canSeeScore = scorePreviewAllowed(myName);
 
   // 예상 점수 — 높은 순으로. 계산 실패(옛 게임 등)해도 패널 전체가 죽지 않게 방어.
   const projections = !canSeeScore ? [] : (game.turnOrder ?? Object.keys(game.players ?? {}))

@@ -99,6 +99,18 @@ async def main():
         manifest.setdefault('voices', []).append(folder)
     with open(os.path.join(OUT_DIR, 'manifest.json'), 'w', encoding='utf-8') as f:
         json.dump(manifest, f, ensure_ascii=False, separators=(',', ':'))
+    # 문구를 바꾸면 옛 파일이 해시 이름으로 남는다 → 매니페스트에 없는 조각은 정리한다.
+    keys = set(manifest['phrases'].values())
+    removed = 0
+    for v in manifest['voices']:
+        d = os.path.join(OUT_DIR, v)
+        for f in os.listdir(d):
+            if f.endswith('.mp3') and f[:-4] not in keys:
+                os.remove(os.path.join(d, f))
+                removed += 1
+    if removed:
+        print(f'  (안 쓰는 옛 조각 {removed}개 삭제)')
+
     total = sum(
         os.path.getsize(os.path.join(OUT_DIR, v, f))
         for v in manifest['voices'] for f in os.listdir(os.path.join(OUT_DIR, v))

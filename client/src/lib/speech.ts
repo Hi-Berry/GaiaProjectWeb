@@ -317,7 +317,7 @@ const RULES: Array<[RegExp, string | ((d: string) => string)]> = [
 	[/^Upgraded to Planetary Institute/i, '의회 건설'],
 	// [버그수정 2026-08-20] `Academy (Right)`는 건설이 아니라 **특수 액션**(details: '1 QIC (Special Action)')이다.
 	//   예전 규칙이 ^Academy\( 까지 건설로 잡아 QIC를 받아도 "아카데미 건설"이 나왔다(사용자 관찰).
-	[/^Academy \(/i, (d) => /qic/i.test(d) ? '아카데미 큐익' : /\d+\s*C\b/i.test(d) ? '아카데미 크레딧' : '아카데미 액션'],
+	[/^Academy \(/i, (d) => /qic/i.test(d) ? '아카데미 정큐받기' : /\d+\s*C\b/i.test(d) ? '아카데미 크레딧' : '아카데미 액션'],
 	[/^Upgraded to Academy/i, '아카데미 건설'],
 	[/^Advanced TS built/i, '고급 교역소 건설'],
 	[/^Advanced Research/i, (d) => {

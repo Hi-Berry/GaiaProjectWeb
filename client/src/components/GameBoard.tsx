@@ -521,6 +521,8 @@ export function GameBoard({
   const [zoom, setZoomInternal] = useState(zoomValue ?? 1);
   const [pan, setPanInternal] = useState(panValue ?? { x: 0, y: 0 });
   const isSyncingRef = useRef(false);
+  /** 팬 한도 함수 참조 — 복원 effect가 clampPan 정의보다 위에 있어 ref로 우회한다. */
+  const clampPanRef = useRef<(p: { x: number; y: number }) => { x: number; y: number }>((p) => p);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
 
@@ -603,7 +605,8 @@ export function GameBoard({
   useEffect(() => {
     if (panValue !== undefined && (Math.abs(panValue.x - pan.x) > 0.1 || Math.abs(panValue.y - pan.y) > 0.1)) {
       isSyncingRef.current = true;
-      setPanInternal(panValue);
+      // 저장된 값이 다른 해상도에서 온 것이면 화면 밖일 수 있어 한도를 적용한다.
+      setPanInternal(clampPanRef.current(panValue));
       setTimeout(() => { isSyncingRef.current = false; }, 0);
     }
   }, [panValue?.x, panValue?.y]);
@@ -616,12 +619,33 @@ export function GameBoard({
     });
   };
 
-  const setPan = (v: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => {
-    setPanInternal(prev => {
-      const next = typeof v === 'function' ? v(prev) : v;
-      return next;
-    });
+  /**
+   * [사용자 2026-08-20] 맵을 화면 밖으로 완전히 밀어내 찾지 못하는 일이 있었다 → 팬 한도.
+   * 맵은 1200×1000 SVG를 컨테이너 중앙에 두고 zoom으로 확대하므로, 화면과 맵이 겹치는 폭·높이가
+   * 각각 '맵과 화면 중 작은 쪽의 10%' 이상 남도록 pan을 제한한다(줌 아웃 상태에서도 항상 일부가 보인다).
+   * 컨테이너 크기를 못 읽는 시점(마운트 직전)에는 제한하지 않는다.
+   */
+  const clampPan = (next: { x: number; y: number }): { x: number; y: number } => {
+    const el = containerRef.current;
+    if (!el) return next;
+    const cw = el.clientWidth, ch = el.clientHeight;
+    if (cw < 5 || ch < 5) return next;
+    const z = zoomRef.current || 1;
+    const mapW = 1200 * z, mapH = 1000 * z;          // HexGrid 고정 크기 × 줌
+    const keepX = Math.max(24, 0.1 * Math.min(mapW, cw));
+    const keepY = Math.max(24, 0.1 * Math.min(mapH, ch));
+    const limX = (cw + mapW) / 2 - keepX;
+    const limY = (ch + mapH) / 2 - keepY;
+    return {
+      x: Math.max(-limX, Math.min(limX, next.x)),
+      y: Math.max(-limY, Math.min(limY, next.y)),
+    };
   };
+
+  const setPan = (v: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => {
+    setPanInternal(prev => clampPan(typeof v === 'function' ? v(prev) : v));
+  };
+  clampPanRef.current = clampPan;
 
   // 내부 상태가 바뀌었을 때만 부모 알림 (useEffect 사용)
   // 마운트 시에는 부모 값으로 이미 초기화되었으므로 리셋 방지를 위해 동기화 중이 아닐 때만 업데이트

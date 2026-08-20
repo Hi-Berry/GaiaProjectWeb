@@ -540,22 +540,36 @@ export default function Game() {
   };
 
   // 상태 영역 ↕ 로그 영역 분할 드래그
-  // 로컬 스토리지 로드 (gameId가 준비되면 한 번만)
+  // 맵 보기(줌·위치) 복원 — gameId가 준비되면 한 번만.
+  // [사용자 2026-08-20] "접속할 때마다 맵 크기를 새로 맞춰야 한다" — 저장은 되고 있었지만 키가
+  //   판별(game-zoom-<gameId>)이라 **새 방을 만들면 저장값이 없어** 매번 기본값으로 시작했다.
+  //   → 판별 값이 없으면 '마지막으로 쓴 값'(map-view-last)을 이어받는다. 판별 값이 우선.
   useEffect(() => {
-    if (gameId && !isZoomInitialized) {
-      const savedZoom = localStorage.getItem(`game-zoom-${gameId}`);
-      const savedPan = localStorage.getItem(`game-pan-${gameId}`);
-      if (savedZoom) setMapZoom(parseFloat(savedZoom));
-      if (savedPan) setMapPan(JSON.parse(savedPan));
-      setIsZoomInitialized(true);
-    }
+    if (!gameId || isZoomInitialized) return;
+    const num = (v: string | null) => {
+      const n = v == null ? NaN : parseFloat(v);
+      return Number.isFinite(n) && n >= 0.2 && n <= 3 ? n : null;   // 손상된 값 방어(줌 한계 내)
+    };
+    const pt = (v: string | null) => {
+      try {
+        const o = v ? JSON.parse(v) : null;
+        return o && Number.isFinite(o.x) && Number.isFinite(o.y) ? { x: o.x, y: o.y } : null;
+      } catch { return null; }
+    };
+    const z = num(localStorage.getItem(`game-zoom-${gameId}`)) ?? num(localStorage.getItem('map-zoom-last'));
+    const pan = pt(localStorage.getItem(`game-pan-${gameId}`)) ?? pt(localStorage.getItem('map-pan-last'));
+    if (z != null) setMapZoom(z);
+    if (pan) setMapPan(pan);
+    setIsZoomInitialized(true);
   }, [gameId, isZoomInitialized]);
 
-  // 로컬 스토리지 저장 (초기화 완료 후에만)
+  // 저장 — 판별 키와 '마지막 값' 키를 함께 쓴다(다음 새 방이 이어받게)
   useEffect(() => {
     if (gameId && isZoomInitialized) {
       localStorage.setItem(`game-zoom-${gameId}`, mapZoom.toString());
       localStorage.setItem(`game-pan-${gameId}`, JSON.stringify(mapPan));
+      localStorage.setItem('map-zoom-last', mapZoom.toString());
+      localStorage.setItem('map-pan-last', JSON.stringify(mapPan));
       localStorage.setItem('is-sidebar-open', String(isSidebarOpen));
     }
   }, [gameId, mapZoom, mapPan, isSidebarOpen, isZoomInitialized]);
@@ -653,12 +667,12 @@ export default function Game() {
     };
   };
   const [researchPos, setResearchPos] = useState(() => {
-    const saved = gameId ? localStorage.getItem(`research-pos-${gameId}`) : null;
+    const saved = loadView(`research-pos-${gameId}`, 'research-pos-last');
     const initial = saved ? JSON.parse(saved) : { x: 20, y: 90 };
     return clampMiniPos(initial);
   });
   const [bonusPos, setBonusPos] = useState(() => {
-    const saved = gameId ? localStorage.getItem(`bonus-pos-${gameId}`) : null;
+    const saved = loadView(`bonus-pos-${gameId}`, 'bonus-pos-last');
     const initial = saved ? JSON.parse(saved) : { x: 380, y: 90 };
     return clampMiniPos(initial);
   });
@@ -673,24 +687,33 @@ export default function Game() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
+  /** [사용자 2026-08-20] 미니뷰 위치·크기도 판별 키로만 저장돼 새 방마다 기본값이었다.
+   *  맵 보기와 같은 방식으로 '마지막 값'을 함께 저장해 이어받는다(판별 값이 우선). */
+  const loadView = (perGame: string, last: string): string | null => {
+    try { return (gameId ? localStorage.getItem(perGame) : null) ?? localStorage.getItem(last); } catch { return null; }
+  };
+  const saveView = (perGame: string, last: string, v: string): void => {
+    try { if (gameId) localStorage.setItem(perGame, v); localStorage.setItem(last, v); } catch { /* noop */ }
+  };
+
   const [researchMiniWidth, setResearchMiniWidth] = useState(() => {
-    const saved = gameId ? localStorage.getItem(`research-mini-width-${gameId}`) : null;
+    const saved = loadView(`research-mini-width-${gameId}`, 'research-mini-width-last');
     const n = saved ? parseInt(saved, 10) : 340;
     return Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, isNaN(n) ? 340 : n));
   });
   const [researchMiniHeight, setResearchMiniHeight] = useState(() => {
-    const saved = gameId ? localStorage.getItem(`research-mini-height-${gameId}`) : null;
+    const saved = loadView(`research-mini-height-${gameId}`, 'research-mini-height-last');
     const n = saved ? parseInt(saved, 10) : 650;
     return isNaN(n) ? 650 : n;
   });
 
   const [bonusMiniWidth, setBonusMiniWidth] = useState(() => {
-    const saved = gameId ? localStorage.getItem(`bonus-mini-width-${gameId}`) : null;
+    const saved = loadView(`bonus-mini-width-${gameId}`, 'bonus-mini-width-last');
     const n = saved ? parseInt(saved, 10) : 340;
     return Math.min(MAX_MINI_WIDTH, Math.max(MIN_MINI_WIDTH, isNaN(n) ? 340 : n));
   });
   const [bonusMiniHeight, setBonusMiniHeight] = useState(() => {
-    const saved = gameId ? localStorage.getItem(`bonus-mini-height-${gameId}`) : null;
+    const saved = loadView(`bonus-mini-height-${gameId}`, 'bonus-mini-height-last');
     const n = saved ? parseInt(saved, 10) : 420;
     return isNaN(n) ? 420 : n;
   });
@@ -755,6 +778,8 @@ export default function Game() {
 
     const keyW = panel === 'research' ? `research-mini-width-${gameId}` : `bonus-mini-width-${gameId}`;
     const keyH = panel === 'research' ? `research-mini-height-${gameId}` : `bonus-mini-height-${gameId}`;
+    const lastW = panel === 'research' ? 'research-mini-width-last' : 'bonus-mini-width-last';
+    const lastH = panel === 'research' ? 'research-mini-height-last' : 'bonus-mini-height-last';
 
     // 미니뷰가 화면 밖으로 튀어나가지 않도록 뷰포트 기반 동적 상한 (창 위치까지 고려)
     const panelPos = panel === 'research' ? researchPos : bonusPos;
@@ -774,21 +799,21 @@ export default function Game() {
         const w = Math.min(maxW, Math.max(MIN_MINI_WIDTH, startWidth + dx));
         lastResizeWidthRef.current = w;
         setWidth(w);
-        if (gameId) localStorage.setItem(keyW, String(w));
+        saveView(keyW, lastW, String(w));
       }
       if (axis === 'y' || axis === 'both') {
         const h = Math.min(maxH, Math.max(MIN_H, startHeight + dy));
         lastResizeHeightRef.current = h;
         setHeight(h);
-        if (gameId) localStorage.setItem(keyH, String(h));
+        saveView(keyH, lastH, String(h));
       }
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (gameId) {
-        if (axis === 'x' || axis === 'both') localStorage.setItem(keyW, String(lastResizeWidthRef.current));
-        if (axis === 'y' || axis === 'both') localStorage.setItem(keyH, String(lastResizeHeightRef.current));
+        if (axis === 'x' || axis === 'both') saveView(keyW, lastW, String(lastResizeWidthRef.current));
+        if (axis === 'y' || axis === 'both') saveView(keyH, lastH, String(lastResizeHeightRef.current));
       }
     };
     document.addEventListener('mousemove', onMove);
@@ -6973,7 +6998,7 @@ export default function Game() {
             onDragEnd={(_, info) => {
               const newPos = clampMiniPos({ x: researchPos.x + info.offset.x, y: researchPos.y + info.offset.y });
               setResearchPos(newPos);
-              if (gameId) localStorage.setItem(`research-pos-${gameId}`, JSON.stringify(newPos));
+              saveView(`research-pos-${gameId}`, 'research-pos-last', JSON.stringify(newPos));
             }}
             className="fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0"
             style={{ width: researchMiniWidth, height: researchMiniHeight, maxHeight: '95vh' }}
@@ -7065,7 +7090,7 @@ export default function Game() {
             onDragEnd={(_, info) => {
               const newPos = clampMiniPos({ x: bonusPos.x + info.offset.x, y: bonusPos.y + info.offset.y });
               setBonusPos(newPos);
-              if (gameId) localStorage.setItem(`bonus-pos-${gameId}`, JSON.stringify(newPos));
+              saveView(`bonus-pos-${gameId}`, 'bonus-pos-last', JSON.stringify(newPos));
             }}
             // 닫아도 언마운트하지 않고 display:none으로만 숨김 → RoundBoard 이미지 DOM 유지(재오픈 즉시 표시)
             className={`fixed z-[110] border border-white/20 bg-zinc-950/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto left-0 top-0 ${isBonusPinned ? '' : 'hidden'}`}
