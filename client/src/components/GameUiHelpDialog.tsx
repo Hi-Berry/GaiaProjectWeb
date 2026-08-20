@@ -427,7 +427,7 @@ function ActionVoiceToggle() {
               <button
                 key={v}
                 type="button"
-                onClick={() => { setWho(v); setVoiceWho(v); speakParts([sample.split(' ')[0], sample.split(' ').slice(1).join(' ')]); }}
+                onClick={() => { setWho(v); setVoiceWho(v); }}
                 className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${who === v ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
                 title={`예: ${sample}`}
               >
@@ -444,7 +444,9 @@ function ActionVoiceToggle() {
               <button
                 key={v}
                 type="button"
-                onClick={() => { setStyle(v); setVoiceStyle(v); speakParts(['발타크', '교역소 건설']); }}
+                /* [사용자 2026-08-20] 고를 때 샘플을 들려주던 것을 뺐다 — 실제 안내와 똑같은 문구라
+                   게임 중에 진짜 액션 안내인 줄 알고 헷갈렸다. 아래 '들어보기'로 원할 때만 듣는다. */
+                onClick={() => { setStyle(v); setVoiceStyle(v); }}
                 className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${style === v ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
               >
                 {label}
@@ -459,7 +461,7 @@ function ActionVoiceToggle() {
               <span className="shrink-0 text-[9px] text-zinc-500">음성</span>
               <select
                 value={voiceName}
-                onChange={(e) => { setVName(e.target.value); setVoiceName(e.target.value); speakParts(['발타크', '교역소 건설']); }}
+                onChange={(e) => { setVName(e.target.value); setVoiceName(e.target.value); }}
                 className="min-w-0 flex-1 rounded border border-white/10 bg-zinc-900/70 px-1.5 py-1 text-[10px] text-zinc-100"
               >
                 <option value="">자동 (가장 좋은 것)</option>
@@ -474,11 +476,18 @@ function ActionVoiceToggle() {
             <input
               type="range" min="0.8" max="2" step="0.1" value={rate}
               onChange={(e) => { const v = Number(e.target.value); setRate(v); setVoiceRate(v); }}
-              onMouseUp={() => speakParts(['발타크', '교역소 건설'])}
-              onTouchEnd={() => speakParts(['발타크', '교역소 건설'])}
               className="flex-1 accent-cyan-400"
             />
             <span className="w-8 shrink-0 text-right font-mono text-[10px] text-zinc-300">{rate.toFixed(1)}x</span>
+            {/* [사용자 2026-08-20] 목소리·호칭·속도를 고를 때마다 저절로 샘플이 나오던 것을 이 버튼으로 모았다.
+                실제 안내와 똑같은 문구라 게임 중에 진짜 액션 안내로 들려 헷갈렸다(사용자 지적). */}
+            <button
+              type="button"
+              onClick={() => speakParts(who === 'player' ? ['시리', '교역소 건설'] : ['발타크', '교역소 건설'])}
+              className="shrink-0 rounded border border-white/10 bg-zinc-800/60 px-2 py-1 text-[10px] font-bold text-zinc-300 hover:text-zinc-100"
+            >
+              들어보기
+            </button>
           </div>
         </div>
       )}
