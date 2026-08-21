@@ -19,6 +19,7 @@ function makeGame(opts: {
 	artifacts?: string[];
 	brainStoneBowl?: 1 | 2 | 3;
 	brainStoneInGaia?: boolean;
+	brainStoneSpent?: boolean;
 	hasPI?: boolean;
 }): GaiaGameState {
 	const player: any = {
@@ -32,6 +33,7 @@ function makeGame(opts: {
 		hasPassed: true,
 		brainStoneBowl: opts.brainStoneBowl,
 		brainStoneInGaia: opts.brainStoneInGaia ?? false,
+		brainStoneSpent: opts.brainStoneSpent ?? false,
 	};
 	const map = opts.hasPI ? [{ id: 't1', ownerId: 'p', structure: 'planetary_institute' }] : [];
 	return { players: { p: player }, map, turnOrder: ['p'], roundNumber: 3 } as any;
@@ -101,9 +103,18 @@ console.log('수익만으로 풀파워가 되는가? (true = 묻지 않고 자�
 	check('타클론(의회O): 판정 제외(물어봄)', isPowerLeechPointlessAfterIncome(g, 'p'), false);
 }
 {
-	// 스톤이 가이아 구역이면 보수적으로 물어봄
-	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, brainStoneInGaia: true });
-	check('타클론(스톤 가이아행): 판정 제외(물어봄)', isPowerLeechPointlessAfterIncome(g, 'p'), false);
+	// [2026-08-21 사용자] 가이아행 스톤도 일반 판정 — 복귀가 '수익 이후'라 누출을 받든 말든 복귀는 동일.
+	//   스톤은 그릇 밖이므로 여력에 안 잡히고, 그릇 토큰이 수익으로 다 차면 자동 거절.
+	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, brainStoneInGaia: true, brainStoneBowl: 1 });
+	check('타클론(스톤 가이아행): 그릇만 판정 → 무의미', isPowerLeechPointlessAfterIncome(g, 'p'), true,
+		`(현재 여력 ${getMaxPowerGain(g.players['p'] as any)})`);
+}
+{
+	// 소멸한 스톤은 캐스케이드에서 빠져야 한다 — simulateIncomeOrder에 brainStoneSpent가 전달되는지 확인.
+	//   (빠지면 유령 스톤이 수익 4 중 일부를 흡수해 '덜 찼다'로 오판 → 계속 물어봤을 것)
+	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, brainStoneSpent: true, brainStoneBowl: 1 });
+	check('타클론(스톤 소멸): 유령 스톤 없이 판정 → 무의미', isPowerLeechPointlessAfterIncome(g, 'p'), true,
+		`(현재 여력 ${getMaxPowerGain(g.players['p'] as any)})`);
 }
 
 // 가이아 포머 구역 토큰은 판정에 영향을 주지 않는다 (사용자 지적):

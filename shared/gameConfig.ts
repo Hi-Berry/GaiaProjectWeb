@@ -1302,7 +1302,7 @@ export function applyPowerIncome(player: PlayerState, amount: number): void {
 export type IncomeOrderItem = { type: 'power' | 'tokens'; amount: number; id: string };
 
 export function simulateIncomeOrder(
-  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia'>,
+  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia' | 'brainStoneSpent'>,
   order: IncomeOrderItem[]
 ): { p1: number; p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3 } {
   const sim = {
@@ -1312,6 +1312,9 @@ export function simulateIncomeOrder(
     power3: base.power3 ?? 0,
     brainStoneBowl: base.brainStoneBowl,
     brainStoneInGaia: base.brainStoneInGaia,
+    // [2026-08-21] 소멸 상태도 전달 — 빠뜨리면 chargePowerTaklons가 소멸한 스톤을 산 것처럼
+    // 캐스케이드해 수익 흡수량이 틀어진다(누출 자동 거절 판정이 이 시뮬레이션을 쓴다).
+    brainStoneSpent: base.brainStoneSpent,
   } as PlayerState;
   for (const item of order) {
     if (item.type === 'tokens') {
@@ -1349,8 +1352,8 @@ function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: {
  * 제외: 이타르(가이아 구역 토큰)는 충전 여력이 0이어도 수락에 의미가 있어 판정하지 않는다.
  *       타클론은 의회(PI)가 있으면 수락 시 토큰 +1이라 같은 이유로 제외하지만, [2026-08-21 사용자]
  *       의회가 없으면 브레인스톤도 그냥 토큰 하나다 — getMaxPowerGain·simulateIncomeOrder가
- *       brainStoneBowl을 이미 계산하므로 일반 판정을 태운다(예전엔 통째로 제외돼 항상 물어봤다).
- *       스톤이 가이아 구역에 있거나 소멸한 특수 상태는 보수적으로 종전대로 묻는다.
+ *       brainStoneBowl·brainStoneSpent를 계산하므로 일반 판정을 태운다(예전엔 통째로 제외돼 항상 물어봤다).
+ *       가이아행 스톤도 복귀가 '수익 이후'라 판정에 개입하지 않는다(가이아포머 토큰과 같은 논리).
  *
  * 가이아 포머 구역 토큰은 고려하지 않는다(사용자 지적): 그 토큰은 그릇 밖에 있어 충전 여력에 잡히지도
  * 않고, 복귀 시점이 '수익 단계가 모두 끝난 뒤'라 수익 파워를 흡수하지도 못한다. 누출을 받든 말든
@@ -1361,9 +1364,12 @@ export function isPowerLeechPointlessAfterIncome(game: GaiaGameState, playerId: 
   if (!player) return false;
   if (player.faction === 'itars') return false;
   if (player.faction === 'taklons') {
+    // 의회(PI)만 예외 — 수락 = 토큰 +1이라 풀파워여도 의미 있다. 스톤이 가이아 구역이거나
+    // 소멸한 상태는 일반 판정으로 충분하다: 가이아행 스톤은 복귀가 '수익 이후'라(가이아포머 토큰과
+    // 동일 타이밍, gameState 가이아 단계) 누출을 받든 말든 복귀가 똑같이 일어나고, 소멸은
+    // simulateIncomeOrder가 brainStoneSpent를 전달받으면서 정확해졌다.
     const hasPI = (game.map ?? []).some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
-    if (hasPI) return false;                                  // 수락 = 토큰 +1, 풀파워여도 의미 있음
-    if (player.brainStoneInGaia || player.brainStoneSpent) return false; // 특수 상태 — 보수적으로 묻는다
+    if (hasPI) return false;
   }
 
   const preview = getNextRoundIncomePreview(playerId, game);
@@ -1388,7 +1394,7 @@ export function isPowerLeechPointlessAfterIncome(game: GaiaGameState, playerId: 
 }
 
 export function findOptimalIncomeOrder(
-  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia'>,
+  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia' | 'brainStoneSpent'>,
   items: IncomeOrderItem[]
 ): IncomeOrderItem[] {
   if (items.length === 0) return [];
