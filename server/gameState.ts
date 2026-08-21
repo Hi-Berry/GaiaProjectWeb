@@ -5178,7 +5178,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 						break;
 					case 'ship-fed-mine-free':
 					case 'ship-fed-3tf-mine':
-						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, rewardId);
+						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 						if (shipReward.id === 'ship-fed-3tf-mine') {
 							player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 							player.spaceshipFed3TfMineFree = true;
@@ -10746,7 +10746,7 @@ export function executeConfirmTwilightFederation(
 				break;
 			case 'ship-fed-mine-free':
 			case 'ship-fed-3tf-mine':
-				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', `${shipReward.label} (재수령은 즉시 효과만)`, rewardId);
+				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
 				if (shipReward.id === 'ship-fed-3tf-mine') {
 					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 					player.spaceshipFed3TfMineFree = true;
