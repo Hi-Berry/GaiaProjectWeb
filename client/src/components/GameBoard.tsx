@@ -408,6 +408,9 @@ interface GameBoardProps {
   mobileControlsOpen?: boolean;
   /** 모바일: 맵 컨트롤 컬럼 토글(연방구현 버튼 옆 Menu 버튼) */
   onToggleMobileControls?: () => void;
+  /** [사용자 2026-08-21] 남은 특수 액션 스트립 빠른 켜기/끄기 — 메뉴를 가릴 때 잠깐 끄는 용도.
+   *  설정('?' 창)이 표시일 때만 넘어온다(설정이 숨김이면 버튼 자체가 없다). */
+  specialStripQuick?: { on: boolean; toggle: () => void };
   /** 관리자 모드 진입 — 도움말 다이얼로그 하단 버튼(모바일용, PC는 Ctrl+Alt+A) */
   onOpenAdmin?: () => void;
   /** 모바일 뷰포트 여부 — 타일/우주선 디테일 패널을 상태창과 같은 크기로 축소 */
@@ -467,6 +470,7 @@ export function GameBoard({
   sidebarWidth = 0,
   onToggleSidebar,
   onToggleMobileControls,
+  specialStripQuick,
   onOpenAdmin,
   playerDetailScale = 1,
   onTogglePlayerDetailScale,
@@ -1891,6 +1895,20 @@ export function GameBoard({
 
           {/* 메뉴 토글 + 컨트롤을 한 세로줄로 — 토글(맨 위, 상시)만 보이고 누르면 아래로 펼침. 버튼 1개로 여닫기. [사용자] 데스크톱도 항상 떠있는 게 보기 안 좋다 → 모바일처럼 접이식으로 통일 */}
           <div className="flex flex-col gap-2 items-end">
+          <div className="flex items-center gap-2">
+          {/* [사용자 2026-08-21] 특수 액션 스트립이 메뉴를 가려서 귀찮다 → 메뉴 버튼 왼쪽에서 잠깐 끄고 켠다.
+              설정(?창)은 건드리지 않는 세션용 스위치 — 설정까지 꺼버리면 이 버튼의 표시 조건도 사라져 못 되돌린다. */}
+          {specialStripQuick && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className={`hidden md:inline-flex h-9 rounded-full px-3 text-[10px] font-bold shadow-lg border backdrop-blur ${specialStripQuick.on ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25' : 'border-primary/20 bg-background/80 text-muted-foreground'}`}
+              onClick={specialStripQuick.toggle}
+              title="다른 사람 카드 옆 '남은 특수 액션' 잠깐 끄기/켜기 (새로고침하면 다시 표시)"
+            >
+              특수 {specialStripQuick.on ? 'ON' : 'OFF'}
+            </Button>
+          )}
           {onToggleMobileControls && (
             <Button
               size="icon"
@@ -1904,6 +1922,7 @@ export function GameBoard({
               {mobileControlsOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </Button>
           )}
+          </div>
 
           {/* 줌·격자·도움말 등 — 모바일·데스크톱 공통으로 위 토글로 열고 닫음(기본 닫힘) */}
           <div className={`flex-col items-end gap-2 relative ${mobileControlsOpen ? 'flex' : 'hidden'}`}>

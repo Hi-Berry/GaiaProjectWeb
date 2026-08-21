@@ -1641,6 +1641,9 @@ export default function Game() {
     window.addEventListener('special-action-strip-change', onChange);
     return () => window.removeEventListener('special-action-strip-change', onChange);
   }, []);
+  /** [사용자 2026-08-21] 스트립이 메뉴를 가릴 때 잠깐 끄는 세션용 스위치(맵의 '특수 ON/OFF' 버튼).
+   *  설정(localStorage)은 그대로 두므로 새로고침하면 다시 표시된다. */
+  const [stripQuickOff, setStripQuickOff] = useState(false);
 
   // 좌하단 액션 버튼 묶음(Free Actions / Tactical / Research / 특수 액션) 표시 여부.
   //   [2026-08-18 사용자] **기본 표시**로 되돌림 (2026-08-14에 기본 숨김이었다 — 존재를 모르는 사람이 더 문제).
@@ -3593,6 +3596,7 @@ export default function Game() {
       <main className="flex-1 flex flex-col overflow-hidden bg-zinc-900/20 relative">
         <div className="flex-1 min-h-0">
           <GameBoard
+            specialStripQuick={showSpecialStrips ? { on: !stripQuickOff, toggle: () => setStripQuickOff(v => !v) } : undefined}
             game={game}
             playerId={playerId}
             colorOverrides={playerColorOverrides}
@@ -5406,7 +5410,7 @@ export default function Game() {
         const showFa = isMe && showYouFaStrip;
         // [사용자 2026-08-07] 패스한 사람은 이번 라운드에 특수 액션을 쓸 수 없으므로 스트립을 띄우지 않는다.
         const passedThisRound = !!game.players[pid]?.hasPassed;
-        const acts = (showSpecialStrips && !passedThisRound) ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
+        const acts = (showSpecialStrips && !stripQuickOff && !passedThisRound) ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
         if (!showFa && acts.length === 0) return null;
         return (
           <div
