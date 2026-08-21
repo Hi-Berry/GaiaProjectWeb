@@ -1346,8 +1346,11 @@ function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: {
  *       (= 남는 충전 여력이 최소인) 순서이므로, 여기서 여력 0이면 어떤 수익 순서를 골라도
  *       누출이 무의미하다는 결론이 뒤집히지 않는다.
  *
- * 제외: 이타르(가이아 구역 토큰)·타클론(브레인 스톤/의회 토큰)은 충전 여력이 0이어도 수락에
- *       의미가 있을 수 있어 판정하지 않는다(오퍼 생성 단계의 예외와 동일).
+ * 제외: 이타르(가이아 구역 토큰)는 충전 여력이 0이어도 수락에 의미가 있어 판정하지 않는다.
+ *       타클론은 의회(PI)가 있으면 수락 시 토큰 +1이라 같은 이유로 제외하지만, [2026-08-21 사용자]
+ *       의회가 없으면 브레인스톤도 그냥 토큰 하나다 — getMaxPowerGain·simulateIncomeOrder가
+ *       brainStoneBowl을 이미 계산하므로 일반 판정을 태운다(예전엔 통째로 제외돼 항상 물어봤다).
+ *       스톤이 가이아 구역에 있거나 소멸한 특수 상태는 보수적으로 종전대로 묻는다.
  *
  * 가이아 포머 구역 토큰은 고려하지 않는다(사용자 지적): 그 토큰은 그릇 밖에 있어 충전 여력에 잡히지도
  * 않고, 복귀 시점이 '수익 단계가 모두 끝난 뒤'라 수익 파워를 흡수하지도 못한다. 누출을 받든 말든
@@ -1356,7 +1359,12 @@ function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: {
 export function isPowerLeechPointlessAfterIncome(game: GaiaGameState, playerId: string): boolean {
   const player = game.players[playerId];
   if (!player) return false;
-  if (player.faction === 'itars' || player.faction === 'taklons') return false;
+  if (player.faction === 'itars') return false;
+  if (player.faction === 'taklons') {
+    const hasPI = (game.map ?? []).some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+    if (hasPI) return false;                                  // 수락 = 토큰 +1, 풀파워여도 의미 있음
+    if (player.brainStoneInGaia || player.brainStoneSpent) return false; // 특수 상태 — 보수적으로 묻는다
+  }
 
   const preview = getNextRoundIncomePreview(playerId, game);
   // 상태창 '예상 수익'과 같은 계산(기본 수익·건물·경제/과학 트랙·수익 기술타일·보너스 타일·의회·인공물).

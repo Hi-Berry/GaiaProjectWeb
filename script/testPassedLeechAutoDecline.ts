@@ -17,6 +17,9 @@ function makeGame(opts: {
 	p1: number; p2: number; p3: number;
 	gaiaformerPower?: number;
 	artifacts?: string[];
+	brainStoneBowl?: 1 | 2 | 3;
+	brainStoneInGaia?: boolean;
+	hasPI?: boolean;
 }): GaiaGameState {
 	const player: any = {
 		name: 'P', faction: opts.faction ?? 'terran',
@@ -27,8 +30,11 @@ function makeGame(opts: {
 		techTiles: [], coveredTechTiles: [], federations: [],
 		research: { terraforming: 0, navigation: 0, artificialIntelligence: 0, gaiaProject: 0, economy: 0, science: 0 },
 		hasPassed: true,
+		brainStoneBowl: opts.brainStoneBowl,
+		brainStoneInGaia: opts.brainStoneInGaia ?? false,
 	};
-	return { players: { p: player }, map: [], turnOrder: ['p'], roundNumber: 3 } as any;
+	const map = opts.hasPI ? [{ id: 't1', ownerId: 'p', structure: 'planetary_institute' }] : [];
+	return { players: { p: player }, map, turnOrder: ['p'], roundNumber: 3 } as any;
 }
 
 let failed = 0;
@@ -75,9 +81,29 @@ console.log('수익만으로 풀파워가 되는가? (true = 묻지 않고 자�
 	const g = makeGame({ faction: 'itars', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5 });
 	check('이타르는 판정 제외', isPowerLeechPointlessAfterIncome(g, 'p'), false);
 }
+// [2026-08-21 사용자] 타클론도 의회가 없으면 판정한다 — 브레인스톤은 그냥 토큰 하나
+//   (getMaxPowerGain·simulateIncomeOrder가 brainStoneBowl을 계산). 예전엔 통제외라 항상 물어봤다.
 {
-	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5 });
-	check('타클론은 판정 제외', isPowerLeechPointlessAfterIncome(g, 'p'), false);
+	// 스톤 그릇3 + 여력1 + 파워수익4 → 수익만으로 다 참 → 자동 거절
+	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, brainStoneBowl: 3 });
+	check('타클론(의회X, 스톤 3그릇): 수익으로 다 참 → 무의미', isPowerLeechPointlessAfterIncome(g, 'p'), true,
+		`(현재 여력 ${getMaxPowerGain(g.players['p'] as any)})`);
+}
+{
+	// 스톤이 그릇1이면 여력 +2 → 파워수익 4로 다 못 채움(여력1+2=3? 스톤 캐스케이드 포함 계산) → 케이스로 확인
+	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-2pw-range3', p1: 1, p2: 0, p3: 5, brainStoneBowl: 1 });
+	check('타클론(의회X, 스톤 1그릇 + 토큰 1): 여력 큼 → 유의미(물어봄)', isPowerLeechPointlessAfterIncome(g, 'p'), false,
+		`(현재 여력 ${getMaxPowerGain(g.players['p'] as any)})`);
+}
+{
+	// 의회가 있으면 수락 = 토큰 +1 → 풀파워여도 의미 있음 → 종전대로 물어봄
+	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, brainStoneBowl: 3, hasPI: true });
+	check('타클론(의회O): 판정 제외(물어봄)', isPowerLeechPointlessAfterIncome(g, 'p'), false);
+}
+{
+	// 스톤이 가이아 구역이면 보수적으로 물어봄
+	const g = makeGame({ faction: 'taklons', bonusTile: 'bon-4pw-bigbuilding', p1: 0, p2: 1, p3: 5, brainStoneInGaia: true });
+	check('타클론(스톤 가이아행): 판정 제외(물어봄)', isPowerLeechPointlessAfterIncome(g, 'p'), false);
 }
 
 // 가이아 포머 구역 토큰은 판정에 영향을 주지 않는다 (사용자 지적):
