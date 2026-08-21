@@ -194,6 +194,16 @@ const MAX_QUEUE = 3;
 const queue: string[][] = [];
 let draining = false;
 
+/**
+ * [사용자 2026-08-21] 폰에서 나갔다 돌아오면 밀린 안내가 줄줄이 나온다 → 화면을 벗어날 때
+ * 대기열과 재생 중인 소리를 즉시 정리한다. 안내는 라이브 전용이고, 밀린 것을 몰아 읽는 건 소음이다.
+ */
+export function clearVoiceQueue(): void {
+	queue.length = 0;
+	stopClips();
+	try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
+}
+
 export function enqueueParts(parts: string[]): void {
 	const list = parts.filter(Boolean);
 	if (!list.length || !isVoiceOn()) return;

@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
-import { actionParts, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
+import { actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -600,6 +600,8 @@ export default function Game() {
    *  announcedWindow: 사람별로 마지막에 안내한 window — 같은 window면 후속 로그를 읽지 않는다.
    *  lastVoiceAt: 업데이트가 뭉쳐 와서 window 전환을 못 본 경우의 보조 판정(3초 이상 벌어지면 새 액션). */
   const actionWindowRef = useRef(0);
+  /** 화면을 벗어났다 돌아온 직후인가 — 다음 로그 처리 때 밀린 분량을 읽지 않고 건너뛴다 */
+  const voiceSkipBacklogRef = useRef(false);
   const announcedWindowRef = useRef<Record<string, number>>({});
   const lastVoiceAtRef = useRef<Record<string, number>>({});
 
@@ -1329,6 +1331,21 @@ export default function Game() {
     };
   }, []);
 
+  /* [사용자 2026-08-21] 폰에서 나갔다 돌아오면 밀린 안내가 줄줄이 나온다.
+     백그라운드에선 JS가 멈추고, 복귀하면 그동안의 로그가 한 번에 도착해 전부 안내됐다.
+     → 벗어나는 순간 대기열·재생을 비우고, 복귀 후 첫 로그 처리는 밀린 분량을 통째로 건너뛴다.
+     (그 사이의 판세는 화면·로그창으로 보면 된다 — 음성은 라이브 전용) */
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) {
+        clearVoiceQueue();
+        voiceSkipBacklogRef.current = true;
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
   // [사용자 2026-08-20] 액션 음성 안내 — 로그의 메인 액션을 읽되, [2026-08-21] '턴이 넘어가
   //   되돌릴 수 없게 된 줄'만 읽는다(아래 commitSeq). 진행 중인 턴의 줄은 보류 — 액션 직후 읽으면
   //   Undo(reset_turn)로 지워진 액션이 이미 읽힌 뒤가 된다(사용자 관찰).
@@ -1340,6 +1357,18 @@ export default function Game() {
     // 첫 진입(또는 재접속)에는 과거 로그를 읽지 않는다 — 마크만 현재 위치로 맞춘다.
     if (voiceLogMarkRef.current === 0 && log.length) { voiceLogMarkRef.current = log.length; return; }
     if (!isVoiceOn() || !game) { voiceLogMarkRef.current = log.length; return; }
+    // 백그라운드 중 도착분은 읽지 않는다(마크만 현재로). 플래그는 여기서 소모하지 않는다 —
+    // 폰은 숨김 초반에 JS가 잠깐 살아 있어, 여기서 소모하면 정작 복귀 배치가 읽혀 버린다.
+    if (document.hidden) {
+      voiceLogMarkRef.current = log.length;
+      return;
+    }
+    // 복귀 후 첫 처리 — 밀린 분량을 통째로 건너뛴다
+    if (voiceSkipBacklogRef.current) {
+      voiceSkipBacklogRef.current = false;
+      voiceLogMarkRef.current = log.length;
+      return;
+    }
     const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 줄어도 안전
     /* [사용자 2026-08-21] '되돌리기 전에 소리부터 나던' 문제.
        파워 액션으로 테라포밍 1을 얻고 Undo(reset_turn)하면 서버가 그 턴의 로그 줄을 지운다.
