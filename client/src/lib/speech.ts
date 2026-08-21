@@ -483,9 +483,19 @@ function fedRewardParts(d: string): string[] {
  */
 export const EXTRA_CLIP_PHRASES = [
 	'연방 보상', '무료 광산', '보너스 타일',
+	'테라포밍 선택', '사거리 선택', '가이아 프로젝트 선택',   // 액션형 보너스 타일을 '고를 때' 쓰는 이름
 	'2점', '3점', '4점', '5점', '6점', '7점', '8점', '9점', '10점', '11점', '12점',
 	'정큐', '광석', '크레딧', '지식', '토큰',
 ];
+
+/**
+ * [사용자 2026-08-21] 보너스 타일을 '고르는' 안내는 끝을 '선택'으로 바꾼다.
+ * 액션형 타일(테라포밍·사거리·가이아 프로젝트)은 이름이 '…액션'이라 고른 것인지
+ * 그 액션을 쓴 것인지 헷갈렸다 — "패스 테라포밍 액션" vs "패스 테라포밍 선택".
+ */
+function bonusChoiceName(name?: string): string | undefined {
+	return name ? name.replace(/액션$/, '선택') : undefined;
+}
 
 /**
  * [사용자 2026-08-20] 패스할 때 고른 보너스 타일도 읽는다 — "패스"만으로는 무엇을 집었는지 모른다.
@@ -581,14 +591,14 @@ export function actionParts(action: string, details: string, tileId?: string): s
 	if (/^Selected Bonus Tile/i.test(a)) {
 		// 라벨을 못 찾으면 id가 그대로 들어온 경우다(서버 폴백: `tile?.label || bonusTileId`)
 		const id = ALL_BONUS_TILES.find((t) => t.label === d.trim())?.id ?? d.trim();
-		const name = BONUS_TILE_KO[id];
+		const name = bonusChoiceName(BONUS_TILE_KO[id]);
 		return name ? ['보너스 타일', name] : null;
 	}
 	// 패스 로그는 action이 'Selected Bonus'다(details: 'Returned bon-x, took bon-y').
 	// 6라운드는 새 타일을 안 집으므로 details가 없다 → '패스'만 읽는다.
 	if (/^Selected Bonus/i.test(a)) {
 		const took = d.match(/took\s+(bon-[a-z0-9-]+)/i)?.[1];
-		const name = took ? BONUS_TILE_KO[took] : undefined;
+		const name = took ? bonusChoiceName(BONUS_TILE_KO[took]) : undefined;
 		return name ? ['패스', name] : ['패스'];
 	}
 	const label = actionLabel(a, d);

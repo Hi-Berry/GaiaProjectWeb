@@ -77,6 +77,8 @@ const CASES: Array<[string, string, string?]> = [
 	// 게임 시작 때 첫 보너스 타일 선택 — 패스가 아니다
 	['Selected Bonus Tile', '4P | 4VP/Big'],
 	['Selected Bonus Tile', '2C | ACT: TF'],
+	['Selected Bonus Tile', '2P | ACT: +3 Range'],
+	['Selected Bonus Tile', '2P | ACT: GP'],
 	['Selected Bonus Tile', 'bon-1o-1k'],
 	// 패스 — 어떤 보너스 타일을 집었는지
 	['Selected Bonus', 'Returned bon-2c-1q, took bon-2c-terraform'],
