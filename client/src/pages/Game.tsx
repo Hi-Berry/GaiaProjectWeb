@@ -1329,10 +1329,10 @@ export default function Game() {
     };
   }, []);
 
-  // [사용자 2026-08-20] 액션 음성 안내 — 로그에 '메인 액션'이 붙을 때마다 하나씩 읽는다.
-  //   처음엔 '현재 플레이어 변경'을 트리거로 썼는데, 혼자 남아 연속으로 턴을 가져가면 사람이 안 바뀌어
-  //   마지막에 한 번만 울렸다(사용자 관찰). 프리액션·되돌리기·결과성 로그는 actionLabel이 null이라 무음이고,
-  //   연속 액션은 speech.ts의 큐가 순서대로 처리한다.
+  // [사용자 2026-08-20] 액션 음성 안내 — 로그의 메인 액션을 읽되, [2026-08-21] '턴이 넘어가
+  //   되돌릴 수 없게 된 줄'만 읽는다(아래 commitSeq). 진행 중인 턴의 줄은 보류 — 액션 직후 읽으면
+  //   Undo(reset_turn)로 지워진 액션이 이미 읽힌 뒤가 된다(사용자 관찰).
+  //   프리액션·결과성 로그는 actionParts가 null이라 무음이고, 연속 안내는 speech.ts의 큐가 순서대로 처리한다.
   useEffect(() => {
     const log = game?.gameLog ?? [];
     // 턴이 새로 시작되면(메인 액션 미수행 상태) 다음 안내를 허용한다.
@@ -1341,8 +1341,24 @@ export default function Game() {
     if (voiceLogMarkRef.current === 0 && log.length) { voiceLogMarkRef.current = log.length; return; }
     if (!isVoiceOn() || !game) { voiceLogMarkRef.current = log.length; return; }
     const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 줄어도 안전
+    /* [사용자 2026-08-21] '되돌리기 전에 소리부터 나던' 문제.
+       파워 액션으로 테라포밍 1을 얻고 Undo(reset_turn)하면 서버가 그 턴의 로그 줄을 지운다.
+       그런데 안내는 줄이 붙는 즉시 나가서, 결국 하지 않은 액션이 이미 읽힌 뒤였다.
+       → 되돌릴 수 없게 된 줄만 읽는다. turnMark(각자의 턴 시작 로그 seq) 중 가장 큰 값이
+       '마지막으로 시작된 턴'이므로, 그보다 앞선 seq는 이미 끝난 턴이라 되돌릴 수 없다.
+       진행 중인 턴의 줄은 보류했다가 턴이 넘어간 뒤 읽는다(처음 요청대로 '액션 완료 시점').
+       게임이 끝나면 더 기다릴 것이 없으므로 남은 줄을 전부 읽는다. */
+    const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
+    const ended = game.currentPhase === 'gameEnd';
+    const commitSeq = ended || !marks.length ? null : Math.max(...marks);
+    let done = from;
     for (const raw of log.slice(from)) {
-      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number; tileId?: string };
+      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number; tileId?: string; seq?: number };
+      // 아직 되돌릴 수 있는 줄(진행 중인 턴) → 여기서 멈춘다. 다음 상태 갱신 때 다시 본다.
+      // 경계: 서버 reset_turn은 seq > 턴시작표시 인 줄만 지운다(gameState.ts의 트림 조건) →
+      // seq == 표시 인 줄은 직전 턴 소속이라 이미 안전하다. >= 로 하면 이 줄이 영영 안 읽힌다(실측 off-by-one).
+      if (commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq) break;
+      done++;
       const parts = actionParts(e.action ?? '', e.details ?? '', e.tileId);
       if (!parts || !e.playerId) continue;
       /* [사용자 2026-08-20] 기술 타일 획득·연방 보상은 '무엇을 얻었나'가 정보라 따로 읽는다.
@@ -1373,7 +1389,7 @@ export default function Game() {
       const who = skipWho ? '' : (whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? '');
       enqueueParts([who, ...parts]);
     }
-    voiceLogMarkRef.current = log.length;
+    voiceLogMarkRef.current = done;
   }, [game?.gameLog?.length, game?.hasDoneMainAction, game]);
 
   // Turn behavior notification sounds

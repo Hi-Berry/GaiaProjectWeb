@@ -13,7 +13,7 @@ const MCTS_MS = Number(process.env.MCTS_MS ?? 60);
 const LIMIT = Number(process.env.LIMIT ?? 120);   // 안내 몇 건 보고 끝낼지
 
 const socket = io(URL, { transports: ['websocket'] });
-let mark = 0, seen = 0, said = 0, marksChanged = 0, noMark = 0;
+let mark = 0, seen = 0, said = 0, marksChanged = 0, noMark = 0, noSeq = 0, deferred = 0;
 const announced: Record<string, number> = {};
 const lastVoiceAt: Record<string, number> = {};
 const lines: string[] = [];
@@ -34,7 +34,14 @@ socket.on('game_updated', (game: any) => {
 	for (const [pid, m] of Object.entries(game.turnMark ?? {})) {
 		if (prevMark[pid] !== m) { if (prevMark[pid] !== undefined) marksChanged++; prevMark[pid] = m as number; }
 	}
+	// 클라이언트와 같은 규칙: 되돌릴 수 없게 된 줄만 읽는다
+	const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
+	const commitSeq = game.currentPhase === 'gameEnd' || !marks.length ? null : Math.max(...marks);
+	let done = mark;
 	for (const e of game.gameLog.slice(mark)) {
+		if (typeof e.seq !== 'number') noSeq++;
+		if (commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq) { deferred++; break; }
+		done++;
 		const parts = actionParts(e.action ?? '', e.details ?? '', e.tileId);
 		if (!parts || !e.playerId) continue;
 		seen++;
@@ -54,7 +61,7 @@ socket.on('game_updated', (game: any) => {
 		said++;
 		lines.push(`🔊 ${[who, ...parts].filter(Boolean).join(' ').padEnd(30)} ${e.action}${e.details ? ` [${String(e.details).slice(0, 26)}]` : ''}`);
 	}
-	mark = game.gameLog.length;
+	mark = done;
 	if (said >= LIMIT || game.currentPhase === 'gameEnd') {
 		console.log(lines.slice(0, 60).join('\n'));
 		console.log(`\n안내 대상 로그 ${seen}건 · 읽음 ${said} · turnMark 없는 건 ${noMark} · 턴 표시 변경 관측 ${marksChanged}회`);
@@ -67,8 +74,9 @@ socket.on('game_updated', (game: any) => {
 function report(reason: string): never {
 	console.log(lines.slice(0, 60).join('\n'));
 	console.log('');
-	console.log(`[${reason}] 안내 대상 로그 ${seen}건 · 읽음 ${said} · turnMark 없는 건 ${noMark} · 턴 표시 변경 관측 ${marksChanged}회`);
-	const ok = seen > 0 && noMark === 0 && marksChanged > 0;
+	console.log(`[${reason}] 안내 대상 로그 ${seen}건 · 읽음 ${said} · turnMark 없는 건 ${noMark} · 턴 표시 변경 ${marksChanged}회`);
+	console.log(`seq 없는 로그 ${noSeq}건 · 진행 중이라 보류한 횟수 ${deferred}`);
+	const ok = seen > 0 && noMark === 0 && marksChanged > 0 && noSeq === 0;
 	console.log(ok ? 'OK: 모든 안내가 서버 턴 표시로 판정됐다' : '실패: turnMark 누락 또는 턴 표시 변경 없음');
 	process.exit(ok ? 0 : 1);
 }
