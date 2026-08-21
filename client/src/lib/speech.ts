@@ -546,7 +546,10 @@ export function isFollowupInfo(action: string): boolean {
 	return /Gained Tech Tile$|^Advanced Tech Tile|^Federation Reward|^Ship Tech:|^Eclipse: Research|^Advanced Tech: Advanced track/i.test(action || '');
 }
 
-export const ENABLER_LABELS = new Set(['보너스 사거리', '트왈라잇 사거리']);
+// [사용자 2026-08-21] 가이아 프로젝트 '시작'(보너스·티에프)도 포머 배치로 이어지는 콤보 —
+//   따로 읽으면 호칭이 두 번 나온다("하드쉬 보너스 가이아" → "하드쉬 가이아포머 배치").
+//   준비 동작으로 분류하면 병합 로직이 "하드쉬 보너스 가이아 가이아포머 배치" 한 문장으로 만든다.
+export const ENABLER_LABELS = new Set(['보너스 사거리', '트왈라잇 사거리', '보너스 가이아', '티에프 가이아']);
 
 /**
  * 로그 항목 → 재생할 조각 배열(호칭 제외). 기술 타일만 조각이 여러 개다.
