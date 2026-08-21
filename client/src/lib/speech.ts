@@ -177,7 +177,9 @@ async function playClips(keys: string[], folder: string, rate: number): Promise<
 			audioEl = a;
 			const done = () => { a.onended = null; a.onerror = null; resolve(); };
 			a.onended = done;
-			a.onerror = done;
+			// 조각 로드 실패(배포로 파일명이 바뀐 직후 등) → 들고 있던 manifest를 버려
+			// 다음 안내 때 새로 받게 한다(자가 회복). 이번 건은 조용히 넘어간다.
+			a.onerror = () => { manifest = null; manifestTried = false; done(); };
 			a.play().catch(done);   // 자동재생 차단 시에도 멈추지 않게
 		});
 	}
