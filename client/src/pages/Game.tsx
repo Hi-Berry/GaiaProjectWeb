@@ -602,8 +602,6 @@ export default function Game() {
   const actionWindowRef = useRef(0);
   const announcedWindowRef = useRef<Record<string, number>>({});
   const lastVoiceAtRef = useRef<Record<string, number>>({});
-  /** 준비 동작(사거리 등)을 읽어 준 턴 — 같은 턴의 본 액션은 호칭을 뺀다("파이락 사거리 → 광산 건설"). */
-  const enablerWindowRef = useRef<Record<string, number>>({});
 
   /** [사용자 2026-08-20] 패스 확인창의 '안 쓴 특수 액션' 경고에 효과음.
    *  경고 문구는 렌더 안에서 계산되지만 소리는 창이 '열릴 때 한 번'만 나야 하므로 여기서 따로 판정한다.
@@ -1354,6 +1352,8 @@ export default function Game() {
     const ended = game.currentPhase === 'gameEnd';
     const commitSeq = ended || !marks.length ? null : Math.max(...marks);
     let done = from;
+    /** 이 패스에서 아직 본 액션을 못 만난 준비 동작 — 만나면 한 문장으로 합친다 */
+    let pendingEnabler: { playerId: string; win: number; parts: string[] } | null = null;
     for (const raw of log.slice(from)) {
       const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number; tileId?: string; seq?: number };
       // 아직 되돌릴 수 있는 줄(진행 중인 턴) → 여기서 멈춘다. 다음 상태 갱신 때 다시 본다.
@@ -1382,18 +1382,36 @@ export default function Game() {
       const sameWindow = announcedWindowRef.current[e.playerId] === win;
       const longGap = mark === undefined && ts - (lastVoiceAtRef.current[e.playerId] ?? 0) >= 3000;
       if (sameWindow && !longGap && !isTechGain) continue;   // 같은 턴의 후속 로그 → 무음
-      // [사용자 2026-08-21] 준비 동작→본 액션은 이어지는 콤보라 호칭을 한 번만 —
-      //   "파이락 트왈라잇 사거리" 다음의 광산 건설은 "파이락" 없이 읽는다(기술타일 후속과 같은 방식).
-      const skipWho = (isTechGain && sameWindow) || enablerWindowRef.current[e.playerId] === win;
-      // 준비 동작(사거리 올리기 등)은 턴의 안내 1회를 쓰지 않는다 → 뒤에 오는 본 액션도 읽힌다.
+      const skipWho = isTechGain && sameWindow;
+      /* [사용자 2026-08-21] 준비 동작→본 액션은 이어지는 콤보라 따로 두 번 읽지 않고 한 문장으로 —
+         "파이락, 트왈라잇 사거리, 광산 건설". 준비 동작은 바로 읽지 않고 들고 있다가 같은 턴의
+         본 액션 앞에 붙인다. 턴은 통째로 커밋되므로 둘은 같은 패스에서 만난다(예외는 루프 끝에서 단독 방출). */
       const isEnabler = parts.length === 1 && ENABLER_LABELS.has(parts[0]);
-      if (isEnabler) enablerWindowRef.current[e.playerId] = win;
-      else announcedWindowRef.current[e.playerId] = win;
-      lastVoiceAtRef.current[e.playerId] = ts;
       const p = game.players?.[e.playerId];
-      const who = skipWho ? '' : (whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? '');
-      enqueueParts([who, ...parts]);
+      if (isEnabler) {
+        if (pendingEnabler && (pendingEnabler.playerId !== e.playerId || pendingEnabler.win !== win)) {
+          enqueueParts(pendingEnabler.parts);           // 다른 턴의 준비 동작이 남아 있으면 단독 방출
+        }
+        if (pendingEnabler && pendingEnabler.playerId === e.playerId && pendingEnabler.win === win) {
+          pendingEnabler.parts.push(...parts);          // 한 턴에 준비 동작 둘(사거리 중첩 등)
+        } else {
+          pendingEnabler = { playerId: e.playerId, win, parts: [whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? '', ...parts] };
+        }
+        lastVoiceAtRef.current[e.playerId] = ts;
+        continue;
+      }
+      announcedWindowRef.current[e.playerId] = win;
+      lastVoiceAtRef.current[e.playerId] = ts;
+      let prefix: string[] = [];
+      if (pendingEnabler) {
+        if (pendingEnabler.playerId === e.playerId && pendingEnabler.win === win) prefix = pendingEnabler.parts;
+        else enqueueParts(pendingEnabler.parts);
+        pendingEnabler = null;
+      }
+      const who = prefix.length ? '' : (skipWho ? '' : (whoLabel(p?.faction ?? undefined, p?.name ?? undefined) ?? ''));
+      enqueueParts([...prefix, who, ...parts]);
     }
+    if (pendingEnabler) enqueueParts(pendingEnabler.parts);   // 본 액션 없이 턴이 끝난 준비 동작
     voiceLogMarkRef.current = done;
   }, [game?.gameLog?.length, game?.hasDoneMainAction, game]);
 

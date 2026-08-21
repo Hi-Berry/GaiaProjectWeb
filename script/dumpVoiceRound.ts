@@ -35,7 +35,7 @@ say('');
 
 let cur: string | null = null;
 let announced = false;
-let enablerSaid = false;    // 이 턴에 준비 동작을 읽었나 — 본 액션 호칭 생략용
+let pendingParts: string[] = [];   // 아직 본 액션을 못 만난 준비 동작(콤보 합류 대기)
 let lastAt = 0;
 let turnNo = 0;
 let curRound: number | undefined;
@@ -45,7 +45,10 @@ for (const e of log) {
 	const parts = actionParts(e.action ?? '', e.details ?? '', e.tileId);
 	const p = players[e.playerId] || {};
 	// 구간(턴) 전환 — 읽을 게 있는 로그의 주인이 바뀌면 새 턴
-	if (parts && e.playerId !== cur) { cur = e.playerId; announced = false; enablerSaid = false; lastAt = 0; turnNo++; say(`── 턴 ${turnNo} · ${p.name} ──`); }
+	if (parts && e.playerId !== cur) {
+		if (pendingParts.length) { say(`🔊 ${pendingParts.join(' ')}`); emit({ round: curRound, turn: turnNo, player: cur, said: pendingParts.join(' '), action: '(준비 동작 단독)', details: '' }); pendingParts = []; }
+		cur = e.playerId; announced = false; lastAt = 0; turnNo++; say(`── 턴 ${turnNo} · ${p.name} ──`);
+	}
 	const raw = `${e.action}${e.details ? ` [${e.details}]` : ''}`;
 	if (!parts) { say(`   ${'—— 무음 ——'.padEnd(34)} ${raw}`); emit({ round: e.round, turn: turnNo, player: p.name, faction: p.faction, said: null, why: '규칙 없음', action: e.action, details: e.details ?? '' }); continue; }
 
@@ -55,12 +58,19 @@ for (const e of log) {
 	const longGap = ts - lastAt >= 3000;   // 클라이언트와 동일 — 3초 이상이면 다른 행동으로 본다
 	if (announced && !longGap && !isTech) { say(`   ${'—— 무음(턴 1회) ——'.padEnd(34)} ${raw}`); emit({ round: e.round, turn: turnNo, player: p.name, faction: p.faction, said: null, why: '턴 1회', action: e.action, details: e.details ?? '' }); continue; }
 	const gapNote = announced && longGap && !isTech ? '  ← 3초 규칙으로 추가 안내' : '';
-	const skipWho = (isTech && announced) || enablerSaid;   // 준비 동작 뒤 본 액션은 호칭 생략(콤보)
-	if (isEnabler) enablerSaid = true;
-	else announced = true;
+	const skipWho = isTech && announced;
+	// 준비 동작은 바로 읽지 않고 본 액션과 한 문장으로 합친다(클라이언트와 동일)
+	if (isEnabler) {
+		if (!pendingParts.length) pendingParts.push(whoLabel(p.faction, p.name) ?? '');
+		pendingParts.push(...parts);
+		lastAt = ts;
+		continue;
+	}
+	announced = true;
 	lastAt = ts;
-	const who = skipWho ? '' : (whoLabel(p.faction, p.name) ?? '');
-	const said = [who, ...parts].filter(Boolean).join(' ');
+	const who = pendingParts.length ? '' : (skipWho ? '' : (whoLabel(p.faction, p.name) ?? ''));
+	const said = [...pendingParts, who, ...parts].filter(Boolean).join(' ');
+	pendingParts = [];
 	say(`🔊 ${said.padEnd(34)} ${raw}${gapNote}`);
 	emit({ round: e.round, turn: turnNo, player: p.name, faction: p.faction, said, parts: [who, ...parts].filter(Boolean), gap: !!gapNote, action: e.action, details: e.details ?? '' });
 }
