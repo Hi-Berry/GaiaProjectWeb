@@ -524,8 +524,19 @@ export default function Game() {
   const noticeBarPosClass = portraitMobile
     ? 'fixed left-0 right-0 z-50 border-y !rounded-none !px-2 !py-1 !text-[10px] !leading-tight max-h-[3.4rem] overflow-y-auto'
     : 'fixed bottom-20 left-1/2 -translate-x-1/2 z-50';
+  /** 진행 중 액션 스트립(테라포밍·거리 보너스)이 지금 떠 있는가 — 떠 있을 때만 그 높이만큼 위로 올린다.
+   *  [사용자 2026-08-23] 항상 28px를 띄웠더니 스트립이 없을 때 패널과 안 붙고 허공에 뜬 것처럼 보였다. */
+  const activeActionStripShown = (() => {
+    const me = playerId ? game?.players?.[playerId] : undefined;
+    if (!me || !game || game.turnOrder?.[game.currentPlayerIndex] !== playerId) return false;
+    return (me.pendingTerraformSteps ?? 0) > 0 || !!me.rangeBonusActive || !!me.tempRangeBonus || !!me.gleensNavBonusActive;
+  })();
   const noticeBarPosStyle: React.CSSProperties | undefined = portraitMobile
-    ? { bottom: mapBottomInsetPx > 0 ? 'calc(50% + 28px)' : '28px' }
+    ? {
+      bottom: mapBottomInsetPx > 0
+        ? (activeActionStripShown ? 'calc(50% + 26px)' : '50%')
+        : (activeActionStripShown ? '26px' : '0px'),
+    }
     : undefined;
   /** [사용자 2026-08-23] '테라포밍 액션 사용 중', '+3 거리' 같은 진행 중 안내가 세로 모바일에서 맵 위(top-14)에
    *  큼직하게 떠서 타일 클릭을 막았다 → 세로 모바일에서는 하단 패널(기술/우주선/라운드/상태창/로그) 바로 위에
