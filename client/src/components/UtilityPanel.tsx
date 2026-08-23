@@ -220,8 +220,16 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
     if (seat) return seat.trim();
     try {
       const sid = getStoredSpectatorId(game.id);
+      if (!sid) return '';
       const names = (game as unknown as { spectatorNames?: Record<string, string> }).spectatorNames;
-      return sid && names?.[sid] ? names[sid].trim() : '';
+      if (names?.[sid]) return names[sid].trim();
+      // [버그 2026-08-23 사용자 "'---'로 관전 중일 때 종료 점수가 안 보인다"]
+      //   숨은 관전('---')은 서버가 이름을 game에 기록하지 않는다(그게 '숨은'의 정의) → spectatorNames로는
+      //   영원히 찾을 수 없어, 아래 scorePreviewAllowed의 isHiddenSpectatorName 분기가 발동한 적이 없었다.
+      //   이 기기에서 관전 입장할 때 저장한 이름(Lobby가 gaia-playerName에 저장)을 보조로 쓴다.
+      //   '---'인 경우에만 인정해 노출 범위가 넓어지지 않게 한다(어차피 화면 노출 제한이지 보안장치가 아님).
+      const localName = (localStorage.getItem('gaia-playerName') ?? '').trim();
+      return isHiddenSpectatorName(localName) ? localName : '';
     } catch { return ''; }
   })();
   const canSeeScore = scorePreviewAllowed(myName);
