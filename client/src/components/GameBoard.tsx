@@ -510,25 +510,28 @@ export function GameBoard({
    *  맵을 크게 가렸다 → 세로 모바일에서만 채팅창처럼 '떠 있는 창'으로 만들어 위치·크기를 사용자가 정한다.
    *  (드래그·리사이즈·클램프·localStorage 보존 방식은 ChatPanel과 동일하게 맞춤.) */
   const detailFloating = isMobileViewport && cssHeight > cssWidth;
-  const DETAIL_MIN_W = 200, DETAIL_MIN_H = 160;
+  const DETAIL_MIN_W = 200;
   const clampDetailPos = useCallback((q: { x: number; y: number }) => {
     const vw = window.innerWidth, vh = window.innerHeight, VIS = 80; // 최소 80px는 화면 안에 남겨 다시 잡을 수 있게
     return { x: Math.max(0, Math.min(vw - VIS, q.x)), y: Math.max(0, Math.min(vh - VIS, q.y)) };
   }, []);
-  const [detailSize, setDetailSize] = useState<{ w: number; h: number }>(() => {
-    try {
-      const v = localStorage.getItem('gaia-tile-detail-size');
-      if (v) { const o = JSON.parse(v); if (o?.w >= DETAIL_MIN_W && o?.h >= DETAIL_MIN_H) return o; }
-    } catch { /* noop */ }
+  /** [사용자 2026-08-23] 높이는 내용만큼 자동, 폭만 사용자가 정한다.
+   *  (예전엔 높이도 저장·조절했는데 우주선 칸처럼 내용이 긴 타일에서 스크롤이 남았다.) */
+  const [detailWidth, setDetailWidth] = useState<number>(() => {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 400;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-    return { w: Math.min(300, vw - 16), h: Math.min(360, Math.round(vh * 0.42)) };
+    try {
+      const v = localStorage.getItem('gaia-tile-detail-w');
+      if (v && Number(v) >= DETAIL_MIN_W) return Math.min(Number(v), vw - 8);
+      const old = localStorage.getItem('gaia-tile-detail-size'); // 이전 형식({w,h})에서 폭만 이어받는다
+      if (old) { const o = JSON.parse(old); if (o?.w >= DETAIL_MIN_W) return Math.min(o.w, vw - 8); }
+    } catch { /* noop */ }
+    return Math.min(300, vw - 16);
   });
   const [detailPos, setDetailPos] = useState<{ x: number; y: number } | null>(() => {
     try { const v = localStorage.getItem('gaia-tile-detail-pos'); return v ? JSON.parse(v) : null; } catch { return null; }
   });
   const detailPosRef = useRef(detailPos); detailPosRef.current = detailPos;
-  const detailSizeRef = useRef(detailSize); detailSizeRef.current = detailSize;
+  const detailWidthRef = useRef(detailWidth); detailWidthRef.current = detailWidth;
   // 회전·주소창 변화로 창이 화면 밖에 남지 않게 다시 클램프
   useEffect(() => { setDetailPos((q) => (q ? clampDetailPos(q) : q)); }, [cssWidth, cssHeight, clampDetailPos]);
   const detailStartDrag = useCallback((e: React.PointerEvent) => {
@@ -553,34 +556,6 @@ export function GameBoard({
    *  덮개(backdrop) 대신 document pointerdown을 쓴다 — 덮개를 깔면 그 탭이 맵에 닿지 않아
    *  '닫기 → 다시 탭'이 두 번 필요해진다. 이 방식은 다른 타일을 누르면 닫히면서 그 타일이 바로 선택된다
    *  (타일 선택은 click이라 pointerdown 이후에 실행됨). 헤더 드래그·리사이즈는 패널 내부라 닫히지 않는다. */
-  const detailBodyRef = useRef<HTMLDivElement | null>(null);
-  /** [사용자 2026-08-23] "우주선 칸은 클릭하면 하단 정보까지 스크롤 없이 다 보였으면 좋겠다"
-   *  우주선 타일은 기술타일·연방보상·액션칸이 쌓여 기본 창 높이를 넘긴다 → 열릴 때 내용 높이만큼 창을 키운다.
-   *  '키우기만' 한다(줄이지 않음) — 사용자가 직접 늘린 크기를 되돌리지 않기 위해서다.
-   *  본문에 zoom이 걸려 있어 scrollHeight는 축소 전 좌표계다 → 넘치는 양에 zoom을 곱해 실제 px로 환산한다.
-   *  화면을 넘지 않도록 상한을 두고, 커진 만큼 아래로 삐져나가면 위로 끌어올린다. */
-  useEffect(() => {
-    if (!detailFloating || !selectedTile) return;
-    const raf = requestAnimationFrame(() => {
-      const el = detailBodyRef.current;
-      if (!el) return;
-      const zoom = detailSizeRef.current.w / 256;
-      const overflow = (el.scrollHeight - el.clientHeight) * zoom;
-      if (overflow <= 2) return;
-      const maxH = window.innerHeight - 16;
-      setDetailSize((sz) => {
-        const h = Math.min(maxH, Math.round(sz.h + overflow + 4));
-        return h > sz.h ? { ...sz, h } : sz;
-      });
-      setDetailPos((q) => {
-        if (!q) return q;
-        const h = Math.min(maxH, Math.round(detailSizeRef.current.h + overflow + 4));
-        const maxTop = Math.max(0, window.innerHeight - h - 8);
-        return q.y > maxTop ? { ...q, y: maxTop } : q;
-      });
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [detailFloating, selectedTile, detailSize.w, detailSize.h]);
   const detailRootRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!detailFloating || !selectedTile) return;
@@ -595,17 +570,16 @@ export function GameBoard({
 
   const detailStartResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation();
-    const sx = e.clientX, sy = e.clientY;
-    const { w: sw, h: sh } = detailSizeRef.current;
-    const onMove = (ev: PointerEvent) => setDetailSize({
-      w: Math.max(DETAIL_MIN_W, Math.min(window.innerWidth - 8, sw + (ev.clientX - sx))),
-      h: Math.max(DETAIL_MIN_H, Math.min(window.innerHeight - 8, sh + (ev.clientY - sy))),
-    });
+    const sx = e.clientX;
+    const sw = detailWidthRef.current;
+    const onMove = (ev: PointerEvent) => setDetailWidth(
+      Math.max(DETAIL_MIN_W, Math.min(window.innerWidth - 8, sw + (ev.clientX - sx))),
+    );
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       document.body.style.userSelect = '';
-      try { localStorage.setItem('gaia-tile-detail-size', JSON.stringify(detailSizeRef.current)); } catch { /* noop */ }
+      try { localStorage.setItem('gaia-tile-detail-w', String(detailWidthRef.current)); } catch { /* noop */ }
     };
     document.body.style.userSelect = 'none';
     window.addEventListener('pointermove', onMove);
@@ -2239,12 +2213,16 @@ export function GameBoard({
               ? 'fixed z-[140] bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col'
               : 'absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out flex flex-col'}
             style={detailFloating
-              ? {
-                width: detailSize.w,
-                height: detailSize.h,
-                left: detailPos?.x ?? 8,
-                top: detailPos?.y ?? Math.max(8, Math.round(cssHeight * 0.06)),
-              }
+              ? (() => {
+                const top = detailPos?.y ?? Math.max(8, Math.round(cssHeight * 0.06));
+                return {
+                  width: detailWidth,
+                  // 높이는 내용만큼(auto). 화면 아래로 넘치는 것만 막고, 그때는 본문이 스크롤된다.
+                  maxHeight: `calc(100dvh - ${top + 8}px)`,
+                  left: detailPos?.x ?? 8,
+                  top,
+                };
+              })()
               : (isMobileViewport && mobilePanelWidth ? { width: mobilePanelWidth } : undefined)}
           >
             {/* 닫기 — X를 상단 단독 헤더 행으로 분리(축소 안 됨=탭 쉬움). 내용/버튼이 X와 같은 높이에 있어 모바일서 오클릭나던 문제 해결(사용자 요청: 내용 전체를 X 밑으로)
@@ -2264,11 +2242,14 @@ export function GameBoard({
             )}
             {/* 내용 래퍼: X 헤더 아래를 채움(flex-1). 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
             <div
-              ref={detailBodyRef}
               className={`flex-1 min-h-0 overflow-y-auto ${detailFloating ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'}`}
               style={(() => {
                 // 모바일은 256px 디자인폭을 zoom으로 축소해 실제 패널 폭에 맞춘다(창 모드면 사용자가 정한 폭 기준).
-                const w = detailFloating ? detailSize.w : (isMobileViewport ? mobilePanelWidth : 0);
+                if (detailFloating) {
+                  // 창 모드는 높이를 내용에 맡긴다 — height를 %로 강제하면 부모가 auto일 때 계산이 성립하지 않는다.
+                  return { width: 256, zoom: detailWidth / 256 } as CSSProperties;
+                }
+                const w = isMobileViewport ? mobilePanelWidth : 0;
                 if (!w) return undefined;
                 return { width: 256, height: `${(25600 / w)}%`, zoom: w / 256 } as CSSProperties;
               })()}
@@ -3016,12 +2997,11 @@ export function GameBoard({
               // 우하단 모서리 리사이즈 손잡이 — 채팅창과 동일한 조작감. touch-none이라 드래그 중 페이지가 안 밀린다.
               <div
                 onPointerDown={detailStartResize}
-                title="크기 조절"
-                className="absolute bottom-0 right-0 h-6 w-6 cursor-nwse-resize touch-none select-none"
-                style={{
-                  background: 'linear-gradient(135deg, transparent 0 55%, rgba(255,255,255,0.35) 55% 65%, transparent 65% 78%, rgba(255,255,255,0.35) 78% 88%, transparent 88%)',
-                }}
-              />
+                title="폭 조절"
+                className="absolute top-0 bottom-0 right-0 w-3 cursor-ew-resize touch-none select-none flex items-center justify-center"
+              >
+                <div className="h-8 w-0.5 rounded bg-white/25" />
+              </div>
             )}
           </div>
         )
