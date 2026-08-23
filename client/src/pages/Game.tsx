@@ -512,6 +512,14 @@ export default function Game() {
   /** 배너를 붙일 위치는 px(winH 기반) 대신 하단 패널과 같은 기준(50%)을 쓴다 — 100dvh와 innerHeight가
    *  어긋나는 브라우저에서 px로 계산하면 패널 경계와 1~2px 틀어져 틈이나 겹침이 보인다. */
   const bannerBottomCss = mapBottomInsetPx > 0 ? '50%' : '0px';
+  /** [사용자 2026-08-23] "내 턴일 때 기술·우주선·라운드·상태창·로그 영역 전체에 색상 변화를 줘서 인지되게"
+   *  패널 배경을 물들이면 내용(자원 숫자·로그) 가독성이 떨어지므로, 테두리를 에메랄드로 바꾸고
+   *  은은한 글로우만 준다. 관전자·게임 종료 상태에는 켜지 않는다.
+   *  테두리 색은 border-border/border-white/10과 같은 속성이라 클래스 순서로는 못 이긴다 → '!' 중요도 사용. */
+  const myTurnPanelHint = !!playerId && !isSpectator && isMyTurn && game?.currentPhase !== 'gameEnd';
+  const myTurnEdgeClass = myTurnPanelHint
+    ? '!border-emerald-400/70 shadow-[0_0_18px_-2px_rgba(52,211,153,0.5)]'
+    : '';
   /** [사용자 2026-08-23] '맵에서 …를 클릭하세요' 류 진행 안내(가이아 프로젝트·소행성 광산·엠바스·파이락 등)의
    *  공용 위치. 예전엔 bottom-20이라 세로 모바일에서 하단 패널(기술/우주선/라운드/상태창/로그) 안쪽에 떠서
    *  패널을 덮었다 → 진행 중 액션 스트립과 같은 자리(패널 바로 위)로 모은다. 스트립과 겹치지 않게 28px 위.
@@ -6913,7 +6921,7 @@ export default function Game() {
           좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
       {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
         <div
-          className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
+          className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${myTurnEdgeClass} ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
           style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
           data-tour="mobile-tabs"
           onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'status' ? null : 'status')}
@@ -6951,7 +6959,7 @@ export default function Game() {
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && isLogPanelOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${myTurnEdgeClass} ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
           style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth, paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom }}
         >
           <div
@@ -6986,7 +6994,7 @@ export default function Game() {
           세로(portrait)에선 상시 표시(infoEffectivelyOpen), 가로(landscape)에선 i 버튼 토글. */}
       {isMobileViewport && infoEffectivelyOpen && game && (
         <div
-          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${splitActive ? `left-0 ${mobileZoomPanel === 'info' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'status' ? 'hidden' : ''} border-t border-r border-border` : 'top-0 bottom-0 left-0 border-r border-border'}`}
+          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${myTurnEdgeClass} ${splitActive ? `left-0 ${mobileZoomPanel === 'info' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'status' ? 'hidden' : ''} border-t border-r border-border` : 'top-0 bottom-0 left-0 border-r border-border'}`}
           style={{ width: infoEffectiveWidth }}
         >
           {/* 헤더 + (가로 모드일 때만) 페이지 인디케이터 */}
