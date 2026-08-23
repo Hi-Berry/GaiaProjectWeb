@@ -952,16 +952,7 @@ export default function Game() {
     let pendingUi: GameState | null = null;
     let uiRaf: number | null = null;
     let uiCommitted = false;
-    const commitUi = (g: GameState) => {
-      setGame(g);
-      const isCurrentPlayer = g.turnOrder[g.currentPlayerIndex] === playerId;
-      if (isCurrentPlayer && g.hasDoneMainAction) {
-        setPendingAction(null);
-        setAdvanceTechDialog((prev) => (prev.open ? { open: false, trackId: null } : prev));
-        setPendingTwilightTSUpgrade(null);
-        setPendingRebellionMineToTS(null);
-      }
-    };
+    const commitUi = (g: GameState) => { setGame(g); };
     const flushUi = () => {
       uiRaf = null;
       const g = pendingUi;
@@ -991,6 +982,16 @@ export default function Game() {
       else GameClient.noteAppliedServerFreeCount(serverFreeCount);
       mergeGameLog(updatedGame);
       scheduleUi(updatedGame);
+      // 다이얼로그 정리는 코얼레싱하지 않고 패킷마다 판정한다 — 한 프레임에 '내 액션 완료 → 턴 넘어감'이
+      // 같이 들어오면 마지막 패킷은 내 턴이 아니라서 정리가 누락되고 확인창이 남는다.
+      // 이미 닫힌 상태로 다시 닫는 건 React가 같은 값에서 bail-out하므로 리렌더 비용이 없다.
+      const isCurrentPlayer = updatedGame.turnOrder[updatedGame.currentPlayerIndex] === playerId;
+      if (isCurrentPlayer && updatedGame.hasDoneMainAction) {
+        setPendingAction(null);
+        setAdvanceTechDialog((prev) => (prev.open ? { open: false, trackId: null } : prev));
+        setPendingTwilightTSUpgrade(null);
+        setPendingRebellionMineToTS(null);
+      }
     };
 
     let syncInFlight: Promise<void> | null = null;
