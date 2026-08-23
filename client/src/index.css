@@ -115,3 +115,15 @@
   transform: none !important;
   max-width: none !important;
 }
+
+/* [내 턴 강조 2026-08-23 사용자] 하단 패널(기술·우주선·라운드 / 상태창·로그)에 느린 펄스.
+   Tailwind animate-pulse는 요소 전체 opacity를 흔들어 글자 가독성을 해치므로 box-shadow만 흔든다.
+   모션 최소화를 켠 사용자에게는 정지된 글로우로 대체한다. */
+@keyframes gaiaMyTurnPulse {
+  0%, 100% { box-shadow: 0 0 10px -4px rgba(52, 211, 153, 0.35); }
+  50%      { box-shadow: 0 0 22px 0    rgba(52, 211, 153, 0.75); }
+}
+.gaia-myturn-glow { animation: gaiaMyTurnPulse 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .gaia-myturn-glow { animation: none; box-shadow: 0 0 16px -2px rgba(52, 211, 153, 0.5); }
+}

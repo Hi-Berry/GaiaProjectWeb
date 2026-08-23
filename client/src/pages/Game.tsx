@@ -517,9 +517,11 @@ export default function Game() {
    *  은은한 글로우만 준다. 관전자·게임 종료 상태에는 켜지 않는다.
    *  테두리 색은 border-border/border-white/10과 같은 속성이라 클래스 순서로는 못 이긴다 → '!' 중요도 사용. */
   const myTurnPanelHint = !!playerId && !isSpectator && isMyTurn && game?.currentPhase !== 'gameEnd';
-  const myTurnEdgeClass = myTurnPanelHint
-    ? '!border-emerald-400/70 shadow-[0_0_18px_-2px_rgba(52,211,153,0.5)]'
-    : '';
+  const myTurnEdgeClass = myTurnPanelHint ? '!border-emerald-400/70 gaia-myturn-glow' : '';
+  /** 상태창/로그 전환 탭바는 top:50%·height:22px로 오른쪽 패널의 위쪽 테두리를 정확히 덮는다
+   *  (border-l·border-b만 있어 위쪽 선이 없음) → 그 구간만 강조가 끊겨 보였다(사용자 스크린샷).
+   *  강조 중에는 탭바에도 위쪽 테두리를 줘서 선이 이어지게 한다. */
+  const myTurnTabBarClass = myTurnPanelHint ? `${myTurnEdgeClass} border-t` : '';
   /** [사용자 2026-08-23] '맵에서 …를 클릭하세요' 류 진행 안내(가이아 프로젝트·소행성 광산·엠바스·파이락 등)의
    *  공용 위치. 예전엔 bottom-20이라 세로 모바일에서 하단 패널(기술/우주선/라운드/상태창/로그) 안쪽에 떠서
    *  패널을 덮었다 → 진행 중 액션 스트립과 같은 자리(패널 바로 위)로 모은다. 스트립과 겹치지 않게 28px 위.
@@ -6921,7 +6923,7 @@ export default function Game() {
           좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
       {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
         <div
-          className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${myTurnEdgeClass} ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
+          className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${myTurnTabBarClass} ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
           style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
           data-tour="mobile-tabs"
           onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'status' ? null : 'status')}
