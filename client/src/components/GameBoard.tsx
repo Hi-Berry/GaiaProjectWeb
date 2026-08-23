@@ -553,6 +553,34 @@ export function GameBoard({
    *  덮개(backdrop) 대신 document pointerdown을 쓴다 — 덮개를 깔면 그 탭이 맵에 닿지 않아
    *  '닫기 → 다시 탭'이 두 번 필요해진다. 이 방식은 다른 타일을 누르면 닫히면서 그 타일이 바로 선택된다
    *  (타일 선택은 click이라 pointerdown 이후에 실행됨). 헤더 드래그·리사이즈는 패널 내부라 닫히지 않는다. */
+  const detailBodyRef = useRef<HTMLDivElement | null>(null);
+  /** [사용자 2026-08-23] "우주선 칸은 클릭하면 하단 정보까지 스크롤 없이 다 보였으면 좋겠다"
+   *  우주선 타일은 기술타일·연방보상·액션칸이 쌓여 기본 창 높이를 넘긴다 → 열릴 때 내용 높이만큼 창을 키운다.
+   *  '키우기만' 한다(줄이지 않음) — 사용자가 직접 늘린 크기를 되돌리지 않기 위해서다.
+   *  본문에 zoom이 걸려 있어 scrollHeight는 축소 전 좌표계다 → 넘치는 양에 zoom을 곱해 실제 px로 환산한다.
+   *  화면을 넘지 않도록 상한을 두고, 커진 만큼 아래로 삐져나가면 위로 끌어올린다. */
+  useEffect(() => {
+    if (!detailFloating || !selectedTile) return;
+    const raf = requestAnimationFrame(() => {
+      const el = detailBodyRef.current;
+      if (!el) return;
+      const zoom = detailSizeRef.current.w / 256;
+      const overflow = (el.scrollHeight - el.clientHeight) * zoom;
+      if (overflow <= 2) return;
+      const maxH = window.innerHeight - 16;
+      setDetailSize((sz) => {
+        const h = Math.min(maxH, Math.round(sz.h + overflow + 4));
+        return h > sz.h ? { ...sz, h } : sz;
+      });
+      setDetailPos((q) => {
+        if (!q) return q;
+        const h = Math.min(maxH, Math.round(detailSizeRef.current.h + overflow + 4));
+        const maxTop = Math.max(0, window.innerHeight - h - 8);
+        return q.y > maxTop ? { ...q, y: maxTop } : q;
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [detailFloating, selectedTile, detailSize.w, detailSize.h]);
   const detailRootRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!detailFloating || !selectedTile) return;
@@ -2236,6 +2264,7 @@ export function GameBoard({
             )}
             {/* 내용 래퍼: X 헤더 아래를 채움(flex-1). 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
             <div
+              ref={detailBodyRef}
               className={`flex-1 min-h-0 overflow-y-auto ${detailFloating ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'}`}
               style={(() => {
                 // 모바일은 256px 디자인폭을 zoom으로 축소해 실제 패널 폭에 맞춘다(창 모드면 사용자가 정한 폭 기준).
