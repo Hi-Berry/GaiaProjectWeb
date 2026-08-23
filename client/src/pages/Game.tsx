@@ -1118,7 +1118,7 @@ export default function Game() {
           return;
         }
         // mergeGameLog가 gameLog를 전체 아카이브로 교체하므로 wire 기준점과 별도 객체를 사용한다.
-        const uiGame = { ...nextWire } as unknown as GameState;
+        const uiGame = JSON.parse(JSON.stringify(nextWire)) as GameState;
         applyAuthoritativeGame(uiGame);
       } catch {
         void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
@@ -1134,7 +1134,7 @@ export default function Game() {
         void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
         return;
       }
-      const uiGame = { ...message.game } as unknown as GameState;
+      const uiGame = JSON.parse(JSON.stringify(message.game)) as GameState;
       applyAuthoritativeGame(uiGame);
     });
 
