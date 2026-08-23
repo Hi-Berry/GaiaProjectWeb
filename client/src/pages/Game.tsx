@@ -943,6 +943,38 @@ export default function Game() {
       return;
     }
 
+    // [깜박임 2026-08-23 사용자 제보: S25, 사람 4명 게임 "가만히 있어도 화면이 깜박거린다"]
+    //   액션 1회에 서버 상태 패킷이 ~25개 온다(실측: 게임당 3,973개). 예전엔 패킷마다 setGame을 불러
+    //   거대한 트리를 그대로 다시 그렸다 → 폰에서는 메인 스레드가 계속 막히고 타일·이미지가 다시 그려지며
+    //   깜박임으로 보인다. 남이 액션하는 동안엔 내가 가만히 있어도 계속 들어오므로 상시 증상이 된다.
+    //   → UI 반영을 프레임당 1회로 합친다(가장 최근 상태만 반영). 로그 아카이브·갭 검사·낙관 카운터는
+    //     패킷마다 그대로 돌아 정확도는 변하지 않는다.
+    let pendingUi: GameState | null = null;
+    let uiRaf: number | null = null;
+    let uiCommitted = false;
+    const commitUi = (g: GameState) => {
+      setGame(g);
+      const isCurrentPlayer = g.turnOrder[g.currentPlayerIndex] === playerId;
+      if (isCurrentPlayer && g.hasDoneMainAction) {
+        setPendingAction(null);
+        setAdvanceTechDialog((prev) => (prev.open ? { open: false, trackId: null } : prev));
+        setPendingTwilightTSUpgrade(null);
+        setPendingRebellionMineToTS(null);
+      }
+    };
+    const flushUi = () => {
+      uiRaf = null;
+      const g = pendingUi;
+      pendingUi = null;
+      if (g) commitUi(g);
+    };
+    const scheduleUi = (g: GameState) => {
+      // 첫 상태는 지연 없이 반영 — 한 프레임이라도 빈 화면이 보이지 않게(로딩 해제와 경합 방지).
+      if (!uiCommitted) { uiCommitted = true; commitUi(g); return; }
+      pendingUi = g;
+      if (uiRaf == null) uiRaf = requestAnimationFrame(flushUi);
+    };
+
     const applyAuthoritativeGame = (updatedGame: GameState) => {
       if (updatedGame.id !== gameId) return;
       if (updatedGame.hostId === playerId) isHostSessionRef.current = true;
@@ -958,14 +990,7 @@ export default function Game() {
       if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
       else GameClient.noteAppliedServerFreeCount(serverFreeCount);
       mergeGameLog(updatedGame);
-      setGame(updatedGame);
-      const isCurrentPlayer = updatedGame.turnOrder[updatedGame.currentPlayerIndex] === playerId;
-      if (isCurrentPlayer && updatedGame.hasDoneMainAction) {
-        setPendingAction(null);
-        setAdvanceTechDialog((prev) => (prev.open ? { open: false, trackId: null } : prev));
-        setPendingTwilightTSUpgrade(null);
-        setPendingRebellionMineToTS(null);
-      }
+      scheduleUi(updatedGame);
     };
 
     let syncInFlight: Promise<void> | null = null;
@@ -1092,7 +1117,7 @@ export default function Game() {
           return;
         }
         // mergeGameLog가 gameLog를 전체 아카이브로 교체하므로 wire 기준점과 별도 객체를 사용한다.
-        const uiGame = JSON.parse(JSON.stringify(nextWire)) as GameState;
+        const uiGame = { ...nextWire } as unknown as GameState;
         applyAuthoritativeGame(uiGame);
       } catch {
         void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
@@ -1108,7 +1133,7 @@ export default function Game() {
         void requestFullSync().catch(() => { socket.disconnect(); socket.connect(); });
         return;
       }
-      const uiGame = JSON.parse(JSON.stringify(message.game)) as GameState;
+      const uiGame = { ...message.game } as unknown as GameState;
       applyAuthoritativeGame(uiGame);
     });
 
@@ -1145,6 +1170,7 @@ export default function Game() {
     });
 
     return () => {
+      if (uiRaf != null) cancelAnimationFrame(uiRaf);
       socket.off('connect', fetchGame);
       document.removeEventListener('visibilitychange', resyncNow);
       window.removeEventListener('focus', resyncNow);
