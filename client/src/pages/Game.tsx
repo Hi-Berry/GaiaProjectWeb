@@ -675,6 +675,10 @@ export default function Game() {
   const [terranCouncilChoice, setTerranCouncilChoice] = useState({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
   /** 음성 안내용 턴 경계 — 이 인덱스 이후 로그가 '방금 끝난 턴'이다. */
   const voiceLogMarkRef = useRef(0);
+  /** 이 마운트에서 game을 처음 본 적이 있는가 — 과거 로그 프라이밍을 정확히 1회만 하기 위한 플래그. */
+  const voicePrimedRef = useRef(false);
+  /** 들어간 시점에 이미 끝나 있던 게임인가 — 복기 화면이므로 이 마운트 동안 낭독을 끈다. */
+  const voiceSuppressAllRef = useRef(false);
   /** 음성 안내 '한 턴에 한 번' 판정용.
    *  actionWindow: hasDoneMainAction이 false로 돌아올 때마다(=새 턴 시작) 1 증가.
    *  announcedWindow: 사람별로 마지막에 안내한 window — 같은 window면 후속 로그를 읽지 않는다.
@@ -1461,8 +1465,21 @@ export default function Game() {
     const log = game?.gameLog ?? [];
     // 턴이 새로 시작되면(메인 액션 미수행 상태) 다음 안내를 허용한다.
     if (game && !game.hasDoneMainAction) actionWindowRef.current += 1;
-    // 첫 진입(또는 재접속)에는 과거 로그를 읽지 않는다 — 마크만 현재 위치로 맞춘다.
-    if (voiceLogMarkRef.current === 0 && log.length) { voiceLogMarkRef.current = log.length; return; }
+    /* 첫 진입(또는 재접속)에는 과거 로그를 읽지 않는다 — 마크만 현재 위치로 맞춘다.
+       [버그 2026-08-23 사용자 "막 끝난 게임에 들어가도 액션 음성이 3개쯤 나온다"]
+       ① 예전 가드는 'mark === 0 && log.length'였다. 첫 상태의 로그가 비어 있으면 프라이밍을 건너뛰고,
+          이후 아카이브 병합(꼬리 델타에 갭이 생기면 append)으로 로그가 늘어난 만큼을 '새 줄'로 읽었다.
+          → 로그 길이가 아니라 '게임을 처음 본 순간'을 플래그로 잡는다(정확히 1회).
+       ② 끝난 게임은 commitSeq가 null이라 '남은 줄을 전부 읽는' 규칙이 걸린다. 들어갔더니 이미 끝나 있던
+          게임은 복기용이므로 아예 읽지 않는다. (내가 참여 중에 끝난 경우는 프라이밍이 이미 지나갔으므로
+          영향 없이 마지막 액션까지 그대로 읽는다.) */
+    if (game && !voicePrimedRef.current) {
+      voicePrimedRef.current = true;
+      if (game.currentPhase === 'gameEnd') voiceSuppressAllRef.current = true;
+      voiceLogMarkRef.current = log.length;
+      return;
+    }
+    if (voiceSuppressAllRef.current) { voiceLogMarkRef.current = log.length; return; }
     if (!isVoiceOn() || !game) { voiceLogMarkRef.current = log.length; return; }
     // 백그라운드 중 도착분은 읽지 않는다(마크만 현재로). 플래그는 여기서 소모하지 않는다 —
     // 폰은 숨김 초반에 JS가 잠깐 살아 있어, 여기서 소모하면 정작 복귀 배치가 읽혀 버린다.
