@@ -498,10 +498,74 @@ export function GameBoard({
    *  원인과 해결(확대 낮추기·창 넓히기)을 그 자리에서 알려주는 쪽이 실제로 통한다.
    *  터치 기기(폰·태블릿)는 정상 동작이므로 제외한다. */
   const [cssWidth, setCssWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+  const [cssHeight, setCssHeight] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 0));
   useEffect(() => {
-    const onResize = () => setCssWidth(window.innerWidth);
+    const onResize = () => { setCssWidth(window.innerWidth); setCssHeight(window.innerHeight); };
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => { window.removeEventListener('resize', onResize); window.removeEventListener('orientationchange', onResize); };
+  }, []);
+
+  /** [사용자 2026-08-23] 맵 타일을 누르면 뜨는 상세 패널이 세로 모바일에서 우측 전체 높이로 도킹돼
+   *  맵을 크게 가렸다 → 세로 모바일에서만 채팅창처럼 '떠 있는 창'으로 만들어 위치·크기를 사용자가 정한다.
+   *  (드래그·리사이즈·클램프·localStorage 보존 방식은 ChatPanel과 동일하게 맞춤.) */
+  const detailFloating = isMobileViewport && cssHeight > cssWidth;
+  const DETAIL_MIN_W = 200, DETAIL_MIN_H = 160;
+  const clampDetailPos = useCallback((q: { x: number; y: number }) => {
+    const vw = window.innerWidth, vh = window.innerHeight, VIS = 80; // 최소 80px는 화면 안에 남겨 다시 잡을 수 있게
+    return { x: Math.max(0, Math.min(vw - VIS, q.x)), y: Math.max(0, Math.min(vh - VIS, q.y)) };
+  }, []);
+  const [detailSize, setDetailSize] = useState<{ w: number; h: number }>(() => {
+    try {
+      const v = localStorage.getItem('gaia-tile-detail-size');
+      if (v) { const o = JSON.parse(v); if (o?.w >= DETAIL_MIN_W && o?.h >= DETAIL_MIN_H) return o; }
+    } catch { /* noop */ }
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 400;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+    return { w: Math.min(300, vw - 16), h: Math.min(360, Math.round(vh * 0.42)) };
+  });
+  const [detailPos, setDetailPos] = useState<{ x: number; y: number } | null>(() => {
+    try { const v = localStorage.getItem('gaia-tile-detail-pos'); return v ? JSON.parse(v) : null; } catch { return null; }
+  });
+  const detailPosRef = useRef(detailPos); detailPosRef.current = detailPos;
+  const detailSizeRef = useRef(detailSize); detailSizeRef.current = detailSize;
+  // 회전·주소창 변화로 창이 화면 밖에 남지 않게 다시 클램프
+  useEffect(() => { setDetailPos((q) => (q ? clampDetailPos(q) : q)); }, [cssWidth, cssHeight, clampDetailPos]);
+  const detailStartDrag = useCallback((e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, textarea, a')) return; // 닫기(✕) 등은 드래그 아님
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const rect = (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect();
+    const baseX = detailPosRef.current?.x ?? rect?.left ?? 0;
+    const baseY = detailPosRef.current?.y ?? rect?.top ?? 0;
+    const onMove = (ev: PointerEvent) => setDetailPos(clampDetailPos({ x: baseX + (ev.clientX - sx), y: baseY + (ev.clientY - sy) }));
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.userSelect = '';
+      try { if (detailPosRef.current) localStorage.setItem('gaia-tile-detail-pos', JSON.stringify(detailPosRef.current)); } catch { /* noop */ }
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [clampDetailPos]);
+  const detailStartResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const sx = e.clientX, sy = e.clientY;
+    const { w: sw, h: sh } = detailSizeRef.current;
+    const onMove = (ev: PointerEvent) => setDetailSize({
+      w: Math.max(DETAIL_MIN_W, Math.min(window.innerWidth - 8, sw + (ev.clientX - sx))),
+      h: Math.max(DETAIL_MIN_H, Math.min(window.innerHeight - 8, sh + (ev.clientY - sy))),
+    });
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('gaia-tile-detail-size', JSON.stringify(detailSizeRef.current)); } catch { /* noop */ }
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }, []);
   const [narrowHintHidden, setNarrowHintHidden] = useState(() => {
     try { return localStorage.getItem('narrow-desktop-hint') === '1'; } catch { return true; }
@@ -2126,11 +2190,26 @@ export function GameBoard({
       {
         selectedTile && !isFederationMode && (
           <div
-            className="absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out flex flex-col"
-            style={isMobileViewport && mobilePanelWidth ? { width: mobilePanelWidth } : undefined}
+            className={detailFloating
+              ? 'fixed z-[140] bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col'
+              : 'absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out flex flex-col'}
+            style={detailFloating
+              ? {
+                width: detailSize.w,
+                height: detailSize.h,
+                left: detailPos?.x ?? 8,
+                top: detailPos?.y ?? Math.max(8, Math.round(cssHeight * 0.06)),
+              }
+              : (isMobileViewport && mobilePanelWidth ? { width: mobilePanelWidth } : undefined)}
           >
             {/* 닫기 — X를 상단 단독 헤더 행으로 분리(축소 안 됨=탭 쉬움). 내용/버튼이 X와 같은 높이에 있어 모바일서 오클릭나던 문제 해결(사용자 요청: 내용 전체를 X 밑으로) */}
-            <div className="shrink-0 flex justify-end p-1.5 border-b border-border/60 bg-card">
+            <div
+              className={`shrink-0 flex items-center p-1.5 border-b border-border/60 bg-card ${detailFloating ? 'justify-between cursor-move touch-none select-none' : 'justify-end'}`}
+              onPointerDown={detailFloating ? detailStartDrag : undefined}
+            >
+              {detailFloating && (
+                <span className="pl-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">⠿ 드래그</span>
+              )}
               <button
                 type="button"
                 onClick={() => setSelectedTile(null)}
@@ -2143,7 +2222,12 @@ export function GameBoard({
             {/* 내용 래퍼: X 헤더 아래를 채움(flex-1). 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
             <div
               className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
-              style={isMobileViewport && mobilePanelWidth ? ({ width: 256, height: `${(25600 / mobilePanelWidth)}%`, zoom: mobilePanelWidth / 256 } as CSSProperties) : undefined}
+              style={(() => {
+                // 모바일은 256px 디자인폭을 zoom으로 축소해 실제 패널 폭에 맞춘다(창 모드면 사용자가 정한 폭 기준).
+                const w = detailFloating ? detailSize.w : (isMobileViewport ? mobilePanelWidth : 0);
+                if (!w) return undefined;
+                return { width: 256, height: `${(25600 / w)}%`, zoom: w / 256 } as CSSProperties;
+              })()}
             >
             <h3 className="font-semibold capitalize">
               {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
@@ -2876,6 +2960,17 @@ export function GameBoard({
               Close
             </Button>
             </div>
+            {detailFloating && (
+              // 우하단 모서리 리사이즈 손잡이 — 채팅창과 동일한 조작감. touch-none이라 드래그 중 페이지가 안 밀린다.
+              <div
+                onPointerDown={detailStartResize}
+                title="크기 조절"
+                className="absolute bottom-0 right-0 h-6 w-6 cursor-nwse-resize touch-none select-none"
+                style={{
+                  background: 'linear-gradient(135deg, transparent 0 55%, rgba(255,255,255,0.35) 55% 65%, transparent 65% 78%, rgba(255,255,255,0.35) 78% 88%, transparent 88%)',
+                }}
+              />
+            )}
           </div>
         )
       }
