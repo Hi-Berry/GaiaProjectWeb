@@ -549,6 +549,22 @@ export function GameBoard({
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   }, [clampDetailPos]);
+  /** [사용자 2026-08-23] 창 모드에서는 바깥을 터치하면 닫는다.
+   *  덮개(backdrop) 대신 document pointerdown을 쓴다 — 덮개를 깔면 그 탭이 맵에 닿지 않아
+   *  '닫기 → 다시 탭'이 두 번 필요해진다. 이 방식은 다른 타일을 누르면 닫히면서 그 타일이 바로 선택된다
+   *  (타일 선택은 click이라 pointerdown 이후에 실행됨). 헤더 드래그·리사이즈는 패널 내부라 닫히지 않는다. */
+  const detailRootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!detailFloating || !selectedTile) return;
+    const onDown = (ev: PointerEvent) => {
+      const root = detailRootRef.current;
+      if (root && ev.target instanceof Node && root.contains(ev.target)) return;
+      setSelectedTile(null);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [detailFloating, selectedTile]);
+
   const detailStartResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation();
     const sx = e.clientX, sy = e.clientY;
@@ -2190,6 +2206,7 @@ export function GameBoard({
       {
         selectedTile && !isFederationMode && (
           <div
+            ref={detailRootRef}
             className={detailFloating
               ? 'fixed z-[140] bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col'
               : 'absolute top-0 bottom-0 right-0 w-64 bg-card border-l border-border shadow-xl z-40 overflow-hidden transition-all duration-300 ease-in-out flex flex-col'}
@@ -2204,12 +2221,9 @@ export function GameBoard({
           >
             {/* 닫기 — X를 상단 단독 헤더 행으로 분리(축소 안 됨=탭 쉬움). 내용/버튼이 X와 같은 높이에 있어 모바일서 오클릭나던 문제 해결(사용자 요청: 내용 전체를 X 밑으로) */}
             <div
-              className={`shrink-0 flex items-center p-1.5 border-b border-border/60 bg-card ${detailFloating ? 'justify-between cursor-move touch-none select-none' : 'justify-end'}`}
+              className={`shrink-0 flex items-center justify-end p-1.5 border-b border-border/60 bg-card ${detailFloating ? 'cursor-move touch-none select-none' : ''}`}
               onPointerDown={detailFloating ? detailStartDrag : undefined}
             >
-              {detailFloating && (
-                <span className="pl-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">⠿ 드래그</span>
-              )}
               <button
                 type="button"
                 onClick={() => setSelectedTile(null)}
