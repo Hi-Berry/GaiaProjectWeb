@@ -516,8 +516,13 @@ export default function Game() {
    *  공용 위치. 예전엔 bottom-20이라 세로 모바일에서 하단 패널(기술/우주선/라운드/상태창/로그) 안쪽에 떠서
    *  패널을 덮었다 → 진행 중 액션 스트립과 같은 자리(패널 바로 위)로 모은다. 스트립과 겹치지 않게 28px 위.
    *  가로·PC는 기존 위치(bottom-20) 유지. */
+  //   [보강 2026-08-23] 위치만 옮기고 크기를 그대로 뒀더니(text-sm·px-4 py-2·중앙 알약) 긴 문장이 여러 줄로
+  //   늘어나고, 아래쪽에 붙어 있어 위로 자라 맵을 덮었다(사용자: "6C 보니 거의 맵 다 가린다").
+  //   → 세로에서는 폭 전체 + 작은 글자 + 좁은 패딩으로 강제해 1~2줄 높이로 묶는다. 원래 클래스의
+  //     px/py/text-sm/rounded를 확실히 덮으려면 '!' 중요도 지정이 필요하다(같은 특이도라 순서로는 안 됨).
+  //     길이가 극단적일 때만 스크롤(max-h) — 잘라내면 '취소' 버튼이 사라질 수 있어 클립은 쓰지 않는다.
   const noticeBarPosClass = portraitMobile
-    ? 'fixed left-1/2 -translate-x-1/2 z-50 max-w-[96vw]'
+    ? 'fixed left-0 right-0 z-50 border-y !rounded-none !px-2 !py-1 !text-[10px] !leading-tight max-h-[3.4rem] overflow-y-auto'
     : 'fixed bottom-20 left-1/2 -translate-x-1/2 z-50';
   const noticeBarPosStyle: React.CSSProperties | undefined = portraitMobile
     ? { bottom: mapBottomInsetPx > 0 ? 'calc(50% + 28px)' : '28px' }
