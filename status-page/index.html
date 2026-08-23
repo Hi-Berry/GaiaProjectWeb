@@ -73,12 +73,26 @@ async function check(inst){
     if(!r.ok) return { ...inst, state:'down' };
     const j = await r.json();
     // notice/recommend/noticeAt = 서버가 /api/status/notice로 실시간 지정한 안내 (구버전 서버면 undefined → 무시)
+    // [사용자 2026-08-23] humanPlayers는 '방에 앉아 있는 사람 좌석 수'라 접속이 끊겨도 세고 관전자는 안 센다.
+    //   서버가 online(실제 접속 소켓 수)·spectators를 주면 그걸 쓰고, 구버전 서버면 좌석 수만 쓴다(undefined 판별).
     return { ...inst, state:'up', games:j.activeGames||0, humans:j.humanPlayers||0, ai:j.aiEnabled!==false,
+             online: typeof j.online==='number' ? j.online : null,
+             spectators: typeof j.spectators==='number' ? j.spectators : null,
              notice:j.notice||null, recommend:j.recommend===true, noticeAt:j.noticeAt||0 };
   }catch(e){ clearTimeout(to); return { ...inst, state:'down' }; }
 }
 
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/** 인원 표기. online(실제 접속 소켓 수)이 오면 그걸 앞세우고 좌석·관전을 괄호로 붙인다.
+ *  좌석 수만으로는 '폰 덮어놓고 나간 사람'도 1명으로 세고 관전자는 0명으로 보여 실제와 어긋났다(사용자 지적).
+ *  online은 다중 탭·숨은 관전까지 포함한 실제 연결 수이므로 좌석보다 클 수 있다 — 그래서 둘을 같이 보여준다. */
+function peopleText(x){
+  if (x.online === null) return `좌석 ${x.humans}명`;            // 구버전 서버
+  const parts = [`좌석 ${x.humans}`];
+  if (x.spectators) parts.push(`관전 ${x.spectators}`);
+  return `접속 ${x.online}명 (${parts.join(' · ')})`;
+}
 
 function render(list){
   // [사용자 2026-08-13] 이 페이지는 '사람을 모으는 곳'이 아니라 **빈 서버를 찾는 곳**이다
@@ -109,7 +123,7 @@ function render(list){
     const meta = x.state==='up'
       // 제일 먼저 답해야 할 질문은 '여기서 지금 시작할 수 있나'다 → 그것부터 표시.
       //   접속 인원은 게임이 아직 안 열렸어도 누가 모여 있는지 알려주므로 남긴다.
-      ? `${x.games>0?`게임 진행 중 (${x.games})`:'비어 있음'} · 접속 ${x.humans}명 · ${x.ai?'AI 봇 가능 — 느림':'AI 봇 없음'}`
+      ? `${x.games>0?`게임 진행 중 (${x.games})`:'비어 있음'} · ${peopleText(x)} · ${x.ai?'AI 봇 가능 — 느림':'AI 봇 없음'}`
         + ((isPinned || (best && x.url===best.url)) ? ' · 👉 여기서 플레이하세요' : '')
       : x.state==='wait' ? '확인 중…' : '응답 없음 — 이번 달 용량 소진(접속 불가)';
     // 안내 문구는 지정 여부와 무관하게 표시 — '점검 중' 같은 알림도 서버별로 띄울 수 있게

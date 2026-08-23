@@ -522,8 +522,14 @@ export function getPublicStatus() {
 		activeGames++;
 		humanPlayers += Math.max(0, Object.keys(g.players || {}).length - ((g as any).botPlayerIds?.length || 0));
 	}
+	// [사용자 2026-08-23] humanPlayers는 '진행 중 방에 앉아 있는 사람 좌석 수'다 — 접속이 끊겨도 세고,
+	//   관전자는 좌석이 없어 아예 안 센다. 상태 페이지가 이걸 '접속'으로 표기해 실제와 어긋났다.
+	//   → 실제 접속 소켓 수(online)와 관전자 수(spectators)를 함께 낸다.
+	//   online = 진행 중 방의 소켓 수(다중 탭·숨은 관전자 포함). spectators = 목록에 뜨는 관전자만(숨은 관전 제외).
+	const room = getRoomStats();
 	return {
 		ok: true, activeGames, humanPlayers, aiEnabled: isAiEnabled(),
+		seats: humanPlayers, spectators: room.spectators, online: room.receivers,
 		notice: statusNotice.text || null,
 		recommend: statusNotice.recommend,
 		noticeAt: statusNotice.updatedAt || null,
