@@ -512,6 +512,16 @@ export default function Game() {
   /** 배너를 붙일 위치는 px(winH 기반) 대신 하단 패널과 같은 기준(50%)을 쓴다 — 100dvh와 innerHeight가
    *  어긋나는 브라우저에서 px로 계산하면 패널 경계와 1~2px 틀어져 틈이나 겹침이 보인다. */
   const bannerBottomCss = mapBottomInsetPx > 0 ? '50%' : '0px';
+  /** [사용자 2026-08-23] '맵에서 …를 클릭하세요' 류 진행 안내(가이아 프로젝트·소행성 광산·엠바스·파이락 등)의
+   *  공용 위치. 예전엔 bottom-20이라 세로 모바일에서 하단 패널(기술/우주선/라운드/상태창/로그) 안쪽에 떠서
+   *  패널을 덮었다 → 진행 중 액션 스트립과 같은 자리(패널 바로 위)로 모은다. 스트립과 겹치지 않게 28px 위.
+   *  가로·PC는 기존 위치(bottom-20) 유지. */
+  const noticeBarPosClass = portraitMobile
+    ? 'fixed left-1/2 -translate-x-1/2 z-50 max-w-[96vw]'
+    : 'fixed bottom-20 left-1/2 -translate-x-1/2 z-50';
+  const noticeBarPosStyle: React.CSSProperties | undefined = portraitMobile
+    ? { bottom: mapBottomInsetPx > 0 ? 'calc(50% + 28px)' : '28px' }
+    : undefined;
   /** [사용자 2026-08-23] '테라포밍 액션 사용 중', '+3 거리' 같은 진행 중 안내가 세로 모바일에서 맵 위(top-14)에
    *  큼직하게 떠서 타일 클릭을 막았다 → 세로 모바일에서는 하단 패널(기술/우주선/라운드/상태창/로그) 바로 위에
    *  한 줄 스트립으로 붙인다. 가로/PC는 기존 위치·크기 유지. */
@@ -4537,7 +4547,7 @@ export default function Game() {
 
         {/* 거리 5 잊혀진 행성 배치 안내 — 상단은 다른 UI를 가려서 하단 중앙(테라포밍 안내 등과 동일 위치)으로 이동 */}
         {game.pendingLostPlanet?.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-indigo-900/90 border border-indigo-400/50 text-indigo-200 text-sm font-medium shadow-lg">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-indigo-900/90 border border-indigo-400/50 text-indigo-200 text-sm font-medium shadow-lg`} style={noticeBarPosStyle}>
             잊혀진 행성 배치: 맵에서 <span className="text-white">위성 없는 빈 우주 타일</span>을 클릭한 뒤 오른쪽 패널에서 배치하세요.
           </div>
         )}
@@ -5149,7 +5159,7 @@ export default function Game() {
 
         {/* TF Mars 액션2 / 보너스 타일(2P|ACT:GP): 가이아 프로젝트 (Transdim에 가이아포머 배치) */}
         {game.pendingTFMarsGaiaProject && game.pendingTFMarsGaiaProject.playerId === playerId && gameId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-4 py-3 rounded-lg bg-zinc-900 border border-purple-500 shadow-2xl">
+          <div className={`${noticeBarPosClass} flex items-center gap-4 px-4 py-3 rounded-lg bg-zinc-900 border border-purple-500 shadow-2xl`} style={noticeBarPosStyle}>
             <span className="text-purple-300 font-medium whitespace-nowrap">
               {game.pendingTFMarsGaiaProject.shipTileId === 'bonus-gaia'
                 ? '보너스 액션: 보라색(Transdim) 행성에 가이아포머 배치'
@@ -5206,14 +5216,14 @@ export default function Game() {
 
         {/* Eclipse 액션3: 소행성 광산 — 맵에서 초록 테두리 소행성 클릭으로 건설 (모달 없음) */}
         {game.pendingEclipseAsteroidMine && game.pendingEclipseAsteroidMine.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-green-500/50 text-green-400 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-green-500/50 text-green-400 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             Eclipse: 맵에서 <span className="font-bold text-green-300">초록 테두리</span> 소행성을 클릭하여 광산 건설 (6C)
             <Button variant="ghost" size="sm" className="text-green-400 hover:text-white shrink-0" onClick={() => gameId && GameClient.cancelEclipseAsteroidMine(gameId)}>취소 (6C 환불)</Button>
           </div>
         )}
         {/* 우주선 기술(2TF+Mine): 맵에서 행성 클릭으로 건설 */}
         {game.pendingShipTechMine && game.pendingShipTechMine.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-orange-500/50 text-orange-400 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-orange-500/50 text-orange-400 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             Ship Tech (2TF+Mine): 맵에서 <span className="font-bold text-orange-300">행성을 클릭</span>하여 광산 건설
             {/* [탈출구 2026-08-05] 지을 곳이 없을 때 포기 — 아이타 교환 중이면 액션 단계가 이걸 기다리므로 탈출구 필수 */}
             <Button variant="ghost" size="sm" className="text-orange-300 hover:text-white shrink-0" onClick={() => gameId && GameClient.skipShipTechMine(gameId)}>배치 포기</Button>
@@ -5221,7 +5231,7 @@ export default function Game() {
         )}
         {/* 우주선 연방 보상(무한거리 무료광산): 안내가 전혀 없어 '클릭해도 무반응'으로 보이던 문제(사용자 관찰) + 지을 곳 없을 때(광산 8개 한도 등) 포기 탈출구 */}
         {game.pendingSpaceshipFedMine && game.pendingSpaceshipFedMine.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-sky-500/50 text-sky-300 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-sky-500/50 text-sky-300 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             {/* [정리 2026-08-05 사용자: 텍스트 과다] 긴 설명(무한거리·소행성 제외·비용 청구 규칙)은 배치 때마다 읽을 필요가 없어
                 한 줄로 축약하고, 상세 규칙은 hover(title)로 옮김 */}
             <span title="무한거리 · 소행성 제외 · 테라포밍/가이아 비용만 청구(못 내면 면제)">
@@ -5232,7 +5242,7 @@ export default function Game() {
         )}
         {/* Twilight 액션2 / Rebellion 액션2: 맵에서 보라 테두리 건물 클릭으로 선택 */}
         {(pendingTwilightTSUpgrade || pendingRebellionMineToTS) && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-violet-500/50 text-violet-300 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-violet-500/50 text-violet-300 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             {pendingTwilightTSUpgrade && 'Twilight: 맵에서 보라 테두리 교역소를 클릭하여 연구소로 업그레이드 (2O, 3P)'}
             {pendingRebellionMineToTS && 'Rebellion: 맵에서 보라 테두리 광산을 클릭하여 교역소로 변경 (1O, 3P)'}
             <Button variant="ghost" size="sm" className="text-violet-400 hover:text-white shrink-0" onClick={() => { setPendingTwilightTSUpgrade(null); setPendingRebellionMineToTS(null); }}>취소</Button>
@@ -5240,14 +5250,14 @@ export default function Game() {
         )}
         {/* 엠바스 Special: 의회↔광산 교체 — 맵에서 내 광산 클릭 */}
         {ambasSwapPiMineMode && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             엠바스: 맵에서 <span className="font-bold text-amber-200">교체할 내 광산</span>을 클릭하면 의회와 위치가 바뀝니다.
             <Button variant="ghost" size="sm" className="text-amber-400 hover:text-white shrink-0" onClick={() => setAmbasSwapPiMineMode(false)}>취소</Button>
           </div>
         )}
         {/* 파이락 Downgrade: 연구소 클릭 → 트랙 선택 */}
         {firaksDowngradeMode && !firaksDowngradeLabTileId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             파이락: 맵에서 <span className="font-bold text-amber-200">다운그레이드할 연구소</span>를 클릭한 뒤, 올릴 트랙을 선택하세요.
             <Button variant="ghost" size="sm" className="text-amber-400 hover:text-white shrink-0" onClick={() => { setFiraksDowngradeMode(false); setFiraksDowngradeLabTileId(null); }}>취소</Button>
           </div>
@@ -5265,14 +5275,14 @@ export default function Game() {
         )}
         {/* 모웨이드 링 놓기: 링 없는 본인 건물 클릭 */}
         {moweyipPlaceRingMode && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg flex items-center gap-2`} style={noticeBarPosStyle}>
             모웨이드: 맵에서 <span className="font-bold text-amber-200">링을 놓을 본인 건물</span>을 클릭하세요. (+2 파워 수신/연방)
             <Button variant="ghost" size="sm" className="text-amber-400 hover:text-white shrink-0" onClick={() => setMoweyipPlaceRingMode(false)}>취소</Button>
           </div>
         )}
         {/* 우주선 기술 타일 획득 후: 하단 풀 3개처럼 6개 트랙 중 원하는 트랙 1칸 진행 */}
         {game.pendingShipTechTrackAdvance?.playerId === playerId && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg">
+          <div className={`${noticeBarPosClass} px-4 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 text-amber-300 text-sm font-medium shadow-lg`} style={noticeBarPosStyle}>
             우주선 기술 타일 보상: R창에서 올릴 트랙을 클릭하세요 (6개 중 1개)
           </div>
         )}
@@ -7045,18 +7055,26 @@ export default function Game() {
       )}
 
       <AnimatePresence>
+        {/* [중앙정렬 버그 2026-08-23 사용자 "왜 왼쪽에 치우쳐 있어?"]
+            예전엔 left: calc((100% - 사이드바폭)/2) + translateX(-50%)로 중앙을 잡았다. PC는 상태창이
+            오른쪽에 도킹돼 있어 맞는 보정이지만, 세로 모바일은 패널이 '아래'에 있는데도 같은 식이 적용돼
+            없는 오른쪽 사이드바만큼 왼쪽으로 밀렸다(412px 화면·패널 90px이면 중심 206→161, 45px 이탈).
+            CSS zoom이 오프셋까지 축소하는 것도 같은 방향으로 겹친다.
+            → left/translate 대신 전체 폭 flex 중앙정렬. zoom은 안쪽 알약에만 걸어 부모가 '축소된 실제
+              크기'를 기준으로 가운데를 맞추게 한다. PC 사이드바 보정은 컨테이너 우측 패딩으로 유지. */}
         {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
           <motion.div
-            initial={{ y: -50, x: '-50%', opacity: 0 }}
-            animate={{ y: 0, x: '-50%', opacity: 1 }}
-            exit={{ y: -50, x: '-50%', opacity: 0 }}
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -50, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-20 z-[130] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
-            style={{
-              left: isSidebarOpen ? `calc((100% - ${effectiveSidebarWidth}px) / 2)` : '50%',
-              ...(isMobileViewport ? { zoom: 0.82 } : {}),
-            }}
+            className="fixed top-20 left-0 right-0 z-[130] flex justify-center px-2 pointer-events-none"
+            style={{ paddingRight: !isMobileViewport && isSidebarOpen ? effectiveSidebarWidth : undefined }}
           >
+            <div
+              className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-yellow-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(234,179,8,0.2)] max-w-[95vw]"
+              style={isMobileViewport ? ({ zoom: 0.82 } as React.CSSProperties) : undefined}
+            >
             {/* Title & Costs (Left Side) */}
             <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
               <div className="flex flex-col shrink-0 mr-2">
@@ -7156,6 +7174,7 @@ export default function Game() {
                   </Button>
                 </div>
               )}
+            </div>
             </div>
           </motion.div>
         )}
