@@ -2219,23 +2219,24 @@ export function GameBoard({
               }
               : (isMobileViewport && mobilePanelWidth ? { width: mobilePanelWidth } : undefined)}
           >
-            {/* 닫기 — X를 상단 단독 헤더 행으로 분리(축소 안 됨=탭 쉬움). 내용/버튼이 X와 같은 높이에 있어 모바일서 오클릭나던 문제 해결(사용자 요청: 내용 전체를 X 밑으로) */}
-            <div
-              className={`shrink-0 flex items-center justify-end p-1.5 border-b border-border/60 bg-card ${detailFloating ? 'cursor-move touch-none select-none' : ''}`}
-              onPointerDown={detailFloating ? detailStartDrag : undefined}
-            >
-              <button
-                type="button"
-                onClick={() => setSelectedTile(null)}
-                title="닫기 (맵 클릭 가능)"
-                className="w-8 h-8 flex items-center justify-center rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 text-base font-bold leading-none"
-              >
-                ✕
-              </button>
-            </div>
+            {/* 닫기 — X를 상단 단독 헤더 행으로 분리(축소 안 됨=탭 쉬움). 내용/버튼이 X와 같은 높이에 있어 모바일서 오클릭나던 문제 해결(사용자 요청: 내용 전체를 X 밑으로)
+                [사용자 2026-08-23] 창 모드에서는 이 헤더를 없앤다 — 하단 Close + 바깥 터치로 닫히니 ✕이 중복이고,
+                한 줄을 통째로 먹어 하단 내용이 밀렸다. 창 모드의 드래그 손잡이는 아래 제목 줄이 맡는다. */}
+            {!detailFloating && (
+              <div className="shrink-0 flex items-center justify-end p-1.5 border-b border-border/60 bg-card">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTile(null)}
+                  title="닫기 (맵 클릭 가능)"
+                  className="w-8 h-8 flex items-center justify-center rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 text-base font-bold leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             {/* 내용 래퍼: X 헤더 아래를 채움(flex-1). 모바일에선 256px 디자인폭을 zoom으로 축소해 상태창과 동일한 폭으로. 데스크톱은 w-64 그대로 */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
+              className={`flex-1 min-h-0 overflow-y-auto ${detailFloating ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'}`}
               style={(() => {
                 // 모바일은 256px 디자인폭을 zoom으로 축소해 실제 패널 폭에 맞춘다(창 모드면 사용자가 정한 폭 기준).
                 const w = detailFloating ? detailSize.w : (isMobileViewport ? mobilePanelWidth : 0);
@@ -2243,12 +2244,20 @@ export function GameBoard({
                 return { width: 256, height: `${(25600 / w)}%`, zoom: w / 256 } as CSSProperties;
               })()}
             >
-            <h3 className="font-semibold capitalize">
-              {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Sector {selectedTile.sector} | ({selectedTile.q}, {selectedTile.r})
-            </p>
+            {/* [사용자 2026-08-23] 유형과 섹터·좌표를 두 줄로 쓰던 것을 한 줄로 — 위쪽 공간을 줄여
+                하단 내용(액션 버튼 등)이 스크롤 없이 바로 보이게. 창 모드에선 이 줄이 드래그 손잡이. */}
+            <div
+              className={`flex items-baseline gap-2 ${detailFloating ? 'cursor-move touch-none select-none -mx-1 px-1 py-0.5 rounded hover:bg-white/5' : ''}`}
+              onPointerDown={detailFloating ? detailStartDrag : undefined}
+              title={detailFloating ? '끌어서 이동' : undefined}
+            >
+              <h3 className="font-semibold capitalize leading-tight shrink-0">
+                {selectedTile.type?.startsWith('ship_') ? 'Spaceship' : `${selectedTile.type} Planet`}
+              </h3>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                Sector {selectedTile.sector} · ({selectedTile.q}, {selectedTile.r})
+              </span>
+            </div>
 
             {/* 엠바스(Ambas) Special: 의회↔광산 교체 — 광산 클릭 시 즉시 교체 */}
             {ambasSwapPiMineMode && (
