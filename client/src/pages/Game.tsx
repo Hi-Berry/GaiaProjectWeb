@@ -506,6 +506,50 @@ export default function Game() {
   //   너무 작아 '되돌리려고 다시 더블터치'가 어려웠다 → 최대화 중에는 탭바를 키운다.
   //   또 최대화 시 top:0이라 노치/브라우저 UI에 물리므로 safe-area만큼 내리고, 패널 padding도 같이 맞춘다.
   const mobileTabBarH = mobileZoomPanel === 'status' ? 34 : 22;
+
+  /** 세로 분할에서 하단 패널이 차지하는 높이(px). 맵 하단 여백 = 배너를 붙일 기준선. */
+  const mapBottomInsetPx = splitActive && mobileZoomPanel !== 'status' && mobileZoomPanel !== 'info' ? Math.round(winH * 0.5) : 0;
+  /** 배너를 붙일 위치는 px(winH 기반) 대신 하단 패널과 같은 기준(50%)을 쓴다 — 100dvh와 innerHeight가
+   *  어긋나는 브라우저에서 px로 계산하면 패널 경계와 1~2px 틀어져 틈이나 겹침이 보인다. */
+  const bannerBottomCss = mapBottomInsetPx > 0 ? '50%' : '0px';
+  /** [사용자 2026-08-23] '테라포밍 액션 사용 중', '+3 거리' 같은 진행 중 안내가 세로 모바일에서 맵 위(top-14)에
+   *  큼직하게 떠서 타일 클릭을 막았다 → 세로 모바일에서는 하단 패널(기술/우주선/라운드/상태창/로그) 바로 위에
+   *  한 줄 스트립으로 붙인다. 가로/PC는 기존 위치·크기 유지. */
+  const renderActiveActionBanner = (key: string, text: string, tone: 'orange' | 'purple' | 'green') => {
+    const toneCls = tone === 'orange'
+      ? 'bg-orange-950/95 border-orange-500/50 text-orange-200'
+      : tone === 'purple'
+        ? 'bg-purple-950/95 border-purple-500/50 text-purple-200'
+        : 'bg-green-950/95 border-green-500/50 text-green-200';
+    const undo = () => { GameClient.resetTurn(gameId!); setPendingAction(null); };
+    if (portraitMobile) {
+      return (
+        <div
+          key={key}
+          className={`fixed left-0 right-0 z-[125] flex items-center justify-center gap-2 border-y px-2 py-1 text-[11px] font-bold leading-tight shadow-lg ${toneCls}`}
+          style={{ bottom: bannerBottomCss }}
+        >
+          <span className="truncate">{text}</span>
+          <button
+            type="button"
+            onClick={undo}
+            className="shrink-0 rounded border border-white/25 bg-black/40 px-1.5 py-0.5 text-[10px] font-black text-zinc-200 active:scale-95"
+          >
+            취소
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div
+        key={key}
+        className={`fixed top-14 bottom-auto md:top-auto md:bottom-20 left-1/2 -translate-x-1/2 z-[125] px-4 py-3 rounded-lg border text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5 ${toneCls}`}
+      >
+        <span>{text}</span>
+        <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={undo}>취소 (Undo)</Button>
+      </div>
+    );
+  };
   const mobileTabBarTop = mobileZoomPanel === 'status' ? 'env(safe-area-inset-top, 0px)' : (splitActive ? '50%' : 0);
   const mobilePanelPadTop = mobileZoomPanel === 'status'
     ? `calc(env(safe-area-inset-top, 0px) + ${mobileTabBarH}px)`
@@ -3851,7 +3895,7 @@ export default function Game() {
             onOpenAdmin={() => { setIsAdmin(true); setIsAdminModeOpen(true); }}
             isMobileViewport={isMobileViewport}
             mobilePanelWidth={effectiveSidebarWidth}
-            mapBottomInset={splitActive && mobileZoomPanel !== 'status' && mobileZoomPanel !== 'info' ? Math.round(winH * 0.5) : 0}
+            mapBottomInset={mapBottomInsetPx}
           />
         </div>
 
@@ -5211,24 +5255,12 @@ export default function Game() {
         {/* 활성 스페셜 액션(2단계) 안내 배너 */}
         {game && game.turnOrder[game.currentPlayerIndex] === playerId && currentPlayer && (
           <>
-            {(currentPlayer.pendingTerraformSteps ?? 0) > 0 && (
-              <div className="fixed top-14 bottom-auto md:top-auto md:bottom-20 left-1/2 -translate-x-1/2 z-[125] px-4 py-3 rounded-lg bg-orange-950/90 border border-orange-500/50 text-orange-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
-                <span>테라포밍 액션 사용 중 ({currentPlayer.pendingTerraformSteps}단계 남음)</span>
-                <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
-              </div>
-            )}
-            {(currentPlayer.rangeBonusActive || currentPlayer.tempRangeBonus) && (
-              <div className="fixed top-14 bottom-auto md:top-auto md:bottom-20 left-1/2 -translate-x-1/2 z-[125] px-4 py-3 rounded-lg bg-purple-950/90 border border-purple-500/50 text-purple-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
-                <span>+3 거리 보너스 적용 중</span>
-                <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
-              </div>
-            )}
-            {currentPlayer.gleensNavBonusActive && (
-              <div className="fixed top-14 bottom-auto md:top-auto md:bottom-20 left-1/2 -translate-x-1/2 z-[125] px-4 py-3 rounded-lg bg-green-950/90 border border-green-500/50 text-green-200 text-sm font-bold shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
-                <span>글린 특수 액션: +2 거리 적용 중</span>
-                <Button variant="outline" size="sm" className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 whitespace-nowrap shrink-0 h-7" onClick={() => { GameClient.resetTurn(gameId!); setPendingAction(null); }}>취소 (Undo)</Button>
-              </div>
-            )}
+            {(currentPlayer.pendingTerraformSteps ?? 0) > 0
+              && renderActiveActionBanner('tf', `테라포밍 액션 사용 중 (${currentPlayer.pendingTerraformSteps}단계 남음)`, 'orange')}
+            {(currentPlayer.rangeBonusActive || currentPlayer.tempRangeBonus)
+              && renderActiveActionBanner('range3', '+3 거리 보너스 적용 중', 'purple')}
+            {currentPlayer.gleensNavBonusActive
+              && renderActiveActionBanner('gleens', '글린 특수 액션: +2 거리 적용 중', 'green')}
           </>
         )}
         {/* 모웨이드 링 놓기: 링 없는 본인 건물 클릭 */}
