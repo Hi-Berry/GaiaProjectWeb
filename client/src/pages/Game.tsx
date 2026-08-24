@@ -5608,7 +5608,10 @@ export default function Game() {
         const showFa = isMe && showYouFaStrip;
         // [사용자 2026-08-07] 패스한 사람은 이번 라운드에 특수 액션을 쓸 수 없으므로 스트립을 띄우지 않는다.
         const passedThisRound = !!game.players[pid]?.hasPassed;
-        const acts = (showSpecialStrips && !stripQuickOff && !passedThisRound) ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
+        // [사용자 2026-08-24] 비딩·시작광산·보너스 선택 단계(roundNumber 0)에는 아직 쓸 수 없는
+        // 특수 액션이 미리 보여 혼란 → 라운드 1이 시작된 뒤부터 표시.
+        const roundStarted = (game.roundNumber ?? 0) >= 1;
+        const acts = (showSpecialStrips && roundStarted && !stripQuickOff && !passedThisRound) ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
         if (!showFa && acts.length === 0) return null;
         return (
           <div
