@@ -480,6 +480,12 @@ function ActionVoiceToggle() {
             <input
               type="range" min="0.8" max="2" step="0.1" value={rate}
               onChange={(e) => { const v = Number(e.target.value); setRate(v); setVoiceRate(v); }}
+              onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); }}
+              onPointerMove={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseMove={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
               className="flex-1 accent-cyan-400"
             />
             <span className="w-8 shrink-0 text-right font-mono text-[10px] text-zinc-300">{rate.toFixed(1)}x</span>
@@ -674,10 +680,8 @@ interface GameUiHelpDialogProps {
 export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTaklonsBrain, taklonsBrainPriority, onOpenAdmin }: GameUiHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* [사용자 2026-08-20] 창 안에서 휠/터치로 스크롤하면 맵이 확대·이동되던 문제.
-          이 창은 GameBoard의 맵 컨테이너 JSX 안에 있고(GameBoard.tsx:1328~2069), Radix가 body로 포털해도
-          React 이벤트는 컴포넌트 트리를 따라 버블링해 맵의 onWheel/onTouchMove로 올라간다.
-          → 편의기능 창(UtilityPanel)과 같은 방식으로 루트에서 끊는다. 내부 요소의 자체 처리에는 영향 없다. */}
+      {/* 휠·터치·포인터가 맵 팬/줌으로 새지 않게 여기서 끊는다. 네이티브 range 드래그는
+          슬라이더 밖으로 나가면 포인터가 맵으로 떨어지므로 pointer 계열도 막는다. */}
       <DialogContent
         className="flex max-h-[min(92vh,820px)] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden border-white/10 bg-zinc-950 p-0 text-zinc-100"
         onWheel={(e) => e.stopPropagation()}
@@ -686,6 +690,9 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
         onTouchEnd={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseMove={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
       >
         <DialogHeader className="shrink-0 space-y-0 border-b border-white/10 px-3 py-2 pr-10">
           <DialogTitle className="text-sm font-bold text-white">UI · 단축키 안내</DialogTitle>

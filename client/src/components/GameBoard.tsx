@@ -1117,22 +1117,42 @@ export function GameBoard({
     setPan({ x: 0, y: 0 });
   }, [pagePinchZoom]);
 
+  // [사용자 2026-08-24] 옵션(?창)에서 소리 게이지를 드래그(또는 휠)하고 나오면 맵이 커지던 문제.
+  //   옵션 창이 맵의 팬/줌 영역 자식이라, 네이티브 range 드래그가 슬라이더(폭 80px) 밖으로 나가면
+  //   포인터·마우스 이벤트가 맵으로 새고, 윈도우에선 그 제스처가 줌으로 처리되기도 한다.
+  //   오버레이 뒤라 닫기 전까지 확대를 못 본다. 열린 동안은 맵 제스처를 전부 무시한다.
+  const ignoreMapWheelUntilRef = useRef(0);
+  const wasUiHelpOpenRef = useRef(false);
+  useEffect(() => {
+    if (isUiHelpOpen) {
+      setIsMouseDown(false);
+      setIsPinching(false);
+    }
+    if (wasUiHelpOpenRef.current && !isUiHelpOpen) {
+      ignoreMapWheelUntilRef.current = Date.now() + 450;
+    }
+    wasUiHelpOpenRef.current = isUiHelpOpen;
+  }, [isUiHelpOpen]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (pagePinchZoom) return; // 화면 줌 모드: 맵 자체 줌 비활성
+    if (isUiHelpOpen || Date.now() < ignoreMapWheelUntilRef.current) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
     setZoom(prev => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)));
-  }, [pagePinchZoom]);
+  }, [pagePinchZoom, isUiHelpOpen]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isUiHelpOpen) return;
     if (e.button === 0) {
       setIsMouseDown(true);
       setHasDragged(false);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     }
-  }, [pan]);
+  }, [pan, isUiHelpOpen]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isUiHelpOpen) return;
     if (isMouseDown) {
       const dx = Math.abs(e.clientX - (dragStart.x + pan.x));
       const dy = Math.abs(e.clientY - (dragStart.y + pan.y));
@@ -1144,7 +1164,7 @@ export function GameBoard({
         y: e.clientY - dragStart.y,
       });
     }
-  }, [isMouseDown, dragStart, pan]);
+  }, [isMouseDown, dragStart, pan, isUiHelpOpen]);
 
   const handleMouseUp = useCallback(() => {
     setIsMouseDown(false);
@@ -1161,6 +1181,7 @@ export function GameBoard({
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     // 화면 줌 모드: 맵뷰는 고정 — 팬/핀치 모두 브라우저(페이지 스크롤/줌)에 맡긴다. 탭(타일 선택)은 그대로 동작.
     if (pagePinchZoom) return;
+    if (isUiHelpOpen) return;
     if (e.touches.length === 1) {
       // Single touch -> Pan
       setIsMouseDown(true);
@@ -1177,9 +1198,10 @@ export function GameBoard({
       setInitialPinchDist(dist);
       setInitialPinchZoom(zoom);
     }
-  }, [pan, zoom, pagePinchZoom]);
+  }, [pan, zoom, pagePinchZoom, isUiHelpOpen]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (isUiHelpOpen) return;
     if (isPinching && e.touches.length === 2 && initialPinchDist !== null) {
       // Handle Zoom
       const touch1 = e.touches[0];
@@ -1202,7 +1224,7 @@ export function GameBoard({
         y: e.touches[0].clientY - dragStart.y,
       });
     }
-  }, [isMouseDown, dragStart, pan, isPinching, initialPinchDist, initialPinchZoom]);
+  }, [isMouseDown, dragStart, pan, isPinching, initialPinchDist, initialPinchZoom, isUiHelpOpen]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (e.touches.length < 2) {
@@ -2186,8 +2208,6 @@ export function GameBoard({
 
         {tourOn && <OnboardingTour steps={TOUR_STEPS} onDone={() => { setTourOn(false); dismissFirstVisit(); }} />}
 
-        <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
-
         {/* body로 포털 — 맵 컨테이너의 stacking context/overflow에서 벗어나기 위함.
             ※ 정정(2026-08-14): 이 포털은 '맵이 같이 끌리던' 문제의 해법이 아니었다.
                React 이벤트는 DOM이 아니라 컴포넌트 트리를 따라 버블링하므로 포털해도
@@ -2209,6 +2229,9 @@ export function GameBoard({
         )}
 
       </div>
+
+      {/* 맵 컨테이너 밖 — 옵션 창 휠/슬라이더가 맵 onWheel으로 버블링하지 않게(사용자 2026-08-24). */}
+      <GameUiHelpDialog open={isUiHelpOpen} onOpenChange={setIsUiHelpOpen} gameId={game.id} playerId={playerId} showTaklonsBrain={currentPlayer?.faction === 'taklons'} taklonsBrainPriority={currentPlayer?.taklonsBrainPriority ?? true} onOpenAdmin={onOpenAdmin} />
 
       {/* 행성/타일 선택 패널: 절대 위치 오버레이로 맵 영역 크기에 영향 없음.
           연방 모드에선 렌더하지 않음 — 타일 클릭은 연방 선택 전용이고, 패널이 연방 파워체크 팝업을 가렸음. */}

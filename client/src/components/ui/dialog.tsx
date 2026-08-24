@@ -17,7 +17,7 @@ const DialogClose = DialogPrimitive.Close
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+>(({ className, onWheel, onPointerDown, onPointerMove, onMouseDown, onMouseMove, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
@@ -25,6 +25,11 @@ const DialogOverlay = React.forwardRef<
       className
     )}
     {...props}
+    onWheel={(e) => { e.stopPropagation(); onWheel?.(e); }}
+    onPointerDown={(e) => { e.stopPropagation(); onPointerDown?.(e); }}
+    onPointerMove={(e) => { e.stopPropagation(); onPointerMove?.(e); }}
+    onMouseDown={(e) => { e.stopPropagation(); onMouseDown?.(e); }}
+    onMouseMove={(e) => { e.stopPropagation(); onMouseMove?.(e); }}
   />
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
