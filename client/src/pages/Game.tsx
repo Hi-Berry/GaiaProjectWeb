@@ -1432,6 +1432,21 @@ export default function Game() {
     }
   }, [game?.pendingTechTileSelection?.playerId, game?.pendingTechTileSelection?.tileId, playerId, game?.botPlayerIds]);
 
+  // [사용자 제보 2026-08-24] 우주선/고급기술 '트랙 전진' 강제 선택도 위 타일선택과 동일 취급 —
+  //   새로 생기는 순간 억제를 풀고 R창을 연다. (아이타 교환에서 1O3K를 고르면 트랙 선택이 별도 pending으로
+  //   오는데, 이전에 R창을 닫아 억제된 상태면 어디에도 선택지가 안 보였다.)
+  //   미니뷰에서 2TF+Mine을 고른 흐름(shipTech2TfMineFromMini)은 미니 패널에서 해소하므로 큰 창을 안 연다.
+  useEffect(() => {
+    if (!game || !playerId) return;
+    if (game.botPlayerIds?.includes(playerId)) return;
+    if (shipTech2TfMineFromMini) return;
+    if (game.pendingShipTechTrackAdvance?.playerId === playerId
+      || game.pendingAdvancedTechTrackAdvance?.playerId === playerId) {
+      setResearchAutoOpenSuppressed(false);
+      setIsResearchOpen(true);
+    }
+  }, [game?.pendingShipTechTrackAdvance?.playerId, game?.pendingAdvancedTechTrackAdvance?.playerId, playerId, game?.botPlayerIds, shipTech2TfMineFromMini]);
+
   // 테란 의회 다이얼로그가 열릴 때 선택 초기화
   useEffect(() => {
     if (game?.pendingTerranCouncilBenefit?.playerId === playerId) {

@@ -511,8 +511,11 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                     </div>
                 )}
 
-                {/* 우주선 기술 타일 / 고급 기술 타일 획득 후: 올릴 트랙 선택 (6개 중 1개) */}
-                {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && showPending && (
+                {/* 우주선 기술 타일 / 고급 기술 타일 획득 후: 올릴 트랙 선택 (6개 중 1개)
+                    [사용자 제보 2026-08-24] 이 블록은 '반드시 골라야 하는' 강제 선택인데 showPending 게이트 때문에
+                    통합 미니뷰·핀 미니 R패널에는 안 그려졌다 — 아이타 교환으로 1O3K를 고른 뒤 트랙 선택지가
+                    어디에도 안 보이던 원인. 강제 선택은 미니 렌더에서도 항상 표시(showPending 미적용). */}
+                {(pendingShipTrack || pendingAdvTechTrack) && onAdvanceTech && (
                     <div className="space-y-3 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400">올릴 기술 라인을 클릭하세요</h4>
                         <p className="text-[9px] text-zinc-400">{pendingAdvTechTrack ? '고급 기술 타일 보상' : '우주선 기술 타일 보상'} — 6개 트랙 중 하나를 선택하세요.</p>
