@@ -15,6 +15,16 @@ const FM = {
   fm_pi_academy_distance: '의회거리', fm_planet_types: '행성유형', fm_asteroid_buildings: '소행성',
 };
 
+// [사용자 2026-08-24] 닉네임 변형은 같은 사람으로 합쳐서 본다. 확실치 않은 쌍은 넣지 말 것.
+const ALIAS = {
+  '하이': 'Hi', 'HI': 'Hi',
+  '군성`': '군성',
+  'Happygaia': '행복가이아',
+  '시리티드': '시리',
+  '암컷가마우지': '가마우지',
+};
+const canon = (name) => ALIAS[name] ?? name;
+
 const byPlayer = {};      // name -> {games, n, sum}
 const cell = {};          // name|fm -> {n, sum}
 const fmSeen = {};        // fm -> instance count(플레이어 단위 아님, 판 단위)
@@ -34,12 +44,12 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
   if (humans.length === 0) continue;
   games++;
   for (const p of humans) {
-    const b = byPlayer[p.name] ??= { games: 0, n: 0, sum: 0 };
+    const b = byPlayer[canon(p.name)] ??= { games: 0, n: 0, sum: 0 };
     b.games++;
     for (const fm of gameFms) {
       const vp = p.scoreBreakdown.finalMissionDetails.find((d) => d.missionId === fm)?.vp ?? 0;
       b.n++; b.sum += vp;
-      const c = cell[p.name + '|' + fm] ??= { n: 0, sum: 0 };
+      const c = cell[canon(p.name) + '|' + fm] ??= { n: 0, sum: 0 };
       c.n++; c.sum += vp;
     }
   }
