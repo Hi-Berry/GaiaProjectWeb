@@ -1306,7 +1306,12 @@ export function GameBoard({
 
   const canBuildMine = useMemo(() => {
     const isTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
-    if (!selectedTile || !currentPlayer || game.currentPhase !== 'main' || !isTurn) return false;
+    // [사용자 제보 2026-08-24] 아이타 PI 교환의 2TF+무료광산(pendingShipTechMine)은 액션 단계 시작 전
+    // '아무의 턴도 아닐 때' 해소된다 — 서버 executeBuildMine은 이 pending에 phase/턴 게이트를 면제하는데
+    // 클라 쪽은 transdim 버튼에만 면제가 있고 일반 행성 버튼(이 memo)엔 없어서 2TF 행성 클릭 시
+    // 건설 버튼이 아예 안 떴다. 서버와 동일하게 면제.
+    const shipMinePending = game.pendingShipTechMine?.playerId === playerId;
+    if (!selectedTile || !currentPlayer || (!shipMinePending && (game.currentPhase !== 'main' || !isTurn))) return false;
 
     // 란티다 기생 광산 체크
     const isLantidaParasitic = currentPlayer.faction === 'lantids' &&
@@ -1389,11 +1394,13 @@ export function GameBoard({
     // 글린 가이아 비용 체크는 이제 mineBuildCost.oreCost(2 Ore)에 반영되므로 표준 로직을 따름
     if (mineBuildCost.qicCost > 0 && (currentPlayer.qic ?? 0) < mineBuildCost.qicCost) return false;
     return true;
-  }, [selectedTile, currentPlayer, game.currentPhase, game.map, playerId, mineBuildCost]);
+  }, [selectedTile, currentPlayer, game.currentPhase, game.map, playerId, mineBuildCost, game.pendingShipTechMine, game.turnOrder, game.currentPlayerIndex]);
 
   const canShowBuildMineOption = useMemo(() => {
     const isTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
-    if (!selectedTile || !currentPlayer || game.currentPhase !== 'main' || !isTurn || !mineBuildCost) return false;
+    // [사용자 제보 2026-08-24] canBuildMine과 동일 — 아이타 교환 2TF+무료광산은 턴/페이즈 게이트 면제
+    const shipMinePending = game.pendingShipTechMine?.playerId === playerId;
+    if (!selectedTile || !currentPlayer || !mineBuildCost || (!shipMinePending && (game.currentPhase !== 'main' || !isTurn))) return false;
     if (selectedTile.structure !== null) return false;
 
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
@@ -1429,7 +1436,7 @@ export function GameBoard({
 
     const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
     return game.isTestMode || minDist <= maxRangeWithQIC;
-  }, [selectedTile, currentPlayer, game.currentPhase, game.map, game.isTestMode, playerId, mineBuildCost]);
+  }, [selectedTile, currentPlayer, game.currentPhase, game.map, game.isTestMode, playerId, mineBuildCost, game.pendingShipTechMine, game.turnOrder, game.currentPlayerIndex]);
 
   if (!game || !game.map || game.map.length === 0) {
     return (
