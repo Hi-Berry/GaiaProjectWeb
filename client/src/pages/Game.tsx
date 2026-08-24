@@ -345,6 +345,7 @@ export default function Game() {
   const [confirmQicConvert, setConfirmQicConvert] = useState<
     | { kind: 'power'; actionId: string; converts: number; closeResearchOverlay?: boolean }
     | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; converts: number; label: string; fromOverlay?: boolean }
+    | { kind: 'mine'; tileId: string; useGaiaformer?: boolean; converts: number; label: string }
     | null
   >(null);
   /** [사용자 2026-08-13] 연방 위성 / 인공물처럼 '토큰 개수'로 내는 비용이 모자랄 때
@@ -3829,7 +3830,9 @@ export default function Game() {
               const minDist = Math.min(...rangeTiles.map(t => getDistance(t, tile)));
 
               // Calculate maximum possible range with all available QIC
-              const maxPossibleRange = baseRange + (player.qic * 2);
+              // [사용자 2026-08-24] 발타크: 남은 포머를 QIC로 바꿔 거리를 메울 수 있으므로 사거리 상한에 포함
+              const spareGfForQic = balTakSpareGaiaformers(player);
+              const maxPossibleRange = baseRange + ((player.qic + spareGfForQic) * 2);
 
               // Check if planet is unreachable even with all QIC
               // 단, 내 포머가 이미 설치/회수대기 중인 칸은 거리 체크 면제 (배치 시 거리 QIC 지불 완료)
@@ -3840,7 +3843,7 @@ export default function Game() {
               if (!isPendingGaiaBuild && !isFedFreeMineBuild && minDist > maxPossibleRange) {
                 toast({
                   title: 'Cannot Build',
-                  description: `Planet is too far away. Distance: ${minDist}, Max range with ${player.qic} QIC: ${maxPossibleRange}`,
+                  description: `Planet is too far away. Distance: ${minDist}, Max range with ${player.qic} QIC${spareGfForQic > 0 ? ` + ${spareGfForQic} Gaiaformer` : ''}: ${maxPossibleRange}`,
                   variant: 'destructive',
                 });
                 return;
@@ -3848,6 +3851,11 @@ export default function Game() {
 
               const potentialCost = getActionCost({ type: 'buildMine', tileId });
               if (!potentialCost) return;
+
+              // [사용자 2026-08-24] 발타크: 거리/가이아 QIC가 모자라도 남은 포머 변환으로 메울 수 있으면
+              //   파워액션·우주선과 같은 확인창을 띄운다. 소행성은 건설 자체에 포머 1개가 남아 있어야 해서
+              //   (변환 후 잔여 ≥ 1) 조건이 하나 더 붙는다.
+              const qicShort = (potentialCost.qic ?? 0) - (player.qic ?? 0);
 
               // 소행성은 가이아 포머 체크만 필요 — 단 기생광산은 포머 불필요(이미 정착된 땅에 기생)
               if (tile.type === 'asteroid' && !isLantidaParasitic) {
@@ -3859,7 +3867,11 @@ export default function Game() {
                   });
                   return;
                 }
-                if (player.qic < (potentialCost.qic ?? 0)) {
+                if (qicShort > 0) {
+                  if (balTakSpareGaiaformers(player) - qicShort >= 1) {
+                    setConfirmQicConvert({ kind: 'mine', tileId, useGaiaformer, converts: qicShort, label: '소행성 광산 건설' });
+                    return;
+                  }
                   toast({
                     title: 'Cannot Build',
                     description: `Not enough QIC. Required: ${potentialCost.qic ?? 0}QIC`,
@@ -3867,10 +3879,22 @@ export default function Game() {
                   });
                   return;
                 }
-              } else {
+              } else if (!isFedFreeMineBuild) {
                 // [버그수정 2026-08-09] 무한거리 무료광산은 서버가 '낼 수 있으면 청구, 못 내면 면제'로 항상 건설을 받아준다(데드락 방지 규칙).
                 //   클라가 '자원 부족'으로 막으면 그 규칙이 무력화되므로 예외 처리.
-                if (!isFedFreeMineBuild && (player.ore < (potentialCost.ore ?? 0) || player.credits < (potentialCost.credits ?? 0) || player.qic < (potentialCost.qic ?? 0))) {
+                if (player.ore < (potentialCost.ore ?? 0) || player.credits < (potentialCost.credits ?? 0)) {
+                  toast({
+                    title: 'Cannot Build',
+                    description: `Not enough resources. Required: ${potentialCost.ore ?? 0}O, ${potentialCost.credits ?? 0}C, ${potentialCost.qic ?? 0}QIC`,
+                    variant: 'destructive',
+                  });
+                  return;
+                }
+                if (qicShort > 0) {
+                  if (balTakSpareGaiaformers(player) >= qicShort) {
+                    setConfirmQicConvert({ kind: 'mine', tileId, useGaiaformer, converts: qicShort, label: '광산 건설' });
+                    return;
+                  }
                   toast({
                     title: 'Cannot Build',
                     description: `Not enough resources. Required: ${potentialCost.ore ?? 0}O, ${potentialCost.credits ?? 0}C, ${potentialCost.qic ?? 0}QIC`,
@@ -4902,6 +4926,9 @@ export default function Game() {
                       if (confirmQicConvert.kind === 'power') {
                         if (confirmQicConvert.closeResearchOverlay) setIsResearchOpen(false);
                         GameClient.usePowerAction(gameId, confirmQicConvert.actionId);
+                      } else if (confirmQicConvert.kind === 'mine') {
+                        // 변환(소켓 순서 보장)이 지갑을 채운 뒤 서버가 건설을 처리한다 — 파워액션과 동일 패턴
+                        GameClient.buildMine(gameId, confirmQicConvert.tileId, confirmQicConvert.useGaiaformer);
                       } else {
                         proceedShipAction(confirmQicConvert.shipTileId, confirmQicConvert.actionIndex, confirmQicConvert.targetTileId, { fromOverlay: confirmQicConvert.fromOverlay });
                       }
