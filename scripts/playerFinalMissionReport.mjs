@@ -34,6 +34,8 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
   let g; try { g = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch { continue; }
   const ids = Object.keys(g.players ?? {});
   if (ids.length !== 4) continue;
+  // [사용자 2026-08-24] 봇이 1명이라도 낀 판은 통째로 제외 — 전원 사람 4인 판만
+  if (ids.some((id) => isBot(g, id))) continue;
   // 판의 최종 미션 목록: 전원(봇 포함) details 합집합 — 0점 미션은 개인 기록에서 빠지기 때문
   const gameFms = [...new Set(ids.flatMap((id) => (g.players[id].scoreBreakdown?.finalMissionDetails ?? []).map((d) => d.missionId)))];
   if (gameFms.length === 0) continue; // breakdown 없는 판(미완주·구버전 저장)은 제외
@@ -56,7 +58,7 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
   for (const fm of gameFms) (fmSeen[fm] ??= { games: 0 }).games++;
 }
 
-console.log(`4인 판 중 최종점수 breakdown 있는 판 ${games}개 (사람 플레이어만 집계, 봇 제외)\n`);
+console.log(`4인 판 중 최종점수 breakdown 있는 판 ${games}개 (전원 사람 4인 판만 — 봇 낀 판 제외)\n`);
 
 console.log('■ 플레이어별 종합 — 최종미션 등장 횟수(판당 2개)와 회당 평균 획득 VP');
 console.log('플레이어'.padEnd(16) + '판'.padStart(4) + '미션횟수'.padStart(8) + '평균VP'.padStart(8));
