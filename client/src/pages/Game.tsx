@@ -872,9 +872,13 @@ export default function Game() {
   const lastResizeWidthRef = useRef<number>(340);
   const lastResizeHeightRef = useRef<number>(500);
 
-  const startResize = (panel: 'research' | 'bonus', axis: 'x' | 'y' | 'both', e: React.MouseEvent) => {
+  /* [사용자 2026-08-24] 태블릿에서 미니뷰 리사이즈가 안 됨 — mousemove/mouseup은 터치 드래그에
+     발생하지 않는다. pointer 이벤트로 전환(마우스·터치·펜 공통). 핸들에는 touch-none을 줘서
+     브라우저 팬 제스처가 드래그를 가로채지 않게 한다. */
+  const startResize = (panel: 'research' | 'bonus', axis: 'x' | 'y' | 'both', e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const pointerId = e.pointerId;
     const startX = e.clientX;
     const startY = e.clientY;
     const startWidth = panel === 'research' ? researchMiniWidth : bonusMiniWidth;
@@ -900,7 +904,8 @@ export default function Game() {
     const maxH = Math.min(900, maxHForViewport);
     const MIN_H = 200;
 
-    const onMove = (moveEvent: MouseEvent) => {
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
 
@@ -918,16 +923,19 @@ export default function Game() {
         saveView(keyH, lastH, String(h));
       }
     };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       if (gameId) {
         if (axis === 'x' || axis === 'both') saveView(keyW, lastW, String(lastResizeWidthRef.current));
         if (axis === 'y' || axis === 'both') saveView(keyH, lastH, String(lastResizeHeightRef.current));
       }
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   };
 
   // Sound notification tracking
@@ -7348,21 +7356,21 @@ export default function Game() {
             </motion.div>
             {/* Right Resize Handle */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
+              className="absolute right-0 top-0 bottom-0 w-1.5 [@media(pointer:coarse)]:w-4 [@media(pointer:coarse)]:bg-white/10 touch-none cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
               title="드래그하여 너비 조절"
-              onMouseDown={(e) => startResize('research', 'x', e)}
+              onPointerDown={(e) => startResize('research', 'x', e)}
             />
             {/* Bottom Resize Handle */}
             <div
-              className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
+              className="absolute bottom-0 left-0 right-0 h-1.5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:bg-white/10 touch-none cursor-row-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
               title="드래그하여 높이 조절"
-              onMouseDown={(e) => startResize('research', 'y', e)}
+              onPointerDown={(e) => startResize('research', 'y', e)}
             />
             {/* Corner Resize Handle */}
             <div
-              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-blue-500/50 active:bg-blue-500/70 z-[130] flex items-end justify-end p-0.5 group"
+              className="absolute bottom-0 right-0 w-4 h-4 [@media(pointer:coarse)]:w-7 [@media(pointer:coarse)]:h-7 touch-none cursor-nwse-resize hover:bg-blue-500/50 active:bg-blue-500/70 z-[130] flex items-end justify-end p-0.5 group"
               title="드래그하여 대각선 크기 조절"
-              onMouseDown={(e) => startResize('research', 'both', e)}
+              onPointerDown={(e) => startResize('research', 'both', e)}
             >
               <div className="w-2 h-2 border-r border-b border-blue-400 group-hover:border-white transition-colors" />
             </div>
@@ -7427,21 +7435,21 @@ export default function Game() {
             </div>
             {/* Right Resize Handle */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 hover:bg-amber-500/30 active:bg-amber-500/50 transition-colors z-[120]"
+              className="absolute right-0 top-0 bottom-0 w-1.5 [@media(pointer:coarse)]:w-4 [@media(pointer:coarse)]:bg-white/10 touch-none cursor-col-resize shrink-0 hover:bg-amber-500/30 active:bg-amber-500/50 transition-colors z-[120]"
               title="드래그하여 너비 조절"
-              onMouseDown={(e) => startResize('bonus', 'x', e)}
+              onPointerDown={(e) => startResize('bonus', 'x', e)}
             />
             {/* Bottom Resize Handle */}
             <div
-              className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-amber-500/30 active:bg-amber-500/50 transition-colors z-[120]"
+              className="absolute bottom-0 left-0 right-0 h-1.5 [@media(pointer:coarse)]:h-4 [@media(pointer:coarse)]:bg-white/10 touch-none cursor-row-resize hover:bg-amber-500/30 active:bg-amber-500/50 transition-colors z-[120]"
               title="드래그하여 높이 조절"
-              onMouseDown={(e) => startResize('bonus', 'y', e)}
+              onPointerDown={(e) => startResize('bonus', 'y', e)}
             />
             {/* Corner Resize Handle */}
             <div
-              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-amber-500/50 active:bg-amber-500/70 z-[130] flex items-end justify-end p-0.5 group"
+              className="absolute bottom-0 right-0 w-4 h-4 [@media(pointer:coarse)]:w-7 [@media(pointer:coarse)]:h-7 touch-none cursor-nwse-resize hover:bg-amber-500/50 active:bg-amber-500/70 z-[130] flex items-end justify-end p-0.5 group"
               title="드래그하여 대각선 크기 조절"
-              onMouseDown={(e) => startResize('bonus', 'both', e)}
+              onPointerDown={(e) => startResize('bonus', 'both', e)}
             >
               <div className="w-2 h-2 border-r border-b border-amber-400 group-hover:border-white transition-colors" />
             </div>
