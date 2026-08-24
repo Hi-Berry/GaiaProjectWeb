@@ -478,7 +478,7 @@ function ActionVoiceToggle() {
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-zinc-500 shrink-0">속도</span>
             <input
-              type="range" min="0.8" max="2" step="0.1" value={rate}
+              type="range" min="0.8" max="3" step="0.1" value={rate}
               onChange={(e) => { const v = Number(e.target.value); setRate(v); setVoiceRate(v); }}
               onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); }}
               onPointerMove={(e) => e.stopPropagation()}

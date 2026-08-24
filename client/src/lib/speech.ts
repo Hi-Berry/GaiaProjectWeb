@@ -64,7 +64,7 @@ export function setVoiceOn(on: boolean): void {
 export function getVoiceRate(): number {
 	try {
 		const v = Number(localStorage.getItem(VOICE_RATE_KEY));
-		return v >= 0.8 && v <= 2 ? v : 1.4;   // 기본 1.4 — 판당 수십 번 들으므로 기본 속도는 느리다
+		return v >= 0.8 && v <= 3 ? v : 1.4;   // 기본 1.4 = 조각 1.0배. [사용자 2026-08-24] 상한 2→3 (조각 3배속까지)
 	} catch { return 1.4; }
 }
 
@@ -73,13 +73,13 @@ export function setVoiceRate(v: number): void {
 }
 
 /** [사용자 2026-08-24 "속도 조절이 안 되는 느낌"] 조각(mp3) 배속 환산 — 슬라이더 전 구간이 체감되게.
- *  슬라이더 기본 1.4 = 녹음 속도 그대로(1.0배), 최소 0.8 = 0.7배, 최대 2.0 = 1.5배 선형.
+ *  슬라이더 기본 1.4 = 녹음 속도 그대로(1.0배), 최소 0.8 = 0.7배, 최대 3.0 = 3배 선형.
  *  예전엔 실제 안내(±24%만 변함)와 '들어보기'가 서로 다른 식을 써서 소리가 다르게 들렸다 → 이 함수로 통일.
- *  기기 TTS는 SpeechSynthesis rate(0.8~2)를 그대로 쓰므로 환산하지 않는다. */
+ *  기기 TTS는 SpeechSynthesis rate(0.8~3)를 그대로 쓰므로 환산하지 않는다. */
 export function clipRateFor(v: number): number {
 	return v <= 1.4
 		? Math.max(0.7, 0.7 + (v - 0.8) * 0.5)
-		: Math.min(1.5, 1 + (v - 1.4) * (0.5 / 0.6));
+		: Math.min(3, 1 + (v - 1.4) * 1.25);
 }
 
 /** 한국어 음성 캐시 — 안드로이드에서 getVoices()가 첫 호출에 느리거나 비어 있다. */
