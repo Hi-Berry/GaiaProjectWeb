@@ -15,15 +15,18 @@ const FM = {
   fm_pi_academy_distance: '의회거리', fm_planet_types: '행성유형', fm_asteroid_buildings: '소행성',
 };
 
-// [사용자 2026-08-24] 닉네임 변형은 같은 사람으로 합쳐서 본다. 확실치 않은 쌍은 넣지 말 것.
+// 표준 계정 통합(2026-08-18 사용자 확인, adv3kReport 등과 동일). 새 쌍을 넣기 전에
+// '두 이름이 한 게임에 동시 등장하지 않는지'를 반드시 검사한다 — 동시 등장하면 다른 사람.
 const ALIAS = {
-  'Hi': '하이', 'HI': '하이',
-  '군성`': '군성',
-  'Happygaia': '행복가이아',
-  '시리티드': '시리',
-  '암컷가마우지': '가마우지',
+  '암가': '타클론안함', '암컷가마우지': '타클론안함', '김지선': '타클론안함',
+  '222': '하이', 'chrome': '하이', '산타': '디애박', '소통맨': '지수홍', '보노보노': 'mks',
+  // [사용자 2026-08-24 이 리포트에서 추가 확인] Hi·HI=하이, 군성`=군성. 시리티드=시리,
+  // Happygaia=행복가이아는 동시등장 검사 통과한 추정 쌍.
+  'Hi': '하이', 'HI': '하이', '군성`': '군성', '시리티드': '시리', 'Happygaia': '행복가이아',
 };
 const canon = (name) => ALIAS[name] ?? name;
+/** [사용자 2026-08-11] 두 사람이 계정 2개씩 쓴 판(chrome·Hi=하이 / 산타·디애박=디애박) — 사람 단위 통계에서 제외 */
+const EXCLUDE_GAMES = new Set(['2026-07-15_fi1njhdj.json']);
 
 const byPlayer = {};      // name -> {games, n, sum}
 const cell = {};          // name|fm -> {n, sum}
@@ -31,6 +34,7 @@ const fmSeen = {};        // fm -> instance count(플레이어 단위 아님, �
 let games = 0;
 
 for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.json'))) {
+  if (EXCLUDE_GAMES.has(f)) continue;
   let g; try { g = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch { continue; }
   const ids = Object.keys(g.players ?? {});
   if (ids.length !== 4) continue;

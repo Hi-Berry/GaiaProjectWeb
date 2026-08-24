@@ -32,6 +32,7 @@ const INDEX_PAGE = 1000; // 경량 컬럼만이라 크게 잡아도 가벼움
 // data/excluded-games/ 에 사유와 함께 보관. 여기 gameId를 넣으면 재다운로드 시에도 스킵된다.
 const EXCLUDED_GAME_IDS = new Set([
   'na0vujw3', // 2026-07-06: 워치독 income-대기 오발로 봇2명(HH R3·bescods R4) 강제스킵→소멸, R4+ 봇 전멸. 버그샘플.
+  'fi1njhdj', // 2026-07-15: 두 사람이 계정 2개씩 쓴 판(chrome·Hi=하이 / 산타·디애박=디애박) — 사람 단위 통계 오염. [사용자 2026-08-24 로컬 파일 삭제]
 ]);
 
 async function getJson(url, tries = 3) {
