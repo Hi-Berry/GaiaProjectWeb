@@ -419,8 +419,8 @@ function ActionVoiceToggle() {
       </div>
       {on && (
         <div className="border-t border-white/8 px-2 py-1.5">
-          {/* 호칭 선택은 기기 음성일 때만 — 조각 모드엔 사람 이름 mp3가 없다(종족명으로 고정) */}
-          {style === 'device' && (
+          {/* [사용자 2026-08-24 "호칭 고르는 게 사라졌다"] 기기 음성 전용이던 것을 모든 목소리로 복원.
+              조각 목소리(여성/남성)에는 사람 이름 mp3가 없어 '사람 이름'을 고르면 기기 음성으로 읽힌다. */}
           <div className="mb-1.5 flex items-center gap-2">
             <span className="shrink-0 text-[9px] text-zinc-500">호칭</span>
             {([['faction', '종족 이름', '발타크 교역소 건설'], ['player', '사람 이름', '시리 교역소 건설']] as Array<[VoiceWho, string, string]>).map(([v, label, sample]) => (
@@ -435,6 +435,10 @@ function ActionVoiceToggle() {
               </button>
             ))}
           </div>
+          {style !== 'device' && who === 'player' && (
+            <div className="mb-1.5 text-[9px] leading-snug text-amber-300/80">
+              사람 이름 호칭은 녹음된 조각이 없어 이 조합에서는 기기 음성으로 읽힙니다.
+            </div>
           )}
           {/* [사용자 2026-08-20] 목소리 — female/male은 미리 만든 신경망 mp3(client/public/voice),
               device는 브라우저 내장 TTS. 윈도우 크롬 내장 음성이 기계음이라 조각을 기본으로 둔다. */}

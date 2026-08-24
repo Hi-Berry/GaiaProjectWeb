@@ -152,7 +152,11 @@ async function loadManifest(): Promise<Manifest | null> {
 	if (manifest || manifestTried) return manifest;
 	manifestTried = true;
 	try {
-		const res = await fetch('/voice/manifest.json', { cache: 'force-cache' });
+		// [버그 2026-08-24 사용자 "호칭이 안 읽힘"] 79eeb2c가 no-cache로 바꿨다고 했으나 실제 diff에서
+		// 누락돼 force-cache로 남아 있었다 → 배포로 조각 파일명이 바뀌면 옛 manifest로 지워진 파일을
+		// 요청해 그 조각만 조용히 빠졌다("메안 광산 건설"이 "광산 건설"로). no-cache는 ETag 재검증이라
+		// 안 바뀌었으면 본문을 다시 받지 않는다.
+		const res = await fetch('/voice/manifest.json', { cache: 'no-cache' });
 		if (res.ok) manifest = await res.json();
 	} catch { /* 조각이 없으면 기기 TTS로 */ }
 	return manifest;
@@ -166,11 +170,14 @@ function stopClips(): void {
 	if (audioEl) { try { audioEl.pause(); } catch { /* noop */ } audioEl = null; }
 }
 
-/** 조각들을 순서대로 재생. 중간에 새 안내가 오면(seq 변경) 즉시 중단. */
-async function playClips(keys: string[], folder: string, rate: number): Promise<void> {
+/** 조각들을 순서대로 재생. 중간에 새 안내가 오면(seq 변경) 즉시 중단.
+ *  반환: 조각 '로드 실패'가 있었는가 — [사용자 2026-08-24] 예전엔 실패 조각을 조용히 건너뛰어
+ *  호칭만 빠진 문장("광산 건설")이 들렸다 → 호출부가 true를 받으면 문장 전체를 기기 TTS로 대체한다. */
+async function playClips(keys: string[], folder: string, rate: number): Promise<boolean> {
 	const my = ++playSeq;
+	let loadFailed = false;
 	for (const k of keys) {
-		if (my !== playSeq) return;
+		if (my !== playSeq || loadFailed) break;
 		await new Promise<void>((resolve) => {
 			const a = new Audio(`/voice/${folder}/${k}.mp3`);
 			a.playbackRate = rate;
@@ -178,12 +185,13 @@ async function playClips(keys: string[], folder: string, rate: number): Promise<
 			const done = () => { a.onended = null; a.onerror = null; resolve(); };
 			a.onended = done;
 			// 조각 로드 실패(배포로 파일명이 바뀐 직후 등) → 들고 있던 manifest를 버려
-			// 다음 안내 때 새로 받게 한다(자가 회복). 이번 건은 조용히 넘어간다.
-			a.onerror = () => { manifest = null; manifestTried = false; done(); };
-			a.play().catch(done);   // 자동재생 차단 시에도 멈추지 않게
+			// 다음 안내 때 새로 받게 한다(자가 회복).
+			a.onerror = () => { manifest = null; manifestTried = false; loadFailed = true; done(); };
+			a.play().catch(done);   // 자동재생 차단 시에도 멈추지 않게 (로드 실패와 구분 — TTS 대체 안 함)
 		});
 	}
 	if (my === playSeq) audioEl = null;
+	return loadFailed;
 }
 
 /**
@@ -247,23 +255,29 @@ function speakOnce(list: string[]): Promise<void> {
 			// 조각을 보통 속도로 만들었으므로 기본값(1.4)에서 배속 1.0이 되게 맞춘다.
 			// 슬라이더를 올리면 그만큼 빨라진다(0.8→0.76배, 2.0→1.24배).
 			const rate = Math.max(0.7, Math.min(1.6, 1 + (getVoiceRate() - 1.4) * 0.4));
-			return playClips(keys, style, rate);
+			// 조각 로드 실패(옛 manifest·배포 직후) → 문장 전체를 기기 TTS로 대체해 호칭이 빠지지 않게
+			return playClips(keys, style, rate).then((loadFailed) => (loadFailed ? deviceSpeakOnce(list) : undefined));
 		}
 		/* [버그수정 2026-08-20] 예전엔 여기서 기다리지 않고 끝냈다 → 큐가 곧바로 다음 안내를 재생해
 		   기기 TTS와 조각이 겹쳐 들렸다(사용자: "소리가 꼬인다"). 끝날 때까지 기다린다. */
-		return new Promise<void>((resolve) => {
-			if (!supported()) { resolve(); return; }
-			try {
-				if (!voiceLookupDone) pickKoVoice();
-				const u = new SpeechSynthesisUtterance(list.join(', '));
-				u.lang = 'ko-KR';
-				u.rate = getVoiceRate();
-				if (koVoice) u.voice = koVoice;
-				u.onend = () => resolve();
-				u.onerror = () => resolve();
-				window.speechSynthesis.speak(u);
-			} catch { resolve(); }
-		});
+		return deviceSpeakOnce(list);
+	});
+}
+
+/** 기기 TTS로 한 건을 끝까지 재생 — 조각 폴백/기기 모드 공용. */
+function deviceSpeakOnce(list: string[]): Promise<void> {
+	return new Promise<void>((resolve) => {
+		if (!supported()) { resolve(); return; }
+		try {
+			if (!voiceLookupDone) pickKoVoice();
+			const u = new SpeechSynthesisUtterance(list.join(', '));
+			u.lang = 'ko-KR';
+			u.rate = getVoiceRate();
+			if (koVoice) u.voice = koVoice;
+			u.onend = () => resolve();
+			u.onerror = () => resolve();
+			window.speechSynthesis.speak(u);
+		} catch { resolve(); }
 	});
 }
 
@@ -286,7 +300,7 @@ export function speakParts(parts: string[]): void {
 			// 조각 속도: 파일이 이미 +15%라 슬라이더 1.4는 과하다 → 1.0 기준으로 완만하게 환산
 			const rate = Math.max(0.7, Math.min(1.6, 0.75 + (getVoiceRate() - 1) * 0.5));
 			stopClips();
-			void playClips(keys, style, rate);
+			void playClips(keys, style, rate).then((loadFailed) => { if (loadFailed) speak(list.join(', ')); });
 		} else {
 			speak(list.join(', '));   // 조각 누락 → 기기 TTS 대체
 		}
@@ -633,12 +647,13 @@ export function actionLabel(action: string, details: string): string | null {
 
 /**
  * 호칭 — 종족명 또는 사람 이름.
- * 조각 모드(female/male)에는 사람 이름 조각이 없으므로 종족명으로 고정한다(사용자 확인: 이름은 불필요).
+ * [사용자 2026-08-24 "호칭 고르는 게 사라졌다"] 조각 모드에서 종족명 고정이던 것을 되돌려
+ * 모든 목소리에서 선택을 따른다. 조각 모드에 사람 이름 mp3는 없으므로 '사람 이름'을 고르면
+ * 그 안내는 speakOnce의 조각 누락 폴백을 타고 기기 TTS로 통째로 읽힌다(설정 UI에 안내 문구).
  */
 export function whoLabel(factionId?: string, playerName?: string): string | null {
 	const fac = factionId ? FACTION_VOICE_KO[factionId] ?? null : null;
-	if (getVoiceStyle() !== 'device') return fac || playerName || null;
-	return getVoiceWho() === 'player' ? (playerName || fac) : (fac || playerName) || null;
+	return (getVoiceWho() === 'player' ? (playerName || fac) : (fac || playerName)) || null;
 }
 
 /** 로그 항목 → 읽을 문구(호칭 포함). 스모크 테스트·기기 TTS 경로용. */
