@@ -20,7 +20,7 @@ import {
   fireTestNotification,
 } from '@/lib/turnNotify';
 import { VolumeControl } from '@/components/VolumeControl';
-import { getVoiceName, getVoiceRate, getVoiceStyle, getVoiceWho, isVoiceOn, listKoVoices, setVoiceName, setVoiceOn, setVoiceRate, setVoiceStyle, setVoiceWho, speakParts, type VoiceStyle, type VoiceWho } from '@/lib/speech';
+import { clipRateFor, getVoiceName, getVoiceRate, getVoiceStyle, getVoiceWho, isVoiceOn, listKoVoices, setVoiceName, setVoiceOn, setVoiceRate, setVoiceStyle, setVoiceWho, speakParts, type VoiceStyle, type VoiceWho } from '@/lib/speech';
 import { GameClient } from '@/lib/gameClient';
 
 interface HelpItem {
@@ -488,7 +488,9 @@ function ActionVoiceToggle() {
               onWheel={(e) => e.stopPropagation()}
               className="flex-1 accent-cyan-400"
             />
-            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-zinc-300">{rate.toFixed(1)}x</span>
+            {/* [사용자 2026-08-24] 표시 배속 = 실제 적용 배속 — 조각 목소리는 환산값(기본 1.0x), 기기 음성은 원값.
+                예전엔 조각 모드에서도 기기 TTS 기준 숫자(0.8~2.0x)를 보여줘 게이지와 실제 속도가 어긋났다. */}
+            <span className="w-8 shrink-0 text-right font-mono text-[10px] text-zinc-300">{(style === 'device' ? rate : clipRateFor(rate)).toFixed(1)}x</span>
             {/* [사용자 2026-08-20] 목소리·호칭·속도를 고를 때마다 저절로 샘플이 나오던 것을 이 버튼으로 모았다.
                 실제 안내와 똑같은 문구라 게임 중에 진짜 액션 안내로 들려 헷갈렸다(사용자 지적). */}
             <button

@@ -72,6 +72,16 @@ export function setVoiceRate(v: number): void {
 	try { localStorage.setItem(VOICE_RATE_KEY, String(v)); } catch { /* noop */ }
 }
 
+/** [사용자 2026-08-24 "속도 조절이 안 되는 느낌"] 조각(mp3) 배속 환산 — 슬라이더 전 구간이 체감되게.
+ *  슬라이더 기본 1.4 = 녹음 속도 그대로(1.0배), 최소 0.8 = 0.7배, 최대 2.0 = 1.5배 선형.
+ *  예전엔 실제 안내(±24%만 변함)와 '들어보기'가 서로 다른 식을 써서 소리가 다르게 들렸다 → 이 함수로 통일.
+ *  기기 TTS는 SpeechSynthesis rate(0.8~2)를 그대로 쓰므로 환산하지 않는다. */
+export function clipRateFor(v: number): number {
+	return v <= 1.4
+		? Math.max(0.7, 0.7 + (v - 0.8) * 0.5)
+		: Math.min(1.5, 1 + (v - 1.4) * (0.5 / 0.6));
+}
+
 /** 한국어 음성 캐시 — 안드로이드에서 getVoices()가 첫 호출에 느리거나 비어 있다. */
 let koVoice: SpeechSynthesisVoice | null = null;
 let voiceLookupDone = false;
@@ -252,9 +262,7 @@ function speakOnce(list: string[]): Promise<void> {
 	return loadManifest().then((m) => {
 		const keys = m ? list.map((t) => m.phrases?.[t]).filter(Boolean) as string[] : [];
 		if (m && keys.length === list.length) {
-			// 조각을 보통 속도로 만들었으므로 기본값(1.4)에서 배속 1.0이 되게 맞춘다.
-			// 슬라이더를 올리면 그만큼 빨라진다(0.8→0.76배, 2.0→1.24배).
-			const rate = Math.max(0.7, Math.min(1.6, 1 + (getVoiceRate() - 1.4) * 0.4));
+			const rate = clipRateFor(getVoiceRate());
 			// 조각 로드 실패(옛 manifest·배포 직후) → 문장 전체를 기기 TTS로 대체해 호칭이 빠지지 않게
 			return playClips(keys, style, rate).then((loadFailed) => (loadFailed ? deviceSpeakOnce(list) : undefined));
 		}
@@ -297,8 +305,8 @@ export function speakParts(parts: string[]): void {
 	void loadManifest().then((m) => {
 		const keys = m ? list.map((t) => m.phrases?.[t]).filter(Boolean) as string[] : [];
 		if (m && keys.length === list.length) {
-			// 조각 속도: 파일이 이미 +15%라 슬라이더 1.4는 과하다 → 1.0 기준으로 완만하게 환산
-			const rate = Math.max(0.7, Math.min(1.6, 0.75 + (getVoiceRate() - 1) * 0.5));
+			// 실제 안내(speakOnce)와 같은 환산 — '들어보기'가 게임 소리와 똑같이 들리게
+			const rate = clipRateFor(getVoiceRate());
 			stopClips();
 			void playClips(keys, style, rate).then((loadFailed) => { if (loadFailed) speak(list.join(', ')); });
 		} else {
