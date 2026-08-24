@@ -1562,8 +1562,10 @@ export default function Game() {
        진행 중인 턴의 줄은 보류했다가 턴이 넘어간 뒤 읽는다(처음 요청대로 '액션 완료 시점').
        게임이 끝나면 더 기다릴 것이 없으므로 남은 줄을 전부 읽는다. */
     const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
-    const ended = game.currentPhase === 'gameEnd';
-    const commitSeq = ended || !marks.length ? null : Math.max(...marks);
+    /* [사용자 2026-08-24 "A 가져가고 B 가져가면 그제야 A 소리"] 보류는 리셋(Undo)이 가능한
+       main 단계에서만. 시작 광산·보너스 선택은 고르는 즉시 턴이 넘어가 되돌릴 수 없는데도
+       보류가 걸려, 다음 사람 턴 시작(대개 그 사람의 선택과 같은 패킷)에야 읽혀 한 박자 늦었다. */
+    const commitSeq = game.currentPhase !== 'main' || !marks.length ? null : Math.max(...marks);
     let done = from;
     /** 이 패스에서 아직 본 액션을 못 만난 준비 동작 — 만나면 한 문장으로 합친다 */
     let pendingEnabler: { playerId: string; win: number; parts: string[] } | null = null;
