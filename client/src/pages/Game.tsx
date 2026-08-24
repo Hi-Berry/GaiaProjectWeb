@@ -7248,7 +7248,7 @@ export default function Game() {
             >
               {singleMini ? (
                 /* [사용자 2026-08-20] 단일 미니뷰 헤더 — 모바일 세로 오버레이와 같은 3탭 구성.
-                   PC라 스와이프가 없으니 좌우 버튼을 둔다. 탭 자체도 눌러서 바로 이동. */
+                   좌우 버튼·탭 클릭·키보드 화살표에 더해 본문 좌우 스와이프(드래그)로도 이동. */
                 <div className="flex items-center gap-1 min-w-0" onPointerDown={(e) => e.stopPropagation()}>
                   <button
                     type="button"
@@ -7286,10 +7286,22 @@ export default function Game() {
                 ✕
               </Button>
             </div>
-            <div
+            <motion.div
+              /* [사용자 2026-08-24] 단일 미니뷰도 모바일 가로 오버레이처럼 좌우 스와이프로 탭 이동.
+                 페이지 바뀔 때 key 리마운트로 드래그 오프셋·스크롤을 리셋(모바일 쪽과 같은 방식). */
+              key={singleMini ? `single-mini-${singleMiniPage}` : 'research-mini-body'}
               ref={researchMiniScrollRef}
               className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-10 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
               style={{ WebkitOverflowScrolling: 'touch' }}
+              drag={singleMini ? 'x' : false}
+              dragDirectionLock
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.15}
+              onDragEnd={(_, info) => {
+                if (!singleMini) return;
+                if (info.offset.x < -55) gotoMiniPage(singleMiniPage + 1);
+                else if (info.offset.x > 55) gotoMiniPage(singleMiniPage - 1);
+              }}
               onWheel={(e) => e.stopPropagation()}
             >
               <MiniScaledContent panelWidth={researchMiniWidth}>
@@ -7333,7 +7345,7 @@ export default function Game() {
                 />
                 )}
               </MiniScaledContent>
-            </div>
+            </motion.div>
             {/* Right Resize Handle */}
             <div
               className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize shrink-0 hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors z-[120]"
