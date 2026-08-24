@@ -141,6 +141,17 @@ export const GameClient = {
     });
   },
 
+  /** 백그라운드 탭 생존 확인용 경량 핑 — 응답 없으면 좀비 소켓, inRoom=false면 방에서 빠진 상태. */
+  pingServer(gameId: string, timeoutMs = 8000): Promise<{ ok: true; inRoom: boolean }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.timeout(timeoutMs).emit('client_ping', { gameId }, (timeoutError: Error | null, response: any) => {
+        if (timeoutError || !response?.ok) { reject(new Error('ping timed out')); return; }
+        resolve(response);
+      });
+    });
+  },
+
   // 진행 중 게임의 분석용 로그 스냅샷 받기 (최종 저장과 동일 포맷)
   exportGameSnapshot(gameId: string): Promise<{ payload: any }> {
     return new Promise((resolve, reject) => {

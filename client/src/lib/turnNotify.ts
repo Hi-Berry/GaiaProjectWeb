@@ -90,8 +90,10 @@ export async function requestNotifyPermission(): Promise<NotificationPermission 
 export function fireTurnNotification(title: string, body: string): void {
   if (!getNotifyPref()) return;
   if (!notificationsSupported() || Notification.permission !== 'granted') return;
-  // 탭을 활성 상태로 보고 있으면 알림 불필요
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
+  // [사용자 제보 2026-08-24] 기존엔 visibilityState만 봐서, 듀얼 모니터·창이 옆에 보이는 채로
+  // 다른 앱을 쓰는 동안(탭은 'visible'이지만 포커스 없음) 알림이 통째로 생략됐다.
+  // → '보이고 + 포커스까지 있는' 경우에만 생략. 포커스가 다른 앱에 있으면 알림을 띄운다.
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus()) return;
   const msg = resolveMessage(title, body);
   showNotification(msg.title, msg.body, 'gaia-turn');
 }

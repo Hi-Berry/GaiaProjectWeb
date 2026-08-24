@@ -3407,6 +3407,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 		//   "네 번들 최신이니?"를 물어볼 가장 확실한 타이밍. 클라는 자기 __BUILD_ID__와 비교해 배너를 띄운다.
 		socket.emit('server_build', { buildId: getClientBuildId() });
 
+		// [사용자 제보 2026-08-24 "내 차례 알림이 요즘 안 옴"] 백그라운드 탭 생존 확인용 경량 핑.
+		//   전체 상태(sync_game)와 달리 몇 바이트라 1분 주기로 불러도 부담 없다. inRoom으로
+		//   '연결은 살았지만 방에서 빠진'(서버 재시작 후 재접속 등) 상태도 판별한다.
+		socket.on('client_ping', ({ gameId }: { gameId?: string } = {}, callback?: (r: { ok: true; inRoom: boolean }) => void) => {
+			try { callback?.({ ok: true, inRoom: !!gameId && socket.rooms.has(gameId) }); } catch { /* noop */ }
+		});
+
 		/**
 		 * 델타 동기화 기준점 요청.
 		 * 먼저 대기 중 emit을 비워 서버 revision을 현재 상태까지 전진시킨 뒤, 이 소켓만 델타 방에 넣는다.

@@ -1055,9 +1055,28 @@ export default function Game() {
     const scheduleUi = (g: GameState) => {
       // 첫 상태는 지연 없이 반영 — 한 프레임이라도 빈 화면이 보이지 않게(로딩 해제와 경합 방지).
       if (!uiCommitted) { uiCommitted = true; commitUi(g); return; }
+      // [사용자 제보 2026-08-24 "내 차례 알림이 요즘 안 옴"] 백그라운드 탭에선 rAF가 아예 돌지 않아
+      //   상태 반영이 무기한 보류됐다 → '내 차례' 전환을 클라가 못 봐 데스크톱 알림이 영영 안 떴다
+      //   (이 배칭이 들어온 2026-08-23부터). 깜박임은 '보이는 프레임'의 문제라 숨김 상태에선 배칭이
+      //   의미가 없으므로 즉시 반영한다.
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        pendingUi = null;
+        if (uiRaf != null) { cancelAnimationFrame(uiRaf); uiRaf = null; }
+        commitUi(g);
+        return;
+      }
       pendingUi = g;
       if (uiRaf == null) uiRaf = requestAnimationFrame(flushUi);
     };
+    // 보이는 상태에서 rAF 대기 중 탭이 숨겨지면 그 마지막 상태가 갇힌다 → 숨겨지는 순간 즉시 반영.
+    const flushUiOnHide = () => {
+      if (document.visibilityState === 'visible' || !pendingUi) return;
+      const g = pendingUi;
+      pendingUi = null;
+      if (uiRaf != null) { cancelAnimationFrame(uiRaf); uiRaf = null; }
+      commitUi(g);
+    };
+    document.addEventListener('visibilitychange', flushUiOnHide);
 
     const applyAuthoritativeGame = (updatedGame: GameState) => {
       if (updatedGame.id !== gameId) return;
@@ -1191,6 +1210,21 @@ export default function Game() {
     window.addEventListener('focus', resyncNow);    // iOS에서 visibilitychange가 안 오는 경우 대비
     window.addEventListener('pageshow', resyncNow); // 뒤로가기 캐시(bfcache)로 복귀할 때
 
+    // [사용자 제보 2026-08-24 "내 차례 데스크톱 알림이 요즘 안 옴"] 위 resyncNow는 '탭에 돌아온 순간'에만
+    //   돈다 → 백그라운드에서 소켓이 조용히 죽으면(절전·NAT·탭 freeze 해제 직후) '내 차례' 전환 자체가
+    //   클라에 도착하지 않아 알림이 영영 안 뜨고, 돌아오면 복구되니 알림은 필요 없어지는 악순환.
+    //   백그라운드에서도 주기 감시로 죽은 연결을 되살린다. 크롬이 백그라운드 타이머를 1분 1회로
+    //   스로틀해도 알림 용도(턴 단위=분 단위)에는 충분하다. 경량 client_ping(몇 바이트)이라 부담 없음.
+    //   재연결되면 'connect' → fetchGame이 방 재입장+전체 동기화를 하고, 그 갱신이 알림을 트리거한다.
+    const bgWatchdog = window.setInterval(() => {
+      if (document.visibilityState === 'visible') return; // 보이는 동안은 기존 경로(즉시 복구)가 담당
+      if (!socket.connected) { socket.connect(); return; }
+      GameClient.pingServer(gameId).then((r) => {
+        // 연결은 살았는데 방에서 빠짐(서버 재시작 등) → 재입장+재동기화
+        if (!r.inRoom) void fetchGame();
+      }).catch(() => { socket.disconnect(); socket.connect(); }); // 좀비 소켓 → 강제 재연결
+    }, 60_000);
+
     // 구버전 서버/초기 capability 협상 전에는 전체 상태 이벤트도 계속 받을 수 있다.
     const unsubGame = GameClient.onGameUpdated((updatedGame) => applyAuthoritativeGame(updatedGame));
 
@@ -1265,7 +1299,9 @@ export default function Game() {
 
     return () => {
       if (uiRaf != null) cancelAnimationFrame(uiRaf);
+      window.clearInterval(bgWatchdog);
       socket.off('connect', fetchGame);
+      document.removeEventListener('visibilitychange', flushUiOnHide);
       document.removeEventListener('visibilitychange', resyncNow);
       window.removeEventListener('focus', resyncNow);
       window.removeEventListener('pageshow', resyncNow);
