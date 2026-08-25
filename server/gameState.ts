@@ -864,6 +864,9 @@ function pushTurnHistory(game: ServerGameState, playerId: string): void {
 }
 
 function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void {
+	// [사용자 2026-08-26] 수입 선택이 걸려 있는 중간 상태는 롤백 지점으로 부적합 — 어떤 경로로 와도 캡처하지 않는다
+	// (executePassRound 전환 경로 스킵과 이중 방어. 깨끗한 스냅샷은 수입·가이아 완료 후 라운드 시작에서 찍힌다).
+	if (game.pendingIncomeOrder) return;
 	if (!game.turnStartState) game.turnStartState = {};
 	if (game.turnStartState[playerId]?.fullGameState) {
 		if (!game.prevTurnStartState) game.prevTurnStartState = {};
@@ -6691,7 +6694,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clampPlayerResources(game); emitGameUpdated(io, game);
 
 			// 수익 선택이 필요한 다음 플레이어(턴 순서)만 찾아서 대기시킴 (수익 재적용 없음)
-			setTimeout(() => triggerIncomePhase(game), 100);
+			// [사용자 2026-08-26] 클로저의 game 참조 대신 실행 시점에 다시 조회 — 그 사이 롤백이
+			// games.set으로 객체를 교체하면 옛 객체에 수입 상태를 쓰고 옛 상태를 방송하는 사고 방지.
+			setTimeout(() => { const g = games.get(gameId); if (g) triggerIncomePhase(g); }, 100);
 		});
 
 		// 파워 교환 제안 수락/거부 (타클론: brainFirst, piAddFirst 옵션)
@@ -8754,7 +8759,8 @@ export function executePassRound(
 		}
 		game.hasDoneMainAction = false;
 
-		if (Object.values(game.players).every(p => p.hasPassed)) {
+		const roundTransition = Object.values(game.players).every(p => p.hasPassed);
+		if (roundTransition) {
 			game.roundNumber++;
 			// [반사실 복기 2026-07-13] AI_ROUND_SNAPSHOTS=1이면 라운드 시작 전체상태를 덤프 — 오프라인
 			// counterfactual 리플레이(수 롤백→대안 강제→터미널 비교)의 기점. R2-5만(R1 셋업/R6 직전은 제외).
@@ -8839,7 +8845,12 @@ export function executePassRound(
 		}
 
 		const newCurrentId = game.turnOrder[game.currentPlayerIndex];
-		if (newCurrentId) {
+		/* [사용자 2026-08-26 "수입 단계 중 롤백하면 꼬여서 진행 불가"] 전원 패스 → 라운드 전환 경로에서는
+		   여기서 스냅샷을 찍으면 '수입 진행 중간 상태'(수입 적용 + 선택 대기 + 마지막 패스자 턴 라벨)가
+		   롤백 지점으로 남는다. 수입 중 롤백의 최신 타깃이 바로 이 오염 스냅샷이라 복원하면 게임이 꼬였고,
+		   전라운드 패스 이전(깨끗한 메인 턴 스냅샷)까지 돌려야만 됐다. 깨끗한 라운드 시작 스냅샷은
+		   helperStartNewRoundTurn이 수입·가이아 완료 후에 찍는다 → 전환 경로에선 캡처 생략. */
+		if (newCurrentId && !roundTransition) {
 			captureTurnStartWithPrev(game as ServerGameState, newCurrentId);
 		}
 
