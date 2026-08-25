@@ -3730,7 +3730,7 @@ export default function Game() {
               onClick={() => {
                 const tsCount = game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0;
                 if (tsCount >= 4) {
-                  toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 토큰이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
+                  toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
                   return;
                 }
                 setFiraksDowngradeMode(true);
