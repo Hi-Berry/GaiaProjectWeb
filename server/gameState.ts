@@ -8882,6 +8882,14 @@ export function executeUsePowerAction(
 		debugLog(game, `executeUsePowerAction failed: Not Player ${playerId}'s turn (Current: ${game.turnOrder[game.currentPlayerIndex]})`, 'error');
 		return false;
 	}
+	// [사용자 2026-08-26] 테라포밍 스텝을 들고 있는 동안(보너스/특수 스텝 액션 뒤)은 광산 건설만 가능한데,
+	// 그 창은 hasDoneMainAction=false라 파워 액션(특히 스텝 재구매)이 뚫렸다 → 차단.
+	// 봇·시뮬은 제외(7366 가드와 동일 기준 — 봇은 이 경로를 악용하지 않고, 막으면 교착 위험).
+	if ((game.players[playerId]?.pendingTerraformSteps || 0) > 0
+		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
+		io.to(game.id).emit('game_error', '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
+		return false;
+	}
 
 	// Undo를 위해 액션 시작 상태 저장
 	saveActionStartState(game, playerId);
@@ -9018,6 +9026,13 @@ export function executeUseSpecialAction(
 
 	const player = game.players[playerId];
 	if (!player || (player.usedSpecialActions && player.usedSpecialActions.includes(actionId))) return false;
+	// [사용자 2026-08-26] 테라포밍 스텝 보유 중엔 광산 건설만 — 특수 액션(스자 2TF·팅커 스텝 등)으로
+	// 스텝을 겹치거나 한 턴에 두 액션을 하는 것 차단. 봇·시뮬 제외(파워 액션 가드와 동일 기준).
+	if ((player.pendingTerraformSteps || 0) > 0
+		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
+		io.to(game.id).emit('game_error', '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
+		return false;
+	}
 
 	let applied = false;
 
@@ -9116,6 +9131,12 @@ export function executeUseBonusAction(
 	const player = game.players[playerId];
 	if (!player?.bonusTile) return rej('noBonusTile');
 	if (player.usedBonusAction) return rej('alreadyUsed');
+	// [사용자 2026-08-26] 테라포밍 스텝 보유 중엔 광산 건설만 — 보너스 액션도 차단. 봇·시뮬 제외(파워 액션 가드와 동일)
+	if ((player.pendingTerraformSteps || 0) > 0
+		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
+		io.to(game.id).emit('game_error', '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
+		return rej('terraformStepsPending');
+	}
 
 	const bonusTile = ALL_BONUS_TILES.find(t => t.id === player.bonusTile);
 	if (!bonusTile?.specialAction) return rej('noSpecialAction');

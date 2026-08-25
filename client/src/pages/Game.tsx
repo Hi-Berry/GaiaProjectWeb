@@ -2019,6 +2019,11 @@ export default function Game() {
   /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
   const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
     if (!gameId || game.hasDoneMainAction) return;
+    // [사용자 2026-08-26] 테라포밍 스텝 보유 중(보너스/특수 스텝 액션 뒤)엔 광산 건설만 가능 — 서버 가드와 동일
+    if ((currentPlayer?.pendingTerraformSteps ?? 0) > 0) {
+      toast({ title: '사용 불가', description: '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.', variant: 'destructive' });
+      return;
+    }
     const action = game.powerActions?.find(a => a.id === actionId);
     const cur = currentPlayer;
     if (action && cur) {
