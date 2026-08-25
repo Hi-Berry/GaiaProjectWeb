@@ -1083,7 +1083,7 @@ function addScore(game: GaiaGameState, playerId: string, vp: number, category: k
 }
 
 /** 플레이어가 입장한 우주선들의 전용 기술 타일 ID 목록 (이미 보유한 타일 제외). 게임마다 shipTechByShip 랜덤 배정 사용 */
-function getShipTechTileIdsForPlayer(game: ServerGameState, playerId: string): string[] {
+export function getShipTechTileIdsForPlayer(game: ServerGameState, playerId: string): string[] {
 	const ids: string[] = [];
 	const entered = game.players[playerId]?.spaceshipsEntered ?? [];
 	const owned = game.players[playerId]?.techTiles ?? [];
@@ -4778,6 +4778,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (shipTile.type === 'ship_rebellion') {
 				if (actionIndex === 1) {
 					if (player.qic < 3) return;
+					// [사용자 2026-08-26] 가져올 수 있는 기술 타일이 0개면 3QIC만 날리는 행동 — 지불 전에 차단
+					if (!hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId))) {
+						socket.emit('game_error', { message: '가져올 수 있는 기술 타일이 없어 이 액션을 사용할 수 없습니다.' });
+						return;
+					}
 					player.qic -= 3;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -5150,6 +5155,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				|| (rewardId === GLEENS_FEDERATION_REWARD.id ? GLEENS_FEDERATION_REWARD : undefined);
 			const shipReward = SPACESHIP_FEDERATION_REWARDS.find(r => r.id === rewardId);
 
+			// [사용자 2026-08-26] 기술 타일 보상인데 가져올 수 있는 타일이 0개면 이 보상은 고를 수 없다 — 다른 보상 선택
+			if (rewardId === 'ship-fed-tech' && !hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId))) {
+				socket.emit('game_error', { message: '가져올 수 있는 기술 타일이 없어 이 보상을 선택할 수 없습니다. 다른 보상을 고르세요.' });
+				return;
+			}
+
 			if (normalReward) {
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Federation benefit' : 'Twilight: Federation benefit', normalReward.label, rewardId);
 				addScore(game, playerId, normalReward.vp, 'spaceships', { shipTileId: pending.shipTileId, shipType: 'ship_twilight', actionIndex: 1, noLog: true });
@@ -5382,6 +5393,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 			game.pendingItarsGaiaformerExchange = null;
 
 			if (takeTile && tokensRemaining >= 4) {
+				// [사용자 2026-08-26] 가져올 수 있는 타일이 0개면 4토큰만 날리는 선택 — 소비 전에 차단(모달 유지)
+				if (!hasSelectableTechTileForHuman(game, targetPlayerId, getShipTechTileIdsForPlayer(game, targetPlayerId))) {
+					game.pendingItarsGaiaformerExchange = pending;
+					socket.emit('game_error', { message: '가져올 수 있는 기술 타일이 없습니다. "그만하고 1그릇으로"를 선택하세요.' });
+					return;
+				}
 				const after = tokensRemaining - 4;
 				game.itarsGaiaformerRemainingAfterTech = after;
 				game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'itars_pi_exchange' };
@@ -6264,6 +6281,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const hasEnteredThisShip = shipTypeForReward && game.map.some(t => t.type === shipTypeForReward && enteredTileIds.includes(t.id));
 				if (!hasEnteredThisShip) {
 					io.to(gameId).emit('game_error', { message: '해당 우주선에 입장한 플레이어만 그 우주선 연방을 선택할 수 있습니다.' });
+					return;
+				}
+				// [사용자 2026-08-26] 기술 타일 보상인데 가져올 수 있는 타일이 0개면 이 보상은 고를 수 없다 — 다른 보상 선택
+				if (rewardId === 'ship-fed-tech' && !hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId))) {
+					socket.emit('game_error', { message: '가져올 수 있는 기술 타일이 없어 이 보상을 선택할 수 없습니다. 다른 보상을 고르세요.' });
 					return;
 				}
 			}
@@ -9335,6 +9357,8 @@ export function executeUseShipAction(
 	if (shipTile.type === 'ship_rebellion') {
 		if (actionIndex === 1) {
 			if (player.qic < 3) return false;
+			// [사용자 2026-08-26] 가져올 타일 0개면 3QIC만 날림 — 봇 경로도 지불 전 차단 (소켓 경로와 동일)
+			if (!hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId))) return false;
 			player.qic -= 3;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -9599,8 +9623,10 @@ export function executeEndTurn(
 
 /** Bot용: pendingTechTileSelection 자동 처리. 트랙 타일 중 진행 가능한 첫 번째를 선택. */
 /** [사용자 2026-08-25] 연구소/아카데미 등에서 기술 타일 선택이 걸렸는데 '가져올 수 있는 타일이 0개'인 경우 —
- *  사람이 선택할 수 있는 모든 경로(트랙 첫 타일·풀·우주선 기술·고급 타일)를 검사한다. */
-export function hasSelectableTechTileForHuman(game: ServerGameState, playerId: string): boolean {
+ *  사람이 선택할 수 있는 모든 경로(트랙 첫 타일·풀·우주선 기술·고급 타일)를 검사한다.
+ *  shipIdsOverride: 아직 pending을 세우기 전(진입 가드)에는 availableShipTechTileIds가 미설정이라
+ *  getShipTechTileIdsForPlayer 결과를 넘겨 검사한다. */
+export function hasSelectableTechTileForHuman(game: ServerGameState, playerId: string, shipIdsOverride?: string[]): boolean {
 	const player = game.players[playerId];
 	if (!player) return false;
 	const owned = new Set(player.techTiles ?? []);
@@ -9615,7 +9641,7 @@ export function hasSelectableTechTileForHuman(game: ServerGameState, playerId: s
 		if (t && (t as { id?: string }).id && !owned.has((t as { id: string }).id)) return true;
 	}
 	// 우주선 기술 타일 (탑승한 배 + 재고)
-	for (const id of game.availableShipTechTileIds ?? []) {
+	for (const id of shipIdsOverride ?? game.availableShipTechTileIds ?? []) {
 		if (!owned.has(id) && (game.shipTechPool?.[id] ?? 0) > 0) return true;
 	}
 	// 고급 기술 타일 (초록 연방 + 덮을 일반 타일 + 트랙 L4+ 미보유 고급)
@@ -9951,7 +9977,8 @@ export function executeBotItarsGaiaformerExchange(
 	game.pendingItarsGaiaformerExchange = null;
 
 	// 4개 이상이면 기술 타일 선택 (itars_pi_exchange)
-	if (tokensRemaining >= 4) {
+	// [사용자 2026-08-26] 가져올 타일이 0개면 토큰만 날림 — 봇도 교환하지 않고 1그릇 복귀로
+	if (tokensRemaining >= 4 && hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId))) {
 		const after = tokensRemaining - 4;
 		game.itarsGaiaformerRemainingAfterTech = after;
 		game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'itars_pi_exchange' };

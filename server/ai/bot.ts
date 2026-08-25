@@ -5,6 +5,8 @@ import {
     isTrackLevel5Taken,
     executeBuildMine,
     executeFiraksDowngrade,
+    hasSelectableTechTileForHuman,
+    getShipTechTileIdsForPlayer,
     executeUpgradeStructure,
     executeAdvanceTech,
     executePassRound,
@@ -7375,10 +7377,13 @@ export class BotLogic {
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     }
                 } else if (shipTile.type === 'ship_rebellion') {
-                    if (i === 1 && effShipQic >= 3) {
+                    // [사용자 2026-08-26] 가져올 기술 타일이 0개면 3정큐는 서버가 지불 전 거부 — 후보에서 제외
+                    const rebTechOk = i !== 1
+                        || hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId));
+                    if (i === 1 && rebTechOk && effShipQic >= 3) {
                         score = 380; // 기술 타일 획득: 최강 액션
                         action = shipQicAction(shipId, i, 3);
-                    } else if (i === 1 && getPlayerFlag(playerId, 'rebellionBurnQic', true)
+                    } else if (i === 1 && rebTechOk && getPlayerFlag(playerId, 'rebellionBurnQic', true)
                         && player.faction !== 'taklons' && (player.qic || 0) === 2
                         && ((player.power3 || 0) + Math.floor((player.power2 || 0) / 2)) >= 4) {
                         // [flag: rebellionBurnQic] 사용자 룰(2026-07-11): QIC 2 + 번(≤2)로 4P 만들어 4P→1Q 변환
