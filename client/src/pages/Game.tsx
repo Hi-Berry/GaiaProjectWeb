@@ -1534,9 +1534,16 @@ export default function Game() {
           게임은 복기용이므로 아예 읽지 않는다. (내가 참여 중에 끝난 경우는 프라이밍이 이미 지나갔으므로
           영향 없이 마지막 액션까지 그대로 읽는다.) */
     if (game && !voicePrimedRef.current) {
+      /* [사용자 2026-08-25 "폰으로 접속하면 전전턴/전턴 소리가 남"] 방 재입장 직후엔 전체 동기화보다
+         브로드캐스트(로그 꼬리 40줄)가 먼저 도착할 수 있다. 그 상태로 프라이밍하면(마크=40) 곧이어
+         도착한 전체 로그(수백 줄)와의 차이를 '새 줄'로 읽었다 — 턴당 1회 규칙에 걸러져 마지막 두세 턴
+         소리로 들린 것. 로그가 전체(gameLogLen)에 못 미치는 꼬리 상태면 프라이밍을 확정하지 않고
+         마크만 따라가다가, 전체 로그가 온 뒤에 확정한다. (전체 동기화 상태는 gameLogLen이 없다.) */
+      const totalLogLen = (game as { gameLogLen?: number }).gameLogLen;
+      voiceLogMarkRef.current = log.length;
+      if (typeof totalLogLen === 'number' && log.length < totalLogLen) return; // 꼬리만 온 상태 — 확정 보류
       voicePrimedRef.current = true;
       if (game.currentPhase === 'gameEnd') voiceSuppressAllRef.current = true;
-      voiceLogMarkRef.current = log.length;
       return;
     }
     if (voiceSuppressAllRef.current) { voiceLogMarkRef.current = log.length; return; }
@@ -1554,6 +1561,9 @@ export default function Game() {
       return;
     }
     const from = Math.min(voiceLogMarkRef.current, log.length);   // 롤백으로 줄어도 안전
+    /* [사용자 2026-08-25] 게임 중 재연결·전체 재동기화로 로그가 한 번에 크게 점프하면 밀린 과거분이다 —
+       정상 브로드캐스트는 꼬리 40줄(GAME_LOG_TAIL_SIZE)이 상한이므로 그보다 큰 증가는 라이브가 아니다. */
+    if (log.length - from > 40) { voiceLogMarkRef.current = log.length; return; }
     /* [사용자 2026-08-21] '되돌리기 전에 소리부터 나던' 문제.
        파워 액션으로 테라포밍 1을 얻고 Undo(reset_turn)하면 서버가 그 턴의 로그 줄을 지운다.
        그런데 안내는 줄이 붙는 즉시 나가서, 결국 하지 않은 액션이 이미 읽힌 뒤였다.
