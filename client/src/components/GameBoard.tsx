@@ -2613,6 +2613,23 @@ export function GameBoard({
                   </div>
                 )}
 
+                {/* [사용자 2026-08-25] 포밍 중(포머만 설치, 건물 없음) 타일 — 맵엔 포머가 그려지는데
+                    상세엔 소유자 표시가 없었다. Owner 블록이 structure 있을 때만 렌더됐기 때문. */}
+                {!selectedTile.structure && selectedTile.hasGaiaformer && (() => {
+                  const gfOwner = selectedTile.gaiaformerOwnerId ? game.players[selectedTile.gaiaformerOwnerId] : null;
+                  const gfFac = gfOwner?.faction ? FACTIONS.find(f => f.id === gfOwner.faction) : null;
+                  return (
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-sm">
+                        Structure: Gaiaformer{selectedTile.type === 'gaia' ? ' (포밍 완료 · 건설 대기)' : ' (포밍 중)'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Owner: {gfOwner ? `${gfOwner.name}${gfFac ? ` (${gfFac.name})` : ''}` : 'Unknown'}
+                      </p>
+                    </div>
+                  );
+                })()}
+
                 {isStartingPhase && canPlaceStartingMine && (
                   <div className="space-y-2">
                     <p className="text-xs text-blue-400">
