@@ -17,6 +17,8 @@ interface ResearchBoardProps {
     onAdvanceTech: (trackId: ResearchTrack) => void;
     onUseShipAction?: (shipTileId: string, actionIndex: number, targetTileId?: string) => void;
     onSelectTechTile?: (techTileId: string, trackId?: string) => void;
+    /** [사용자 2026-08-25] 가져올 수 있는 기술 타일이 0개일 때 선택 건너뛰기 (서버 재검증) */
+    onSkipTechTileSelection?: () => void;
     onSelectAdvancedTechTile?: (advancedTileId: string, trackId?: ResearchTrack) => void;
     onConfirmAdvancedTechCover?: (coverTileId: string) => void;
     onTakeTwilightArtifact?: (artifactId: string) => void;
@@ -181,7 +183,7 @@ const POWER_ACTION_BTN = {
     panelAvailable: 'bg-amber-950/50 hover:bg-amber-900/55 border-amber-500/45 hover:border-amber-400/65',
 };
 
-export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all', showPendingSelections }: ResearchBoardProps) {
+export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSkipTechTileSelection, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all', showPendingSelections }: ResearchBoardProps) {
     const showTech = section !== 'ships';
     const showShips = section !== 'tech';
     const showPending = showPendingSelections ?? !isMini; // 펜딩 안내 블록 — 모바일 R 오버레이(미니 렌더)는 true로 켬
@@ -201,6 +203,27 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
     const balTakCanAdvanceNav = !currentPlayer || currentPlayer.faction !== 'bal_tak' || game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
 
     const pendingTech = game.pendingTechTileSelection?.playerId === playerId ? game.pendingTechTileSelection : null;
+    /** [사용자 2026-08-25] 가져올 수 있는 타일이 하나도 없는 상태 — 이때만 '건너뛰기'를 보여준다 (서버도 재검증).
+     *  검사 경로는 서버 hasSelectableTechTileForHuman과 동일: 트랙 첫 타일·풀·우주선 기술·고급 타일. */
+    const pendingTechNoOption = !!pendingTech && (() => {
+        const owned = new Set(currentPlayer?.techTiles ?? []);
+        const trackHas = RESEARCH_TRACKS.some((tr) => {
+            const t = getFirstTrackTile(game.techTilesByTrack, tr.id as ResearchTrack);
+            return !!t && !owned.has(t.id);
+        });
+        if (trackHas) return false;
+        const poolHas = (game.techTilesPool ?? []).some((t) => t && !owned.has(t.id));
+        if (poolHas) return false;
+        const shipHas = (game.availableShipTechTileIds ?? []).some((id) => !owned.has(id) && (game.shipTechPool?.[id] ?? 0) > 0);
+        if (shipHas) return false;
+        const greenOk = currentPlayer ? countGreenFederations(currentPlayer) >= 1 : false;
+        const hasCoverable = (currentPlayer?.techTiles ?? []).some((id: string) => !id.startsWith('adv-') && !isTechTileCovered(currentPlayer, id));
+        const advHas = greenOk && hasCoverable && RESEARCH_TRACKS.some((tr) => {
+            const adv = game.advancedTechTilesByTrack?.[tr.id as ResearchTrack];
+            return !!adv && (currentPlayer?.research?.[tr.id as ResearchTrack] ?? 0) >= 4 && !owned.has(adv.id);
+        });
+        return !advHas;
+    })();
     /** 우주선 기술 타일도 선택지에 포함 (리벨리온 3Q, 연구소 건설 시 트랙+풀+우주선 모두 선택 가능) */
     const hasShipTechOptions = Boolean(game.availableShipTechTileIds?.length);
     const isRebellionGain = pendingTech?.structureType === 'rebellion_gain';
@@ -261,6 +284,15 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                         <h4 className="text-[10px] font-black uppercase tracking-wider text-yellow-400">
                             {selectedTileIdNeedingTrack ? '올릴 기술 라인을 클릭해주세요' : '기술 타일을 선택하세요'}
                         </h4>
+                        {/* [사용자 2026-08-25] 가져올 수 있는 타일이 0개면 선택을 해소할 수 없어 턴이 막힘 → 건너뛰기 */}
+                        {pendingTechNoOption && onSkipTechTileSelection && (
+                            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 space-y-2">
+                                <p className="text-[10px] text-red-300 font-semibold">가져올 수 있는 기술 타일이 없습니다 (이미 보유했거나 소진).</p>
+                                <Button size="sm" className="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold" onClick={onSkipTechTileSelection}>
+                                    타일 없이 넘어가기
+                                </Button>
+                            </div>
+                        )}
                         {selectedTileIdNeedingTrack ? (
                             <>
                                 <p className="text-[9px] text-zinc-400">올릴 트랙을 아래 6개 중에서 클릭하세요.</p>

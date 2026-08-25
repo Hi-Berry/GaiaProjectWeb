@@ -477,6 +477,12 @@ export const GameClient = {
     s.emit('use_bal_tak_gaiaformer_to_qic', { gameId });
   },
 
+  /** 가져올 수 있는 기술 타일이 0개일 때 선택 건너뛰기 (서버가 재검증) */
+  skipTechTileSelection(gameId: string) {
+    const s = getSocket();
+    s.emit('skip_tech_tile_selection', { gameId });
+  },
+
   useHadschHallasPIAction(gameId: string, actionId: string) {
     const s = getSocket();
     _optimisticFreeCount++; _lastFreeActionAt = Date.now();

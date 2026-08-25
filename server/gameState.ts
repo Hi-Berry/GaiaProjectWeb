@@ -5292,6 +5292,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 			executeSelectTechTile(io, game, playerId, techTileId, trackId, advanceToLevel5);
 		});
 
+		// [사용자 2026-08-25] 가져올 수 있는 기술 타일이 0개면 선택을 건너뛸 수 있게 (아니면 턴 종료 불가로 고착)
+		socket.on('skip_tech_tile_selection', ({ gameId }: { gameId: string }) => {
+			const game = games.get(gameId);
+			if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId) return;
+			if (!executeSkipTechTileSelection(io, game, playerId)) {
+				socket.emit('game_error', { message: '아직 가져올 수 있는 기술 타일이 있어 건너뛸 수 없습니다.' });
+			}
+		});
+
 		socket.on('reset_turn', ({ gameId }) => {
 			const game = games.get(gameId);
 			if (!game) return;
@@ -9587,6 +9598,61 @@ export function executeEndTurn(
 }
 
 /** Bot용: pendingTechTileSelection 자동 처리. 트랙 타일 중 진행 가능한 첫 번째를 선택. */
+/** [사용자 2026-08-25] 연구소/아카데미 등에서 기술 타일 선택이 걸렸는데 '가져올 수 있는 타일이 0개'인 경우 —
+ *  사람이 선택할 수 있는 모든 경로(트랙 첫 타일·풀·우주선 기술·고급 타일)를 검사한다. */
+export function hasSelectableTechTileForHuman(game: ServerGameState, playerId: string): boolean {
+	const player = game.players[playerId];
+	if (!player) return false;
+	const owned = new Set(player.techTiles ?? []);
+	// 트랙 첫 타일 (동일 종류 스택이라 첫 장만 보면 됨 — 미보유면 선택 가능, 트랙 전진 불가여도 타일만 획득 가능)
+	for (const val of Object.values(game.techTilesByTrack ?? {})) {
+		const arr = Array.isArray(val) ? val : (val ? [val] : []);
+		const first = arr.find((t) => t && (t as { id?: string }).id);
+		if (first && !owned.has((first as { id: string }).id)) return true;
+	}
+	// 하단 풀
+	for (const t of game.techTilesPool ?? []) {
+		if (t && (t as { id?: string }).id && !owned.has((t as { id: string }).id)) return true;
+	}
+	// 우주선 기술 타일 (탑승한 배 + 재고)
+	for (const id of game.availableShipTechTileIds ?? []) {
+		if (!owned.has(id) && (game.shipTechPool?.[id] ?? 0) > 0) return true;
+	}
+	// 고급 기술 타일 (초록 연방 + 덮을 일반 타일 + 트랙 L4+ 미보유 고급)
+	if (countGreenFederations(player) >= 1
+		&& (player.techTiles ?? []).some((id) => !id.startsWith('adv-') && !isTechTileCovered(player, id))) {
+		for (const [track, adv] of Object.entries(game.advancedTechTilesByTrack ?? {})) {
+			if (!adv || !(adv as { id?: string }).id) continue;
+			if ((player.research?.[track as ResearchTrack] ?? 0) >= 4 && !owned.has((adv as { id: string }).id)) return true;
+		}
+	}
+	return false;
+}
+
+/** 기술 타일 선택 건너뛰기 — 가져올 수 있는 타일이 하나도 없을 때만 허용(서버 검증).
+ *  [사용자 2026-08-25] 이 경우 선택을 해소할 방법이 없어 턴 종료가 막혔다(봇은 강제 해제 폴백이 있었고 사람만 갇힘). */
+export function executeSkipTechTileSelection(io: SocketIOServer, game: ServerGameState, playerId: string): boolean {
+	const pending = game.pendingTechTileSelection;
+	if (!pending || pending.playerId !== playerId) return false;
+	if (hasSelectableTechTileForHuman(game, playerId)) return false;
+	const wasItarsExch = pending.structureType === 'itars_pi_exchange';
+	game.pendingTechTileSelection = null;
+	game.availableShipTechTileIds = undefined;
+	addGameLog(game, playerId, 'Tech tile skipped', '가져올 수 있는 기술 타일 없음');
+	if (wasItarsExch) {
+		// 교환에 쓴 4토큰을 잔여와 합쳐 교환 모달로 복귀 — 거기서 '그만하고 1그릇으로'를 고를 수 있다.
+		const player = game.players[playerId];
+		const remaining = (game.itarsGaiaformerRemainingAfterTech ?? 0) + 4;
+		game.itarsGaiaformerRemainingAfterTech = undefined;
+		if (player) {
+			game.pendingItarsGaiaformerExchange = { playerId, tokensRemaining: remaining };
+			addGameLog(game, playerId, 'Itars PI', '가져올 타일이 없어 4토큰 반환');
+		}
+	}
+	clampPlayerResources(game); emitGameUpdated(io, game);
+	return true;
+}
+
 export function executeBotSelectTechTile(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string

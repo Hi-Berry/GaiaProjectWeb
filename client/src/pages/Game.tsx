@@ -3278,6 +3278,7 @@ export default function Game() {
       onSelectTechTile={(techTileId, trackId) => {
         selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: true });
       }}
+      onSkipTechTileSelection={() => GameClient.skipTechTileSelection(gameId!)}
       onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
       onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
       onTakeTwilightArtifact={(artId) => handleTakeTwilightArtifact(artId)}
@@ -4312,6 +4313,7 @@ export default function Game() {
                     onAdvanceTech: (trackId) => handleResearchAdvanceTech(trackId, { closeResearchOverlay: true }),
                     // 오버레이 R창에서 선택한 경우: 자동 닫기/열기 동작하도록 플래그 OFF
                     onSelectTechTile: (techTileId, trackId) => { selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: false }); },
+                    onSkipTechTileSelection: () => { if (gameId) GameClient.skipTechTileSelection(gameId); },
                     onSelectAdvancedTechTile: (advancedTileId, trackId) => { if (gameId) GameClient.selectAdvancedTechTile(gameId, advancedTileId, trackId); },
                     onConfirmAdvancedTechCover: (coverTileId) => { if (gameId) GameClient.confirmAdvancedTechCover(gameId, coverTileId); },
                     onTakeTwilightArtifact: (artifactId) => handleTakeTwilightArtifact(artifactId),
@@ -7445,6 +7447,7 @@ export default function Game() {
                   // 미니 R패널에서 선택한 경우: 자동 R창 열고닫기 하지 않도록 플래그 ON
                   selectTechTileWithLevel5Confirm(techTileId, trackId, { fromMini: true });
                 }}
+                onSkipTechTileSelection={() => GameClient.skipTechTileSelection(gameId!)}
                 onSelectAdvancedTechTile={(advId, trackId) => GameClient.selectAdvancedTechTile(gameId!, advId, trackId)}
                 onConfirmAdvancedTechCover={(coverId) => GameClient.confirmAdvancedTechCover(gameId!, coverId)}
                 onTakeTwilightArtifact={(artId) => handleTakeTwilightArtifact(artId)}
