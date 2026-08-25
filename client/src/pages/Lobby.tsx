@@ -413,7 +413,8 @@ export default function Lobby() {
                         <Badge variant="outline">
                           {game.playerCount}/{game.maxPlayers} Players
                         </Badge>
-                        {canRejoin ? (
+                        {/* [사용자 2026-08-25] 종료된 게임엔 이어하기가 없어야 함 — 복기는 Watch로. */}
+                        {isFinished ? null : canRejoin ? (
                           <Button
                             variant="default"
                             className="bg-green-600 hover:bg-green-500 text-white"
@@ -423,7 +424,7 @@ export default function Lobby() {
                             <LogIn className="w-4 h-4 mr-2" />
                             이어하기
                           </Button>
-                        ) : isStarted && !isFinished ? (
+                        ) : isStarted ? (
                           // 이 기기에 좌석이 없는 진행 중 게임: 위 이름/비번으로 좌석 복귀 시도(비번 없인 게임 페이지 폼으로)
                           <Button
                             variant="outline"
