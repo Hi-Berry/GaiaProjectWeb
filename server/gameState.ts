@@ -37,6 +37,8 @@ import {
 	chargePowerTaklons,
 	applyPowerIncome,
 	findOptimalIncomeOrder,
+	simulateIncomeOrder,
+	type IncomeOrderItem,
 	snapshotPlayerPower,
 	restorePlayerPowerSnapshot,
 	getMaxPowerGain,
@@ -6564,6 +6566,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			game.pendingIncomeOrder.appliedItems.push(item);
 			game.pendingIncomeOrder.incomeItems = game.pendingIncomeOrder.incomeItems.filter(i => i.id !== itemId);
+			(game.pendingIncomeOrder as any).usedManual = true; // [2026-08-26] 완료 시 '수동/자동' 로그용
 
 			log(`Player ${player.name} selected income: ${item.amount} ${item.type}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); emitGameUpdated(io, game);
@@ -6606,6 +6609,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			game.pendingIncomeOrder.appliedItems.push(...applied);
 			game.pendingIncomeOrder.incomeItems = [];
+			(game.pendingIncomeOrder as any).usedAuto = true; // [2026-08-26] 완료 시 '수동/자동' 로그용
 			log(`Player ${player.name} auto-received all income (Optimal Order): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
@@ -6685,6 +6689,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 저장된 수익 정보 제거
 			delete (player as any).pendingIncomeItems;
+
+			/* [사용자 2026-08-26 "자동 최적으로 안 받은 사람을 로그로 볼 수 있나"] 그동안 선택 방식이 서버
+			   파일 로그에만 남아(Render 재시작 시 소실) 저장 게임으로는 알 수 없었다 → 방식과 '최적 대비
+			   손해'를 게임 로그에 남긴다. 손해는 첫 항목 적용 전 파워 스냅샷에서 실제 순서와 최적 순서를
+			   각각 시뮬레이션해 3그릇(부족하면 2그릇) 차이로 계산. */
+			try {
+				const po = game.pendingIncomeOrder as any;
+				const appliedList = (po.appliedItems ?? []) as IncomeOrderItem[];
+				if (appliedList.length > 0 && !(game.botPlayerIds ?? []).includes(targetPlayerId)) {
+					const method = po.usedAuto && po.usedManual ? '수동+자동 혼합' : po.usedAuto ? '자동 최적' : '수동';
+					let lossText = '';
+					const snap0 = po.powerBeforeSnapshots?.[0];
+					if (snap0) {
+						const base = {
+							faction: player.faction, power1: snap0.p1, power2: snap0.p2, power3: snap0.p3,
+							brainStoneBowl: snap0.bs ?? player.brainStoneBowl,
+							brainStoneInGaia: player.brainStoneInGaia, brainStoneSpent: player.brainStoneSpent,
+						} as any;
+						const actual = simulateIncomeOrder(base, appliedList);
+						const optimal = simulateIncomeOrder(base, findOptimalIncomeOrder(base, appliedList));
+						const d3 = optimal.p3 - actual.p3;
+						const d2 = optimal.p2 - actual.p2;
+						lossText = d3 > 0 ? ` · 최적 대비 3그릇 -${d3}` : d2 > 0 ? ` · 최적 대비 2그릇 -${d2}` : ' · 최적과 동일';
+					}
+					addGameLog(game, targetPlayerId, 'Income Order', `${method} (${appliedList.length}개)${lossText}`);
+				}
+			} catch { /* 기록 실패는 게임에 무영향 */ }
 
 			log(`Player ${player.name} finished income selection`, 'game', undefined, { simulation: (game as any).simulation });
 			const finishedPlayerId = game.pendingIncomeOrder.playerId;
