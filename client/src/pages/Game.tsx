@@ -3721,12 +3721,20 @@ export default function Game() {
             </Button>
           )}
           {/* 파이락(Firaks) Downgrade: 의회 보유 시 연구소→교역소 + 트랙 1칸, 라운드당 1회
-              [사용자 2026-08-25] 교역소 4개가 전부 보드에 있으면 되돌릴 토큰이 없어 불가(서버 가드와 동일) */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0) < 4 && (
+              [사용자 2026-08-25] 교역소 4개가 전부 보드에 있으면 되돌릴 토큰이 없어 불가. 버튼을 숨기면
+              '이미 썼나' 헷갈린다는 지적 → 버튼은 그대로 두고 누르면 사유를 에러로 안내(광산 8개 한도와 동일 UX). */}
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (
             <Button
               variant={firaksDowngradeMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
-              onClick={() => setFiraksDowngradeMode(true)}
+              onClick={() => {
+                const tsCount = game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0;
+                if (tsCount >= 4) {
+                  toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 토큰이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
+                  return;
+                }
+                setFiraksDowngradeMode(true);
+              }}
             >
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-amber-500/30 border-amber-500/50 text-[8px]">S</Badge>
