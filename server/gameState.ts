@@ -8339,6 +8339,9 @@ export function executeFiraksDowngrade(game: ServerGameState, playerId: string, 
 	if (player.faction !== 'firaks') return false;
 	if (player.usedSpecialActions?.includes('firaks-downgrade')) return false;
 	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return false;
+	// [사용자 2026-08-25] 교역소 토큰은 4개 — 전부 보드에 있으면 연구소를 교역소로 되돌릴 토큰이 없다.
+	// (교역소를 연구소 등으로 업그레이드하면 재고가 돌아와 다시 가능해지는 일시적 제한.)
+	if (getStructureCount(game, playerId, 'trading_station') >= 4) return false;
 	const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab');
 	if (!tile) return false;
 	const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];

@@ -5526,6 +5526,8 @@ export class BotLogic {
         if (player.faction !== 'firaks') return null;
         if (player.usedSpecialActions?.includes('firaks-downgrade')) return null;
         if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return null;
+        // [사용자 2026-08-25] 교역소 4개가 전부 보드에 있으면 되돌릴 토큰이 없음 (서버 가드와 동일)
+        if (game.map.filter(t => t.ownerId === playerId && t.structure === 'trading_station').length >= 4) return null;
         const labs = game.map.filter(t => t.ownerId === playerId && t.structure === 'research_lab');
         if (labs.length === 0) return null;
         // [flag: firaksDowngradeExpand] 사용자(2026-07-24): 다운그레이드 연구는 '무비용'이므로 Nav에 넣어 사거리↑ →

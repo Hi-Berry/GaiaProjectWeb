@@ -3720,8 +3720,9 @@ export default function Game() {
               Special
             </Button>
           )}
-          {/* 파이락(Firaks) Downgrade: 의회 보유 시 연구소→교역소 + 트랙 1칸, 라운드당 1회 */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (
+          {/* 파이락(Firaks) Downgrade: 의회 보유 시 연구소→교역소 + 트랙 1칸, 라운드당 1회
+              [사용자 2026-08-25] 교역소 4개가 전부 보드에 있으면 되돌릴 토큰이 없어 불가(서버 가드와 동일) */}
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0) < 4 && (
             <Button
               variant={firaksDowngradeMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
