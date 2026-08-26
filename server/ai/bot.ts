@@ -3740,7 +3740,13 @@ export class BotLogic {
         const isEngineUpgrade = (c: ScoredUpgrade) => {
             const tgt = (c.action.params as any)?.target;
             if (tgt === 'research_lab' || tgt === 'planetary_institute') return true;
-            return getPlayerFlag(playerId, 'fedAcademyOutside', true) && String(tgt ?? '').startsWith('academy');
+            if (getPlayerFlag(playerId, 'fedAcademyOutside', true) && String(tgt ?? '').startsWith('academy')) return true;
+            // [flag: fedTsOutside] 실게임 대조(2026-08-26, fedHexes 저장 71판): 사람 TS 업글(연방 형성 후 1,549건)의
+            //   96%가 연방 타일 위 — 사람은 연방 안 광산도 계속 TS로 올려 'TS→연구소→TS 재건축' 엔진 사이클을 돌린다
+            //   (실게임 TS 8.02 vs 봇 4.45, 연구소 4.96 vs 2.75, 기술타일 8.84 vs 3.92의 상류). 이 필터가 mine→TS를
+            //   무조건 컷해 사이클의 첫 계단을 죽이던 것. fedAcademyOutside(+3.54 채택)와 동일 규칙 —
+            //   비연방 광산 대안이 있으면 그쪽에(fedEngineUpgOutside), 전부 연방일 때만 연방 안 허용.
+            return getPlayerFlag(playerId, 'fedTsOutside', false) && tgt === 'trading_station';
         };
         // [flag: fedEngineUpgOutside] 사용자 관찰(2026-07-06 "여전히 연방 내부 티어업이 많다"): noFedTierUp이 엔진업글
         //   (연구소/PI)은 연방건물이어도 '항상' 통과시켜, MCTS가 −450 점수를 무시하고 연방 안 TS를 연구소/PI로 올림.
