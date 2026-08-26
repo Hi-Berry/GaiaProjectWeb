@@ -5056,6 +5056,26 @@ export class BotLogic {
             }
         }
 
+        // [flag: tfMineCandOpen] 사람 광산 갭 리프로브(2026-08-26 mineGapProbe, 299게임): '사거리 안인데 후보에
+        //   없던' 1,799건의 79%가 1~3스텝 테라포밍 행성, R4-6에 72% 집중 — 테라포밍 페널티가 비싼 행성을
+        //   탑4 밖으로 밀어 후보 자체가 소멸한다(사람은 후반에 연방 확장·행성유형·미션용으로 짓는다).
+        //   mineTop6(전체 확대)은 −1.69로 기각된 축이라, 채택 전례 있는 asteroidCandOpen과 동일한 '예약 슬롯'
+        //   패턴: 탑4에 2스텝+ 행성이 없으면 최고점 2스텝+ 행성 1개만 추가(분기 +1, 선택은 MCTS). R3+ 한정.
+        if (getPlayerFlag(playerId, 'tfMineCandOpen', false) && (game.roundNumber ?? 1) >= 3) {
+            const stepsOf = (t: HexTile | undefined): number => {
+                if (!t || !t.type || t.type === 'gaia' || t.type === 'asteroid' || t.type === 'transdim') return 0;
+                try { return getTerraformStepsForFaction(game, player.faction!, t.type as PlanetType); } catch { return 0; }
+            };
+            const hasHighTf = results.some(a => stepsOf(game.map.find(t => t.id === (a.params as any)?.tileId)) >= 2);
+            if (!hasHighTf) {
+                const best = scored.find(s => stepsOf((s as any).tile) >= 2);
+                if (best) {
+                    const key = JSON.stringify(best.action);
+                    if (!seenActions.has(key)) { seenActions.add(key); results.push(best.action); }
+                }
+            }
+        }
+
         // [flag: asteroidCandOpen] 자원기아 패스였다면 기존 동작(Eclipse 6C/파워콤보 대안)도 병합
         if (resStarved) {
             const alt = this.findAlternativeBuildAction(game, playerId);
