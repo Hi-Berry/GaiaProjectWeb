@@ -2435,6 +2435,10 @@ export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: strin
 		if (log.playerId === sourcePlayerId && !/power|income|energy|bowl/i.test(log.action) && !/Accepted|Declined/i.test(log.action)) {
 			if (!log.subLogs) log.subLogs = [];
 			log.subLogs.push(subLog);
+			// [사용자 2026-08-26] 서브 로그는 저장 파일(fullGameLog)에 안 실려 리치가 사후 분석에서 통째로
+			// 사라졌다(수입 최적성 대조가 불가능했던 원인). 화면 표시는 서브 로그 그대로 두고, 저장용
+			// 풀 로그에는 별도 항목으로도 남긴다 — 브로드캐스트 payload 증가 없음(fullGameLog는 export 전용).
+			recordFullGameLog(game as ServerGameState, subLog.playerId, 'Received Power', subLog.text);
 			return true;
 		}
 	}
