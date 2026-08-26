@@ -26,7 +26,7 @@ const DIR = 'data/human-games';
 const EXCLUDE_GAMES = new Set(['2026-07-15_fi1njhdj.json']);
 const ALIAS: Record<string, string> = {
 	'암가': '타클론안함', '암컷가마우지': '타클론안함', '김지선': '타클론안함',
-	'222': '하이', 'chrome': '하이', '산타': '디애박', '소통맨': '지수홍', '보노보노': 'mks',
+	'222': '하이', 'chrome': '하이', '산타': '디애박', '소통맨': '지수홍', '보노보노': 'mks', 'GUHO': '구오',
 	'Hi': '하이', 'HI': '하이', '군성`': '군성', '시리티드': '시리', 'Happygaia': '행복가이아',
 };
 const canon = (n: string) => ALIAS[n] ?? n;
