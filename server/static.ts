@@ -32,6 +32,14 @@ export function serveStatic(app: Express) {
         res.setHeader("Cache-Control", "no-cache");
       } else if (/[.-][0-9a-zA-Z_]{8,}\.(js|css)$/.test(filePath) || filePath.includes(`${path.sep}assets${path.sep}`)) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (filePath.includes(`${path.sep}voice${path.sep}`) && filePath.endsWith(".mp3")) {
+        // 음성 조각은 내용 해시 파일명(manifest가 교체를 관리) → 영구 캐시 안전
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.(png|jpe?g|webp|gif|svg|ico|mp3)$/i.test(filePath)) {
+        // [사용자 제보 2026-08-26 '흰 종이 이미지'] 게임 이미지(map/race/tech 등)가 캐시 헤더 없이 서빙돼
+        // 브라우저가 짧게만 캐시 → 재요청이 잦아 서버 순단/네트워크 순단에 걸릴 기회가 많았다.
+        // 하루 캐시로 재요청 자체를 줄인다(내용이 바뀌는 일이 드물고, 바뀌면 최대 1일 지연 감수).
+        res.setHeader("Cache-Control", "public, max-age=86400");
       }
     },
   }));
