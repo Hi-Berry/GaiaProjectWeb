@@ -54,4 +54,9 @@ export function canOfferPcViewMode(): boolean {
 export function setPcViewMode(on: boolean): void {
 	try { localStorage.setItem(VIEW_MODE_KEY, on ? 'pc' : 'auto'); } catch { /* 저장 실패해도 이번 세션엔 적용 */ }
 	applyViewportMeta();
+	// [사용자 2026-08-26, 폴드] viewport meta 교체 후 CSS 폭이 바뀌었는데 matchMedia change가 안 오는
+	// 브라우저가 있어 useIsMobile 등이 옛 판정을 유지했다(모바일 전환 후 PC 미니뷰 잔존) → 강제 재판정.
+	if (typeof window !== 'undefined') {
+		requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+	}
 }

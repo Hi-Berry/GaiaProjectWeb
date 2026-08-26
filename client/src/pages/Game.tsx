@@ -7341,7 +7341,8 @@ export default function Game() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {isResearchPinned && (
+        {/* [사용자 2026-08-26, 폴드] 미니뷰는 PC 레이아웃 전용 — 모바일 모드 전환 시 숨긴다(핀 상태는 유지해 되돌리면 복원). */}
+        {isResearchPinned && !isMobileViewport && (
           <motion.div
             key="research-mini"
             drag
@@ -7487,7 +7488,7 @@ export default function Game() {
           </motion.div>
         )}
 
-        {bonusMiniMounted && (
+        {bonusMiniMounted && !isMobileViewport && (
           <motion.div
             key="bonus-mini"
             drag
