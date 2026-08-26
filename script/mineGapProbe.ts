@@ -91,6 +91,19 @@ for (const f of files) {
 		else if (minD <= range) {
 			c = 'D.사거리 안인데 누락(타일 필터=진짜 갭)';
 			if (tile) {
+				// 스텝당 비용(=TF 연구 레벨) 분포 — 페널티 완화 폭 설계용
+				const tf = pb.research?.terraforming ?? 0;
+				let st2 = -1; try { st2 = getTerraformStepsForFaction(g as any, pb.faction ?? e.faction, tile.type); } catch { /* */ }
+				if (st2 >= 1) {
+					const cost = getTerraformCost(tf);
+					const k2 = `TF${tf}(${cost}O/스텝)x${st2}스텝@R${e.round}`;
+					(stepsDist as any).dCost ??= {};
+					const kk = `${cost}O/스텝`;
+					(stepsDist as any).dCost[kk] = ((stepsDist as any).dCost[kk] || 0) + 1;
+					void k2;
+				}
+			}
+			if (tile) {
 				let st = -1; try { st = getTerraformStepsForFaction(g as any, pb.faction ?? e.faction, tile.type); } catch { /* */ }
 				const key = tile.type === 'gaia' ? 'gaia' : tile.type === 'asteroid' ? 'ast' : String(st);
 				stepsDist.D[key] = (stepsDist.D[key] || 0) + 1;
@@ -130,3 +143,4 @@ console.log(`  후보에 있었음: ${pct(stepsDist.matched)}`);
 console.log(`  D(누락):      ${pct(stepsDist.D)}`);
 console.log(`■ 라운드 분포 — matched: ${pct(roundDist.matched as any)} | D: ${pct(roundDist.D as any)}`);
 console.log(`■ matched일 때 봇 광산후보 내 순위(0=1위): ${JSON.stringify(rankDist)}`);
+console.log(`■ D(1스텝+ 테라포밍)의 스텝당 비용 분포: ${JSON.stringify((stepsDist as any).dCost || {})}`);
