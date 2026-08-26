@@ -543,8 +543,13 @@ async function main() {
         const decisive = aWins + bWins;
         const bWinRate = decisive ? bWins / decisive : 0;
         const [ciLo, ciHi] = wilson(bWins, decisive);
-        // 승률이 0.5와 다른지 양측 z검정
-        const z = decisive ? (bWins - decisive / 2) / (0.5 * Math.sqrt(decisive)) : 0;
+        // [버그수정 2026-08-26] 승률 기준선은 50% 고정이 아니라 'B 좌석 비중'이다 — paired 모드는 판당
+        // B좌석 1개(vs A 3개)라 대등 기준선이 25%인데 50% 검정을 써서 중립 결과가 '유의하게 약함'으로
+        // 오판됐다(tfMineCandOpen 17.9%·tfLatePenaltyEase 25.0%가 그 사례). 좌석 비중으로 동적 계산.
+        const totalSeats = results.reduce((s, g) => s + g.seats.length, 0);
+        const totalBSeats = results.reduce((s, g) => s + g.seats.filter(x => x.group === 'B').length, 0);
+        const winBaseline = totalSeats > 0 ? totalBSeats / totalSeats : 0.5;
+        const z = decisive ? (bWins - decisive * winBaseline) / Math.sqrt(decisive * winBaseline * (1 - winBaseline)) : 0;
         const winPValue = decisive ? 2 * (1 - normCdf(Math.abs(z))) : 1;
 
         const marginMean = mean(perGameMargin);
@@ -626,8 +631,11 @@ async function main() {
             if (decisive < 10) return '판수 부족 — 더 많은 게임 필요 (권장 60+)';
             const sigWin = winPValue < 0.05;
             const sigMargin = marginPValue < 0.05;
-            if (bWinRate > 0.5 && (sigWin || sigMargin)) return '✅ 도전자가 더 강함 (유의)';
-            if (bWinRate < 0.5 && (sigWin || sigMargin)) return '❌ 도전자가 더 약함 (유의) — 채택 금지';
+            // [버그수정 2026-08-26] 비교 기준을 50%가 아니라 B 좌석 비중(winBaseline)으로 —
+            // 승률과 VP마진이 상충하면(paired에서 승률만 유의 등) VP 방향을 우선해 문구에 반영.
+            if (bWinRate > winBaseline && (sigWin || sigMargin) && marginMean >= 0) return '✅ 도전자가 더 강함 (유의)';
+            if (bWinRate < winBaseline && (sigWin || sigMargin) && marginMean <= 0) return '❌ 도전자가 더 약함 (유의) — 채택 금지';
+            if (sigWin || sigMargin) return '⚠ 승률·VP 방향 상충 — 판수 늘려 재확인';
             return '➖ 유의차 없음 (노이즈 범위) — 판수 늘리거나 변경 보류';
         })();
 
@@ -644,6 +652,7 @@ async function main() {
             requested: GAMES,
             bWins, aWins, draws, decisive,
             bWinRate,
+            winBaseline, // 대등 기준선 = B 좌석 비중 (paired=0.25, 표준=0.5)
             bWinRate95ci: [ciLo, ciHi],
             winPValue,
             avgChampionVp: mean(aScores),
@@ -667,7 +676,7 @@ async function main() {
 
         console.log('\n[head2head] ====== 결과 ======');
         console.log(`  완료 게임: ${results.length}/${GAMES} (승패결정 ${decisive}, 무 ${draws})`);
-        console.log(`  도전자 승률: ${(bWinRate * 100).toFixed(1)}%  (B ${bWins} : A ${aWins}, 95%CI ${(ciLo * 100).toFixed(0)}~${(ciHi * 100).toFixed(0)}%, p=${winPValue.toFixed(3)})`);
+        console.log(`  도전자 승률: ${(bWinRate * 100).toFixed(1)}%  (B ${bWins} : A ${aWins}, 대등 기준선 ${(winBaseline * 100).toFixed(0)}%, 95%CI ${(ciLo * 100).toFixed(0)}~${(ciHi * 100).toFixed(0)}%, p=${winPValue.toFixed(3)})`);
         console.log(`  평균 VP: 챔피언 ${mean(aScores).toFixed(1)} vs 도전자 ${mean(bScores).toFixed(1)}`);
         console.log(`  VP 마진(도전자-챔피언): ${marginMean >= 0 ? '+' : ''}${marginMean.toFixed(2)} ± ${marginSE.toFixed(2)} (p=${marginPValue.toFixed(3)})`);
         console.log(`  판정: ${verdict}`);

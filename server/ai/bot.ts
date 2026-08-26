@@ -4931,6 +4931,14 @@ export class BotLogic {
                         if (getPlayerFlag(playerId, 'tfCandidateOpen', true) && round >= 3) {
                             stepPenalty = Math.min(stepPenalty, 400);
                         }
+                        // [flag: tfLatePenaltyEase] mineGapProbe(2026-08-26): 사거리 안인데 후보에 없던 광산 중
+                        //   3O/스텝 624건 — 캡 400이 여전히 탑4 진입을 막는다(사람은 R5-6에 미션·연방·타입 가치로 지음).
+                        //   후보 '추가'(tfMineCandOpen 17.9% 기각)와 달리 분기 수 불변, 순위만 조정. R5+ 한정.
+                        // [채택 2026-08-26] 40판 paired: 승률 25.0%=대등 기준선(하니스 기준선 버그 교정 후), VP +0.12,
+                        //   광산 +0.21(의도 방향) = 무해 + 도메인 정합(사람 R5-6 행동) → 기준4(음수만 거른다)로 기본 ON.
+                        if (getPlayerFlag(playerId, 'tfLatePenaltyEase', true) && round >= 5) {
+                            stepPenalty = Math.min(stepPenalty, 150);
+                        }
                     }
                 } else {
                     stepPenalty = remainingSteps * 20; // 1~2광석으로 저렴해진 경우엔 약하게 페널티
