@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { applyViewportMeta, canOfferPcViewMode, isPcViewMode, setPcViewMode } from '@/lib/viewMode';
+import { applyViewportMeta, canOfferPcViewMode, isPcViewMode, setPcViewMode, getSquareLayout, setSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
 import {
   Dialog,
   DialogContent,
@@ -632,6 +632,49 @@ function ViewModeSelector() {
   );
 }
 
+/**
+ * [사용자 2026-08-26, 폴드8 울트라] 정사각형에 가까운 화면에서만 노출 — 화면을 세로(하단 분할)로 볼지
+ * 가로(좌우 도킹)로 볼지 고른다. 'auto'면 기존 규칙(높이>너비 → 세로). Game.tsx와 localStorage+커스텀이벤트 동기화.
+ */
+function SquareLayoutSelector() {
+  const [show, setShow] = useState(false);
+  const [layout, setLayout] = useState<SquareLayout>('auto');
+  useEffect(() => {
+    const update = () => setShow(isNearSquare(window.innerWidth, window.innerHeight));
+    update();
+    setLayout(getSquareLayout());
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  if (!show) return null;
+  const choose = (v: SquareLayout) => { setLayout(v); setSquareLayout(v); };
+  const btnCls = (active: boolean) =>
+    `flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${active ? 'border-violet-400/60 bg-violet-500/20 text-violet-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`;
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-violet-400">
+        화면 배치 (정사각형 화면)
+      </h3>
+      <div className="px-2 py-1.5 space-y-1.5">
+        <div className="text-[9px] leading-snug text-zinc-500">
+          지금처럼 화면이 정사각형에 가까울 때 패널을 어디에 둘지 선택합니다.
+        </div>
+        <div className="flex gap-1.5">
+          <button type="button" onClick={() => choose('auto')} className={btnCls(layout === 'auto')}>
+            자동<div className="text-[8px] font-normal opacity-70 mt-0.5">높이&gt;너비면 세로</div>
+          </button>
+          <button type="button" onClick={() => choose('split')} className={btnCls(layout === 'split')}>
+            세로 배치<div className="text-[8px] font-normal opacity-70 mt-0.5">아래 정보 · 상태</div>
+          </button>
+          <button type="button" onClick={() => choose('dock')} className={btnCls(layout === 'dock')}>
+            가로 배치<div className="text-[8px] font-normal opacity-70 mt-0.5">양옆 패널, 맵 가운데</div>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** 다른 기기로 이어하기: 좌석 소유권(localStorage playerId)을 ?as= 링크로 옮긴다 (Game.tsx의 파라미터 처리와 한 쌍) */
 function ContinueOnDeviceSection({ gameId, playerId }: { gameId: string; playerId: string }) {
   const [msg, setMsg] = useState('');
@@ -708,7 +751,7 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
         >
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
           <div className="hidden md:block"><NotifyToggle /></div>
-          <div className="md:hidden"><TechViewSelector /><PinchZoomSelector /></div>
+          <div className="md:hidden"><TechViewSelector /><SquareLayoutSelector /><PinchZoomSelector /></div>
           {/* 좌하단 액션 버튼은 데스크톱·모바일(가로) 양쪽에 뜨므로 md 분기 밖에 둔다 */}
           <DisplayTogglesSection />
           {/* md:hidden 밖에 둔다 — PC 모드를 켜면 md:가 켜져 이 안에 있으면 되돌릴 버튼이 사라진다 */}

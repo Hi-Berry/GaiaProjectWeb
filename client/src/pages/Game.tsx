@@ -5,6 +5,7 @@ import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
 
 import { ResearchBoard } from '@/components/ResearchBoard';
 import { RoundBoard } from '@/components/RoundBoard';
@@ -384,6 +385,16 @@ export default function Game() {
     window.addEventListener('info-overlay-layout-change', onChange);
     return () => window.removeEventListener('info-overlay-layout-change', onChange);
   }, []);
+  /** [사용자 2026-08-26] 정사각형에 가까운 화면(폴드8 울트라)의 레이아웃 선택 — "?" 다이얼로그에서 변경, localStorage+커스텀이벤트로 동기화 */
+  const [squareLayout, setSquareLayoutState] = useState<SquareLayout>(() => getSquareLayout());
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const v = (e as CustomEvent).detail;
+      setSquareLayoutState(v === 'split' || v === 'dock' ? v : 'auto');
+    };
+    window.addEventListener('square-layout-change', onChange);
+    return () => window.removeEventListener('square-layout-change', onChange);
+  }, []);
   /** 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글. 모바일·데스크톱 공통, 기본 숨김(사용자: 항상 떠있는 게 보기 안 좋음). localStorage 기억 */
   const [isMapControlsOpen, setIsMapControlsOpen] = useState(() => {
     try { return localStorage.getItem('map-controls-open') === 'on'; } catch { return false; }
@@ -479,7 +490,8 @@ export default function Game() {
     return () => { window.removeEventListener('resize', onResize); window.removeEventListener('orientationchange', onResize); };
   }, []);
   // 화면 방향: 세로(portrait, 높이>너비) ↔ 가로(landscape). 레이아웃 결정에 사용(정보창 내용 표시방식과는 별개).
-  const isPortrait = winH > winW;
+  // [사용자 2026-08-26] 정사각형에 가까우면(폴드8 울트라) 어느 쪽으로 볼지 사용자가 고른다 — 미세한 비율/브라우저 UI 차이로 레이아웃이 오락가락하는 것도 막는다.
+  const isPortrait = isNearSquare(winW, winH) && squareLayout !== 'auto' ? squareLayout === 'split' : winH > winW;
   const effectiveSidebarWidth = isMobileViewport
     ? Math.min(sidebarWidth, Math.max(75, Math.round(winW * 0.22)))
     : sidebarWidth;

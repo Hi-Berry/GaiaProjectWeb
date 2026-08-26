@@ -50,6 +50,31 @@ export function canOfferPcViewMode(): boolean {
 	return Math.min(w, h) >= 540;
 }
 
+/**
+ * [사용자 2026-08-26, 폴드8 울트라] 정사각형에 가까운 화면은 세로(하단 분할)/가로(좌우 도킹) 어느 쪽으로도
+ * 볼 수 있게 사용자가 고른다. 'auto'(기본)면 기존 규칙(높이>너비 → 세로) 그대로.
+ */
+export const SQUARE_LAYOUT_KEY = 'square-layout'; // 'auto' | 'split'(하단 분할) | 'dock'(좌우 도킹)
+export type SquareLayout = 'auto' | 'split' | 'dock';
+
+export function getSquareLayout(): SquareLayout {
+	try {
+		const v = localStorage.getItem(SQUARE_LAYOUT_KEY);
+		return v === 'split' || v === 'dock' ? v : 'auto';
+	} catch { return 'auto'; }
+}
+
+export function setSquareLayout(v: SquareLayout): void {
+	try { localStorage.setItem(SQUARE_LAYOUT_KEY, v); } catch { /* 저장 실패해도 이번 세션엔 적용 */ }
+	if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('square-layout-change', { detail: v }));
+}
+
+/** 정사각형에 '가까운' 화면인지 — 짧은 변이 긴 변의 90% 이상. 이때만 레이아웃 선택지가 의미 있다. */
+export function isNearSquare(w: number, h: number): boolean {
+	if (w <= 0 || h <= 0) return false;
+	return Math.min(w, h) / Math.max(w, h) >= 0.9;
+}
+
 /** PC 모드 켜기/끄기 (viewport 반영까지) */
 export function setPcViewMode(on: boolean): void {
 	try { localStorage.setItem(VIEW_MODE_KEY, on ? 'pc' : 'auto'); } catch { /* 저장 실패해도 이번 세션엔 적용 */ }
