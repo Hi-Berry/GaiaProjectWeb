@@ -7201,8 +7201,10 @@ export default function Game() {
                 onWheel={(e) => e.stopPropagation()}
               >
                 <div
-                  className="flex flex-col overflow-hidden px-2 pt-2 pb-3"
-                  style={{ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / infoEffectiveZoom}%`, zoom: infoEffectiveZoom } as CSSProperties}
+                  className="flex flex-col px-2 pt-2 pb-3"
+                  /* [사용자 2026-08-26, 폴드8] height 고정+overflow-hidden이면 정사각 화면(패널이 낮음)에서
+                     내용이 잘리고 스크롤도 안 생김 → minHeight로 바꿔 넘치면 부모(overflow-y-auto)가 스크롤. */
+                  style={{ width: MOBILE_PANEL_DESIGN_WIDTH, minHeight: `${100 / infoEffectiveZoom}%`, zoom: infoEffectiveZoom } as CSSProperties}
                 >
                   {infoPage === 0 && renderInfoResearch('tech')}
                   {infoPage === 1 && renderInfoResearch('ships')}
