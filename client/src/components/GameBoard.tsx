@@ -1836,8 +1836,10 @@ export function GameBoard({
                     {/* 하이브 우주정거장: 위성(사각형)과 구분되도록 톱니(기어) 모양.
                         [2026-08-07 사용자] 위성보다 '먼저' 그려 바닥에 깔리게 한다 —
                         예전엔 기어를 나중에 그려 위성을 덮었고, 그래서 위성 그룹을 우하단으로 비켜 놨었다.
-                        바닥에 깔면 위성은 다른 칸과 완전히 동일하게(위치·크기 그대로) 그려도 기어가 뒤로 보인다. */}
-                    {tile.spaceStation && (() => {
+                        바닥에 깔면 위성은 다른 칸과 완전히 동일하게(위치·크기 그대로) 그려도 기어가 뒤로 보인다.
+                        [사용자 2026-08-26] 단, 하이브 플레이어를 마우스 오버(건물 하이라이트) 중일 땐
+                        기어를 위성 '위'로 잠시 올려 어디 있는지 보이게 — 아래 위성 블록 뒤에서 다시 그린다. */}
+                    {tile.spaceStation && hoveredPlayerId !== tile.spaceStation.ownerId && (() => {
                       const ssOwner = game.players[tile.spaceStation!.ownerId];
                       const ssFac = ssOwner?.faction ? FACTIONS.find(f => f.id === ssOwner.faction) : null;
                       const teeth = 8;
@@ -1878,6 +1880,26 @@ export function GameBoard({
                               <SatelliteCube color={s.color} scale={scale} />
                             </g>
                           ))}
+                        </g>
+                      );
+                    })()}
+
+                    {/* [사용자 2026-08-26] 하이브 플레이어 마우스 오버 중엔 우주정거장 기어를 위성 위로 —
+                        평소엔 바닥에 깔려(위 블록) 위성에 가려서 하이라이트 때 안 보인다는 지적. */}
+                    {tile.spaceStation && hoveredPlayerId === tile.spaceStation.ownerId && (() => {
+                      const ssOwner = game.players[tile.spaceStation!.ownerId];
+                      const ssFac = ssOwner?.faction ? FACTIONS.find(f => f.id === ssOwner.faction) : null;
+                      const teeth = 8;
+                      const outerR = 2;
+                      const innerR = 1.24;
+                      const gearPoints = Array.from({ length: teeth * 2 }, (_, i) => {
+                        const angle = (Math.PI * 2 * i) / (teeth * 2) - Math.PI / 2;
+                        const r = i % 2 === 0 ? outerR : innerR;
+                        return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
+                      }).join(' ');
+                      return (
+                        <g pointerEvents="none">
+                          <polygon points={gearPoints} fill={colorOverrides?.[tile.spaceStation!.ownerId] || ssFac?.color || '#888'} stroke="#000" strokeWidth="0.15" opacity="0.95" />
                         </g>
                       );
                     })()}
