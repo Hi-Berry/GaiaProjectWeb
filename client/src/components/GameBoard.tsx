@@ -419,6 +419,9 @@ interface GameBoardProps {
   mobilePanelWidth?: number;
   /** 폰 분할 모드에서 하단 패널(상태/정보)이 맵 컨테이너 하단을 가리는 픽셀 높이. 초기 맵 배치를 가시영역 기준으로 하기 위함 */
   mapBottomInset?: number;
+  /** [사용자 2026-08-27] 좌/우 오버레이 패널(정보창·상태창·로그)이 맵을 가리는 픽셀 폭 — 팬 한도를 '가려지지 않는 가시 영역' 기준으로 잡기 위함 */
+  mapLeftInset?: number;
+  mapRightInset?: number;
 }
 
 
@@ -478,6 +481,8 @@ export function GameBoard({
   isMobileViewport = false,
   mobilePanelWidth = 0,
   mapBottomInset = 0,
+  mapLeftInset = 0,
+  mapRightInset = 0,
 }: GameBoardProps) {
 
   const [selectedTile, setSelectedTile] = useState<HexTile | null>(null);
@@ -722,7 +727,15 @@ export function GameBoard({
     const content = (svg?.querySelector('g') as SVGGraphicsElement | null) ?? svg;
     if (!content) return next;
     const r0 = content.getBoundingClientRect();
-    const c = el.getBoundingClientRect();
+    const c0 = el.getBoundingClientRect();
+    // [사용자 2026-08-27] 상태창/기술창/로그는 컨테이너 위 fixed 오버레이라 그 뒤도 '컨테이너 안'으로
+    // 계산됐다 — 모바일 세로에선 하단 절반(패널 뒤)으로 맵이 들어가 안 보였다. 가려지지 않는 가시
+    // 영역(컨테이너 − 인셋)을 기준으로 잡는다.
+    const c = {
+      left: c0.left + mapLeftInset, right: c0.right - mapRightInset,
+      top: c0.top, bottom: c0.bottom - mapBottomInset,
+      width: c0.width - mapLeftInset - mapRightInset, height: c0.height - mapBottomInset,
+    };
     if (r0.width < 5 || r0.height < 5 || c.width < 5 || c.height < 5) return next;
 
     // [사용자 2026-08-27 "드래그만으로 화면 밖으로 나감"] bbox 기준 10%가 남아도 헥스 맵은 대각선
@@ -761,18 +774,31 @@ export function GameBoard({
       return Math.abs(c.x - prev.x) < 0.5 && Math.abs(c.y - prev.y) < 0.5 ? prev : c;
     });
   }, []);
+  /** 즉시(다음 프레임) + 레이아웃 정착 후(180ms) 두 번 되끌기 — 리사이즈/모바일 전환 직후엔
+   *  rect가 과도기 값이라 한 번만 재면 어긋난 채 끝난다(테스트로 확인). */
+  const reclampSoonAndSettled = useCallback(() => {
+    requestAnimationFrame(reclampPan);
+    const t = setTimeout(reclampPan, 180);
+    return () => clearTimeout(t);
+  }, [reclampPan]);
   useEffect(() => {
-    const onResize = () => requestAnimationFrame(reclampPan);
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
+    window.addEventListener('resize', reclampSoonAndSettled);
+    window.addEventListener('orientationchange', reclampSoonAndSettled);
+    // 컨테이너 자체 크기 변화(분할 전환 등 window resize 없이 바뀌는 경우)도 감지
+    const el = containerRef.current;
+    const ro = typeof ResizeObserver !== 'undefined' && el ? new ResizeObserver(() => reclampSoonAndSettled()) : null;
+    if (ro && el) ro.observe(el);
     // 마운트 직후 1회 — localStorage에서 복원된 팬이 지금 해상도에선 화면 밖일 수 있다(모바일 fit 이후에 돌도록 2프레임 뒤).
-    const raf = requestAnimationFrame(() => requestAnimationFrame(reclampPan));
+    const raf = requestAnimationFrame(reclampSoonAndSettled);
     return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
+      window.removeEventListener('resize', reclampSoonAndSettled);
+      window.removeEventListener('orientationchange', reclampSoonAndSettled);
+      ro?.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [reclampPan]);
+  }, [reclampSoonAndSettled]);
+  // 패널 열림/닫힘·분할 전환으로 가시 영역이 바뀌면 맵이 패널 뒤에 남을 수 있다 → 되끌기
+  useEffect(() => reclampSoonAndSettled(), [mapBottomInset, mapLeftInset, mapRightInset, reclampSoonAndSettled]);
 
   // 내부 상태가 바뀌었을 때만 부모 알림 (useEffect 사용)
   // 마운트 시에는 부모 값으로 이미 초기화되었으므로 리셋 방지를 위해 동기화 중이 아닐 때만 업데이트
@@ -1203,13 +1229,17 @@ export function GameBoard({
   const handleMouseUp = useCallback(() => {
     setIsMouseDown(false);
     setTimeout(() => setHasDragged(false), 50);
-  }, []);
+    // 한 프레임에 move가 여러 번 오면 클램프가 아직 안 그려진 옛 rect 기준으로 각각 Δ를 허용해
+    // 마지막에 한도를 지나칠 수 있다 → 드래그 종료 시 그려진 rect로 되끌기.
+    reclampSoonAndSettled();
+  }, [reclampSoonAndSettled]);
 
   const handleMouseLeave = useCallback(() => {
     setIsMouseDown(false);
     setHasDragged(false);
     setIsPinching(false);
-  }, []);
+    reclampSoonAndSettled();
+  }, [reclampSoonAndSettled]);
 
   // Touch handlers for mobile pan and pinch-to-zoom
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1268,8 +1298,9 @@ export function GameBoard({
     if (e.touches.length === 0) {
       setIsMouseDown(false);
       setTimeout(() => setHasDragged(false), 50);
+      reclampSoonAndSettled(); // 드래그 종료 시 되끌기(같은 프레임 다중 move 과통과 보정)
     }
-  }, []);
+  }, [reclampSoonAndSettled]);
 
   const canPlaceStartingMine = useMemo(() => {
     if (!selectedTile || !currentPlayer || !isStartingPhase) return false;

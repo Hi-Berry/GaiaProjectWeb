@@ -4071,6 +4071,10 @@ export default function Game() {
             isMobileViewport={isMobileViewport}
             mobilePanelWidth={effectiveSidebarWidth}
             mapBottomInset={mapBottomInsetPx}
+            // [사용자 2026-08-27] 팬 한도를 패널에 안 가리는 가시 영역 기준으로 — 모바일 패널은 fixed 오버레이라
+            // 컨테이너가 그 뒤까지 뻗는다(좌: 가로 정보창, 우: 가로 상태창/로그). PC 상태창은 flex 이웃이라 컨테이너가 이미 줄어 인셋 불필요.
+            mapLeftInset={isMobileViewport && !splitActive && infoEffectivelyOpen ? infoEffectiveWidth : 0}
+            mapRightInset={isMobileViewport && !splitActive && (isSidebarOpen || isLogPanelOpen) ? effectiveSidebarWidth : 0}
           />
         </div>
 
