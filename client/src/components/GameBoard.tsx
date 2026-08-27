@@ -743,13 +743,38 @@ export function GameBoard({
   };
   clampPanRef.current = clampPan;
 
+  /** [사용자 2026-08-27] 팬은 clampPan을 거치지만 줌(center 기준 스케일 이동)과 화면 크기 변화는
+   *  팬 값을 안 바꾸고 콘텐츠를 옮긴다 → 한도까지 밀어둔 맵이 줌/리사이즈로 화면 밖에 나가던 원인.
+   *  clampPan은 델타 방식이라 (prev, prev)로 부르면 이미 밖인 상태를 최소 겹침까지 되끌어온다. */
+  const reclampPan = useCallback(() => {
+    setPanInternal(prev => {
+      const c = clampPanRef.current(prev, prev);
+      return Math.abs(c.x - prev.x) < 0.5 && Math.abs(c.y - prev.y) < 0.5 ? prev : c;
+    });
+  }, []);
+  useEffect(() => {
+    const onResize = () => requestAnimationFrame(reclampPan);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    // 마운트 직후 1회 — localStorage에서 복원된 팬이 지금 해상도에선 화면 밖일 수 있다(모바일 fit 이후에 돌도록 2프레임 뒤).
+    const raf = requestAnimationFrame(() => requestAnimationFrame(reclampPan));
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+      cancelAnimationFrame(raf);
+    };
+  }, [reclampPan]);
+
   // 내부 상태가 바뀌었을 때만 부모 알림 (useEffect 사용)
   // 마운트 시에는 부모 값으로 이미 초기화되었으므로 리셋 방지를 위해 동기화 중이 아닐 때만 업데이트
   useEffect(() => {
     if (!isSyncingRef.current) {
       onZoomChange?.(zoom);
     }
-  }, [zoom]);
+    // 새 배율이 그려진 다음 프레임에 되끌기 — 줌으로 맵이 화면 밖에 나가면 즉시 복귀.
+    const raf = requestAnimationFrame(reclampPan);
+    return () => cancelAnimationFrame(raf);
+  }, [zoom, reclampPan]);
 
   useEffect(() => {
     if (!isSyncingRef.current) {
