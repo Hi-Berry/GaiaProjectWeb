@@ -721,12 +721,21 @@ export function GameBoard({
     const svg = el.querySelector('svg');
     const content = (svg?.querySelector('g') as SVGGraphicsElement | null) ?? svg;
     if (!content) return next;
-    const r = content.getBoundingClientRect();
+    const r0 = content.getBoundingClientRect();
     const c = el.getBoundingClientRect();
-    if (r.width < 5 || r.height < 5 || c.width < 5 || c.height < 5) return next;
+    if (r0.width < 5 || r0.height < 5 || c.width < 5 || c.height < 5) return next;
 
-    const keepX = Math.max(24, 0.1 * Math.min(r.width, c.width));
-    const keepY = Math.max(24, 0.1 * Math.min(r.height, c.height));
+    // [사용자 2026-08-27 "드래그만으로 화면 밖으로 나감"] bbox 기준 10%가 남아도 헥스 맵은 대각선
+    // 모양이라 bbox 모서리는 빈 공간 — 화면이 새까맣게 보였다. bbox 대신 '중앙 코어'(가운데 40% 상자,
+    // 헥스 맵에서 항상 타일이 차 있음)가 keep 이상 남게 잡아 보이는 조각이 반드시 실제 타일이 되게 한다.
+    const r = {
+      left: r0.left + r0.width * 0.3, right: r0.right - r0.width * 0.3,
+      top: r0.top + r0.height * 0.3, bottom: r0.bottom - r0.height * 0.3,
+      width: r0.width * 0.4, height: r0.height * 0.4,
+    };
+    // keep이 코어보다 크면 조건이 성립 불가(범위 역전)라 코어 크기의 90%로 캡
+    const keepX = Math.min(0.9 * r.width, Math.max(60, 0.25 * Math.min(r.width, c.width)));
+    const keepY = Math.min(0.9 * r.height, Math.max(60, 0.25 * Math.min(r.height, c.height)));
     // r + Δ 가 c 와 keep 이상 겹치도록: (r.right+Δ ≥ c.left+keep) 과 (r.left+Δ ≤ c.right-keep)
     const dxMin = c.left + keepX - r.right;
     const dxMax = c.right - keepX - r.left;
