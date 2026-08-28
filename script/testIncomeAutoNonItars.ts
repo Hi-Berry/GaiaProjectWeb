@@ -54,8 +54,8 @@ const a = game.players.pA;
 check('비아이타(테란): 선택 UI 없이 즉시 적용', !a.pendingIncomeItems);
 check('비아이타(테란): 최적 순서(충전 먼저) 결과 (1,0,7)', a.power1 === 1 && a.power2 === 0 && a.power3 === 7, `실제 (${a.power1},${a.power2},${a.power3})`);
 const ioLog = game.gameLog.find((e: any) => e.action === 'Income Order' && e.playerId === 'pA');
-// [사용자 2026-08-28] 로그에 '(N개)·최적과 동일' 대신 실제 받은 양(토큰/파워)을 표기
-check('비아이타(테란): Income Order 로그에 받은 양 표기', !!ioLog && /자동 최적 · 토큰 수익 1개 \/ 파워 수익 6/.test(ioLog.details ?? ''), ioLog?.details ?? '로그 없음');
+// [사용자 2026-08-28] 로그에 받은 양(영어, 첫 줄) + 그릇 변화(아랫줄, '·' 뒤) 표기
+check('비아이타(테란): Income Order 로그에 받은 양+그릇 변화 표기', !!ioLog && /Auto-optimal: Tokens \+1 \/ Power \+6 · 1\/4\/2 → 1\/0\/7/.test(ioLog.details ?? ''), ioLog?.details ?? '로그 없음');
 check('아이타: pendingIncomeOrder(선택 UI) 유지', game.pendingIncomeOrder?.playerId === 'pB', String(game.pendingIncomeOrder?.playerId));
 const b = game.players.pB;
 check('아이타: 파워 미적용(선택 대기)', b.power1 === 1 && b.power2 === 4 && b.power3 === 2, `실제 (${b.power1},${b.power2},${b.power3})`);

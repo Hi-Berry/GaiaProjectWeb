@@ -2764,18 +2764,22 @@ function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string
 	if ((player as any).incomeAutoOff) return false; // [사용자 2026-08-28] '?' 설정에서 자동 최적을 끈 사람 → 기존 선택 팝업
 	const items = ((player as any).pendingIncomeItems ?? []) as IncomeOrderItem[];
 	if (!items.length) return false;
+	const before = { p1: player.power1 || 0, p2: player.power2 || 0, p3: player.power3 || 0 };
 	const bestOrder = findOptimalIncomeOrder(player, items);
 	for (const item of bestOrder) {
 		if (item.type === 'tokens') player.power1 = (player.power1 || 0) + item.amount;
 		else if (item.type === 'power') applyPowerIncome(player, item.amount);
 	}
 	delete (player as any).pendingIncomeItems;
-	// [사용자 2026-08-28 "순식간에 지나가 뭘 받았는지 모른다"] '(N개)·최적과 동일' 대신 실제 받은 양을 표기.
-	// '자동 최적' 접두는 유지(2026-08-26 선택방식 측정 로그와의 연속성).
+	// [사용자 2026-08-28 "순식간에 지나가 뭘 받았는지 모른다"] 실제 받은 양을 표기. [같은 날 후속] 영어로,
+	// 받은 양은 첫 줄에 합치고 아랫줄에 그릇 변화(3/0/3 → 0/0/6). '·'가 클라 로그에서 줄바꿈 구분자.
 	const tokenGain = items.filter(i => i.type === 'tokens').reduce((s, i) => s + i.amount, 0);
 	const powerGain = items.filter(i => i.type === 'power').reduce((s, i) => s + i.amount, 0);
-	const gains = [tokenGain > 0 ? `토큰 수익 ${tokenGain}개` : '', powerGain > 0 ? `파워 수익 ${powerGain}` : ''].filter(Boolean).join(' / ');
-	addGameLog(game, playerId, 'Income Order', `자동 최적 · ${gains || '없음'}`);
+	const gains = [tokenGain > 0 ? `Tokens +${tokenGain}` : '', powerGain > 0 ? `Power +${powerGain}` : ''].filter(Boolean).join(' / ');
+	const brainNote = player.faction === 'taklons' && !(player as any).brainStoneInGaia && (player as any).brainStoneBowl
+		? ` 🧠${(player as any).brainStoneBowl}` : '';
+	const bowls = `${before.p1}/${before.p2}/${before.p3} → ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}${brainNote}`;
+	addGameLog(game, playerId, 'Income Order', `Auto-optimal: ${gains || 'none'} · ${bowls}`);
 	log(`[Income] ${player.name} auto-optimal income applied (non-Itars, no selection UI): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 	return true;
 }
