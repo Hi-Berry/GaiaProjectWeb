@@ -348,6 +348,7 @@ export default function Game() {
     | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; converts: number; label: string; fromOverlay?: boolean }
     | { kind: 'mine'; tileId: string; useGaiaformer?: boolean; converts: number; label: string }
     | { kind: 'eclipse'; tileId: string; qicToSpend: number; converts: number; label: string }
+    | { kind: 'gaiaformer'; tileId: string; qicUsed: number; converts: number; label: string }
     | null
   >(null);
   /** [사용자 2026-08-13] 연방 위성 / 인공물처럼 '토큰 개수'로 내는 비용이 모자랄 때
@@ -4048,7 +4049,16 @@ export default function Game() {
             onUsePowerAction={(actionId) => handleUsePowerAction(actionId)}
             onEndTurn={() => GameClient.endTurn(gameId!)}
             highlightedTileId={highlightedTileId}
-            onPlaceGaiaformer={(tileId, qicUsed) => GameClient.placeGaiaformer(gameId!, tileId, qicUsed)}
+            onPlaceGaiaformer={(tileId, qicUsed) => {
+              // [사용자 2026-08-28] 발타크: 거리 QIC 부족분을 포머 변환으로 — 배치용 포머 1개는 남겨야 함
+              const me = playerId ? game.players[playerId] : null;
+              const shortG = (qicUsed ?? 0) - (me?.qic ?? 0);
+              if (me && shortG > 0 && balTakSpareGaiaformers(me) - shortG >= 1) {
+                setConfirmQicConvert({ kind: 'gaiaformer', tileId, qicUsed: qicUsed ?? 0, converts: shortG, label: '가이아 프로젝트 (포머 배치)' });
+                return;
+              }
+              GameClient.placeGaiaformer(gameId!, tileId, qicUsed);
+            }}
             pendingTwilightTSUpgrade={pendingTwilightTSUpgrade}
             pendingRebellionMineToTS={pendingRebellionMineToTS}
             onTwilightTSUpgrade={(tileId) => {
@@ -5036,6 +5046,8 @@ export default function Game() {
                         GameClient.buildMine(gameId, confirmQicConvert.tileId, confirmQicConvert.useGaiaformer);
                       } else if (confirmQicConvert.kind === 'eclipse') {
                         GameClient.eclipseBuildAsteroidMine(gameId, confirmQicConvert.tileId, confirmQicConvert.qicToSpend);
+                      } else if (confirmQicConvert.kind === 'gaiaformer') {
+                        GameClient.placeGaiaformer(gameId, confirmQicConvert.tileId, confirmQicConvert.qicUsed);
                       } else {
                         proceedShipAction(confirmQicConvert.shipTileId, confirmQicConvert.actionIndex, confirmQicConvert.targetTileId, { fromOverlay: confirmQicConvert.fromOverlay });
                       }

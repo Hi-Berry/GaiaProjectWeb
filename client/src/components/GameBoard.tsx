@@ -2774,7 +2774,10 @@ export function GameBoard({
                             );
                             const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                             const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
-                            const canReach = minDist <= effectiveBaseRange + ((currentPlayer.qic ?? 0) * 2);
+                            // [사용자 2026-08-28] 발타크: 여유 포머 = 잠재 QIC. 단 배치 자체에 포머 1개가 남아야
+                            // 하므로 (available − 1)개까지만 변환 가능. 부족분은 클릭 시 변환 확인창(Game.tsx)이 처리.
+                            const gfSpareForQic = currentPlayer.faction === 'bal_tak' ? Math.max(0, available - 1) : 0;
+                            const canReach = minDist <= effectiveBaseRange + (((currentPlayer.qic ?? 0) + gfSpareForQic) * 2);
 
                             return (
                               <>
@@ -2800,7 +2803,7 @@ export function GameBoard({
                                       (game.hasDoneMainAction && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId))
                                       || (game.turnOrder[game.currentPlayerIndex] !== playerId)
                                       || !canReach
-                                      || (neededQIC > 0 && (currentPlayer.qic ?? 0) < neededQIC)
+                                      || (neededQIC > 0 && ((currentPlayer.qic ?? 0) + gfSpareForQic) < neededQIC)
                                     }
                                     onClick={() => {
                                       onPlaceGaiaformer(selectedTile.id, neededQIC);
