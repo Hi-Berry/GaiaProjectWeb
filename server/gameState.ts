@@ -2752,6 +2752,29 @@ export function applyTrackLevelBonus(game: GaiaGameState, playerId: string, play
 }
 
 
+/** [사용자 2026-08-28] 수입 순서 선택 UI는 아이타만 유지 — 나머지 종족은 자동 최적 적용.
+ *  근거: 2주 실측(Income Order 로그 157건) 중 최적 이탈이 단 1건(파워 1스텝)이라 선택 절차가 사실상 형식.
+ *  아이타는 번(2그릇 소각)→가이아영역 토큰이 엔진이라 '3그릇 최대화'가 항상 정답이 아니어서 선택 유지.
+ *  봇은 기존 자동 경로(executeBotIncomeSelection)가 처리하므로 제외. 성공 시 true(=선택 UI 불필요). */
+function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string): boolean {
+	const player = game.players[playerId];
+	if (!player) return false;
+	if (player.faction === 'itars') return false;
+	if (game.botPlayerIds?.includes(playerId)) return false;
+	const items = ((player as any).pendingIncomeItems ?? []) as IncomeOrderItem[];
+	if (!items.length) return false;
+	const bestOrder = findOptimalIncomeOrder(player, items);
+	for (const item of bestOrder) {
+		if (item.type === 'tokens') player.power1 = (player.power1 || 0) + item.amount;
+		else if (item.type === 'power') applyPowerIncome(player, item.amount);
+	}
+	delete (player as any).pendingIncomeItems;
+	// 측정 연속성: finish_income_selection과 같은 'Income Order' 로그 포맷 유지(자동은 정의상 최적과 동일)
+	addGameLog(game, playerId, 'Income Order', `자동 최적 (${items.length}개) · 최적과 동일`);
+	log(`[Income] ${player.name} auto-optimal income applied (non-Itars, no selection UI): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
+	return true;
+}
+
 export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState) {
 	// 이미 수익 선택이 진행 중이면 중복 호출 방지
 	if (game.pendingIncomeOrder) {
@@ -2781,6 +2804,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const player = game.players[pId];
 			const items = (player as any).pendingIncomeItems;
 			if (!items?.length) continue;
+			if (autoResolveIncomeOrderForNonItars(game, pId)) continue; // 아이타 외엔 자동 최적 — 선택 UI 없이 다음 사람
 			game.pendingIncomeOrder = {
 				playerId: pId,
 				incomeItems: [...items],
@@ -3055,6 +3079,12 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			const firstPlayerId = playersNeedingOrder[0];
 			const firstPlayer = game.players[firstPlayerId];
 			const incomeItems = (firstPlayer as any).pendingIncomeItems || [];
+			if (incomeItems.length > 0 && autoResolveIncomeOrderForNonItars(game, firstPlayerId)) {
+				// 아이타 외엔 자동 최적 적용됨 → 다음 대기 플레이어로 (아래 items 소진 스킵 경로와 동일 처리)
+				playersNeedingOrder.shift();
+				helperTriggerIncomePhase(io, game);
+				return;
+			}
 			if (incomeItems.length > 0) {
 				game.pendingIncomeOrder = {
 					playerId: firstPlayerId,
