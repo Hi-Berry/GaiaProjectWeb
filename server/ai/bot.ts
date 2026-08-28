@@ -1316,6 +1316,20 @@ export class BotLogic {
                     let chosenSB: BotAction | undefined;
                     if (creditsSB >= 9) chosenSB = pickShip('ship_tf_mars', 3) || pickShip('ship_eclipse', 3);
                     else if (creditsSB <= 5) chosenSB = pickShip('ship_rebellion', 2) || pickShip('ship_twilight', 2);
+                    // [flag: shipEngineDrive] 실게임 격차(2026-08-28, 294판): 트왈#2(TS→연구소, 2O3P) 사람 1.43 vs 봇 0.18 ·
+                    // 리벨#2(광산→TS, 1O3P) 사람 1.47 vs 봇 0.29. 두 액션은 크레딧을 안 쓰는 엔진 업글인데 위의
+                    // creditsSB≤5 게이트에 묶여 있고, 봇은 크레딧 풍선(평균 10+)이라 게이트가 거의 안 열림 — 사용률 5~8배 격차의
+                    // 직접 원인. 크레딧 무관하게 발동시키되 과사용 가드: TS→연구소는 TS 2+ 유지(경제·연방 재료 보존),
+                    // 광산→TS는 광산 4+ 유지(광석엔진 보존, mineKeepGate 취지). 연방/할인업글 양보는 블록 게이트가 이미 처리.
+                    // [채택 2026-08-28] 40판 paired: VP +11.17±4.39(p=0.011)·승률 43.6%(기준선 25%, p=0.007), weightsDiffer=false.
+                    // 행동: 연구소 +0.20·기술타일 +0.38·연구 +0.48(의도 방향), TS 총량 −0.38(랩으로 소모된 만큼 — 컨베이어 가동 증거).
+                    if (!chosenSB && getPlayerFlag(playerId, 'shipEngineDrive', true)) {
+                        const myStructsSB = game.map.filter(t => t.ownerId === playerId);
+                        const tsSB = myStructsSB.filter(t => t.structure === 'trading_station').length;
+                        const mineSB = myStructsSB.filter(t => t.structure === 'mine').length;
+                        if (tsSB >= 2) chosenSB = pickShip('ship_twilight', 2);
+                        if (!chosenSB && mineSB >= 4) chosenSB = pickShip('ship_rebellion', 2);
+                    }
                     if (chosenSB) {
                         log(`Bot ${player.name} shipActionBalance: ${creditsSB >= 9 ? 'rich→spend' : 'poor→income'} ${typeOf(chosenSB)}#${(chosenSB.params as any).actionIndex} (C${creditsSB})`, 'game', game.id);
                         return chosenSB;
