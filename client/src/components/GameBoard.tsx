@@ -1456,8 +1456,13 @@ export function GameBoard({
     }
 
     // Range check with QIC extension (+3 거리 보너스 포함). 거리 출발점: 내 건물 + 내 우주정거장
+    // [사용자 제보 2026-08-28] 발타크: 여유 포머→QIC 변환으로 거리/가이아 QIC를 메울 수 있는데 이 게이트가
+    // 보유 QIC만 봐서 건설 버튼 자체가 안 떴다(클릭 경로의 변환 확인창(Game.tsx)까지 못 감). 잠재 QIC 포함.
     const baseRange = getEffectiveBaseRange(currentPlayer);
-    const playerQIC = currentPlayer.qic ?? 0;
+    const spareGfQic = currentPlayer.faction === 'bal_tak'
+      ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+      : 0;
+    const playerQIC = (currentPlayer.qic ?? 0) + spareGfQic;
     const maxRangeWithQIC = baseRange + (playerQIC * 2); // QIC당 +2 거리
 
     const rangeTiles = game.map.filter((t: HexTile) =>
@@ -1479,7 +1484,8 @@ export function GameBoard({
 
     if (currentPlayer.ore < mineBuildCost.oreCost || currentPlayer.credits < mineBuildCost.credits) return false;
     // 글린 가이아 비용 체크는 이제 mineBuildCost.oreCost(2 Ore)에 반영되므로 표준 로직을 따름
-    if (mineBuildCost.qicCost > 0 && (currentPlayer.qic ?? 0) < mineBuildCost.qicCost) return false;
+    // (발타크는 여유 포머 변환분 포함 — 부족 상세는 클릭 경로가 확인창/토스트로 안내)
+    if (mineBuildCost.qicCost > 0 && ((currentPlayer.qic ?? 0) + spareGfQic) < mineBuildCost.qicCost) return false;
     return true;
   }, [selectedTile, currentPlayer, game.currentPhase, game.map, playerId, mineBuildCost, game.pendingShipTechMine, game.turnOrder, game.currentPlayerIndex]);
 
@@ -1512,7 +1518,11 @@ export function GameBoard({
     }
 
     const baseRange = getEffectiveBaseRange(currentPlayer);
-    const playerQIC = currentPlayer.qic ?? 0;
+    // [사용자 제보 2026-08-28] 발타크 여유 포머 = 잠재 QIC — canBuildMine과 동일하게 사거리 상한에 포함
+    const spareGfQic = currentPlayer.faction === 'bal_tak'
+      ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+      : 0;
+    const playerQIC = (currentPlayer.qic ?? 0) + spareGfQic;
     const maxRangeWithQIC = baseRange + (playerQIC * 2);
     const rangeTiles = game.map.filter((t: HexTile) =>
       (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') ||
