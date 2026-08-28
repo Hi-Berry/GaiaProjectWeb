@@ -332,6 +332,20 @@ export default function Game() {
   useEffect(() => {
     try { localStorage.setItem('fa-mode', freeActionMode ? 'on' : 'off'); } catch { /* noop */ }
   }, [freeActionMode]);
+  /** [사용자 2026-08-28] 수입 자동 최적('?' 설정, 기본 ON) 서버 동기화 — 접속·설정 변경 시 전송.
+   *  끄면 서버가 비아이타에게도 기존 수익 선택 팝업을 띄운다. 설정은 기기(localStorage) 단위라
+   *  게임 진입 때마다 현재 값을 보내 다른 기기에서 바꾼 값도 이 기기 기준으로 덮는다. */
+  useEffect(() => {
+    if (!gameId || !playerId) return;
+    const send = () => {
+      try { GameClient.setIncomeAutoPref(gameId, localStorage.getItem('income-auto-optimal') !== 'off', playerId); } catch { /* noop */ }
+    };
+    send();
+    window.addEventListener('income-auto-optimal-change', send);
+    const socket = getSocket();
+    socket.on('connect', send); // 재접속 시 재전송 (payload playerId로 좌석 매핑 전에도 처리됨)
+    return () => { window.removeEventListener('income-auto-optimal-change', send); socket.off('connect', send); };
+  }, [gameId, playerId]);
   /** 네뷸라 의회: 직전 O 클릭(2P→1O)을 다음 클릭에서 3P→2O / 2P→1O+1C로 승격하기 위한 체인 추적 */
   const nevlasOreChainRef = useRef<{ expectP3: number; expectOre: number } | null>(null);
   /** 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기(1소모+1이동)로 충당할지 확인 다이얼로그 */

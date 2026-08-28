@@ -54,10 +54,34 @@ const a = game.players.pA;
 check('비아이타(테란): 선택 UI 없이 즉시 적용', !a.pendingIncomeItems);
 check('비아이타(테란): 최적 순서(충전 먼저) 결과 (1,0,7)', a.power1 === 1 && a.power2 === 0 && a.power3 === 7, `실제 (${a.power1},${a.power2},${a.power3})`);
 const ioLog = game.gameLog.find((e: any) => e.action === 'Income Order' && e.playerId === 'pA');
-check('비아이타(테란): Income Order 로그(자동 최적) 기록', !!ioLog && /자동 최적 \(2개\)/.test(ioLog.details ?? ''), ioLog?.details ?? '로그 없음');
+// [사용자 2026-08-28] 로그에 '(N개)·최적과 동일' 대신 실제 받은 양(토큰/파워)을 표기
+check('비아이타(테란): Income Order 로그에 받은 양 표기', !!ioLog && /자동 최적 · 토큰 수익 1개 \/ 파워 수익 6/.test(ioLog.details ?? ''), ioLog?.details ?? '로그 없음');
 check('아이타: pendingIncomeOrder(선택 UI) 유지', game.pendingIncomeOrder?.playerId === 'pB', String(game.pendingIncomeOrder?.playerId));
 const b = game.players.pB;
 check('아이타: 파워 미적용(선택 대기)', b.power1 === 1 && b.power2 === 4 && b.power3 === 2, `실제 (${b.power1},${b.power2},${b.power3})`);
+
+// [사용자 2026-08-28] '?' 설정에서 자동 최적을 끈 사람(incomeAutoOff) → 비아이타여도 기존 선택 팝업
+const game2: any = {
+	...game,
+	id: 'test-income-auto-off',
+	gameLog: [],
+	fullGameLog: [],
+	pendingIncomeOrder: null,
+	players: {
+		pC: mkPlayer('사람C', 'terran', {
+			incomeAutoOff: true,
+			pendingIncomeItems: [
+				{ type: 'tokens', amount: 1, id: 't1' },
+				{ type: 'power', amount: 6, id: 'p1' },
+			],
+		}),
+	},
+	turnOrder: ['pC'],
+};
+helperTriggerIncomePhase(ioStub, game2);
+const c = game2.players.pC;
+check('자동 최적 OFF(테란): pendingIncomeOrder(선택 UI) 생성', game2.pendingIncomeOrder?.playerId === 'pC', String(game2.pendingIncomeOrder?.playerId));
+check('자동 최적 OFF(테란): 파워 미적용(선택 대기)', c.power1 === 1 && c.power2 === 4 && c.power3 === 2, `실제 (${c.power1},${c.power2},${c.power3})`);
 
 console.log(`\n${pass + fail}건 중 ${pass} 통과, ${fail} 실패`);
 process.exit(fail ? 1 : 0);

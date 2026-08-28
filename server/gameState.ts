@@ -2761,6 +2761,7 @@ function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string
 	if (!player) return false;
 	if (player.faction === 'itars') return false;
 	if (game.botPlayerIds?.includes(playerId)) return false;
+	if ((player as any).incomeAutoOff) return false; // [사용자 2026-08-28] '?' 설정에서 자동 최적을 끈 사람 → 기존 선택 팝업
 	const items = ((player as any).pendingIncomeItems ?? []) as IncomeOrderItem[];
 	if (!items.length) return false;
 	const bestOrder = findOptimalIncomeOrder(player, items);
@@ -2769,8 +2770,12 @@ function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string
 		else if (item.type === 'power') applyPowerIncome(player, item.amount);
 	}
 	delete (player as any).pendingIncomeItems;
-	// 측정 연속성: finish_income_selection과 같은 'Income Order' 로그 포맷 유지(자동은 정의상 최적과 동일)
-	addGameLog(game, playerId, 'Income Order', `자동 최적 (${items.length}개) · 최적과 동일`);
+	// [사용자 2026-08-28 "순식간에 지나가 뭘 받았는지 모른다"] '(N개)·최적과 동일' 대신 실제 받은 양을 표기.
+	// '자동 최적' 접두는 유지(2026-08-26 선택방식 측정 로그와의 연속성).
+	const tokenGain = items.filter(i => i.type === 'tokens').reduce((s, i) => s + i.amount, 0);
+	const powerGain = items.filter(i => i.type === 'power').reduce((s, i) => s + i.amount, 0);
+	const gains = [tokenGain > 0 ? `토큰 수익 ${tokenGain}개` : '', powerGain > 0 ? `파워 수익 ${powerGain}` : ''].filter(Boolean).join(' / ');
+	addGameLog(game, playerId, 'Income Order', `자동 최적 · ${gains || '없음'}`);
 	log(`[Income] ${player.name} auto-optimal income applied (non-Itars, no selection UI): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 	return true;
 }
@@ -6701,6 +6706,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 				finishAfterGaiaformerPhase(game);
 			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
+		});
+
+		// [사용자 2026-08-28] 수입 자동 최적(비아이타) 사용 여부 — '?' 설정에서 끄면 기존 선택 팝업으로 돌아간다.
+		// 플레이어 객체에 저장되어 게임과 함께 영속. 좌석 매핑이 비어도 payload playerId 인정(rejoin_game과 동일 신뢰모델 — id 자체가 비밀값).
+		socket.on('set_income_auto_pref', ({ gameId, enabled, playerId: bodyPlayerId }) => {
+			const game = games.get(gameId); if (!game) return;
+			const playerId = socketToPlayerMap.get(socket.id) ?? bodyPlayerId;
+			const player = playerId ? game.players[playerId] : undefined; if (!player) return;
+			if (enabled === false) (player as any).incomeAutoOff = true;
+			else delete (player as any).incomeAutoOff; // 기본값(on)은 필드 자체를 안 남김
 		});
 
 		socket.on('finish_income_selection', ({ gameId }) => {

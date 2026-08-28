@@ -376,6 +376,13 @@ export const GameClient = {
     s.emit('finish_income_selection', { gameId });
   },
 
+  /** [사용자 2026-08-28] 수입 자동 최적 사용 여부를 서버에 전달 — 끄면 기존 수익 선택 팝업.
+   *  playerId를 같이 실어 재접속 직후 좌석 매핑이 아직 없어도 처리되게 한다(respondRollback과 같은 패턴). */
+  setIncomeAutoPref(gameId: string, enabled: boolean, playerId?: string | null) {
+    const s = getSocket();
+    s.emit('set_income_auto_pref', { gameId, enabled, playerId: playerId ?? undefined });
+  },
+
   respondPowerOffer(gameId: string, offerId: string, accept: boolean, brainFirst?: boolean, piAddFirst?: boolean) {
     const s = getSocket();
     const payload: { gameId: string; offerId: string; accept: boolean; brainFirst?: boolean; piAddFirst?: boolean } = { gameId, offerId, accept };

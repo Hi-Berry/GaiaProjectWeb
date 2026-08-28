@@ -314,15 +314,18 @@ function DisplayTogglesSection() {
 	const [leftOn, setLeftOn] = useState(true);
 	const [stripOn, setStripOn] = useState(true);
 	const [singleOn, setSingleOn] = useState(false);
+	const [incomeAutoOn, setIncomeAutoOn] = useState(true);
 	useEffect(() => {
 		if (typeof localStorage === 'undefined') return;
 		if (localStorage.getItem('left-action-buttons') === 'off') setLeftOn(false);
 		if (localStorage.getItem('special-action-strip') === 'off') setStripOn(false);
 		if (localStorage.getItem('single-mini-view') === 'on') setSingleOn(true);
+		if (localStorage.getItem('income-auto-optimal') === 'off') setIncomeAutoOn(false);
 	}, []);
-	const choose = (key: 'left-action-buttons' | 'special-action-strip' | 'single-mini-view', v: boolean) => {
+	const choose = (key: 'left-action-buttons' | 'special-action-strip' | 'single-mini-view' | 'income-auto-optimal', v: boolean) => {
 		if (key === 'left-action-buttons') setLeftOn(v);
 		else if (key === 'special-action-strip') setStripOn(v);
+		else if (key === 'income-auto-optimal') setIncomeAutoOn(v);
 		else setSingleOn(v);
 		localStorage.setItem(key, v ? 'on' : 'off');
 		window.dispatchEvent(new CustomEvent(`${key}-change`, { detail: v }));
@@ -370,6 +373,17 @@ function DisplayTogglesSection() {
 					</div>
 				</div>
 				{btn(singleOn, () => choose('single-mini-view', !singleOn))}
+			</div>
+			{/* [사용자 2026-08-28] 수입 파워/토큰 자동 최적 — 기본 ON. 끄면 기존 수익 선택 창이 다시 뜬다.
+			    (아이타는 소각 엔진 때문에 설정과 무관하게 항상 선택 창) */}
+			<div className="flex items-center justify-between gap-3 border-t border-white/8 px-2 py-1.5">
+				<div className="min-w-0">
+					<div className="text-[10px] font-semibold text-zinc-200">수입 파워·토큰 자동으로 최적 받기</div>
+					<div className="text-[9px] leading-snug text-zinc-500">
+						라운드 시작 수입의 파워/토큰을 최적 순서로 자동 수령하고, 받은 양은 로그에 남습니다. 끄면 기존처럼 선택 창이 뜹니다(아이타는 항상 선택 창).
+					</div>
+				</div>
+				{btn(incomeAutoOn, () => choose('income-auto-optimal', !incomeAutoOn))}
 			</div>
 		</section>
 	);
