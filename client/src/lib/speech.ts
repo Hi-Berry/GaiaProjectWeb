@@ -430,6 +430,18 @@ const RULES: Array<[RegExp, string | ((d: string) => string)]> = [
 	// [사용자 2026-08-20] 타클론 파워 태우기·브레인스톤 이동은 무음 — 프리액션이고, 일반 `Power Burn`은
 	//   이미 무음이라 타클론만 소리가 나는 게 앞뒤가 안 맞았다(사람 로그 60판에 281건). 이름도 틀렸다
 	//   ('Taklons: Brain Stone'은 가이아 영역 이동이라 태우는 게 아니다). 뒤따르는 본 액션이 대신 읽힌다.
+	// [사용자 2026-08-28] 팅커로이드 라운드 특수는 효과가 매 라운드 달라 '무엇인지'가 정보인데
+	//   아래 일반 규칙(종족 특수 액션)에 먹혀 효과가 안 읽혔다 → details(효과)를 읽는다.
+	//   호칭(팅커/닉네임)이 앞에 붙으므로 문구에 종족명은 넣지 않는다(암바스 '의회 광산 교체'와 동일).
+	[/^Tinkeroid: Special/i, (d) => {
+		if (/3 Terraform/i.test(d)) return '특수 테라포밍 3';
+		if (/Terraform/i.test(d)) return '특수 테라포밍 1';
+		if (/4 Power/i.test(d)) return '특수 파워 4';
+		if (/3 Knowledge/i.test(d)) return '특수 지식 3';
+		if (/2 QIC/i.test(d)) return '특수 정큐 2';
+		if (/QIC/i.test(d)) return '특수 정큐 1';
+		return '종족 특수 액션';
+	}],
 	[/Special$/i, '종족 특수 액션'],
 	/* [사용자 2026-08-20] '인공물 획득'만으로는 무엇인지 알 수 없다는 지적.
 	   로그가 `Artifact: <효과>`로 이미 갈려 있다(사람 로그 실측 11종). */
