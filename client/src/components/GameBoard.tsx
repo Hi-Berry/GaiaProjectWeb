@@ -939,7 +939,11 @@ export function GameBoard({
   const eclipseBuildableTileIds = useMemo(() => {
     if (!isEclipseAsteroidMode || !currentPlayer || !playerId) return new Set<string>();
     if (eclipseRangeTiles.length === 0) return new Set<string>();
-    const maxRange = eclipseBaseRange + (currentPlayer.qic ?? 0) * 2; // QIC당 +2 거리
+    // [사용자 2026-08-28] 발타크 여유 포머 = 잠재 QIC — 클릭 시 변환 확인창(Game.tsx)이 처리(광산 건설과 동일 패턴)
+    const eclipseSpareGf = currentPlayer.faction === 'bal_tak'
+      ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+      : 0;
+    const maxRange = eclipseBaseRange + ((currentPlayer.qic ?? 0) + eclipseSpareGf) * 2; // QIC당 +2 거리
     const ids = new Set<string>();
     game.map.forEach((t: HexTile) => {
       if (t.type === 'asteroid' && t.structure === null) {

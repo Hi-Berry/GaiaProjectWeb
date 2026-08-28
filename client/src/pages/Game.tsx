@@ -347,6 +347,7 @@ export default function Game() {
     | { kind: 'power'; actionId: string; converts: number; closeResearchOverlay?: boolean }
     | { kind: 'ship'; shipTileId: string; actionIndex: number; targetTileId?: string; converts: number; label: string; fromOverlay?: boolean }
     | { kind: 'mine'; tileId: string; useGaiaformer?: boolean; converts: number; label: string }
+    | { kind: 'eclipse'; tileId: string; qicToSpend: number; converts: number; label: string }
     | null
   >(null);
   /** [사용자 2026-08-13] 연방 위성 / 인공물처럼 '토큰 개수'로 내는 비용이 모자랄 때
@@ -3874,7 +3875,16 @@ export default function Game() {
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
             onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
             onTakeTwilightArtifact={(artifactId) => handleTakeTwilightArtifact(artifactId)}
-            onEclipseBuildAsteroidMine={(tileId, qicToSpend) => GameClient.eclipseBuildAsteroidMine(gameId!, tileId, qicToSpend)}
+            onEclipseBuildAsteroidMine={(tileId, qicToSpend) => {
+              // [사용자 2026-08-28] 발타크: 거리 QIC가 모자라면 광산 건설과 동일하게 포머 변환 확인창
+              const me = playerId ? game.players[playerId] : null;
+              const shortE = qicToSpend - (me?.qic ?? 0);
+              if (me && shortE > 0 && balTakSpareGaiaformers(me) >= shortE) {
+                setConfirmQicConvert({ kind: 'eclipse', tileId, qicToSpend, converts: shortE, label: '이클립스 소행성 광산 건설' });
+                return;
+              }
+              GameClient.eclipseBuildAsteroidMine(gameId!, tileId, qicToSpend);
+            }}
             zoomValue={mapZoom}
             panValue={mapPan}
             onZoomChange={setMapZoom}
@@ -5024,6 +5034,8 @@ export default function Game() {
                       } else if (confirmQicConvert.kind === 'mine') {
                         // 변환(소켓 순서 보장)이 지갑을 채운 뒤 서버가 건설을 처리한다 — 파워액션과 동일 패턴
                         GameClient.buildMine(gameId, confirmQicConvert.tileId, confirmQicConvert.useGaiaformer);
+                      } else if (confirmQicConvert.kind === 'eclipse') {
+                        GameClient.eclipseBuildAsteroidMine(gameId, confirmQicConvert.tileId, confirmQicConvert.qicToSpend);
                       } else {
                         proceedShipAction(confirmQicConvert.shipTileId, confirmQicConvert.actionIndex, confirmQicConvert.targetTileId, { fromOverlay: confirmQicConvert.fromOverlay });
                       }

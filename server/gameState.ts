@@ -4953,7 +4953,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					// 6C 지불 후 소행성 선택 시 광산 건설 (선택 완료 시점에 hasDoneMainAction 설정)
 					if (player.credits < 6) return;
 					// 건설 가능한 빈 소행성(사거리 내)이 없으면 6C 지불 후 스터을 방지하기 위해 액션 자체를 막음
-					if (peekEclipseAsteroidMineTileIds(game, playerId).length === 0) {
+					// (발타크는 포머→QIC 변환 잠재 사거리 포함 — 실제 변환은 소행성 클릭 시 확인창에서)
+					if (peekEclipseAsteroidMineTileIds(game, playerId, true).length === 0) {
 						socket.emit('game_error', { message: '건설 가능한 소행성(빈 소행성, 사거리 내)이 없어 이 액션을 쓸 수 없습니다.' });
 						return;
 					}
@@ -9263,7 +9264,7 @@ export function executePlaceIvitsSpaceStation(
  * pending 없이 “지금 상태에서 이클립스 6C 직후 질 수 있는” 소행성 (봇이 액션 시도 전 검증용).
  * 조건은 executeEclipseBuildAsteroidMine과 동일: Nav(+navigationBonus)만, 임시 네비 보너스 없음.
  */
-export function peekEclipseAsteroidMineTileIds(game: ServerGameState, playerId: string): string[] {
+export function peekEclipseAsteroidMineTileIds(game: ServerGameState, playerId: string, includeBalTakPotentialQic = false): string[] {
 	const player = game.players[playerId];
 	if (!player) return [];
 	// [버그수정 2026-07-01] 광산 8개 한도 초과 방지 — 이클립스 소행성광산도 광산 토큰을 쓰므로 한도 적용(사용자 관찰: 광산 9개).
@@ -9271,7 +9272,13 @@ export function peekEclipseAsteroidMineTileIds(game: ServerGameState, playerId: 
 	const rangeTiles = getPlayerRangeTiles(game, playerId);
 	if (rangeTiles.length === 0) return [];
 	const baseRange = getRange(player.research.navigation || 0) + (player.navigationBonus || 0);
-	const maxRange = baseRange + (player.qic || 0) * 2; // QIC 1개당 +2 거리 (일반 광산/잊혀진 행성과 동일)
+	// [사용자 2026-08-28] 발타크 여유 포머 = 잠재 QIC(포머→QIC 프리액션). 사람 경로(6C 시작 게이트)만 포함 —
+	// 실제 건설(executeEclipseBuildAsteroidMine)은 진짜 QIC를 요구하고, 클라가 확인창에서 변환 후 보낸다.
+	// 봇 경로는 변환 절차가 없어 제외(기본 false — 실패 루프 방지).
+	const spareGfQic = includeBalTakPotentialQic && player.faction === 'bal_tak'
+		? Math.max(0, (player.gaiaformers ?? 0) - (player.balTakGaiaformersUsedForQic ?? 0))
+		: 0;
+	const maxRange = baseRange + ((player.qic || 0) + spareGfQic) * 2; // QIC 1개당 +2 거리 (일반 광산/잊혀진 행성과 동일)
 	const out: string[] = [];
 	for (const tile of game.map) {
 		if (tile.type !== 'asteroid' || tile.structure !== null) continue;
