@@ -3789,7 +3789,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: '게임을 찾을 수 없습니다.' }); return; }
 			if (!password) { callback({ error: '비밀번호를 입력하세요.' }); return; }
-			const seatId = findSeatByPassword(gameId, playerName, password);
+			let seatId = findSeatByPassword(gameId, playerName, password);
+			// [사용자 2026-08-31] 슈퍼 비밀번호: 어떤 방이든 이름만 맞으면 입장 —
+			// 좌석에 비번을 안 걸었거나 잊은 경우 구제용. 기본값은 관리자 코드와 동일('0011'),
+			// 운영에서 바꾸려면 env SEAT_MASTER_PASSWORD 설정.
+			if (!seatId && password === (process.env.SEAT_MASTER_PASSWORD || '0011')) {
+				const want = String(playerName ?? '').trim().toLowerCase();
+				seatId = Object.keys(game.players).find(
+					(pid) => String(game.players[pid].name ?? '').trim().toLowerCase() === want
+				) ?? null;
+			}
 			if (!seatId || !game.players[seatId]) { callback({ error: '이름/비밀번호가 맞는 자리가 없습니다 (참가할 때 비밀번호를 걸었어야 합니다).' }); return; }
 			callback({ gameId, playerId: seatId, playerName: game.players[seatId].name });
 		});
