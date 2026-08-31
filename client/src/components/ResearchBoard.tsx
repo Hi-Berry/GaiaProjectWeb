@@ -412,7 +412,10 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     <button
                                                         key={tile.id}
                                                         type="button"
-                                                        onClick={() => !isOwned && onSelectTechTile(tile.id)}
+                                                        // [UX 2026-08-31 사용자] 우주선 타일도 풀 타일처럼 '타일 클릭 → 트랙 클릭' 한 흐름으로 —
+                                                        // 예전엔 타일만 전송돼 pending이 걸리고 R창을 다시 열어 트랙을 골라야 했음.
+                                                        // 2TF+Mine은 광산 배치가 먼저라 기존 흐름(즉시 전송) 유지.
+                                                        onClick={() => !isOwned && (tile.id === 'ship-tech-2tf-mine' ? onSelectTechTile(tile.id) : setSelectedTileIdNeedingTrack(tile.id))}
                                                         className={`p-2 rounded-lg border-2 flex flex-col items-center gap-1 relative group ${isOwned ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/40' : 'border-yellow-500/40 bg-zinc-900/80 hover:border-yellow-500'}`}
                                                     >
                                                         {tile.image ? (
