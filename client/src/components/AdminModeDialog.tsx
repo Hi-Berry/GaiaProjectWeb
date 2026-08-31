@@ -185,6 +185,51 @@ function PlayerAdminEditor({ gameId, playerId, player }: { gameId: string; playe
   );
 }
 
+/** [사용자 2026-08-31] 좌석별 이어하기 링크(?as=playerId) 복사 — 시크릿 창 등에서 좌석을 잃은 사람 구제용.
+ *  링크를 연 기기의 localStorage에 그 좌석 playerId가 심겨 바로 입장된다. 링크 = 좌석 소유권이므로 본인에게만 전달. */
+function RejoinLinkPanel({ game }: { game: GameState }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const order = (game.turnOrder && game.turnOrder.length ? game.turnOrder : Object.keys(game.players)).filter((id) => game.players[id]);
+  const humans = order.filter((id) => !game.botPlayerIds?.includes(id));
+
+  const copy = async (pid: string) => {
+    const url = `${window.location.origin}/game/${game.id}?as=${pid}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(pid);
+      setTimeout(() => setCopied((c) => (c === pid ? null : c)), 2000);
+    } catch {
+      // 클립보드 권한 실패(http 등) 폴백: 프롬프트로 노출해 수동 복사
+      window.prompt('아래 링크를 복사하세요', url);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-3 space-y-2">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-blue-300">좌석 이어하기 링크</div>
+        <div className="text-[10px] text-zinc-400">시크릿 창을 닫는 등으로 자리를 잃은 사람에게 <b>본인 좌석 링크만</b> 전달하세요. 링크를 열면 그 기기로 좌석이 복구됩니다 (링크 = 좌석 소유권).</div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {humans.map((id) => {
+          const p = game.players[id];
+          return (
+            <Button
+              key={id}
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-blue-500/40 text-blue-200 hover:bg-blue-500/20"
+              onClick={() => copy(id)}
+            >
+              {copied === id ? '복사됨 ✓' : `${p.name} 링크 복사`}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ForceEndGameButton({ gameId, ended }: { gameId: string; ended: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -444,6 +489,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
         ) : (
           <ScrollArea className="max-h-[70vh]">
             <div className="p-5 space-y-3">
+              <RejoinLinkPanel game={game} />
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
               <SetCurrentTurnPanel game={game} />
               <RollbackTurnPanel game={game} />
