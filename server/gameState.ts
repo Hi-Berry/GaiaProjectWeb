@@ -4842,7 +4842,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					if (!shipState.usedActionBy) shipState.usedActionBy = {};
 					shipState.usedActionBy[actionIndex] = playerId;
 					// 연구소/아카데미와 동일: 6트랙+풀+우주선 기술 타일 모두 선택 가능
-					game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
+					game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain', source: 'rebellion' };
 					game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 					addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId, { actionIndex, shipTileId });
 					applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)
@@ -7093,6 +7093,9 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 		return arr.some((t: { id?: string } | null) => t?.id === techTileId);
 	});
 	const isRebellionGainTrack = game.pendingTechTileSelection.structureType === 'rebellion_gain';
+	// [라벨 버그수정 2026-08-31 사용자] 'rebellion_gain'은 우주선 연방 보상(ship-fed-tech)·트왈라잇 재수령에도
+	// 재사용되는 공용 플로우 — 'Rebellion:' 접두는 실제 리벨리온 3Q 유래(source==='rebellion')일 때만.
+	const rebellionLogPrefix = isRebellionGainTrack && game.pendingTechTileSelection.source === 'rebellion';
 	if (trackEntry) {
 		const [selectedTrack, arr] = trackEntry;
 		const tiles = Array.isArray(arr) ? arr : (arr ? [arr] : []);
@@ -7200,7 +7203,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	// 통합 로그: 타일 이미지는 tileId로 표시되므로 라벨/풀 출처 문구 없이 한 줄에 전부
 	{
 		const unified = [advanceDetail, immediateDetail].filter(Boolean).join(' · ');
-		addGameLog(game, playerId, isRebellionGainTrack ? 'Rebellion: Gained Tech Tile' : 'Gained Tech Tile', unified || undefined, techTileId);
+		addGameLog(game, playerId, rebellionLogPrefix ? 'Rebellion: Gained Tech Tile' : 'Gained Tech Tile', unified || undefined, techTileId);
 	}
 
 	// 아이타 의회: 기술 타일 선택 후 남은 가이아포머 토큰 처리 (4개 이상이면 다시 묻기, 아니면 1그릇 복귀 후 진행)
@@ -9504,7 +9507,7 @@ export function executeUseShipAction(
 			shipState.actionsUsed = shipState.usedActionIndices.length;
 			if (!shipState.usedActionBy) shipState.usedActionBy = {};
 			shipState.usedActionBy[actionIndex] = playerId;
-			game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain' };
+			game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'rebellion_gain', source: 'rebellion' };
 			game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
 			addGameLog(game, playerId, 'Rebellion: Gain tech tile', '3 QIC (choose tile + track advance)', shipTileId);
 			applyAdvancedTechTileEffect(game, playerId, 'qic_action'); // 첫 칸=QIC액션 → adv-vp-qic-action +4VP (누락 버그 수정)

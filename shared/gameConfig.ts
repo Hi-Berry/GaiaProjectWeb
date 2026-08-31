@@ -493,7 +493,9 @@ export interface GaiaGameState {
   passingOrder: string[];
   pendingBonusSelection: string | null; // Player ID waiting to select bonus tile
   nextRoundBonusTiles?: Record<string, string>; // Player ID -> Bonus Tile ID for next round
-  pendingTechTileSelection?: { playerId: string; tileId: string; structureType: 'research_lab' | 'academy' | 'rebellion_gain' | 'itars_pi_exchange' | 'space_giants_pi' } | null; // 기술 타일 선택 대기
+  // [라벨 2026-08-31 사용자] structureType 'rebellion_gain'은 '타일+트랙 즉시전진' 공용 플로우로 재사용됨
+  // (리벨리온 3Q뿐 아니라 우주선 연방 보상 ship-fed-tech·트왈라잇 재수령·아티팩트도) — 로그 라벨용 실제 출처는 source로 구분.
+  pendingTechTileSelection?: { playerId: string; tileId: string; structureType: 'research_lab' | 'academy' | 'rebellion_gain' | 'itars_pi_exchange' | 'space_giants_pi'; source?: 'rebellion' | 'ship_fed' } | null; // 기술 타일 선택 대기
   /** 기술 타일 선택 시 선택 가능한 우주선 전용 타일 ID (입장한 우주선 기준) */
   availableShipTechTileIds?: string[];
   /** 게임마다 랜덤: 우주선 타입 → 우주선 전용 기술 타일 ID (없으면 SHIP_TECH_BY_SHIP 사용) */
