@@ -310,7 +310,7 @@ export function FreeActionsDialog({
                                     }
                                     onClick={() => onConvertResource('1power-to-1k-gaiaformer')}
                                 >
-                                    1P ➔ 가이어+1K
+                                    1P ➔ 가이아+1K
                                 </Button>
                             )}
                             <Button

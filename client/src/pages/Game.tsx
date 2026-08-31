@@ -2372,9 +2372,9 @@ export default function Game() {
       acts.push({ label: '🧠1B+1P→1K', disabled: reg3 < 1, run: () => GameClient.convertResource(gameId, '4power-to-1knowledge', true) });
       acts.push({ label: '🧠1B+1P→1Q', disabled: reg3 < 1, run: () => GameClient.convertResource(gameId, '4power-to-1qic', true) });
     }
-    // [버그수정 2026-07-31 사용자] 네뷸라 1P→가이어+1K는 PI 불필요(기본 능력) — 서버·FreeActionsDialog와 동일하게 faction만 체크.
+    // [버그수정 2026-07-31 사용자] 네뷸라 1P→가이아+1K는 PI 불필요(기본 능력) — 서버·FreeActionsDialog와 동일하게 faction만 체크.
     if (me.faction === 'nevlas') {
-      acts.push({ label: '1P→가이어+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
+      acts.push({ label: '1P→가이아+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
       // 네뷸라 의회(PI) 전용 변환 — 서버가 hasNevlasPI 요구. (기본 O/K/Q/C는 상태창에서 PI 할인가로 처리)
       if (hasPI(playerId!)) {
         acts.push({ label: '2P→1O1C', disabled: (me.power3 ?? 0) < 2, run: () => GameClient.convertResource(gameId, '2power-to-1ore-1credit') });
