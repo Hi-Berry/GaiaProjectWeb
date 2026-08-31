@@ -4745,6 +4745,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [버그수정 2026-08-31 사용자: 아카데미 QIC 특수액션 후 End Turn 없이 리벨리온 2K 액션이 또 됨]
+			// 이 핸들러만 hasDoneMainAction 입구 가드가 없어 한 턴에 메인 액션 2개가 가능했다.
+			// 보조 칸(트왈라잇 +3거리, TF마스 3C→1TF)도 '메인 액션 전에 쓰는' 설계이고, 메인 액션 후 허용하면
+			// 테라스텝 경유 추가 건설(executeBuildMine의 스텝 우회) 같은 2액션 exploit이 열리므로 전부 차단.
+			if (game.hasDoneMainAction) { socket.emit('game_error', { message: '이미 이번 턴의 메인 액션을 사용했습니다. 턴 종료 후 다음 턴에 사용하세요.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			saveActionStartState(game, playerId);
 			const player = game.players[playerId];
