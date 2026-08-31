@@ -60,7 +60,9 @@
 
 - 서버: `select_tech_tile`에서 우주선 전용 기술 타일 선택 시 `game.pendingShipTechTrackAdvance = { playerId }` 설정. 이후 **`advance_tech`** 가 호출되면:
   - **맨 앞에서** `pendingShipTechTrackAdvance`인지 확인하고, 해당 플레이어면 **`hasDoneMainAction` 체크 없이** 트랙 1칸 진행 처리 후 return.
-- 클라이언트: R창에 "우주선 기술 타일 보상 — 6개 트랙 중 하나를 선택하세요" 안내와 트랙 버튼이 떠 있고, 클릭 시 `GameClient.advanceTech(gameId, trackId)` 호출. 이 플로우가 막히면 "버튼/트랙 눌러도 무반응"이 됨.
+  - [2026-08-31] `select_tech_tile`에 `trackId`가 같이 오면(선택 모달에서 트랙까지 고른 경우, 2TF+Mine 제외) pending을 걸자마자 서버가 즉시 `executeAdvanceTech`로 해소 — 풀 3개 타일과 동일한 one-step UX. 5레벨 진입은 `advanceToLevel5 === true`일 때만 즉시 수행, 아니면 pending 유지(기존 R창 경로로 선택).
+- 클라이언트(TechTileSelectionModal): 우주선 타일(2TF+Mine 제외)도 풀 타일처럼 모달에서 트랙 선택을 요구하고 타일+트랙을 한 번에 전송.
+- 클라이언트(R창, trackId 없이 온 경우의 fallback): "우주선 기술 타일 보상 — 6개 트랙 중 하나를 선택하세요" 안내와 트랙 버튼이 떠 있고, 클릭 시 `GameClient.advanceTech(gameId, trackId)` 호출. 이 플로우가 막히면 "버튼/트랙 눌러도 무반응"이 됨.
 
 ---
 

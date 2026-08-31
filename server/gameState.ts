@@ -7038,6 +7038,15 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			//   '내 턴'에 해소돼도 메인 액션을 소모하면 안 된다(타일 즉시효과). 예전엔 2TF+Mine만 예외라
 			//   Nav+1/1O3K를 고르면 hasDoneMainAction=true가 돼 액션을 못 하고 다음 사람으로 넘어갔음.
 			game.pendingShipTechTrackAdvance = { playerId, fromItars: wasItarsExchange };
+			// [UX 2026-08-31 사용자] 하단 풀 타일처럼 선택 모달에서 트랙까지 같이 고른 경우 즉시 해소 —
+			//   예전엔 pending만 걸어 R창을 다시 열어 트랙을 골라야 했음(아이타 교환에서 특히 혼란).
+			//   5레벨 진입은 사용자가 확인(advanceToLevel5)한 경우에만 즉시 수행, 아니면 pending 유지(기존 경로로 선택).
+			if (trackId) {
+				const targetLevel = (player.research[trackId as ResearchTrack] ?? 0) + 1;
+				if (targetLevel !== 5 || advanceToLevel5 === true) {
+					executeAdvanceTech(io, game, playerId, trackId as ResearchTrack);
+				}
+			}
 		}
 		// [룰 2026-07-13 사용자 확정] 아이타 교환에서 온 선택이면 잔여 토큰 체인 이어가기 —
 		// 우주선 후속 pending(트랙전진/광산)은 '내 턴 아닐 때' 해소를 이미 지원(6860대 주석)하므로 공존 가능.

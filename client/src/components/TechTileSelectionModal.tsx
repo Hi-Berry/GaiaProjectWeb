@@ -40,7 +40,15 @@ export function TechTileSelectionModal({
 
     const isShipTech = SHIP_TECH_TILES.some(t => t.id === selectedTileId);
     if (isShipTech) {
-      onSelectTechTile(selectedTileId);
+      // [UX 2026-08-31 사용자] 우주선 타일도 풀 타일처럼 모달에서 트랙까지 골라 한 번에 전송 —
+      // 예전엔 타일만 보내고 닫혀서 R창을 다시 열어 트랙을 골라야 했음(아이타 교환에서 특히 혼란).
+      // 2TF+Mine은 광산 배치가 먼저라 기존 흐름(타일만 전송) 유지.
+      if (selectedTileId !== 'ship-tech-2tf-mine' && !isRebellionGain) {
+        if (!selectedTrackId) return;
+        onSelectTechTile(selectedTileId, selectedTrackId);
+      } else {
+        onSelectTechTile(selectedTileId);
+      }
       setSelectedTileId(null);
       setSelectedTrackId(null);
       onClose();
@@ -62,7 +70,10 @@ export function TechTileSelectionModal({
   const selectedTile = selectedTileId ? (ALL_TECH_TILES.find(t => t.id === selectedTileId) || SHIP_TECH_TILES.find(t => t.id === selectedTileId)) : null;
   const isFromPool = selectedTileId && !findTrackByTileId(game.techTilesByTrack, selectedTileId) && !SHIP_TECH_TILES.some(t => t.id === selectedTileId);
   const isRebellionGain = game.pendingTechTileSelection.structureType === 'rebellion_gain';
-  const needsTrackSelection = isFromPool && !selectedTrackId && !isRebellionGain;
+  // 우주선 타일(2TF+Mine 제외)도 풀 타일처럼 트랙 선택 필요
+  const isShipTrackPick = !!selectedTileId && SHIP_TECH_TILES.some(t => t.id === selectedTileId) && selectedTileId !== 'ship-tech-2tf-mine';
+  const showTrackPicker = (isFromPool || isShipTrackPick) && !isRebellionGain;
+  const needsTrackSelection = showTrackPicker && !selectedTrackId;
   const availableShipTiles = (game.availableShipTechTileIds || []).map(id => SHIP_TECH_TILES.find(t => t.id === id)).filter(Boolean);
 
   const isOpen = Boolean(open);
@@ -158,6 +169,11 @@ export function TechTileSelectionModal({
                         <div className="text-[11px] font-black uppercase text-zinc-100 mb-1">{tile.label}</div>
                       )}
                       <div className="text-[9px] text-zinc-400 line-clamp-2">{tile.description}</div>
+                      {isSelected && tile.id !== 'ship-tech-2tf-mine' && !isRebellionGain && (
+                        <div className="mt-2 text-[9px] text-cyan-400 font-bold">
+                          Select track below
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -216,8 +232,8 @@ export function TechTileSelectionModal({
             </div>
           </div>
 
-          {/* Track Selection (Pool tile 선택 시) */}
-          {needsTrackSelection && (
+          {/* Track Selection (Pool/Ship 타일 선택 시 — 선택 후에도 바꿀 수 있게 계속 표시) */}
+          {showTrackPicker && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-wider text-zinc-400 mb-3">
                 Select Research Track to Advance
