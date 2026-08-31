@@ -794,6 +794,8 @@ export default function Game() {
   const [bonusMiniMounted, setBonusMiniMounted] = useState(isBonusPinned);
   useEffect(() => { if (isBonusPinned) setBonusMiniMounted(true); }, [isBonusPinned]);
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  // [사용자 2026-08-31] 연방 로그(fedHexes) 마우스오버 → 그 연방을 형성했던 건물/위성 칸 하이라이트
+  const [hoveredLogFed, setHoveredLogFed] = useState<{ playerId: string; hexIds: string[] } | null>(null);
   // 미니뷰가 뷰포트 밖으로 못 나가게 클램프
   // 좌상단 좌표 기준이므로 (0, 0)이 최소값. 우/하단은 일부만 보여도 다시 드래그 가능하게 마진
   const clampMiniPos = (pos: { x: number; y: number }) => {
@@ -3840,6 +3842,7 @@ export default function Game() {
             playerId={playerId}
             colorOverrides={playerColorOverrides}
             hoveredPlayerId={hoveredPlayerId}
+            hoveredLogFed={hoveredLogFed}
             onPlaceStartingMine={(tileId, factionId) => {
               const player = game.players[playerId!];
               // 종족이 없으면 종족 선택 필요
@@ -6960,6 +6963,8 @@ export default function Game() {
                     onRollbackToSeq={(seq, label) => { if (!gameId) return; if (!window.confirm(`[${label ?? '이 지점'}] 이 로그가 속한 턴의 시작으로 되돌립니다.\n그 이후 행동은 모두 사라지고 그 턴부터 다시 진행됩니다.\n다른 플레이어 전원이 동의해야 실행됩니다. 요청할까요?`)) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}
+                    onFedHexesMouseEnter={(pid, hexIds) => setHoveredLogFed({ playerId: pid, hexIds })}
+                    onFedHexesMouseLeave={() => setHoveredLogFed(null)}
                   />
                 )}
               </div>
@@ -7173,6 +7178,8 @@ export default function Game() {
                   onRollbackToSeq={(seq) => { if (!gameId) return; if (!window.confirm('이 지점(턴 시작)으로 롤백을 요청할까요?\n다른 플레이어 전원이 동의해야 실행됩니다.')) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
                   onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                   onEntryMouseLeave={() => setHighlightedTileId(null)}
+                  onFedHexesMouseEnter={(pid, hexIds) => setHoveredLogFed({ playerId: pid, hexIds })}
+                  onFedHexesMouseLeave={() => setHoveredLogFed(null)}
                 />
               )}
             </div>

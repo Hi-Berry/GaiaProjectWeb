@@ -394,6 +394,8 @@ interface GameBoardProps {
   onZoomChange?: (zoom: number) => void;
   onPanChange?: (pan: { x: number; y: number }) => void;
   hoveredPlayerId?: string | null;
+  /** [사용자 2026-08-31] 연방 로그 마우스오버 — 그 연방 형성 당시의 칸(fedHexes)만 금색 하이라이트 */
+  hoveredLogFed?: { playerId: string; hexIds: string[] } | null;
   /** 상태창(Sidebar) 열림 여부 */
   isSidebarOpen?: boolean;
   /** 상태창 너비(px) — 오버레이를 맵 영역 중앙에 맞출 때 사용 */
@@ -469,6 +471,7 @@ export function GameBoard({
   onZoomChange,
   onPanChange,
   hoveredPlayerId = null,
+  hoveredLogFed = null,
   isSidebarOpen = false,
   sidebarWidth = 0,
   onToggleSidebar,
@@ -886,6 +889,9 @@ export function GameBoard({
   const currentPlayer = playerId ? game.players[playerId] : null;
   const isStartingPhase = game.currentPhase === 'startingMines' && currentPlayer && (currentPlayer.startingMinesPlaced || 0) < (currentPlayer.faction ? (FACTIONS.find(f => f.id === currentPlayer.faction)?.startingMines ?? 2) : 2);
   const faction = currentPlayer?.faction ? FACTIONS.find(f => f.id === currentPlayer.faction) : null;
+
+  // 연방 로그 호버: 형성 당시 스냅샷(fedHexes)을 그대로 하이라이트 — 확장(BFS) 없음
+  const hoveredLogFedHexSet = useMemo(() => new Set(hoveredLogFed?.hexIds ?? []), [hoveredLogFed]);
 
   const hoveredFederationHexIds = useMemo(() => {
     const seeds = hoveredPlayerId ? game.playerFederationHexes?.[hoveredPlayerId] ?? [] : [];
@@ -1824,6 +1830,21 @@ export function GameBoard({
                       <g>
                         <circle r="1.3" fill="none" stroke="#ef4444" strokeWidth="0.45" opacity="0.8" />
                         <circle r="0.9" fill="#ef4444" opacity="0.3" />
+                      </g>
+                    )}
+
+                    {/* [사용자 2026-08-31] 연방 로그 호버 — 그 연방 형성 당시의 칸만 금색 링 (건물·위성·빈 연결칸 포함) */}
+                    {hoveredLogFed && hoveredLogFedHexSet.has(tile.id) && (
+                      <g className="pointer-events-none">
+                        <circle
+                          r="4.3"
+                          fill="none"
+                          stroke="#FFD700"
+                          strokeWidth={1}
+                          className="animate-pulse"
+                          style={{ filter: 'drop-shadow(0 0 7px #FFD700)', opacity: 1 }}
+                        />
+                        <circle r="4.6" fill="none" stroke="#FFD700" strokeWidth={0.25} opacity={0.75} />
                       </g>
                     )}
 

@@ -28,6 +28,9 @@ interface GameLogProps {
   game: GameState;
   onEntryMouseEnter?: (tileId: string) => void;
   onEntryMouseLeave?: () => void;
+  /** [사용자 2026-08-31] 연방 로그(fedHexes 보유) 마우스오버 시 그 연방의 건물/위성 칸을 맵에 하이라이트 */
+  onFedHexesMouseEnter?: (playerId: string, hexIds: string[]) => void;
+  onFedHexesMouseLeave?: () => void;
   hideHeader?: boolean;
   className?: string;
   maxHeight?: string;
@@ -44,6 +47,8 @@ export function GameLog({
   game,
   onEntryMouseEnter,
   onEntryMouseLeave,
+  onFedHexesMouseEnter,
+  onFedHexesMouseLeave,
   hideHeader = false,
   className = "",
   maxHeight = "400px",
@@ -531,8 +536,11 @@ export function GameLog({
           return (
             <Fragment key={index}>
             <div
-              onMouseEnter={() => log.tileId && onEntryMouseEnter?.(log.tileId)}
-              onMouseLeave={() => onEntryMouseLeave?.()}
+              onMouseEnter={() => {
+                if (log.tileId) onEntryMouseEnter?.(log.tileId);
+                if (log.fedHexes?.length && log.playerId) onFedHexesMouseEnter?.(log.playerId, log.fedHexes);
+              }}
+              onMouseLeave={() => { onEntryMouseLeave?.(); onFedHexesMouseLeave?.(); }}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
               title="클릭해서 점수·자원 변동 보기"
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-center gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction

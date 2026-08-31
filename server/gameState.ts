@@ -6309,7 +6309,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const fedDetail = isIvits
 				? `Formed federation (${power} power${numEmpty > 0 ? `, ${numEmpty} QIC` : ''})`
 				: `Formed federation (${numEmpty} satellites, ${power} power)`;
-			addGameLog(game, playerId, 'Federation', fedDetail);
+			// [사용자 2026-08-31] 형성 로그에도 이 연방의 칸 목록을 담음 — 로그 마우스오버 시
+			// 그때 형성한 건물/위성을 맵에 하이라이트(보상 로그의 fedHexes와 동일 값).
+			const formFedHexes = Array.from(new Set([...selectedHexIds, ...federatedPlanetIds, ...selectedSpaceStationHexIds]));
+			addGameLog(game, playerId, 'Federation', fedDetail, undefined, { fedHexes: formFedHexes });
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
