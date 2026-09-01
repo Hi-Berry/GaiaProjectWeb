@@ -801,19 +801,21 @@ export default function Game() {
   useEffect(() => {
     if (!game || !gameId || !playerId || isSpectator) return;
     if (game.currentPhase !== 'startingMines' && game.currentPhase !== 'factionSelect') return;
-    const amHost = playerId === game.hostId || isHostSessionRef.current;
-    if (!amHost || playerId === game.hostId) return; // 이미 방장 좌석이면 할 일 없음
-    const switchable = game.turnOrder.filter((id) => id === game.hostId || game.hostAddedPlayerIds?.includes(id));
+    const hostId = game.hostId;
+    if (!hostId) return;
+    const amHost = playerId === hostId || isHostSessionRef.current;
+    if (!amHost || playerId === hostId) return; // 이미 방장 좌석이면 할 일 없음
+    const switchable = game.turnOrder.filter((id) => id === hostId || game.hostAddedPlayerIds?.includes(id));
     if (switchable.length < 2) return;
-    const othersAllBots = switchable.filter((id) => id !== game.hostId).every((id) => game.botPlayerIds?.includes(id));
+    const othersAllBots = switchable.filter((id) => id !== hostId).every((id) => game.botPlayerIds?.includes(id));
     const allPicked = switchable.every((id) => Boolean(game.players[id]?.faction));
     if (!othersAllBots || !allPicked) return;
     (async () => {
       try {
-        const { game: updated } = await GameClient.switchPlayer(gameId, game.hostId);
+        const { game: updated } = await GameClient.switchPlayer(gameId, hostId);
         setGame(updated);
-        setPlayerId(game.hostId);
-        storePlayerId(gameId, game.hostId);
+        setPlayerId(hostId);
+        storePlayerId(gameId, hostId);
       } catch { /* 전환 실패 시 수동 칩으로 복귀 가능 */ }
     })();
   }, [game, playerId, gameId, isSpectator]);
