@@ -796,6 +796,27 @@ export default function Game() {
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
   // [사용자 2026-08-31] 연방 로그(fedHexes) 마우스오버 → 그 연방을 형성했던 건물/위성 칸 하이라이트
   const [hoveredLogFed, setHoveredLogFed] = useState<{ playerId: string; hexIds: string[] } | null>(null);
+  // [사용자 2026-09-01] 종족선택 전환 칩 자동 복귀: 나(방장) 빼고 전환 가능 좌석이 전부 AI인 방에서
+  // 모든 좌석의 종족이 정해지면 자동으로 방장 좌석으로 되돌린다 (칩 바도 같은 조건으로 사라짐).
+  useEffect(() => {
+    if (!game || !gameId || !playerId || isSpectator) return;
+    if (game.currentPhase !== 'startingMines' && game.currentPhase !== 'factionSelect') return;
+    const amHost = playerId === game.hostId || isHostSessionRef.current;
+    if (!amHost || playerId === game.hostId) return; // 이미 방장 좌석이면 할 일 없음
+    const switchable = game.turnOrder.filter((id) => id === game.hostId || game.hostAddedPlayerIds?.includes(id));
+    if (switchable.length < 2) return;
+    const othersAllBots = switchable.filter((id) => id !== game.hostId).every((id) => game.botPlayerIds?.includes(id));
+    const allPicked = switchable.every((id) => Boolean(game.players[id]?.faction));
+    if (!othersAllBots || !allPicked) return;
+    (async () => {
+      try {
+        const { game: updated } = await GameClient.switchPlayer(gameId, game.hostId);
+        setGame(updated);
+        setPlayerId(game.hostId);
+        storePlayerId(gameId, game.hostId);
+      } catch { /* 전환 실패 시 수동 칩으로 복귀 가능 */ }
+    })();
+  }, [game, playerId, gameId, isSpectator]);
   // 미니뷰가 뷰포트 밖으로 못 나가게 클램프
   // 좌상단 좌표 기준이므로 (0, 0)이 최소값. 우/하단은 일부만 보여도 다시 드래그 가능하게 마진
   const clampMiniPos = (pos: { x: number; y: number }) => {
@@ -5668,6 +5689,10 @@ export default function Game() {
         {!isSpectator && isHost && (game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect') && (() => {
           const switchable = game.turnOrder.filter((id) => id === game.hostId || game.hostAddedPlayerIds?.includes(id));
           if (switchable.length < 2) return null;
+          // [사용자 2026-09-01] 나 빼고 전부 AI인 방: 모든 좌석 종족이 정해지면 칩 바 숨김
+          // (위 useEffect가 같은 조건에서 방장 좌석으로 자동 복귀)
+          const othersAllBots = switchable.filter((id) => id !== game.hostId).every((id) => game.botPlayerIds?.includes(id));
+          if (othersAllBots && switchable.every((id) => Boolean(game.players[id]?.faction))) return null;
           return (
             <div className="md:hidden fixed top-16 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 max-w-[95vw] overflow-x-auto rounded-full bg-zinc-900/95 border border-white/15 px-2 py-1 shadow-xl">
               <Gamepad2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
