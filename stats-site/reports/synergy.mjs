@@ -54,8 +54,10 @@ export function build({ games }) {
       })
       .filter(Boolean);
     if (rows.length === 0) return '';
-    const helpers = [...rows].sort((a, b) => b.dRank - a.dRank).slice(0, 3);
-    const hinders = [...rows].sort((a, b) => a.dRank - b.dRank).slice(0, 3);
+    // 순위가 실제로 좋아지는(▲) 사람만 왼쪽, 나빠지는(▼) 사람만 오른쪽 —
+    // 표본이 적을 때 같은 사람이 양쪽에 중복 등장하던 혼동 제거.
+    const helpers = rows.filter((r) => r.dRank > 0).sort((a, b) => b.dRank - a.dRank).slice(0, 3);
+    const hinders = rows.filter((r) => r.dRank < 0).sort((a, b) => a.dRank - b.dRank).slice(0, 3);
 
     const arrow = (d, digits) => `${d >= 0 ? '▲' : '▼'}${Math.abs(d).toFixed(digits)}`;
     const row = (r, i, good) => `
@@ -75,17 +77,19 @@ export function build({ games }) {
       </div>
     </header>
     <div class="boards">
-      <div class="board"><h4>같이 하면 잘 풀림 <span class="cond">순위·점수</span></h4>${helpers.map((r, i) => row(r, i, true)).join('')}</div>
-      <div class="board"><h4>같이 하면 안 풀림 <span class="cond">순위·점수</span></h4>${hinders.map((r, i) => row(r, i, false)).join('')}</div>
+      <div class="board"><h4>같이 하면 잘 풀림 <span class="cond">순위·점수</span></h4>${helpers.length ? helpers.map((r, i) => row(r, i, true)).join('') : '<div class="empty">해당 없음</div>'}</div>
+      <div class="board"><h4>같이 하면 안 풀림 <span class="cond">순위·점수</span></h4>${hinders.length ? hinders.map((r, i) => row(r, i, false)).join('') : '<div class="empty">해당 없음</div>'}</div>
     </div>
   </section>`;
   };
 
   const body = `
   <style>
-    /* [사용자] 카드가 좁아 이름이 잘림 → 한 줄에 2장 (좁은 화면 1장) */
+    /* [사용자] 카드가 좁아 이름이 잘림 → 한 줄에 2장 (좁은 화면 1장) + 카드 안 보드는 세로로 쌓아 이름 칸 확보 */
     .grid { grid-template-columns: repeat(2, 1fr); }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .boards { grid-template-columns: 1fr; }
+    .pname { font-size: 13px; }
     .svc { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0; flex-shrink: 0; width: 4.6em; }
     .svc b { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700; }
     .svc i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; }
