@@ -164,7 +164,9 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .sec > h2 { font-size: 13px; letter-spacing: .18em; color: var(--accent); text-transform: uppercase;
               margin: 0 0 14px; display: flex; align-items: center; gap: 10px; font-weight: 700; }
   .sec > h2::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  /* [사용자 2026-09-01] 320px 카드에선 보드 2개가 이름을 ...로 짓누름 → 최소 400px(데스크톱 한 줄 2장) */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 14px; }
+  @media (max-width: 460px) { .grid { grid-template-columns: 1fr; } }
   .egg { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 12px;
          display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .egg-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
