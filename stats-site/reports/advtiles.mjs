@@ -1,7 +1,7 @@
 /** 고급 기술 타일 랭킹 — 한 판에서 타일 하나가 벌어준 VP 합계(scoreBreakdown.techTiles) 기준. */
 import path from 'path';
 import fs from 'fs';
-import { REPO_ROOT, gameRanks, pageShell, esc } from '../lib/common.mjs';
+import { REPO_ROOT, gameRanks, canon, rankTakers, itemCard, pageShell, esc, MIN_GAMES } from '../lib/common.mjs';
 
 export const meta = {
   id: 'advtiles',
@@ -54,7 +54,7 @@ const tileImgB64 = (() => {
 })();
 
 
-export function build({ games }) {
+export function build({ games, gamesPerPlayer }) {
   const cases = []; // {game, date, name, tile, vp, won}
   const perTile = {}; // tile -> {n, vpSum, best, bestBy, bestGame}
   for (const { file, game: g } of games) {
@@ -103,6 +103,24 @@ export function build({ games }) {
       <div class="tbest"><div class="tvp">${r.best}<em>점</em></div><span class="tsub">${esc(r.bestBy)} · ${esc(r.bestGame)}</span></div>
     </div>`).join('');
 
+  // [사용자 2026-09-01] 타일별 획득자 리더보드 — 다른 리더보드와 동일 카드 형식.
+  // 집계는 게임 종료 시점 보유(techTiles)의 adv-* (tech-gaia-3vp는 일반 타일 페이지 담당이라 제외).
+  const take = {};
+  for (const { game: g } of games) {
+    for (const p of Object.values(g.players)) {
+      const name = canon(p.name);
+      for (const tid of p.techTiles ?? []) {
+        if (!/^adv-/.test(tid)) continue;
+        (take[tid] ??= {})[name] = (take[tid][name] ?? 0) + 1;
+      }
+    }
+  }
+  const takerStats = Object.fromEntries(Object.entries(take).map(([tid, byName]) => [tid, rankTakers(byName, gamesPerPlayer)]));
+  const takerCards = Object.keys(takerStats)
+    .sort((a, b) => takerStats[b].total - takerStats[a].total)
+    .map((tid) => itemCard({ label: (ADV[tid] ?? { label: tid }).label, imgSrc: tileImgB64(tid), stat: takerStats[tid] }))
+    .join('');
+
   const body = `
   <style>
     .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; align-items: start; }
@@ -142,7 +160,13 @@ export function build({ games }) {
   </div>
   <p class="legend">점수 = 그 판에서 그 타일이 벌어준 VP 합계(즉시 + 액션/패스 누적, 점수 내역 기준) ·
     일반 타일 중 점수형인 '가이아 광산마다 3VP' 포함 · 자원/액션형 타일은 VP를 직접 주지 않아 낮게/안 잡힘 ·
-    타일 이미지에 마우스를 올리면 이름 표시.</p>`;
+    타일 이미지에 마우스를 올리면 이름 표시.</p>
+  <div class="sec">
+    <h2>타일별 누가 먹었나 (횟수 · 판당 비율 TOP 5)</h2>
+    <div class="grid">${takerCards}</div>
+    <p class="legend">집계: 게임 종료 시점 보유(techTiles) — 고급 타일은 판당 1장뿐이라 횟수 = 가져간 판 수.
+      판당 비율은 자기가 뛴 판수로 나눈 값(${MIN_GAMES}판 이상만 순위 진입).</p>
+  </div>`;
 
   return pageShell({
     title: meta.title, emoji: meta.emoji, accent: meta.accent,
