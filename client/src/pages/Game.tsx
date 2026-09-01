@@ -5663,6 +5663,42 @@ export default function Game() {
 
         {/* 종족 선택 토글 버튼은 GameBoard의 Round 표시 영역에 추가됨 */}
 
+        {/* [사용자 2026-09-01] 모바일엔 좌측 사이드바(조작 플레이어 전환 Select)가 없어 방장이 추가한
+            AI/로컬 플레이어의 종족을 고를 수 없었음 → 종족 선택 단계 동안만 상단에 전환 칩 노출 (md:hidden) */}
+        {!isSpectator && isHost && (game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect') && (() => {
+          const switchable = game.turnOrder.filter((id) => id === game.hostId || game.hostAddedPlayerIds?.includes(id));
+          if (switchable.length < 2) return null;
+          return (
+            <div className="md:hidden fixed top-16 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 max-w-[95vw] overflow-x-auto rounded-full bg-zinc-900/95 border border-white/15 px-2 py-1 shadow-xl">
+              <Gamepad2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              {switchable.map((id) => {
+                const p = game.players[id];
+                const sel = id === playerId;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={async () => {
+                      if (!gameId || id === playerId) return;
+                      try {
+                        const { game: updated } = await GameClient.switchPlayer(gameId, id);
+                        setGame(updated);
+                        setPlayerId(id);
+                        storePlayerId(gameId, id);
+                      } catch (e: any) {
+                        toast({ title: '전환 실패', description: e?.message, variant: 'destructive' });
+                      }
+                    }}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${sel ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300 active:bg-zinc-700'}`}
+                  >
+                    {p?.name ?? id}{p?.faction ? ' ✓' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         {/* 종족 선택 패널 (토글) */}
         {isFactionSelectOpen && ((game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect') && currentPlayer && !currentPlayer.faction) && (
           // [버그수정 2026-09-01 사용자: 모바일 세로모드에서 패널 왼쪽이 화면 밖] 고정폭 w-96(384px)+우측 앵커라
