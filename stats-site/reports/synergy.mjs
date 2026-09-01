@@ -16,18 +16,18 @@ const MIN_SHARED = 8; // 동반자 표본 최소 판수
 const MEDAL = ['gold', 'silver', 'bronze'];
 
 export function build({ games }) {
-  // pair[A][B] = {n, rankSum}  (A의 성적, B와 함께한 판)
+  // pair[A][B] = {n, rankSum, scoreSum}  (A의 성적, B와 함께한 판)
   const pair = {};
-  const solo = {}; // A -> {games, wins, rankSum}
+  const solo = {}; // A -> {games, wins, rankSum, scoreSum}
   for (const { game: g } of games) {
     const ranks = gameRanks(g);
     for (const a of ranks) {
-      const sa = (solo[a.name] ??= { games: 0, wins: 0, rankSum: 0 });
-      sa.games++; sa.rankSum += a.rank; if (a.rank === 1) sa.wins++;
+      const sa = (solo[a.name] ??= { games: 0, wins: 0, rankSum: 0, scoreSum: 0 });
+      sa.games++; sa.rankSum += a.rank; sa.scoreSum += a.score; if (a.rank === 1) sa.wins++;
       for (const b of ranks) {
         if (a.name === b.name) continue;
-        const p = ((pair[a.name] ??= {})[b.name] ??= { n: 0, rankSum: 0 });
-        p.n++; p.rankSum += a.rank;
+        const p = ((pair[a.name] ??= {})[b.name] ??= { n: 0, rankSum: 0, scoreSum: 0 });
+        p.n++; p.rankSum += a.rank; p.scoreSum += a.score;
       }
     }
   }
@@ -40,22 +40,30 @@ export function build({ games }) {
     const rows = Object.entries(pair[name] ?? {})
       .filter(([, p]) => p.n >= MIN_SHARED)
       .map(([mate, p]) => {
-        const withAvg = p.rankSum / p.n;
         const withoutN = s.games - p.n;
-        const withoutAvg = withoutN > 0 ? (s.rankSum - p.rankSum) / withoutN : null;
-        return { mate, n: p.n, withAvg, withoutAvg, delta: withoutAvg == null ? 0 : withoutAvg - withAvg };
+        if (withoutN <= 0) return null;
+        const withRank = p.rankSum / p.n;
+        const withoutRank = (s.rankSum - p.rankSum) / withoutN;
+        const withScore = p.scoreSum / p.n;
+        const withoutScore = (s.scoreSum - p.scoreSum) / withoutN;
+        return {
+          mate, n: p.n, withRank, withoutRank, withScore, withoutScore,
+          dRank: withoutRank - withRank,       // 양수 = 함께일 때 순위 좋아짐
+          dScore: withScore - withoutScore,     // 양수 = 함께일 때 점수 오름
+        };
       })
-      .filter((r) => r.withoutAvg != null);
+      .filter(Boolean);
     if (rows.length === 0) return '';
-    const helpers = [...rows].sort((a, b) => b.delta - a.delta).slice(0, 3);
-    const hinders = [...rows].sort((a, b) => a.delta - b.delta).slice(0, 3);
+    const helpers = [...rows].sort((a, b) => b.dRank - a.dRank).slice(0, 3);
+    const hinders = [...rows].sort((a, b) => a.dRank - b.dRank).slice(0, 3);
 
+    const arrow = (d, digits) => `${d >= 0 ? '▲' : '▼'}${Math.abs(d).toFixed(digits)}`;
     const row = (r, i, good) => `
-      <div class="row" title="${esc(r.mate)}와 함께 ${r.n}판: 평균 ${r.withAvg.toFixed(2)}등 · 없이: ${r.withoutAvg.toFixed(2)}등">
+      <div class="row" title="${esc(r.mate)}와 함께 ${r.n}판 — 순위 ${r.withRank.toFixed(2)}등(없이 ${r.withoutRank.toFixed(2)}) · 점수 ${r.withScore.toFixed(0)}점(없이 ${r.withoutScore.toFixed(0)})">
         <span class="medal ${MEDAL[i]}">${i + 1}</span>
         <span class="pname">${esc(r.mate)}</span>
-        <span class="pval" style="${good ? '' : 'color:#e08585'}">${r.withAvg.toFixed(2)}등</span>
-        <span class="psub">${good ? '▲' : '▼'}${Math.abs(r.delta).toFixed(2)}</span>
+        <span class="svc ${good ? 'good' : 'bad'}"><b>${r.withRank.toFixed(2)}등</b><i>${arrow(r.dRank, 2)}</i></span>
+        <span class="svc ${r.dScore >= 0 ? 'good' : 'bad'}"><b>${r.withScore.toFixed(0)}점</b><i>${arrow(r.dScore, 1)}</i></span>
       </div>`;
 
     return `
@@ -63,17 +71,27 @@ export function build({ games }) {
     <header class="egg-head">
       <div class="egg-title">
         <h3>${esc(name)}</h3>
-        <span class="egg-total">${s.games}판 · 승률 ${((s.wins / s.games) * 100).toFixed(0)}% · 평균 ${(s.rankSum / s.games).toFixed(2)}등</span>
+        <span class="egg-total">${s.games}판 · 승률 ${((s.wins / s.games) * 100).toFixed(0)}% · 평균 ${(s.rankSum / s.games).toFixed(2)}등 · ${(s.scoreSum / s.games).toFixed(0)}점</span>
       </div>
     </header>
     <div class="boards">
-      <div class="board"><h4>같이 하면 잘 풀림</h4>${helpers.map((r, i) => row(r, i, true)).join('')}</div>
-      <div class="board"><h4>같이 하면 안 풀림</h4>${hinders.map((r, i) => row(r, i, false)).join('')}</div>
+      <div class="board"><h4>같이 하면 잘 풀림 <span class="cond">순위·점수</span></h4>${helpers.map((r, i) => row(r, i, true)).join('')}</div>
+      <div class="board"><h4>같이 하면 안 풀림 <span class="cond">순위·점수</span></h4>${hinders.map((r, i) => row(r, i, false)).join('')}</div>
     </div>
   </section>`;
   };
 
   const body = `
+  <style>
+    /* [사용자] 카드가 좁아 이름이 잘림 → 한 줄에 2장 (좁은 화면 1장) */
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .svc { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0; flex-shrink: 0; width: 4.6em; }
+    .svc b { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700; }
+    .svc i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; }
+    .svc.good b { color: var(--accent); } .svc.good i { color: #79c99e; }
+    .svc.bad b { color: #e08585; } .svc.bad i { color: #e08585; }
+  </style>
   <div class="sec">
     <h2>플레이어별 동반자 상성 (판수 많은 순)</h2>
     <div class="grid">${players.map(card).join('')}</div>
@@ -81,8 +99,8 @@ export function build({ games }) {
 
   return pageShell({
     title: meta.title, emoji: meta.emoji, accent: meta.accent,
-    intro: `전원 사람 <b>4인 게임 ${games.length}판</b> 기준. 각 칸의 숫자는 <b>그 사람과 함께한 판에서 내 평균 순위</b>,
-      ▲▼는 그 사람 없이 친 판 대비 변화량(▲=함께일 때 더 좋음). 같은 판 ${MIN_SHARED}회 이상 동반자만,
+    intro: `전원 사람 <b>4인 게임 ${games.length}판</b> 기준. 각 행은 <b>그 사람과 함께한 판에서의 내 평균 순위와 평균 점수</b>,
+      ▲▼는 그 사람 없이 친 판 대비 변화(▲=함께일 때 더 좋음). 같은 판 ${MIN_SHARED}회 이상 동반자만,
       본인 ${MIN_GAMES}판 이상만 표시. 행에 마우스를 올리면 상세.`,
     bodyHtml: body,
     footNote: '주의: 상관관계일 뿐 인과가 아님 — 같이 친 시기·인원 구성의 영향이 섞여 있음',
