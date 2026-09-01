@@ -17,8 +17,8 @@ export function build({ games }) {
   // 시간순 정렬 (ELO는 순서에 민감)
   const ordered = [...games].sort((a, b) => gameTime(a) - gameTime(b));
 
-  const st = {}; // name -> {games, wins, scoreSum, rankSum, best, bestGame, elo}
-  const get = (name) => (st[name] ??= { games: 0, wins: 0, scoreSum: 0, rankSum: 0, best: 0, bestFaction: '', elo: ELO_START });
+  const st = {}; // name -> {games, wins, scoreSum, rankSum, best, elo, bidSum, bidGames}
+  const get = (name) => (st[name] ??= { games: 0, wins: 0, scoreSum: 0, rankSum: 0, best: 0, bestFaction: '', elo: ELO_START, bidSum: 0, bidGames: 0 });
 
   for (const entry of ordered) {
     const ranks = gameRanks(entry.game);
@@ -28,6 +28,8 @@ export function build({ games }) {
       s.games++; s.scoreSum += r.score; s.rankSum += r.rank;
       if (r.rank === 1) s.wins++;
       if (r.score > s.best) { s.best = r.score; s.bestFaction = r.faction; }
+      s.bidSum += r.bid;
+      if (ranks.biddingUsed) s.bidGames++; // 비딩 쓴 판만 평균 분모 (비딩 없던 판으로 희석 방지)
     }
     // ELO: 쌍대결 (이긴 쪽 1, 동점 0.5), 게임 시작 시점 레이팅으로 일괄 계산 후 반영
     const before = Object.fromEntries(ranks.map((r) => [r.name, get(r.name).elo]));
@@ -48,6 +50,8 @@ export function build({ games }) {
   const rows = Object.entries(st).map(([name, s]) => ({
     name, ...s,
     winRate: s.wins / s.games, avgScore: s.scoreSum / s.games, avgRank: s.rankSum / s.games,
+    avgBid: s.bidGames > 0 ? s.bidSum / s.bidGames : null,
+    avgScorePreBid: (s.scoreSum + s.bidSum) / s.games,
   })).sort((a, b) => b.elo - a.elo);
 
   const tr = (r, i) => `
@@ -59,6 +63,8 @@ export function build({ games }) {
       <td>${r.wins}</td>
       <td>${(r.winRate * 100).toFixed(1)}%</td>
       <td>${r.avgScore.toFixed(1)}</td>
+      <td>${r.avgScorePreBid.toFixed(1)}</td>
+      <td>${r.avgBid == null ? '<span class="dim">–</span>' : r.avgBid.toFixed(1)}</td>
       <td>${r.avgRank.toFixed(2)}</td>
       <td class="dim">${r.best}</td>
     </tr>`;
@@ -69,13 +75,15 @@ export function build({ games }) {
     <div class="tblwrap">
       <table class="tbl">
         <thead><tr>
-          <th>#</th><th class="l">플레이어</th><th>ELO</th><th>판수</th><th>승</th><th>승률</th><th>평균 점수</th><th>평균 순위</th><th>최고점</th>
+          <th>#</th><th class="l">플레이어</th><th>ELO</th><th>판수</th><th>승</th><th>승률</th><th>평균 점수</th><th>평균 점수(비딩 전)</th><th>평균 비딩</th><th>평균 순위</th><th>최고점</th>
         </tr></thead>
         <tbody>${rows.map(tr).join('')}</tbody>
       </table>
     </div>
     <p class="legend">ELO: 시작 ${ELO_START}, 판마다 4인 쌍대결(승 1 / 동점 0.5)로 갱신 (K=${ELO_K}, 상대별 분배) —
-      게임 시간순 반영. ° = ${MIN_GAMES}판 미만(레이팅 미확정).</p>
+      게임 시간순 반영. ° = ${MIN_GAMES}판 미만(레이팅 미확정).
+      평균 비딩은 비딩을 쓴 판만 분모(–&nbsp;= 비딩 판 없음), 평균 점수(비딩 전)는 최종 점수에 비딩을 되돌린 값.
+      열 제목을 클릭하면 정렬됩니다.</p>
   </div>`;
 
   return pageShell({

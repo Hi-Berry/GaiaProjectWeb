@@ -12,18 +12,23 @@ export const meta = {
 };
 
 export function build({ games }) {
-  const st = {}; // factionId -> {n, wins, scoreSum, rankSum, best, bestBy}
+  const st = {}; // factionId -> {n, wins, scoreSum, rankSum, best, bestBy, bidSum, bidGames}
   for (const { game: g } of games) {
-    for (const r of gameRanks(g)) {
+    const ranks = gameRanks(g);
+    for (const r of ranks) {
       if (!r.faction) continue;
-      const s = (st[r.faction] ??= { n: 0, wins: 0, scoreSum: 0, rankSum: 0, best: 0, bestBy: '' });
+      const s = (st[r.faction] ??= { n: 0, wins: 0, scoreSum: 0, rankSum: 0, best: 0, bestBy: '', bidSum: 0, bidGames: 0 });
       s.n++; s.scoreSum += r.score; s.rankSum += r.rank;
       if (r.rank === 1) s.wins++;
       if (r.score > s.best) { s.best = r.score; s.bestBy = r.name; }
+      s.bidSum += r.bid;
+      if (ranks.biddingUsed) s.bidGames++;
     }
   }
   const rows = Object.entries(st).map(([id, s]) => ({
     id, ...s, winRate: s.wins / s.n, avgScore: s.scoreSum / s.n, avgRank: s.rankSum / s.n,
+    avgBid: s.bidGames > 0 ? s.bidSum / s.bidGames : null,
+    avgScorePreBid: (s.scoreSum + s.bidSum) / s.n,
   })).sort((a, b) => b.winRate - a.winRate || a.avgRank - b.avgRank);
 
   const tr = (r, i) => {
@@ -36,6 +41,8 @@ export function build({ games }) {
       <td>${r.wins}</td>
       <td class="hi">${(r.winRate * 100).toFixed(1)}%</td>
       <td>${r.avgScore.toFixed(1)}</td>
+      <td>${r.avgScorePreBid.toFixed(1)}</td>
+      <td>${r.avgBid == null ? '<span class="dim">–</span>' : r.avgBid.toFixed(1)}</td>
       <td>${r.avgRank.toFixed(2)}</td>
       <td class="dim">${r.best} (${esc(r.bestBy)})</td>
     </tr>`;
@@ -47,12 +54,14 @@ export function build({ games }) {
     <div class="tblwrap">
       <table class="tbl">
         <thead><tr>
-          <th>#</th><th class="l">종족</th><th>등장</th><th>승</th><th>승률</th><th>평균 점수</th><th>평균 순위</th><th>최고점 (기록자)</th>
+          <th>#</th><th class="l">종족</th><th>등장</th><th>승</th><th>승률</th><th>평균 점수</th><th>평균 점수(비딩 전)</th><th>평균 비딩</th><th>평균 순위</th><th>최고점 (기록자)</th>
         </tr></thead>
         <tbody>${rows.map(tr).join('')}</tbody>
       </table>
     </div>
-    <p class="legend">4인전 기대 승률은 25% — 그보다 높으면 강세 종족. 동점은 같은 순위로 처리.</p>
+    <p class="legend">4인전 기대 승률은 25% — 그보다 높으면 강세 종족. 동점은 같은 순위로 처리.
+      평균 비딩은 비딩을 쓴 판만 분모(– = 비딩 판 없음), 평균 점수(비딩 전)는 최종 점수에 비딩을 되돌린 값.
+      열 제목을 클릭하면 정렬됩니다.</p>
   </div>`;
 
   return pageShell({

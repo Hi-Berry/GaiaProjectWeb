@@ -53,10 +53,15 @@ export function gameTime({ file, game }) {
   return game.completedAt ?? game.createdAt ?? Date.parse(file.slice(0, 10)) ?? 0;
 }
 
-/** 한 게임의 플레이어별 최종 순위 [{name, faction, score, rank}] — 동점은 같은 순위 */
+/** 한 게임의 플레이어별 최종 순위 [{name, faction, score, rank, bid}] — 동점은 같은 순위.
+ *  bid: 종족 비딩으로 낸 VP(양수). biddingUsed: 이 판에 비딩 기록이 하나라도 있는지. */
 export function gameRanks(g) {
-  const rows = Object.values(g.players).map((p) => ({ name: canon(p.name), faction: p.faction, score: p.score ?? 0 }));
+  const rows = Object.values(g.players).map((p) => ({
+    name: canon(p.name), faction: p.faction, score: p.score ?? 0,
+    bid: -(p.scoreBreakdown?.other ?? []).filter((o) => o.source === '종족 비딩').reduce((s, o) => s + (o.vp ?? 0), 0),
+  }));
   for (const r of rows) r.rank = 1 + rows.filter((x) => x.score > r.score).length;
+  rows.biddingUsed = rows.some((r) => r.bid > 0);
   return rows;
 }
 
@@ -206,7 +211,11 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
   table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .tbl th { text-align: right; padding: 10px 12px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; }
+    color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; cursor: pointer; user-select: none; }
+  .tbl th:hover { color: var(--ink); }
+  .tbl th.sorted { color: var(--accent); }
+  .tbl th.sorted::after { content: ' ▼'; font-size: 8px; }
+  .tbl th.sorted.asc::after { content: ' ▲'; }
   .tbl th:first-child, .tbl td:first-child { text-align: left; }
   .tbl th.l, .tbl td.l { text-align: left; }
   .tbl td { padding: 8px 12px; border-bottom: 1px solid rgba(34,48,77,.5); text-align: right;
@@ -232,6 +241,32 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   ${bodyHtml}
   <p class="foot">${footNote}${footNote ? ' · ' : ''}계정 통합(ALIAS)·제외 게임 적용 · ${buildStamp()} 생성</p>
 </div>
+<script>
+// 통계 표 헤더 클릭 정렬 — 같은 헤더 다시 클릭 시 오름/내림 토글. 숫자 우선, 아니면 문자열 비교.
+document.querySelectorAll('table.tbl').forEach(function (tbl) {
+  var ths = tbl.querySelectorAll('thead th');
+  ths.forEach(function (th, ci) {
+    th.addEventListener('click', function () {
+      var tbody = tbl.querySelector('tbody');
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+      var asc = th.classList.contains('sorted') && !th.classList.contains('asc');
+      ths.forEach(function (t) { t.classList.remove('sorted', 'asc'); });
+      th.classList.add('sorted'); if (asc) th.classList.add('asc');
+      var val = function (tr) {
+        var t = (tr.children[ci] ? tr.children[ci].textContent : '').trim();
+        var n = parseFloat(t.replace(/[^0-9.\\-]/g, ''));
+        return isNaN(n) ? t : n;
+      };
+      rows.sort(function (a, b) {
+        var x = val(a), y = val(b);
+        if (typeof x === 'number' && typeof y === 'number') return asc ? x - y : y - x;
+        return asc ? String(x).localeCompare(String(y), 'ko') : String(y).localeCompare(String(x), 'ko');
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    });
+  });
+});
+</script>
 </body>
 </html>
 `;
