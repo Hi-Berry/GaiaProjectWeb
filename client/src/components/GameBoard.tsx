@@ -2271,7 +2271,8 @@ export function GameBoard({
                 <span className="font-mono font-bold text-amber-200"> Ctrl+0</span>으로 확대를 되돌리거나 창을 넓히면 PC 화면이 됩니다.
                 세로로 세운 모니터라면 <span className="font-bold text-zinc-100">OS 배율(예: 150%)</span>도 폭을 줄입니다.
               </div>
-              <div className="mt-2 flex justify-end">
+              {/* [사용자 2026-09-01] '다시 안 보기'만 있어 그냥 닫을 방법이 없었음 → '닫기'(이번만) 추가 */}
+              <div className="mt-2 flex justify-end gap-1">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -2282,6 +2283,14 @@ export function GameBoard({
                   }}
                 >
                   다시 안 보기
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2.5 text-[10px] font-bold uppercase text-amber-200 hover:text-white"
+                  onClick={() => setNarrowHintHidden(true)}
+                >
+                  닫기
                 </Button>
               </div>
             </div>
