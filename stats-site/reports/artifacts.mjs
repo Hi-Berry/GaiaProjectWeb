@@ -14,14 +14,14 @@ const ARTS = [
   { id: 'art-7vp-virtual-proto', label: '7VP + 가상광산(프로토)', img: 2 },
   { id: 'art-vp-gaia', label: '가이아 트랙 ×3 VP', img: 3 },
   { id: 'art-fed-once', label: '연방 보상 재수령', img: 4 },
-  { id: 'art-imm-2o5c', label: '광석 2 + 5크레딧', img: 5 },
+  { id: 'art-imm-2o5c', label: '광석 2 + 크레딧 5', img: 5 },
   { id: 'art-7vp-virtual-asteroid', label: '7VP + 가상광산(소행성)', img: 6 },
   { id: 'art-vp-planet-types', label: '3 + 행성유형 VP', img: 7 },
   { id: 'art-imm-3k1q', label: '지식 3 + 정큐 1', img: 8 },
   { id: 'art-vp-tracks3', label: '3레벨↑ 트랙 ×3 VP', img: 9 },
   { id: 'art-income-1k1o', label: '수익: 지식 1 + 광석 1', img: 10 },
-  { id: 'art-imm-3o3c', label: '광석 3 + 3크레딧', img: 11 },
-  { id: 'art-vp-bridge', label: '다리 구역 ×3 VP', img: 12 },
+  { id: 'art-imm-3o3c', label: '광석 3 + 크레딧 3', img: 11 },
+  { id: 'art-vp-bridge', label: '외곽 구역 ×3 VP', img: 12 },
   { id: 'art-income-2p3', label: '수익: 3그릇 파워 2', img: 13 },
 ];
 
