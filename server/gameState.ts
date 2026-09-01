@@ -6762,6 +6762,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				if (appliedList.length > 0 && !(game.botPlayerIds ?? []).includes(targetPlayerId)) {
 					const method = po.usedAuto && po.usedManual ? '수동+자동 혼합' : po.usedAuto ? '자동 최적' : '수동';
 					let lossText = '';
+					let detailText = ` (${appliedList.length}개)`; // snap 없는 옛 게임 폴백
 					const snap0 = po.powerBeforeSnapshots?.[0];
 					if (snap0) {
 						const base = {
@@ -6774,8 +6775,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 						const d3 = optimal.p3 - actual.p3;
 						const d2 = optimal.p2 - actual.p2;
 						lossText = d3 > 0 ? ` · 최적 대비 3그릇 -${d3}` : d2 > 0 ? ` · 최적 대비 2그릇 -${d2}` : ' · 최적과 동일';
+						// [사용자 2026-09-01 "아이타는 Auto-optimal 상세가 안 뜬다"] 선택 UI 경로(아이타/자동 OFF)도
+						// 비아이타 자동 경로와 동일하게 받은 양 + 그릇 변화를 표기.
+						const tokenGain = appliedList.filter((i) => i.type === 'tokens').reduce((s, i) => s + i.amount, 0);
+						const powerGain = appliedList.filter((i) => i.type === 'power').reduce((s, i) => s + i.amount, 0);
+						const gains = [tokenGain > 0 ? `Tokens +${tokenGain}` : '', powerGain > 0 ? `Power +${powerGain}` : ''].filter(Boolean).join(' / ');
+						const brainNote = player.faction === 'taklons' && !(player as any).brainStoneInGaia && (player as any).brainStoneBowl
+							? ` 🧠${(player as any).brainStoneBowl}` : '';
+						detailText = `: ${gains || 'none'} · ${snap0.p1}/${snap0.p2}/${snap0.p3} → ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}${brainNote}`;
 					}
-					addGameLog(game, targetPlayerId, 'Income Order', `${method} (${appliedList.length}개)${lossText}`);
+					addGameLog(game, targetPlayerId, 'Income Order', `${method}${detailText}${lossText}`);
 				}
 			} catch { /* 기록 실패는 게임에 무영향 */ }
 
