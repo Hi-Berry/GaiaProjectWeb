@@ -229,6 +229,11 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .tbl .dim { color: var(--muted); }
   .tbl .face { width: 26px; height: 34px; object-fit: cover; border-radius: 6px; vertical-align: middle;
     margin-right: 8px; border: 1px solid var(--line); }
+  .tbl .tile { width: 44px; height: 26px; object-fit: contain; border-radius: 4px; vertical-align: middle;
+    margin-right: 8px; background: #0a0e18; border: 1px solid var(--line); }
+  .mission-img { width: 84px; height: 58px; object-fit: cover; border-radius: 10px; flex-shrink: 0;
+    border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent); background: #0a0e18; }
   .legend { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.6; }
 </style>
 </head>
