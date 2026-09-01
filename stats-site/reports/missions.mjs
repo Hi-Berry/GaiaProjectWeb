@@ -45,11 +45,16 @@ export function build({ games }) {
     for (const mid of gameFms) {
       const s = (fm[mid] ??= { games: 0, vpSum: 0, n: 0, byName: {} });
       s.games++;
-      for (const p of players) {
-        const vp = p.scoreBreakdown.finalMissionDetails.find((d) => d.missionId === mid)?.vp ?? 0;
+      const vps = players.map((p) => ({
+        name: canon(p.name),
+        vp: p.scoreBreakdown.finalMissionDetails.find((d) => d.missionId === mid)?.vp ?? 0,
+      }));
+      for (const { name, vp } of vps) {
+        // 미션 내 등수: 나보다 VP 높은 사람 수 + 1 (동점은 같은 등수)
+        const rank = 1 + vps.filter((x) => x.vp > vp).length;
         s.vpSum += vp; s.n++;
-        const b = (s.byName[canon(p.name)] ??= { n: 0, sum: 0 });
-        b.n++; b.sum += vp;
+        const b = (s.byName[name] ??= { n: 0, sum: 0, rankSum: 0 });
+        b.n++; b.sum += vp; b.rankSum += rank;
       }
     }
   }
@@ -59,7 +64,7 @@ export function build({ games }) {
     if (!s) return '';
     const img = missionImgB64(def.img);
     const top = Object.entries(s.byName)
-      .map(([name, b]) => ({ name, n: b.n, avg: b.sum / b.n }))
+      .map(([name, b]) => ({ name, n: b.n, avg: b.sum / b.n, avgRank: b.rankSum / b.n }))
       .filter((r) => r.n >= MIN_APPEAR)
       .sort((a, b) => b.avg - a.avg)
       .slice(0, TOP_N);
@@ -88,7 +93,38 @@ export function build({ games }) {
   </section>`;
   };
 
+  // [사용자 2026-09-01] 미션 종류 무관 종합: 누가 미션 점수를 제일 잘 먹나 (회당 평균 VP·평균 등수)
+  const overall = {}; // name -> {n, sum, rankSum}
+  for (const s of Object.values(fm)) {
+    for (const [name, b] of Object.entries(s.byName)) {
+      const o = (overall[name] ??= { n: 0, sum: 0, rankSum: 0 });
+      o.n += b.n; o.sum += b.sum; o.rankSum += b.rankSum;
+    }
+  }
+  const MIN_TOTAL = 20; // 종합 순위 최소 미션 횟수 (판당 2개라 10판 정도)
+  const totalRows = Object.entries(overall)
+    .map(([name, o]) => ({ name, n: o.n, avg: o.sum / o.n, avgRank: o.rankSum / o.n }))
+    .filter((r) => r.n >= MIN_TOTAL)
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, TOP_N);
+  const totalBoard = `
+  <div class="sec">
+    <h2>미션 종합 랭킹 — 누가 미션 점수를 잘 먹나</h2>
+    <div class="board" style="max-width: 560px;">
+      <h4>회당 평균 VP · 미션 내 평균 등수 <span class="cond">${MIN_TOTAL}회↑</span></h4>
+      ${totalRows.map((r, i) => `
+      <div class="row">
+        <span class="medal ${medalCls(i)}">${i + 1}</span>
+        <span class="pname">${esc(r.name)}</span>
+        <span class="pval">${r.avg.toFixed(2)}<em> VP</em></span>
+        <span class="pval" style="width:4.6em">${r.avgRank.toFixed(2)}<em>등</em></span>
+        <span class="psub">/${r.n}회</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+
   const body = `
+  ${totalBoard}
   <div class="sec">
     <h2>미션별 성적 (등장 많은 순)</h2>
     <div class="grid">${[...MISSIONS].filter((d) => fm[d.id]).sort((a, b) => fm[b.id].games - fm[a.id].games).map(card).join('')}</div>
