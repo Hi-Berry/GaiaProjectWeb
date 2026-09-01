@@ -1,4 +1,4 @@
-/** 연방 리더보드 — 연방 토큰별 횟수/판당비율 TOP 3. 집계: 게임 종료 시점 보유 토큰(players.federations). */
+/** 연방 리더보드 — 연방 토큰별 횟수/판당비율 TOP 5. 집계: 게임 종료 시점 보유 토큰(players.federations). */
 import { canon, b64img, rankTakers, itemCard, pageShell, MIN_GAMES } from '../lib/common.mjs';
 
 export const meta = {
@@ -9,7 +9,7 @@ export const meta = {
   // [사용자] 연방 아이콘은 제일 좋은 '기술 연방'(우주선 연방 기술 타일 보상, Federation_11) 토큰 이미지로
   iconImg: b64img('Federation_11.gif'),
   accent: '#79c99e',
-  description: '연방 토큰별 최다 획득자 — 횟수·판당 비율 TOP 3',
+  description: '연방 토큰별 최다 획득자 — 횟수·판당 비율 TOP 5',
 };
 
 const STANDARD = [

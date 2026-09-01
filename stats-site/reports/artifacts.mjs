@@ -1,4 +1,4 @@
-/** 인공물 리더보드 — 인공물별 횟수/판당비율 TOP 3. 집계: 게임 로그의 art-* 기록(게임·플레이어·인공물당 1회). */
+/** 인공물 리더보드 — 인공물별 횟수/판당비율 TOP 5. 집계: 게임 로그의 art-* 기록(게임·플레이어·인공물당 1회). */
 import { canon, b64img, rankTakers, itemCard, pageShell, MIN_GAMES } from '../lib/common.mjs';
 
 export const meta = {
@@ -7,7 +7,7 @@ export const meta = {
   title: '인공물 리더보드',
   emoji: '🥚', // [사용자] 인공물을 통칭 '계란'이라고 부름 — 계란 아이콘은 인공물 담당
   accent: '#d9a45b',
-  description: '인공물(계란)별 최다 획득자 — 횟수·판당 비율 TOP 3',
+  description: '인공물(계란)별 최다 획득자 — 횟수·판당 비율 TOP 5',
 };
 
 const ARTS = [

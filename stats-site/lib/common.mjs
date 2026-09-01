@@ -71,7 +71,8 @@ export const b64img = (file) => {
   return `data:${mime};base64,${fs.readFileSync(path.join(IMG_DIR, file)).toString('base64')}`;
 };
 
-const MEDAL = ['gold', 'silver', 'bronze'];
+/** 순위 뱃지 클래스 — 1~3위 금은동, 그 아래는 무채색(rest) */
+export const medalCls = (i) => ['gold', 'silver', 'bronze'][i] ?? 'rest';
 
 /** {name,cnt,games,per}[] → 포디움 행 HTML. kind: 'cnt' | 'per'
  *  값(pval)과 보조표기(psub)를 분리해 고정폭 정렬 — 자릿수가 달라도 숫자 열이 맞는다. */
@@ -79,20 +80,23 @@ export function podiumHtml(rows, kind) {
   if (!rows || rows.length === 0) return '<div class="empty">기록 없음</div>';
   return rows.map((r, i) => `
     <div class="row">
-      <span class="medal ${MEDAL[i]}">${i + 1}</span>
+      <span class="medal ${medalCls(i)}">${i + 1}</span>
       <span class="pname">${esc(r.name)}</span>
       <span class="pval">${kind === 'cnt' ? `${r.cnt}개` : r.per.toFixed(2)}</span>
       <span class="psub">${kind === 'cnt' ? `/${r.games}판` : '/판'}</span>
     </div>`).join('');
 }
 
+/** 포디움 표시 인원 (사용자 2026-09-01: 3등까지는 아쉬움 → 5등까지) */
+export const TOP_N = 5;
+
 /** name→count 맵 → {byCnt, byPer, total} (판당비율은 MIN_GAMES 이상만) */
 export function rankTakers(byName, gamesPerPlayer) {
   const rows = Object.entries(byName).map(([name, cnt]) => ({ name, cnt, games: gamesPerPlayer[name] ?? 0, per: cnt / (gamesPerPlayer[name] || 1) }));
   return {
     total: rows.reduce((s, r) => s + r.cnt, 0),
-    byCnt: [...rows].sort((a, b) => b.cnt - a.cnt || b.per - a.per).slice(0, 3),
-    byPer: rows.filter((r) => r.games >= MIN_GAMES).sort((a, b) => b.per - a.per || b.cnt - a.cnt).slice(0, 3),
+    byCnt: [...rows].sort((a, b) => b.cnt - a.cnt || b.per - a.per).slice(0, TOP_N),
+    byPer: rows.filter((r) => r.games >= MIN_GAMES).sort((a, b) => b.per - a.per || b.cnt - a.cnt).slice(0, TOP_N),
   };
 }
 
@@ -187,6 +191,7 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .medal.gold { background: var(--gold); box-shadow: 0 0 8px rgba(242,193,78,.45); }
   .medal.silver { background: var(--silver); }
   .medal.bronze { background: var(--bronze); }
+  .medal.rest { background: #2c3a57; color: var(--muted); }
   .pname { font-size: 12.5px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .pval { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
           font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; flex-shrink: 0; text-align: right; }

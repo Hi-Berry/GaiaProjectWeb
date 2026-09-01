@@ -1,9 +1,9 @@
-/** 최종 미션 통계 — 미션별 등장 판수·평균 획득 VP·잘 먹는 사람 TOP 3.
+/** 최종 미션 통계 — 미션별 등장 판수·평균 획득 VP·잘 먹는 사람 TOP 5.
  *  0점 미션은 finalMissionDetails에서 빠지므로 판의 미션 목록을 4인 합집합으로 복원해 0점으로 센다
  *  (scripts/playerFinalMissionReport.mjs와 동일 방식). */
 import path from 'path';
 import fs from 'fs';
-import { REPO_ROOT, canon, pageShell, esc } from '../lib/common.mjs';
+import { REPO_ROOT, canon, pageShell, esc, medalCls, TOP_N } from '../lib/common.mjs';
 
 export const meta = {
   id: 'missions',
@@ -11,7 +11,7 @@ export const meta = {
   title: '최종 미션 통계',
   emoji: '🎯',
   accent: '#f0a6b4',
-  description: '최종 미션별 평균 획득 VP와 미션을 잘 먹는 사람 TOP 3',
+  description: '최종 미션별 평균 획득 VP와 미션을 잘 먹는 사람 TOP 5',
 };
 
 /** missionId → {label, img} — gameConfig FINAL_MISSION_LABELS 순서 = EGS_N.jpg 번호 */
@@ -32,8 +32,6 @@ const missionImgB64 = (n) => {
   const p = path.join(REPO_ROOT, 'client', 'public', 'image', `EGS_${n}.jpg`);
   return fs.existsSync(p) ? `data:image/jpeg;base64,${fs.readFileSync(p).toString('base64')}` : null;
 };
-
-const MEDAL = ['gold', 'silver', 'bronze'];
 
 export function build({ games }) {
   const fm = {}; // missionId -> { games, vpAll: number[], byName: name -> {n, sum} }
@@ -64,10 +62,10 @@ export function build({ games }) {
       .map(([name, b]) => ({ name, n: b.n, avg: b.sum / b.n }))
       .filter((r) => r.n >= MIN_APPEAR)
       .sort((a, b) => b.avg - a.avg)
-      .slice(0, 3);
+      .slice(0, TOP_N);
     const rows = top.length === 0 ? '<div class="empty">표본 부족</div>' : top.map((r, i) => `
       <div class="row">
-        <span class="medal ${MEDAL[i]}">${i + 1}</span>
+        <span class="medal ${medalCls(i)}">${i + 1}</span>
         <span class="pname">${esc(r.name)}</span>
         <span class="pval">${r.avg.toFixed(1)}<em> VP</em></span>
         <span class="psub">/${r.n}회</span>
@@ -83,7 +81,7 @@ export function build({ games }) {
     </header>
     <div class="boards">
       <div class="board" style="grid-column: 1 / -1;">
-        <h4>회당 평균 VP TOP 3 <span class="cond">${MIN_APPEAR}회↑</span></h4>
+        <h4>회당 평균 VP TOP ${TOP_N} <span class="cond">${MIN_APPEAR}회↑</span></h4>
         ${rows}
       </div>
     </div>

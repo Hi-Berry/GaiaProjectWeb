@@ -1,6 +1,6 @@
 /** 개인별 상성 분석 — 같이 치면 잘 풀리는(도움) / 안 풀리는(방해) 동반자.
  *  기준: A가 B와 '함께한 판'의 평균 순위 vs 'B 없이 친 판'의 평균 순위 차이(Δ). */
-import { gameRanks, pageShell, esc, MIN_GAMES } from '../lib/common.mjs';
+import { gameRanks, pageShell, esc, MIN_GAMES, medalCls, TOP_N } from '../lib/common.mjs';
 
 export const meta = {
   id: 'synergy',
@@ -14,8 +14,6 @@ export const meta = {
 /** 동반자 표본 최소 판수 — 본인 판수에 비례(÷3), 5~8판 사이로 클램프.
  *  [사용자 2026-09-01] 고정 8판이면 판수 적은 사람은 동반자가 다 잘려 '연관자 없음'처럼 보임. */
 const minShared = (myGames) => Math.max(5, Math.min(8, Math.round(myGames / 3)));
-
-const MEDAL = ['gold', 'silver', 'bronze'];
 
 export function build({ games }) {
   // pair[A][B] = {n, rankSum, scoreSum}  (A의 성적, B와 함께한 판)
@@ -59,13 +57,13 @@ export function build({ games }) {
     if (rows.length === 0) return '';
     // 순위가 실제로 좋아지는(▲) 사람만 왼쪽, 나빠지는(▼) 사람만 오른쪽 —
     // 표본이 적을 때 같은 사람이 양쪽에 중복 등장하던 혼동 제거.
-    const helpers = rows.filter((r) => r.dRank > 0).sort((a, b) => b.dRank - a.dRank).slice(0, 3);
-    const hinders = rows.filter((r) => r.dRank < 0).sort((a, b) => a.dRank - b.dRank).slice(0, 3);
+    const helpers = rows.filter((r) => r.dRank > 0).sort((a, b) => b.dRank - a.dRank).slice(0, TOP_N);
+    const hinders = rows.filter((r) => r.dRank < 0).sort((a, b) => a.dRank - b.dRank).slice(0, TOP_N);
 
     const arrow = (d, digits) => `${d >= 0 ? '▲' : '▼'}${Math.abs(d).toFixed(digits)}`;
     const row = (r, i, good) => `
       <div class="row" title="${esc(r.mate)}와 함께 ${r.n}판 — 순위 ${r.withRank.toFixed(2)}등(없이 ${r.withoutRank.toFixed(2)}) · 점수 ${r.withScore.toFixed(0)}점(없이 ${r.withoutScore.toFixed(0)})">
-        <span class="medal ${MEDAL[i]}">${i + 1}</span>
+        <span class="medal ${medalCls(i)}">${i + 1}</span>
         <span class="pname">${esc(r.mate)}</span>
         <span class="svc ${good ? 'good' : 'bad'}"><b>${r.withRank.toFixed(2)}등</b><i>${arrow(r.dRank, 2)}</i></span>
         <span class="svc ${r.dScore >= 0 ? 'good' : 'bad'}"><b>${r.withScore.toFixed(0)}점</b><i>${arrow(r.dScore, 1)}</i></span>

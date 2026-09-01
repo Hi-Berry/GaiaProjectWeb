@@ -1,4 +1,4 @@
-/** 일반 기술 타일 리더보드 — 타일별 누가 잘 챙겨가는지 (횟수·판당 비율 TOP 3).
+/** 일반 기술 타일 리더보드 — 타일별 누가 잘 챙겨가는지 (횟수·판당 비율 TOP 5).
  *  집계: 게임 종료 시점 보유(players.techTiles, 고급 타일로 덮인 것도 획득으로 침). */
 import path from 'path';
 import fs from 'fs';
@@ -10,7 +10,7 @@ export const meta = {
   title: '기술 타일 리더보드',
   emoji: '🔬',
   accent: '#7fb8e8',
-  description: '일반 기술 타일별 최다 획득자 — 횟수·판당 비율 TOP 3',
+  description: '일반 기술 타일별 최다 획득자 — 횟수·판당 비율 TOP 5',
 };
 
 const TILES = [
