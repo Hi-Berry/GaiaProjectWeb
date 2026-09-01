@@ -48,6 +48,18 @@ export function playerGameCounts(games) {
   return counts;
 }
 
+/** 게임 시각 (정렬용): completedAt > createdAt > 파일명 날짜 */
+export function gameTime({ file, game }) {
+  return game.completedAt ?? game.createdAt ?? Date.parse(file.slice(0, 10)) ?? 0;
+}
+
+/** 한 게임의 플레이어별 최종 순위 [{name, faction, score, rank}] — 동점은 같은 순위 */
+export function gameRanks(g) {
+  const rows = Object.values(g.players).map((p) => ({ name: canon(p.name), faction: p.faction, score: p.score ?? 0 }));
+  for (const r of rows) r.rank = 1 + rows.filter((x) => x.score > r.score).length;
+  return rows;
+}
+
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 export const b64img = (file) => {
   const mime = file.endsWith('.png') ? 'image/png' : file.endsWith('.jpg') ? 'image/jpeg' : 'image/gif';
@@ -190,6 +202,25 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .stamp { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 4px 10px;
     border-radius: 999px; border: 1px solid var(--line); background: var(--panel2);
     color: var(--muted); font-size: 12px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+  /* 통계 표 */
+  .tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+  table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tbl th { text-align: right; padding: 10px 12px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tbl th:first-child, .tbl td:first-child { text-align: left; }
+  .tbl th.l, .tbl td.l { text-align: left; }
+  .tbl td { padding: 8px 12px; border-bottom: 1px solid rgba(34,48,77,.5); text-align: right;
+    font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tbl td.name { font-family: 'IBM Plex Sans KR', sans-serif; font-weight: 700; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:nth-child(odd) td { background: rgba(14,21,36,.45); }
+  .tbl .top1 td { background: rgba(242,193,78,.10); }
+  .tbl .top1 td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+  .tbl .hi { color: var(--accent); font-weight: 600; }
+  .tbl .dim { color: var(--muted); }
+  .tbl .face { width: 26px; height: 34px; object-fit: cover; border-radius: 6px; vertical-align: middle;
+    margin-right: 8px; border: 1px solid var(--line); }
+  .legend { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.6; }
 </style>
 </head>
 <body>

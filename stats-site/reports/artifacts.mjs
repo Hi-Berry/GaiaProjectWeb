@@ -3,6 +3,7 @@ import { canon, b64img, rankTakers, itemCard, pageShell, MIN_GAMES } from '../li
 
 export const meta = {
   id: 'artifacts',
+  order: 4,
   title: '인공물 리더보드',
   emoji: '🥚', // [사용자] 인공물을 통칭 '계란'이라고 부름 — 계란 아이콘은 인공물 담당
   accent: '#d9a45b',

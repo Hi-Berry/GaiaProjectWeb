@@ -3,6 +3,7 @@ import { canon, b64img, rankTakers, itemCard, pageShell, MIN_GAMES } from '../li
 
 export const meta = {
   id: 'federation',
+  order: 3,
   title: '연방 리더보드',
   emoji: '🛰️',
   // [사용자] 연방 아이콘은 제일 좋은 '기술 연방'(우주선 연방 기술 타일 보상, Federation_11) 토큰 이미지로
