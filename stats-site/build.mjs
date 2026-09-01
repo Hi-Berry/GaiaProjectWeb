@@ -50,7 +50,7 @@ for (const r of reports) {
 // 메인 페이지
 const cards = reports.map((r) => `
   <a class="report" href="./${r.meta.id}.html">
-    <span class="ricon">${r.meta.emoji}</span>
+    <span class="ricon">${r.meta.iconImg ? `<img src="${r.meta.iconImg}" alt="" />` : r.meta.emoji}</span>
     <span class="rbody">
       <h3>${esc(r.meta.title)}</h3>
       <p>${esc(r.meta.description ?? '')}</p>

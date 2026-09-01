@@ -4,7 +4,9 @@ import { canon, b64img, rankTakers, itemCard, pageShell, MIN_GAMES } from '../li
 export const meta = {
   id: 'federation',
   title: '연방 리더보드',
-  emoji: '🥚',
+  emoji: '🛰️',
+  // [사용자] 연방 아이콘은 제일 좋은 '기술 연방'(우주선 연방 기술 타일 보상, Federation_11) 토큰 이미지로
+  iconImg: b64img('Federation_11.gif'),
   accent: '#79c99e',
   description: '연방 토큰별 최다 획득자 — 횟수·판당 비율 TOP 3',
 };
@@ -49,7 +51,7 @@ export function build({ games, gamesPerPlayer }) {
   </div>`;
 
   return pageShell({
-    title: meta.title, emoji: meta.emoji, accent: meta.accent,
+    title: meta.title, emoji: meta.emoji, iconImg: meta.iconImg, accent: meta.accent,
     intro: `전원 사람 <b>4인 게임 ${games.length}판</b> 기준, 연방 토큰별로 누가 많이 먹었나.
       <b>횟수</b>는 총 획득 수, <b>판당 비율</b>은 자기가 뛴 판수로 나눈 값(${MIN_GAMES}판 이상만 순위 진입).`,
     bodyHtml: section('일반 연방', STANDARD) + section('우주선 연방', SHIP),

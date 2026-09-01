@@ -98,18 +98,25 @@ export function itemCard({ label, imgSrc, stat }) {
 const faviconHref = (emoji) =>
   `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">${emoji}</text></svg>`)}`;
 
+/** 생성 일시 스탬프 (로컬 시각) — 모든 페이지 공통 "이 시점 자료 기준" 표기 */
+export function buildStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 /**
  * 공통 페이지 셸. bodyHtml에는 .sec/.grid/.egg 구조나 자유 HTML.
- * home=true면 메인 페이지(뒤로가기 링크 없음).
+ * home=true면 메인 페이지(뒤로가기 링크 없음). iconImg(데이터URI)를 주면 이모지 대신 이미지 아이콘/파비콘.
  */
-export function pageShell({ title, emoji, accent = '#79c99e', intro = '', bodyHtml, footNote = '', home = false }) {
+export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', intro = '', bodyHtml, footNote = '', home = false }) {
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)}</title>
-<link rel="icon" href="${faviconHref(emoji)}" />
+<link rel="icon" href="${iconImg ?? faviconHref(emoji)}" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" />
 <style>
@@ -176,15 +183,23 @@ export function pageShell({ title, emoji, accent = '#79c99e', intro = '', bodyHt
   .report .rbody { min-width: 0; }
   .report .rbody h3 { margin: 0 0 3px; font-size: 15px; font-weight: 700; }
   .report .rbody p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .report .ricon img, .h1icon { width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
+    border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent); background: #0a0e18; }
+  .h1icon { width: 46px; height: 46px; vertical-align: -6px; margin-right: 4px; }
+  .stamp { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 4px 10px;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--panel2);
+    color: var(--muted); font-size: 12px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
 <div class="wrap">
   ${home ? '' : '<a class="back" href="./index.html">← 가이아 통계 홈</a>'}
-  <h1>${emoji} <span class="green">${esc(title.replace(' 리더보드', '').replace('가이아 ', ''))}</span>${title.includes('리더보드') ? ' 리더보드' : ''}</h1>
+  <h1>${iconImg ? `<img class="h1icon" src="${iconImg}" alt="" />` : emoji} <span class="green">${esc(title.replace(' 리더보드', '').replace('가이아 ', ''))}</span>${title.includes('리더보드') ? ' 리더보드' : ''}</h1>
   ${intro ? `<p class="sub">${intro}</p>` : ''}
+  <div class="stamp">🕐 ${buildStamp()} 시점 자료 기준</div>
   ${bodyHtml}
-  <p class="foot">${footNote}${footNote ? ' · ' : ''}계정 통합(ALIAS)·제외 게임 적용 · ${new Date().toISOString().slice(0, 10)} 생성</p>
+  <p class="foot">${footNote}${footNote ? ' · ' : ''}계정 통합(ALIAS)·제외 게임 적용 · ${buildStamp()} 생성</p>
 </div>
 </body>
 </html>

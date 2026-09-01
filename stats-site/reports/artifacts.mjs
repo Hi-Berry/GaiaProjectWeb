@@ -4,9 +4,9 @@ import { canon, b64img, rankTakers, itemCard, pageShell, MIN_GAMES } from '../li
 export const meta = {
   id: 'artifacts',
   title: '인공물 리더보드',
-  emoji: '🏺',
+  emoji: '🥚', // [사용자] 인공물을 통칭 '계란'이라고 부름 — 계란 아이콘은 인공물 담당
   accent: '#d9a45b',
-  description: '인공물별 최다 획득자 — 횟수·판당 비율 TOP 3',
+  description: '인공물(계란)별 최다 획득자 — 횟수·판당 비율 TOP 3',
 };
 
 const ARTS = [
