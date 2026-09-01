@@ -1,8 +1,8 @@
 @echo off
-rem 가이아 통계 사이트 빌드 — 더블클릭하면 현재 data/human-games 자료로 dist/에 페이지 생성
-chcp 65001 >nul
+rem Gaia stats site builder - double-click to rebuild dist/ from current data/human-games
+rem (batch files are parsed in the OEM codepage, so keep this file ASCII-only)
 cd /d "%~dp0"
 node build.mjs
 echo.
-echo 결과 폴더: %~dp0dist
+echo Output folder: %~dp0dist
 pause
