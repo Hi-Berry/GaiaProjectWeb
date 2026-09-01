@@ -7,7 +7,7 @@ import { REPO_ROOT, canon, pageShell, esc } from '../lib/common.mjs';
 
 export const meta = {
   id: 'missions',
-  order: 6,
+  order: 7,
   title: '최종 미션 통계',
   emoji: '🎯',
   accent: '#f0a6b4',

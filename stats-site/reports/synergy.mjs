@@ -4,7 +4,7 @@ import { gameRanks, pageShell, esc, MIN_GAMES } from '../lib/common.mjs';
 
 export const meta = {
   id: 'synergy',
-  order: 7,
+  order: 8,
   title: '개인별 상성 분석',
   emoji: '🤝',
   accent: '#eab0d9',

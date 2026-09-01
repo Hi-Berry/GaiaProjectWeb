@@ -5,7 +5,7 @@ import { REPO_ROOT, gameRanks, pageShell, esc } from '../lib/common.mjs';
 
 export const meta = {
   id: 'advtiles',
-  order: 5,
+  order: 6,
   title: '고급 타일 랭킹',
   emoji: '🎖️',
   accent: '#5eead4',
