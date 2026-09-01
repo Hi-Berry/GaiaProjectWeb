@@ -53,14 +53,6 @@ const tileImgB64 = (() => {
   };
 })();
 
-// [사용자 2026-09-01] 타일은 이미지만 크게 (글자 라벨 제거, 마우스오버 툴팁으로만 유지)
-const tileCell = (id) => {
-  const def = ADV[id] ?? { label: id };
-  const img = tileImgB64(id);
-  return img
-    ? `<img class="tile big" src="${img}" alt="${esc(def.label)}" title="${esc(def.label)}" />`
-    : esc(def.label);
-};
 
 export function build({ games }) {
   const cases = []; // {game, date, name, tile, vp, won}
@@ -85,50 +77,72 @@ export function build({ games }) {
   }
   cases.sort((a, b) => b.vp - a.vp);
 
-  const topRows = cases.slice(0, 20).map((c, i) => `
-    <tr class="${i === 0 ? 'top1' : ''}">
-      <td>${i + 1}</td>
-      <td class="name l">${esc(c.name)}</td>
-      <td class="l">${tileCell(c.tile)}</td>
-      <td class="hi">${c.vp}</td>
-      <td class="dim l">${esc(c.game)}</td>
-    </tr>`).join('');
+  const medal = (i) => (i < 3 ? `<span class="rk m${i + 1}">${i + 1}</span>` : `<span class="rk">${i + 1}</span>`);
+  const tileImg = (id) => {
+    const def = ADV[id] ?? { label: id };
+    const img = tileImgB64(id);
+    return img ? `<img class="tile2" src="${img}" alt="${esc(def.label)}" title="${esc(def.label)}" />`
+      : `<span class="tile2 alt">${esc(def.label)}</span>`;
+  };
+
+  const topRows = cases.slice(0, 22).map((c, i) => `
+    <div class="trow${i === 0 ? ' first' : ''}">
+      ${medal(i)}
+      ${tileImg(c.tile)}
+      <div class="tmain"><b>${esc(c.name)}</b><span class="tsub">${esc(c.game)}</span></div>
+      <div class="tvp">${c.vp}<em>점</em></div>
+    </div>`).join('');
 
   const tileRows = Object.entries(perTile)
     .map(([tile, s]) => ({ tile, ...s, avg: s.vpSum / s.n }))
     .sort((a, b) => b.best - a.best)
     .map((r, i) => `
-    <tr class="${i === 0 ? 'top1' : ''}">
-      <td class="l">${tileCell(r.tile)}</td>
-      <td>${r.n}</td>
-      <td>${r.avg.toFixed(1)}</td>
-      <td class="hi">${r.best}</td>
-      <td class="name l">${esc(r.bestBy)}</td>
-      <td class="dim l">${esc(r.bestGame)}</td>
-    </tr>`).join('');
+    <div class="trow${i === 0 ? ' first' : ''}">
+      ${tileImg(r.tile)}
+      <div class="tmain"><b>${r.n}회 획득</b><span class="tsub">평균 ${r.avg.toFixed(1)}점</span></div>
+      <div class="tbest"><div class="tvp">${r.best}<em>점</em></div><span class="tsub">${esc(r.bestBy)} · ${esc(r.bestGame)}</span></div>
+    </div>`).join('');
 
   const body = `
-  <div class="sec">
-    <h2>한 장으로 최다 득점 TOP 20</h2>
-    <div class="tblwrap">
-      <table class="tbl">
-        <thead><tr><th>#</th><th class="l">플레이어</th><th class="l">타일</th><th>점수</th><th class="l">게임</th></tr></thead>
-        <tbody>${topRows}</tbody>
-      </table>
+  <style>
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; align-items: start; }
+    @media (max-width: 860px) { .cols2 { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; min-width: 0; }
+    .panel > h2 { font-size: 12px; letter-spacing: .16em; color: var(--accent); text-transform: uppercase;
+      margin: 2px 2px 10px; font-weight: 700; }
+    .trow { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 10px; min-width: 0; }
+    .trow:nth-child(odd) { background: var(--panel2); }
+    .trow.first { background: rgba(242,193,78,.10); box-shadow: inset 3px 0 0 var(--gold); }
+    .rk { width: 20px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      color: var(--muted); flex-shrink: 0; }
+    .rk.m1, .rk.m2, .rk.m3 { width: 20px; height: 20px; border-radius: 50%; display: inline-flex;
+      align-items: center; justify-content: center; color: #0b0f1a; font-weight: 700; }
+    .rk.m1 { background: var(--gold); box-shadow: 0 0 8px rgba(242,193,78,.45); }
+    .rk.m2 { background: var(--silver); } .rk.m3 { background: var(--bronze); }
+    .tile2 { width: 96px; height: 56px; object-fit: contain; border-radius: 8px; background: #0a0e18;
+      border: 1px solid var(--line); flex-shrink: 0; }
+    .tile2.alt { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); }
+    .tmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .tmain b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tsub { font-size: 10.5px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
+    .tbest { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
+    .tvp { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 18px;
+      font-weight: 700; color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+    .tvp em { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 1px; }
+  </style>
+  <div class="cols2">
+    <div class="panel">
+      <h2>한 장으로 최다 득점 TOP</h2>
+      ${topRows}
+    </div>
+    <div class="panel">
+      <h2>타일별 통계 (최고 기록순)</h2>
+      ${tileRows}
     </div>
   </div>
-  <div class="sec">
-    <h2>타일별 통계 (최고 기록순)</h2>
-    <div class="tblwrap">
-      <table class="tbl">
-        <thead><tr><th class="l">타일</th><th>획득</th><th>평균 득점</th><th>최고</th><th class="l">기록자</th><th class="l">게임</th></tr></thead>
-        <tbody>${tileRows}</tbody>
-      </table>
-    </div>
-    <p class="legend">점수 = 그 판에서 그 타일이 벌어준 VP 합계(즉시 점수 + 액션/패스로 누적된 점수, 점수 내역 기준).
-      일반 기술 타일 중 점수형인 '가이아 광산마다 3VP'도 함께 집계. 액션(3K/3O/1Q5C)·자원형 타일은 VP를
-      직접 주지 않아 표에 낮게/안 잡힐 수 있음. 타일 이미지에 마우스를 올리면 이름 표시. 열 제목 클릭 시 정렬.</p>
-  </div>`;
+  <p class="legend">점수 = 그 판에서 그 타일이 벌어준 VP 합계(즉시 + 액션/패스 누적, 점수 내역 기준) ·
+    일반 타일 중 점수형인 '가이아 광산마다 3VP' 포함 · 자원/액션형 타일은 VP를 직접 주지 않아 낮게/안 잡힘 ·
+    타일 이미지에 마우스를 올리면 이름 표시.</p>`;
 
   return pageShell({
     title: meta.title, emoji: meta.emoji, accent: meta.accent,
