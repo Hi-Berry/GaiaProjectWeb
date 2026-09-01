@@ -23,6 +23,10 @@ const TILES = [
   { id: 'tech-gaia-3vp', label: '가이아 광산마다 3VP', img: 'TechTile_B6.png' },
   { id: 'tech-big-4str', label: '대형건물 연방가 4', img: 'TechTile_B5.png' },
   { id: 'tech-act-4p', label: '액션: 파워 4', img: 'TechTile_B9.png' },
+  // [사용자 2026-09-01] 우주선 기술 타일 3종도 함께 표시 (탑승한 우주선에서만 획득 가능)
+  { id: 'ship-tech-nav+1', label: '우주선: 사거리 +1 (영구)', img: 'TechTile_B12.png' },
+  { id: 'ship-tech-1o3k', label: '우주선: 광석 1 + 지식 3', img: 'TechTile_B11.png' },
+  { id: 'ship-tech-2tf-mine', label: '우주선: 2테라폼 + 무료 광산', img: 'TechTile_B10.png' },
 ];
 
 const techImgB64 = (file) => {
@@ -36,7 +40,7 @@ export function build({ games, gamesPerPlayer }) {
     for (const p of Object.values(g.players)) {
       const name = canon(p.name);
       for (const tid of p.techTiles ?? []) {
-        if (!/^tech-/.test(tid)) continue; // 고급(adv-)·우주선(ship-tech-) 제외
+        if (!/^(tech-|ship-tech-)/.test(tid)) continue; // 고급(adv-)만 제외
         (take[tid] ??= {})[name] = (take[tid][name] ?? 0) + 1;
       }
     }
@@ -45,7 +49,7 @@ export function build({ games, gamesPerPlayer }) {
 
   const body = `
   <div class="sec">
-    <h2>일반 기술 타일 9종 (많이 나간 순)</h2>
+    <h2>일반 기술 타일 9종 + 우주선 기술 타일 3종 (많이 나간 순)</h2>
     <div class="grid">${[...TILES].filter((d) => stats[d.id])
       .sort((a, b) => stats[b.id].total - stats[a.id].total)
       .map((d) => itemCard({ label: d.label, imgSrc: techImgB64(d.img), stat: stats[d.id] })).join('')}</div>
