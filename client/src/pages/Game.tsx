@@ -5665,7 +5665,9 @@ export default function Game() {
 
         {/* 종족 선택 패널 (토글) */}
         {isFactionSelectOpen && ((game.currentPhase === 'startingMines' || game.currentPhase === 'factionSelect') && currentPlayer && !currentPlayer.faction) && (
-          <div className={`absolute top-20 z-50 w-96 max-h-[80vh] overflow-y-auto bg-zinc-900/95 border border-zinc-700 rounded-xl p-4 shadow-2xl transition-all duration-300 ease-in-out ${isSidebarOpen ? 'right-[356px]' : 'right-4'}`}>
+          // [버그수정 2026-09-01 사용자: 모바일 세로모드에서 패널 왼쪽이 화면 밖] 고정폭 w-96(384px)+우측 앵커라
+          // 384px보다 좁은 화면에선 왼쪽이 잘렸음 → 모바일은 left-4/right-4 전체폭, md+에서만 기존 w-96 우측 앵커.
+          <div className={`absolute top-20 z-50 left-4 right-4 md:left-auto md:w-96 max-h-[80vh] overflow-y-auto bg-zinc-900/95 border border-zinc-700 rounded-xl p-4 shadow-2xl transition-all duration-300 ease-in-out ${isSidebarOpen ? 'md:right-[356px]' : 'md:right-4'}`}>
             <FactionSelect
               game={game}
               playerId={playerId}
