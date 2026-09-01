@@ -69,7 +69,8 @@ export function build({ games }) {
       <div class="row">
         <span class="medal ${MEDAL[i]}">${i + 1}</span>
         <span class="pname">${esc(r.name)}</span>
-        <span class="pval">${r.avg.toFixed(1)}<em>VP/${r.n}회</em></span>
+        <span class="pval">${r.avg.toFixed(1)}<em> VP</em></span>
+        <span class="psub">/${r.n}회</span>
       </div>`).join('');
     return `
   <section class="egg">

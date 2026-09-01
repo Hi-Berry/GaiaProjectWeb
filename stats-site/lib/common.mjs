@@ -73,14 +73,16 @@ export const b64img = (file) => {
 
 const MEDAL = ['gold', 'silver', 'bronze'];
 
-/** {name,cnt,games,per}[] → 포디움 행 HTML. kind: 'cnt' | 'per' */
+/** {name,cnt,games,per}[] → 포디움 행 HTML. kind: 'cnt' | 'per'
+ *  값(pval)과 보조표기(psub)를 분리해 고정폭 정렬 — 자릿수가 달라도 숫자 열이 맞는다. */
 export function podiumHtml(rows, kind) {
   if (!rows || rows.length === 0) return '<div class="empty">기록 없음</div>';
   return rows.map((r, i) => `
     <div class="row">
       <span class="medal ${MEDAL[i]}">${i + 1}</span>
       <span class="pname">${esc(r.name)}</span>
-      <span class="pval">${kind === 'cnt' ? `${r.cnt}개<em>/${r.games}판</em>` : `${r.per.toFixed(2)}<em>/판</em>`}</span>
+      <span class="pval">${kind === 'cnt' ? `${r.cnt}개` : r.per.toFixed(2)}</span>
+      <span class="psub">${kind === 'cnt' ? `/${r.games}판` : '/판'}</span>
     </div>`).join('');
 }
 
@@ -185,8 +187,11 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .medal.bronze { background: var(--bronze); }
   .pname { font-size: 12.5px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .pval { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
-          font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+          font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; flex-shrink: 0; text-align: right; }
   .pval em { font-style: normal; color: var(--muted); font-weight: 500; font-size: 10px; }
+  /* 보조표기(/85판, /17회) — 고정폭 우측정렬로 값 숫자열을 맞춘다 (자릿수 달라도 세로 정렬 유지) */
+  .psub { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 10px;
+          color: var(--muted); white-space: nowrap; flex-shrink: 0; width: 3.4em; text-align: left; }
   .empty { color: var(--muted); font-size: 12px; padding: 6px 0; }
   .foot { margin-top: 34px; color: #5f6b85; font-size: 12px; line-height: 1.7; border-top: 1px solid var(--line); padding-top: 14px; }
   /* 메인 페이지 리포트 카드 */
@@ -268,6 +273,10 @@ document.querySelectorAll('table.tbl').forEach(function (tbl) {
         return asc ? String(x).localeCompare(String(y), 'ko') : String(y).localeCompare(String(x), 'ko');
       });
       rows.forEach(function (r) { tbody.appendChild(r); });
+      // '#' 열은 현재 정렬 기준의 순번으로 다시 매김 (원래 순위가 남아 있으면 정렬이 깨져 보임)
+      if (ths[0] && ths[0].textContent.trim() === '#') {
+        rows.forEach(function (r, i) { if (r.children[0]) r.children[0].textContent = String(i + 1); });
+      }
     });
   });
 });
