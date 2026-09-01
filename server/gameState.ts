@@ -7887,8 +7887,10 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		totalQicLog += getGaiaBaseQic(player.faction || '');
 	}
 	// 비용 표기는 실제 청구액(freeMine이면 0) 기준 — 기존엔 '1O, 2C'를 하드코딩해 무료 광산(우주선 연방 보상 등)에도 비용이 찍히던 버그(사용자 관찰)
+	// [사용자 2026-09-01] 무료 광산이라도 초과 테라포밍 광석은 실제로 차감됨(예: 2TF+FreeMine으로 3스텝 행성)
+	//   → 표기 누락이었음. 유료 분기와 동일하게 'NO terraform' 세그먼트 표기.
 	const costDetails = freeMine
-		? `Free${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}`
+		? `Free${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`
 		: `${standardMineOre}O, ${standardMineCredits}C${totalQicLog > 0 ? `, ${totalQicLog}QIC` : ''}${terraformCost > 0 ? `, ${terraformCost}O terraform` : ''}`;
 	addGameLog(game, playerId, 'Built Mine', `on ${tile.type} (${costDetails})`, tileId);
 	for (const seg of gaiaMineVpSegments) appendVpSegmentToLastLog(game, playerId, seg.vp, seg.reason);
