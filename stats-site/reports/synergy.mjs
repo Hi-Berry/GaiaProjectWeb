@@ -11,7 +11,9 @@ export const meta = {
   description: '같이 치면 잘 풀리는 사람 / 안 풀리는 사람 — 함께한 판의 평균 순위 변화',
 };
 
-const MIN_SHARED = 8; // 동반자 표본 최소 판수
+/** 동반자 표본 최소 판수 — 본인 판수에 비례(÷3), 5~8판 사이로 클램프.
+ *  [사용자 2026-09-01] 고정 8판이면 판수 적은 사람은 동반자가 다 잘려 '연관자 없음'처럼 보임. */
+const minShared = (myGames) => Math.max(5, Math.min(8, Math.round(myGames / 3)));
 
 const MEDAL = ['gold', 'silver', 'bronze'];
 
@@ -37,8 +39,9 @@ export function build({ games }) {
     .sort((a, b) => b[1].games - a[1].games);
 
   const card = ([name, s]) => {
+    const shared = minShared(s.games);
     const rows = Object.entries(pair[name] ?? {})
-      .filter(([, p]) => p.n >= MIN_SHARED)
+      .filter(([, p]) => p.n >= shared)
       .map(([mate, p]) => {
         const withoutN = s.games - p.n;
         if (withoutN <= 0) return null;
@@ -73,7 +76,7 @@ export function build({ games }) {
     <header class="egg-head">
       <div class="egg-title">
         <h3>${esc(name)}</h3>
-        <span class="egg-total">${s.games}판 · 승률 ${((s.wins / s.games) * 100).toFixed(0)}% · 평균 ${(s.rankSum / s.games).toFixed(2)}등 · ${(s.scoreSum / s.games).toFixed(0)}점</span>
+        <span class="egg-total">${s.games}판 · 승률 ${((s.wins / s.games) * 100).toFixed(0)}% · 평균 ${(s.rankSum / s.games).toFixed(2)}등 · ${(s.scoreSum / s.games).toFixed(0)}점 · 동반 ${shared}판↑ 기준</span>
       </div>
     </header>
     <div class="boards">
@@ -104,8 +107,8 @@ export function build({ games }) {
   return pageShell({
     title: meta.title, emoji: meta.emoji, accent: meta.accent,
     intro: `전원 사람 <b>4인 게임 ${games.length}판</b> 기준. 각 행은 <b>그 사람과 함께한 판에서의 내 평균 순위와 평균 점수</b>,
-      ▲▼는 그 사람 없이 친 판 대비 변화(▲=함께일 때 더 좋음). 같은 판 ${MIN_SHARED}회 이상 동반자만,
-      본인 ${MIN_GAMES}판 이상만 표시. 행에 마우스를 올리면 상세.`,
+      ▲▼는 그 사람 없이 친 판 대비 변화(▲=함께일 때 더 좋음). 동반자 최소 판수는 본인 판수÷3(5~8판)으로
+      카드마다 다름(헤더에 표기), 본인 ${MIN_GAMES}판 이상만 표시. 행에 마우스를 올리면 상세.`,
     bodyHtml: body,
     footNote: '주의: 상관관계일 뿐 인과가 아님 — 같이 친 시기·인원 구성의 영향이 섞여 있음',
   });
