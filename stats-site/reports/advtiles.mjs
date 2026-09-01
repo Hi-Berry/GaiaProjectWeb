@@ -35,7 +35,10 @@ const ADV = {
   'adv-pass-3vp-fed': { label: '패스: 연방×3 VP', img: 'TechTile_A5.png' },
   'adv-pass-2vp-asteroid': { label: '패스: 소행성×2 VP', img: 'TechTile_A18.png' },
   'adv-pass-2vp-outer': { label: '패스: 외곽 섹터×2 VP', img: 'TechTile_A17.png' },
+  // [사용자 2026-09-01] 일반 기술 타일이지만 점수 누적형이라 함께 집계
+  'tech-gaia-3vp': { label: '가이아 광산마다 3VP (일반)', img: 'TechTile_B6.png' },
 };
+const COUNTED = /^(adv-|tech-gaia-3vp$)/;
 
 const tileImgB64 = (() => {
   const cache = {};
@@ -50,10 +53,13 @@ const tileImgB64 = (() => {
   };
 })();
 
+// [사용자 2026-09-01] 타일은 이미지만 크게 (글자 라벨 제거, 마우스오버 툴팁으로만 유지)
 const tileCell = (id) => {
   const def = ADV[id] ?? { label: id };
   const img = tileImgB64(id);
-  return `${img ? `<img class="tile" src="${img}" alt="" />` : ''}${esc(def.label)}`;
+  return img
+    ? `<img class="tile big" src="${img}" alt="${esc(def.label)}" title="${esc(def.label)}" />`
+    : esc(def.label);
 };
 
 export function build({ games }) {
@@ -64,15 +70,16 @@ export function build({ games }) {
     for (const p of Object.values(g.players)) {
       const sums = {};
       for (const t of p.scoreBreakdown?.techTiles ?? []) {
-        if (!/^adv-/.test(t.tileId ?? '')) continue;
+        if (!COUNTED.test(t.tileId ?? '')) continue;
         sums[t.tileId] = (sums[t.tileId] ?? 0) + (t.vp ?? 0);
       }
       const name = ranks.find((r) => r.score === (p.score ?? 0) && r.faction === p.faction)?.name ?? p.name;
       for (const [tile, vp] of Object.entries(sums)) {
-        cases.push({ game: file.replace('.json', ''), name, tile, vp });
+        const date = file.slice(0, 10); // [사용자] 게임은 날짜만 표기 (아이디 제외)
+        cases.push({ game: date, name, tile, vp });
         const s = (perTile[tile] ??= { n: 0, vpSum: 0, best: 0, bestBy: '', bestGame: '' });
         s.n++; s.vpSum += vp;
-        if (vp > s.best) { s.best = vp; s.bestBy = name; s.bestGame = file.replace('.json', ''); }
+        if (vp > s.best) { s.best = vp; s.bestBy = name; s.bestGame = date; }
       }
     }
   }
@@ -119,7 +126,8 @@ export function build({ games }) {
       </table>
     </div>
     <p class="legend">점수 = 그 판에서 그 타일이 벌어준 VP 합계(즉시 점수 + 액션/패스로 누적된 점수, 점수 내역 기준).
-      액션(3K/3O/1Q5C)·자원형 타일은 VP를 직접 주지 않아 표에 낮게/안 잡힐 수 있음. 열 제목 클릭 시 정렬.</p>
+      일반 기술 타일 중 점수형인 '가이아 광산마다 3VP'도 함께 집계. 액션(3K/3O/1Q5C)·자원형 타일은 VP를
+      직접 주지 않아 표에 낮게/안 잡힐 수 있음. 타일 이미지에 마우스를 올리면 이름 표시. 열 제목 클릭 시 정렬.</p>
   </div>`;
 
   return pageShell({

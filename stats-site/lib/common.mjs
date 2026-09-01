@@ -236,6 +236,7 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
     margin-right: 8px; border: 1px solid var(--line); }
   .tbl .tile { width: 44px; height: 26px; object-fit: contain; border-radius: 4px; vertical-align: middle;
     margin-right: 8px; background: #0a0e18; border: 1px solid var(--line); }
+  .tbl .tile.big { width: 78px; height: 46px; border-radius: 6px; margin-right: 0; }
   .mission-img { width: 84px; height: 58px; object-fit: cover; border-radius: 10px; flex-shrink: 0;
     border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
     box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent); background: #0a0e18; }
