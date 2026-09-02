@@ -3455,8 +3455,9 @@ export default function Game() {
         document.body
       )}
 
-      {/* [다른 기기 이어하기] 좌석도 관전 ID도 없는 기기에서 게임을 열면, 방 한정 이름/비번으로 내 좌석 복귀 */}
-      {!playerId && !isSpectator && !loading && game && String(game.currentPhase) !== 'lobby' && typeof document !== 'undefined' && createPortal(
+      {/* [다른 기기 이어하기] 좌석도 관전 ID도 없는 기기에서 게임을 열면, 방 한정 이름/비번으로 내 좌석 복귀
+          (noIdentity 게이트가 떠 있으면 게이트 쪽 폼을 쓰므로 중복 표시 안 함) */}
+      {!playerId && !isSpectator && !noIdentity && !loading && game && String(game.currentPhase) !== 'lobby' && typeof document !== 'undefined' && createPortal(
         <div className="fixed left-1/2 top-16 z-[130] w-[min(92vw,20rem)] -translate-x-1/2 rounded-xl border border-emerald-400/30 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur-md">
           <div className="mb-1 text-xs font-black text-emerald-300">내 자리로 이어하기</div>
           <div className="mb-2 text-[10px] leading-snug text-zinc-500">참가할 때 쓴 이름과 (이 방 한정) 비밀번호를 입력하세요. 비밀번호를 안 걸었다면 원래 기기에서만 조작할 수 있습니다.</div>
@@ -5703,10 +5704,11 @@ export default function Game() {
           );
         })()}
 
-        {/* [사용자 2026-09-02] 좌석/관전 ID 없는 순수 URL 접속 안내 게이트 — 깨진 조작 화면 대신 선택지 제공 */}
+        {/* [사용자 2026-09-02] 좌석/관전 ID 없는 순수 URL 접속 안내 게이트 — 깨진 조작 화면 대신 선택지 제공.
+            body 포털 + z-400: 포털 모달(z-200대)·배너들 위에 확실히 덮이도록. */}
         {/* (로비는 이 지점에 오기 전에 GameLobby로 분기되므로 별도 제외 불필요) */}
-        {noIdentity && !playerId && !isSpectator && (
-          <div className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+        {noIdentity && !playerId && !isSpectator && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950 p-6 space-y-4 shadow-2xl">
               <h2 className="text-lg font-black text-white">이 기기에는 접속 정보가 없습니다</h2>
               <p className="text-sm text-zinc-400 leading-relaxed">
@@ -5732,7 +5734,8 @@ export default function Game() {
                 방장은 관리자 모드에서 좌석별 이어하기 링크를 뽑아줄 수 있습니다.
               </p>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* 종족 선택 토글 버튼은 GameBoard의 Round 표시 영역에 추가됨 */}
