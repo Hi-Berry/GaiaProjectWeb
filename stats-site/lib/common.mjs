@@ -100,15 +100,15 @@ export function rankTakers(byName, gamesPerPlayer) {
   };
 }
 
-/** 아이템 카드 (이미지 + 횟수/판당비율 포디움) */
-export function itemCard({ label, imgSrc, stat }) {
+/** 아이템 카드 (이미지 + 횟수/판당비율 포디움). imgHtml을 주면 img 태그 대신 그대로 사용(스트립 크롭/이모지용). */
+export function itemCard({ label, imgSrc, imgHtml, stat, verb = '획득' }) {
   return `
   <section class="egg">
     <header class="egg-head">
-      <img class="egg-img" src="${imgSrc}" alt="${esc(label)}" width="58" height="58" />
+      ${imgHtml ?? `<img class="egg-img" src="${imgSrc}" alt="${esc(label)}" width="58" height="58" />`}
       <div class="egg-title">
         <h3>${esc(label)}</h3>
-        <span class="egg-total">총 ${stat.total}개 획득</span>
+        <span class="egg-total">총 ${stat.total}회 ${verb}</span>
       </div>
     </header>
     <div class="boards">
