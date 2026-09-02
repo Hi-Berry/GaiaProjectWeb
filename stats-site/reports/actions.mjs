@@ -69,11 +69,10 @@ const TECH_ACTS = [
 // 기타 특수 액션 — 실제 이미지: 보너스 액션=보너스 타일(BoostTile_N), 아카데미=건물 이미지, 발타크 4C=종족 초상
 // [사용자 2026-09-02] 아카데미 정큐/발타크 4C 분리 + 이모지 대신 게임 이미지
 const ETC = [
-  { key: 'acad-q', match: (a, d) => a === 'Academy (Right)' && /QIC/.test(d), img: 'image/buildings/titanium_academy.png', mime: 'image/png', label: '아카데미: 정큐 획득' },
-  { key: 'acad-4c', match: (a, d) => a === 'Academy (Right)' && !/QIC/.test(d), faction: 'bal_tak', label: '발타크: 아카데미 4C' },
-  { key: 'bon-tf', match: (a, d) => a === 'Bonus Action' && /Terraform Step/i.test(d), img: 'image/BoostTile_1.jpg', label: '보너스: 테라폼 스텝' },
-  { key: 'bon-gaia', match: (a, d) => a === 'Bonus Action' && /Gaia Project/i.test(d), img: 'image/BoostTile_12.jpg', label: '보너스: 가이아 프로젝트' },
-  { key: 'bon-range', match: (a, d) => a === 'Bonus Action' && /Range/i.test(d), img: 'image/BoostTile_7.jpg', label: '보너스: 사거리 +3' },
+  { key: 'acad-q', match: (a, d) => a === 'Academy (Right)' && /QIC/.test(d), img: 'image/buildings/titanium_academy.png', mime: 'image/png', pad: true, label: '아카데미: 정큐 획득' },
+  { key: 'bon-tf', match: (a, d) => a === 'Bonus Action' && /Terraform Step/i.test(d), img: 'image/BoostTile_1.jpg', rot: true, label: '보너스: 테라폼 스텝' },
+  { key: 'bon-gaia', match: (a, d) => a === 'Bonus Action' && /Gaia Project/i.test(d), img: 'image/BoostTile_12.jpg', rot: true, label: '보너스: 가이아 프로젝트' },
+  { key: 'bon-range', match: (a, d) => a === 'Bonus Action' && /Range/i.test(d), img: 'image/BoostTile_7.jpg', rot: true, label: '보너스: 사거리 +3' },
 ];
 
 // 종족 특수 액션 (액션 라벨 접두 → 종족 id, 초상 아이콘)
@@ -122,6 +121,8 @@ export function build({ games, gamesPerPlayer }) {
         if (t) add(`ta${t.tile}`, name);
         continue;
       }
+      // 발타크 아카데미 4C — 종족 특수 섹션으로 (분모 = 발타크 잡은 판수)
+      if (a === 'Academy (Right)' && !/QIC/.test(d)) { add('fsbaltak4c', name); continue; }
       const etc = ETC.find((x) => x.match(a, d));
       if (etc) { add(`etc${etc.key}`, name); continue; }
       const fsp = FACTION_SPECIALS.find((x) => a.startsWith(x.prefix));
@@ -143,21 +144,24 @@ export function build({ games, gamesPerPlayer }) {
     return cardIf(`ta${t.tile}`, t.label, img ? `<img class="egg-img" src="${img}" alt="${esc(t.label)}" width="58" height="58" />` : emojiImg('🎫', t.label));
   }).join('');
   const etcCards = ETC.map((e) => {
-    const src = e.faction ? factionFaceB64(e.faction) : imgB64(e.img, e.mime ?? 'image/jpeg');
-    // 보너스 타일은 세로형이라 원형 크롭에서 잘림 → contain으로 전체 표시
-    const fit = e.img && /BoostTile/.test(e.img) ? ' style="object-fit:contain"' : '';
-    const imgHtml = src ? `<img class="egg-img" src="${src}" alt="${esc(e.label)}"${fit} />` : emojiImg('⚡', e.label);
+    const src = imgB64(e.img, e.mime ?? 'image/jpeg');
+    if (!src) return cardIf(`etc${e.key}`, e.label, emojiImg('⚡', e.label));
+    // rot: 세로형 보너스 타일을 90° 눕혀 원형에 꽉 차게 / pad: 건물 이미지는 여백을 줘 축소
+    const imgHtml = e.rot
+      ? `<span class="egg-img rotwrap" title="${esc(e.label)}"><img src="${src}" alt="" /></span>`
+      : `<img class="egg-img" src="${src}" alt="${esc(e.label)}"${e.pad ? ' style="object-fit:contain;padding:7px"' : ''} />`;
     return cardIf(`etc${e.key}`, e.label, imgHtml);
   }).join('');
-  const fsCards = FACTION_SPECIALS.map((f) => {
-    const img = factionFaceB64(f.fid);
-    const byName = take[`fs${f.fid}`];
+  const factionCard = (fid, label, byName) => {
     if (!byName) return '';
     // 분모 = 그 종족을 잡은 판수, 최소 3판부터 비율 순위 진입
-    const s = rankTakers(byName, factionGames[f.fid] ?? {}, 3);
-    const imgHtml = img ? `<img class="egg-img" src="${img}" alt="${esc(f.label)}" />` : emojiImg('👽', f.label);
-    return itemCard({ label: f.label, imgHtml, stat: s, verb: '사용' });
-  }).join('');
+    const s = rankTakers(byName, factionGames[fid] ?? {}, 3);
+    const img = factionFaceB64(fid);
+    const imgHtml = img ? `<img class="egg-img" src="${img}" alt="${esc(label)}" />` : emojiImg('👽', label);
+    return itemCard({ label, imgHtml, stat: s, verb: '사용' });
+  };
+  const fsCards = FACTION_SPECIALS.map((f) => factionCard(f.fid, f.label, take[`fs${f.fid}`])).join('')
+    + factionCard('bal_tak', '발타크: 아카데미 4C', take['fsbaltak4c']);
 
   const stripCss = (cls, rel) => {
     const img = imgB64(rel);
@@ -168,6 +172,10 @@ export function build({ games, gamesPerPlayer }) {
   <style>
     .egg-img.strip { display: inline-block; background-size: auto 100%; background-repeat: no-repeat; }
     .egg-img.emoji { display: inline-flex; align-items: center; justify-content: center; font-size: 27px; }
+    /* 세로형 보너스 타일을 90° 눕혀 원형 크롭 (가운데 띠가 보이도록 2배 확대) */
+    .egg-img.rotwrap { display: inline-block; position: relative; overflow: hidden; width: 58px; height: 58px; }
+    .egg-img.rotwrap img { position: absolute; top: 50%; left: 50%; height: 200%; width: auto; max-width: none;
+      transform: translate(-50%, -50%) rotate(-90deg); }
     ${stripCss('pa', 'image/powerAction.jpg')}
     ${SHIPS.map((s) => stripCss(`sh-${s.key}`, s.img)).join('\n')}
   </style>
