@@ -80,7 +80,6 @@ const FACTION_SPECIALS = [
   { prefix: 'Space Giants: Special', fid: 'space_giants', label: '스자: 테라폼 2스텝' },
   { prefix: 'Gleens: Special', fid: 'gleens', label: '글린: 항해 +2 (다음 액션)' },
   { prefix: 'Ambas: Special', fid: 'ambas', label: '엠바스: PI↔광산 교체' },
-  { prefix: 'Tinkeroid: Special', fid: 'tinkeroids', label: '팅커로이드: 라운드 특수' },
   { prefix: 'Moweyip: Special', fid: 'moweyip', label: '모웨이드: 링 놓기' },
   { prefix: 'Firaks: Downgrade', fid: 'firaks', label: '파이락: 연구소 다운그레이드' },
 ];
@@ -146,10 +145,10 @@ export function build({ games, gamesPerPlayer }) {
   const etcCards = ETC.map((e) => {
     const src = imgB64(e.img, e.mime ?? 'image/jpeg');
     if (!src) return cardIf(`etc${e.key}`, e.label, emojiImg('⚡', e.label));
-    // rot: 세로형 보너스 타일을 90° 눕혀 원형에 꽉 차게 / pad: 건물 이미지는 여백을 줘 축소
+    // rot: 세로형 보너스 타일을 90° 눕혀 라운드 사각형에 전체 표시 / pad: 건물 이미지는 여백을 줘 축소
     const imgHtml = e.rot
-      ? `<span class="egg-img rotwrap" title="${esc(e.label)}"><img src="${src}" alt="" /></span>`
-      : `<img class="egg-img" src="${src}" alt="${esc(e.label)}"${e.pad ? ' style="object-fit:contain;padding:7px"' : ''} />`;
+      ? `<span class="bonwrap" title="${esc(e.label)}"><img src="${src}" alt="" /></span>`
+      : `<img class="egg-img" src="${src}" alt="${esc(e.label)}" width="58" height="58"${e.pad ? ' style="object-fit:contain;padding:6px"' : ''} />`;
     return cardIf(`etc${e.key}`, e.label, imgHtml);
   }).join('');
   const factionCard = (fid, label, byName) => {
@@ -157,7 +156,7 @@ export function build({ games, gamesPerPlayer }) {
     // 분모 = 그 종족을 잡은 판수, 최소 3판부터 비율 순위 진입
     const s = rankTakers(byName, factionGames[fid] ?? {}, 3);
     const img = factionFaceB64(fid);
-    const imgHtml = img ? `<img class="egg-img" src="${img}" alt="${esc(label)}" />` : emojiImg('👽', label);
+    const imgHtml = img ? `<img class="egg-img" src="${img}" alt="${esc(label)}" width="58" height="58" />` : emojiImg('👽', label);
     return itemCard({ label, imgHtml, stat: s, verb: '사용' });
   };
   const fsCards = FACTION_SPECIALS.map((f) => factionCard(f.fid, f.label, take[`fs${f.fid}`])).join('')
@@ -172,10 +171,14 @@ export function build({ games, gamesPerPlayer }) {
   <style>
     .egg-img.strip { display: inline-block; background-size: auto 100%; background-repeat: no-repeat; }
     .egg-img.emoji { display: inline-flex; align-items: center; justify-content: center; font-size: 27px; }
-    /* 세로형 보너스 타일을 90° 눕혀 원형 크롭 (가운데 띠가 보이도록 2배 확대) */
-    .egg-img.rotwrap { display: inline-block; position: relative; overflow: hidden; width: 58px; height: 58px; }
-    .egg-img.rotwrap img { position: absolute; top: 50%; left: 50%; height: 200%; width: auto; max-width: none;
+    /* 세로형 보너스 타일(78×249)을 90° 눕혀 라운드 사각형에 전체 표시 (110×36) */
+    .bonwrap { display: inline-block; position: relative; overflow: hidden; width: 110px; height: 36px;
+      border-radius: 8px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      background: #0a0e18; flex-shrink: 0; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 20%, transparent); }
+    .bonwrap img { position: absolute; top: 50%; left: 50%; height: 110px; width: auto; max-width: none;
       transform: translate(-50%, -50%) rotate(-90deg); }
+    /* 스트립/이모지/일반 아이콘 크기 고정 — 원본이 커도 옆 칸을 밀지 않게 */
+    .egg-img { width: 58px; height: 58px; }
     ${stripCss('pa', 'image/powerAction.jpg')}
     ${SHIPS.map((s) => stripCss(`sh-${s.key}`, s.img)).join('\n')}
   </style>
