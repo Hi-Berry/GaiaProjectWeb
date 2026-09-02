@@ -1,7 +1,7 @@
 /** 액션 사용 통계 — 파워 액션 7종 / 우주선 액션 12종 / 기술·특수 액션별 누가 많이 쓰나. */
 import path from 'path';
 import fs from 'fs';
-import { REPO_ROOT, canon, rankTakers, itemCard, pageShell, esc, MIN_GAMES } from '../lib/common.mjs';
+import { REPO_ROOT, canon, gameRanks, rankTakers, itemCard, pageShell, esc, MIN_GAMES } from '../lib/common.mjs';
 import { factionFaceB64 } from '../lib/factions.mjs';
 
 export const meta = {
@@ -89,6 +89,17 @@ export function build({ games, gamesPerPlayer }) {
   const take = {};
   const add = (key, name) => { (take[key] ??= {})[name] = (take[key][name] ?? 0) + 1; };
 
+  // 종족 특수용 분모: 그 종족을 잡은 판수 (fid -> name -> count)
+  // [사용자 2026-09-02] 전체 판수를 분모로 쓰면 그 종족을 가끔 잡는 사람의 비율이 이상하게 낮아짐
+  const factionGames = {};
+  for (const { game: g } of games) {
+    for (const r of gameRanks(g)) {
+      if (!r.faction) continue;
+      ((factionGames[r.faction] ??= {})[r.name] ??= 0);
+      factionGames[r.faction][r.name]++;
+    }
+  }
+
   for (const { game: g } of games) {
     for (const l of g.gameLog ?? []) {
       const a = l.action ?? '';
@@ -132,7 +143,12 @@ export function build({ games, gamesPerPlayer }) {
   const etcCards = ETC.map((e) => cardIf(`etc${e.emoji}`, e.label, emojiImg(e.emoji, e.label))).join('');
   const fsCards = FACTION_SPECIALS.map((f) => {
     const img = factionFaceB64(f.fid);
-    return cardIf(`fs${f.fid}`, f.label, img ? `<img class="egg-img" src="${img}" alt="${esc(f.label)}" />` : emojiImg('👽', f.label));
+    const byName = take[`fs${f.fid}`];
+    if (!byName) return '';
+    // 분모 = 그 종족을 잡은 판수, 최소 3판부터 비율 순위 진입
+    const s = rankTakers(byName, factionGames[f.fid] ?? {}, 3);
+    const imgHtml = img ? `<img class="egg-img" src="${img}" alt="${esc(f.label)}" />` : emojiImg('👽', f.label);
+    return itemCard({ label: f.label, imgHtml, stat: s, verb: '사용' });
   }).join('');
 
   const stripCss = (cls, rel) => {
@@ -151,13 +167,15 @@ export function build({ games, gamesPerPlayer }) {
   <div class="sec"><h2>우주선 액션</h2><div class="grid">${shipCards}</div></div>
   <div class="sec"><h2>기술 타일 액션</h2><div class="grid">${techCards}</div></div>
   <div class="sec"><h2>기타 특수 액션</h2><div class="grid">${etcCards}</div></div>
-  <div class="sec"><h2>종족 특수 액션</h2><div class="grid">${fsCards}</div></div>`;
+  <div class="sec"><h2>종족 특수 액션</h2><div class="grid">${fsCards}</div>
+    <p class="legend">종족 특수의 판당 비율은 <b>그 종족을 잡은 판수</b>가 분모(그 종족 3판 이상만 순위 진입) —
+      예: 팅커로이드 특수 6.0/판 = 잡을 때마다 매 라운드 사용.</p></div>`;
 
   return pageShell({
     title: meta.title, emoji: meta.emoji, accent: meta.accent,
     intro: `전원 사람 <b>4인 게임 ${games.length}판</b>의 게임 로그 기준, 액션별로 누가 많이 쓰는지.
       <b>횟수</b>는 총 사용 수, <b>판당 비율</b>은 자기가 뛴 판수로 나눈 값(${MIN_GAMES}판 이상만 순위 진입).
-      종족 특수는 그 종족을 잡은 판에서만 쓸 수 있음을 감안해서 볼 것.`,
+      단 종족 특수 섹션의 비율은 그 종족을 잡은 판수 기준.`,
     bodyHtml: body,
     footNote: '집계: 게임 로그의 액션 기록 · 우주선 연방 재수령은 트와일라잇 액션만(아티팩트 경유 제외)',
   });

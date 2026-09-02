@@ -90,13 +90,13 @@ export function podiumHtml(rows, kind) {
 /** 포디움 표시 인원 (사용자 2026-09-01: 3등까지는 아쉬움 → 5등까지) */
 export const TOP_N = 5;
 
-/** name→count 맵 → {byCnt, byPer, total} (판당비율은 MIN_GAMES 이상만) */
-export function rankTakers(byName, gamesPerPlayer) {
+/** name→count 맵 → {byCnt, byPer, total} (판당비율은 minGames 이상만 — 기본 MIN_GAMES) */
+export function rankTakers(byName, gamesPerPlayer, minGames = MIN_GAMES) {
   const rows = Object.entries(byName).map(([name, cnt]) => ({ name, cnt, games: gamesPerPlayer[name] ?? 0, per: cnt / (gamesPerPlayer[name] || 1) }));
   return {
     total: rows.reduce((s, r) => s + r.cnt, 0),
     byCnt: [...rows].sort((a, b) => b.cnt - a.cnt || b.per - a.per).slice(0, TOP_N),
-    byPer: rows.filter((r) => r.games >= MIN_GAMES).sort((a, b) => b.per - a.per || b.cnt - a.cnt).slice(0, TOP_N),
+    byPer: rows.filter((r) => r.games >= minGames).sort((a, b) => b.per - a.per || b.cnt - a.cnt).slice(0, TOP_N),
   };
 }
 
