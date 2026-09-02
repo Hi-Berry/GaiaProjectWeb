@@ -18,9 +18,10 @@ const imgB64 = (rel, mime = 'image/jpeg') => {
   return fs.existsSync(p) ? `data:${mime};base64,${fs.readFileSync(p).toString('base64')}` : null;
 };
 
-/** 스트립 이미지(가로 N등분 보드)에서 idx칸만 보여주는 원형 크롭 — CSS 클래스는 페이지 style에 정의 */
+/** 스트립 이미지(가로 N등분 보드)에서 idx칸만 보여주는 원형 크롭 — CSS 클래스는 페이지 style에 정의.
+ *  게임 로그와 동일하게 '칸 폭 기준 확대 + 하단 정렬'로 위쪽 파워비용부는 잘라내고 액션 아이콘만 보여준다. */
 const stripImg = (cls, cols, idx, label) =>
-  `<span class="egg-img strip ${cls}" title="${esc(label)}" style="background-position:${(idx / (cols - 1)) * 100}% 50%"></span>`;
+  `<span class="egg-img strip ${cls}" title="${esc(label)}" style="background-position:${(idx / (cols - 1)) * 100}% 100%"></span>`;
 const emojiImg = (e, label) => `<span class="egg-img emoji" title="${esc(label)}">${e}</span>`;
 
 // 파워 액션 7종 — powerAction.jpg 좌→우 순서 (GameLog POWER_ACTION_STRIP과 동일)
@@ -162,14 +163,15 @@ export function build({ games, gamesPerPlayer }) {
   const fsCards = FACTION_SPECIALS.map((f) => factionCard(f.fid, f.label, take[`fs${f.fid}`])).join('')
     + factionCard('bal_tak', '발타크: 아카데미 4C', take['fsbaltak4c']);
 
-  const stripCss = (cls, rel) => {
+  const stripCss = (cls, rel, cols) => {
     const img = imgB64(rel);
-    return img ? `.egg-img.${cls} { background-image: url('${img}'); }` : '';
+    // background-size: (cols*100)% auto — 각 칸의 '폭'이 아이콘 크기(58px)에 딱 맞게, 세로는 하단 크롭
+    return img ? `.egg-img.${cls} { background-image: url('${img}'); background-size: ${cols * 100}% auto; }` : '';
   };
 
   const body = `
   <style>
-    .egg-img.strip { display: inline-block; background-size: auto 100%; background-repeat: no-repeat; }
+    .egg-img.strip { display: inline-block; background-repeat: no-repeat; }
     .egg-img.emoji { display: inline-flex; align-items: center; justify-content: center; font-size: 27px; }
     /* 세로형 보너스 타일(78×249)을 90° 눕혀 라운드 사각형에 전체 표시 (110×36) */
     .bonwrap { display: inline-block; position: relative; overflow: hidden; width: 110px; height: 36px;
@@ -179,8 +181,8 @@ export function build({ games, gamesPerPlayer }) {
       transform: translate(-50%, -50%) rotate(-90deg); }
     /* 스트립/이모지/일반 아이콘 크기 고정 — 원본이 커도 옆 칸을 밀지 않게 */
     .egg-img { width: 58px; height: 58px; }
-    ${stripCss('pa', 'image/powerAction.jpg')}
-    ${SHIPS.map((s) => stripCss(`sh-${s.key}`, s.img)).join('\n')}
+    ${stripCss('pa', 'image/powerAction.jpg', 7)}
+    ${SHIPS.map((s) => stripCss(`sh-${s.key}`, s.img, 3)).join('\n')}
   </style>
   <div class="sec"><h2>파워 액션</h2><div class="grid">${powerCards}</div></div>
   <div class="sec"><h2>우주선 액션</h2><div class="grid">${shipCards}</div></div>
