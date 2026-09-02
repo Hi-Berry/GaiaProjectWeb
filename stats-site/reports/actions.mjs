@@ -66,12 +66,14 @@ const TECH_ACTS = [
   { re: /^Gained 1 QIC and 5 Credits/, tile: 'TechTile_A8.png', label: '고급타일: 정큐 1 + 크레딧 5' },
 ];
 
-// 기타 특수 액션 (이모지 아이콘)
+// 기타 특수 액션 — 실제 이미지: 보너스 액션=보너스 타일(BoostTile_N), 아카데미=건물 이미지, 발타크 4C=종족 초상
+// [사용자 2026-09-02] 아카데미 정큐/발타크 4C 분리 + 이모지 대신 게임 이미지
 const ETC = [
-  { match: (a, d) => a === 'Academy (Right)', emoji: '🎓', label: '아카데미: 정큐/4C (특수)' },
-  { match: (a, d) => a === 'Bonus Action' && /Terraform Step/i.test(d), emoji: '⛏️', label: '보너스: 테라폼 스텝' },
-  { match: (a, d) => a === 'Bonus Action' && /Gaia Project/i.test(d), emoji: '🌱', label: '보너스: 가이아 프로젝트' },
-  { match: (a, d) => a === 'Bonus Action' && /Range/i.test(d), emoji: '🚀', label: '보너스: 사거리 +3' },
+  { key: 'acad-q', match: (a, d) => a === 'Academy (Right)' && /QIC/.test(d), img: 'image/buildings/titanium_academy.png', mime: 'image/png', label: '아카데미: 정큐 획득' },
+  { key: 'acad-4c', match: (a, d) => a === 'Academy (Right)' && !/QIC/.test(d), faction: 'bal_tak', label: '발타크: 아카데미 4C' },
+  { key: 'bon-tf', match: (a, d) => a === 'Bonus Action' && /Terraform Step/i.test(d), img: 'image/BoostTile_1.jpg', label: '보너스: 테라폼 스텝' },
+  { key: 'bon-gaia', match: (a, d) => a === 'Bonus Action' && /Gaia Project/i.test(d), img: 'image/BoostTile_12.jpg', label: '보너스: 가이아 프로젝트' },
+  { key: 'bon-range', match: (a, d) => a === 'Bonus Action' && /Range/i.test(d), img: 'image/BoostTile_7.jpg', label: '보너스: 사거리 +3' },
 ];
 
 // 종족 특수 액션 (액션 라벨 접두 → 종족 id, 초상 아이콘)
@@ -121,7 +123,7 @@ export function build({ games, gamesPerPlayer }) {
         continue;
       }
       const etc = ETC.find((x) => x.match(a, d));
-      if (etc) { add(`etc${etc.emoji}`, name); continue; }
+      if (etc) { add(`etc${etc.key}`, name); continue; }
       const fsp = FACTION_SPECIALS.find((x) => a.startsWith(x.prefix));
       if (fsp) add(`fs${fsp.fid}`, name);
     }
@@ -140,7 +142,13 @@ export function build({ games, gamesPerPlayer }) {
     const img = imgB64(`tech/${t.tile}`, 'image/png');
     return cardIf(`ta${t.tile}`, t.label, img ? `<img class="egg-img" src="${img}" alt="${esc(t.label)}" width="58" height="58" />` : emojiImg('🎫', t.label));
   }).join('');
-  const etcCards = ETC.map((e) => cardIf(`etc${e.emoji}`, e.label, emojiImg(e.emoji, e.label))).join('');
+  const etcCards = ETC.map((e) => {
+    const src = e.faction ? factionFaceB64(e.faction) : imgB64(e.img, e.mime ?? 'image/jpeg');
+    // 보너스 타일은 세로형이라 원형 크롭에서 잘림 → contain으로 전체 표시
+    const fit = e.img && /BoostTile/.test(e.img) ? ' style="object-fit:contain"' : '';
+    const imgHtml = src ? `<img class="egg-img" src="${src}" alt="${esc(e.label)}"${fit} />` : emojiImg('⚡', e.label);
+    return cardIf(`etc${e.key}`, e.label, imgHtml);
+  }).join('');
   const fsCards = FACTION_SPECIALS.map((f) => {
     const img = factionFaceB64(f.fid);
     const byName = take[`fs${f.fid}`];
