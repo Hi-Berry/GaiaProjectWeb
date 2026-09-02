@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type 
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
-import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, type GameState, type PlayerState } from '@/lib/gameClient';
+import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, storeSpectatorId, type GameState, type PlayerState } from '@/lib/gameClient';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
@@ -291,6 +291,22 @@ export default function Game() {
       window.location.reload(); // 저장된 playerId로 정상 재접속 부트
     } catch (e: any) {
       setRejoinMsg(e?.message || '이어하기에 실패했습니다.');
+    }
+  };
+  // [사용자 2026-09-02] 주소만 복사해 다른 기기에서 열면(좌석/관전 ID 없음) 조작 불가 상태의 깨진 화면이
+  // 그대로 노출됨 → 안내 게이트를 띄우고 '관전으로 보기 / 좌석 이어하기'를 제공한다.
+  const [noIdentity, setNoIdentity] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
+  const handleWatchAsSpectator = async () => {
+    if (!gameId) return;
+    setWatchBusy(true);
+    try {
+      const res = await GameClient.watchGame(gameId);
+      storeSpectatorId(gameId, res.spectatorId);
+      window.location.reload(); // 저장된 관전 ID로 정상 관전 부트
+    } catch (e: any) {
+      toast({ title: '관전 입장 실패', description: e?.message || '', variant: 'destructive' });
+      setWatchBusy(false);
     }
   };
   const handleDownloadSnapshot = async () => {
@@ -1221,6 +1237,9 @@ export default function Game() {
         if (storedSpectatorId) {
           setPlayerId(null);
           setIsSpectator(true);
+        } else if (!storedPlayerId) {
+          // 좌석도 관전 ID도 없는 순수 URL 접속 — 조작/실시간이 안 되므로 안내 게이트 표시
+          setNoIdentity(true);
         }
       } catch (err: any) {
         console.error('Failed to fetch game:', err);
@@ -5683,6 +5702,38 @@ export default function Game() {
             </AlertDialog>
           );
         })()}
+
+        {/* [사용자 2026-09-02] 좌석/관전 ID 없는 순수 URL 접속 안내 게이트 — 깨진 조작 화면 대신 선택지 제공 */}
+        {/* (로비는 이 지점에 오기 전에 GameLobby로 분기되므로 별도 제외 불필요) */}
+        {noIdentity && !playerId && !isSpectator && (
+          <div className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950 p-6 space-y-4 shadow-2xl">
+              <h2 className="text-lg font-black text-white">이 기기에는 접속 정보가 없습니다</h2>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                주소만 복사해 열면 좌석·관전 정보가 없어 게임을 조작하거나 실시간으로 볼 수 없습니다.
+                아래 중 하나로 입장하세요.
+              </p>
+              <Button className="w-full h-11 font-bold" disabled={watchBusy} onClick={() => void handleWatchAsSpectator()}>
+                👁 관전으로 보기
+              </Button>
+              <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3 space-y-2">
+                <div className="text-[11px] font-black uppercase tracking-wider text-zinc-400">내 좌석 이어하기 (참가할 때 비밀번호를 걸었던 경우)</div>
+                <input value={rejoinName} onChange={(e) => setRejoinName(e.target.value)} placeholder="이름"
+                  className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
+                <input value={rejoinPw} onChange={(e) => setRejoinPw(e.target.value)} placeholder="비밀번호" type="password"
+                  className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
+                {rejoinMsg && <div className="text-[11px] text-red-400">{rejoinMsg}</div>}
+                <Button variant="outline" className="w-full h-9 text-sm font-bold" onClick={() => void handleAccountRejoin()}>
+                  좌석으로 입장
+                </Button>
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                플레이하던 기기에서 옮겨오려면 그 기기의 도움말(?)에서 <b>이어하기 링크 복사</b>로 받은 링크를 여세요.
+                방장은 관리자 모드에서 좌석별 이어하기 링크를 뽑아줄 수 있습니다.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 종족 선택 토글 버튼은 GameBoard의 Round 표시 영역에 추가됨 */}
 
