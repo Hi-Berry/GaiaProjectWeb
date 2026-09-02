@@ -343,6 +343,28 @@ async function uploadToSupabase(payload: HumanGamePayload) {
   log(`Human game dataset uploaded to Supabase: ${payload.gameId}`, 'system', payload.gameId);
 }
 
+/** [사용자 2026-09-02] 게임 저장 직후 통계 사이트 재빌드 트리거 — env 없으면 no-op(기존 서버 영향 0).
+ *  - GitHub Actions: STATS_BUILD_HOOK_URL=https://api.github.com/repos/<owner>/<repo>/dispatches
+ *    + STATS_BUILD_HOOK_TOKEN=repo 권한 PAT → repository_dispatch(event_type: game-finished)
+ *  - Netlify 빌드훅 등 무인증 POST: URL만 설정하면 {gameId}를 body로 POST */
+async function triggerStatsRebuild(gameId: string) {
+  const url = process.env.STATS_BUILD_HOOK_URL;
+  if (!url) return;
+  const token = process.env.STATS_BUILD_HOOK_TOKEN;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: token
+        ? { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/json' },
+      body: JSON.stringify(token ? { event_type: 'game-finished', client_payload: { gameId } } : { gameId }),
+    });
+    log(`Stats rebuild hook: HTTP ${res.status} (${gameId})`, 'system', gameId);
+  } catch (e) {
+    log(`Stats rebuild hook failed: ${(e as Error)?.message}`, 'error', gameId);
+  }
+}
+
 export async function exportHumanGameDataset(game: GaiaGameState & {
   id?: string;
   createdAt?: number;
@@ -362,6 +384,7 @@ export async function exportHumanGameDataset(game: GaiaGameState & {
   const hasSupabaseCreds = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (storage === 'supabase' || (hasSupabaseCreds && storage !== 'local')) {
     await uploadToSupabase(payload);
+    void triggerStatsRebuild(payload.gameId); // 업로드 성공 후 통계 사이트 재빌드 (fire-and-forget)
     return;
   }
   writeLocalPayload(payload);
