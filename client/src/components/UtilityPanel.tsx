@@ -124,9 +124,11 @@ export interface UtilityPanelProps {
   measureA: string | null;
   measureB: string | null;
   onClearMeasure: () => void;
+  /** [사용자 2026-09-02] '남은 땅' 행 호버 시 그 유형의 빈 행성을 맵에 하이라이트 */
+  onHoverLandType?: (type: PlanetType | null) => void;
 }
 
-export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMode, setMeasureMode, measureA, measureB, onClearMeasure }: UtilityPanelProps) {
+export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMode, setMeasureMode, measureA, measureB, onClearMeasure, onHoverLandType }: UtilityPanelProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 위치 드래그 — 채팅창과 동일 방식. null이면 기본(맵 우하단) 앵커.
@@ -332,9 +334,16 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           <div
             className="grid gap-x-3 gap-y-0.5 overflow-y-auto custom-scrollbar"
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(84px, max-content))', justifyContent: 'start', height: `${listHeight}px` }}
+            onMouseLeave={() => onHoverLandType?.(null)}
           >
             {counts.map((c) => (
-              <div key={c.type} className="flex items-center gap-1 min-w-0" title={c.label}>
+              <div
+                key={c.type}
+                className="flex items-center gap-1 min-w-0 rounded px-0.5 -mx-0.5 hover:bg-emerald-500/15 cursor-default"
+                title={`${c.label} — 마우스를 올리면 맵에 남은 칸 표시`}
+                onMouseEnter={() => c.n > 0 && onHoverLandType?.(c.type)}
+                onMouseLeave={() => onHoverLandType?.(null)}
+              >
                 <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: PLANET_COLORS[c.type] ?? '#888' }} />
                 <span className="text-[10px] text-zinc-400 truncate">{c.label}</span>
                 <span className={`text-[11px] font-bold ml-auto ${c.n === 0 ? 'text-zinc-600' : 'text-zinc-100'}`}>{c.n}</span>

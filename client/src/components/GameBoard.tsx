@@ -838,9 +838,11 @@ export function GameBoard({
   const [measureMode, setMeasureMode] = useState<'A' | 'B' | null>(null);
   const [measureA, setMeasureA] = useState<string | null>(null);
   const [measureB, setMeasureB] = useState<string | null>(null);
+  // [사용자 2026-09-02] 편의기능 '남은 땅' 행 마우스오버 → 그 유형의 비어 있는 행성을 맵에 하이라이트
+  const [hoveredLandType, setHoveredLandType] = useState<PlanetType | null>(null);
   const clearMeasure = useCallback(() => { setMeasureA(null); setMeasureB(null); setMeasureMode(null); }, []);
   // 창을 닫으면 맵 위의 A·B 표시도 같이 정리(닫아 놓고 표식만 남아 헷갈리지 않게)
-  useEffect(() => { if (!utilityOpen) clearMeasure(); }, [utilityOpen, clearMeasure]);
+  useEffect(() => { if (!utilityOpen) { clearMeasure(); setHoveredLandType(null); } }, [utilityOpen, clearMeasure]);
   // 기본 위치를 '맵 영역 우하단'으로 — 우측 상태창/로그 폭만큼 띄운다. 사이드바 폭 변경도 따라가게 ResizeObserver.
   const [mapAnchorRight, setMapAnchorRight] = useState(12);
   useEffect(() => {
@@ -1833,6 +1835,19 @@ export function GameBoard({
                       </g>
                     )}
 
+                    {/* [사용자 2026-09-02] 편의기능 '남은 땅' 호버 — 그 유형의 비어 있는 행성을 유형 색 링으로 */}
+                    {hoveredLandType && tile.type === hoveredLandType
+                      && !tile.structure && !tile.parasiticMine && !tile.hasGaiaformer && (() => {
+                        const c = PLANET_COLORS[hoveredLandType] ?? '#34d399';
+                        return (
+                          <g className="pointer-events-none">
+                            <circle r="4.3" fill="none" stroke={c} strokeWidth={1} className="animate-pulse"
+                              style={{ filter: `drop-shadow(0 0 7px ${c})`, opacity: 1 }} />
+                            <circle r="4.6" fill="none" stroke="#ffffff" strokeWidth={0.3} opacity={0.85} />
+                          </g>
+                        );
+                      })()}
+
                     {/* [사용자 2026-08-31] 연방 로그 호버 — 그 연방 형성 당시의 칸만 금색 링 (건물·위성·빈 연결칸 포함) */}
                     {hoveredLogFed && hoveredLogFedHexSet.has(tile.id) && (
                       <g className="pointer-events-none">
@@ -2355,6 +2370,7 @@ export function GameBoard({
             measureA={measureA}
             measureB={measureB}
             onClearMeasure={clearMeasure}
+            onHoverLandType={setHoveredLandType}
           />,
           document.body
         )}
