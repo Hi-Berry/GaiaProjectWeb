@@ -48,6 +48,16 @@ const PAD = 6;          // 구멍을 대상보다 조금 크게
 const GAP = 12;         // 구멍과 설명 카드 사이 간격
 const CARD_W = 300;
 
+/** 요소가 '존재하고 렌더 중'인지 (뷰포트 밖이어도 OK — 단계 진입 시 스크롤로 데려온다).
+ *  [사용자 2026-09-02] 시작 필터가 뷰포트 검사까지 해서, 상태창 아래로 스크롤된 건물/포머 단계가
+ *  잘려 모바일에서 3단계만 남던 문제 — 존재 여부만 보고 남긴다. */
+export function tourTargetExists(sel: string): boolean {
+  const el = document.querySelector(sel);
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return r.width >= 2 && r.height >= 2; // display:none/접힘만 걸러냄
+}
+
 function measure(sel: string): Rect | null {
   const el = document.querySelector(sel);
   if (!el) return null;
@@ -62,15 +72,25 @@ const same = (a: Rect | null, b: Rect | null) =>
     && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1);
 
 export function OnboardingTour({ steps, onDone }: { steps: TourStep[]; onDone: () => void }) {
-  /** 시작 시점에 '화면에 실제로 있는' 단계만 남긴다 — 진행 표시(2/4)가 건너뛴 단계까지 세지 않게.
-   *  데스크톱/모바일에서 서로 없는 요소(좌하단 묶음 vs 하단 탭바)가 자동으로 걸러진다. */
-  const [list] = useState<TourStep[]>(() => steps.filter((st) => measure(st.sel)));
+  /** 시작 시점에 '실제로 렌더 중인' 단계만 남긴다 — 진행 표시(2/4)가 건너뛴 단계까지 세지 않게.
+   *  데스크톱/모바일에서 서로 없는 요소(좌하단 묶음 vs 하단 탭바)가 자동으로 걸러진다.
+   *  뷰포트 밖(스크롤 아래) 요소는 남기고, 단계 진입 시 scrollIntoView로 데려온다. */
+  const [list] = useState<TourStep[]>(() => steps.filter((st) => tourTargetExists(st.sel)));
   const [idx, setIdx] = useState(0);
   const [rect, setRect] = useState<Rect | null>(() => measure(list[0]?.sel ?? ''));
   const rectRef = useRef<Rect | null>(rect);
   rectRef.current = rect;
 
   const step = list[idx];
+
+  // 단계 진입 시 대상이 뷰포트 밖이면 스크롤로 데려온다 (상태창 아래쪽 카드 등)
+  useEffect(() => {
+    if (!step?.sel) return;
+    const el = document.querySelector(step.sel);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) el.scrollIntoView({ block: 'center' });
+  }, [step?.sel]);
 
   // 위치 추적: 맵을 끌거나 패널이 열려도 구멍이 따라오게 매 프레임 다시 잰다(짧게 쓰는 오버레이라 부담 적음).
   useEffect(() => {
@@ -87,8 +107,8 @@ export function OnboardingTour({ steps, onDone }: { steps: TourStep[]; onDone: (
   const go = useCallback((d: 1 | -1) => {
     setIdx((i) => {
       let n = i + d;
-      // 진행 중에 사라진 요소(패널을 닫았다 등)는 지나친다
-      while (n >= 0 && n < list.length && !measure(list[n].sel)) n += d;
+      // 진행 중에 사라진 요소(패널을 닫았다 등)는 지나친다 — 뷰포트 밖은 스크롤로 보여줄 수 있으니 존재만 확인
+      while (n >= 0 && n < list.length && !tourTargetExists(list[n].sel)) n += d;
       if (n >= list.length || n < 0) { onDone(); return i; }
       return n;
     });
