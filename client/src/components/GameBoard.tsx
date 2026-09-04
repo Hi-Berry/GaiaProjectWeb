@@ -1744,12 +1744,12 @@ export function GameBoard({
                     onClick={() => handleTileClick(tile)}
                     style={{
                       fill: 'transparent', // 배경 이미지가 잘 보이도록 투명하게 설정
-                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#eaf2ff' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
+                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#f0c27a' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
                       strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : 0.2,
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       fillOpacity: isHighlighted || isEclipseBuildable || isShipActionSelectable ? 0.9 : 1.0,
-                      filter: isEclipseBuildable ? 'drop-shadow(0px 0px 8px rgba(34, 197, 94, 0.9))' : isShipActionSelectable ? 'drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.9))' : isHighlighted ? 'drop-shadow(0px 0px 4px rgba(220, 235, 255, 0.6))' : 'none',
+                      filter: isEclipseBuildable ? 'drop-shadow(0px 0px 8px rgba(34, 197, 94, 0.9))' : isShipActionSelectable ? 'drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.9))' : isHighlighted ? 'drop-shadow(0px 0px 4px rgba(240, 194, 122, 0.6))' : 'none',
                     }}
                   >
                     {/* Planet Circle (Round Shape) removed as they are in the background image */}
@@ -1839,10 +1839,10 @@ export function GameBoard({
                         key={highlightedTileId}로 로그를 훑을 때마다 remount돼 재생된다(다른 칸으로 옮겨가도 새로 팝). */}
                     {highlightedTileId === tile.id && (
                       <g key={highlightedTileId} className="gaia-log-pop pointer-events-none">
-                        {/* [사용자 2026-09-04] 마젠타/금색 다 반려 → 차분한 흰빛 + 약한 글로우(눈부심↓) */}
-                        <circle r="4.35" fill="none" stroke="#eaf2ff" strokeWidth={0.85}
-                          style={{ filter: 'drop-shadow(0 0 4px rgba(220,235,255,0.7))' }} />
-                        <circle r="4.7" fill="none" stroke="#eaf2ff" strokeWidth={0.25} opacity={0.5} />
+                        {/* [사용자 2026-09-04] 연한 앰버 + 약한 글로우 (연방 금색 #FFD700보다 옅어 구분됨) */}
+                        <circle r="4.35" fill="none" stroke="#f0c27a" strokeWidth={0.85}
+                          style={{ filter: 'drop-shadow(0 0 4px rgba(240,194,122,0.7))' }} />
+                        <circle r="4.7" fill="none" stroke="#f0c27a" strokeWidth={0.25} opacity={0.5} />
                       </g>
                     )}
 
