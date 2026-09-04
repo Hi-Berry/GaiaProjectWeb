@@ -1835,6 +1835,16 @@ export function GameBoard({
                       </g>
                     )}
 
+                    {/* [사용자 2026-09-04] 로그 호버 하이라이트 칸: '팍 줌인 → 원래 칸 크기' 팝 애니메이션.
+                        key={highlightedTileId}로 로그를 훑을 때마다 remount돼 재생된다(다른 칸으로 옮겨가도 새로 팝). */}
+                    {highlightedTileId === tile.id && (
+                      <g key={highlightedTileId} className="gaia-log-pop pointer-events-none">
+                        <circle r="4.35" fill="none" stroke="#FFD700" strokeWidth={0.9}
+                          style={{ filter: 'drop-shadow(0 0 7px rgba(255,215,0,0.85))' }} />
+                        <circle r="4.65" fill="none" stroke="#fff8dc" strokeWidth={0.3} opacity={0.9} />
+                      </g>
+                    )}
+
                     {/* [사용자 2026-09-02] 편의기능 '남은 땅' 호버 — 그 유형의 비어 있는 행성을 유형 색 링으로 */}
                     {hoveredLandType && tile.type === hoveredLandType
                       && !tile.structure && !tile.parasiticMine && !tile.hasGaiaformer && (() => {
