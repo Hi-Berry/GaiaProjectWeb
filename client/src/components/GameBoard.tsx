@@ -1744,12 +1744,12 @@ export function GameBoard({
                     onClick={() => handleTileClick(tile)}
                     style={{
                       fill: 'transparent', // 배경 이미지가 잘 보이도록 투명하게 설정
-                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FFD700' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
+                      stroke: isSelected ? '#00FFFF' : isFederationSelected ? '#0ea5e9' : isEclipseBuildable ? '#22c55e' : isShipActionSelectable ? '#a855f7' : isHighlighted ? '#FF2FB0' : (tile.type === 'space' || tile.type === 'deep_space' ? '#333' : '#555'),
                       strokeWidth: isSelected ? 0.8 : (isHighlighted || isEclipseBuildable || isShipActionSelectable || isFederationSelected) ? 0.6 : 0.2,
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       fillOpacity: isHighlighted || isEclipseBuildable || isShipActionSelectable ? 0.9 : 1.0,
-                      filter: isEclipseBuildable ? 'drop-shadow(0px 0px 8px rgba(34, 197, 94, 0.9))' : isShipActionSelectable ? 'drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.9))' : isHighlighted ? 'drop-shadow(0px 0px 8px rgba(255, 215, 0, 0.8))' : 'none',
+                      filter: isEclipseBuildable ? 'drop-shadow(0px 0px 8px rgba(34, 197, 94, 0.9))' : isShipActionSelectable ? 'drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.9))' : isHighlighted ? 'drop-shadow(0px 0px 8px rgba(255, 47, 176, 0.85))' : 'none',
                     }}
                   >
                     {/* Planet Circle (Round Shape) removed as they are in the background image */}
@@ -1839,9 +1839,10 @@ export function GameBoard({
                         key={highlightedTileId}로 로그를 훑을 때마다 remount돼 재생된다(다른 칸으로 옮겨가도 새로 팝). */}
                     {highlightedTileId === tile.id && (
                       <g key={highlightedTileId} className="gaia-log-pop pointer-events-none">
-                        <circle r="4.35" fill="none" stroke="#FFD700" strokeWidth={0.9}
-                          style={{ filter: 'drop-shadow(0 0 7px rgba(255,215,0,0.85))' }} />
-                        <circle r="4.65" fill="none" stroke="#fff8dc" strokeWidth={0.3} opacity={0.9} />
+                        {/* [사용자 2026-09-04] 연방건물 금색과 헷갈려서 밝은 마젠타로 — 맵에 안 쓰인 색이라 잘 띈다 */}
+                        <circle r="4.35" fill="none" stroke="#FF2FB0" strokeWidth={1.0}
+                          style={{ filter: 'drop-shadow(0 0 8px rgba(255,47,176,0.95))' }} />
+                        <circle r="4.7" fill="none" stroke="#ffffff" strokeWidth={0.35} opacity={0.9} />
                       </g>
                     )}
 
