@@ -798,6 +798,14 @@ export default function Game() {
     const n = Number((() => { try { return localStorage.getItem('single-mini-page'); } catch { return null; } })());
     return n === 1 || n === 2 ? n : 0;
   });
+  /** [사용자 2026-09-04] 단일 미니뷰 '세로 스택' 모드 — 3탭 스와이프 대신 모바일 세로처럼 전부 붙여 스크롤 */
+  const [singleMiniStacked, setSingleMiniStacked] = useState<boolean>(() => {
+    try { return localStorage.getItem('single-mini-stacked') === 'on'; } catch { return false; }
+  });
+  const toggleSingleMiniStacked = () => setSingleMiniStacked((v) => {
+    const nv = !v; try { localStorage.setItem('single-mini-stacked', nv ? 'on' : 'off'); } catch { /* noop */ }
+    return nv;
+  });
   /** [사용자 2026-08-20] 탭 이동은 순환 — Tactical에서 → 누르면 Research로, Research에서 ←면 Tactical로.
    *  끝에서 막히면 한 방향으로 되돌아가야 해서 3탭에서는 순환이 손이 덜 간다. */
   const gotoMiniPage = (n: number) => {
@@ -7550,15 +7558,19 @@ export default function Game() {
                 /* [사용자 2026-08-20] 단일 미니뷰 헤더 — 모바일 세로 오버레이와 같은 3탭 구성.
                    좌우 버튼·탭 클릭·키보드 화살표에 더해 본문 좌우 스와이프(드래그)로도 이동. */
                 <div className="flex items-center gap-1 min-w-0" onPointerDown={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    aria-label="이전 탭"
-                    onClick={() => gotoMiniPage(singleMiniPage - 1)}
-                    className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10"
-                  >
-                    ◀
-                  </button>
-                  {['Research', 'Ships', 'Tactical'].map((label, i) => (
+                  {!singleMiniStacked && (
+                    <button
+                      type="button"
+                      aria-label="이전 탭"
+                      onClick={() => gotoMiniPage(singleMiniPage - 1)}
+                      className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10"
+                    >
+                      ◀
+                    </button>
+                  )}
+                  {singleMiniStacked ? (
+                    <span className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-tight text-blue-100">세로 스택 (전체)</span>
+                  ) : ['Research', 'Ships', 'Tactical'].map((label, i) => (
                     <button
                       key={label}
                       type="button"
@@ -7568,13 +7580,25 @@ export default function Game() {
                       {label}
                     </button>
                   ))}
+                  {!singleMiniStacked && (
+                    <button
+                      type="button"
+                      aria-label="다음 탭"
+                      onClick={() => gotoMiniPage(singleMiniPage + 1)}
+                      className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10"
+                    >
+                      ▶
+                    </button>
+                  )}
+                  {/* [사용자 2026-09-04] 탭 넘기기 ↔ 세로 스택 전환 */}
                   <button
                     type="button"
-                    aria-label="다음 탭"
-                    onClick={() => gotoMiniPage(singleMiniPage + 1)}
-                    className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10"
+                    aria-label={singleMiniStacked ? '탭 모드로' : '세로 스택 모드로'}
+                    title={singleMiniStacked ? '탭(좌우 넘기기) 모드로' : '세로로 전부 붙여 스크롤'}
+                    onClick={toggleSingleMiniStacked}
+                    className="h-5 w-5 shrink-0 rounded text-blue-200 hover:bg-white/10 ml-0.5"
                   >
-                    ▶
+                    {singleMiniStacked ? '▭' : '☰'}
                   </button>
                 </div>
               ) : (
@@ -7589,16 +7613,16 @@ export default function Game() {
             <motion.div
               /* [사용자 2026-08-24] 단일 미니뷰도 모바일 가로 오버레이처럼 좌우 스와이프로 탭 이동.
                  페이지 바뀔 때 key 리마운트로 드래그 오프셋·스크롤을 리셋(모바일 쪽과 같은 방식). */
-              key={singleMini ? `single-mini-${singleMiniPage}` : 'research-mini-body'}
+              key={singleMini ? (singleMiniStacked ? 'single-mini-stacked' : `single-mini-${singleMiniPage}`) : 'research-mini-body'}
               ref={researchMiniScrollRef}
               className="flex-1 min-h-0 h-0 pl-0 pr-[6px] pb-10 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
               style={{ WebkitOverflowScrolling: 'touch' }}
-              drag={singleMini ? 'x' : false}
+              drag={singleMini && !singleMiniStacked ? 'x' : false}
               dragDirectionLock
               dragConstraints={{ left: 0, right: 0 }}
               dragElastic={0.15}
               onDragEnd={(_, info) => {
-                if (!singleMini) return;
+                if (!singleMini || singleMiniStacked) return;
                 if (info.offset.x < -55) gotoMiniPage(singleMiniPage + 1);
                 else if (info.offset.x > 55) gotoMiniPage(singleMiniPage - 1);
               }}
@@ -7606,8 +7630,16 @@ export default function Game() {
             >
               <MiniScaledContent panelWidth={researchMiniWidth}>
                 {singleMini ? (
-                  /* 모바일 오버레이와 같은 렌더러를 재사용 — 규칙·핸들러가 갈라지지 않게. */
-                  singleMiniPage === 0 ? renderInfoResearch('tech')
+                  /* 모바일 오버레이와 같은 렌더러를 재사용 — 규칙·핸들러가 갈라지지 않게.
+                     [사용자 2026-09-04] 세로 스택: 모바일 세로 모드처럼 전부 붙여 위아래 스크롤. */
+                  singleMiniStacked ? (
+                    <div className="flex flex-col gap-4">
+                      {renderInfoResearch('all')}
+                      <div className="h-[1px] bg-white/10 w-full" />
+                      {renderInfoRoundBonus()}
+                    </div>
+                  )
+                  : singleMiniPage === 0 ? renderInfoResearch('tech')
                     : singleMiniPage === 1 ? renderInfoResearch('ships')
                       : renderInfoRoundBonus()
                 ) : (
