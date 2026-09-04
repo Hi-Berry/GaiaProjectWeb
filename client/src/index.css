@@ -131,12 +131,11 @@
 /* [로그 호버 2026-09-04 사용자] 맵 하이라이트 칸에 '팍 줌인 후 원래 칸 크기로 축소'되는 팝 애니메이션.
    SVG <g>에 transform-box:fill-box로 자기 중심 기준 스케일. React key로 remount해 로그를 훑을 때마다 재생. */
 @keyframes gaiaLogPop {
-  0%   { transform: scale(1.55); opacity: 0.15; }
-  55%  { transform: scale(1.0);  opacity: 1; }
-  70%  { transform: scale(1.08); opacity: 1; }
-  100% { transform: scale(1.0);  opacity: 1; }
+  0%   { transform: scale(1.6); opacity: 0.4; }
+  20%  { opacity: 1; }            /* 큰 상태에서 바로 또렷하게 보이도록 빠르게 페이드인 */
+  100% { transform: scale(1.0); opacity: 1; }   /* 원본 칸 크기로 부드럽게 축소 (오버슈트 없음) */
 }
-.gaia-log-pop { transform-box: fill-box; transform-origin: center; animation: gaiaLogPop 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
+.gaia-log-pop { transform-box: fill-box; transform-origin: center; animation: gaiaLogPop 0.4s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .gaia-log-pop { animation: none; }
 }
