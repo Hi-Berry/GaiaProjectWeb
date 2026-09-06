@@ -2563,10 +2563,13 @@ export function qualifiesForNewSectorRoundMission(game: GaiaGameState, playerId:
 	const sec = sector ?? tile.sector;
 	if (sec == null || sec === undefined) return false;
 	if (sec === 90) return false; // 가운데 전략 헥스(우주선·소행성·원시·빈칸, sector 90)는 섹터가 아님 — 새 섹터/브릿지 점수 대상 제외(사용자 관찰)
-	const hadStructureInThisSector = game.map.some(t => t.sector === sec && tileOccupiesSector(t, playerId));
-	const isNewSector = !hadStructureInThisSector;
-	const isBridgeSector = sec >= 11 && sec <= 18;
-	return isNewSector || isBridgeSector;
+	// [버그수정 2026-08-23 사용자 확정] 예전엔 `isNewSector || (11<=sec<=18)`이라 외곽 섹터는 '새로움' 조건이
+	//   없었다 → 이미 건물이 있는 외곽 섹터에 또 지어도 매번 +3이 붙었다(외곽은 섹터당 3칸이라 재현 가능).
+	//   올바른 규칙은 '새 섹터 또는 첫 외곽 진출' — 같은 파일의 다카니안 의회 판정(:7391)과 동일한 의미다.
+	//   그런데 '첫 외곽 진출'은 논리적으로 '새 섹터'에 포함된다(외곽에 건물이 하나도 없으면 이 섹터에도 없다)
+	//   → 결과적으로 판정은 '새 섹터'만 남는다. 봇/평가함수(bot.ts:8051, evaluator.ts:897)도 원래 이 기준이었다.
+	const hadStructureInThisSector = game.map.some(t => t.id !== tileId && t.sector === sec && tileOccupiesSector(t, playerId));
+	return !hadStructureInThisSector;
 }
 
 export function applyAdvancedTechTileEffect(game: GaiaGameState, playerId: string, actionType: 'build_mine' | 'build_ts' | 'research' | 'terraform' | 'qic_action') {
