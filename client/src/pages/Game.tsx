@@ -4306,13 +4306,18 @@ export default function Game() {
           const need = pr.required.length, got = pr.approvals.length;
           // [사용자 2026-08-12] '2/3'만 보여선 누가 안 눌렀는지 알 수 없어 기다리기만 했다 → 사람별로 표기.
           //   pr.required = 동의가 필요한 사람(요청자 제외), pr.approvals = 이미 동의한 사람.
-          const roster = pr.required.map((pid) => {
+          /* [사용자 2026-08-23] 마지막 라운드에 이미 패스해 더 할 게 없는 사람은 서버가 자동 승낙 처리한다.
+             명단에서 아예 빼면 "2/2인데 왜 3명이지?"가 되므로, 자동 승낙된 사람도 함께 보여주되 '(자동)'으로 구분. */
+          const autoIds: string[] = (pr as { autoApproved?: string[] }).autoApproved ?? [];
+          const roster = [...pr.required, ...autoIds].map((pid) => {
             const p = game.players?.[pid];
+            const auto = autoIds.includes(pid);
             return {
               pid,
               name: p?.name ?? pid,
               color: playerColorOverrides?.[pid] ?? FACTIONS.find((f) => f.id === p?.faction)?.color ?? '#a1a1aa',
-              ok: pr.approvals.includes(pid),
+              ok: auto || pr.approvals.includes(pid),
+              auto,
             };
           });
           const RosterList = () => (
@@ -4322,7 +4327,8 @@ export default function Game() {
                   <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: r.color, opacity: r.ok ? 1 : 0.45 }} />
                   <span className={r.ok ? 'font-bold' : ''}>{r.name}</span>
                   <span aria-hidden="true">{r.ok ? '✓' : '…'}</span>
-                  <span className="sr-only">{r.ok ? '동의함' : '대기 중'}</span>
+                  {r.auto && <span className="text-[9px] text-zinc-500">(자동)</span>}
+                  <span className="sr-only">{r.auto ? '자동 승낙됨(최종 라운드 패스)' : r.ok ? '동의함' : '대기 중'}</span>
                 </span>
               ))}
             </div>

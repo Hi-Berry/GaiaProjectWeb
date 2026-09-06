@@ -4077,17 +4077,34 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (targetIdx < 0) { callback?.({ error: '그 지점의 롤백 스냅샷이 없습니다.' }); return; }
 			const target = hist[targetIdx];
 			const bots = new Set(game.botPlayerIds || []);
-			const required = Object.keys(game.players).filter(id => id !== playerId && !bots.has(id));
 			// [표시] 몇 턴 전인지 + 되돌릴 로그 내용(target.seq 이후 로그 요약, 최근 8개)
 			const turnsBack = hist.length - 1 - targetIdx; // target 이후 턴 시작 수
 			const undone = (game.gameLog || []).filter(e => typeof (e as any).seq === 'number' && (e as any).seq > target.seq);
 			const undoneCount = undone.length;
 			const undoneActions = undone.slice(-8).map(e => `${e.playerName}: ${e.action}`);
+
+			/* [사용자 2026-08-23] 마지막 라운드에 이미 패스해 더 할 동작이 없는 사람은 자동 승낙으로 처리한다.
+			   (그 사람이 화면을 떠나 있으면 전원 동의가 영영 안 모여 롤백이 막혔다.)
+			   단 '되돌릴 구간에 그 사람의 행동이 하나라도 있으면' 제외 — 롤백으로 그 턴이 되살아나니
+			   당사자가 판단해야 한다. 되돌아가는 파워 누출까지는 보지 않는다: 6라운드 패스 후의 파워는
+			   종료 점수에 기여하지 않아(1330행 주석) 이해관계가 없다. */
+			const touchedByRollback = new Set(undone.map(e => (e as any).playerId).filter(Boolean));
+			const isFinishedForGood = (id: string) => (game.roundNumber ?? 0) >= 6
+				&& !!game.players[id]?.hasPassed
+				&& !touchedByRollback.has(id);
+			const others = Object.keys(game.players).filter(id => id !== playerId && !bots.has(id));
+			const autoApproved = others.filter(isFinishedForGood);
+			const required = others.filter(id => !isFinishedForGood(id));
+			if (autoApproved.length) {
+				const names = autoApproved.map(id => game.players[id]?.name ?? id).join(', ');
+				addGameLog(game, playerId, 'Rollback', `auto-approved: ${names} (passed, final round)`);
+			}
+
 			(game as any).pendingRollback = {
 				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '요청자',
 				seq: target.seq, label: `R${target.round} · ${target.playerName} 턴 시작`,
 				turnsBack, undoneCount, undoneActions,
-				required, approvals: [],
+				required, approvals: [], autoApproved,
 			};
 			if (required.length === 0) { // 다른 사람(사람) 없음 → 즉시 실행
 				countRollback(gameId, playerId);
