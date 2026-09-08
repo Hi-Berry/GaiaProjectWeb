@@ -19,6 +19,9 @@ import { getPlayerFlag } from './variant';
 
 export class FederationPlanner {
     /** extraTokens: 프리 액션으로 얻을 예정인 파워(위성) 수를 가정해 더 좋은 연방(예: 12VP) 탐색 */
+    /** [fedGapDiag] getFederationActions 마지막 호출의 탐색 통계(계측 전용) */
+    static lastDiag: { structures: number; starts: number; nulls: number; max5Skipped: number; results: number; powerShort: boolean; tokens: number; required: number } | null = null;
+
     static getBestFederationAction(game: ServerGameState, playerId: string, extraTokens = 0): {
         selectedHexIds: string[],
         selectedPlanetIds: string[],
@@ -50,13 +53,17 @@ export class FederationPlanner {
         availableTokens += extraTokens;
 
         const fedHexes = game.playerFederationHexes?.[playerId] || [];
+        // [flag: fedParasiticNodes] 갭 프로브(2026-09-08): 사람 연방 갭율 란티다 58%(일반 22~40%). 플래너가 기생광산(타 행성 위 내 광산,
+        //   연방 파워 1)을 시작점·총파워 체크·BFS 연결 대상 어디에도 넣지 않아 "파워 부족/경로 없음"으로 오판(오라클 표본:
+        //   comps=[1,4,1,2,1,1] 합 10≥7인데 powerShort). 서버는 기생광산을 연방 노드로 인정(getPlanetConnectedComponent·선택 확장).
+        const parasiticNodes = getPlayerFlag(playerId, 'fedParasiticNodes', true);
         const myStructures = game.map.filter(t =>
-            t.ownerId === playerId &&
-            t.structure &&
-            t.structure !== 'ship' &&
+            ((t.ownerId === playerId && t.structure && t.structure !== 'ship') || (parasiticNodes && t.parasiticMine?.ownerId === playerId)) &&
             !fedHexes.includes(t.id)
         );
 
+        // [fedGapDiag] 마지막 호출의 탐색 통계(bot.ts 계측용, 순수 기록)
+        const diag = FederationPlanner.lastDiag = { structures: myStructures.length, starts: 0, nulls: 0, max5Skipped: 0, results: 0, powerShort: false as boolean, tokens: availableTokens, required: requiredPower };
         if (myStructures.length === 0) return [];
 
         // [flag: ivitsFedCumulative] 사용자 관찰(2026-07-13 e28xbh42): 이비츠 건물 21파워+정거장 6인데 연방 1개.
@@ -77,6 +84,7 @@ export class FederationPlanner {
         // Check if total power is enough
         const allMyPlanetIds = new Set(myStructures.map(t => t.id));
         if (getFederationBuildingPower(game, playerId, allMyPlanetIds) < effRequired) {
+            diag.powerShort = true;
             return []; // Can't form even if we connect ALL buildings
         }
 
@@ -86,8 +94,9 @@ export class FederationPlanner {
         const results: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number, score: number }[] = [];
 
         for (const startTile of myStructures) {
+            diag.starts++;
             const result = this.tryFormFederationFrom(game, playerId, startTile, effRequired, availableTokens);
-            if (!result) continue;
+            if (!result) { diag.nulls++; continue; }
 
             // [flag: fedMax5Buildings] 사용자 정책(2026-06-29): 마지막 라운드(R6) 아니면 연방에 건물 5개 초과 금지.
             //   봇 연방 sprawl(많은 집을 한 연방에 몰아 위성 낭비 + 2번째 연방 재료 소진) 억제 — 좁게 모아 연방 수↑.
@@ -99,8 +108,9 @@ export class FederationPlanner {
             if (getPlayerFlag(playerId, 'fedMax5Buildings', true) && !isIvits
                 && round < 6 && result.selectedPlanetIds.length > 5) {
                 const fedPow = getFederationBuildingPower(game, playerId, new Set(result.selectedPlanetIds));
-                if (fedPow > requiredPower + 2) continue;
+                if (fedPow > requiredPower + 2) { diag.max5Skipped++; continue; }
             }
+            diag.results++;
 
             // [flag: fedEndgameVp] 마지막 라운드: 보상 선택지를 펼쳐 후보로 내보낸다 → MCTS가 각 보상의
             // '다운스트림 총 VP'(자원으로 연구5단계 보상/고급타일/라운드·최종미션 점수까지)를 시뮬해서 고름.
@@ -472,7 +482,9 @@ export class FederationPlanner {
             const newPlanetIdsToMerge = new Set<string>();
 
             getNeighbors(game.map, currentTile).forEach(n => {
-                if (isPlanetHex(n) && n.ownerId === playerId && n.structure && n.structure !== 'ship' && !fedHexes.includes(n.id)) {
+                const ownNode = (n.ownerId === playerId && n.structure && n.structure !== 'ship')
+                    || (getPlayerFlag(playerId, 'fedParasiticNodes', true) && n.parasiticMine?.ownerId === playerId); // [flag: fedParasiticNodes]
+                if (isPlanetHex(n) && ownNode && !fedHexes.includes(n.id)) {
                     const comp = getPlanetConnectedComponent(game, playerId, n.id);
                     // Check if this component is already included
                     let hasNew = false;

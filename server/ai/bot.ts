@@ -2110,12 +2110,25 @@ export class BotLogic {
         }
         const fedTopN = _round >= 4 ? 8 : _round >= 3 ? 5 : 3;
         const fedActions = holdFedForPi ? [] : FederationPlanner.getFederationActions(game, playerId, 0, fedTopN);
+        // [flag: fedReserveRelaxR34] 사람 로그 갭 프로브(2026-09-08, 379판): R3~R4에 사람이 연방을 형성했는데 봇 후보에 연방이 없던 160건의
+        //   79~83%가 '위성 지불 후 잔여 토큰 ≤2'(후보 있던 경우는 5~8%). 봇 예비(getPowerTokenReserve R3~4=3, 리필 감안 1~3)가
+        //   그 연방을 통째로 거른다 = 사람은 12VP/8VP+1Q 연방을 위해 토큰을 바닥까지 쓴다. 연방 후보에 한해 예비를 1로 완화
+        //   (후보 추가만, 최종 선택은 MCTS). R5+는 예비가 이미 1/0이라 무영향.
+        const fedReserveRelax = getPlayerFlag(playerId, 'fedReserveRelaxR34', false) && _round >= 3 && _round <= 4;
+        // [flag: fedGapDiag] 계측(기본 OFF, 순수 로깅): R3+에서 연방 후보가 0개로 끝나는 결정의 기계적 원인 분포.
+        const fedDiag = getPlayerFlag(playerId, 'fedGapDiag', false) && _round >= 3 && !game.simulation;
+        const plannerDiag = FederationPlanner.lastDiag;
+        let fedPushed = 0, fedDropReserve = 0, fedDropEarly = 0;
         for (const fedAction of fedActions) {
             const spent = fedAction.spentTokens ?? 0;
             const tokenSurplus = totalPowerTokens - spent;
             // R≥3은 비싼 연방도 적극 허용, R≥4는 토큰 부족해도 일단 후보로 넣어 MCTS가 판단
             const allowEarlyExpensiveFed = _round >= 4 || (_round >= 3 && (spent <= 6 || tokenSurplus >= 4)) || spent <= 2 || tokenSurplus >= 8;
-            if (allowEarlyExpensiveFed && this.canSpendPowerTokensForStrategicAction(game, player, spent)) {
+            const spendOk = fedReserveRelax
+                ? (totalPowerTokens - spent >= 1 || player.faction === 'ivits')
+                : this.canSpendPowerTokensForStrategicAction(game, player, spent);
+            if (fedDiag) { if (!allowEarlyExpensiveFed) fedDropEarly++; else if (!spendOk) fedDropReserve++; else fedPushed++; }
+            if (allowEarlyExpensiveFed && spendOk) {
                 // [flag: fedSpendBowl3] 사용자 관찰: 제노스 등이 연방하려 충전한 bowl3 토큰을 안 쓰고 그대로 둔 채 연방함.
                 //   위성 지불은 bowl1→2→3 순이라 남는 bowl3는 idle. 연방 전에 그 idle bowl3를 프리액션(1P→1C)으로 미리 써서
                 //   가치(크레딧)를 뽑는다. 1P→1C는 bowl3→bowl1로 토큰을 되돌리므로(제거X) 위성 지불 총량엔 영향 없음(안전).
@@ -2184,6 +2197,19 @@ export class BotLogic {
                     candidates.push({ type: 'form_federation', params: fedWithK, preActions });
                 }
             }
+        }
+        // [flag: fedGapDiag] 연방 후보가 0개인 R3+ 결정의 원인 태깅. reason: holdPi(의회 우선 보류) / noStruct(연방 밖 건물 0) /
+        //   powerShort(전부 묶어도 요구파워 미달) / searchNull(플래너 시작점 전부 null=위성 경로 못 찾음) / max5(건물5초과 필터) /
+        //   reserve(예비토큰 가드) / early(R3 비용 게이트) / other. 사람 갭(R5~6 630건)의 봇 쪽 대응 원인 분포용.
+        if (fedDiag && !candidates.some(c => c.type === 'form_federation')) {
+            const d = plannerDiag;
+            const reason = holdFedForPi ? 'holdPi' : !d ? 'noCall' : d.structures === 0 ? 'noStruct' : d.powerShort ? 'powerShort'
+                : d.results === 0 && d.nulls === d.starts ? 'searchNull' : d.results === 0 && d.max5Skipped > 0 ? 'max5'
+                : fedDropReserve > 0 ? 'reserve' : fedDropEarly > 0 ? 'early' : 'other';
+            const myFeds = getFederationEntries(player).length;
+            log(`[FEDGAP] R${_round} ${player.faction} reason=${reason} feds=${myFeds} unfedStruct=${d?.structures ?? -1} tokens=${totalPowerTokens} req=${d?.required ?? -1} starts=${d?.starts ?? -1} nulls=${d?.nulls ?? -1} max5=${d?.max5Skipped ?? -1} results=${d?.results ?? -1} dropRes=${fedDropReserve} dropEarly=${fedDropEarly} pushed=${fedPushed}`, 'game', game.id);
+        } else if (fedDiag) {
+            log(`[FEDGAP] R${_round} ${player.faction} reason=hasFed feds=${getFederationEntries(player).length} pushed=${candidates.filter(c => c.type === 'form_federation').length}`, 'game', game.id);
         }
 
         // 2. pendingTerraformSteps가 있으면 바로 광산 건설 (다른 메인 액션 차단)
