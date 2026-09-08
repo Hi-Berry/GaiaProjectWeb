@@ -134,6 +134,7 @@ function evalSet(W, set) {
 }
 const va2 = evalSet(w, va), tr2 = evalSet(w, tr);
 console.log(`train ${tr.length} val ${va.length} | val top1 ${(va2.t1 * 100).toFixed(1)}% (무작위 ${(va2.rand * 100).toFixed(1)}%, 봇순서[0] ${(va2.bot0 * 100).toFixed(1)}%) | train ${(tr2.t1 * 100).toFixed(1)}%`);
+{ const br={}; for(const d of va){ const p=softmax(scoreW(w,d)); let bi=0; for(let c=1;c<p.length;c++) if(p[c]>p[bi]) bi=c; const so=[...p].sort((a,b)=>b-a); const m=so[0]-(so[1]??0); br[d.round]=br[d.round]||{n:0,hit:0,hi:0,hiHit:0}; br[d.round].n++; if(bi===d.y) br[d.round].hit++; if(m>=0.5){br[d.round].hi++; if(bi===d.y) br[d.round].hiHit++;} } console.log('라운드별 val: '+Object.entries(br).map(([r,x])=>'R'+r+' n='+x.n+' top1 '+(x.hit/x.n*100).toFixed(0)+'% | 마진≥0.5 커버 '+(x.hi/x.n*100).toFixed(0)+'% 정확도 '+(x.hi?(x.hiHit/x.hi*100).toFixed(0):'-')+'%').join('  ||  ')); }
 console.log('타입별 val top-1:'); Object.entries(va2.per).sort((a, b) => b[1].n - a[1].n).forEach(([k, x]) => console.log(`  ${k.padEnd(24)} n=${String(x.n).padStart(5)}  ${(x.hit / x.n * 100).toFixed(0)}%`));
 console.log('라벨별 val top-1(상위):'); Object.entries(va2.byLabel).sort((a, b) => b[1].n - a[1].n).slice(0, 22).forEach(([k, x]) => console.log(`  ${k.padEnd(28)} n=${String(x.n).padStart(5)}  ${(x.hit / x.n * 100).toFixed(0)}%`));
 console.log('마진(p1-p2) 구간별 val: 구간 | 비율 | 정확도 | 누적(>=) 비율/정확도 [top-1 타입 상위3]');

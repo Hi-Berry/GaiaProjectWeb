@@ -1598,6 +1598,34 @@ export class BotLogic {
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await this.mctsWithTimeout(game, playerId, candidates, 'main');
 
+                // [flag: qicDiag] 계측(기본 OFF, 순수 로깅): R1~R2에 QIC를 쓰는 결정(광산 점프/가이아 1Q·입장 QIC)마다
+                //   지갑 QIC·우주선 예약량·밸브·리벨리온 탑승/거리 상태를 남긴다. 실게임 R1~R2 광산 QIC 봇 1.86 vs 사람 0.81(2026-09-08)의
+                //   원인이 '예약 0(미탑승·비인접)'인지 'r1ExpandValve 해제'인지 '예약 있는데 초과 지출'인지 분류용.
+                if (bestAction && getPlayerFlag(playerId, 'qicDiag', false) && (game.roundNumber ?? 1) <= 2 && !isSimulate) {
+                    try {
+                        const pAny = (bestAction.params || {}) as any;
+                        let qNeed = 0;
+                        if (bestAction.type === 'build_mine' && pAny.tileId) {
+                            const tl = game.map.find(t => t.id === pAny.tileId);
+                            const myPl = game.map.filter(t => (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+                            if (tl && myPl.length) {
+                                const d = Math.min(...myPl.map(p => getDistance(p, tl)));
+                                const rng = this.getEffectiveBaseRange(player) + (player.tempRangeBonus ? 3 : 0);
+                                qNeed = (d > rng ? Math.ceil((d - rng) / 2) : 0) + (tl.type === 'gaia' ? 1 : 0);
+                            }
+                        } else if (bestAction.type === 'enter_spaceship') qNeed = pAny.qicToUse ?? 0;
+                        if (qNeed > 0) {
+                            const rebT = game.map.find(t => t.type === 'ship_rebellion');
+                            const onReb = !!rebT && (player.spaceshipsEntered ?? []).includes(rebT.id);
+                            const myPl2 = game.map.filter(t => (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+                            const rebD = (rebT && myPl2.length) ? Math.min(...myPl2.map(p => getDistance(p, rebT))) - this.getEffectiveBaseRange(player) : 99;
+                            const valve = !this.hasZeroStepExpansion(game, playerId);
+                            const reserve = this.computeShipQicReserve(game, playerId);
+                            log(`[QICDIAG] R${game.roundNumber} ${player.faction} ${bestAction.type} qNeed=${qNeed} qic=${player.qic ?? 0} reserve=${reserve} valve=${valve ? 1 : 0} onReb=${onReb ? 1 : 0} rebOverRange=${rebD} k=${player.knowledge ?? 0}`, 'game', game.id);
+                        }
+                    } catch { /* 계측 실패는 무시 */ }
+                }
+
                 // 패스하기 직전 자원 변환 (Cleanup logic)
                 if (bestAction?.type === 'pass_round') {
                     // HH PI 변환(무료): 패스 전 남는 크레딧을 QIC/광석/지식으로. 봇 루프가 버퍼까지 반복 → 크레딧 풍선 해소.
@@ -4276,12 +4304,13 @@ export class BotLogic {
     /** [flag: qicShipBudget] R1-2 우주선용 QIC 예약량 — 사람은 시작 QIC를 입장·리벨리온 3Q에 아껴 R1부터 우주선
      *  혜택을 받는데, 봇은 가이아 건설(1Q)·점프에 즉시 소진해 우주선이 늦음(사용자 관찰 2026-07-07).
      *  ①미입장 우주선 중 최소 입장 거리 QIC ②이미 리벨리온 탑승 + 3정큐(기술타일) 미사용이면 3. 큰 쪽. */
-    private static computeShipQicReserve(game: ServerGameState, playerId: string): number {
+    private static computeShipQicReserve(game: ServerGameState, playerId: string, lineOnly = false): number {
         const player = game.players[playerId];
         const entered = player.spaceshipsEntered || [];
         let reserve = 0;
         // ① 미입장 우주선 최소 입장 QIC (사거리 내면 0 — 예약 불필요) — 입장 예약은 R1-2에만 의미
-        if ((game.roundNumber ?? 1) <= 2
+        //    [qicValveKeepLine] lineOnly면 ①은 건너뛰고 3Q 라인 보호(②③)만 계산
+        if (!lineOnly && (game.roundNumber ?? 1) <= 2
             && entered.length < 3 && (player.score || 0) >= (player.faction === 'bal_tak' ? 7 : 5)) {
             const myPlanets = game.map.filter(t =>
                 (t.ownerId === playerId && t.structure) || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
@@ -4372,8 +4401,15 @@ export class BotLogic {
         // 확장: 예약 계산을 전 라운드 호출하되 ①(입장 예약)만 내부에서 R1-2 한정 — 3Q 엔진 보호가 전 라운드 유지.
         const reserveGate = getPlayerFlag(playerId, 'qicReserveAllRounds', true)
             ? true : (game.roundNumber <= 2);
-        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && reserveGate && !expandValve)
-            ? this.computeShipQicReserve(game, playerId) : 0;
+        // [flag: qicValveKeepLine] qicDiag 계측(2026-09-08, 자가대국 R1~R2 QIC 지출 22건): **21건이 valve=1** — hasZeroStepExpansion이
+        //   가이아 행성을 0스텝으로 안 치기 때문에 R1엔 거의 항상 밸브가 열려 예약 전체(입장분 ①뿐 아니라 3Q 라인 보호 ②③까지)가 풀리고,
+        //   그 QIC가 가이아 1Q 광산으로 샌다(리벨 인접 reserve=3인데 지출한 사례 ambas×3·terran). 실게임 R1~R2 광산 QIC 봇 1.86 vs 사람 0.81의
+        //   기계적 원인. 밸브가 열려도 ②③(탑승 중 3Q 미사용·리벨 사거리 내)의 라인 보호는 유지 — 입장 예약 ①만 해제(기아 해소 취지 보존).
+        const qicReserveForShips = (getPlayerFlag(playerId, 'qicShipBudget', true) && reserveGate)
+            ? (expandValve
+                ? (getPlayerFlag(playerId, 'qicValveKeepLine', false) ? this.computeShipQicReserve(game, playerId, true) : 0)
+                : this.computeShipQicReserve(game, playerId))
+            : 0;
         // [flag: hhJitConvert] HH 가상 지갑: 크레딧 즉석 변환분 포함(크레딧 플로어 5 = 광산 2C + 버퍼 3)
         const hhExtraQicForMine = this.hhConvertibleQic(game, playerId, 5);
         const maxPayQicForMine = Math.max(0,
