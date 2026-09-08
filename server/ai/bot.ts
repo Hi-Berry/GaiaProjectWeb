@@ -1585,7 +1585,9 @@ export class BotLogic {
                 //   그 구간만, 전용 랭커(earlyRanker.json: 자원×타입 상호작용 피처, 15,367 사람 결정)의 확신 마진이 임계 이상일 때만
                 //   그 후보를 직접 커밋. 오프라인(게임단위 홀드아웃 3,201): 마진≥0.5 = 결정의 16%, 정확도 73%(리벨#1 88%·의회 96%).
                 //   연구(50%)·연방(56%)은 코인플립이라 오버라이드 제외. 다른 직접-return 룰이 먼저 걸리면 여기 안 옴.
-                if (!isSimulate && !game.simulation && getPlayerFlag(playerId, 'earlyHumanOverride', false)
+                //   [채택 2026-09-08] paired 40판 +3.44 → 120판 **+7.16 ± 2.41(p=0.003)·승률 33.6%(기준선 25%)**, weightsDiffer=false.
+                //   행동: 총행동 +1.54·우주선액션 +0.51·광산 +0.34·기술타일 +0.14(전방향 정합). 사람 모방 모델이 h2h를 통과한 첫 사례 — 기본 ON.
+                if (!isSimulate && !game.simulation && getPlayerFlag(playerId, 'earlyHumanOverride', true)
                     && !game.hasDoneMainAction && candidates.length >= 2) {
                     const pick = this.earlyHumanPick(game, playerId, candidates);
                     if (pick) {
