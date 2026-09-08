@@ -1579,6 +1579,20 @@ export class BotLogic {
                     const planned = await this.planTwoTurn(game, playerId, candidates);
                     if (planned) { log(`Bot ${player.name} twoTurnPlan commit: ${planned.type}`, 'game', game.id); return planned; }
                 }
+                // [flag: earlyHumanOverride] R1~R2 한정 사람 모방 오버라이드(2026-09-08). 배경: mctsTimeMul=10이 VP·행동 모두 0
+                //   → 최종 선택은 평가기가 결정하고 후보 재정렬(candRankerSort·researchRankerPermute)은 MCTS 픽을 못 바꿈. 행동을
+                //   바꾸는 유일한 통합 형태는 직접-return. 사람 모방이 실전에서 진 일반 원인(공변량 이동)은 R1~R2에 최소이므로
+                //   그 구간만, 전용 랭커(earlyRanker.json: 자원×타입 상호작용 피처, 15,367 사람 결정)의 확신 마진이 임계 이상일 때만
+                //   그 후보를 직접 커밋. 오프라인(게임단위 홀드아웃 3,201): 마진≥0.5 = 결정의 16%, 정확도 73%(리벨#1 88%·의회 96%).
+                //   연구(50%)·연방(56%)은 코인플립이라 오버라이드 제외. 다른 직접-return 룰이 먼저 걸리면 여기 안 옴.
+                if (!isSimulate && !game.simulation && getPlayerFlag(playerId, 'earlyHumanOverride', false)
+                    && !game.hasDoneMainAction && candidates.length >= 2) {
+                    const pick = this.earlyHumanPick(game, playerId, candidates);
+                    if (pick) {
+                        log(`Bot ${player.name} earlyHumanOverride: R${game.roundNumber} ${pick.action.type}${(pick.action.params as any)?.actionIndex != null ? '#' + (pick.action.params as any).actionIndex : ''} (p${pick.p.toFixed(2)} margin${pick.margin.toFixed(2)})`, 'game', game.id);
+                        return pick.action;
+                    }
+                }
                 log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
                 const bestAction = await this.mctsWithTimeout(game, playerId, candidates, 'main');
 
@@ -3041,6 +3055,100 @@ export class BotLogic {
             let s = 0; for (let k = 0; k < M.featDim; k++) s += M.w[k] * f[k];
             return s;
         });
+    }
+
+    /** [earlyHumanOverride] R1~R2 전용 사람 모방 랭커 점수 — scripts/trainEarlyRanker.mjs의 feat()와 *동일 순서/정규화* 필수.
+     *  통합 랭커 v2의 40피처 + 입장 우주선 타입(4) + 기입장 수(1) + 타입×자원(15×5) + 우주선슬롯×(qic,K)(12×2) + 업글 타깃(4). */
+    private static _earlyRanker: { version: number; maxRound: number; featDim: number; types: string[]; tracks: string[]; ships: string[]; targets: string[]; res: string[]; resNorm: number[]; w: number[] } | null | undefined;
+    static earlyRankerModel() {
+        if (this._earlyRanker === undefined) {
+            try { this._earlyRanker = JSON.parse(nodeFs.readFileSync('server/ai/earlyRanker.json', 'utf8')); }
+            catch { this._earlyRanker = null; }
+        }
+        return this._earlyRanker;
+    }
+    static earlyRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): number[] | null {
+        const M = this.earlyRankerModel();
+        if (!M || !cands.length) return null;
+        const player = game.players[playerId];
+        const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
+        const mine = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
+        const pwCat = (s: string) => { s = (s || '').toLowerCase(); return /ore/.test(s) ? 0 : /credit/.test(s) ? 1 : /know/.test(s) ? 2 : /token/.test(s) ? 3 : /terraform|step|tf/.test(s) ? 4 : 5; };
+        const res = (player.research || {}) as any;
+        const wallet: Record<string, number> = { credits: player.credits ?? 0, ore: player.ore ?? 0, knowledge: player.knowledge ?? 0, qic: player.qic ?? 0, power3: player.power3 ?? 0 };
+        const nEntered = (player.spaceshipsEntered || []).length;
+        return cands.map(c => {
+            const f = new Array(M.featDim).fill(0);
+            const p: any = c.params || {};
+            const ti = M.types.indexOf(c.type); if (ti >= 0) f[ti] = 1;
+            let off = M.types.length; // 15
+            const tile = p.tileId ? game.map.find(t => t.id === p.tileId) : null;
+            f[off] = tile ? 1 : 0; off += 1;
+            if (tile && mine.length) {
+                const dOwn = Math.min(...mine.map(m => getDistance(m, tile)));
+                f[off] = Math.min(dOwn, 9) / 9;
+                f[off + 1] = mine.filter(m => getDistance(m, tile) === 1).length / 6;
+                f[off + 2] = mine.filter(m => getDistance(m, tile) <= 2).length / 8;
+                f[off + 3] = (tile.type && !NONPL.has(tile.type) && !String(tile.type).startsWith('ship_')) ? 1 : 0;
+            }
+            off += 4;
+            if (c.type === 'advance_research' && p.trackId) {
+                const k = M.tracks.indexOf(p.trackId);
+                if (k >= 0) f[off + k] = (res[p.trackId] ?? 0) / 5 || 0.01;
+            }
+            off += 6;
+            f[off] = (game.roundNumber || 1) / 6; off += 1;
+            if (c.type === 'use_power_action') f[off + pwCat(p.actionId)] = 1;
+            off += 6;
+            let si = -1, slot = -1;
+            if (c.type === 'use_ship_action' && p.shipTileId) {
+                const stile = game.map.find(t => t.id === p.shipTileId);
+                si = stile ? M.ships.indexOf(String(stile.type)) : -1;
+                if (si >= 0) f[off + si] = 1;
+                if (p.actionIndex >= 1 && p.actionIndex <= 3) { slot = p.actionIndex - 1; f[off + 4 + slot] = 1; }
+            }
+            off += 7; // 40
+            if (c.type === 'enter_spaceship' && tile) { const es = M.ships.indexOf(String(tile.type)); if (es >= 0) f[off + es] = 1; }
+            off += 4;
+            if (c.type === 'enter_spaceship') f[off] = nEntered / 3; off += 1;
+            if (ti >= 0) for (let r = 0; r < M.res.length; r++) f[off + ti * M.res.length + r] = Math.min(1.5, (wallet[M.res[r]] ?? 0) / M.resNorm[r]);
+            off += M.types.length * M.res.length;
+            if (si >= 0 && slot >= 0) { const k = si * 3 + slot; f[off + k * 2] = Math.min(1.5, wallet.qic / 5); f[off + k * 2 + 1] = Math.min(1.5, wallet.knowledge / 10); }
+            off += 24;
+            if (c.type === 'upgrade_structure') { const k = M.targets.findIndex(t => String(p.target || '').startsWith(t)); if (k >= 0) f[off + k] = 1; }
+            off += 4;
+            let s = 0; for (let k = 0; k < M.featDim; k++) s += M.w[k] * f[k];
+            return s;
+        });
+    }
+    /** [earlyHumanOverride] 랭커 softmax top-1이 임계 마진 이상이면 그 후보. 연구·연방·패스·변환은 오버라이드 제외. */
+    static earlyHumanPick(game: ServerGameState, playerId: string, cands: BotAction[]): { action: BotAction; p: number; margin: number } | null {
+        const M = this.earlyRankerModel();
+        if (!M || (game.roundNumber ?? 1) > M.maxRound) return null;
+        // 우주선 액션 후보는 자원 미달인 채로도 생성된다(리벨#3은 K<2에도 점수 180으로 후보). 서버는 지불 전 거부하므로
+        // 오버라이드 대상은 ELIG만 — 랭커 softmax도 실행 가능한 후보들 사이에서만 계산(마진 왜곡 방지).
+        const feasible = cands.filter(c => {
+            if (c.type !== 'use_ship_action') return true;
+            const p: any = c.params || {};
+            const st = game.map.find(t => t.id === p.shipTileId);
+            return !!st && this.shipActionStatus(game, playerId, st.type || '', p.actionIndex) === 'ELIG';
+        });
+        if (feasible.length < 2) return null;
+        cands = feasible;
+        const sc = this.earlyRankerScores(game, playerId, cands);
+        if (!sc) return null;
+        const mx = Math.max(...sc); const ex = sc.map(s => Math.exp(s - mx)); const Z = ex.reduce((a, b) => a + b, 0);
+        const p = ex.map(x => x / Z);
+        let bi = 0; for (let i = 1; i < p.length; i++) if (p[i] > p[bi]) bi = i;
+        const sorted = p.slice().sort((a, b) => b - a);
+        const margin = sorted[0] - (sorted[1] ?? 0);
+        const thr = getPlayerFlag(playerId, 'earlyOverrideMargin', 0.5);
+        if (margin < thr) return null;
+        const NO_OVERRIDE = new Set(['advance_research', 'form_federation', 'pass_round', 'convert_resource']);
+        if (NO_OVERRIDE.has(cands[bi].type)) return null;
+        // 랭커가 모르는 타입(burn_power 등)은 피처 전부 0 → 점수 0이라 나머지가 음수면 '확신 top-1'로 오판 — 학습 타입만 허용
+        if (!M.types.includes(cands[bi].type)) return null;
+        return { action: cands[bi], p: p[bi], margin };
     }
 
     /** [정책망/PUCT] 후보 액션들에 대해 정책망 prior(확률)를 계산, 후보 집합 위에서 정규화(합≈1)해 Map 반환.
