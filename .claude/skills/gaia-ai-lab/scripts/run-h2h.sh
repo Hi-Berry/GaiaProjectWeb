@@ -29,7 +29,9 @@ echo "$FLAGS" > server/ai/challenger.flags.json
 echo "[run-h2h] challenger flags = $FLAGS | games=$GAMES mcts=${MCTS}ms workers=$WORKERS${FORCE_FACTION:+ | forceFaction=$FORCE_FACTION}${H2H_PAIRED:+ | PAIRED}"
 
 # 디스크 정리(사용자 승인 2026-07-11): final_state.json이 게임당 ~1.1MB로 누적(7.6GB 도달) → 7일 지난 것 자동 삭제
-find logs -name "*final_state.json" -mtime +7 -delete 2>/dev/null || true
+# 고득점 보존(사용자 요청 2026-09-08): 봇 150점 이상 게임은 logs/high-score/로 복사 후 정리 대상에서 제외
+node scripts/archiveHighScoreGames.mjs 2>/dev/null || true
+find logs -path "logs/high-score" -prune -o -name "*final_state.json" -mtime +7 -print 2>/dev/null | xargs -r rm -f 2>/dev/null || true
 
 # 좀비(중단된 head2head 워커 서버) 정리 — 개발서버(watch)/Cursor는 보존.
 # Windows: 각 워커는 cmd.exe→node.exe(게임서버) 트리라 proc.kill()로 안 죽어 고아로 남음.
@@ -52,3 +54,5 @@ AI_CHALLENGER_WEIGHTS=server/ai/aiWeights.json \
 H2H_GAMES="$GAMES" H2H_MCTS_MS="$MCTS" H2H_WORKERS="$WORKERS" \
 H2H_FORCE_FACTION="$FORCE_FACTION" H2H_PAIRED="${H2H_PAIRED:-}" \
   npm run head2head
+# 완주 직후에도 고득점 게임 보존(다음 런의 정리 전에 확보)
+node scripts/archiveHighScoreGames.mjs 2>/dev/null || true
