@@ -3985,7 +3985,17 @@ export class BotLogic {
         const result = filtered.length > 0 ? filtered : candidates;
         result.sort((a, b) => b.score - a.score);
         // 후보 컷이 너무 강하면 좋은 수가 탐색에서 사라짐 → 상위 5개로 확장
-        return result.slice(0, 5).map(c => c.action);
+        const top = result.slice(0, 5);
+        // [flag: piTopGuarantee] 갭 프로브 v2(2026-09-08, 사람 379판): R3+ 사람 의회 업글 308건 중 봇 후보에 없던 149건(48%)은
+        //   전부 자금 충족(4O6C 100%)·같은 타일 다른 업글(랩) 후보 존재 71% — 즉 게이트가 아니라 **휴리스틱 점수 하위로 top-5에서
+        //   잘린 것**(일반 종족 R3 PI 기본점수 0~30 vs 랩/TS). 의회는 1회성 엔진이라 PI 없고 후보가 생성돼 있으면 최상위 PI 1개를
+        //   6번째로 보장(후보 +1, 선택은 MCTS). R3+ 한정(R1~2 히트 82%·조기 의회 남발 회피).
+        if (getPlayerFlag(playerId, 'piTopGuarantee', false) && !hasPI && round >= 3
+            && !top.some(c => (c.action.params as any)?.target === 'planetary_institute')) {
+            const bestPi = result.find(c => (c.action.params as any)?.target === 'planetary_institute');
+            if (bestPi) top.push(bestPi);
+        }
+        return top.map(c => c.action);
     }
 
     private static findDiscountedUpgradeAction(game: ServerGameState, playerId: string): BotAction | null {
