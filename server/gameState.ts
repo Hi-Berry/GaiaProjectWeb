@@ -2342,7 +2342,7 @@ export function addGameLog(game: GaiaGameState, playerId: string, action: string
 
 	recordHumanActionFromLog(game as ServerGameState, playerId, action, details, tileId, meta);
 	// 사람 게임 한정 전체 로그(봇 포함, 전 라운드) — 라이브 gameLog는 아래에서 100캡되므로 별도 보관.
-	recordFullGameLog(game as ServerGameState, playerId, action, details, tileId);
+	recordFullGameLog(game as ServerGameState, playerId, action, details, tileId, meta?.fedHexes); // fedHexes: 연방 형성/보상 칸(보드 재구성용, 2026-09-08)
 
 	// 라이브 로그 상한: 전체 로그 보기(처음부터 라운드 점프) 지원 위해 100→2000으로 상향.
 	// 정상 게임(4인 6라운드 ~460엔트리)은 절대 안 닿으므로 shift가 안 일어나 reset도 더 안전.

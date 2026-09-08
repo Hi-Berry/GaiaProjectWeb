@@ -43,6 +43,7 @@ export type FullGameLogEntry = {
   action: string;
   details?: string;
   tileId?: string;
+  fedHexes?: string[]; // 연방 형성/보상 시 선택 칸(위성+건물) — 보드 재구성용
 };
 
 const fullGameLogs = new Map<string, FullGameLogEntry[]>();
@@ -159,7 +160,7 @@ export function recordFullGameLog(game: GaiaGameState & {
   id?: string;
   botPlayerIds?: string[];
   simulation?: boolean;
-}, playerId: string, action: string, details?: string, tileId?: string) {
+}, playerId: string, action: string, details?: string, tileId?: string, fedHexes?: string[]) {
   if (game.simulation) return;
   if (!game.id) return;
   const botIds = game.botPlayerIds ?? [];
@@ -182,6 +183,7 @@ export function recordFullGameLog(game: GaiaGameState & {
     action,
     details,
     tileId,
+    ...(fedHexes && fedHexes.length ? { fedHexes } : {}), // [2026-09-08] 연방 칸 — 연방 시점 보드 재구성(연방 갭 분석)용
   });
 }
 
