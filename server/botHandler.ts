@@ -564,6 +564,8 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     recordDecisionFeatures(game, currentPlayerId);
 
     const action = await BotLogic.getNextMove(game, currentPlayerId);
+    // [selfJournal] AI_SELF_JOURNAL=1일 때만: 후보 리스트 + 최종 선택을 자가대국 모방 학습용으로 기록(bot.ts 참조)
+    BotLogic.selfJournalRecord(game, currentPlayerId, action);
     // [flag: ratioDiag] 계측(기본 OFF): 실제 턴마다 자원상태 + 고른 액션을 게임파일 로그. "크레딧 많은데 광석 없어
     //   빌드 못 하고 패스/변환"(비율 막힘) 빈도를 정량화 — 액션 45% 갭의 원인 규명용. 순수 로깅, 행동 무변.
     if (getPlayerFlag(currentPlayerId, 'ratioDiag', false) && game.currentPhase === 'main') {

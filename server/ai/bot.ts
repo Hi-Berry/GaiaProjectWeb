@@ -634,6 +634,8 @@ export class BotLogic {
 
             // MCTS 켜기 (후보군 탐색)
             const candidates = this.getCandidateMoves(game, playerId);
+            // [selfJournal] AI_SELF_JOURNAL=1: 이 결정의 후보 리스트를 보관 → botHandler가 최종 액션과 함께 기록(자가대국 모방 학습 데이터)
+            if (BotLogic.SELF_JOURNAL && !isSimulate && !game.simulation) BotLogic._lastCands.set(`${game.id}:${playerId}`, candidates);
             if (candidates.length === 1) {
                 const onlyAction = candidates[0];
                 if (onlyAction.type === 'pass_round') {
@@ -3085,6 +3087,32 @@ export class BotLogic {
             let s = 0; for (let k = 0; k < M.featDim; k++) s += M.w[k] * f[k];
             return s;
         });
+    }
+
+    /** [selfJournal 2026-09-08] 자가대국 결정 저널 — AI_SELF_JOURNAL=1일 때 봇 메인 결정마다
+     *  {게임, 라운드, 좌석, 자원/연구/기술타일/입장수, 내 구조물 타일, 후보(압축), 선택 인덱스}를 data/selfplay-journal.jsonl에 append.
+     *  목적: 봇 *자신의* 고득점 좌석(최종 점수 상위)의 결정을 모방하는 랭커 학습 — 사람 모방의 공변량 이동이 원리적으로 없음.
+     *  최종 점수 라벨은 logs/game_<id>_final_state.json과 gameId로 조인. 프로덕션 기본 OFF(env 미설정). */
+    static readonly SELF_JOURNAL = typeof process !== 'undefined' && process.env?.AI_SELF_JOURNAL === '1';
+    static _lastCands = new Map<string, BotAction[]>();
+    static selfJournalRecord(game: ServerGameState, playerId: string, action: BotAction | null): void {
+        if (!BotLogic.SELF_JOURNAL || !action) return;
+        const key = `${game.id}:${playerId}`;
+        const cands = BotLogic._lastCands.get(key);
+        BotLogic._lastCands.delete(key);
+        if (!cands || cands.length < 2) return;
+        const compact = (a: BotAction) => { const p: any = a.params || {}; const o: any = { type: a.type }; for (const k of ['tileId', 'target', 'trackId', 'actionId', 'shipTileId', 'actionIndex', 'qicToUse', 'targetTileId']) if (p[k] !== undefined) o[k] = p[k]; return o; };
+        const cc = cands.map(compact); const ca = JSON.stringify(compact(action));
+        const y = cc.findIndex(c => JSON.stringify(c) === ca);
+        if (y < 0) return; // 직접-return 등 후보 밖 액션은 기록 안 함(후보 안에서 고른 결정만 학습 대상)
+        const player = game.players[playerId]; if (!player) return;
+        const my = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship').map(t => t.id);
+        const rec = {
+            g: game.id, r: game.roundNumber ?? 0, p: playerId, f: player.faction,
+            res: { credits: player.credits ?? 0, ore: player.ore ?? 0, knowledge: player.knowledge ?? 0, qic: player.qic ?? 0, power3: player.power3 ?? 0 },
+            rs: player.research || {}, tt: (player.techTiles || []).length, ne: (player.spaceshipsEntered || []).length, my, cands: cc, y,
+        };
+        try { nodeFs.appendFileSync('data/selfplay-journal.jsonl', JSON.stringify(rec) + '\n'); } catch { /* 기록 실패 무시 */ }
     }
 
     /** [earlyHumanOverride] R1~R2 전용 사람 모방 랭커 점수 — scripts/trainEarlyRanker.mjs의 feat()와 *동일 순서/정규화* 필수.
