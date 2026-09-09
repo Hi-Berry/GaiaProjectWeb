@@ -759,7 +759,7 @@ function buildTurnStartStateEntryForPlayer(game: ServerGameState, playerId: stri
  */
 /** [롤백] gameId별 압축 턴 시작 스냅샷 히스토리 (서버 메모리, 게임 객체와 분리 — 클론/emit/저장 무관).
  *  실측: gzip(level1) 스냅샷당 ~5KB, dedup 후 게임당 수십~백 개 → 1MB 미만. */
-type TurnHistoryEntry = { seq: number; round: number; playerId: string; playerName: string; currentPlayerIndex: number; gz: Buffer; gameLogSeqAt: number; humanActionJournalLength: number; ts: number };
+type TurnHistoryEntry = { seq: number; round: number; playerId: string; playerName: string; currentPlayerIndex: number; gz: Buffer; gameLogSeqAt: number; humanActionJournalLength: number; ts: number; phase?: string };
 const turnHistories = new Map<string, TurnHistoryEntry[]>();
 
 /** [롤백 집계 2026-08-06 사용자 요청] 게임별 롤백 횟수 (요청자별 + GM).
@@ -861,7 +861,7 @@ function pushTurnHistory(game: ServerGameState, playerId: string): void {
 	// dedup: 직전 엔트리와 같은 seq(그 사이 새 로그 없음)면 스킵 — 재진입/중복 캡처 제거(핵심). 실측: ~1102콜 → 32개 유지.
 	if (hist.length && hist[hist.length - 1].seq === entry.gameLogSeqAt) return;
 	const gz = zlib.gzipSync(Buffer.from(JSON.stringify(entry.fullGameState)), { level: 1 });
-	hist.push({ seq: entry.gameLogSeqAt, round: entry.roundNumber, playerId, playerName: game.players[playerId]?.name ?? playerId, currentPlayerIndex: entry.currentPlayerIndex, gz, gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength ?? 0, ts: Date.now() });
+	hist.push({ seq: entry.gameLogSeqAt, round: entry.roundNumber, playerId, playerName: game.players[playerId]?.name ?? playerId, currentPlayerIndex: entry.currentPlayerIndex, gz, gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength ?? 0, ts: Date.now(), phase: String(game.currentPhase) });
 	if (hist.length > TURN_HISTORY_CAP) hist.splice(0, hist.length - TURN_HISTORY_CAP);
 }
 
@@ -4072,7 +4072,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [사용자] 방장 전용 → 참가자 누구나 요청 가능(어차피 나머지 전원 동의 필요). 봇·관전자만 차단.
 			if (!playerId || !game.players[playerId] || (game.botPlayerIds || []).includes(playerId)) { callback?.({ error: '게임 참가자만 롤백을 요청할 수 있습니다.' }); return; }
 			// [사용자 2026-08-03] 최초 집 배치(startingMines)도 허용 — 첫 집을 잘못 놓으면 게임 전체가 꼬이므로 되돌릴 필요가 큼.
-			if (!['main','startingMines','bonusSelection'].includes(String(game.currentPhase))) { callback?.({ error: '진행 중·시작 배치·보너스 선택 단계에서만 롤백 가능합니다.' }); return; }
+			// [2026-09-09 사용자] 종족 비딩(pick) 단계도 허용 — 낙찰 유지·종족/턴 재선택 롤백
+			if (!['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))) { callback?.({ error: '진행 중·시작 배치·보너스 선택·종족 비딩 단계에서만 롤백 가능합니다.' }); return; }
 			if ((game as any).pendingRollback) { callback?.({ error: '이미 롤백 투표가 진행 중입니다.' }); return; }
 			const hist = turnHistories.get(gameId) || [];
 			// [버그수정] 클릭한 로그 seq '미만'의 가장 최근 턴 시작 스냅샷 = 그 로그가 속한 턴의 시작.
@@ -4107,7 +4108,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			(game as any).pendingRollback = {
 				requesterId: playerId, requesterName: game.players[playerId!]?.name ?? '요청자',
-				seq: target.seq, label: `R${target.round} · ${target.playerName} 턴 시작`,
+				seq: target.seq, label: target.phase === 'factionBidding' ? `${target.playerName} 종족 선택(낙찰 유지)` : target.phase === 'startingMines' ? `${target.playerName} 시작 광산 배치` : `R${target.round} · ${target.playerName} 턴 시작`,
 				turnsBack, undoneCount, undoneActions,
 				required, approvals: [], autoApproved,
 			};
@@ -4652,6 +4653,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 				io.to(gameId).emit('game_error', { message: err });
 				return;
 			}
+			// [롤백 2026-09-09 사용자] 낙찰 확정(pick 진입) 시점을 롤백 지점으로 남긴다 — 여기로 되돌리면 입찰액·낙찰자는 그대로고
+			//   종족·턴 순서만 다시 고른다. 'Selected Faction' 로그(종족당 1줄, 기존과 동일)를 클릭하면 이 지점으로 온다.
+			if (game.factionBidding?.phase === 'pick' && game.factionBidding.pickPlayerId) captureTurnStartWithPrev(game as ServerGameState, game.factionBidding.pickPlayerId);
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
