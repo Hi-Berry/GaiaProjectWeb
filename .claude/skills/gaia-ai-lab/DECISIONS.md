@@ -1826,3 +1826,9 @@
 - 24판 자가대국 사유 분포: **UPGREJ 11**(교역소 한도 초과 5 · 연구소 한도 초과 5 · 아카데미 좌우 중복 1) · **TECHREJ 2**(고급타일에 덮인 tech-act-4p) · RESREJ 24(전부 pendingBlock=대기 처리) · BONUSREJ 0 · SHIPREJ 0. 실패 37/유령 2/재선택 13.
 - 수정(생성 단계 미러, 기본 동작): ① mine→TS 후보는 교역소 수 ≥ BUILDING_LIMITS(4)면 제외 ② TS→랩 후보는 연구소 수 ≥ 3이면 제외 ③ 아카데미 타깃은 이미 지은 쪽(left/right)이면 반대쪽으로, 둘 다 있으면 제외 ④ 덮인(covered) 기술액션 타일 후보 제외. 거부 후보는 재선택 비용뿐 아니라 MCTS 분기(시뮬에서도 거부→무효 분기)를 낭비하므로 제거가 옳음.
 - 검증: 24판(data/h2h-report.rejdiag2.json) — UPGREJ/TECHREJ 0 기대, pendingBlock 잔존(대기로 무해).
+
+## 2026-09-09 ✅버그수정(기본 ON) `incomeWaitGuard` — 유령 패스 상류 차단: 수익 체인 미완료 시 봇 결정 보류
+- 원인 확정: RESREJ(연구 전진 거부) 전부 pendingBlock = 어떤 플레이어의 수익 항목(pendingIncomeItems)이 액션 단계 시작 뒤에 남아 있고, 봇 자동수령 체인(gameState 9769 setTimeout 100ms)이 그 사이 pendingIncomeOrder를 세워 현재 봇의 메인 액션을 거부.
+- 수정: botHandler doBotTurn이 getNextMove 전에 수익 항목 남은 플레이어가 있으면 결정 대신 helperTriggerIncomePhase로 체인을 이어 주고 재진입(straggler 가드 3231과 동일 처리). 사람 팝업 대기는 기존 로직 그대로.
+- **검증 24판(data/h2h-report.incomewait.json)**: RESREJ **25 → 0** · 실행 실패 **32 → 10** · [INCOME-WAIT] 발동 210회(=이 레이스가 판당 ~9회로 빈번했음) · hang/타임아웃 0 · 워치독 4(기존 비율과 동일) · 유령 패스 2(잔존 기타). 총행동 51.69/석(변화 없음).
+- 판정: **채택.** 유령 패스 계열 정리: 실패 383/400판 → 잔존 실패 10/24판(대부분 재선택으로 흡수), 유령 패스 ~0.1/판.

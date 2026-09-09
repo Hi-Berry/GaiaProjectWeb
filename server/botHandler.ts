@@ -18,7 +18,8 @@ import {
     executeEclipseBuildAsteroidMine,
     forceSkipStuckBotTurn,
     hasActiveHumanGame,
-    mainActionBlockedByPending
+    mainActionBlockedByPending,
+    helperTriggerIncomePhase
 } from './gameState';
 import { MCTS } from './ai/mcts';
 import { log } from './index';
@@ -564,6 +565,18 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     // 가치망 학습 데이터: 봇이 결정하는 시점의 상태 특징 기록(VALUE_NET_COLLECT=1일 때만)
     recordDecisionFeatures(game, currentPlayerId);
 
+    // [INCOME-WAIT 2026-09-09] 유령패스 상류: 어떤 플레이어의 수익 항목(pendingIncomeItems)이 아직 처리 전이면 봇 수익 자동수령 체인(100ms
+    //   setTimeout)이 곧 pendingIncomeOrder를 세워 이 봇의 메인 액션을 거부한다(RESREJ 전부 pendingBlock). 결정을 시작하지 말고 체인을
+    //   먼저 이어(straggler 가드 3231과 동일) 완료 후 재진입. 사람 팝업(pendingIncomeOrder)은 위에서 이미 대기 처리됨.
+    if (game.currentPhase === 'main' && getPlayerFlag(currentPlayerId, 'incomeWaitGuard', true)) {
+        const straggler = (game.turnOrder ?? []).find(id => (((game.players[id] as any)?.pendingIncomeItems?.length) ?? 0) > 0);
+        if (straggler) {
+            log(`Bot ${player.name} [INCOME-WAIT] ${straggler} still has income items → resume income chain before deciding`, 'game', game.id);
+            helperTriggerIncomePhase(io, game);
+            ensureBotProgress(io, game, currentPlayerId, 'income chain incomplete');
+            return;
+        }
+    }
     const action = await BotLogic.getNextMove(game, currentPlayerId);
     // [selfJournal] AI_SELF_JOURNAL=1일 때만: 후보 리스트 + 최종 선택을 자가대국 모방 학습용으로 기록(bot.ts 참조)
     BotLogic.selfJournalRecord(game, currentPlayerId, action);
