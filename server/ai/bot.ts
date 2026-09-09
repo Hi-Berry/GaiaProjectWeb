@@ -10,6 +10,8 @@ import {
     executeUpgradeStructure,
     executeAdvanceTech,
     researchRejectReason,
+    upgradeRejectReason,
+    techActionRejectReason,
     executePassRound,
     executeSelectFaction,
     executePlaceStartingMine,
@@ -88,6 +90,7 @@ import {
     canSpendTaklonsPowerWithoutBrain,
     getFinalMissionValue,
     getFinalMissionVpProjected,
+    isTechTileCovered,
 } from '@shared/gameConfig';
 
 export type BotAction = {
@@ -373,8 +376,11 @@ export class BotLogic {
         switch (action.type) {
             case 'build_mine':
                 return executeBuildMine(io, game, playerId, action.params.tileId);
-            case 'upgrade_structure':
-                return executeUpgradeStructure(io, game, playerId, action.params.tileId, action.params.target);
+            case 'upgrade_structure': {
+                const upOk = executeUpgradeStructure(io, game, playerId, action.params.tileId, action.params.target);
+                if (!upOk && !game.simulation) log(`[UPGREJ] ${playerId} ${action.params.target}@${action.params.tileId} reason=${upgradeRejectReason(game, playerId, action.params.tileId, String(action.params.target)) ?? 'unknown'}`, 'error', game.id);
+                return upOk;
+            }
             case 'advance_research': {
                 // [RESREJ 계측 2026-09-09] 거부 사유를 버리지 말고 로그(우주선 SHIPREJ와 동형) — 후보 생성기 vs 서버 규칙 불일치 진단용
                 const resReason = game.simulation ? null : researchRejectReason(game, playerId, action.params.trackId);
@@ -464,8 +470,11 @@ export class BotLogic {
                 return executeTakeTwilightArtifact(io, game, playerId, action.params.artifactId);
             case 'confirm_twilight_federation':
                 return executeConfirmTwilightFederation(io, game, playerId, action.params.rewardId);
-            case 'use_tech_action':
-                return executeUseTechAction(io, game, playerId, action.params.tileId);
+            case 'use_tech_action': {
+                const taOk = executeUseTechAction(io, game, playerId, action.params.tileId);
+                if (!taOk && !game.simulation) log(`[TECHREJ] ${playerId} ${action.params.tileId} reason=${techActionRejectReason(game, playerId, action.params.tileId) ?? 'unknown'}`, 'error', game.id);
+                return taOk;
+            }
             case 'use_special_action':
                 return executeUseSpecialAction(io, game, playerId, action.params.actionId);
             case 'firaks_downgrade':
@@ -3624,6 +3633,8 @@ export class BotLogic {
                         }
                     }
 
+                    // [UPGREJ 미러 2026-09-09] 서버 한도(교역소 4) 초과 후보가 거부돼 재선택 낭비(24판 5건) → 생성 단계에서 제외
+                    if (getStructureCount(game, playerId, 'trading_station') >= BUILDING_LIMITS.trading_station) continue;
                     const tsAllPre = [...(tsOrePre ?? []), ...(tsFundPre ?? [])];
                     candidates.push({
                         id: `ts-${mine.id}`,
@@ -3703,6 +3714,8 @@ export class BotLogic {
                 if (getPlayerFlag(playerId, 'advTileOverL5', true) && countGreenFederations(player) >= 1
                     && this.bestClaimableAdvScore(game, playerId) >= 70) score += 130;
 
+                // [UPGREJ 미러 2026-09-09] 서버 한도(연구소 3) 초과 후보 거부(24판 5건) → 생성 단계에서 제외
+                if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) continue;
                 candidates.push({
                     id: `lab-${ts.id}`,
                     score,
@@ -3966,13 +3979,18 @@ export class BotLogic {
                 const acadTarget = getPlayerFlag(playerId, 'academyTypeChoice', true)
                     ? (((game.roundNumber ?? 1) >= 5 || onRebellion) ? 'academy_right' : 'academy_left')
                     : 'academy_right';
+                // [UPGREJ 미러 2026-09-09] 서버는 같은 쪽(left/right) 아카데미가 이미 있으면 거부, 총 2개 한도. 이미 지은 쪽이면 반대쪽으로, 둘 다 있으면 제외.
+                const builtSides = game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').map(t => (t as any).academyType as string | undefined);
+                if (builtSides.length >= 2) continue;
+                const wantSide = acadTarget === 'academy_left' ? 'left' : 'right';
+                const acadTargetFinal = builtSides.includes(wantSide) ? (wantSide === 'left' ? 'academy_right' : 'academy_left') : acadTarget;
                 const acadPre = acadConvertPre ?? acadOrePre ?? acadFundPre ?? undefined; // [flag: upgradeOreConvert/acadFundV2] 광석·크레딧 갭 변환 조달
                 candidates.push({
                     id: `academy-${lab.id}`,
                     score,
                     action: acadPre
-                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget }, preActions: acadPre }
-                        : { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTarget } },
+                        ? { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTargetFinal }, preActions: acadPre }
+                        : { type: 'upgrade_structure', params: { tileId: lab.id, target: acadTargetFinal } },
                     isFederated: isFederated(lab.id),
                 });
             }
@@ -8924,6 +8942,7 @@ export class BotLogic {
         // 1. 기술 타일 액션
         for (const tid of player.techTiles || []) {
             if (player.usedTechActions?.includes(tid)) continue;
+            if (isTechTileCovered(player, tid)) continue; // [TECHREJ 미러 2026-09-09] 고급타일에 덮인 액션타일은 서버 거부(covered)
             if (tid === 'tech-act-4p') {
                 // [사용자 관찰] 4파워 충전 전에 bowl이 차 있으면(수용량 2*p1+p2 < 4) 충전이 버려진다 → bowl3 먼저 비워 수용량 확보.
                 const preActions = this.chargeDrainPreActions(playerId, player, 4);

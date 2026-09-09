@@ -7952,6 +7952,37 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	return true;
 }
 
+/** [UPGREJ 계측 2026-09-09] 봇 업글이 거부될 때 사유(executeUpgradeStructure의 공통·자원 검사 순서). 후보 생성기 자격검사 불일치 진단용. */
+export function upgradeRejectReason(game: ServerGameState, playerId: string, tileId: string, target: string): string | null {
+	if (game.currentPhase !== 'main') return `phase=${game.currentPhase}`;
+	if (game.hasDoneMainAction) return 'mainDone';
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return 'notMyTurn';
+	if (mainActionBlockedByPending(game)) return 'pendingBlock';
+	const player = game.players[playerId]; const tile = game.map.find(t => t.id === tileId);
+	if (!player) return 'noPlayer'; if (!tile) return 'noTile'; if (tile.ownerId !== playerId) return 'notOwner';
+	if (tile.structure === 'lost_planet_mine') return 'lostPlanet';
+	const ore = player.ore ?? 0, cr = player.credits ?? 0;
+	if (tile.structure === 'mine' && target === 'trading_station') { if (getStructureCount(game, playerId, 'trading_station') >= BUILDING_LIMITS.trading_station) return 'limitTS'; if (ore < 2) return `ore=${ore}`; if (cr < 3) return `credits=${cr}`; return null; }
+	if (tile.structure === 'trading_station' && target === 'research_lab') { if (getStructureCount(game, playerId, 'research_lab') >= BUILDING_LIMITS.research_lab) return 'limitLab'; if (ore < 3) return `ore=${ore}`; if (cr < 5) return `credits=${cr}`; return null; }
+	if (tile.structure === 'trading_station' && target === 'planetary_institute') { if (player.faction === 'bescods') return 'bescodsPIfromTS'; if (getStructureCount(game, playerId, 'planetary_institute') >= BUILDING_LIMITS.planetary_institute) return 'limitPI'; if (ore < 4) return `ore=${ore}`; if (cr < 6) return `credits=${cr}`; return null; }
+	if (tile.structure === 'research_lab' && String(target).startsWith('academy')) { if (game.map.filter(t => t.ownerId === playerId && t.structure === 'academy').length >= 2) return 'limitAcad'; if (ore < 6) return `ore=${ore}`; if (cr < 6) return `credits=${cr}`; return null; }
+	if (tile.structure === 'research_lab' && target === 'planetary_institute') { if (player.faction !== 'bescods') return 'labToPIonlyBescods'; if (ore < 4) return `ore=${ore}`; if (cr < 6) return `credits=${cr}`; return null; }
+	return `combo=${tile.structure}->${target}`;
+}
+
+/** [TECHREJ 계측 2026-09-09] 봇 기술액션 거부 사유(executeUseTechAction 검사 순서). */
+export function techActionRejectReason(game: ServerGameState, playerId: string, tileId: string): string | null {
+	if (game.currentPhase !== 'main') return `phase=${game.currentPhase}`;
+	if (game.hasDoneMainAction) return 'mainDone';
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return 'notMyTurn';
+	const player = game.players[playerId]; if (!player) return 'noPlayer';
+	if (!player.techTiles.includes(tileId)) return 'notOwned';
+	if ((player.usedTechActions ?? []).includes(tileId)) return 'alreadyUsed';
+	if (isTechTileCovered(player, tileId)) return 'covered';
+	if (!['tech-act-4p', 'adv-act-3k', 'adv-act-3o', 'adv-act-1q-5c'].includes(tileId)) return 'unknownTile';
+	return null;
+}
+
 export function executeUpgradeStructure(
 	io: SocketIOServer,
 	game: ServerGameState,
