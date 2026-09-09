@@ -3183,8 +3183,18 @@ export class BotLogic {
         }
         return this._earlyRanker;
     }
-    static earlyRankerScores(game: ServerGameState, playerId: string, cands: BotAction[]): number[] | null {
-        const M = this.earlyRankerModel();
+    /** [flag: earlyOverrideR3] R3 전용 사람 모방 랭커(scripts/trainEarlyRanker.mjs EARLY_MIN_ROUND=3 EARLY_MAX_ROUND=3 → earlyRankerR3.json).
+     *  R1~2 모델(검증·채택)은 그대로 두고 R3만 별도 모델·별도 임계로 A/B — 09-08 오프라인에서 R≤3 통합 재학습은 R3 top-1 31%로 약했음. */
+    private static _earlyRankerR3: typeof BotLogic._earlyRanker;
+    static earlyRankerR3Model() {
+        if (this._earlyRankerR3 === undefined) {
+            try { this._earlyRankerR3 = JSON.parse(nodeFs.readFileSync('server/ai/earlyRankerR3.json', 'utf8')); }
+            catch { this._earlyRankerR3 = null; }
+        }
+        return this._earlyRankerR3;
+    }
+    static earlyRankerScores(game: ServerGameState, playerId: string, cands: BotAction[], model?: NonNullable<typeof BotLogic._earlyRanker>): number[] | null {
+        const M = model ?? this.earlyRankerModel();
         if (!M || !cands.length) return null;
         const player = game.players[playerId];
         const NONPL = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
@@ -3239,8 +3249,18 @@ export class BotLogic {
     }
     /** [earlyHumanOverride] 랭커 softmax top-1이 임계 마진 이상이면 그 후보. 연구·연방·패스·변환은 오버라이드 제외. */
     static earlyHumanPick(game: ServerGameState, playerId: string, cands: BotAction[]): { action: BotAction; p: number; margin: number } | null {
-        const M = this.earlyRankerModel();
-        if (!M || (game.roundNumber ?? 1) > M.maxRound) return null;
+        const round0 = game.roundNumber ?? 1;
+        let M = this.earlyRankerModel();
+        let thrFlag = 'earlyOverrideMargin', thrDef = 0.5;
+        if (!M || round0 > M.maxRound) {
+            // [flag: earlyOverrideR3] R3만 별도 모델. 분포 겹침 게이트: 사람 R3 건물 수 p10=2 이상일 때만(그 밖은 봇 원래 결정).
+            if (round0 === 3 && getPlayerFlag(playerId, 'earlyOverrideR3', false)) {
+                const M3 = this.earlyRankerR3Model();
+                const nStruct = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship').length;
+                if (!M3 || nStruct < 2) return null;
+                M = M3; thrFlag = 'earlyOverrideR3Margin'; thrDef = 0.6;
+            } else return null;
+        }
         // 우주선 액션 후보는 자원 미달인 채로도 생성된다(리벨#3은 K<2에도 점수 180으로 후보). 서버는 지불 전 거부하므로
         // 오버라이드 대상은 ELIG만 — 랭커 softmax도 실행 가능한 후보들 사이에서만 계산(마진 왜곡 방지).
         const feasible = cands.filter(c => {
@@ -3251,14 +3271,14 @@ export class BotLogic {
         });
         if (feasible.length < 2) return null;
         cands = feasible;
-        const sc = this.earlyRankerScores(game, playerId, cands);
+        const sc = this.earlyRankerScores(game, playerId, cands, M);
         if (!sc) return null;
         const mx = Math.max(...sc); const ex = sc.map(s => Math.exp(s - mx)); const Z = ex.reduce((a, b) => a + b, 0);
         const p = ex.map(x => x / Z);
         let bi = 0; for (let i = 1; i < p.length; i++) if (p[i] > p[bi]) bi = i;
         const sorted = p.slice().sort((a, b) => b - a);
         const margin = sorted[0] - (sorted[1] ?? 0);
-        const thr = getPlayerFlag(playerId, 'earlyOverrideMargin', 0.5);
+        const thr = getPlayerFlag(playerId, thrFlag, thrDef);
         if (margin < thr) return null;
         const NO_OVERRIDE = new Set(['advance_research', 'form_federation', 'pass_round', 'convert_resource']);
         if (NO_OVERRIDE.has(cands[bi].type)) return null;

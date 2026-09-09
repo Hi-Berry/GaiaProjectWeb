@@ -7,6 +7,8 @@
 import fs from 'fs';
 const dir = 'data/human-games'; const files = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort();
 const MAX_ROUND = Number(process.env.EARLY_MAX_ROUND || 2);
+const MIN_ROUND = Number(process.env.EARLY_MIN_ROUND || 1); // [2026-09-09] R3 전용 모델 학습용(EARLY_MIN_ROUND=3 EARLY_MAX_ROUND=3)
+const OUT = process.env.EARLY_OUT || 'server/ai/earlyRanker.json';
 const dist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
 const NONPLANET = new Set(['space', 'deep_space', 'transdim', 'lost_fleet_ship']);
 const TYPES = ['build_mine', 'upgrade_structure', 'advance_research', 'use_power_action', 'use_ship_action', 'enter_spaceship', 'place_gaiaformer', 'use_tech_action', 'use_bonus_action', 'use_special_action', 'form_federation', 'take_twilight_artifact', 'convert_resource', 'pass_round', 'place_ivits_space_station'];
@@ -81,7 +83,7 @@ for (const f of files) {
   const owner = new Map(); const entered = {};
   for (const e of g.actionJournal) {
     const pid = e.playerId, act = e.action || '', tid = e.tileId; const round = e.round || 1;
-    if (round <= MAX_ROUND && Array.isArray(e.candidates) && e.candidates.length >= 2 && e.playerBefore) {
+    if (round >= MIN_ROUND && round <= MAX_ROUND && Array.isArray(e.candidates) && e.candidates.length >= 2 && e.playerBefore) {
       total++;
       const y = matchTaken(e, e.candidates, geom);
       if (y >= 0) {
@@ -149,6 +151,6 @@ for (const th of [0.4, 0.5, 0.6]) {
 }
 if (process.env.EARLY_SAVE !== '0') {
   const wAll = train(decisions, EPOCHS);
-  fs.writeFileSync('server/ai/earlyRanker.json', JSON.stringify({ version: 1, maxRound: MAX_ROUND, featDim: D, types: TYPES, tracks: TRACKS, ships: SHIPS, targets: TARGETS, res: RES, resNorm: RES_NORM, w: [...wAll] }));
-  console.log('저장: server/ai/earlyRanker.json (전 데이터 재학습)');
+  fs.writeFileSync(OUT, JSON.stringify({ version: 1, minRound: MIN_ROUND, maxRound: MAX_ROUND, featDim: D, types: TYPES, tracks: TRACKS, ships: SHIPS, targets: TARGETS, res: RES, resNorm: RES_NORM, w: [...wAll] }));
+  console.log('저장: ' + OUT + ' (전 데이터 재학습)');
 }

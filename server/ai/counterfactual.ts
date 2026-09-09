@@ -129,6 +129,9 @@ export async function analyzeDecision(snapshot: ServerGameState, targetId: strin
         cands = BotLogic.getCandidateMoves(view, targetId).filter(c => c.type !== 'pass_round');
     } catch { return null; }
     if (cands.length < 2) return null;
+    // [2026-09-09] 정책이 실제로 고르는 첫 수(그리디, isSimulate) — 후회 라인에 함께 출력해 '무엇을 대신 골랐나'를 본다
+    let policyFirst = 'policy';
+    try { const view2 = normalizeSnapshot(snapshot); const orderV2: string[] = view2.turnOrder ?? Object.keys(view2.players); view2.currentPlayerIndex = Math.max(0, orderV2.indexOf(targetId)); const pf = await BotLogic.getNextMove(view2, targetId, true); if (pf) policyFirst = label(pf); } catch { /* 무시 */ }
 
     // CF_SAMPLES=N이면 브랜치당 N회 재생 평균(그리디 재생의 확률성 완화 — 검증 모드)
     const SAMPLES = Math.max(1, parseInt(process.env.CF_SAMPLES ?? '1', 10) || 1);
@@ -142,8 +145,17 @@ export async function analyzeDecision(snapshot: ServerGameState, targetId: strin
     };
     const policyVp = await avgPlayout(null);
     if (policyVp == null) return null;
+    // [2026-09-09] CF_TYPES=type[:target],... — 상위 K 외에 특정 유형(예: upgrade_structure:research_lab)의 첫 후보를 브랜치에 강제 포함.
+    //   평가기 '엔진 전환' 가설 검증용: 정책이 안 고른 랩/아카/PI 업글·연구가 그리디 재생에서 더 좋은지 직접 비교.
+    const forceTypes = (process.env.CF_TYPES ?? '').split(',').map(x => x.trim()).filter(Boolean);
+    const branchCands: BotAction[] = cands.slice(0, topK);
+    for (const ft of forceTypes) {
+        const [ftype, ftarget] = ft.split(':');
+        const c = cands.find(x => x.type === ftype && (!ftarget || String((x.params as any)?.target ?? '') === ftarget) && !branchCands.includes(x));
+        if (c) branchCands.push(c);
+    }
     const branches: BranchResult[] = [];
-    for (const c of cands.slice(0, topK)) {
+    for (const c of branchCands) {
         const vp = await avgPlayout(c);
         branches.push({ label: label(c), type: c.type, vp });
     }
@@ -152,7 +164,7 @@ export async function analyzeDecision(snapshot: ServerGameState, targetId: strin
     const best = Math.max(...valid.map(b => b.vp));
     return {
         game: snapshot.id, round: snapshot.roundNumber ?? 0, targetId, faction: p.faction ?? '?',
-        policy: { label: 'policy', type: 'policy', vp: policyVp },
+        policy: { label: policyFirst, type: 'policy', vp: policyVp },
         branches, regret: best - policyVp,
     };
 }
@@ -213,7 +225,7 @@ async function main() {
                     const best = r.branches.filter(b => b.vp != null).sort((a, b) => (b.vp ?? 0) - (a.vp ?? 0))[0];
                     const orderDiff = best ? branchDoneInRound(best, realActs) : false;
                     (r as any)._orderDiff = orderDiff;
-                    console.log(`[REGRET-${orderDiff ? 'ORDER' : 'TRUE'} ${r.regret.toFixed(0)}] ${r.game} R${r.round} ${r.faction}: 정책 ${r.policy.vp} vs ${r.branches.map(b => `${b.label}=${b.vp ?? 'X'}`).join(' | ')} ∥ 실제(라운드): ${realActs.slice(0, 3).join(' / ') || '?'}`);
+                    console.log(`[REGRET-${orderDiff ? 'ORDER' : 'TRUE'} ${r.regret.toFixed(0)}] ${r.game} R${r.round} ${r.faction}: 정책[${r.policy.label}] ${r.policy.vp} vs ${r.branches.map(b => `${b.label}=${b.vp ?? 'X'}`).join(' | ')} ∥ 실제(라운드): ${realActs.slice(0, 3).join(' / ') || '?'}`);
                 }
             }
         }
