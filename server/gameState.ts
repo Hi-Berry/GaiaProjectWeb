@@ -1879,7 +1879,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 /** 다른 플레이어의 '사전 처리'가 진행 중이면 true → 그동안 어떤 새 메인 액션도 막는다('당신의 턴이 아닙니다'와 동급).
  *  포함: ①수입 단계 파워 수입 순서 선택(pendingIncomeOrder, 예: 의회 4pw→경제2pw 순서 고르는 중)
  *        ②leech 파워 오퍼 미해소(pendingPowerOffers / 턴 종료 보류 pendingTurnEndPlayerId). */
-function mainActionBlockedByPending(game: ServerGameState): boolean {
+export function mainActionBlockedByPending(game: ServerGameState): boolean {
 	return ((game.pendingPowerOffers?.length ?? 0) > 0)
 		|| Boolean(game.pendingTurnEndPlayerId)
 		|| Boolean(game.pendingIncomeOrder)
@@ -2806,6 +2806,11 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		(game as ServerGameState).pendingTurnEndPlayerId = undefined;
 	}
 	log(`Triggering income phase for round ${game.roundNumber}`, 'game', game.id, { simulation: (game as any).simulation });
+	// [진단 2026-09-09] 수익 적용 후(라운드 중) 재호출되는 경로 식별 — 봇 메인 액션 거부(pendingBlock)·유령 패스의 상류 후보. 3프레임만.
+	if ((game as any).incomePhaseAppliedThisRound && (game as any).firstMainActionDoneThisRound) {
+		const st = (new Error().stack || '').split(/\r?\n/).slice(2, 5).map(l => l.trim().replace(/^at /, '').replace(/\(.*[\/]/, '(')).join(' < ');
+		log(`[INCOME-REENTRY] mid-round trigger: ${st}`, 'game', game.id, { simulation: (game as any).simulation });
+	}
 	// [진단] 분기 결정 상태를 게임별 로그파일에 기록 (수익 스킵 버그 추적)
 	log(`[Income][diag] round=${game.roundNumber} incomePhaseAppliedThisRound=${(game as any).incomePhaseAppliedThisRound} pendingIncomeOrder=${(game.pendingIncomeOrder as any)?.playerId ?? 'none'}`, 'game', game.id, { simulation: (game as any).simulation });
 	const turnOrder = game.turnOrder ?? Object.keys(game.players);
@@ -8548,6 +8553,27 @@ export function executeFiraksDowngrade(game: ServerGameState, playerId: string, 
 
 export function isTrackLevel5Taken(game: ServerGameState, track: ResearchTrack, excludePlayerId: string): boolean {
 	return Object.entries(game.players).some(([pid, p]) => pid !== excludePlayerId && (p.research?.[track] ?? 0) >= 5);
+}
+
+/** [RESREJ 계측 2026-09-09] 봇 연구 전진이 거부될 때 사유 문자열(일반 경로 기준). executeAdvanceTech의 검사 순서를 그대로 따른다.
+ *  실측: 봇 실행 실패 383회/400판 중 연구 전진 278회(73%)인데 사유가 로그에 없어 후보 생성기와 서버 규칙의 불일치를 못 잡았다. */
+export function researchRejectReason(game: ServerGameState, playerId: string, track: ResearchTrack): string | null {
+	const player = game.players[playerId];
+	if (!player) return 'noPlayer';
+	if (game.currentPhase !== 'main') return `phase=${game.currentPhase}`;
+	const isMyTurn = game.turnOrder[game.currentPlayerIndex] === playerId;
+	if (!isMyTurn) return 'notMyTurn';
+	if (mainActionBlockedByPending(game)) return 'pendingBlock';
+	if (game.hasDoneMainAction) return 'mainDone';
+	if (track === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return 'balTakNav';
+	const lvl = player.research?.[track] ?? 0;
+	if (lvl >= 5) return 'maxLevel';
+	if ((player.knowledge ?? 0) < 4) return `knowledge=${player.knowledge ?? 0}`;
+	if (lvl + 1 === 5) {
+		if (countGreenFederations(player) < 1) return 'noGreenFed';
+		if (isTrackLevel5Taken(game, track, playerId)) return 'level5Taken';
+	}
+	return null;
 }
 
 export function executeAdvanceTech(

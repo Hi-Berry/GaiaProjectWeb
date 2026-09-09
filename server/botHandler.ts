@@ -17,7 +17,8 @@ import {
     getLegalEclipseAsteroidMineTileIds,
     executeEclipseBuildAsteroidMine,
     forceSkipStuckBotTurn,
-    hasActiveHumanGame
+    hasActiveHumanGame,
+    mainActionBlockedByPending
 } from './gameState';
 import { MCTS } from './ai/mcts';
 import { log } from './index';
@@ -677,6 +678,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     if (success) {
         if (feedbackEntry) addBotFeedbackLog(game, currentPlayerId, feedbackEntry);
         log(`Bot ${player.name} successfully executed ${action.type}`, 'game', game.id);
+        // [유령패스 수정] 성공하면 실패 재선택 상태(제외 키·재시도 카운터) 초기화
+        if ((game as any)._botFailRetry) (game as any)._botFailRetry[currentPlayerId] = 0;
+        if ((game as any)._botFailedKeys) (game as any)._botFailedKeys[currentPlayerId] = [];
         // [유령라운드 v2] 정상 액션 성공 시 null-결정 재시도 카운터 리셋(라운드마다 1회 재시도 보장)
         if ((game as any)._nullDecisionRetry) (game as any)._nullDecisionRetry[currentPlayerId] = 0;
         resetBotProgress(game);
@@ -695,6 +699,33 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             player.pendingTerraformSteps = 0;
         }
         if (game.currentPhase === 'main' && !player.hasPassed) {
+            // [유령패스 수정 2026-09-09] 실측(최근 400판 로그): 실행 실패 383회 전부가 곧장 pass_round로 이어졌고 그 89%가 첫째·둘째
+            //   패서 = 후보 26개를 가진 봇이 라운드를 통째로 포기(R5~6 집중, 연구 전진 73%). 실패한 수는 서버가 거부한 것이지 "할 게
+            //   없다"는 뜻이 아니므로, 그 후보만 제외하고 재선택(최대 2회) 후에야 패스한다. 제외 키는 getNextMove의 후보 필터가 읽음.
+            const g: any = game;
+            g._botFailRetry = g._botFailRetry || {};
+            g._botFailedKeys = g._botFailedKeys || {};
+            const tries = g._botFailRetry[currentPlayerId] ?? 0;
+            // [유령패스 수정 2026-09-09 ②] 거부 사유의 전부가 pendingBlock(파워 제안/턴종료 대기/수익 순서)이었다 — 메인 액션은 막히는데
+            //   executePassRound는 같은 가드를 안 봐서 패스만 통과 → 라운드 포기. 막힌 동안은 패스하지 말고 대기(워치독이 교착을 처리).
+            if (mainActionBlockedByPending(game)) {
+                const why = (game.pendingPowerOffers?.length ?? 0) > 0 ? `powerOffers=${game.pendingPowerOffers!.length}`
+                    : game.pendingTurnEndPlayerId ? `turnEnd=${game.pendingTurnEndPlayerId}`
+                    : game.pendingIncomeOrder ? `incomeOrder=${(game.pendingIncomeOrder as any).playerId}` : 'rollback';
+                log(`Bot ${player.name} [PENDBLOCK] ${action.type} rejected while main blocked (${why}) → wait, no pass`, 'game', game.id);
+                ensureBotProgress(io, game, currentPlayerId, `action ${action.type} rejected: main blocked by pending (${why})`);
+                return;
+            }
+            if (getPlayerFlag(currentPlayerId, 'failRepick', true) && tries < 4) { // 상한 4: 같은 유형 후보(예: TS 업글 타일 2개)가 연속 거부돼도 다른 유형까지 도달
+                g._botFailRetry[currentPlayerId] = tries + 1;
+                const key = `${mainAction.type}|${JSON.stringify(mainAction.params ?? {})}`;
+                const arr: string[] = g._botFailedKeys[currentPlayerId] || (g._botFailedKeys[currentPlayerId] = []);
+                if (!arr.includes(key)) arr.push(key);
+                log(`Bot ${player.name} [FAILREPICK] ${action.type} rejected → re-pick without it (try ${tries + 1}/4)`, 'game', game.id);
+                resetBotProgress(game);
+                setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
+                return;
+            }
             const bonusTileId = game.availableBonusTiles?.length ? game.availableBonusTiles[0].id : undefined;
             const passOk = await BotLogic.performAction(io, game, { type: 'pass_round', params: { bonusTileId } }, currentPlayerId);
             if (passOk) { resetBotProgress(game); setTimeout(() => executeBotTurnIfNeeded(io, game), d(500)); }

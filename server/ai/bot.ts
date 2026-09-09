@@ -9,6 +9,7 @@ import {
     getShipTechTileIdsForPlayer,
     executeUpgradeStructure,
     executeAdvanceTech,
+    researchRejectReason,
     executePassRound,
     executeSelectFaction,
     executePlaceStartingMine,
@@ -374,8 +375,13 @@ export class BotLogic {
                 return executeBuildMine(io, game, playerId, action.params.tileId);
             case 'upgrade_structure':
                 return executeUpgradeStructure(io, game, playerId, action.params.tileId, action.params.target);
-            case 'advance_research':
-                return executeAdvanceTech(io, game, playerId, action.params.trackId);
+            case 'advance_research': {
+                // [RESREJ 계측 2026-09-09] 거부 사유를 버리지 말고 로그(우주선 SHIPREJ와 동형) — 후보 생성기 vs 서버 규칙 불일치 진단용
+                const resReason = game.simulation ? null : researchRejectReason(game, playerId, action.params.trackId);
+                const resOk = executeAdvanceTech(io, game, playerId, action.params.trackId);
+                if (!resOk && !game.simulation) log(`[RESREJ] ${playerId} ${action.params.trackId} lvl=${game.players[playerId]?.research?.[action.params.trackId as ResearchTrack] ?? '?'} reason=${resReason ?? 'unknown'}`, 'error', game.id);
+                return resOk;
+            }
             case 'pass_round':
                 return executePassRound(io, game, playerId, action.params.bonusTileId);
             case 'select_faction':
@@ -474,7 +480,25 @@ export class BotLogic {
         }
     }
 
+    /** [유령패스 수정 2026-09-09 ③] 서버가 거부한 수(botHandler가 game._botFailedKeys[pid]에 키 기록)를 결정기가 *직접-return* 경로
+     *  (powerActionOverPass·twilightRecoup·rebelFire·강제 연방 등 getCandidateMoves를 안 거치는 return)로 또 고르면 재선택이 무의미해
+     *  결국 패스로 떨어졌다(실측: tech-act-4p 2연속 거부→패스, 우주선 1후보 2연속 거부→패스). 래퍼가 결과 키를 검사해 거부된 수면
+     *  후보 리스트(거부 키 제외)에서 다시 고른다(1개면 그것, 여럿이면 MCTS). 시뮬레이션에서는 개입하지 않음. */
     static async getNextMove(game: ServerGameState, playerId: string, isSimulate = false): Promise<BotAction | null> {
+        const picked = await this.getNextMoveInner(game, playerId, isSimulate);
+        if (isSimulate || game.simulation || !picked || picked.type === 'pass_round') return picked;
+        const failed = (game as any)._botFailedKeys?.[playerId] as string[] | undefined;
+        if (!failed?.length) return picked;
+        const keyOf = (c: BotAction) => `${c.type}|${JSON.stringify(c.params ?? {})}`;
+        if (!failed.includes(keyOf(picked))) return picked;
+        const cands = this.getCandidateMoves(game, playerId).filter(c => !failed.includes(keyOf(c)));
+        if (!cands.length) return picked;
+        log(`Bot ${game.players[playerId]?.name} [FAILREPICK] direct-return ${picked.type} was rejected before → re-pick among ${cands.length} filtered candidates`, 'game', game.id);
+        if (cands.length === 1) return cands[0];
+        return await this.mctsWithTimeout(game, playerId, cands, 'failRepick');
+    }
+
+    private static async getNextMoveInner(game: ServerGameState, playerId: string, isSimulate = false): Promise<BotAction | null> {
         const player = game.players[playerId];
         if (!player) return null;
 
@@ -633,7 +657,15 @@ export class BotLogic {
             }
 
             // MCTS 켜기 (후보군 탐색)
-            const candidates = this.getCandidateMoves(game, playerId);
+            let candidates = this.getCandidateMoves(game, playerId);
+            // [유령패스 수정 2026-09-09] botHandler가 서버 거부된 수의 키를 game._botFailedKeys[pid]에 남기면 재선택에서 그 후보만 제외
+            //   (전부 제외되면 원본 유지 → 그땐 handler가 2회 상한 후 패스). 실패 원인 자체는 [RESREJ] 등 사유 로그로 별도 추적.
+            const failedKeys = (game as any)._botFailedKeys?.[playerId] as string[] | undefined;
+            if (failedKeys?.length) {
+                const keyOf = (c: BotAction) => `${c.type}|${JSON.stringify(c.params ?? {})}`;
+                const kept = candidates.filter(c => !failedKeys.includes(keyOf(c)));
+                if (kept.length) candidates = kept;
+            }
             // [selfJournal] AI_SELF_JOURNAL=1: 이 결정의 후보 리스트를 보관 → botHandler가 최종 액션과 함께 기록(자가대국 모방 학습 데이터)
             if (BotLogic.SELF_JOURNAL && !isSimulate && !game.simulation) BotLogic._lastCands.set(`${game.id}:${playerId}`, candidates);
             if (candidates.length === 1) {
