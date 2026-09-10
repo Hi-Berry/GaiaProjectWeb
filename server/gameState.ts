@@ -7547,17 +7547,22 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			notifyReject(tile.structure !== null ? '연방 보상 광산은 건물이 없는 행성에만 지을 수 있습니다.' : '연방 보상 광산은 행성에만 지을 수 있습니다 (빈 우주/우주선 불가).');
 			return false;
 		}
+		// [사용자 룰 2026-09-10] 소행성: 사용 가능한 가이아 포머가 있으면 일반 건설처럼 포머 1개를 파괴하며 짓는다(거리 무시, 다른 비용 없음). 포머 없으면 거부.
+		let fedAsteroid = false;
 		if (tile.type === 'asteroid') {
-			debugLog(game, `executeBuildMine failed (Spaceship Fed): Cannot build on asteroid directly`, 'error');
-			notifyReject('연방 보상 광산은 소행성에는 지을 수 없습니다.');
-			return false;
+			if (getEffectiveGaiaformers(player) < 1) {
+				debugLog(game, `executeBuildMine failed (Spaceship Fed): asteroid needs a gaiaformer (total=${player.gaiaformers ?? 0}, locked=${player.balTakGaiaformersUsedForQic ?? 0})`, 'error');
+				notifyReject('연방 보상 광산을 소행성에 지으려면 사용 가능한 가이아 포머가 1개 필요합니다.');
+				return false;
+			}
+			fedAsteroid = true;
 		}
 		// [사용자 룰 C, 2026-06-29] 무한거리 무료광산: 기본 광산비용(1O2C)·거리QIC는 면제하되,
 		//   가이아 행성 기본 QIC와 테라포밍 스텝(광석)은 정상 청구한다. 자원 부족 시 그 행성엔 못 짓는다.
 		//   (기존엔 전부 면제라 비-원주민/가이아 행성도 완전 공짜였음 — 사용자 관찰로 교정.)
 		const isFedGaiaReclaim = (tile.type === 'transdim' || tile.type === 'gaia') && player.pendingGaiaformerTiles?.includes(tileId);
 		let fedGaiaQic = 0, fedTerraOre = 0, fedDiscountSteps = 0;
-		if (!isFedGaiaReclaim) {
+		if (!isFedGaiaReclaim && !fedAsteroid) {
 			if (tile.type === 'gaia') {
 				if (player.faction === 'gleens') fedTerraOre = 1; // 글린스는 가이아 비용을 1광석으로
 				else fedGaiaQic = getGaiaBaseQic(player.faction || '');
@@ -7583,6 +7588,12 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		const rm7Qualify = qualifiesForNewSectorRoundMission(game, playerId, tileId);
 		tile.structure = 'mine';
 		tile.ownerId = playerId;
+		if (fedAsteroid) {
+			// 일반 소행성 건설(위 Asteroid 분기)과 동일: 포머 1개 영구 파괴
+			tile.destroyedGaiaformer = true;
+			player.gaiaformers = Math.max(0, (player.gaiaformers ?? 0) - 1);
+			player.destroyedGaiaformers = (player.destroyedGaiaformers ?? 0) + 1;
+		}
 
 		if (tile.hasGaiaformer && player.pendingGaiaformerTiles?.includes(tileId)) {
 			tile.hasGaiaformer = false;
@@ -7592,7 +7603,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 		}
 
-		addGameLog(game, playerId, 'Spaceship Fed', `Mine unlimited range (Free${fedTerraOre ? `, ${fedTerraOre}O terraform` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC gaia` : ''})`, tileId);
+		addGameLog(game, playerId, 'Spaceship Fed', `Mine unlimited range (Free${fedTerraOre ? `, ${fedTerraOre}O terraform` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC gaia` : ''}${fedAsteroid ? `, asteroid: used 1 Gaiaformer (${player.gaiaformers} left)` : ''})`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_mine');
 		if (rm7Qualify) applyRoundMissionScore(game, playerId, 'new_sector');
 		if (tile.type === 'gaia') applyRoundMissionScore(game, playerId, 'build_gaia');

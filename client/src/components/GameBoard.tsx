@@ -1424,7 +1424,8 @@ export function GameBoard({
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
       // [2026-09-10] 서버 unbuildable과 동기화: transdim(포머 없음)·lost_planet엔 무한거리 무료광산 불가
       if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'].includes(selectedTile.type)) return false;
-      if (selectedTile.type === 'asteroid') return false;
+      // [사용자 룰 2026-09-10] 소행성은 사용 가능한 포머가 있을 때만(서버 getEffectiveGaiaformers와 동일: 발타크는 QIC로 잠근 포머 제외)
+      if (selectedTile.type === 'asteroid') return Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0)) >= 1;
       return true;
     }
 
@@ -1512,7 +1513,8 @@ export function GameBoard({
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
       // [2026-09-10] 서버 unbuildable과 동기화: transdim(포머 없음)·lost_planet엔 무한거리 무료광산 불가
       if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'].includes(selectedTile.type)) return false;
-      if (selectedTile.type === 'asteroid') return false;
+      // [사용자 룰 2026-09-10] 소행성은 사용 가능한 포머가 있을 때만(서버 getEffectiveGaiaformers와 동일: 발타크는 QIC로 잠근 포머 제외)
+      if (selectedTile.type === 'asteroid') return Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0)) >= 1;
       return true;
     }
 

@@ -5769,7 +5769,7 @@ export class BotLogic {
         if (game.pendingSpaceshipFedMine?.playerId !== playerId) return null;
         const player = game.players[playerId];
         if (!player) return null;
-        const forbidden = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'asteroid', 'transdim', 'lost_planet']); // [2026-09-10] 서버 unbuildable과 동기화
+        const forbidden = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet']); // [2026-09-10] 서버 unbuildable과 동기화. 소행성은 포머 있을 때만(아래 affordable)
         const myTiles = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
             t.parasiticMine?.ownerId === playerId ||
@@ -5785,6 +5785,9 @@ export class BotLogic {
             // 서버와 동일한 비용 산정: 가이아=가이아QIC(글린스는 1광석), 그 외=테라포밍 광석(펜딩스텝 할인)
             let needOre = 0, needQic = 0;
             const reclaim = (t.type === 'transdim' || t.type === 'gaia') && player.pendingGaiaformerTiles?.includes(t.id);
+            // [사용자 룰 2026-09-10] 소행성 = 포머 1개 파괴(서버 동일). 포머 없으면 불가.
+            const isAst = t.type === 'asteroid';
+            if (isAst) { /* 비용은 포머 */ } else
             if (!reclaim) {
                 if (t.type === 'gaia') {
                     if (player.faction === 'gleens') needOre = 1; else needQic = getGaiaBaseQic(player.faction || '');
@@ -5793,9 +5796,10 @@ export class BotLogic {
                     needOre = actual * getTerraformCost(player.research.terraforming);
                 }
             }
-            const affordable = haveOre >= needOre && haveQic >= needQic;
+            const affordable = isAst ? getEffectiveGaiaformers(player) >= 1 : (haveOre >= needOre && haveQic >= needQic);
             const score =
-                (steps === 0 ? 120 : 80 - steps * 10) +
+                (isAst ? 70 : steps === 0 ? 120 : 80 - steps * 10) + // 소행성: 포머 소모 비용을 감안해 1스텝 행성 수준
+
                 this.calculateRoundScoringBonus(game, playerId, 'build_mine') +
                 this.calculateFinalMissionBonus(game, playerId, t) -
                 dist;
