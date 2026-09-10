@@ -174,10 +174,17 @@ async function loadManifest(): Promise<Manifest | null> {
 
 let playSeq = 0;                      // 최신 안내만 남기기 위한 토큰
 let audioEl: HTMLAudioElement | null = null;
+/* [버그 2026-09-10 사용자 "폴드 폰에서 가끔 소리가 안 나와 새로고침해야 한다"] 큐(drain)는 한 건이 끝날 때까지 await한다.
+   조각 재생 중 화면을 벗어나거나(폴드 접기/펴기·앱 전환·화면 꺼짐) OS가 오디오를 멈추면 onended가 영영 안 오고,
+   clearVoiceQueue→stopClips는 pause()만 해서 그 await도 풀리지 않았다 → draining=true로 굳어 이후 모든 안내가 큐에만 쌓임(무음).
+   기기 TTS도 같다(cancel() 후 onend가 안 오는 안드로이드 크롬 사례). → 진행 중 await의 resolve를 들고 있다가 중단 시 직접 풀고,
+   건별 워치독 타임아웃으로도 푼다. */
+let currentDone: (() => void) | null = null;
 
 function stopClips(): void {
 	playSeq++;
 	if (audioEl) { try { audioEl.pause(); } catch { /* noop */ } audioEl = null; }
+	const d = currentDone; currentDone = null; if (d) d();
 }
 
 /** 조각들을 순서대로 재생. 중간에 새 안내가 오면(seq 변경) 즉시 중단.
@@ -192,7 +199,10 @@ async function playClips(keys: string[], folder: string, rate: number): Promise<
 			const a = new Audio(`/voice/${folder}/${k}.mp3`);
 			a.playbackRate = rate;
 			audioEl = a;
-			const done = () => { a.onended = null; a.onerror = null; resolve(); };
+			let settled = false;
+			const done = () => { if (settled) return; settled = true; clearTimeout(guard); if (currentDone === done) currentDone = null; a.onended = null; a.onerror = null; resolve(); };
+			const guard = setTimeout(done, 8000); // 조각은 2~3초 — 8초 넘게 안 끝나면 멈춘 것(백그라운드/오디오 정지)으로 보고 넘어간다
+			currentDone = done;
 			a.onended = done;
 			// 조각 로드 실패(배포로 파일명이 바뀐 직후 등) → 들고 있던 manifest를 버려
 			// 다음 안내 때 새로 받게 한다(자가 회복).
@@ -253,8 +263,12 @@ function speakOnce(list: string[]): Promise<void> {
 				u.lang = 'ko-KR';
 				u.rate = getVoiceRate();
 				if (koVoice) u.voice = koVoice;
-				u.onend = () => resolve();
-				u.onerror = () => resolve();
+				let settled = false;
+				const done = () => { if (settled) return; settled = true; clearTimeout(guard); if (currentDone === done) currentDone = null; resolve(); };
+				const guard = setTimeout(done, Math.min(15000, 2500 + u.text.length * 150)); // 안드로이드 크롬 onend 미발생 대비
+				currentDone = done;
+				u.onend = done;
+				u.onerror = done;
 				window.speechSynthesis.speak(u);
 			} catch { resolve(); }
 		});
@@ -282,8 +296,12 @@ function deviceSpeakOnce(list: string[]): Promise<void> {
 			u.lang = 'ko-KR';
 			u.rate = getVoiceRate();
 			if (koVoice) u.voice = koVoice;
-			u.onend = () => resolve();
-			u.onerror = () => resolve();
+			let settled = false;
+			const done = () => { if (settled) return; settled = true; clearTimeout(guard); if (currentDone === done) currentDone = null; resolve(); };
+			const guard = setTimeout(done, Math.min(15000, 2500 + u.text.length * 150)); // 안드로이드 크롬 onend 미발생 대비
+			currentDone = done;
+			u.onend = done;
+			u.onerror = done;
 			window.speechSynthesis.speak(u);
 		} catch { resolve(); }
 	});
