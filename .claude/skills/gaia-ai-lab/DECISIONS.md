@@ -1832,3 +1832,10 @@
 - 수정: botHandler doBotTurn이 getNextMove 전에 수익 항목 남은 플레이어가 있으면 결정 대신 helperTriggerIncomePhase로 체인을 이어 주고 재진입(straggler 가드 3231과 동일 처리). 사람 팝업 대기는 기존 로직 그대로.
 - **검증 24판(data/h2h-report.incomewait.json)**: RESREJ **25 → 0** · 실행 실패 **32 → 10** · [INCOME-WAIT] 발동 210회(=이 레이스가 판당 ~9회로 빈번했음) · hang/타임아웃 0 · 워치독 4(기존 비율과 동일) · 유령 패스 2(잔존 기타). 총행동 51.69/석(변화 없음).
 - 판정: **채택.** 유령 패스 계열 정리: 실패 383/400판 → 잔존 실패 10/24판(대부분 재선택으로 흡수), 유령 패스 ~0.1/판.
+
+## 2026-09-10 ✅게임 버그수정 3건 — 우주선 연방 보상 '무한 사거리 무료광산'(ship-fed-mine-free) 점검(사용자 요청)
+- 점검 범위: 보상 부여 4경로(federation_select_reward·executeBotFederation·confirm_twilight_federation·executeConfirmTwilightFederation) + 건설 경로(executeBuildMine 우주선연방 분기) + 봇 타깃 선택(findSpaceshipFedMineTarget) + 클라 타일 판정. 실전 로그: 연방 보상 경로 부여 16(중복 로그 포함)·건설 6·스킵 1, 행성 유형 gaia/titanium/ice/proto/terra. 트왈라잇/아티팩트 경로 부여는 0회(잠복).
+- **결함 ① (보상 증발)**: 트왈라잇 #1 '연방 보상 재수령'과 아티팩트 fed-once 경로 2곳이 ship-fed-mine-free를 받으면 로그만 남기고 `pendingSpaceshipFedMine`을 세우지 않아 무료광산을 지을 수 없었다(같은 switch의 3TF 보상은 정상). 두 경로에 pending 설정 추가.
+- **결함 ② (규칙 구멍)**: 건설 분기의 unbuildable 목록에 transdim·lost_planet이 없고, getTerraformSteps가 비-원주민 행성에 0을 돌려 **포머 없는 트랜스딤에 0스텝 공짜 광산**이 가능했다(봇 타깃 선택도 steps 0 → 최고점으로 선호). 서버·봇·클라 3곳 목록에 transdim·lost_planet 추가.
+- **결함 ③ (교착)**: 광산 한도(8) 도달 상태에서 보상을 받으면 pending이 영영 안 풀려 턴종료·패스가 막힘(봇은 재선택→패스 거부→강제스킵으로만 해소). 한도 검사에서 pending을 해제하고 'Free mine forfeited (mine limit)' 로그.
+- 검증: tsc·12판 자가대국 sanity(data/h2h-report.fedmine-sanity.json).

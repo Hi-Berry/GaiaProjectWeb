@@ -5286,6 +5286,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					case 'ship-fed-mine-free':
 					case 'ship-fed-3tf-mine':
 						addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+						// [버그수정 2026-09-10] 무한거리 무료광산은 pendingSpaceshipFedMine을 세워야 실제로 지을 수 있는데 이 경로(트왈라잇 #1·아티팩트 연방보상)만 누락 → 보상 증발. federation_select_reward·executeBotFederation과 동일하게 세움.
+						if (shipReward.id === 'ship-fed-mine-free') game.pendingSpaceshipFedMine = { playerId };
 						if (shipReward.id === 'ship-fed-3tf-mine') {
 							player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 							player.spaceshipFed3TfMineFree = true;
@@ -7524,6 +7526,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 	// 0. 전역 광산 개수 제한 체크 (자원 소모 전)
 	if (getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine) {
+		// [2026-09-10] 무한거리 무료광산 대기 중 한도 도달이면 대기를 풀어 턴종료·패스가 막히지 않게(봇은 재선택→패스 거부→강제스킵으로만 풀리던 교착)
+		if (game.pendingSpaceshipFedMine?.playerId === playerId) { game.pendingSpaceshipFedMine = null; addGameLog(game, playerId, 'Spaceship Fed', 'Free mine forfeited (mine limit)'); }
 		const errorMsg = `광산 건설 제한(${BUILDING_LIMITS.mine}개)에 도달했습니다.`;
 		debugLog(game, `executeBuildMine failed: ${errorMsg}`, 'error');
 		io.to(game.id).emit('game_error', errorMsg);
@@ -7532,7 +7536,8 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 
 	// Spaceship Fed Mine
 	if (game.pendingSpaceshipFedMine?.playerId === playerId) {
-		const unbuildable = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
+		// [버그수정 2026-09-10] transdim(포머 미성숙/미배치)·lost_planet은 광산 직접 건설 불가 — getTerraformSteps가 비-원주민 행성에 0을 돌려 0스텝 공짜 광산으로 통과되던 구멍
+		const unbuildable = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'];
 		// [사용자 관찰 2026-07-22: "클릭해도 아무 반응 없음"] 조용한 거부(debugLog만)를 사람에겐 에러 토스트로 안내
 		const notifyReject = (msg: string) => {
 			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', msg);
@@ -11091,6 +11096,8 @@ export function executeConfirmTwilightFederation(
 			case 'ship-fed-mine-free':
 			case 'ship-fed-3tf-mine':
 				addGameLog(game, playerId, pending.fromArtifact ? 'Artifact: Spaceship Fed' : 'Twilight: Spaceship Fed', shipReward.label, rewardId);
+				// [버그수정 2026-09-10] 위 소켓 경로와 동일 — 무한거리 무료광산 pending 누락으로 보상이 증발하던 것
+				if (shipReward.id === 'ship-fed-mine-free') game.pendingSpaceshipFedMine = { playerId };
 				if (shipReward.id === 'ship-fed-3tf-mine') {
 					player.pendingTerraformSteps = (player.pendingTerraformSteps || 0) + 3;
 					player.spaceshipFed3TfMineFree = true;

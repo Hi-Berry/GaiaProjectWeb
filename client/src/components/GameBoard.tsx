@@ -1422,7 +1422,8 @@ export function GameBoard({
     if (selectedTile.structure !== null && !isLantidaParasitic) return false;
 
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
-      if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) return false;
+      // [2026-09-10] 서버 unbuildable과 동기화: transdim(포머 없음)·lost_planet엔 무한거리 무료광산 불가
+      if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'].includes(selectedTile.type)) return false;
       if (selectedTile.type === 'asteroid') return false;
       return true;
     }
@@ -1509,7 +1510,8 @@ export function GameBoard({
     if (selectedTile.structure !== null) return false;
 
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
-      if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'].includes(selectedTile.type)) return false;
+      // [2026-09-10] 서버 unbuildable과 동기화: transdim(포머 없음)·lost_planet엔 무한거리 무료광산 불가
+      if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'].includes(selectedTile.type)) return false;
       if (selectedTile.type === 'asteroid') return false;
       return true;
     }

@@ -1001,6 +1001,42 @@ export class BotLogic {
                         return tsFirst;
                     }
                 }
+                // [flag: darkaniansPiAcad] 사람 고득점 60좌석(2026-09-09): 아카 선 vs 의회 선은 반반
+                // (고득점≥180: 12 vs 13)이지만 공통은 ①R1에 PI 또는 아카 하나 ②의회는 반드시
+                // (아카만 9판 평균 152, 180+ 0판) ③아카 선이면 의회를 R2–R3에 따라붙임.
+                // 다카니안 PI = 신규 섹터/외각 +1K+2C. R1에 PI를 랩보다 맹목 강제하면 아카 선이
+                // 붕괴하므로: 아카 후보가 있으면 아카, 큰건물/신섹터 미션이면 PI, 아카 보유 후 PI,
+                // R4+ 의회 필수. darkTsFirst·geodensPiAfterAcademy 동형(후보 실존+순서 강제).
+                if (getPlayerFlag(playerId, 'darkaniansPiAcad', false) && player.faction === 'darkanians'
+                    && !game.hasDoneMainAction
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const rrDark = game.roundNumber ?? 1;
+                    const hasPiDark = game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+                    const hasAcadDark = game.map.some(t => t.ownerId === playerId && t.structure === 'academy');
+                    const upsDark = this.findUpgradeActions(game, playerId);
+                    const piDark = upsDark.find(c => c.type === 'upgrade_structure' && (c.params as any)?.target === 'planetary_institute');
+                    const acadDark = upsDark.find(c => c.type === 'upgrade_structure' && String((c.params as any)?.target ?? '').startsWith('academy'));
+                    const rTrigDark = game.roundScoringTiles?.[rrDark - 1]?.triggerType;
+                    const r1PiMission = rTrigDark === 'build_big_building' || rTrigDark === 'new_sector';
+                    if (rrDark === 1 && !hasPiDark && !hasAcadDark) {
+                        if (acadDark) {
+                            log(`Bot ${player.name} darkaniansPiAcad: R1 아카데미`, 'game', game.id);
+                            return acadDark;
+                        }
+                        if (piDark && r1PiMission) {
+                            log(`Bot ${player.name} darkaniansPiAcad: R1 의회 (${rTrigDark})`, 'game', game.id);
+                            return piDark;
+                        }
+                    }
+                    if (hasAcadDark && !hasPiDark && piDark) {
+                        log(`Bot ${player.name} darkaniansPiAcad: 아카 보유 → 의회 (R${rrDark})`, 'game', game.id);
+                        return piDark;
+                    }
+                    if (!hasPiDark && piDark && rrDark >= 4) {
+                        log(`Bot ${player.name} darkaniansPiAcad: 의회 필수 (R${rrDark})`, 'game', game.id);
+                        return piDark;
+                    }
+                }
                 // [flag: lantidsPiRush] 103게임 진단(2026-07-22): 사람 란티다 R1 의회 83%(평균 R1.7, 광산→TS→PI 체인,
                 // 평균 165VP) vs 봇 PI 평균 R3.55·R1-2는 25%뿐(72VP, 종족 꼴찌) — r1PiCalib103으로 후보는 열렸으나
                 // MCTS가 안 고름. 기생 수는 5.4≈사람 5.3으로 동일한데 PI가 늦어 기생 +2K 엔진의 절반을 버림.
@@ -3792,6 +3828,14 @@ export class BotLogic {
                 } else if (r2Preferred.includes(faction || '')) {
                     if (round <= 2) score += 70;
                     else score += 40;
+                    // [flag: darkaniansPiAcad] R1 PI를 랩(≈360)과 경쟁시키고, 아카 선 이후·R4+ 의회를 당김.
+                    // 직접-return이 안 타는 턴(랩 vs PI)은 MCTS가 이 점수로 고른다.
+                    if (getPlayerFlag(playerId, 'darkaniansPiAcad', false) && faction === 'darkanians') {
+                        const hasAcadPi = myStructures.some(t => t.structure === 'academy');
+                        if (round === 1 && !hasAcadPi) score += 220;
+                        if (hasAcadPi) score += 180;
+                        if (round >= 4) score += 100;
+                    }
                 } else if (faction === 'firaks' && getPlayerFlag(playerId, 'firaksDowngrade', true)) {
                     // [flag: firaksDowngrade] 피락스: 연구소+의회면 매 라운드 다운그레이드(랩→TS+연구) 엔진 → 의회 조기 우선.
                     const hasLab = myStructures.some(t => t.structure === 'research_lab');
@@ -5725,7 +5769,7 @@ export class BotLogic {
         if (game.pendingSpaceshipFedMine?.playerId !== playerId) return null;
         const player = game.players[playerId];
         if (!player) return null;
-        const forbidden = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'asteroid']);
+        const forbidden = new Set(['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'asteroid', 'transdim', 'lost_planet']); // [2026-09-10] 서버 unbuildable과 동기화
         const myTiles = game.map.filter(t =>
             (t.ownerId === playerId && t.structure) ||
             t.parasiticMine?.ownerId === playerId ||
