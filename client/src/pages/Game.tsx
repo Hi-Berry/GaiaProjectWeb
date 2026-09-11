@@ -1849,6 +1849,27 @@ export default function Game() {
     };
   }, [game?.pendingPowerOffers, playerId, isSpectator]);
 
+  /* [사용자 2026-09-11] 파워 제안 확인창 키보드: Enter = 수락, Esc = 거절 (버튼과 동일한 인자로 응답).
+     채팅/입력창에 포커스가 있으면 무시. 내게 온 미응답 제안 중 첫 번째(화면에 뜬 것)에 적용. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!game || !gameId || !playerId || isSpectator) return;
+      const offer = (game.pendingPowerOffers ?? []).find((o) => o && !o.responded && o.targetPlayerId === playerId);
+      if (!offer) return;
+      e.preventDefault();
+      if (e.key === 'Escape') { GameClient.respondPowerOffer(gameId, offer.id, false); return; }
+      const me = game.players[playerId] as PlayerState | undefined;
+      const isTak = me?.faction === 'taklons';
+      const hasTakPI = isTak && !!game.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute');
+      const piAddFirst = isTak ? (powerOfferPiAddFirst || (!!me && getMaxPowerGain(me) === 0 && hasTakPI)) : undefined;
+      GameClient.respondPowerOffer(gameId, offer.id, true, isTak ? powerOfferBrainFirst : undefined, piAddFirst);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [game, gameId, playerId, isSpectator, powerOfferBrainFirst, powerOfferPiAddFirst]);
+
   const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean; confirmed?: boolean }) => {
     if (!gameId || !game || !playerId) return;
 
@@ -4934,6 +4955,7 @@ export default function Game() {
                       >
                         Accept
                       </Button>
+                      <span className="hidden md:inline text-[9px] text-zinc-500 font-bold ml-1 whitespace-nowrap" title="키보드: Enter 수락 · Esc 거절">Enter · Esc</span>
                     </div>
                   </motion.div>
                 );
