@@ -1870,6 +1870,24 @@ export default function Game() {
     return () => window.removeEventListener('keydown', onKey);
   }, [game, gameId, playerId, isSpectator, powerOfferBrainFirst, powerOfferPiAddFirst]);
 
+  /* [사용자 2026-09-11] 패스 확인창(내 턴 종료 직전) 키보드: Enter = Ok(패스), Esc = Cancel.
+     Radix가 첫 버튼(Cancel)에 포커스를 두므로 기본 Enter는 취소가 됐다 → preventDefault 후 Ok와 동일하게 처리. */
+  useEffect(() => {
+    if (!confirmPassWithTileId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') { setConfirmPassWithTileId(null); return; }
+      if (!gameId) return;
+      GameClient.passRound(gameId, confirmPassWithTileId !== 'dummy' ? confirmPassWithTileId : undefined);
+      setConfirmPassWithTileId(null);
+    };
+    window.addEventListener('keydown', onKey, true); // capture: 포커스된 Cancel 버튼의 기본 Enter 동작보다 먼저
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [confirmPassWithTileId, gameId]);
+
   const selectTechTileWithLevel5Confirm = (techTileId: string, trackId?: string, options?: { fromMini?: boolean; confirmed?: boolean }) => {
     if (!gameId || !game || !playerId) return;
 
@@ -4630,6 +4648,7 @@ export default function Game() {
                     Ok
                   </AlertDialogAction>
                 </AlertDialogFooter>
+                <p className="hidden md:block text-right text-[10px] text-zinc-500 font-bold -mt-1">Enter = Ok · Esc = Cancel</p>
                 </div>
               </AlertDialogContent>
             </AlertDialog>
