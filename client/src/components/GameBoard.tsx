@@ -835,6 +835,19 @@ export function GameBoard({
     try { return localStorage.getItem('gaia-utility-open') === '1'; } catch { return false; }
   });
   useEffect(() => { try { localStorage.setItem('gaia-utility-open', utilityOpen ? '1' : '0'); } catch { /* noop */ } }, [utilityOpen]);
+  // [사용자 2026-09-14] 편의기능 창 단축키 Y (다른 단축키 F·R·T·Space와 미사용 확인). 입력창·다이얼로그·수정키 조합은 무시.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'y' || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
+      setUtilityOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [measureMode, setMeasureMode] = useState<'A' | 'B' | null>(null);
   const [measureA, setMeasureA] = useState<string | null>(null);
   const [measureB, setMeasureB] = useState<string | null>(null);
@@ -2266,7 +2279,7 @@ export function GameBoard({
               variant="secondary"
               onClick={() => setUtilityOpen((v) => !v)}
               data-testid="button-toggle-utility"
-              title="편의기능 (남은 땅 · 거리 측정기)"
+              title="편의기능 (남은 땅 · 거리 측정기) — Y"
               className={utilityOpen ? 'text-sky-300 hover:text-sky-200 ring-1 ring-sky-400/60' : 'text-zinc-300 hover:text-white'}
             >
               <Ruler className="w-4 h-4" />
