@@ -21,7 +21,7 @@ const DIST = path.join(SITE_DIR, 'dist');
 console.log('가이아 통계 사이트 빌드 시작…');
 const games = loadGames();
 const gamesPerPlayer = playerGameCounts(games);
-const ctx = { games, gamesPerPlayer };
+const ctx = { games, gamesPerPlayer, dist: DIST }; // dist: 부속 파일(games-data 조각)을 쓰는 리포트용
 console.log(`데이터: 전원 사람 4인 게임 ${games.length}판, 플레이어 ${Object.keys(gamesPerPlayer).length}명`);
 
 // 매 빌드마다 dist를 비우고 시작 (지워진 리포트/이름 바뀐 스냅샷 잔재 방지)
