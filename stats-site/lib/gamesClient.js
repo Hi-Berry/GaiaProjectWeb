@@ -178,7 +178,8 @@
       <h1>🔍 ${esc(me.n)} <span class="green">${esc(ko(me.f))} ${me.s}점</span> 감사</h1>
       <p class="sub">${idx.d} · ${game.ps.length}인 중 ${me.rk}위 · ${me.order}번째 시작 · 액션 ${A.actions}개 · gameLog 대조 ${A.matched}개</p>
       <div class="cards" style="margin-top:16px">${A.cards.map((c) => `<div class="card${c.ok === false ? ' isbad' : ''}">${okMark(c.ok)} ${c.html}</div>`).join('')}</div>
-      <div class="tblwrap"><table class="audit"><thead><tr>
+      ${A.rows.length === 0 ? `<div class="empty">${me.bot ? '봇은 액션 저널을 남기지 않아 액션별 감사 표가 없습니다. 아래 타임라인(모두 보기)에서 gameLog 기준 행동만 볼 수 있습니다.' : '이 사람의 액션 저널이 비어 있습니다(중도 이탈 등).'}</div>` : ''}
+      <div class="tblwrap"${A.rows.length === 0 ? ' hidden' : ''}><table class="audit"><thead><tr>
         <th>R</th><th class="l">액션</th><th class="colsep vpcol">VP</th>${GK.map((k) => `<th class="colsep">${k}</th>`).join('')}<th class="colsep l">건물</th><th class="l">연구</th><th class="colsep l">기술 타일 (보유 순)</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
       <div class="bdt tblwrap"><table class="audit"><thead><tr><th class="l">점수 내역 (scoreBreakdown)</th><th>VP</th></tr></thead><tbody>${bdRows}
