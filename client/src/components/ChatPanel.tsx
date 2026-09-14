@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { MessageCircle, X, Send, ChevronDown } from 'lucide-react';
 import { GameClient, type GameState, type ChatMessage } from '@/lib/gameClient';
 import { FACTIONS, isHiddenSpectatorName } from '@shared/gameConfig';
 import { playChatSound } from '@/lib/audio';
@@ -28,6 +28,12 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [draft, setDraft] = useState('');
     const [unread, setUnread] = useState(0);
+    // [사용자 2026-09-14] 옛 채팅을 스크롤해 보는 중에 새 메시지가 오면 맨 아래로 휙 내려가 읽기 어려움.
+    //   → 목록이 맨 아래(근처)에 있을 때만 자동 스크롤. 위로 올려둔 상태면 스크롤을 건드리지 않고
+    //   하단에 "새로운 메시지가 도착했습니다" 배지만 띄움(클릭하면 내려감). 내가 보낸 메시지는 항상 내려감.
+    const [pendingNew, setPendingNew] = useState(0);
+    const atBottomRef = useRef(true);
+    const prevMsgCountRef = useRef(0);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
@@ -178,14 +184,42 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         return () => { unsub(); }; // cleanup은 void 반환이어야 함(unsub은 Socket을 반환하므로 감쌈)
     }, [merge, gameId]);
 
-    // 열려 있으면 안 읽음 초기화 + 맨 아래로 스크롤
+    const scrollToBottom = useCallback(() => {
+        requestAnimationFrame(() => {
+            const el = listRef.current;
+            if (el) el.scrollTop = el.scrollHeight;
+            atBottomRef.current = true;
+            setPendingNew(0);
+        });
+    }, []);
+    // 스크롤 위치 추적: 바닥에서 24px 이내면 '아래 화면 보고 있음'으로 간주
+    const onListScroll = useCallback(() => {
+        const el = listRef.current;
+        if (!el) return;
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 24;
+        atBottomRef.current = atBottom;
+        if (atBottom) setPendingNew(0);
+    }, []);
+
+    // 열 때: 안 읽음 초기화 + 무조건 맨 아래로
     useEffect(() => {
         if (!open) return;
         setUnread(0);
-        requestAnimationFrame(() => {
-            if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-        });
-    }, [open, messages]);
+        prevMsgCountRef.current = messages.length;
+        scrollToBottom();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
+    // 새 메시지: 바닥을 보고 있거나 내가 보낸 것이면 내려가고, 위를 보고 있으면 배지만
+    useEffect(() => {
+        if (!open) { prevMsgCountRef.current = messages.length; return; }
+        const added = messages.length - prevMsgCountRef.current;
+        prevMsgCountRef.current = messages.length;
+        if (added <= 0) return;
+        const last = messages[messages.length - 1];
+        const mine = last && (last.senderId === selfIdRef.current || String(last.id).startsWith('opt-'));
+        if (atBottomRef.current || mine) scrollToBottom();
+        else setPendingNew((n) => n + added);
+    }, [messages, open, scrollToBottom]);
 
     const send = () => {
         const t = draft.trim();
@@ -268,7 +302,8 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                         </button>
                     </div>
 
-                    <div ref={listRef} className="overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar" style={{ height: `${listHeight}px` }}>
+                    <div className="relative">
+                    <div ref={listRef} onScroll={onListScroll} className="overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar" style={{ height: `${listHeight}px` }}>
                         {messages.length === 0 ? (
                             <div className="text-[11px] text-zinc-500 text-center py-8">아직 메시지가 없습니다</div>
                         ) : (
@@ -281,6 +316,18 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                                 </div>
                             ))
                         )}
+                    </div>
+                    {pendingNew > 0 && (
+                        <button
+                            type="button"
+                            onClick={scrollToBottom}
+                            className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-primary/90 hover:bg-primary text-white text-[11px] font-bold px-3 py-1 shadow-lg"
+                            aria-label="새 메시지로 이동"
+                        >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                            새로운 메시지가 도착했습니다{pendingNew > 1 ? ` (${pendingNew})` : ''}
+                        </button>
+                    )}
                     </div>
 
                     <div className="flex items-center gap-1.5 p-2 border-t border-white/10 bg-zinc-900/40">
