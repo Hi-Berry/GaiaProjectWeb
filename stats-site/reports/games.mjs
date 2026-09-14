@@ -97,7 +97,7 @@ export function build({ dist }) {
   fs.writeFileSync(path.join(dist, 'games.artifact.html'), body);
   console.log(`    games: ${index.length}판 · 조각 ${chunks.length}개 (최대 ${(Math.max(...sizes) / 1e6).toFixed(1)}MB, 합 ${(sizes.reduce((s, x) => s + x, 0) / 1e6).toFixed(1)}MB)`);
   return `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body>${body}</body></html>`;
+<html lang="ko"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body><a class="back" href="./index.html">← 가이아 통계 홈</a>${body}</body></html>`; // 정적 사이트(dist)에서만 홈 링크 — 아티팩트 조각에는 index.html이 없음
 }
 
 function fragment({ index, chunkCount, faces, client }) {
@@ -116,6 +116,8 @@ function fragment({ index, chunkCount, faces, client }) {
   html { color-scheme:dark; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.5;
     background-image:radial-gradient(1100px 460px at 75% -10%, rgba(143,184,255,.10), transparent 60%), radial-gradient(700px 380px at 5% 0%, rgba(121,201,158,.07), transparent 55%); }
+  .back { position:fixed; top:8px; right:14px; z-index:5; color:var(--muted); text-decoration:none; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); }
+  .back:hover { color:var(--acc); }
   .wrap { max-width:1280px; margin:0 auto; padding-block:22px 64px; padding-inline:20px; }
   .wrap.wide { max-width:none; }
   a { color:var(--acc); }
