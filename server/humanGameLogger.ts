@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { GaiaGameState, PlayerState } from '@shared/gameConfig';
+import { getFederationEntries, type GaiaGameState, type PlayerState } from '@shared/gameConfig';
 import { log } from './index';
 import { recordDecisionFeatures } from './ai/valueData';
 
@@ -408,6 +408,39 @@ const FACTION_KO: Record<string, string> = {
 };
 
 /**
+ * [사용자 2026-09-15] 기록 사이트 뱃지 자동 부여 — 종료 시 판정해 제출 페이로드 `badges`에 실어 보낸다.
+ * badge_id 는 기록 사이트 badges.json 의 custom_badges[].id 와 같아야 한다(다르면 사이트가 unknown 으로 돌려주고 무시).
+ * 판정은 scripts/badgeHolders.mjs(과거 로그 기준)와 같은 조건. "승리" = 최고점(동점 포함).
+ */
+export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[] }) => boolean }[] = [
+  { id: 'federation14-win', name: '무한거리 광산 연방 먹고 승리',
+    test: (p) => getFederationEntries(p).some((f) => f.rewardId === 'ship-fed-mine-free') },
+  { id: 'artifact4-win', name: '계란(인공물) 4개 먹고 승리',
+    test: (p) => (p.artifacts ?? []).length >= 4 },
+  { id: 'no-ship-win', name: '우주선 안 들어가고 승리',
+    test: (p) => !((p.scoreBreakdown as any)?.other ?? []).some((o: any) => o?.source === '우주선 입장') },
+  { id: 'advtech4-win', name: '고급 기술 타일 4개 먹고 승리',
+    test: (p) => (p.techTiles ?? []).filter((t) => String(t).startsWith('adv-')).length >= 4 },
+  { id: 'tech-3k-win', name: 'ACT 3K 기술 타일 먹고 승리',
+    test: (p) => (p.techTiles ?? []).includes('adv-act-3k' as any) },
+];
+
+/** 이 판에서 부여할 뱃지 목록 [{badge_id, player}] — 승자(최고점, 동점 모두)만 대상. */
+export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; player: string; badge_name: string }[] {
+  const players = Object.values(game.players ?? {});
+  if (!players.length) return [];
+  const top = Math.max(...players.map((p) => p.score ?? 0));
+  const out: { badge_id: string; player: string; badge_name: string }[] = [];
+  for (const p of players) {
+    if ((p.score ?? 0) !== top || !p.name) continue;
+    for (const r of BADGE_RULES) {
+      try { if (r.test(p as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
+    }
+  }
+  return out;
+}
+
+/**
  * 4인 전원 사람게임 종료 시 점수사이트(PythonAnywhere)에 자동 제출.
  * fire-and-forget: 점수사이트가 죽어도 게임엔 영향 없음(예외는 호출부에서 로그만).
  * SCORE_SITE_URL / SCORE_SITE_TOKEN 둘 다 있어야 동작(미설정이면 조용히 스킵).
@@ -452,6 +485,10 @@ export async function submitToScoreSite(game: GaiaGameState & {
     return;
   }
 
+  // [뱃지 자동 부여] 승자의 뱃지 달성을 같은 요청에 실어 보냄(사이트가 badges.json 보유자에 추가).
+  const badges = computeBadgeAwards(game);
+  if (badges.length) log(`Badge awards: ${badges.map((b) => `${b.player}:${b.badge_id}`).join(', ')}`, 'game', game.id);
+
   const endpoint = url.replace(/\/+$/, '') + '/api/submit-game';
   // 점수사이트가 응답 없이 멈춰도 promise가 무한 대기하지 않도록 10초 타임아웃(매달린 소켓 누적 방지).
   const controller = new AbortController();
@@ -460,14 +497,15 @@ export async function submitToScoreSite(game: GaiaGameState & {
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Gaia-Token': token },
-      body: JSON.stringify({ game_id: game.id, players }),
+      body: JSON.stringify({ game_id: game.id, players, badges }),
       signal: controller.signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(`Score site submit failed: ${res.status} ${body}`);
     }
-    log(`Score submitted to score site: ${game.id}`, 'system', game.id);
+    const result = await res.json().catch(() => null) as { badges_added?: unknown[]; badges_unknown?: unknown[] } | null;
+    log(`Score submitted to score site: ${game.id}${result?.badges_added?.length ? ` · 뱃지 ${result.badges_added.length}건 부여` : ''}${result?.badges_unknown?.length ? ` · 사이트에 없는 뱃지 id: ${JSON.stringify(result.badges_unknown)}` : ''}`, 'system', game.id);
   } finally {
     clearTimeout(timer);
   }
