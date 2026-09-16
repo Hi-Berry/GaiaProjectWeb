@@ -423,7 +423,14 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
     test: (p) => (p.techTiles ?? []).filter((t) => String(t).startsWith('adv-')).length >= 4 },
   { id: 'tech-3k-win', name: 'ACT 3K 기술 타일 먹고 승리',
     test: (p) => (p.techTiles ?? []).includes('adv-act-3k' as any) },
+  // [사용자 2026-09-16] 일반 기술 타일 9종 전부 획득(고급 타일로 덮은 것 포함) + 타일이 종족 능력으로 쏟아지는 아이타·파이락 제외.
+  //   실측(사람 4인 319판): 9종 완성 18석 중 11석 아이타·4석 파이락 → 나머지 종족은 4석뿐인 희귀 기록.
+  { id: 'normal_tech9_other_factions', name: '일반 기술 타일 9종 전부 획득 (아이타·파이락 제외)',
+    test: (p) => !['itars', 'firaks'].includes(String(p.faction ?? ''))
+      && new Set([...(p.techTiles ?? []), ...(p.coveredTechTiles ?? [])].map(String).filter((t) => NORMAL_TECH9.has(t))).size >= 9 },
 ];
+/** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
+const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
 
 /** 이 판에서 부여할 뱃지 목록 [{badge_id, player}] — 승자(최고점, 동점 모두)만 대상. */
 export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; player: string; badge_name: string }[] {

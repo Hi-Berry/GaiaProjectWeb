@@ -7,6 +7,16 @@ import { FACTION_KO } from '../stats-site/lib/factions.mjs';
 const fedIds = (p) => (p.federations ?? []).map((f) => (typeof f === 'string' ? f : f.rewardId));
 /** 한 판에서 그 사람이 집은 인공물 수 — gameLog의 art-* tileId로 셈(연방 혜택 인공물은 ship-fed-* 줄이 따라붙어 중복되므로 art-만) */
 const artifactCount = (g, pid) => new Set((g.gameLog ?? []).filter((e) => e.playerId === pid && /^Artifact/.test(e.action ?? '') && /^art-/.test(e.tileId ?? '')).map((e) => `${e.tileId}@${e.timestamp}`)).size;
+const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
+/** 게임 중 획득한 일반 기술 타일 9종 집합 — 고급 타일로 덮여 종료 techTiles에서 빠진 것도 포함 (Gained Tech Tile / Rebellion / Advanced Tech Tile 로그의 tileId·details) */
+const normalTechAcquired = (g, pid) => {
+  const got = new Set();
+  for (const e of (g.fullGameLog ?? g.gameLog ?? [])) {
+    if (e.playerId !== pid || !/Gained Tech Tile|Rebellion: Gained Tech|Advanced Tech Tile/.test(e.action ?? '')) continue;
+    for (const id of [e.tileId, ...((e.details ?? '').match(/(?<![a-z-])tech-[a-z0-9-]+/g) ?? [])]) if (NORMAL_TECH9.has(id)) got.add(id);
+  }
+  return got;
+};
 const shipEntries = (p) => (p.scoreBreakdown?.other ?? []).filter((o) => o.source === '우주선 입장').length;
 
 /** 뱃지 정의: id, 이름, 조건(g, pid, p, won) → boolean.  won = 그 판 1위(동점 포함) */
@@ -16,6 +26,9 @@ export const BADGES = [
   { id: 'win-no-ship', name: '우주선 안 들어가고 승리', test: (g, pid, p, won) => won && shipEntries(p) === 0 },
   { id: 'win-4-adv-tiles', name: '고급 기술 타일 4개 먹고 승리', test: (g, pid, p, won) => won && (p.techTiles ?? []).filter((t) => t.startsWith('adv-')).length >= 4 },
   { id: 'win-act-3k', name: 'ACT 3K 기술 타일 먹고 승리', test: (g, pid, p, won) => won && (p.techTiles ?? []).includes('adv-act-3k') },
+  // [사용자 2026-09-16] 일반 9종 전부(덮은 것 포함, 획득 로그 기준 — 저장 players엔 coveredTechTiles가 없음) + 아이타·파이락 제외. 서버 id와 동일.
+  { id: 'normal_tech9_other_factions', name: '일반 기술 타일 9종 전부 획득 (아이타·파이락 제외)', winOnly: false,
+    test: (g, pid, p, won) => !['itars', 'firaks'].includes(p.faction) && normalTechAcquired(g, pid).size >= 9 },
 ];
 
 const games = loadGames();
