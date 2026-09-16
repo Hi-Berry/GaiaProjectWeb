@@ -1233,6 +1233,63 @@ export class BotLogic {
                         }
                     }
                 }
+                // [flag: r1RebelLine] 실게임 계측(2026-09-16, 8월~ 혼합 42판): R1 리벨 3정큐 슬롯(라운드당 1회 공유)을
+                // 사람 25 vs 봇 1이 가져감. 봇도 R1 리벨 탑승 27회지만 탑승 시점 QIC 0.67·K 0.74(사람 1.80·2.97) — 시작 QIC를
+                // 탑승 전 광산 점프에 태우고(28회 vs 사람 1회) K도 연구에 써서 브리지(#3 2K→1Q2C)조차 못 밟음.
+                // 이전 조각 수정이 실패한 이유(DECISIONS 09-08): QIC 보존만(qicValveKeepLine) 하면 자원만 묶이고, 입장만
+                // (r1RebelCommit) 하면 탑승 후 라인이 안 이어짐. → 세 단계를 한 계획으로: '지금 상태에서 이번 라운드 3Q 완성이
+                // 보일 때만'(입장비·브리지·번 포함 계산) 입장→#3→(번)→#1을 연속 직접-return. 단계 사이에 다른 액션이 끼지
+                // 않아 QIC/K가 새지 않는다. 대상은 러너 1봇(isRebelRunner) — 4봇 전원 탑승(−5VP×4, 슬롯 1개) 희석 방지.
+                if (getPlayerFlag(playerId, 'r1RebelLine', true) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) <= 2 && !candidates.some(c => c.type === 'form_federation')
+                    && this.isRebelRunner(game, playerId)) {
+                    const rebT = game.map.find(t => t.type === 'ship_rebellion');
+                    const usedIdx = (rebT ? (game.spaceships?.[rebT.id]?.usedActionIndices ?? []) : []) as number[];
+                    if (rebT && !usedIdx.includes(1)
+                        && hasSelectableTechTileForHuman(game, playerId, getShipTechTileIdsForPlayer(game, playerId))) {
+                        const onReb = (player.spaceshipsEntered ?? []).includes(rebT.id);
+                        const q = player.qic ?? 0, k = player.knowledge ?? 0;
+                        const p3 = player.power3 ?? 0, p2 = player.power2 ?? 0;
+                        const burnable = player.faction !== 'taklons' && (p3 + Math.floor(p2 / 2)) >= 4 && Math.max(0, 4 - p3) <= 2;
+                        const bridge = (k >= 2 && !usedIdx.includes(3)) ? 1 : 0;
+                        // 입장비(미탑승): 사거리 밖이면 QIC 점프. 1Q까지만 — 2Q+ 입장은 라인 자체가 죽음(rebelEntryFareGuard와 동일)
+                        let fare = 0;
+                        if (!onReb) {
+                            const myPl = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
+                                || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+                            const baseRange = this.getEffectiveBaseRange(player) - (player.rangeBonusActive ? 3 : 0);
+                            const d = myPl.length ? Math.min(...myPl.map(t => getDistance(t, rebT))) : Infinity;
+                            fare = d > baseRange ? Math.ceil((d - baseRange) / 2) : 0;
+                        }
+                        const lineQ = q - fare + bridge + (burnable ? 1 : 0);
+                        if (fare <= 1 && lineQ >= 3) {
+                            const tag = `R${game.roundNumber} q${q} k${k} fare${fare} bridge${bridge} burn${burnable ? 1 : 0}`;
+                            if (onReb && q >= 3) {
+                                log(`Bot ${player.name} r1RebelLine: 발사 #1 (${tag})`, 'game', game.id);
+                                return { type: 'use_ship_action', params: { shipTileId: rebT.id, actionIndex: 1 } };
+                            }
+                            if (onReb && q < 3 && bridge) {
+                                log(`Bot ${player.name} r1RebelLine: 브리지 #3 2K→1Q2C (${tag})`, 'game', game.id);
+                                return { type: 'use_ship_action', params: { shipTileId: rebT.id, actionIndex: 3 } };
+                            }
+                            if (onReb && q === 2 && burnable) {
+                                const burns = Math.max(0, 4 - p3);
+                                log(`Bot ${player.name} r1RebelLine: 번${burns}+4P→1Q 후 발사 #1 (${tag})`, 'game', game.id);
+                                return {
+                                    type: 'use_ship_action', params: { shipTileId: rebT.id, actionIndex: 1 },
+                                    preActions: [
+                                        ...Array.from({ length: burns }, () => ({ type: 'burn_power' as const, params: {} })),
+                                        { type: 'convert_resource' as const, params: { type: '4power-to-1qic' } },
+                                    ],
+                                } as BotAction;
+                            }
+                            if (!onReb && this.canEnterSpaceship(game, playerId, rebT.id, fare)) {
+                                log(`Bot ${player.name} r1RebelLine: 리벨 입장 (${tag})`, 'game', game.id);
+                                return { type: 'enter_spaceship', params: { tileId: rebT.id, useRangeBonus: false, qicToUse: fare } } as BotAction;
+                            }
+                        }
+                    }
+                }
                 // [flag: rebellionQicPlan] 사용자(2026-07-11): "아무도 리벨리온 3정큐 빌드를 안 생각해서 그것만으로 쉽게 이김".
                 // 룰 확인: 우주선 액션은 매 라운드 리셋(gameState 7215) = 3Q→기술타일이 라운드당 반복 엔진.
                 // 사람 빌드: 리벨리온 탑승 + AI트랙(L1~5: +1/+1/+2/+2/+4Q) 등정 + 매라운드 3Q 소진. 봇에 빠진 조각 =
