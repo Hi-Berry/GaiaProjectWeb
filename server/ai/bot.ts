@@ -1639,6 +1639,30 @@ export class BotLogic {
                         return gaiaBuild;
                     }
                 }
+                // [flag: gaiaformerPlaceFollow] 실게임(2026-09-16, 8월~ 혼합 42판): 가이아 L1+ 봇 좌석 중 포머를 한 번도 안 놓은 좌석 53
+                //   — 전부 2칸 안에 미점유 트랜스딤이 있고 49석은 L1 이후 총파워≥6인 턴이 있었다(파워·사거리 병목 아님). 봇 포머 배치
+                //   0.11 vs 사람 1.86/석(+즉포 0.95), 가이아 광산 1.35 vs 3.62. 원인 = 1턴 시야 평가기가 '포머 놓기'를 파워 −6·포머 −5의
+                //   순손해로 봄(gaiaformerPlacedValue 평가기 크레딧은 07-01 −3.05 기각). 연구(expansionEngineOpen)와 광산 회수
+                //   (gaiaMineFollow)만 직접-return이고 중간 단계 '배치'가 MCTS 몫이라 체인이 끊김 → 배치도 직접-return으로 이어준다
+                //   (사람: 포머 보유 시 배치 100%). 즉포 부스터(무료)를 들고 있으면 그것부터. R2~5, 연방 우선이면 양보.
+                if (getPlayerFlag(playerId, 'gaiaformerPlaceFollow', false) && !game.hasDoneMainAction
+                    && (game.roundNumber ?? 1) >= 2 && (game.roundNumber ?? 1) <= 5
+                    && getEffectiveGaiaformers(player) >= 1 && player.faction !== 'bal_tak'
+                    && !candidates.some(c => c.type === 'form_federation')) {
+                    const gfActs = this.findGaiaformerActions(game, playerId);
+                    if (gfActs.length) {
+                        const boosterFree = player.bonusTile && !player.usedBonusAction
+                            && ALL_BONUS_TILES.find(t => t.id === player.bonusTile)?.specialAction === 'gaia_project';
+                        if (boosterFree) {
+                            log(`Bot ${player.name} gaiaformerPlaceFollow: 즉포 부스터(무료)로 포머 배치 (R${game.roundNumber}, gf${getEffectiveGaiaformers(player)})`, 'game', game.id);
+                            return { type: 'use_bonus_action', params: { actionId: 'gaia_project' } };
+                        }
+                        // findGaiaformerActions는 점수순 정렬 — QIC 0 대상이 있으면 그것(QIC는 리벨/입장 라인용)
+                        const free = gfActs.find(a => ((a.params as any)?.qicUsed ?? 0) === 0) ?? gfActs[0];
+                        log(`Bot ${player.name} gaiaformerPlaceFollow: 포머 배치 직접 (tile=${(free.params as any)?.tileId} R${game.roundNumber}, gf${getEffectiveGaiaformers(player)})`, 'game', game.id);
+                        return free;
+                    }
+                }
                 // [flag: expansionMineDrive] 진짜 벽 공략(2026-07-07 사람 로그 전수: 광산 사람 ~14 vs 봇 ~8.3 = 봇이 57%뿐).
                 //   사람은 R1=인프라(TS 63%), R2-4=광산 스팸(액션의 25~42%, 라운드당 ~2채). 봇은 평가기가 확장을 저평가해 광산 후보
                 //   점수를 MCTS가 덮음(수차례 확인) → R2-4에 '페이스 미달'(광산<2×라운드)이면 봇 자체 최고점 광산을 직접-return 강제.
