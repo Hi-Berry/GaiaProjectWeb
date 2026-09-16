@@ -432,16 +432,21 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
 /** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
 const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
 
-/** 이 판에서 부여할 뱃지 목록 [{badge_id, player}] — 승자(최고점, 동점 모두)만 대상. */
-export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; player: string; badge_name: string }[] {
+/** 이 판에서 부여할 뱃지 목록 [{badge_id, player, note, date}] — 승자(최고점, 동점 모두)만 대상.
+ *  note/date: [사용자 2026-09-16] 기록 사이트 admin이 '이름 | 엠바스 184점 1위 | 2026-08-05' 양식으로 보유자 문구를 쓰고 있어
+ *  자동 부여도 같은 양식이 되도록 종족·점수·순위 문구와 종료 날짜(KST)를 함께 보낸다(사이트 award_badges가 notes/awarded에 반영). */
+export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; player: string; badge_name: string; note: string; date: string }[] {
   const players = Object.values(game.players ?? {});
   if (!players.length) return [];
   const top = Math.max(...players.map((p) => p.score ?? 0));
-  const out: { badge_id: string; player: string; badge_name: string }[] = [];
+  const endMs = Number((game as any).completedAt) || Date.now();
+  const date = new Date(endMs + 9 * 3600 * 1000).toISOString().slice(0, 10); // KST 날짜
+  const out: { badge_id: string; player: string; badge_name: string; note: string; date: string }[] = [];
   for (const p of players) {
     if ((p.score ?? 0) !== top || !p.name) continue;
+    const note = `${FACTION_KO[String(p.faction)] ?? String(p.faction ?? '')} ${p.score ?? 0}점 1위`;
     for (const r of BADGE_RULES) {
-      try { if (r.test(p as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
+      try { if (r.test(p as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
     }
   }
   return out;
