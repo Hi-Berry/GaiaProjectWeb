@@ -9029,9 +9029,33 @@ export class BotLogic {
 
     /** [flag: gaiaResearchUseGate] 가이아 L0→L1 연구가 '포머를 실제로 쓸 수 있는' 상황인지.
      *  요건: ①사거리+2(QIC 점프 여지) 내 미점유 트랜스딤 존재 ②총 파워 5+ (배치요구 6, 수입 감안). */
+    /** [flag: r1AsteroidLine] 사거리 안(QIC 0)에 있는 미점유 소행성 — 포머 1개로 광산이 되는 무료 확장지(1O2C도 안 듦). */
+    private static freeReachAsteroid(game: ServerGameState, playerId: string): HexTile | null {
+        const player = game.players[playerId];
+        const myPl = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
+            || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
+        if (!myPl.length) return null;
+        const rng = this.getEffectiveBaseRange(player) - (player.rangeBonusActive ? 3 : 0);
+        let best: HexTile | null = null, bestD = Infinity;
+        for (const t of game.map) {
+            if (t.type !== 'asteroid' || t.ownerId || t.structure) continue;
+            const d = Math.min(...myPl.map(p => getDistance(p, t)));
+            if (d <= rng && d < bestD) { bestD = d; best = t; }
+        }
+        return best;
+    }
+
     private static gaiaResearchUsable(game: ServerGameState, playerId: string): boolean {
         const player = game.players[playerId];
         if (!player || player.faction === 'bal_tak') return false;
+        // [flag: r1AsteroidLine] 실게임(2026-09-16, 8월~ 혼합 42판 R1): 사람은 가이아 L1 연구 14회 → 소행성 광산 24회
+        //   (포머 1개 = 광산, 1O2C 불필요, 14/18이 인접 거리 1). 봇은 R1 가이아 연구 0/82·소행성 광산 8/82 — 아래
+        //   gaiaResearchPlaceSync가 R1 가이아 연구를 통째로 막고(트랜스딤 방치 방지 취지) 소행성 용도는 고려 안 함.
+        //   봇 좌석 47%가 시작광산 인접(거리 1)에 소행성을 둠. → R1이라도 '사거리 내 무료 소행성 + 포머 없음 + L0'이면
+        //   가이아 L1을 쓸 수 있는 상태로 판정(연구 직후 소행성 광산 직접-return이 라인을 마감, 아래 r1AsteroidLine 단계).
+        if (getPlayerFlag(playerId, 'r1AsteroidLine', false) && (game.roundNumber ?? 1) <= 1
+            && (player.research?.gaiaProject ?? 0) === 0 && getEffectiveGaiaformers(player) === 0
+            && this.freeReachAsteroid(game, playerId)) return true;
         // [flag: gaiaResearchPlaceSync] 실측(60판): R1 가이아 L1 연구 41건 중 15건(37%)이 R2까지 포머 미활용.
         // 원인 = 연구는 R1 허용인데 배치 후보는 noR1Gaiaformer가 R2+로 차단 → 한 라운드 어긋난 사이에
         // 토큰이 6 밑으로 새거나(정리변환) 트랜스딤 피격. 연구도 R2+로 동기화(연구→같은 라운드 배치).
@@ -9074,33 +9098,9 @@ export class BotLogic {
             if (k >= 2 && gap > 0 && (player.power3 ?? 0) >= gap) {
                 const kConvs = Array.from({ length: gap }, () => ({ type: 'convert_resource' as const, params: { type: '1power-to-1k-gaiaformer' } }));
                 preActions.unshift(...kConvs);
-    /** [flag: r1AsteroidLine] 사거리 안(QIC 0)에 있는 미점유 소행성 — 포머 1개로 광산이 되는 무료 확장지(1O2C도 안 듦). */
-    private static freeReachAsteroid(game: ServerGameState, playerId: string): HexTile | null {
-        const player = game.players[playerId];
-        const myPl = game.map.filter(t => (t.ownerId === playerId && t.structure && t.structure !== 'ship')
-            || (t.spaceStation && (t.spaceStation as any).ownerId === playerId));
-        if (!myPl.length) return null;
-        const rng = this.getEffectiveBaseRange(player) - (player.rangeBonusActive ? 3 : 0);
-        let best: HexTile | null = null, bestD = Infinity;
-        for (const t of game.map) {
-            if (t.type !== 'asteroid' || t.ownerId || t.structure) continue;
-            const d = Math.min(...myPl.map(p => getDistance(p, t)));
-            if (d <= rng && d < bestD) { bestD = d; best = t; }
-        }
-        return best;
-    }
-
             }
         }
         return preActions.length
-        // [flag: r1AsteroidLine] 실게임(2026-09-16, 8월~ 혼합 42판 R1): 사람은 가이아 L1 연구 14회 → 소행성 광산 24회
-        //   (포머 1개 = 광산, 1O2C 불필요, 14/18이 인접 거리 1). 봇은 R1 가이아 연구 0/82·소행성 광산 8/82 — 아래
-        //   gaiaResearchPlaceSync가 R1 가이아 연구를 통째로 막고(트랜스딤 방치 방지 취지) 소행성 용도는 고려 안 함.
-        //   봇 좌석 47%가 시작광산 인접(거리 1)에 소행성을 둠. → R1이라도 '사거리 내 무료 소행성 + 포머 없음 + L0'이면
-        //   가이아 L1을 쓸 수 있는 상태로 판정(연구 직후 소행성 광산 직접-return이 라인을 마감, 아래 r1AsteroidLine 단계).
-        if (getPlayerFlag(playerId, 'r1AsteroidLine', false) && (game.roundNumber ?? 1) <= 1
-            && (player.research?.gaiaProject ?? 0) === 0 && getEffectiveGaiaformers(player) === 0
-            && this.freeReachAsteroid(game, playerId)) return true;
             ? { type: 'advance_research', params: { trackId }, preActions }
             : { type: 'advance_research', params: { trackId } };
     }
