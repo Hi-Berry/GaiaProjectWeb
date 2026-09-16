@@ -72,7 +72,9 @@ const BEHAVIOR_KEYS = ['mine', 'tradingStation', 'researchLab', 'piAcademy', 'up
     //   파워액션(powerAct)과 함께: midP3 낮고 파워액션 적으면 '공급부족'(충전 안함), midP3 높은데 파워액션 적으면 '소비부족'(안씀).
     'finalP3', 'midP3', 'charge',
     // [리벨 R1-2 계측 2026-09-16] 라운드당 1회 공유 슬롯인 리벨 #1(3Q→기술타일)을 R1~2에 발사한 횟수 — r1RebelLine 행동 검증용
-    'rebelEarly'] as const;
+    'rebelEarly',
+    // [소행성 라인 계측 2026-09-16] R1~2 소행성 광산(포머 소모)·R1 가이아 L1 연구 — r1AsteroidLine 행동 검증용
+    'astMineEarly', 'gaiaL1R1'] as const;
 function classifyAction(a: string): string | null {
     if (!a) return null;
     // 1) 우주선 Nav+1 획득 (일반 우주선액션보다 먼저)
@@ -321,6 +323,12 @@ function runOneGame(socket: Socket, headToHead: { bPositions: number[]; A: Varia
                 }
                 if (/^Rebellion: Gain tech tile/i.test(e.action || '') && (typeof e.round === 'number' ? e.round : 99) <= 2) {
                     (byPlayer[pid] ??= {}).rebelEarly = ((byPlayer[pid] ??= {}).rebelEarly || 0) + 1;
+                }
+                if (/^Built Mine on Asteroid/i.test(e.action || '') && (typeof e.round === 'number' ? e.round : 99) <= 2) {
+                    (byPlayer[pid] ??= {}).astMineEarly = ((byPlayer[pid] ??= {}).astMineEarly || 0) + 1;
+                }
+                if (/Advanced Research/i.test(e.action || '') && /gaiaProject to level 1/i.test(e.details || '') && Number(e.round) === 1) {
+                    (byPlayer[pid] ??= {}).gaiaL1R1 = ((byPlayer[pid] ??= {}).gaiaL1R1 || 0) + 1;
                 }
                 if (/Ivits: Space Station/i.test(e.action || '')) {
                     (byPlayer[pid] ??= {}).spaceStation = ((byPlayer[pid] ??= {}).spaceStation || 0) + 1;
@@ -704,7 +712,7 @@ async function main() {
             tsEarly: 'TS(R1-2)', mineEarly: '광산(R1-2)', tsRoundSum: '_tsRsum', tsRoundN: '_tsRn',
             gaiaPick: '즉포선택', gaiaUse: '즉포사용', piBuilt: 'PI건설', paraMine: '기생광산', piRoundSum: '_piRsum', piRoundN: '_piRn', burn: '파워번', spaceStation: '우주정거장', takBurn: '타클론번', takBrainIdle: '브레인놀림',
             econAdv: '경제상승', econAdvR4: '경제상승R4+', resLateL3: 'R5+L3도달', gaiaMine: '가이아광산', gaiaQic2: '2Q+가이아',
-            finalP3: '종료bowl3', midP3: '평균bowl3', charge: '충전횟수', rebelEarly: '리벨#1(R1-2)',
+            finalP3: '종료bowl3', midP3: '평균bowl3', charge: '충전횟수', rebelEarly: '리벨#1(R1-2)', astMineEarly: '소행성광산(R1-2)', gaiaL1R1: '가이아L1(R1)',
         };
         for (const k of BEHAVIOR_KEYS) {
             if (k === 'tsRoundSum' || k === 'tsRoundN' || k === 'piRoundSum' || k === 'piRoundN') continue; // 내부 집계용 → 평균라운드로 따로 출력
