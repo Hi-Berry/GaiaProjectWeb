@@ -18,6 +18,8 @@ const normalTechAcquired = (g, pid) => {
   return got;
 };
 const shipEntries = (p) => (p.scoreBreakdown?.other ?? []).filter((o) => o.source === '우주선 입장').length;
+/** 그 사람이 건물을 지은 가이아 행성 수 — 가이아포밍한 초차원도 저장 시점 type이 'gaia'라 함께 세진다(isGaiaformed 플래그 불필요) */
+const gaiaPlanets = (g, pid) => (g.map ?? []).filter((t) => t.ownerId === pid && t.structure && t.type === 'gaia').length;
 
 /** 뱃지 정의: id, 이름, 조건(g, pid, p, won) → boolean.  won = 그 판 1위(동점 포함) */
 export const BADGES = [
@@ -29,6 +31,10 @@ export const BADGES = [
   // [사용자 2026-09-16] 일반 9종 전부(덮은 것 포함, 획득 로그 기준 — 저장 players엔 coveredTechTiles가 없음) + 아이타·파이락 제외. 서버 id와 동일.
   { id: 'normal_tech9_other_factions', name: '일반 기술 타일 9종 전부 획득 (아이타·파이락 제외)', winOnly: false,
     test: (g, pid, p, won) => !['itars', 'firaks'].includes(p.faction) && normalTechAcquired(g, pid).size >= 9 },
+  // [사용자 2026-09-17] 가이아 행성 10개 이상 + 1위. 서버 BADGE_RULES와 같은 id.
+  //   실측(사람 4인 327판): 10개 이상 17회·11명 중 1위는 4명뿐(최고 11개).
+  { id: 'gaia10-win', name: '가이아 행성 10개 먹고 승리',
+    test: (g, pid, p, won) => won && gaiaPlanets(g, pid) >= 10 },
 ];
 
 const games = loadGames();

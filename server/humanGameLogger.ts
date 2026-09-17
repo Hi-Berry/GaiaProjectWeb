@@ -412,7 +412,7 @@ const FACTION_KO: Record<string, string> = {
  * badge_id 는 기록 사이트 badges.json 의 custom_badges[].id 와 같아야 한다(다르면 사이트가 unknown 으로 돌려주고 무시).
  * 판정은 scripts/badgeHolders.mjs(과거 로그 기준)와 같은 조건. "승리" = 최고점(동점 포함).
  */
-export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[] }) => boolean }[] = [
+export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[]; gaiaPlanets?: number }) => boolean }[] = [
   { id: 'federation14-win', name: '무한거리 광산 연방 먹고 승리',
     test: (p) => getFederationEntries(p).some((f) => f.rewardId === 'ship-fed-mine-free') },
   { id: 'artifact4-win', name: '계란(인공물) 4개 먹고 승리',
@@ -428,6 +428,11 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
   { id: 'normal_tech9_other_factions', name: '일반 기술 타일 9종 전부 획득 (아이타·파이락 제외)',
     test: (p) => !['itars', 'firaks'].includes(String(p.faction ?? ''))
       && new Set([...(p.techTiles ?? []), ...(p.coveredTechTiles ?? [])].map(String).filter((t) => NORMAL_TECH9.has(t))).size >= 9 },
+  // [사용자 2026-09-17] 가이아 행성 10개 이상에 건물을 짓고 승리. 가이아포밍한 초차원도 종료 시점 type이 'gaia'라 함께 세진다.
+  //   실측(사람 4인 327판): 10개 이상 17회·11명 중 1위는 4명뿐(최고 기록 11개).
+  //   gaiaPlanets는 computeBadgeAwards가 game.map을 훑어 미리 얹어준다(PlayerState엔 보유 행성이 없음).
+  { id: 'gaia10-win', name: '가이아 행성 10개 먹고 승리',
+    test: (p) => (p.gaiaPlanets ?? 0) >= 10 },
 ];
 /** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
 const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
@@ -442,11 +447,17 @@ export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; pla
   const endMs = Number((game as any).completedAt) || Date.now();
   const date = new Date(endMs + 9 * 3600 * 1000).toISOString().slice(0, 10); // KST 날짜
   const out: { badge_id: string; player: string; badge_name: string; note: string; date: string }[] = [];
-  for (const p of players) {
+  // 보유 가이아 행성 수는 PlayerState가 아니라 맵에만 있어 규칙 실행 전에 미리 센다(gaia10-win용).
+  const gaiaPlanets: Record<string, number> = {};
+  for (const t of (game.map ?? [])) {
+    if (!t?.ownerId || !t.structure || t.type !== 'gaia') continue;
+    gaiaPlanets[t.ownerId] = (gaiaPlanets[t.ownerId] ?? 0) + 1;
+  }
+  for (const [pid, p] of Object.entries(game.players ?? {})) {
     if ((p.score ?? 0) !== top || !p.name) continue;
     const note = `${FACTION_KO[String(p.faction)] ?? String(p.faction ?? '')} ${p.score ?? 0}점 1위`;
     for (const r of BADGE_RULES) {
-      try { if (r.test(p as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
+      try { if (r.test({ ...p, gaiaPlanets: gaiaPlanets[pid] ?? 0 } as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
     }
   }
   return out;
