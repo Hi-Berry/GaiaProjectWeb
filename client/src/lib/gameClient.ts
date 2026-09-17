@@ -54,6 +54,11 @@ let _lastFreeActionAt = 0;
 // [러버밴딩 v2] '이미 화면에 적용한 서버 프리액션 수'의 최고치. 연타로 optimisticCount가 서버를 추월(거부 클릭 포함)해도
 // UI가 동결되지 않도록, 스킵 기준을 'optimisticCount 미달'이 아니라 '이미 적용한 수보다 후퇴(stale)'로 바꾸기 위함.
 let _lastAppliedServerFreeCount = 0;
+// [버그수정 2026-09-17 사용자 제보 "0/4/1에서 번 후 Undo Undo 하면 0/2/2에서 멈춤"] 서버는 정상(e2e 3시나리오 통과)이고
+// 클라 stale-스킵이 원인: 되돌리기 응답은 카운트가 '내려가는' 정당한 패킷인데, 첫 undo 응답이 noteApplied로 기준선을
+// 도로 올려(max) 두 번째 undo 응답(더 낮은 카운트)을 stale로 버렸다(프리액션 3개 이상 + 빠른 연속 undo에서 재현).
+// 서버로 보냈지만 아직 응답을 못 받은 undo 수. >0 이면 내려가는 패킷을 스킵하지 않고 기준선을 그 값으로 내린다.
+let _pendingUndo = 0;
 
 export const GameClient = {
   listGames(): Promise<{
@@ -563,11 +568,15 @@ export const GameClient = {
     if (steps != null && Number.isFinite(steps) && steps > 0) payload.steps = Math.floor(steps);
     const dec = Math.max(1, Math.floor(steps ?? 1));
     _optimisticFreeCount = Math.max(0, _optimisticFreeCount - dec);
-    // undo는 정당한 후퇴 → 적용 기준선도 낮춰 줘야 서버의 낮아진 카운트 패킷이 스킵되지 않음.
-    _lastAppliedServerFreeCount = Math.max(0, _lastAppliedServerFreeCount - dec);
+    // 기준선은 여기서 내리지 않는다 — 응답이 오면 ackUndoApplied가 서버 값으로 맞춘다(클릭 시 내리면 첫 응답이 note로 되올림).
     _lastFreeActionAt = Date.now();
+    _pendingUndo++;
     s.emit('undo_free_action', payload);
   },
+  /** 응답 대기 중인 undo 수(Game.tsx stale-스킵 판정용) */
+  pendingUndoCount(): number { return _pendingUndo; },
+  /** undo 응답(카운트가 내려간 권위 패킷)을 하나 소화하고 기준선을 서버 값으로 맞춘다 */
+  ackUndoApplied(serverCount: number): void { _pendingUndo = Math.max(0, _pendingUndo - 1); _lastAppliedServerFreeCount = Math.max(0, serverCount | 0); },
 
   // 낙관적 프리액션 동기화 헬퍼 (rubber-banding 방지) — Game.tsx의 game_updated 핸들러가 사용.
   getOptimisticFreeCount(): number { return _optimisticFreeCount; },
@@ -576,7 +585,7 @@ export const GameClient = {
   // [러버밴딩 v2] 단조 진행 기준선. 적용한 최고 서버 카운트보다 낮은(stale) 패킷만 스킵.
   getLastAppliedServerFreeCount(): number { return _lastAppliedServerFreeCount; },
   noteAppliedServerFreeCount(n: number): void { _lastAppliedServerFreeCount = (n | 0) <= 0 ? 0 : Math.max(_lastAppliedServerFreeCount, n | 0); },
-  resetAppliedServerFreeCount(): void { _lastAppliedServerFreeCount = 0; },
+  resetAppliedServerFreeCount(): void { _lastAppliedServerFreeCount = 0; _pendingUndo = 0; },
 
   useSpecialAction(gameId: string, actionId: string) {
     const s = getSocket();

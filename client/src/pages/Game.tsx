@@ -1163,11 +1163,17 @@ export default function Game() {
       const isSelfTurn = updatedGame.turnOrder?.[updatedGame.currentPlayerIndex] === playerId;
       const serverFreeCount = (updatedGame as { freeActionUndoStack?: unknown[] }).freeActionUndoStack?.length ?? 0;
       const bursting = Date.now() - GameClient.lastOptimisticFreeActionAt() < 2000;
-      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && serverFreeCount > 0 && serverFreeCount < GameClient.getLastAppliedServerFreeCount()) {
+      // [버그수정 2026-09-17] undo 응답이 대기 중이면 '카운트가 내려간' 패킷은 stale이 아니라 바로 그 undo의 결과 —
+      //   스킵하지 않고 기준선을 서버 값으로 내린다(예전엔 첫 undo 응답이 기준선을 max로 되올려 둘째 undo 응답을 버림 →
+      //   서버는 0/4/1인데 화면은 0/2/2로 멈춤). 카운트가 오른 패킷(늦게 온 번/변환 응답)은 기존대로 note.
+      const undoPending = GameClient.pendingUndoCount() > 0;
+      const baseline = GameClient.getLastAppliedServerFreeCount();
+      if (isSelfTurn && !updatedGame.hasDoneMainAction && bursting && !undoPending && serverFreeCount > 0 && serverFreeCount < baseline) {
         return;
       }
       GameClient.syncOptimisticFreeCount(serverFreeCount);
       if (serverFreeCount === 0 || !isSelfTurn || updatedGame.hasDoneMainAction) GameClient.resetAppliedServerFreeCount();
+      else if (undoPending && serverFreeCount <= baseline) GameClient.ackUndoApplied(serverFreeCount);
       else GameClient.noteAppliedServerFreeCount(serverFreeCount);
       mergeGameLog(updatedGame);
       scheduleUi(updatedGame);
