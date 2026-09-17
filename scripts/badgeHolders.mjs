@@ -3,6 +3,7 @@
 // 후보 탐색(아직 뱃지 아닌 희귀 기록)은 scripts/achievementCandidates.mjs.
 import { loadGames, canon, gameRanks } from '../stats-site/lib/common.mjs';
 import { FACTION_KO } from '../stats-site/lib/factions.mjs';
+import { FACTIONS } from '../shared/gameConfig.ts';
 
 const fedIds = (p) => (p.federations ?? []).map((f) => (typeof f === 'string' ? f : f.rewardId));
 /** 한 판에서 그 사람이 집은 인공물 수 — gameLog의 art-* tileId로 셈(연방 혜택 인공물은 ship-fed-* 줄이 따라붙어 중복되므로 art-만) */
@@ -19,6 +20,11 @@ const normalTechAcquired = (g, pid) => {
 };
 const shipEntries = (p) => (p.scoreBreakdown?.other ?? []).filter((o) => o.source === '우주선 입장').length;
 /** 그 사람이 건물을 지은 가이아 행성 수 — 가이아포밍한 초차원도 저장 시점 type이 'gaia'라 함께 세진다(isGaiaformed 플래그 불필요) */
+/** 종족 id → 홈 행성 타입 / 시작 광산 수 (shared 설정을 그대로 읽는다 — 여기 다시 적으면 갈라진다) */
+const HOME = Object.fromEntries(FACTIONS.map((f) => [f.id, f.homePlanet]));
+const START_MINES = Object.fromEntries(FACTIONS.map((f) => [f.id, f.startingMines ?? 2]));
+/** 그 사람이 건물을 올린 모행성 타입 타일 수 (시작 광산 포함) */
+const homePlanets = (g, pid, faction) => (g.map ?? []).filter((t) => t.ownerId === pid && t.structure && t.type === HOME[faction]).length;
 const gaiaPlanets = (g, pid) => (g.map ?? []).filter((t) => t.ownerId === pid && t.structure && t.type === 'gaia').length;
 
 /** 뱃지 정의: id, 이름, 조건(g, pid, p, won) → boolean.  won = 그 판 1위(동점 포함) */
@@ -35,6 +41,10 @@ export const BADGES = [
   //   실측(사람 4인 327판): 10개 이상 17회·11명 중 1위는 4명뿐(최고 11개).
   { id: 'gaia10-win', name: '가이아 행성 10개 먹고 승리',
     test: (g, pid, p, won) => won && gaiaPlanets(g, pid) >= 10 },
+  // [사용자 2026-09-17] 모행성을 시작 배치 말고는 추가로 점령하지 않고 1위. 시작 광산 2개 종족만 대상(1개 종족은 거저 됨, 제노스는 3개).
+  //   시작 광산을 행성의회·아카데미로 키우는 건 무관 — 타일 수만 본다(실측 달성자 10명 전원이 업그레이드함).
+  { id: 'no-extra-home-win', name: '모행성 안 늘리고 승리',
+    test: (g, pid, p, won) => won && START_MINES[p.faction] === 2 && (g.map ?? []).length > 0 && homePlanets(g, pid, p.faction) <= 2 },
 ];
 
 const games = loadGames();

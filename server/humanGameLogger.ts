@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getFederationEntries, type GaiaGameState, type PlayerState } from '@shared/gameConfig';
+import { FACTIONS, getFederationEntries, type GaiaGameState, type PlayerState } from '@shared/gameConfig';
 import { log } from './index';
 import { recordDecisionFeatures } from './ai/valueData';
 
@@ -412,7 +412,7 @@ const FACTION_KO: Record<string, string> = {
  * badge_id 는 기록 사이트 badges.json 의 custom_badges[].id 와 같아야 한다(다르면 사이트가 unknown 으로 돌려주고 무시).
  * 판정은 scripts/badgeHolders.mjs(과거 로그 기준)와 같은 조건. "승리" = 최고점(동점 포함).
  */
-export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[]; gaiaPlanets?: number }) => boolean }[] = [
+export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[]; gaiaPlanets?: number; homePlanets?: number }) => boolean }[] = [
   { id: 'federation14-win', name: '무한거리 광산 연방 먹고 승리',
     test: (p) => getFederationEntries(p).some((f) => f.rewardId === 'ship-fed-mine-free') },
   { id: 'artifact4-win', name: '계란(인공물) 4개 먹고 승리',
@@ -433,6 +433,13 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
   //   gaiaPlanets는 computeBadgeAwards가 game.map을 훑어 미리 얹어준다(PlayerState엔 보유 행성이 없음).
   { id: 'gaia10-win', name: '가이아 행성 10개 먹고 승리',
     test: (p) => (p.gaiaPlanets ?? 0) >= 10 },
+  // [사용자 2026-09-17] 모행성(자기 종족 홈 행성 타입) 행성을 시작 배치 말고는 하나도 추가로 점령하지 않고 승리.
+  //   시작 광산 2개 종족만 대상 — 1개로 시작하는 모웨이드·스자·하이브·팅커로이드·다카니안은 '안 늘렸다'가 거저 되고
+  //   제노스는 3개로 시작해 기준이 다르다(실측: 초기배치 외 0개 1위 32회 중 18회가 프로토 2종).
+  //   시작 광산을 행성의회·아카데미로 키우는 건 무관(타일 수만 본다) — 실측 달성자 10명 전원이 업그레이드했다.
+  //   homePlanets는 computeBadgeAwards가 game.map을 훑어 얹어준다. 맵이 없으면 undefined → Infinity로 거르게 둔다(오부여 방지).
+  { id: 'no-extra-home-win', name: '모행성 안 늘리고 승리',
+    test: (p) => (FACTIONS.find((f) => f.id === p.faction)?.startingMines ?? 2) === 2 && (p.homePlanets ?? Infinity) <= 2 },
 ];
 /** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
 const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
@@ -453,11 +460,20 @@ export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; pla
     if (!t?.ownerId || !t.structure || t.type !== 'gaia') continue;
     gaiaPlanets[t.ownerId] = (gaiaPlanets[t.ownerId] ?? 0) + 1;
   }
+  // 모행성 타일 수도 마찬가지(no-extra-home-win용). 맵이 비었으면 아예 넣지 않아 규칙이 undefined로 떨어지게 한다.
+  const homePlanets: Record<string, number> = {};
+  if ((game.map ?? []).length) {
+    for (const [pid, p] of Object.entries(game.players ?? {})) {
+      const home = FACTIONS.find((f) => f.id === p.faction)?.homePlanet;
+      if (!home) continue;
+      homePlanets[pid] = game.map.filter((t) => t.ownerId === pid && t.structure && t.type === home).length;
+    }
+  }
   for (const [pid, p] of Object.entries(game.players ?? {})) {
     if ((p.score ?? 0) !== top || !p.name) continue;
     const note = `${FACTION_KO[String(p.faction)] ?? String(p.faction ?? '')} ${p.score ?? 0}점 1위`;
     for (const r of BADGE_RULES) {
-      try { if (r.test({ ...p, gaiaPlanets: gaiaPlanets[pid] ?? 0 } as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
+      try { if (r.test({ ...p, gaiaPlanets: gaiaPlanets[pid] ?? 0, homePlanets: homePlanets[pid] } as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
     }
   }
   return out;
