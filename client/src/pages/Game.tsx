@@ -6924,6 +6924,10 @@ export default function Game() {
                                 (p.techTiles ?? []).forEach((tid) => {
                                   const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
                                   if (!tile?.specialAction) return;
+                                  // [버그수정 2026-09-17 사용자 제보] 고급 타일로 덮은 4P 타일이 스페셜 액션 목록에 계속 남음 —
+                                  //   액션 칩 목록(위 buildSpecialActions)·타일 이미지 클릭은 덮힘을 걸렀는데 이 통합 표시만 누락.
+                                  //   덮인 타일의 액션은 영구히 불가(서버 'covered' 거부)라 숨긴다.
+                                  if (isTechTileCovered(p, tid)) return;
                                   const isUsed = p.usedTechActions?.includes(tid) ?? false;
                                   actionNodes.push(
                                     renderActionBtn(
