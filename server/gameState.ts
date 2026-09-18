@@ -96,6 +96,7 @@ import {
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
 import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVariant } from './ai/variant';
+import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
@@ -3843,7 +3844,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.hostAddedPlayerIds) game.hostAddedPlayerIds = [];
 			game.hostAddedPlayerIds.push(botId);
 
-			log(`AI Bot added: ${name} (${botId}) to game ${gameId}`, 'game', undefined, { simulation: (game as any).simulation });
+			// [실게임 좌석 A/B 2026-09-18] server/ai/liveExperiment.json에 실험이 있으면 이 봇을 ON/OFF 그룹에
+			//   번갈아 배정(같은 게임 안 쌍비교). 없으면 no-op — 기존 동작과 동일.
+			const liveGroup = assignLiveBotVariant(game as any, botId);
+
+			log(`AI Bot added: ${name} (${botId}) to game ${gameId}${liveGroup ? ` [live A/B: ${liveGroup}]` : ''}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game);
 			emitGameUpdated(io, game);
 			callback({ botId, name, game });

@@ -36,6 +36,22 @@ find logs -path "logs/high-score" -prune -o -name "*final_state.json" -mtime +7 
 # 좀비(중단된 head2head 워커 서버) 정리 — 개발서버(watch)/Cursor는 보존.
 # Windows: 각 워커는 cmd.exe→node.exe(게임서버) 트리라 proc.kill()로 안 죽어 고아로 남음.
 kill_h2h_workers() {
+  # macOS/Linux: 이전 런의 워커 서버(tsx server/index.ts, watch 제외)를 정리. [2026-09-18 실측] 좀비가 5300~5303을
+  # 잡고 있으면 headToHead가 새 워커를 못 띄우고 '옛 코드가 도는 그 서버'에 붙어 게임을 돌려 측정이 무효가 된다
+  # (오늘 4런이 챔피언끼리 대결로 판명). 정리 후 포트가 여전히 LISTEN이면 중단.
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    pgrep -f "tsx server/index.ts" | while read -r pid; do
+      if ! ps -o command= -p "$pid" | grep -q "watch"; then kill "$pid" 2>/dev/null || true; fi
+    done
+    sleep 1
+    local base="${H2H_BASE_PORT:-5300}"
+    for i in $(seq 0 $((WORKERS - 1))); do
+      if lsof -nP -iTCP:$((base + i)) -sTCP:LISTEN >/dev/null 2>&1; then
+        echo "[run-h2h] 포트 $((base + i))가 아직 LISTEN 상태 — 이전 워커/다른 서버가 살아 있음. 측정 무효 방지를 위해 중단." >&2
+        exit 2
+      fi
+    done
+  fi
   if command -v powershell.exe >/dev/null 2>&1; then
     powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { \$_.CommandLine -like '*GaiaProjectWeb*' -and \$_.CommandLine -like '*server/index.ts*' -and \$_.CommandLine -notlike '*watch*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" >/dev/null 2>&1 || true
   fi

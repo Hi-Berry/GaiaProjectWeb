@@ -105,6 +105,8 @@ function summarizePlayer(player?: PlayerState | null) {
     bonusTile: player.bonusTile,
     // 점수 내역(카테고리별 VP) — 봇 vs 사람 약점 분석에 필수
     scoreBreakdown: player.scoreBreakdown ?? null,
+    // [실게임 좌석 A/B 2026-09-18] 봇 좌석의 실험 그룹(server/ai/liveExperiment.ts) — liveAbReport.mjs가 집계
+    liveVariant: (player as any).liveVariant ?? null,
   };
 }
 

@@ -1,0 +1,5 @@
+{
+  "_doc": "실게임 봇 좌석 A/B 설정. name과 flags를 채우면 사람 방장이 추가하는 봇이 게임 안에서 ON/OFF로 번갈아 배정된다. 비우면 비활성. 집계: node .claude/skills/gaia-ai-lab/scripts/liveAbReport.mjs",
+  "name": null,
+  "flags": {}
+}
