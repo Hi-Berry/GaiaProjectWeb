@@ -1787,7 +1787,7 @@ export class BotLogic {
                 if (!isSimulate && !game.simulation && getPlayerFlag(playerId, 'humanPolicyTopK', true)) {
                     const K = getPlayerFlag(playerId, 'humanPolicyK', 3);
                     if (candidates.length > K + 1) {
-                        const pr = pruneByHumanPolicy(game, playerId, candidates as any, K);
+                        const pr = pruneByHumanPolicy(game, playerId, candidates as any, K, getPlayerFlag(playerId, 'humanPolicyV2', false) ? 2 : 1); // [flag: humanPolicyV2] 확장 피처 모델(A/B용)
                         if (pr) {
                             mctsCands = pr.kept as any;
                             log(`Bot ${player.name} humanPolicyTopK: ${candidates.length}→${mctsCands.length} (top ${mctsCands.slice(0, 3).map((c: any, i: number) => `${c.type}${c.params?.target ? ':' + c.params.target : ''}${c.params?.actionIndex != null ? '#' + c.params.actionIndex : ''} ${pr.probs[i].toFixed(2)}`).join(' | ')})`, 'game', game.id);

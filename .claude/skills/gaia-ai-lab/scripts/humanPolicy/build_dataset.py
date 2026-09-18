@@ -91,6 +91,25 @@ def match_taken(e, cands, geom):
     return -1
 
 
+PW_COST = {'gain-3-knowledge': 7, 'gain-2-steps': 5, 'gain-2-ore': 4, 'gain-7-credits': 4, 'gain-2-knowledge': 4, 'gain-1-step': 3, 'gain-2-tokens': 3}
+
+
+def power_action_id(details):
+    """'Power Action' 로그 details('+2 Knowledge (2P)' 등) → 액션 id. 모르면 None."""
+    m = re.match(r'\+(\d+)\s+(Knowledge|Terraform|Ore|Credits|Power tokens)', str(details or ''))
+    if not m: return None
+    n, what = int(m.group(1)), m.group(2)
+    if what == 'Knowledge': return 'gain-3-knowledge' if n == 3 else 'gain-2-knowledge'
+    if what == 'Terraform': return 'gain-2-steps' if n == 2 else 'gain-1-step'
+    if what == 'Ore': return 'gain-2-ore'
+    if what == 'Credits': return 'gain-7-credits'
+    if what == 'Power tokens': return 'gain-2-tokens'
+    return None
+
+
+FEATURE_VERSION = 2
+
+
 def onehot(lst, v):
     f = [0.0] * len(lst)
     if v in lst: f[lst.index(v)] = 1.0
@@ -124,6 +143,24 @@ def state_features(e, ctx):
     f.append(len(ctx['entered']) / 3.0)
     f.append(min(4, ctx['slots_used_this_round']) / 4.0)
     f.append(min(6, ctx['my_actions_this_round']) / 6.0)
+    # ── v2 확장(리플레이 복원 가능 정보) — 순서 고정, humanPolicy.ts stateFeaturesV2와 1:1 ──
+    f.append(min(3.0, (e.get('scoreBefore') or 0) / 100.0))
+    f += [1.0 if a in ctx['power_used'] else 0.0 for a in PW_ACTIONS]
+    f += [min(4, ctx['tech_taken'].get(k, 0)) / 4.0 for k in TECH_KINDS]
+    f.append(min(7, ctx['adv_taken']) / 7.0)
+    oc = {s_: 0 for s_ in STRUCT}
+    for t in ctx['others']:
+        if t.get('structure') in oc: oc[t['structure']] += 1
+    f += [oc['mine'] / 24, oc['trading_station'] / 12, oc['research_lab'] / 9, oc['planetary_institute'] / 3, oc['academy'] / 6]
+    f.append(min(15, ctx['others_feds']) / 15.0)
+    f += [1.0 if b in ctx['others_boosters'] else 0.0 for b in BONUS]
+    ov = ctx['others_vp']; mx = max(ov) if ov else 0
+    f.append(min(3.0, mx / 100.0)); f.append(max(-2.0, min(2.0, ((e.get('scoreBefore') or 0) - mx) / 50.0)))
+    orr = ctx['others_res']  # list of dict(o,c,k,q,p3)
+    n = max(1, len(orr))
+    for key, norm in (('o', 10), ('c', 20), ('k', 10), ('q', 5), ('p3', 8)):
+        f.append(min(2.0, sum(x.get(key, 0) for x in orr) / n / norm))
+    f.append(min(3, ctx['others_passed']) / 3.0)
     return f
 
 
@@ -171,6 +208,9 @@ def cand_features(c, e, ctx, geom):
     f += onehot(STRUCT + ['other'], cur or 'other')
     # 후보의 pre-action 유무(변환 동반)
     f.append(1.0 if c.get('preActions') else 0.0)
+    # ── v2 확장 ──
+    f.append(1.0 if (c.get('type') == 'build_mine' and ttype and ttype not in ctx['my_types']) else 0.0)  # 새 행성 유형
+    f.append((PW_COST.get(c.get('actionId'), 0) / 7.0) if c.get('type') == 'use_power_action' else 0.0)
     return f
 
 
@@ -184,6 +224,14 @@ def replay_game(d):
     entered = {}    # pid -> set(shipTileId)
     slots_used = {} # round -> count of ship actions used (all players)
     actions_this_round = {}  # (pid, round) -> n main actions
+    power_used = {}   # round -> set(actionId)
+    tech_taken = {}   # kind -> n
+    adv_taken = [0]
+    booster_of = {}   # pid -> bonus id
+    passed = {}       # round -> set(pid)
+    feds_of = {}      # pid -> n
+    last_snap = {}    # pid -> (vp, res dict) from gameLog snaps
+    glog = sorted(d.get('gameLog') or [], key=lambda e: e.get('timestamp') or 0); gi = 0
     journal = [e for e in (d.get('actionJournal') or []) if e.get('playerId') not in bots and e.get('phase') == 'main' and e.get('candidates')]
     journal.sort(key=lambda e: e.get('timestamp') or 0)
     ji = 0
@@ -195,11 +243,23 @@ def replay_game(d):
         while ji < len(journal) and (journal[ji].get('timestamp') or 0) <= ts:
             e = journal[ji]; ji += 1
             pid = e.get('playerId'); r = e.get('round') or 0
+            # gameLog 스냅을 결정 시점까지 반영(상대 VP/자원의 마지막 관측값)
+            while gi < len(glog) and (glog[gi].get('timestamp') or 0) <= (e.get('timestamp') or 0):
+                g = glog[gi]; gi += 1
+                if g.get('playerId') and g.get('snap'): last_snap[g['playerId']] = g['snap']
             my = {tid: dict(geom[tid], structure=struct[tid]) for tid, o in owner.items() if o == pid and tid in geom}
             others = [dict(geom[tid], structure=struct[tid]) for tid, o in owner.items() if o != pid and tid in geom]
+            opp_ids = [q for q in d['players'] if q != pid]
             ctx = {'round': r, 'my': my, 'others': others, 'my_sectors': {t.get('sector') for t in my.values()},
                    'entered': entered.get(pid, set()), 'slots_used_this_round': slots_used.get(r, 0),
-                   'my_actions_this_round': actions_this_round.get((pid, r), 0)}
+                   'my_actions_this_round': actions_this_round.get((pid, r), 0),
+                   'power_used': power_used.get(r, set()), 'tech_taken': tech_taken, 'adv_taken': adv_taken[0],
+                   'others_feds': sum(feds_of.get(q, 0) for q in opp_ids),
+                   'others_boosters': {booster_of.get(q) for q in opp_ids if booster_of.get(q)},
+                   'others_vp': [last_snap[q].get('vp', 0) for q in opp_ids if q in last_snap],
+                   'others_res': [last_snap[q] for q in opp_ids if q in last_snap],
+                   'others_passed': len([q for q in passed.get(r, set()) if q != pid]),
+                   'my_types': {t.get('type') for t in my.values()}}
             cands = e['candidates']
             label = match_taken(e, cands, geom)
             sf = state_features(e, ctx)
@@ -218,6 +278,17 @@ def replay_game(d):
         elif a == 'Entered Ship' and tid: entered.setdefault(pid, set()).add(tid)
         if a.startswith(('Twilight:', 'Rebellion:', 'Eclipse:', 'TF Mars:')) and 'Gained' not in a and 'Advanced track' not in a:
             slots_used[r] = slots_used.get(r, 0) + 1
+        if a == 'Power Action':
+            aid = power_action_id(ev.get('details'))
+            if aid: power_used.setdefault(r, set()).add(aid)
+        if a in ('Gained Tech Tile', 'Rebellion: Gained Tech Tile') and tid in TECH_KINDS: tech_taken[tid] = tech_taken.get(tid, 0) + 1
+        if a == 'Advanced Tech Tile': adv_taken[0] += 1
+        if a in ('Selected Bonus', 'Selected Bonus Tile'):
+            m = re.search(r'took (bon-[\w-]+)', str(ev.get('details') or '')) or re.search(r'(bon-[\w-]+)', str(ev.get('details') or ''))
+            if m: booster_of[pid] = m.group(1)
+            elif tid and str(tid).startswith('bon-'): booster_of[pid] = tid
+            if a == 'Selected Bonus': passed.setdefault(r, set()).add(pid)
+        if a == 'Federation': feds_of[pid] = feds_of.get(pid, 0) + 1
         if a not in ('Received Power', 'Free Actions', 'Power Burn', 'Selected Bonus', 'Income Order', 'Undo Free Action', 'Gained Tech Tile', 'Federation Reward'):
             actions_this_round[(pid, r)] = actions_this_round.get((pid, r), 0) + 1
     return
@@ -254,7 +325,7 @@ def main():
         X_c[i, :k] = np.array(C[i][:k], np.float32); mask[i, :k] = True
         y[i] = L[i] if L[i] < MAXC else 0
     np.savez_compressed(os.path.join(args.out, 'decisions.npz'), X_s=X_s, X_c=X_c, mask=mask, y=y, game=np.array(G), round=np.array([m['round'] for m in M]), ncand=np.array([m['n'] for m in M]))
-    json.dump({'stats': stats, 'state_dim': sd, 'cand_dim': cd, 'maxc': MAXC, 'types': TYPES, 'tracks': TRACKS, 'ships': SHIPS, 'targets': TARGETS, 'planets': PLANETS, 'pw_actions': PW_ACTIONS, 'bonus': BONUS, 'factions': FACTIONS, 'tech_kinds': TECH_KINDS, 'struct': STRUCT}, open(os.path.join(args.out, 'meta.json'), 'w'), ensure_ascii=False, indent=1)
+    json.dump({'stats': stats, 'feature_version': FEATURE_VERSION, 'state_dim': sd, 'cand_dim': cd, 'maxc': MAXC, 'types': TYPES, 'tracks': TRACKS, 'ships': SHIPS, 'targets': TARGETS, 'planets': PLANETS, 'pw_actions': PW_ACTIONS, 'bonus': BONUS, 'factions': FACTIONS, 'tech_kinds': TECH_KINDS, 'struct': STRUCT}, open(os.path.join(args.out, 'meta.json'), 'w'), ensure_ascii=False, indent=1)
     top_unl = sorted(stats['unlabeled_actions'].items(), key=lambda kv: -kv[1])[:12]
     print(f"games {stats['games']} decisions {stats['decisions']} labeled {stats['labeled']} | state_dim {sd} cand_dim {cd}")
     print("unlabeled top:", top_unl)

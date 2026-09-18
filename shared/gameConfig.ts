@@ -214,6 +214,10 @@ export interface HexTile {
   type: PlanetType;
   sector: number;
   rotation?: number; // Sector rotation (0-5)
+  /** 외각 브리지 타일(섹터 11~18) 전용: 사용 면(B=앞, O=뒤). 없으면 구버전 고정 면(11B 12O 13B 14B 15O 16O 17B 18O). */
+  side?: 'B' | 'O';
+  /** 외각 브리지 타일 전용: 제자리 120° 회전 횟수(0~2). 3칸 발자국은 그대로, 행성 배치·이미지만 돌아간다. */
+  spin?: 0 | 1 | 2;
   structure: StructureType;
   ownerId: string | null;
   hasGaiaformer?: boolean; // 가이아 포머가 설치되어 있는지
@@ -1731,6 +1735,30 @@ export const SECTOR_OFFSETS = [
   { q: 2, r: 8 }, { q: 6, r: 7 }, { q: 10, r: 6 }                 // R3
 ];
 
+/** 포인티탑 헥스의 화면 좌표(클라이언트 Layout과 동일 비율: x=√3(q+r/2), y=1.5r) */
+export function hexToPixel(q: number, r: number): { x: number; y: number } {
+  return { x: Math.sqrt(3) * (q + r / 2), y: 1.5 * r };
+}
+
+/** 외각 브리지 타일 제자리 회전: 세 칸을 무게중심 기준 +120°×spin(화면 좌표계, 시계방향) 돌렸을 때
+ *  슬롯 i의 행성이 도착하는 슬롯 j를 찾아 planetAt[j]=planets[i]. 발자국은 그대로. 클라이언트는 이미지를 같은 각도로 돌린다. */
+export function spinBridgePlanets<T>(coords: { q: number; r: number }[], planets: T[], spin: number): T[] {
+  const k = ((spin % 3) + 3) % 3;
+  if (k === 0) return [...planets];
+  const px = coords.map(c => hexToPixel(c.q, c.r));
+  const gx = px.reduce((s, p) => s + p.x, 0) / px.length, gy = px.reduce((s, p) => s + p.y, 0) / px.length;
+  const a = (Math.PI * 2 / 3) * k, cos = Math.cos(a), sin = Math.sin(a);
+  const out: T[] = new Array(planets.length);
+  px.forEach((p, i) => {
+    const dx = p.x - gx, dy = p.y - gy;
+    const rx = gx + dx * cos - dy * sin, ry = gy + dx * sin + dy * cos;
+    let best = 0, bd = Infinity;
+    px.forEach((q, j) => { const d = (q.x - rx) ** 2 + (q.y - ry) ** 2; if (d < bd) { bd = d; best = j; } });
+    out[best] = planets[i];
+  });
+  return out;
+}
+
 function rotateHex(q: number, r: number, rotations: number): { q: number; r: number } {
   let kq = q; let kr = r;
   for (let i = 0; i < rotations; i++) {
@@ -1875,25 +1903,31 @@ export function generateMap(): HexTile[] {
   });
 
   // 3. External Bridge Tiles (8 x 3 Hexes = 24 Hexes)
+  //   [2026-09-19 사용자] 예전엔 위치(sector=11+i)·회전·면이 전부 고정이었다 → ① 타일 8개를 8자리에 셔플
+  //   ② 면(B/O) 랜덤 ③ 제자리 120° 회전(spin) 랜덤. 자리별 기하 회전(bridgeRotations)은 외곽 변에 삼각형이
+  //   맞물리는 방향이라 유지 — 3칸 발자국은 항상 동일하고 spin은 세 칸의 행성 배치와 이미지만 돌린다.
   const bridgeOffsets = SECTOR_CENTERS.filter(c => c.sector >= 11);
   const bridgeRotations = [1, 1, 0, 1, 0, 0, 1, 0];
 
-  // Map files available: Map_B11, Map_O12, Map_B13, Map_B14, Map_O15, Map_O16, Map_B17, Map_O18
-  const BRIDGE_LAYOUTS: Record<number, PlanetType[]> = {
-    11: ['proto', 'space', 'asteroid'],       // Map_B11
-    12: ['asteroid', 'space', 'space'],       // Map_O12
-    13: ['transdim', 'asteroid', 'space'],    // Map_B13
-    14: ['proto', 'asteroid', 'space'],       // Map_B14 (원시, 소행성, 빈칸)
-    15: ['proto', 'asteroid', 'space'],       // Map_O15
-    16: ['asteroid', 'asteroid', 'space'],    // Map_O16
-    17: ['transdim', 'space', 'space'],       // Map_B17
-    18: ['space', 'space', 'asteroid'],       // Map_O18
+  // 양면 레이아웃 — 순서는 회전 0 기준 [위, 좌하, 우하]. image/Map_B11~18, Map_O11~18에서 판독(B11·B13·B14·B17·O12·O15·O16·O18은 기존 코드값).
+  const BRIDGE_TILES: Record<number, { B: PlanetType[]; O: PlanetType[] }> = {
+    11: { B: ['proto', 'space', 'asteroid'], O: ['space', 'space', 'asteroid'] },
+    12: { B: ['transdim', 'space', 'proto'], O: ['asteroid', 'space', 'space'] },
+    13: { B: ['transdim', 'asteroid', 'space'], O: ['space', 'asteroid', 'space'] },
+    14: { B: ['proto', 'asteroid', 'space'], O: ['space', 'asteroid', 'space'] },
+    15: { B: ['proto', 'space', 'space'], O: ['proto', 'asteroid', 'space'] },
+    16: { B: ['space', 'proto', 'space'], O: ['asteroid', 'asteroid', 'space'] },
+    17: { B: ['transdim', 'space', 'space'], O: ['space', 'space', 'asteroid'] },
+    18: { B: ['proto', 'space', 'space'], O: ['space', 'space', 'asteroid'] },
   };
+  const tileOrder = shuffled([11, 12, 13, 14, 15, 16, 17, 18]);
 
   bridgeOffsets.forEach((data, i) => {
     const center = { q: data.q, r: data.r };
-    const sectorBaseId = 11 + i;
-    const planetTypes = BRIDGE_LAYOUTS[sectorBaseId] || ['space', 'space', 'space'];
+    const tileNo = tileOrder[i];
+    const side: 'B' | 'O' = Math.random() < 0.5 ? 'B' : 'O';
+    const spin = Math.floor(Math.random() * 3) as 0 | 1 | 2;
+    const planetTypes = BRIDGE_TILES[tileNo]?.[side] || ['space', 'space', 'space'];
     const rotation = bridgeRotations[i];
 
     // Map to a triangle pointing up (1 top, 2 bottom)
@@ -1902,19 +1936,21 @@ export function generateMap(): HexTile[] {
       { q: -1, r: 0 }, // Pos 2 (Bottom-Left)
       { q: 0, r: 0 },  // Pos 3 (Bottom-Right) - This is our relative center!
     ];
+    const coords = baseCoords.map(c => { const rot = rotateHex(c.q, c.r, rotation); return { q: center.q + rot.q, r: center.r + rot.r }; });
+    // spin: 세 칸의 무게중심 기준 +120°×spin(화면 시계방향, 클라이언트 SVG rotate와 동일 방향)으로 돌렸을 때
+    // 슬롯 i의 행성이 어느 슬롯 j로 가는지 픽셀 좌표로 계산 → planetAt[j] = planetTypes[i]. 발자국(coords)은 불변.
+    const planetAt = spinBridgePlanets(coords, planetTypes, spin);
 
-    baseCoords.forEach((coord, hexIdx) => {
-      const rotated = rotateHex(coord.q, coord.r, rotation);
-      const q = center.q + rotated.q;
-      const r = center.r + rotated.r;
-      const key = `${q},${r}`;
+    coords.forEach((pos, hexIdx) => {
+      const key = `${pos.q},${pos.r}`;
       if (!occupied.has(key)) {
         tiles.push({
           id: `bridge-${i}-${hexIdx}`,
-          q, r,
-          type: planetTypes[hexIdx],
-          sector: sectorBaseId,
+          q: pos.q, r: pos.r,
+          type: planetAt[hexIdx],
+          sector: tileNo,
           rotation: rotation,
+          side, spin,
           structure: null,
           ownerId: null
         });

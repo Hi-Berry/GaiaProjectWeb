@@ -206,6 +206,17 @@ export function HexMap() {
 
               const layoutId = slotTile.sector;
               const rotation = slotTile.rotation ?? 0;
+              // 외각 브리지 제자리 회전(spin): 그 섹터 3칸의 무게중심 기준 +120°×spin — 서버 spinBridgePlanets와 같은 방향
+              let spinTransform = '';
+              const slotSpin = (slotTile as any).spin as number | undefined; // HexMap은 DB Tile 타입(레거시) — side/spin은 서버 HexTile 확장 필드
+              if (slotSpin && slotTile.sector >= 11 && slotTile.sector !== 90) {
+                const trio = tiles.filter(t => t.sector === slotTile.sector);
+                if (trio.length === 3) {
+                  const gx = trio.reduce((a, t) => a + HEX_SIZE * SQRT3 * (t.q + t.r / 2), 0) / 3;
+                  const gy = trio.reduce((a, t) => a + HEX_SIZE * 1.5 * t.r, 0) / 3;
+                  spinTransform = `rotate(${slotSpin * 120}, ${gx}, ${gy}) `;
+                }
+              }
               const isExternal = layoutId >= 11 && layoutId !== 90;
 
               let filename = '';
@@ -220,8 +231,10 @@ export function HexMap() {
                 return null; // Don't draw background for internal strategic hexes
               } else if (isExternal) {
                 // Hardcoded prefix based on available files: Map_B11, O12, B13, B14, O15, O16, B17, O18
-                const isSideO = [12, 15, 16, 18].includes(layoutId);
-                const prefix = isSideO ? 'Map_O' : 'Map_B';
+                // 면(side)은 타일 상태를 따른다(2026-09-19 면·위치·제자리회전 랜덤). 구버전 저장분(side 없음)은 예전 고정 면.
+                const legacySideO = [12, 15, 16, 18].includes(layoutId);
+                const slotSide = (slotTile as any).side as string | undefined;
+                const prefix = slotSide ? `Map_${slotSide}` : (legacySideO ? 'Map_O' : 'Map_B');
                 filename = `${prefix}${String(layoutId).padStart(2, '0')}.png`;
 
                 imgW = 16.62;
@@ -244,7 +257,7 @@ export function HexMap() {
                   y={cy - offsetY}
                   width={imgW}
                   height={imgH}
-                  transform={`rotate(${rotation * 60}, ${cx}, ${cy})`}
+                  transform={`${spinTransform}rotate(${rotation * 60}, ${cx}, ${cy})`}
                   style={{ pointerEvents: 'none', opacity: 1.0 }}
                 />
               );

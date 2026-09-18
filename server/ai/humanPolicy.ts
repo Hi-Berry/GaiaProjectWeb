@@ -34,17 +34,24 @@ const NON_MAIN = new Set(['Received Power', 'Free Actions', 'Power Burn', 'Selec
 
 export const STATE_DIM = 66;
 export const CAND_DIM = 69;
+/** v2 확장(2026-09-18): 리플레이 복원 가능 정보 44개(상태)+2개(후보) 추가 — build_dataset.py FEATURE_VERSION=2 */
+export const STATE_DIM_V2 = 110;
+export const CAND_DIM_V2 = 71;
+const PW_COST: Record<string, number> = { 'gain-3-knowledge': 7, 'gain-2-steps': 5, 'gain-2-ore': 4, 'gain-7-credits': 4, 'gain-2-knowledge': 4, 'gain-1-step': 3, 'gain-2-tokens': 3 };
 
-type Model = { hidden: number; state_dim: number; cand_dim: number; weights: Record<string, number[][] | number[]>; val_top1?: number };
-let _model: Model | null | undefined;
-export function loadHumanPolicy(): Model | null {
-    if (_model !== undefined) return _model;
+type Model = { hidden: number; state_dim: number; cand_dim: number; weights: Record<string, number[][] | number[]>; val_top1?: number; meta?: { feature_version?: number } };
+const _models: Record<string, Model | null> = {};
+/** 모델 파일 로드(캐시). version 1 = humanPolicy.json(66/69), 2 = humanPolicy.v2.json(110/71). */
+export function loadHumanPolicy(version: 1 | 2 = 1): Model | null {
+    const key = String(version);
+    if (key in _models) return _models[key];
     try {
-        const p = path.resolve(process.cwd(), 'server/ai/humanPolicy.json');
-        _model = JSON.parse(fs.readFileSync(p, 'utf8'));
-        if (!_model || _model.state_dim !== STATE_DIM || _model.cand_dim !== CAND_DIM) { _model = null; }
-    } catch { _model = null; }
-    return _model;
+        const p = path.resolve(process.cwd(), version === 2 ? 'server/ai/humanPolicy.v2.json' : 'server/ai/humanPolicy.json');
+        const m: Model = JSON.parse(fs.readFileSync(p, 'utf8'));
+        const [sd, cd] = version === 2 ? [STATE_DIM_V2, CAND_DIM_V2] : [STATE_DIM, CAND_DIM];
+        _models[key] = (m && m.state_dim === sd && m.cand_dim === cd) ? m : null;
+    } catch { _models[key] = null; }
+    return _models[key];
 }
 
 function onehot(list: string[], v: string | undefined | null): number[] {
@@ -61,17 +68,28 @@ export type HPCandidate = { type: string; params?: Record<string, any>; preActio
 export type HPContext = {
     round: number;
     my: { id: string; q: number; r: number; type?: string; sector?: number; structure?: string }[];
-    others: { q: number; r: number }[];
+    others: { q: number; r: number; structure?: string }[];
     mySectors: Set<number | undefined>;
     enteredCount: number;
     slotsUsedThisRound: number;
     myActionsThisRound: number;
+    // v2
+    myScore: number;
+    powerUsed: Set<string>;
+    techTaken: Record<string, number>;
+    advTaken: number;
+    othersFeds: number;
+    othersBoosters: Set<string>;
+    othersVp: number[];
+    othersRes: { o: number; c: number; k: number; q: number; p3: number }[];
+    othersPassed: number;
+    myTypes: Set<string | undefined>;
 };
 
 export function buildContext(game: ServerGameState, playerId: string): HPContext {
     const player = game.players[playerId];
     const my = game.map.filter(t => t.ownerId === playerId && t.structure).map(t => ({ id: t.id, q: t.q, r: t.r, type: t.type, sector: t.sector, structure: t.structure as string }));
-    const others = game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure).map(t => ({ q: t.q, r: t.r }));
+    const others = game.map.filter(t => t.ownerId && t.ownerId !== playerId && t.structure).map(t => ({ q: t.q, r: t.r, structure: t.structure as string }));
     const round = game.roundNumber ?? 1;
     let slots = 0;
     for (const st of Object.values(game.spaceships ?? {})) slots += (st as any)?.usedActionIndices?.length ?? 0;
@@ -79,10 +97,59 @@ export function buildContext(game: ServerGameState, playerId: string): HPContext
     for (const e of game.gameLog ?? []) {
         if ((e as any).playerId === playerId && ((e as any).round ?? 0) === round && !NON_MAIN.has((e as any).action)) myActs++;
     }
+    // v2: 리플레이 복원 정보의 라이브 대응값
+    const powerUsed = new Set<string>((game.powerActions ?? []).filter((a: any) => a.isUsed).map((a: any) => a.id));
+    const remaining: Record<string, number> = {};
+    for (const arr of [...Object.values(game.techTilesByTrack ?? {}), game.techTilesPool ?? []]) {
+        for (const t of (Array.isArray(arr) ? arr : [arr]) as any[]) if (t?.id) remaining[t.id] = (remaining[t.id] ?? 0) + 1;
+    }
+    const techTaken: Record<string, number> = {};
+    for (const k of TECH_KINDS) techTaken[k] = Math.max(0, 4 - (remaining[k] ?? 0));
+    const opps: any[] = Object.entries(game.players).filter(([id]) => id !== playerId).map(([, p]) => p);
+    const advTaken = Object.values(game.players).reduce((n, p: any) => n + (p.techTiles ?? []).filter((t: string) => String(t).startsWith('adv-')).length, 0);
     return {
         round, my, others, mySectors: new Set(my.map(t => t.sector)),
         enteredCount: (player?.spaceshipsEntered ?? []).length, slotsUsedThisRound: slots, myActionsThisRound: myActs,
+        myScore: player?.score ?? 0, powerUsed, techTaken, advTaken,
+        othersFeds: opps.reduce((n, p) => n + (p.federations ?? []).length, 0),
+        othersBoosters: new Set(opps.map(p => p.bonusTile).filter(Boolean)),
+        othersVp: opps.map(p => p.score ?? 0),
+        othersRes: opps.map(p => ({ o: p.ore ?? 0, c: p.credits ?? 0, k: p.knowledge ?? 0, q: p.qic ?? 0, p3: p.power3 ?? 0 })),
+        othersPassed: opps.filter(p => p.hasPassed).length,
+        myTypes: new Set(my.map(t => t.type)),
     };
+}
+
+/** v2 상태 피처 = v1 66 + 44 (build_dataset.py state_features v2 블록과 동일 순서) */
+export function stateFeaturesV2(game: ServerGameState, playerId: string, ctx: HPContext): number[] {
+    const f = stateFeatures(game, playerId, ctx);
+    f.push(Math.min(3, ctx.myScore / 100));
+    for (const a of PW_ACTIONS) f.push(ctx.powerUsed.has(a) ? 1 : 0);
+    for (const k of TECH_KINDS) f.push(Math.min(4, ctx.techTaken[k] ?? 0) / 4);
+    f.push(Math.min(7, ctx.advTaken) / 7);
+    const oc: Record<string, number> = { mine: 0, trading_station: 0, research_lab: 0, planetary_institute: 0, academy: 0 };
+    for (const t of ctx.others) if (t.structure && t.structure in oc) oc[t.structure]++;
+    f.push(oc.mine / 24, oc.trading_station / 12, oc.research_lab / 9, oc.planetary_institute / 3, oc.academy / 6);
+    f.push(Math.min(15, ctx.othersFeds) / 15);
+    for (const b of BONUS) f.push(ctx.othersBoosters.has(b) ? 1 : 0);
+    const mx = ctx.othersVp.length ? Math.max(...ctx.othersVp) : 0;
+    f.push(Math.min(3, mx / 100)); f.push(Math.max(-2, Math.min(2, (ctx.myScore - mx) / 50)));
+    const n = Math.max(1, ctx.othersRes.length);
+    for (const [key, norm] of [['o', 10], ['c', 20], ['k', 10], ['q', 5], ['p3', 8]] as [keyof HPContext['othersRes'][0], number][])
+        f.push(Math.min(2, ctx.othersRes.reduce((s, x) => s + (x[key] ?? 0), 0) / n / norm));
+    f.push(Math.min(3, ctx.othersPassed) / 3);
+    return f;
+}
+
+/** v2 후보 피처 = v1 69 + 2 */
+export function candFeaturesV2(game: ServerGameState, playerId: string, c: HPCandidate, ctx: HPContext): number[] {
+    const f = candFeatures(game, playerId, c, ctx);
+    const prm = c.params ?? {};
+    const tile = prm.tileId ? game.map.find(t => t.id === prm.tileId) : undefined;
+    const ttype = tile?.type;
+    f.push(c.type === 'build_mine' && ttype && !ctx.myTypes.has(ttype) ? 1 : 0);
+    f.push(c.type === 'use_power_action' ? (PW_COST[String(prm.actionId)] ?? 0) / 7 : 0);
+    return f;
 }
 
 export function stateFeatures(game: ServerGameState, playerId: string, ctx: HPContext): number[] {
@@ -149,14 +216,14 @@ function matvec(W: number[][], b: number[], x: number[], relu: boolean): number[
 }
 
 /** 후보별 softmax 확률(모델 없으면 null). */
-export function humanPolicyProbs(game: ServerGameState, playerId: string, cands: HPCandidate[]): number[] | null {
-    const m = loadHumanPolicy();
+export function humanPolicyProbs(game: ServerGameState, playerId: string, cands: HPCandidate[], version: 1 | 2 = 1): number[] | null {
+    const m = loadHumanPolicy(version);
     if (!m || cands.length === 0) return null;
     const W = m.weights as any;
     const ctx = buildContext(game, playerId);
-    const s = stateFeatures(game, playerId, ctx);
+    const s = version === 2 ? stateFeaturesV2(game, playerId, ctx) : stateFeatures(game, playerId, ctx);
     const logits = cands.map(c => {
-        const x = s.concat(candFeatures(game, playerId, c, ctx));
+        const x = s.concat(version === 2 ? candFeaturesV2(game, playerId, c, ctx) : candFeatures(game, playerId, c, ctx));
         const h1 = matvec(W['net.0.weight'], W['net.0.bias'], x, true);
         const h2 = matvec(W['net.2.weight'], W['net.2.bias'], h1, true);
         return matvec(W['net.4.weight'], W['net.4.bias'], h2, false)[0];
@@ -167,8 +234,8 @@ export function humanPolicyProbs(game: ServerGameState, playerId: string, cands:
 }
 
 /** 정책 확률 상위 K개만 남긴다(pass_round·연방은 항상 유지 — 룰상 안전판). 순서는 확률 내림차순. */
-export function pruneByHumanPolicy<T extends HPCandidate>(game: ServerGameState, playerId: string, cands: T[], k: number): { kept: T[]; probs: number[] } | null {
-    const probs = humanPolicyProbs(game, playerId, cands);
+export function pruneByHumanPolicy<T extends HPCandidate>(game: ServerGameState, playerId: string, cands: T[], k: number, version: 1 | 2 = 1): { kept: T[]; probs: number[] } | null {
+    const probs = humanPolicyProbs(game, playerId, cands, version);
     if (!probs) return null;
     const idx = cands.map((_, i) => i).sort((a, b) => probs[b] - probs[a]);
     const keep = new Set(idx.slice(0, k));
