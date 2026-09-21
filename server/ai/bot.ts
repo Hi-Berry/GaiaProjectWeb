@@ -57,6 +57,7 @@ import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
 import { MCTS } from './mcts';
 import { getPlayerFlag } from './variant';
+import { pruneByHumanPolicy } from './humanPolicy';
 import { StateCloner } from './stateCloner';
 import { Evaluator } from './evaluator';
 import {
@@ -1778,8 +1779,33 @@ export class BotLogic {
                         return pick.action;
                     }
                 }
-                log(`Bot ${player.name} starting MCTS with ${candidates.length} candidates...`, 'game', game.id);
-                const bestAction = await this.mctsWithTimeout(game, playerId, candidates, 'main');
+                // [flag: humanPolicyTopK 2026-09-18 사용자 방향] 502판 사람 결정 74,716건으로 학습한 후보 랭커(server/ai/humanPolicy.ts,
+                //   val top-1 40.9%)로 후보를 정책 확률 상위 K개로 프루닝한 뒤 MCTS. 배경: 사람 수의 25~50%가 봇 후보에 없고(광산·연방 48%),
+                //   후보를 넓히면 400ms MCTS가 희석돼 손해(mineTop6 −1.69 등) → 넓히기 + 정책 프루닝을 한 쌍으로. 프루닝은
+                //   실결정(비시뮬)만, pass/연방은 항상 유지. K 기본 6, 후보가 K+1개 이하면 그대로.
+                let mctsCands = candidates;
+                if (!isSimulate && !game.simulation && getPlayerFlag(playerId, 'humanPolicyTopK', true)) {
+                    const K = getPlayerFlag(playerId, 'humanPolicyK', 3);
+                    if (candidates.length > K + 1) {
+                        const pr = pruneByHumanPolicy(game, playerId, candidates as any, K, getPlayerFlag(playerId, 'humanPolicyV2', false) ? 2 : 1); // [flag: humanPolicyV2] 확장 피처 모델(A/B용)
+                        if (pr) {
+                            mctsCands = pr.kept as any;
+                            log(`Bot ${player.name} humanPolicyTopK: ${candidates.length}→${mctsCands.length} (top ${mctsCands.slice(0, 3).map((c: any, i: number) => `${c.type}${c.params?.target ? ':' + c.params.target : ''}${c.params?.actionIndex != null ? '#' + c.params.actionIndex : ''} ${pr.probs[i].toFixed(2)}`).join(' | ')})`, 'game', game.id);
+                            // [flag: humanPolicyOverride] 정책 확신(top1−top2 마진)이 임계 이상이면 MCTS 없이 직접 픽(earlyHumanOverride의 전 라운드판).
+                            //   오프라인: 마진≥0.5 = 결정의 12.6%, 정확도 74.8% / ≥0.4 = 18.4%, 68.2%. 패스·변환은 제외(패스 조기화 위험).
+                            const thr = getPlayerFlag(playerId, 'humanPolicyOverride', 0.5);
+                            if (thr > 0 && pr.probs.length >= 2 && pr.probs[0] - pr.probs[1] >= thr) {
+                                const top: any = mctsCands[0];
+                                if (top.type !== 'pass_round' && top.type !== 'convert_resource') {
+                                    log(`Bot ${player.name} humanPolicyOverride: ${top.type}${top.params?.target ? ':' + top.params.target : ''} p${pr.probs[0].toFixed(2)} margin${(pr.probs[0] - pr.probs[1]).toFixed(2)}`, 'game', game.id);
+                                    return top;
+                                }
+                            }
+                        }
+                    }
+                }
+                log(`Bot ${player.name} starting MCTS with ${mctsCands.length} candidates...`, 'game', game.id);
+                const bestAction = await this.mctsWithTimeout(game, playerId, mctsCands, 'main');
 
                 // [flag: qicDiag] 계측(기본 OFF, 순수 로깅): R1~R2에 QIC를 쓰는 결정(광산 점프/가이아 1Q·입장 QIC)마다
                 //   지갑 QIC·우주선 예약량·밸브·리벨리온 탑승/거리 상태를 남긴다. 실게임 R1~R2 광산 QIC 봇 1.86 vs 사람 0.81(2026-09-08)의
@@ -2295,7 +2321,7 @@ export class BotLogic {
         //   79~83%가 '위성 지불 후 잔여 토큰 ≤2'(후보 있던 경우는 5~8%). 봇 예비(getPowerTokenReserve R3~4=3, 리필 감안 1~3)가
         //   그 연방을 통째로 거른다 = 사람은 12VP/8VP+1Q 연방을 위해 토큰을 바닥까지 쓴다. 연방 후보에 한해 예비를 1로 완화
         //   (후보 추가만, 최종 선택은 MCTS). R5+는 예비가 이미 1/0이라 무영향.
-        const fedReserveRelax = getPlayerFlag(playerId, 'fedReserveRelaxR34', false) && _round >= 3 && _round <= 4;
+        const fedReserveRelax = getPlayerFlag(playerId, 'fedReserveRelaxR34', true) && _round >= 3 && _round <= 4;
         // [flag: fedGapDiag] 계측(기본 OFF, 순수 로깅): R3+에서 연방 후보가 0개로 끝나는 결정의 기계적 원인 분포.
         const fedDiag = getPlayerFlag(playerId, 'fedGapDiag', false) && _round >= 3 && !game.simulation;
         const plannerDiag = FederationPlanner.lastDiag;
@@ -2872,6 +2898,61 @@ export class BotLogic {
                     (game as any).diagRangeWaste.push(entry);
                     log(`[RANGE-WASTE] ${JSON.stringify(entry)}`, 'game', game.id);
                 } catch (e) { log(`[RANGE-WASTE] diag error: ${e}`, 'game', game.id); }
+            }
+        }
+
+        // [flag: shipDiscountFirst 2026-09-18 사용자 방향 "파워 소비 패턴"] 실게임 4P 혼합: 우주선 액션 사람 16.6 vs 봇 5.5/좌석,
+        //   그중 할인 업글(트왈 TS→랩 2O+3P: 1.68 vs 0.14 / 리벨 광산→TS 1O+3P: 1.77 vs 0.30). 봇은 조건(탑승·슬롯·광석·그릇3≥3)이
+        //   갖춰진 턴에도 파워액션(146/507)·정가 연구소(29)를 골랐다 — 할인은 파워 3으로 1O+5C(랩)·1O+3~6C(TS)를 아끼는
+        //   최고 효율 파워 싱크(파워당 ~0.9O vs 파워액션 0.5O vs 3P→1O 0.33O). 후보 단계에서 ① 같은 결과의 정가 업글은 제거(지배)
+        //   ② 이번 턴 그릇3을 3 미만으로 떨어뜨리는 파워 지출(파워액션·파워 변환 단독 후보)은 보류해 할인이 밀리지 않게 한다.
+        //   타클론(브레인스톤 회계)·네블라스 PI(파워 비용 반값)는 비용 근사가 어긋나 제외.
+        if (getPlayerFlag(playerId, 'shipDiscountFirst', false) && player.faction !== 'taklons'
+            && !(player.faction === 'nevlas' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute'))) {
+            const shipTypeOf = (c: BotAction) => game.map.find(t => t.id === c.params?.shipTileId)?.type;
+            const isDiscount = (c: BotAction, ship: string) => c.type === 'use_ship_action' && c.params?.actionIndex === 2 && shipTypeOf(c) === ship;
+            const hasTwiLab = candidatePool.some(c => isDiscount(c, 'ship_twilight'));
+            const hasRebTs = candidatePool.some(c => isDiscount(c, 'ship_rebellion'));
+            // [v2] v1(할인 후보가 '있는' 턴만 보호) 40판: 할인 사용 불변(0.34→0.35) — 봇은 파워를 받는 즉시 써서 그릇3이 0~1에
+            //   머물러 할인 후보가 생기는 턴 자체가 드물었다. v2: 할인이 '곧 열릴' 상황(탑승·슬롯 #2 미사용·대상 건물 보유·상한 미달)
+            //   이면 그릇3을 3 미만으로 떨어뜨리는 파워액션·파워 변환을 라운드 내내 보류해 3파워를 모아 둔다(예비). 광석은 수입/
+            //   다른 액션으로 채워지므로 조건에 넣지 않음.
+            const reserveV2 = getPlayerFlag(playerId, 'shipDiscountReserve', true);
+            let pendingDiscount = false;
+            if (reserveV2 && !hasTwiLab && !hasRebTs) {
+                for (const shipId of (player.spaceshipsEntered ?? [])) {
+                    const st = game.spaceships?.[shipId]; const tile = game.map.find(t => t.id === shipId);
+                    if (!st || !tile || !(st.occupants || []).includes(playerId)) continue;
+                    if ((st.usedActionIndices || []).includes(2) || (st.usedActionIndices || []).length >= 3) continue;
+                    if (tile.type === 'ship_twilight' && getStructureCount(game, playerId, 'research_lab') < BUILDING_LIMITS.research_lab
+                        && game.map.some(t => t.ownerId === playerId && t.structure === 'trading_station')) pendingDiscount = true;
+                    if (tile.type === 'ship_rebellion' && getStructureCount(game, playerId, 'trading_station') < BUILDING_LIMITS.trading_station
+                        && game.map.some(t => t.ownerId === playerId && t.structure === 'mine')) pendingDiscount = true;
+                }
+            }
+            if (pendingDiscount) {
+                const POWER_COST: Record<string, number> = { 'gain-3-knowledge': 7, 'gain-2-steps': 5, 'gain-2-ore': 4, 'gain-7-credits': 4, 'gain-2-knowledge': 4, 'gain-1-step': 3, 'gain-2-tokens': 3 };
+                const p3 = player.power3 ?? 0;
+                const before = candidatePool.length;
+                candidatePool = candidatePool.filter(c => {
+                    if (c.type === 'use_power_action' && p3 - (POWER_COST[String(c.params?.actionId)] ?? 0) < 3) return false;
+                    if (c.type === 'convert_resource' && String(c.params?.type ?? '').includes('power')) return false;
+                    return true;
+                });
+                if (candidatePool.length !== before) log(`[SHIP-RESERVE] ${player.name} R${game.roundNumber}: ${before}→${candidatePool.length} (p3=${p3})`, 'game', game.id, { simulation: (game as any).simulation });
+            }
+            if (hasTwiLab || hasRebTs) {
+                const POWER_COST: Record<string, number> = { 'gain-3-knowledge': 7, 'gain-2-steps': 5, 'gain-2-ore': 4, 'gain-7-credits': 4, 'gain-2-knowledge': 4, 'gain-1-step': 3, 'gain-2-tokens': 3 };
+                const p3 = player.power3 ?? 0;
+                const before = candidatePool.length;
+                candidatePool = candidatePool.filter(c => {
+                    if (hasTwiLab && c.type === 'upgrade_structure' && c.params?.target === 'research_lab') return false;
+                    if (hasRebTs && c.type === 'upgrade_structure' && c.params?.target === 'trading_station') return false;
+                    if (c.type === 'use_power_action' && p3 - (POWER_COST[String(c.params?.actionId)] ?? 0) < 3) return false;
+                    if (c.type === 'convert_resource' && String(c.params?.type ?? '').includes('power')) return false;
+                    return true;
+                });
+                if (candidatePool.length !== before) log(`[SHIP-DISCOUNT] ${player.name} R${game.roundNumber}: ${before}→${candidatePool.length} candidates (twiLab=${hasTwiLab} rebTs=${hasRebTs} p3=${p3})`, 'game', game.id, { simulation: (game as any).simulation });
             }
         }
 
@@ -4203,7 +4284,7 @@ export class BotLogic {
         const result = filtered.length > 0 ? filtered : candidates;
         result.sort((a, b) => b.score - a.score);
         // 후보 컷이 너무 강하면 좋은 수가 탐색에서 사라짐 → 상위 5개로 확장
-        const top = result.slice(0, 5);
+        const top = result.slice(0, getPlayerFlag(playerId, 'wideCands', true) ? 8 : 5); // [flag: wideCands] 사람 업글 20~33%가 봇 후보에 없음(top-5 컷)
         // [flag: piTopGuarantee] 갭 프로브 v2(2026-09-08, 사람 379판): R3+ 사람 의회 업글 308건 중 봇 후보에 없던 149건(48%)은
         //   전부 자금 충족(4O6C 100%)·같은 타일 다른 업글(랩) 후보 존재 71% — 즉 게이트가 아니라 **휴리스틱 점수 하위로 top-5에서
         //   잘린 것**(일반 종족 R3 PI 기본점수 0~30 vs 랩/TS). 의회는 1회성 엔진이라 PI 없고 후보가 생성돼 있으면 최상위 PI 1개를
@@ -5490,8 +5571,11 @@ export class BotLogic {
         //   같은 축의 선례가 asteroidCandOpen(소행성 한 칸 예약)이고, 이번엔 일반 광산 슬롯을 4→6으로 연다.
         //   MCTS 분기가 늘어 탐색이 얕아지는 반대급부가 있으므로 기본 OFF, head2head로 판정.
         const mineTop6 = getPlayerFlag(playerId, 'mineTop6', false);
-        const mineCap = mineTop6 ? 6 : 4;
-        for (const s of scored.slice(0, mineTop6 ? 12 : 8)) { // 스캔 폭(중복 액션 스킵 때문에 상한보다 넓게)
+        // [flag: wideCands 2026-09-18] 사람 광산 7,513건이 봇 후보에 없었고 그중 36%는 봇 후보가 정확히 4개(이 상한) — 사람 위치의 81%가
+        //   내 건물 거리 1~2. 상한을 10으로 넓히고 humanPolicyTopK(정책 프루닝)와 한 쌍으로 쓴다(넓히기만 하면 MCTS 희석: mineTop6 −1.69).
+        const wideCands = getPlayerFlag(playerId, 'wideCands', true);
+        const mineCap = wideCands ? 10 : mineTop6 ? 6 : 4;
+        for (const s of scored.slice(0, wideCands ? 16 : mineTop6 ? 12 : 8)) { // 스캔 폭(중복 액션 스킵 때문에 상한보다 넓게)
             const act = s.action;
             const key = JSON.stringify(act);
             if (!seenActions.has(key)) {
@@ -7008,6 +7092,16 @@ export class BotLogic {
             }
         }
 
+        // [flag: tile1o1qSituational 2026-09-18] 실게임 4P 혼합 봇 263석에서 tech-imm-1o-1q 획득 0회(사람 0.85/석) —
+        //   고정 서열(income 120/70 > 1O1Q 50/40)이라 절대 안 집힘. 플랫 가점(tileHumanPrior +35)은 서열을 못 뒤집어
+        //   행동 불변이었으므로, 이 타일이 실제로 값어치 있는 상황(QIC 0 = 우주선 입장·점프·QIC 액션 전부 잠김,
+        //   광석 ≤1 = 다음 건설 불가)에서만 income 타일과 동급~우위가 되게 상황부로 올린다. R≤4만(R5+는 lateTilePref).
+        if (getPlayerFlag(playerId, 'tile1o1qSituational', false) && tileId === 'tech-imm-1o-1q' && round <= 4) {
+            const qicStarved = (player.qic ?? 0) <= 0;
+            const oreStarved = (player.ore ?? 0) <= 1;
+            score += (qicStarved ? 45 : 15) + (oreStarved ? 25 : 0);
+        }
+
         // [flag: tileHumanPrior] 실게임 분포(사람 727건 vs 봇 561건, 2026-08-01): 사람은 1O+1Q 13.8%(봇 0.2%),
         // 4P액션 12.8%(봇 3.0%), big-4str 11.4%(봇 0.5%)를 집는데 봇 채점 서열상 income 타일에 항상 밀림.
         // 1O1Q=리벨 3Q 재료, big-4str=상급건물 파워4 → 7파워 연방 군집 촉진(사람 연방 4.5개의 요소로 추정).
@@ -7052,6 +7146,23 @@ export class BotLogic {
         // 한끗 낮아(+100 vs +120) 픽에서 항상 밀림. 4P = 매 라운드 +4충전 = 파워액션·리치 순환의 상류 엔진.
         // 기각된 techTileRankFix(-2.75)의 실패 모드(1K1C 페널티→연구픽 훼손)를 피해 4P 단독 부스트만.
         if (getPlayerFlag(playerId, 'act4pPick', false) && round <= 4 && tileId === 'tech-act-4p') score += 50;
+
+        // [flag: act4pLine 2026-09-18 사용자 지시 "4P 타일 라인"] 실게임 4P 혼합(8~9월): 사람 R1~2 기술타일 픽의 24%가
+        //   act-4p(R1 획득 56/111 = 첫 연구소의 첫 타일), 봇은 4%(R1~2 픽 = 1K1C 39%·1O1P 29%·4C 29%). 보유 시 사용률은
+        //   동일(97 vs 98%)이고 사람은 4P 직후 파워액션(101/489)·우주선 액션으로 소비 = '매 라운드 +4파워 → 액션 1개'가 라인.
+        //   act4pPick(+50, R≤4, 120판 −4.21)과 다른 점: ① 사람 분포대로 R1~2 집중(+70 → income 120을 넘김, R3 +30만)
+        //   ② 싱크 게이트 — 토큰 총량 ≥5일 때만(토큰이 적으면 4충전이 그릇에 못 들어가 증발) ③ 우주선 기술타일(170/100)은 안 밀어냄.
+        if (getPlayerFlag(playerId, 'act4pLine', false) && tileId === 'tech-act-4p' && !(player.techTiles ?? []).includes('tech-act-4p')) {
+            //   [v2] 1차(토큰≥5, 40판 유효측정): 보유율 0.09→0.97·사용 4.9회·파워액션 +0.9로 기전은 붙었으나 VP −6.3 —
+            //   4충전이 그릇1→2로만 이동해 파워액션까지 못 가고 1P→1C 변환(프리액션 +2.2)으로 새는 좌석이 많음.
+            //   싱크 게이트를 '충전 즉시 파워액션이 가능한 파워 구성'(토큰≥7 & 그릇2+3 ≥3)으로 좁힌다.
+            const tokens = (player.power1 ?? 0) + (player.power2 ?? 0) + (player.power3 ?? 0);
+            const upper = (player.power2 ?? 0) + (player.power3 ?? 0);
+            if (tokens >= 7 && upper >= 3) {
+                if (round <= 2) score += 70;
+                else if (round === 3) score += 30;
+            }
+        }
 
         // 2-1. 고급 기술 타일 (adv-*): 건물·라운드·즉시 VP·자원 기반 세부 점수
         if (tileId.startsWith('adv-')) {
@@ -8353,6 +8464,47 @@ export class BotLogic {
         return { type: 'select_bonus', params: { bonusTileId: bestTile.id } };
     }
 
+    /** 부스터 선택용 기하 판정 — 내 건물(기생광산·정거장 포함)에서 [minDist, maxDist] 거리의 미점유 일반 행성 중
+     *  이 종족 기준 테라포밍 스텝이 [minSteps, maxSteps]인 곳이 하나라도 있는가. 자원은 다음 라운드 수입으로 바뀌므로 보지 않는다.
+     *  트랜스딤(포머 필요)·소행성(테라포밍 불가)은 제외, 가이아 행성은 QIC 1 이상일 때만 0스텝 대상으로 인정. */
+    private static hasBuildablePlanetInRing(game: ServerGameState, playerId: string, minDist: number, maxDist: number, minSteps: number, maxSteps: number): boolean {
+        const player = game.players[playerId];
+        if (!player?.faction) return false;
+        const anchors = game.map.filter(t =>
+            (t.ownerId === playerId && t.structure) || t.parasiticMine?.ownerId === playerId
+            || (t.spaceStation as any)?.ownerId === playerId);
+        if (anchors.length === 0) return false;
+        for (const t of game.map) {
+            if (!this.isPlanetHex(t) || t.ownerId || t.structure) continue;
+            if (t.type === 'transdim' || t.type === 'lost_planet') continue;
+            if (t.hasGaiaformer && t.gaiaformerOwnerId !== playerId) continue;
+            let steps: number;
+            if (t.type === 'gaia') { if ((player.qic ?? 0) < 1) continue; steps = 0; }
+            else steps = getTerraformStepsForFaction(game, player.faction, t.type!);
+            if (steps < minSteps || steps > maxSteps) continue;
+            const d = Math.min(...anchors.map(a => getDistance(a, t)));
+            if (d >= minDist && d <= maxDist) return true;
+        }
+        return false;
+    }
+
+    /** 2c-terraform 부스터가 구속조건인가: 사거리 안에 0스텝(공짜) 행성은 없고 1~2스텝 행성은 있을 때.
+     *  (0스텝 행성이 있으면 사용 단계 가드가 '최선 건설 대상 스텝 0'으로 액션을 안 쓴다 → 집어도 낭비.) */
+    private static boosterTerraformTargetExists(game: ServerGameState, playerId: string): boolean {
+        const player = game.players[playerId];
+        const range = getRange(player.research?.navigation || 0) + (player.navigationBonus || 0);
+        if (this.hasBuildablePlanetInRing(game, playerId, 0, range, 0, 0)) return false;
+        return this.hasBuildablePlanetInRing(game, playerId, 0, range, 1, 2);
+    }
+
+    /** 2pw-range3 부스터가 구속조건인가: 사거리 안엔 값싼(≤1스텝) 행성이 없고, +1~+3 밖에는 있을 때. */
+    private static boosterRangeTargetExists(game: ServerGameState, playerId: string): boolean {
+        const player = game.players[playerId];
+        const range = getRange(player.research?.navigation || 0) + (player.navigationBonus || 0);
+        if (this.hasBuildablePlanetInRing(game, playerId, 0, range, 0, 1)) return false;
+        return this.hasBuildablePlanetInRing(game, playerId, range + 1, range + 3, 0, 1);
+    }
+
     private static calculateBonusTileScore(game: ServerGameState, player: PlayerState, tile: BonusTile, round: number, playerId: string): number {
         let score = 0;
 
@@ -8378,8 +8530,21 @@ export class BotLogic {
             resourceValue += (tile.income.power || 0) * (humanW ? 2.5 : 1);
         }
         if (tile.specialAction) {
-            if (tile.specialAction === 'range_3') resourceValue += 3;
-            if (tile.specialAction === 'terraform_step') resourceValue += 3;
+            // [flag: boosterActionUsable 2026-09-18] 실게임 4P 혼합(봇 263석): 봇이 2c-terraform 부스터를 든 111라운드 중
+            //   특수액션(1삽)을 쓴 건 52%, 2pw-range3는 117라운드 중 39%(사람 100%·94%). 사용 단계 가드(빌드 가능할 때만·
+            //   사거리가 실제로 여는 대상만)는 있으니 낭비의 원인은 '다음 라운드에 쓸 대상이 없는데 집는 선택'. gaiaBoosterUsable
+            //   (즉포 부스터, 07-02 채택)과 같은 패턴 — 다음 라운드에 쓸 자리가 지도상 있으면 우대(+4), 없으면 감점(−3)해
+            //   2파워/2크레딧 수입가치를 상쇄하고 다른 부스터를 고르게 한다. 자원은 수입 후 달라지므로 기하 조건만 본다.
+            //   [v1 측정 2026-09-18] 기하 조건이 느슨(사거리 안 1~3스텝 행성은 거의 항상 있음)해 오히려 액션 부스터 픽이
+            //   16%→20%로 늘고 사용률 불변(터라폼 54%) → v2: '부스터가 구속조건'일 때만 — 0스텝(공짜) 행성이 사거리 안에
+            //   없을 때의 1삽, 사거리 안에 값싼 행성이 없을 때의 +3거리. 기본 OFF(v2 측정 후 결정).
+            const actionUsable = getPlayerFlag(playerId, 'boosterActionUsable', false);
+            if (tile.specialAction === 'range_3') {
+                resourceValue += actionUsable ? (this.boosterRangeTargetExists(game, playerId) ? 4 : -3) : 3;
+            }
+            if (tile.specialAction === 'terraform_step') {
+                resourceValue += actionUsable ? (this.boosterTerraformTargetExists(game, playerId) ? 4 : -3) : 3;
+            }
             if (tile.specialAction === 'gaia_project') {
                 // [flag: gaiaBoosterUsable] 즉포(bon-2pw-gaiaproject)의 특수액션(가이아포머 배치)은 실제로 쓸 수 있을 때만 가치.
                 //   실측(사람게임 45판): 봇이 즉포 든 27구간 중 23구간(85%)이 특수액션 안 쓰고 반납 = 2파워만 받고 슬롯 낭비.
@@ -8443,16 +8608,22 @@ export class BotLogic {
             }
         }
 
+        // [flag: boosterPassVpEarlyW] 실게임 4P 혼합(8~9월, 봇 263석 vs 사람 149석) 패스VP: R3 1.2 vs 3.9 · R4 1.7 vs 6.7 ·
+        //   R5 3.3 vs 8.4 · R6 3.6 vs 10.7(부스터 VP 합 11 vs 32). 봇은 R2~3 패스에 2c-terraform 14%·2pw-range3 12%
+        //   (사람 5%·3%)를 집고 1o-mine/1k-lab/1o-planettype(사람 11~13%)은 5%만 집는다. 원인은 이 함수의 초반 가중
+        //   (자원×2.5 vs 패스VP×0.5): 광산 6개 보유 시 1o-mine = 7.5+3 < 2c-terraform 12.5. 패스VP는 다음 패스에
+        //   그대로 확정되는 VP(건물 수는 줄지 않음)라 리치 무관 = 자가대국으로 측정 가능한 축. 기본값은 기존 0.5 유지.
+        const earlyPassW = getPlayerFlag(playerId, 'boosterPassVpEarlyW', 0.5);
         if (round <= 3) {
             // 엔진 빌딩 시기: 자원 대폭 우대
-            score += (resourceValue * 2.5) + (passBonusValue * 0.5);
+            score += (resourceValue * 2.5) + (passBonusValue * earlyPassW);
             // [사용자 피드백] 패스는 기본적으로 기피 대상이므로 페널티를 주되,
             // 아무것도 할 수 없는 (예: 연구소 지을 돈도 없고, 3광물 1테라포밍으로 -1000점을 맞기 싫은) 상황에서는
             // 어쩔 수 없이 패스를 선택해야 하므로 500점이 아닌 150점 정도로 완화
             score -= 150; 
         } else {
-            // 후반: 점수 대폭 우대
-            score += (resourceValue * 0.5) + (passBonusValue * 2.0);
+            // 후반: 점수 대폭 우대 ([flag: boosterPassVpLateW] 기본 2.0 = 기존값)
+            score += (resourceValue * 0.5) + (passBonusValue * getPlayerFlag(playerId, 'boosterPassVpLateW', 2.0));
             score -= 50; // 후반에도 점막 패스를 위해 약간의 페널티
         }
 
@@ -9120,6 +9291,14 @@ export class BotLogic {
             if (player.usedTechActions?.includes(tid)) continue;
             if (isTechTileCovered(player, tid)) continue; // [TECHREJ 미러 2026-09-09] 고급타일에 덮인 액션타일은 서버 거부(covered)
             if (tid === 'tech-act-4p') {
+                // [flag: act4pLine v2] 사람 패턴(4P 직후 파워액션 101/489): 충전 후 그릇3이 3 이상이 돼 파워액션을 살 수 있을 때만
+                //   턴을 쓴다 — 그릇1→2 이동만 되는 시점의 사용은 턴 소모 + 1P→1C 누수라 보류(다음 턴/다음 라운드에 다시 평가).
+                if (getPlayerFlag(playerId, 'act4pLine', false) && player.faction !== 'taklons') {
+                    const p1 = player.power1 ?? 0, p2 = player.power2 ?? 0, p3 = player.power3 ?? 0;
+                    const m1 = Math.min(p1, 4);
+                    const bowl3After = p3 + Math.min(p2 + m1, 4 - m1);
+                    if (bowl3After < 3) continue;
+                }
                 // [사용자 관찰] 4파워 충전 전에 bowl이 차 있으면(수용량 2*p1+p2 < 4) 충전이 버려진다 → bowl3 먼저 비워 수용량 확보.
                 const preActions = this.chargeDrainPreActions(playerId, player, 4);
                 res.push(preActions.length

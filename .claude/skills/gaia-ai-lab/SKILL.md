@@ -26,7 +26,8 @@ Gaia Project 봇(`server/ai/`)을 **로그 분석 → 가설 → 구현(플래�
    - 사용자 관찰도 1급 신호 — 재현 가능한 룰 위반/낭비는 즉시 버그로 처리.
 2. **가설 + 구현** — `server/ai/`(bot.ts / federationPlanner.ts / evaluator.ts)에 플래그 게이팅으로. 빌드는 `npx tsc --noEmit && npm run build`.
 3. **검증** — `scripts/run-h2h.sh <flag>` (가중치 격리 + 워커 6 + 좀비 정리 + 전체출력). 종족 랭킹도 그 출력에서 같이 뽑힘.
-4. **결정 + 기록** — 채택/기각을 `DECISIONS.md`에 한 줄 추가(플래그·판수·승률·VP·p·판정). 채택이면 기본값 ON 커밋. 기각이면 플래그 OFF 유지 또는 코드 되돌림.
+4. **실게임 검증(자가대국이 못 재는 축)** — 리치/경합/선점이 관건인 가설(연방 예비토큰·번 조달·타일 선호 등)은 `server/ai/liveExperiment.json`에 `{ "name", "flags" }`로 걸어 두면 사람 게임 봇 좌석이 ON/OFF 교대 배정된다. `scripts/liveAbReport.mjs`로 게임 내 쌍비교. 한 번에 실험 1개.
+5. **결정 + 기록** — 채택/기각을 `DECISIONS.md`에 한 줄 추가(플래그·판수·승률·VP·p·판정). 채택이면 기본값 ON 커밋. 기각이면 플래그 OFF 유지 또는 코드 되돌림.
 
 ## 도구
 
@@ -35,6 +36,9 @@ Gaia Project 봇(`server/ai/`)을 **로그 분석 → 가설 → 구현(플래�
 | `scripts/run-h2h.sh` | head2head 실행 래퍼 — 가중치 격리·워커6·좀비 정리·전체출력 보존. `bash run-h2h.sh <challengerFlagsJson> [games]` |
 | `scripts/faction-scores.mjs` | head2head/self-play 출력에서 종족별 평균 점수 집계. `node faction-scores.mjs <output-file>` |
 | `scripts/bad-patterns.mjs` | 사람 게임 로그(data/human-games)에서 연방 위성수·파워액션 분포 등 봇 vs 사람 비교 |
+| `scripts/realGameGap.mjs` | 실게임 4P 혼합 로그에서 봇 vs 사람 격차 일괄 진단 — VP 출처·라운드별 액션 수·패스 순서·라운드 시작/패스 시 자원·패스VP·부스터/기술타일 선택 분포. `node scripts/realGameGap.mjs --since 2026-08` |
+| `scripts/liveAbReport.mjs` | **실게임 좌석 A/B 집계**(`server/ai/liveExperiment.json`에 실험 설정 → 사람 게임의 봇이 ON/OFF 교대 배정). 게임 내 ON−OFF 점수 차 ± SE. 자가대국이 못 재는 '사람 상대 전용' 가설의 유일한 실전 잣대. 15게임+ 모이면 판정 |
+| `scripts/humanPolicy/build_dataset.py` · `train_policy.py` | **사람 모방 정책 파이프라인**(2026-09-18 채택). 502판 사람 결정을 fullGameLog 리플레이로 상태×후보 피처화 → 후보 집합 softmax MLP 학습 → `server/ai/humanPolicy.json`. 봇은 `server/ai/humanPolicy.ts`로 후보를 정책 top-K(3)로 프루닝하고 확신(마진≥0.5) 시 직접 픽. 재학습: `python3 build_dataset.py --out data/humanPolicy && python3 train_policy.py --data data/humanPolicy` → json 복사(`meta` 제거) → `PORT=5111 npx tsx script/testHumanPolicyFeatures.ts`로 피처 1:1 검증 필수 |
 | `DECISIONS.md` | 시도한 모든 전략 + head2head 결과 + 판정(채택/기각) 누적 — **같은 실패 반복 방지**. 새 실험 전 먼저 읽기. |
 | `reference/bot-map.md` | 봇 코드 구조(핵심 함수 위치)·로그 포맷·종족 메모 |
 | `reference/head2head.md` | head2head 동작·환경변수·함정 상세 |

@@ -96,6 +96,7 @@ import {
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
 import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVariant } from './ai/variant';
+import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
@@ -3843,7 +3844,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.hostAddedPlayerIds) game.hostAddedPlayerIds = [];
 			game.hostAddedPlayerIds.push(botId);
 
-			log(`AI Bot added: ${name} (${botId}) to game ${gameId}`, 'game', undefined, { simulation: (game as any).simulation });
+			// [실게임 좌석 A/B 2026-09-18] server/ai/liveExperiment.json에 실험이 있으면 이 봇을 ON/OFF 그룹에
+			//   번갈아 배정(같은 게임 안 쌍비교). 없으면 no-op — 기존 동작과 동일.
+			const liveGroup = assignLiveBotVariant(game as any, botId);
+
+			log(`AI Bot added: ${name} (${botId}) to game ${gameId}${liveGroup ? ` [live A/B: ${liveGroup}]` : ''}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game);
 			emitGameUpdated(io, game);
 			callback({ botId, name, game });
@@ -5734,41 +5739,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('select_advanced_tech_tile', ({ gameId, advancedTileId, trackId }: { gameId: string; advancedTileId: string; trackId?: ResearchTrack }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return;
-
-			const player = game.players[playerId];
-			if (countGreenFederations(player) < 1) return;
-			// 고급 타일은 각 1개씩만 존재 — 이미 누군가 보유 중이면 중복 획득 거부 (UI는 슬롯을 '획득됨/TAKEN'으로 유지)
-			if (Object.values(game.players).some(p => p.techTiles?.includes(advancedTileId))) return;
-			const uncoveredNormal = (player.techTiles || []).filter(
-				(id) => !(player.coveredTechTiles || []).includes(id) && !id.startsWith('adv-')
-			);
-			if (uncoveredNormal.length < 1) return;
-
-			// [버그수정 2026-08-06 사용자] 아이타 의회 교환으로 받은 고급 타일인지 기억해 둔다 —
-			//   교환은 가이아 단계(액션 전)에 일어나므로 후속 트랙 전진이 메인 액션을 소모하면 안 된다.
-			const fromItarsExchange = game.pendingTechTileSelection?.structureType === 'itars_pi_exchange';
-			if (trackId != null) {
-				// 트랙 4–5 사이 고급 타일
-				const advTile = game.advancedTechTilesByTrack?.[trackId];
-				if (!advTile || advTile.id !== advancedTileId) return;
-				const level = player.research?.[trackId] ?? 0;
-				if (level < 4) return;
-				game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId, fromItarsExchange };
-			} else {
-				// 7번째(추가) 고급 타일: 조건 25 VP+ 또는 우주선 3개 입장
-				const extra = game.extraAdvancedTechTile;
-				if (!extra || extra.id !== advancedTileId) return;
-				const cond = game.extraAdvancedTechCondition;
-				if (cond === '25vp') {
-					if ((player.score ?? 0) < 25) return;
-				} else {
-					const entered = (player.spaceshipsEntered ?? []).length;
-					if (entered < 3) return;
-				}
-				game.pendingAdvancedTechCover = { playerId, advancedTileId, fromItarsExchange };
-			}
-			clampPlayerResources(game); emitGameUpdated(io, game);
+			executeSelectAdvancedTechTileForHuman(io, game, playerId, advancedTileId, trackId);
 		});
 
 		// 고급 타일로 덮을 일반 타일 선택 확정 → 연방 1개 소모, 덮기, 고급 타일 추가, 즉시 효과, 트랙 1칸 선택 대기
@@ -7273,6 +7244,62 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	game.pendingTechTileSelection = null;
 	game.availableShipTechTileIds = undefined;
 	clampPlayerResources(game); emitGameUpdated(io, game);
+}
+
+/**
+ * 사람(소켓) 전용: 고급 기술 타일 선택 → '덮을 일반 타일 고르기' 단계로 전환.
+ * 봇용 executeSelectAdvancedTechTile과 달리 턴/페이즈 검사를 하지 않는다 —
+ * 아이타 의회 교환은 내 턴도 main 페이즈도 아닌 시점(라운드 시작 가이아 단계)에 일어나기 때문.
+ * 대신 덮을 일반 타일이 하나도 없으면 커버 단계에서 갇히므로 선택 자체를 거부한다.
+ */
+export function executeSelectAdvancedTechTileForHuman(
+	io: SocketIOServer, game: ServerGameState,
+	playerId: string, advancedTileId: string, trackId?: ResearchTrack
+): boolean {
+	if (!game.pendingTechTileSelection || game.pendingTechTileSelection.playerId !== playerId) return false;
+
+	const player = game.players[playerId];
+	if (!player) return false;
+	if (countGreenFederations(player) < 1) return false;
+	// 고급 타일은 각 1개씩만 존재 — 이미 누군가 보유 중이면 중복 획득 거부 (UI는 슬롯을 '획득됨/TAKEN'으로 유지)
+	if (Object.values(game.players).some(p => p.techTiles?.includes(advancedTileId))) return false;
+	const uncoveredNormal = (player.techTiles || []).filter(
+		(id) => !(player.coveredTechTiles || []).includes(id) && !id.startsWith('adv-')
+	);
+	if (uncoveredNormal.length < 1) return false;
+
+	// [버그수정 2026-08-06 사용자] 아이타 의회 교환으로 받은 고급 타일인지 기억해 둔다 —
+	//   교환은 가이아 단계(액션 전)에 일어나므로 후속 트랙 전진이 메인 액션을 소모하면 안 된다.
+	const fromItarsExchange = game.pendingTechTileSelection?.structureType === 'itars_pi_exchange';
+	if (trackId != null) {
+		// 트랙 4–5 사이 고급 타일
+		const advTile = game.advancedTechTilesByTrack?.[trackId];
+		if (!advTile || advTile.id !== advancedTileId) return false;
+		const level = player.research?.[trackId] ?? 0;
+		if (level < 4) return false;
+		game.pendingAdvancedTechCover = { playerId, advancedTileId, trackId, fromItarsExchange };
+	} else {
+		// 7번째(추가) 고급 타일: 조건 25 VP+ 또는 우주선 3개 입장
+		const extra = game.extraAdvancedTechTile;
+		if (!extra || extra.id !== advancedTileId) return false;
+		const cond = game.extraAdvancedTechCondition;
+		if (cond === '25vp') {
+			if ((player.score ?? 0) < 25) return false;
+		} else {
+			const entered = (player.spaceshipsEntered ?? []).length;
+			if (entered < 3) return false;
+		}
+		game.pendingAdvancedTechCover = { playerId, advancedTileId, fromItarsExchange };
+	}
+	// [버그수정 2026-09-18 사용자: 연구소 1개로 기술 타일 2개 획득] 커버 단계로 넘어갈 때 표준 타일 선택
+	//   대기를 반드시 비운다. 봇/서버 공용 executeSelectAdvancedTechTile은 이미 비웠는데 소켓 경로만
+	//   남겨 둬서, 고급 타일을 누른 뒤(커버 대기) 일반 타일을 또 누르면 select_tech_tile이 살아있는
+	//   pending을 소비해 일반 타일+트랙전진을 주고, 이어서 커버 확정이 고급 타일+트랙전진을 또 줬다
+	//   (= 한 액션에 타일 2개·트랙 2칸).
+	game.pendingTechTileSelection = null;
+	game.availableShipTechTileIds = undefined;
+	clampPlayerResources(game); emitGameUpdated(io, game);
+	return true;
 }
 
 /** Bot/서버 공용: 고급 기술 타일 선택 (track 4–5 사이 또는 extra tile). */

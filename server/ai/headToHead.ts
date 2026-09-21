@@ -180,7 +180,10 @@ function killWorkerTree(proc: ChildProcess) {
     if (process.platform === 'win32') {
         try { spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { }
     } else {
-        try { proc.kill('SIGKILL'); } catch { }
+        // [macOS/Linux 좀비 수정 2026-09-18] spawn('npx', ['tsx', ...])의 proc은 npx라 proc.kill()은 npx만 죽이고
+        // tsx→node(게임 서버) 자식이 고아로 남아 포트를 계속 잡았다(다음 런이 옛 코드 서버에 붙어 측정 무효).
+        // startServerProcess가 detached(새 프로세스 그룹)로 띄우므로 그룹 전체(-pid)를 죽인다. 실패 시 개별 kill 폴백.
+        try { process.kill(-proc.pid, 'SIGKILL'); } catch { try { proc.kill('SIGKILL'); } catch { } }
     }
     ACTIVE_WORKERS.delete(proc);
 }
@@ -204,6 +207,7 @@ function startServerProcess(port: number): ChildProcess {
         env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), NODE_ENV: 'development' },
         stdio: 'ignore',
         windowsHide: true,
+        detached: !isWin, // 비-Windows: 자기 프로세스 그룹으로 띄워 killWorkerTree가 그룹(-pid)을 통째로 죽일 수 있게
     });
 }
 
