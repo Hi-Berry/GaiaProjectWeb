@@ -442,6 +442,13 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
   //   homePlanets는 computeBadgeAwards가 game.map을 훑어 얹어준다. 맵이 없으면 undefined → Infinity로 거르게 둔다(오부여 방지).
   { id: 'no-extra-home-win', name: '모행성 안 늘리고 승리',
     test: (p) => (FACTIONS.find((f) => f.id === p.faction)?.startingMines ?? 2) === 2 && (p.homePlanets ?? Infinity) <= 2 },
+  // [사용자 2026-09-22] 기동력이 느린 하이브(이비츠)로 최종미션 '섹터 수'(건물을 둔 섹터가 가장 많은 사람 18점) 1등 + 게임 1위.
+  //   finalMissionDetails는 최종 채점(gameState) 뒤 저장되므로 여기서 읽을 수 있다. 다른 뱃지처럼 봇 게임·인원 제한 없음.
+  //   실측(완주 게임 전체): 하이브가 섹터 미션 있던 판 12판 중 18점 1등 4회, 그중 게임 1위는 3명 —
+  //   Sss(8/15, 봇 3명 상대 222점)·구구(9/6, 2P 봇 상대 297점)·디애박(9/21, 사람 4인 198점 = 사람 게임 첫 달성).
+  { id: 'ivits-sectors-win', name: '느린 하이브로 섹터 미션 1등하고 승리',
+    test: (p) => p.faction === 'ivits'
+      && (((p.scoreBreakdown as any)?.finalMissionDetails ?? []) as { missionId?: string; vp?: number }[]).some((m) => m.missionId === 'fm_sectors' && m.vp === 18) },
 ];
 /** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
 const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);

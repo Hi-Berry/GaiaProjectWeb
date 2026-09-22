@@ -45,6 +45,9 @@ export const BADGES = [
   //   시작 광산을 행성의회·아카데미로 키우는 건 무관 — 타일 수만 본다(실측 달성자 10명 전원이 업그레이드함).
   { id: 'no-extra-home-win', name: '모행성 안 늘리고 승리',
     test: (g, pid, p, won) => won && START_MINES[p.faction] === 2 && (g.map ?? []).length > 0 && homePlanets(g, pid, p.faction) <= 2 },
+  // [사용자 2026-09-22] 하이브(이비츠)로 최종미션 '섹터 수' 1등(18점) + 1위. 서버 BADGE_RULES와 같은 id. 실측 달성: Sss(8/15)·구구(9/6, 2P)·디애박(9/21).
+  { id: 'ivits-sectors-win', name: '느린 하이브로 섹터 미션 1등하고 승리',
+    test: (g, pid, p, won) => won && p.faction === 'ivits' && ((p.scoreBreakdown ?? {}).finalMissionDetails ?? []).some((m) => m.missionId === 'fm_sectors' && m.vp === 18) },
 ];
 
 const games = loadGames();
