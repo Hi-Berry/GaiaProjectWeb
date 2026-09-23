@@ -527,6 +527,9 @@ export function GameLog({
           // 팅커로이드 특수는 위 getLogPrimaryImage가 타일 이미지로 갈음하므로 원문 details("Round N: tinkeroid-xxx")는 숨김.
           const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText) || /Tinkeroid/i.test(actionText);
 
+          // [롤백 표시 2026-09-23 사용자] 롤백으로 취소된 행동은 지우지 않고 빨간 배경+취소선으로 남긴다
+          //   ("롤백하면 있던 로그가 사라져서 헷갈린다"). 서버가 rolledBack을 붙여 보낸다.
+          const isRolledBack = !!(log as { rolledBack?: boolean }).rolledBack;
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
           const factionColor = factionObj?.color;
@@ -548,14 +551,21 @@ export function GameLog({
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
                   : 'bg-zinc-900/30'
-                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
+                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'line-through opacity-60' : ''}`}
               style={{
                 // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
-                borderColor: factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'),
+                borderColor: isRolledBack ? 'rgba(239,68,68,0.55)' : (factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)')),
+                ...(isRolledBack ? { background: 'rgba(127,29,29,0.35)' } : {}),
                 // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
                 scrollMarginTop: '2.75rem',
               }}
             >
+              {isRolledBack && (
+                <span
+                  className="shrink-0 text-red-300 font-black text-[11px] leading-none px-1 py-0.5 rounded bg-red-900/60 border border-red-400/40 no-underline"
+                  title="롤백으로 취소된 행동 — 실제로는 일어나지 않았습니다"
+                >✕</span>
+              )}
               {portraitSrc && (
                 // 왼쪽에 종족 얼굴 초상(비딩 화면과 동일 이미지) — 색만으로 헷갈리는 종족 구분용.
                 <img
@@ -833,7 +843,8 @@ export function GameLog({
                   );
                 })()}
                 {/* [롤백] 호스트만: 이 지점(턴 시작)으로 되돌리기 요청 — 다른 사람 전원 동의 시 실행 */}
-                {openIdx === index && canRollback && typeof log.seq === 'number' && onRollbackToSeq && (
+                {/* 취소된 줄은 롤백 대상이 아니다 — seq가 이후 새 액션과 겹쳐(롤백 시 카운터도 되감김) 엉뚱한 지점으로 갈 수 있다. */}
+                {openIdx === index && canRollback && !isRolledBack && typeof log.seq === 'number' && onRollbackToSeq && (
                   <div className="mt-1">
                     <button
                       type="button"

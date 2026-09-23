@@ -99,7 +99,7 @@ import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVar
 import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -890,7 +890,15 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	const fullGameState = JSON.parse(zlib.gunzipSync(entry.gz).toString('utf8'));
 	const restored = deepClone(fullGameState) as ServerGameState;
 	const synthStart: any = { gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength };
-	restored.gameLog = restoreGameLogForReset(game, synthStart, entry.playerId);
+	// [롤백 표시 2026-09-23] 되돌린 행동을 로그에서 지우지 않고 rolledBack으로 표시해 남긴다(클라가 빨간 배경+취소선으로 렌더).
+	let rolledBackSince: number | null = null;
+	restored.gameLog = restoreGameLogForReset(game, synthStart, entry.playerId, {
+		markRolledBack: true,
+		onRemoved: (removed) => { rolledBackSince = Math.min(...removed.map(e => e.timestamp || 0).filter(t => t > 0)); },
+	});
+	// 분석용 풀 로그(fullGameLog)는 append-only라 되돌린 행동이 '진짜 한 행동'처럼 섞여 있었다
+	// (실측: 롤백 1회 이상인 게임에서 주요 행동이 실제보다 6~11개 많음). 같은 시점 이후를 표시해 사후 분석이 걸러낼 수 있게 한다.
+	if (rolledBackSince != null && Number.isFinite(rolledBackSince)) markFullGameLogRolledBack(game.id, rolledBackSince);
 	restored.humanActionJournal = (game.humanActionJournal || []).slice(0, entry.humanActionJournalLength || 0);
 	clearFreeActionUndo(restored);
 	restored.turnStartState = { [entry.playerId]: buildTurnStartStateEntryForPlayer(restored, entry.playerId) };
@@ -910,7 +918,11 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback): ${err}`, 'error'));
 }
 
-function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
+/** [롤백 표시 2026-09-23 사용자] opts.markRolledBack=true면 잘라낼 꼬리를 버리지 않고 `rolledBack: true`로 표시해 그대로 둔다.
+ *  (사용자: "롤백하면 있던 로그가 사라져서 헷갈린다 — 빨간 배경/엑스로 남겨 달라")
+ *  턴 리셋(내 턴 되돌리기)은 호출이 6곳이고 매번 빨간 줄이 쌓이면 로그가 지저분해지므로 기본값은 종전대로 '삭제'.
+ *  seq 경로에서만 표시한다 — 레거시 길이 슬라이스 경로는 표시된 엔트리가 길이에 섞이면 계산이 틀어진다. */
+function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string, opts?: { markRolledBack?: boolean; onRemoved?: (removed: NonNullable<GaiaGameState['gameLog']>) => void }): NonNullable<GaiaGameState['gameLog']> {
 	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
 	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
 	const live = (game.gameLog || []) as NonNullable<GaiaGameState['gameLog']>;
@@ -920,7 +932,14 @@ function restoreGameLogForReset(game: ServerGameState, startState: any, playerId
 	const liveSeq = (game as any).gameLogSeq;
 	if (typeof liveSeq === 'number' && typeof startState.gameLogSeqAt === 'number') {
 		const added = Math.max(0, Math.min(live.length, liveSeq - startState.gameLogSeqAt));
-		return live.slice(0, live.length - added);
+		const kept = live.slice(0, live.length - added);
+		const removed = added > 0 ? live.slice(live.length - added) : [];
+		if (removed.length) opts?.onRemoved?.(removed);
+		// 이미 표시된 과거 롤백 엔트리는 seq를 올리지 않으므로 위 added 계산에 섞이지 않는다(꼬리에만 쌓임).
+		if (opts?.markRolledBack && removed.length) {
+			return [...kept, ...removed.map(e => ({ ...e, rolledBack: true as const }))];
+		}
+		return kept;
 	}
 	// 레거시(seq 없는 구 스냅샷) 폴백: 기존 길이 슬라이스 + 꼬리 트림
 	const logs = live.slice(0, startState.gameLogLength || 0) as NonNullable<GaiaGameState['gameLog']>;

@@ -44,6 +44,10 @@ export type FullGameLogEntry = {
   details?: string;
   tileId?: string;
   fedHexes?: string[]; // 연방 형성/보상 시 선택 칸(위성+건물) — 보드 재구성용
+  /** [2026-09-23] 롤백으로 취소된 행동. 이 로그는 append-only라 되돌린 행동도 그대로 남아 있었고,
+   *  롤백 1회 이상인 게임에서 주요 행동이 실제보다 6~11개 많게 집계됐다(305판 중 260판이 롤백 경험).
+   *  사후 분석(봇 갭 측정·통계)은 이 플래그가 붙은 항목을 제외해야 한다. */
+  rolledBack?: boolean;
 };
 
 const fullGameLogs = new Map<string, FullGameLogEntry[]>();
@@ -189,6 +193,16 @@ export function recordFullGameLog(game: GaiaGameState & {
   });
 }
 
+/** [롤백 표시 2026-09-23] sinceTimestamp 이후에 기록된 풀 로그 항목을 '되돌린 행동'으로 표시한다.
+ *  롤백은 턴 시작 지점으로 되감으므로 그 시점 이후의 기록은 전부 무효다. 지우지 않고 표시만 해
+ *  '무엇이 취소됐는지'까지 사후에 복원할 수 있게 둔다. */
+export function markFullGameLogRolledBack(gameId: string | undefined, sinceTimestamp: number): void {
+  if (!gameId) return;
+  const arr = fullGameLogs.get(gameId);
+  if (!arr) return;
+  for (const e of arr) if ((e.timestamp ?? 0) >= sinceTimestamp) e.rolledBack = true;
+}
+
 /** export 시점에 풀 로그를 꺼내고 메모리에서 비운다(게임당 1회). */
 function takeFullGameLog(gameId?: string): FullGameLogEntry[] {
   if (!gameId) return [];
@@ -226,7 +240,9 @@ function buildPayload(game: GaiaGameState & {
     roundNumber: game.roundNumber ?? 0,
     players,
     turnOrder: [...(game.turnOrder ?? [])],
-    gameLog: game.gameLog ?? [],
+    // [롤백 표시 2026-09-23] 화면용 표시 엔트리는 저장에서 제외 — 뱃지·통계·리플레이 등 기존 소비자가
+    //   '하지 않은 행동'을 세지 않도록 저장 파일은 종전과 동일하게 유지한다(취소 이력은 fullGameLog의 rolledBack으로 남는다).
+    gameLog: (game.gameLog ?? []).filter(e => !(e as { rolledBack?: boolean }).rolledBack),
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: takeFullGameLog(game.id),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
@@ -262,7 +278,9 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     roundNumber: game.roundNumber ?? 0,
     players,
     turnOrder: [...(game.turnOrder ?? [])],
-    gameLog: game.gameLog ?? [],
+    // [롤백 표시 2026-09-23] 화면용 표시 엔트리는 저장에서 제외 — 뱃지·통계·리플레이 등 기존 소비자가
+    //   '하지 않은 행동'을 세지 않도록 저장 파일은 종전과 동일하게 유지한다(취소 이력은 fullGameLog의 rolledBack으로 남는다).
+    gameLog: (game.gameLog ?? []).filter(e => !(e as { rolledBack?: boolean }).rolledBack),
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: peekFullGameLog(game.id),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
