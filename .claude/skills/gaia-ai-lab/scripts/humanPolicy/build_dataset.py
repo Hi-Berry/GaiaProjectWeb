@@ -265,7 +265,11 @@ def replay_game(d):
             sf = state_features(e, ctx)
             cf = [cand_features(c, e, ctx, geom) for c in cands]
             n_decisions += 1
-            yield sf, cf, label, {'game': d.get('gameId'), 'round': r, 'action': e.get('action'), 'n': len(cands), 'faction': e.get('faction')}
+            # [2026-09-22] 결정자의 최종 점수·순위 — 라벨 품질 실험(고득점 좌석만/가중 학습)용. 순위는 같은 게임 players 점수 내림차순.
+            scores = sorted((q.get('score') or 0 for q in d['players'].values()), reverse=True)
+            myScore = (d['players'].get(pid) or {}).get('score') or 0
+            yield sf, cf, label, {'game': d.get('gameId'), 'round': r, 'action': e.get('action'), 'n': len(cands), 'faction': e.get('faction'),
+                                  'seat_vp': myScore, 'seat_rank': scores.index(myScore) + 1}
         # 로그 이벤트 반영
         pid = ev.get('playerId'); a = ev.get('action') or ''; tid = ev.get('tileId'); r = ev.get('round') or 0
         if a in ('Built Mine', 'Built Mine on Asteroid', 'Built Mine on Proto', 'Built Parasitic Mine') and tid:
@@ -324,7 +328,8 @@ def main():
         X_s[i] = S[i]; k = min(MAXC, len(C[i]))
         X_c[i, :k] = np.array(C[i][:k], np.float32); mask[i, :k] = True
         y[i] = L[i] if L[i] < MAXC else 0
-    np.savez_compressed(os.path.join(args.out, 'decisions.npz'), X_s=X_s, X_c=X_c, mask=mask, y=y, game=np.array(G), round=np.array([m['round'] for m in M]), ncand=np.array([m['n'] for m in M]))
+    np.savez_compressed(os.path.join(args.out, 'decisions.npz'), X_s=X_s, X_c=X_c, mask=mask, y=y, game=np.array(G), round=np.array([m['round'] for m in M]), ncand=np.array([m['n'] for m in M]),
+                        seat_vp=np.array([m.get('seat_vp', 0) for m in M]), seat_rank=np.array([m.get('seat_rank', 0) for m in M]))
     json.dump({'stats': stats, 'feature_version': FEATURE_VERSION, 'state_dim': sd, 'cand_dim': cd, 'maxc': MAXC, 'types': TYPES, 'tracks': TRACKS, 'ships': SHIPS, 'targets': TARGETS, 'planets': PLANETS, 'pw_actions': PW_ACTIONS, 'bonus': BONUS, 'factions': FACTIONS, 'tech_kinds': TECH_KINDS, 'struct': STRUCT}, open(os.path.join(args.out, 'meta.json'), 'w'), ensure_ascii=False, indent=1)
     top_unl = sorted(stats['unlabeled_actions'].items(), key=lambda kv: -kv[1])[:12]
     print(f"games {stats['games']} decisions {stats['decisions']} labeled {stats['labeled']} | state_dim {sd} cand_dim {cd}")
