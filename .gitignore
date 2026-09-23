@@ -28,3 +28,4 @@ scripts/supabase-key.txt
 ecosystem.config.cjs
 .env
 .env.*
+/data/bgs-games
