@@ -4731,6 +4731,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game || game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			// [버그수정 2026-09-23 사용자] 부스터 특수 액션도 '하나의 액션' — 거리 보너스가 켜진 턴엔 전부 차단(사용자 확정).
+			//   특히 range_3은 트왈 +3거리 위에 또 켜져 보너스가 중첩됐고(다른 7곳 가드가 막던 바로 그 중복), gaia_project도
+			//   '거리 보너스 + 특수 액션' 조합이라 동일하게 막는다. 허용 목록(광산·포머·소행성·우주선 입장)은 일반 메인 액션 경로만.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 
@@ -5060,6 +5064,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (game.hasDoneMainAction) return;
 			const player = game.players[playerId];
 			const entered = player.spaceshipsEntered ?? [];
@@ -5330,6 +5339,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (game.hasDoneMainAction) return;
 
 			const player = game.players[playerId];
@@ -5969,6 +5983,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (player.faction !== 'ambas') return;
 			if (player.usedSpecialActions?.includes('ambas-swap-pi-mine')) return;
 
@@ -5997,6 +6016,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (player.faction !== 'bescods') return;
 			if (player.usedSpecialActions?.includes('bescods-advance-lowest')) return;
 
@@ -6032,6 +6056,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (player.faction !== 'moweyip') return;
 			if (player.usedSpecialActions?.includes('moweyip-place-ring')) return;
 			if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return;
@@ -6095,6 +6124,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('firaks_downgrade', ({ gameId, tileId, trackId }: { gameId: string; tileId: string; trackId: ResearchTrack }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; } // [2026-09-23] 거리 보너스 중 비-거리 메인 액션 차단(위 주석 참조)
 			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); emitGameUpdated(io, game); }
 		});
 
