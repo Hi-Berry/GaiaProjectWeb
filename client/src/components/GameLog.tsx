@@ -564,28 +564,24 @@ export function GameLog({
               }}
               onMouseLeave={() => { onEntryMouseLeave?.(); onFedHexesMouseLeave?.(); }}
               onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
-              title="클릭해서 점수·자원 변동 보기"
+              title={isPending ? '아직 턴이 끝나지 않아 되돌릴 수 있는 행동입니다 (나에게만 보임) · 클릭해서 점수·자원 변동 보기' : '클릭해서 점수·자원 변동 보기'}
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-center gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
                   : 'bg-zinc-900/30'
-                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'opacity-70' : ''} ${isPending ? 'opacity-70 border-dashed' : ''}`}
+                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'opacity-70' : ''}`}
               style={{
                 // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
                 borderColor: isRolledBack ? 'rgba(239,68,68,0.55)' : (factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)')),
                 ...(isRolledBack ? { background: 'rgba(127,29,29,0.35)' } : {}),
-                ...(isPending ? { background: 'rgba(63,63,70,0.35)', borderColor: 'rgba(161,161,170,0.45)' } : {}),
+                // [사용자 2026-09-24] '진행 중' 배지는 칸을 많이 먹는다 → 글자 없이 테두리색만 초록으로 바꿨다가
+                //   턴이 확정되면 원래 종족색으로 복원한다(배경·흐림도 건드리지 않아 본문 가독성 그대로).
+                ...(isPending ? { borderColor: 'rgba(74,222,128,0.9)' } : {}),
                 // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
                 scrollMarginTop: '2.75rem',
               }}
             >
-              {isPending && (
-                <span
-                  className="shrink-0 text-zinc-300 font-black text-[9px] leading-none px-1 py-0.5 rounded bg-zinc-700/70 border border-zinc-400/40"
-                  title="아직 턴이 끝나지 않아 되돌릴 수 있는 행동입니다. 나에게만 보이고, 턴을 종료하면 확정되어 다른 사람에게도 보입니다."
-                >진행 중</span>
-              )}
               {isRolledBack && (
                 <span
                   className="shrink-0 text-red-300 font-black text-[11px] leading-none px-1 py-0.5 rounded bg-red-900/60 border border-red-400/40"
