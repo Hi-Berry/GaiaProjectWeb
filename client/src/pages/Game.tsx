@@ -4911,7 +4911,11 @@ export default function Game() {
                     /* [사용자 2026-08-19] z-[65]였을 때 폰 전체화면 패널(z-110·113)이나 보드 오버레이(z-190·200) 뒤에
                        가려 제안이 온 줄 모르고 다른 사람들이 대기하던 문제. 이 창은 남의 턴까지 멈추는 차단 UI라
                        항상 맨 위여야 한다 → 둘러보기(z-400) 아래, 나머지 전부 위인 z-[210]. */
-                    className="fixed top-24 left-1/2 z-[210] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                    /* [버그수정 2026-09-25 전수 점검] Radix Dialog(프리액션·관리자·연방 보상·기술타일 선택 등)가 열려 있으면
+                       그동안 document.body에 인라인 pointer-events:none이 붙어(모달 밖 클릭 차단) 이 창도 상속받아 죽는다.
+                       z-210으로 맨 위에 떠 있는데 수락·거절이 안 눌리면 남의 턴까지 멈춘 채 게임 전체가 막힌다
+                       (안내 게이트 15ab7d1·롤백 투표 c2bc076과 동일 원인 중 가장 치명적인 자리). → 항상 클릭을 받는다. */
+                    className="fixed top-24 left-1/2 z-[210] pointer-events-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
                     style={isMobileViewport ? ({ zoom: 0.82 } as CSSProperties) : undefined}
                   >
                     <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
