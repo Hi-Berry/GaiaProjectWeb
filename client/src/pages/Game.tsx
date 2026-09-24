@@ -300,11 +300,21 @@ export default function Game() {
   const handleWatchAsSpectator = async () => {
     if (!gameId) return;
     setWatchBusy(true);
+    setRejoinMsg('');
     try {
-      const res = await GameClient.watchGame(gameId);
+      /* [버그수정 2026-09-24 사용자 제보 "관전으로 보기 버튼을 눌러도 아무것도 안 된다"]
+         서버 watch_game은 2026-08-01부터 이름을 필수로 받는데(채팅·관전자 목록 표기용), 2026-09-02에 추가된
+         이 안내 게이트는 이름 없이 호출해 항상 '관전하려면 이름을 입력하세요'로 거부당했다. 게다가 실패 토스트는
+         z-[200]이고 이 모달이 z-[400]이라 화면 뒤에 가려져, 사용자에겐 '눌러도 무반응'으로 보였다.
+         → 입력한 이름(없으면 이 기기에 저장된 이름, 그것도 없으면 '관전자')을 실어 보내고,
+           실패 사유는 토스트 대신 모달 안에도 띄운다. */
+      const name = rejoinName.trim() || (localStorage.getItem('gaia-playerName') || '').trim() || '관전자';
+      const res = await GameClient.watchGame(gameId, name);
+      localStorage.setItem('gaia-playerName', name);
       storeSpectatorId(gameId, res.spectatorId);
       window.location.reload(); // 저장된 관전 ID로 정상 관전 부트
     } catch (e: any) {
+      setRejoinMsg(e?.message || '관전 입장에 실패했습니다.');
       toast({ title: '관전 입장 실패', description: e?.message || '', variant: 'destructive' });
       setWatchBusy(false);
     }
@@ -5769,7 +5779,13 @@ export default function Game() {
             body 포털 + z-400: 포털 모달(z-200대)·배너들 위에 확실히 덮이도록. */}
         {/* (로비는 이 지점에 오기 전에 GameLobby로 분기되므로 별도 제외 불필요) */}
         {noIdentity && !playerId && !isSpectator && typeof document !== 'undefined' && createPortal(
-          <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          /* [버그수정 2026-09-24 사용자 제보 "버튼을 눌러도 아무것도 동작 안 한다"] Radix Dialog가 열려 있으면
+             그 동안 document.body에 인라인 `pointer-events: none`이 붙는다(모달 밖 클릭 차단). 이 안내 게이트는
+             Radix가 아니라 직접 만든 포털이라 그 상속을 그대로 받아, z-400으로 위에 떠 있는데도 버튼이 전부
+             죽어 있었다(실측: body pointer-events=none, 버튼 computed pointer-events=none,
+             elementFromPoint가 버튼 대신 뒤쪽 스크롤 컨테이너를 반환). URL만 열고 들어오면 그 게임 상태에 따라
+             '부스터 교체' 같은 Radix 다이얼로그가 같이 떠 있는 경우가 흔해 재현이 잦다. → 이 오버레이는 항상 받는다. */
+          <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
             <div className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950 p-6 space-y-4 shadow-2xl">
               <h2 className="text-lg font-black text-white">이 기기에는 접속 정보가 없습니다</h2>
               <p className="text-sm text-zinc-400 leading-relaxed">
@@ -5779,13 +5795,14 @@ export default function Game() {
               <Button className="w-full h-11 font-bold" disabled={watchBusy} onClick={() => void handleWatchAsSpectator()}>
                 👁 관전으로 보기
               </Button>
+              {/* 실패 사유를 모달 안에 띄운다 — 토스트(z-200)는 이 모달(z-400) 뒤로 가려 안 보인다 */}
+              {rejoinMsg && <div className="text-[11px] text-red-400 -mt-1">{rejoinMsg}</div>}
               <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3 space-y-2">
                 <div className="text-[11px] font-black uppercase tracking-wider text-zinc-400">내 좌석 이어하기 (참가할 때 비밀번호를 걸었던 경우)</div>
-                <input value={rejoinName} onChange={(e) => setRejoinName(e.target.value)} placeholder="이름"
+                <input value={rejoinName} onChange={(e) => setRejoinName(e.target.value)} placeholder="이름 (관전할 때도 이 이름으로 표시)"
                   className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
                 <input value={rejoinPw} onChange={(e) => setRejoinPw(e.target.value)} placeholder="비밀번호" type="password"
                   className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
-                {rejoinMsg && <div className="text-[11px] text-red-400">{rejoinMsg}</div>}
                 <Button variant="outline" className="w-full h-9 text-sm font-bold" onClick={() => void handleAccountRejoin()}>
                   좌석으로 입장
                 </Button>
