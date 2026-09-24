@@ -7138,6 +7138,7 @@ export default function Game() {
                 ) : (
                   <GameLog
                     game={game}
+                    myPlayerId={playerId}
                     hideHeader
                     className="w-full"
                     maxHeight="none"
@@ -7353,6 +7354,7 @@ export default function Game() {
               ) : (
                 <GameLog
                   game={game}
+                  myPlayerId={playerId}
                   hideHeader
                   showToolbar={logFilterOpen}
                   className="w-full"

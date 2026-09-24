@@ -41,6 +41,8 @@ interface GameLogProps {
   canRollback?: boolean;
   /** [롤백] 클릭 시 해당 로그 seq로 롤백 요청 (label = 클릭한 로그 요약) */
   onRollbackToSeq?: (seq: number, label?: string) => void;
+  /** [진행 중 로그 2026-09-24] 보는 사람의 playerId — 아직 확정 안 된(되돌릴 수 있는) 줄은 본인에게만 보여준다. 관전자는 undefined. */
+  myPlayerId?: string | null;
 }
 
 export function GameLog({
@@ -56,8 +58,21 @@ export function GameLog({
   showToolbar = true,
   canRollback = false,
   onRollbackToSeq,
+  myPlayerId,
 }: GameLogProps) {
   const logs = game.gameLog || [];
+  /* [사용자 2026-09-24] "연구소 클릭하면 로그에 이미 연구소가 떠 있는데, 그건 언제든 취소할 수 있는 내용이라
+     짓다가 턴 종료를 안 누르면 있던 로그가 사라지고 다른 로그가 남아 헷갈린다."
+     파워 수령 제안이 이미 '턴 종료 시점'에만 열리는 것과 맞춰(queuedPowerOffers → end_turn에서 activate),
+     아직 되돌릴 수 있는 줄은 남에게 감추고 본인에게만 '진행 중'으로 흐리게 보여준다.
+     판정은 액션 음성이 쓰는 규칙 그대로(Game.tsx commitSeq): turnMark(각자 턴 시작 로그 seq) 중 최댓값보다
+     뒤에 붙은 줄이 진행 중. 시작 광산·보너스 선택은 고르는 즉시 턴이 넘어가 되돌릴 수 없으므로 main 단계만 적용.
+     ※ 내 줄은 '내 턴이 끝난 뒤 다음 사람 턴이 시작되기 전'(파워 수령 대기 등)에도 계속 보여야 하므로
+       현재 턴 주인이 아니라 '그 줄의 주인'으로 판정한다 — 안 그러면 턴 종료 직후 내 로그가 잠깐 사라진다. */
+  const turnMarks = Object.values((game.turnMark ?? {}) as Record<string, number>);
+  const commitSeq = game.currentPhase !== 'main' || !turnMarks.length ? null : Math.max(...turnMarks);
+  const isProvisional = (e: { seq?: number }) => commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq;
+  const canSeeProvisional = (e: { playerId?: string }) => !!myPlayerId && e.playerId === myPlayerId;
   // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   type Snap = NonNullable<NonNullable<GameState['gameLog']>[number]['snap']>;
@@ -494,7 +509,9 @@ export function GameLog({
           No actions yet
         </div>
       ) : (
-        [...logs].reverse().filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
+        [...logs].reverse()
+          .filter((log) => !isProvisional(log) || canSeeProvisional(log)) // 진행 중인 남의 줄은 턴 종료 전까지 감춘다
+          .filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
           // [사용자] 서버가 라운드 전환 순간에 넣는 명시적 'Round Start' 시스템 로그 → 라운드 구분선으로 렌더(일반 행 X).
           // 새 라운드의 첫 로그라 라벨이 라운드 경계(파워/액션 전)에 고정됨. R0/R1은 이 로그가 없어 아래 footer가 폴백.
           if (log.action === 'Round Start' && typeof log.round === 'number') {
@@ -531,6 +548,7 @@ export function GameLog({
           //   ("롤백하면 있던 로그가 사라져서 헷갈린다"). 서버가 rolledBack을 붙여 보낸다.
           //   [2026-09-24 사용자] 취소선(line-through)은 글자를 가로질러 내용이 안 읽힌다 → 제거. 빨간 배경+✕ 배지로 충분.
           const isRolledBack = !!(log as { rolledBack?: boolean }).rolledBack;
+          const isPending = !isRolledBack && isProvisional(log); // 아직 되돌릴 수 있는 내 줄
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
           const factionColor = factionObj?.color;
@@ -552,15 +570,22 @@ export function GameLog({
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
                   : 'bg-zinc-900/30'
-                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'opacity-70' : ''}`}
+                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'opacity-70' : ''} ${isPending ? 'opacity-70 border-dashed' : ''}`}
               style={{
                 // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
                 borderColor: isRolledBack ? 'rgba(239,68,68,0.55)' : (factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)')),
                 ...(isRolledBack ? { background: 'rgba(127,29,29,0.35)' } : {}),
+                ...(isPending ? { background: 'rgba(63,63,70,0.35)', borderColor: 'rgba(161,161,170,0.45)' } : {}),
                 // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
                 scrollMarginTop: '2.75rem',
               }}
             >
+              {isPending && (
+                <span
+                  className="shrink-0 text-zinc-300 font-black text-[9px] leading-none px-1 py-0.5 rounded bg-zinc-700/70 border border-zinc-400/40"
+                  title="아직 턴이 끝나지 않아 되돌릴 수 있는 행동입니다. 나에게만 보이고, 턴을 종료하면 확정되어 다른 사람에게도 보입니다."
+                >진행 중</span>
+              )}
               {isRolledBack && (
                 <span
                   className="shrink-0 text-red-300 font-black text-[11px] leading-none px-1 py-0.5 rounded bg-red-900/60 border border-red-400/40"
