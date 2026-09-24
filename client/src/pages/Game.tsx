@@ -5792,6 +5792,15 @@ export default function Game() {
                 주소만 복사해 열면 좌석·관전 정보가 없어 게임을 조작하거나 실시간으로 볼 수 없습니다.
                 아래 중 하나로 입장하세요.
               </p>
+              {/* [2026-09-24 사용자] 이름은 관전·좌석 이어하기가 함께 쓰는 값인데 '좌석 이어하기' 상자 안에, 그것도
+                  관전 버튼보다 아래 있어 관전만 하려는 사람에겐 자기 칸으로 안 보였다 → 공용 입력으로 위에 뺀다. */}
+              <div className="space-y-1">
+                <label htmlFor="ng-name" className="block text-[11px] font-black uppercase tracking-wider text-zinc-400">이름</label>
+                <input id="ng-name" value={rejoinName} onChange={(e) => setRejoinName(e.target.value)}
+                  placeholder="관전자 목록·채팅에 표시될 이름"
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleWatchAsSpectator(); }}
+                  className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
+              </div>
               <Button className="w-full h-11 font-bold" disabled={watchBusy} onClick={() => void handleWatchAsSpectator()}>
                 👁 관전으로 보기
               </Button>
@@ -5799,9 +5808,9 @@ export default function Game() {
               {rejoinMsg && <div className="text-[11px] text-red-400 -mt-1">{rejoinMsg}</div>}
               <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3 space-y-2">
                 <div className="text-[11px] font-black uppercase tracking-wider text-zinc-400">내 좌석 이어하기 (참가할 때 비밀번호를 걸었던 경우)</div>
-                <input value={rejoinName} onChange={(e) => setRejoinName(e.target.value)} placeholder="이름 (관전할 때도 이 이름으로 표시)"
-                  className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
+                <div className="text-[11px] text-zinc-500">위에 적은 이름으로 참가했던 좌석을 되찾습니다.</div>
                 <input value={rejoinPw} onChange={(e) => setRejoinPw(e.target.value)} placeholder="비밀번호" type="password"
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleAccountRejoin(); }}
                   className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
                 <Button variant="outline" className="w-full h-9 text-sm font-bold" onClick={() => void handleAccountRejoin()}>
                   좌석으로 입장
