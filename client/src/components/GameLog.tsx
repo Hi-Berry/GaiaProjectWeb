@@ -529,6 +529,7 @@ export function GameLog({
 
           // [롤백 표시 2026-09-23 사용자] 롤백으로 취소된 행동은 지우지 않고 빨간 배경+취소선으로 남긴다
           //   ("롤백하면 있던 로그가 사라져서 헷갈린다"). 서버가 rolledBack을 붙여 보낸다.
+          //   [2026-09-24 사용자] 취소선(line-through)은 글자를 가로질러 내용이 안 읽힌다 → 제거. 빨간 배경+✕ 배지로 충분.
           const isRolledBack = !!(log as { rolledBack?: boolean }).rolledBack;
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
@@ -551,7 +552,7 @@ export function GameLog({
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
                   : 'bg-zinc-900/30'
-                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'line-through opacity-60' : ''}`}
+                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'opacity-70' : ''}`}
               style={{
                 // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
                 borderColor: isRolledBack ? 'rgba(239,68,68,0.55)' : (factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)')),
@@ -562,7 +563,7 @@ export function GameLog({
             >
               {isRolledBack && (
                 <span
-                  className="shrink-0 text-red-300 font-black text-[11px] leading-none px-1 py-0.5 rounded bg-red-900/60 border border-red-400/40 no-underline"
+                  className="shrink-0 text-red-300 font-black text-[11px] leading-none px-1 py-0.5 rounded bg-red-900/60 border border-red-400/40"
                   title="롤백으로 취소된 행동 — 실제로는 일어나지 않았습니다"
                 >✕</span>
               )}
