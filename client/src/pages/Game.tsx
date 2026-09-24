@@ -4394,7 +4394,13 @@ export default function Game() {
             //   손이 닿지 않았다. 되돌릴 행동이 많거나(최근 8개까지 표기) 가로 모드일 때만 터져서 간헐적으로 보였다.
             //   → 창 높이를 가시영역으로 제한하고, 본문만 스크롤시키고 버튼 줄은 항상 아래에 고정한다.
             return (
-              <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+              /* [버그수정 2026-09-24 사용자 제보 "롤백 요청할 때 연방 고르는 중이면 승낙·거절 자체가 안 된다"]
+                 연방 보상 선택은 Radix AlertDialog(Game.tsx 5256)이고, Radix는 열려 있는 동안 document.body에
+                 인라인 pointer-events:none을 건다(모달 밖 클릭 차단). 이 투표 창은 Radix가 아니라 직접 만든
+                 오버레이라 z-300으로 위에 떠 있으면서도 그 상속을 받아 버튼이 죽었다. 안내 게이트(15ab7d1)와 같은 원인.
+                 연방 보상뿐 아니라 프리액션·관리자·기술타일 선택 등 다른 Radix 창이 열려 있어도 같은 현상이라,
+                 롤백 투표는 어떤 창 위에서도 눌려야 한다 → 항상 클릭을 받는다. */
+              <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
                 <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-amber-500/40 bg-zinc-950 shadow-2xl">
                   <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-3 space-y-3">
                   <div className="text-amber-300 font-black text-lg">↩ 롤백 요청</div>
@@ -4425,7 +4431,7 @@ export default function Game() {
             );
           }
           return (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 shadow-lg backdrop-blur">
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 pointer-events-auto shadow-lg backdrop-blur">
               <div>↩ 롤백 대기 중: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>
               {/* 누구를 기다리는지 보이게 — 내가 이미 동의했거나 대상이 아니어도 진행 상황은 알아야 한다 */}
               <div className="mt-1"><RosterList /></div>
