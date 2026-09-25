@@ -474,6 +474,25 @@ function councilPendingActive(game: GaiaGameState): boolean {
 		|| (game as any).pendingEclipseAsteroidMine || (game as any).pendingEclipseResearch);
 }
 
+/** [버그수정 2026-09-25 사용자 제보 "6원 액션에서 포머 바꾸시겠습니까 확인을 눌러도 안 지어지고 안 넘어간다"]
+ *  이클립스 6C(소행성 건설)·2K+3P(트랙 선택)는 **그 사람이 해소해야 하는 자기 대기**인데,
+ *  councilPendingActive가 이것까지 포함해서 프리 액션(변환·번·발타크 포머→QIC)을 소유자에게도 막았다.
+ *  그래서 거리 QIC가 모자라 뜬 '포머를 QIC로 바꿀까요?' 확인창에서 확인을 눌러도 변환이 조용히 무시되고,
+ *  이어지는 건설이 QIC 부족으로 false를 반환해 아무 일도 안 일어났다(양쪽 다 조용한 실패라 무반응으로 보임).
+ *  reset_turn이 이미 쓰는 패턴대로(내 대기는 내가 푼다) **내 이클립스 대기는 프리 액션을 막지 않는다**.
+ *  남의 대기와 의회/팅커/아이타 대기는 종전대로 차단 — 메인 액션 쪽 가드(councilPendingActive)는 건드리지 않는다. */
+function freeActionBlockedByPending(game: GaiaGameState, playerId: string): boolean {
+	const ecMine = (game as any).pendingEclipseAsteroidMine as { playerId?: string } | null | undefined;
+	const ecRes = (game as any).pendingEclipseResearch as { playerId?: string } | null | undefined;
+	if (ecMine && ecMine.playerId !== playerId) return true;
+	if (ecRes && ecRes.playerId !== playerId) return true;
+	return !!(game.pendingItarsGaiaformerExchange || game.pendingTerranCouncilBenefit
+		|| (game as any).pendingTinkeroidSpecialChoice
+		|| (game.terranCouncilQueue?.length ?? 0) > 0
+		|| ((game as any).terranCouncilQueueAfterItars?.length ?? 0) > 0
+		|| ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange'));
+}
+
 /** [상태 페이지 실시간 안내 2026-08-04, 사용자] 상태 페이지의 '여기서 플레이하세요' 안내를
  *  재배포(Netlify)·재시작(Render) 없이 즉시 바꾸기 위한 서버별 런타임 안내.
  *  /api/status에 실려 나가고 상태 페이지가 그대로 표시한다. 설정은 /api/status/notice (admin 토큰).
@@ -5254,7 +5273,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			executeEclipseBuildAsteroidMine(io, game, playerId, tileId, qicToSpend);
+			// [버그수정 2026-09-25 사용자 제보] 실패해도 조용히 false만 돌려줘 "확인을 눌러도 아무 일이 없다"로 보였다.
+			//   (실제 원인은 그 앞의 포머→QIC 변환이 자기 대기에 막힌 것. 여기서도 사유를 알려 다음엔 원인이 보이게 한다.)
+			if (!executeEclipseBuildAsteroidMine(io, game, playerId, tileId, qicToSpend)) {
+				const p = game.players[playerId];
+				const tile = game.map.find(t => t.id === tileId);
+				const why = !game.pendingEclipseAsteroidMine ? '이 액션이 진행 중이 아닙니다'
+					: game.pendingEclipseAsteroidMine.playerId !== playerId ? '다른 플레이어의 액션입니다'
+					: !tile || tile.type !== 'asteroid' ? '소행성 칸이 아닙니다'
+					: tile.structure !== null ? '이미 건물이 있습니다'
+					: getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine ? '광산 한도(8개)에 도달했습니다'
+					: `거리 QIC가 부족합니다 (보유 ${p?.qic ?? 0})`;
+				socket.emit('game_error', { message: `소행성 광산 건설 불가: ${why}` });
+			}
 		});
 
 		// 트왈라잇 액션1: 보유 연방 중 하나 선택 후 해당 해택 재수령 (federation reward id)
@@ -5611,7 +5642,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_hadsch_hallas_pi_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (councilPendingActive(game)) return;
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석)
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeUseHadschHallasPIAction(io, game as ServerGameState, playerId, actionId);
 		});
@@ -5623,7 +5654,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
@@ -5634,7 +5665,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증 (클라 버튼 비활성과 별개로 막음)
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
@@ -5651,7 +5682,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			pushFreeActionUndoSnapshot(game);
