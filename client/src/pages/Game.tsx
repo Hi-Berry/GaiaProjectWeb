@@ -339,6 +339,10 @@ export default function Game() {
   };
   const [pendingAction, setPendingAction] = useState<PotentialAction | null>(null);
   const [loading, setLoading] = useState(true);
+  /** [2026-09-25] 표시 고정용 — 남의 턴 진행 중에 보여줄 '확정 시점' 상태와 그때의 commitSeq.
+   *  훅이므로 반드시 컴포넌트 최상단에서 선언한다(아래쪽은 이른 반환이 있어 훅 순서가 깨진다). */
+  const committedGameRef = useRef<GameState | null>(null);
+  const lastCommitSeqRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
   const [isResearchOpen, setIsResearchOpen] = useState(false);
@@ -2155,6 +2159,26 @@ export default function Game() {
   const balTakSpareGaiaformers = (p: typeof currentPlayer): number =>
     (p && p.faction === 'bal_tak') ? availableGaiaformers(p) : 0;
 
+  /* [사용자 2026-09-25] "로그는 턴 종료 때 뜨게 했는데 보드·자원은 실시간이라 의미가 없다. 고칠 수 있나?"
+     → 남의 턴이 진행되는 동안에는 **그 턴이 시작된 시점의 상태**를 보여주고, 턴이 끝나면 한꺼번에 공개한다.
+       파워 수령 제안이 이미 그렇게 동작하므로(queuedPowerOffers → end_turn에서 공개) 화면도 같은 규칙이 된다.
+       액션 사용 표시(파워 액션·우주선 칸·부스터·특수 액션)도 같은 상태에 들어 있어 함께 턴 종료 때 드러난다.
+     규칙: 내 턴이면 전부 실시간(내가 조작하는 화면은 항상 최신). main 단계가 아니면 실시간.
+     스냅샷 갱신 시점: ①새 턴 시작(turnMark 최댓값 상승) ②턴 종료로 파워 수령 대기가 열릴 때
+       — ②가 없으면 '턴은 끝났는데 다음 턴이 아직'인 구간에서 리치 제안만 뜨고 원인 건물이 안 보인다.
+     서버는 건드리지 않는다(클라가 이미 turnMark를 받는다). */
+  const viewTurnMarks = Object.values((game?.turnMark ?? {}) as Record<string, number>);
+  const viewCommitSeq = (!game || game.currentPhase !== 'main' || !viewTurnMarks.length) ? null : Math.max(...viewTurnMarks);
+  if (game) {
+    if (viewCommitSeq === null || viewCommitSeq !== lastCommitSeqRef.current || !!game.pendingTurnEndPlayerId) {
+      lastCommitSeqRef.current = viewCommitSeq;
+      committedGameRef.current = game;
+    }
+  }
+  const isMyTurnForView = !!game && game.turnOrder?.[game.currentPlayerIndex] === playerId;
+  /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game). */
+  const viewGame = (!isMyTurnForView && viewCommitSeq !== null && committedGameRef.current) ? committedGameRef.current : game;
+
   /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
   const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
     if (!gameId || game.hasDoneMainAction) return;
@@ -3948,7 +3972,7 @@ export default function Game() {
         <div className="flex-1 min-h-0">
           <GameBoard
             specialStripQuick={showSpecialStrips ? { on: !stripQuickOff, toggle: () => setStripQuickOff(v => !v) } : undefined}
-            game={game}
+            game={viewGame!}
             playerId={playerId}
             colorOverrides={playerColorOverrides}
             hoveredPlayerId={hoveredPlayerId}
@@ -4292,7 +4316,7 @@ export default function Game() {
                       BonusTiles 그리드(auto-fill minmax 5.25rem)가 폭을 그대로 꽉 채우고 넘치면 다음 줄로 감. */}
                   <div className="w-full">
                     <BonusTiles
-                      game={game}
+                      game={viewGame!}
                       playerId={playerId}
                       isSelectionMode={isMyTurnBonusSelection}
                       onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
@@ -4327,14 +4351,14 @@ export default function Game() {
               <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-4 space-y-8 custom-scrollbar">
                 <div className="max-w-6xl mx-auto">
                   <RoundBoard
-                    game={game}
+                    game={viewGame!}
                     playerId={playerId}
                     onEndGame={() => setConfirmPassWithTileId('dummy')}
                   />
                 </div>
                 <div className="h-[1px] bg-white/5 w-full" />
                 <BonusTiles
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : isMyTurn ? ((tileId) => {
                     if (game.roundNumber === 6) {
@@ -6094,7 +6118,12 @@ export default function Game() {
                     return 0; // 둘 다 플레이 중 → turnOrder 순서 유지
                   })
               ).map((id, cardIdx) => {
-                const p = game.players[id] as PlayerState | undefined;
+                // [2026-09-25] 카드에 찍히는 자원·점수·건물·수익은 '확정 시점' 기준(남의 턴 진행 중엔 고정).
+                //   누구 차례인지(isCurrentTurn)·봇 여부는 실시간 game을 그대로 쓴다.
+                //   단 **내 카드는 항상 실시간** — 남의 턴 중에도 내가 리치(파워 수령)를 수락하면
+                //   그 결과가 바로 보여야 한다(내가 누른 것이 화면에 안 나타나면 고장으로 보인다).
+                const cardGame = (id === playerId ? game : (viewGame ?? game));
+                const p = cardGame.players[id] as PlayerState | undefined;
                 if (!p) return null;
                 const fedEntries = getFederationEntries(p);
                 const faction = p.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
@@ -6102,8 +6131,8 @@ export default function Game() {
                 const isYou = id === playerId && !isBot;
                 const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
                 const expanded = expandedPlayerId === id;
-                const counts = getStructureCountsForPlayer(game, id);
-                const incRaw = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
+                const counts = getStructureCountsForPlayer(cardGame, id);
+                const incRaw = getNextRoundIncomePreview(id, cardGame, { excludeBonusTiles: true });
                 // 마지막 라운드(6)엔 받을 다음 수익이 없으므로 상태창 수익 표시(+N)를 숨긴다(사용자 요청)
                 const inc = game.roundNumber >= 6
                   ? { ...incRaw, ore: 0, credits: 0, knowledge: 0, qic: 0, powerTokens: 0, powerCharge: 0 }
@@ -7767,7 +7796,7 @@ export default function Game() {
                       : renderInfoRoundBonus()
                 ) : (
                 <ResearchBoard
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   isMini={true}
                 onUsePowerAction={(actionId) => handleUsePowerAction(actionId)}
@@ -7861,13 +7890,13 @@ export default function Game() {
             >
               <MiniScaledContent panelWidth={bonusMiniWidth} className="flex flex-col gap-4">
                 <RoundBoard
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   isMini={true}
                 />
                 <div className="h-[1px] bg-white/10 w-full" />
                 <BonusTiles
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   isMini={true}
                   onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {
