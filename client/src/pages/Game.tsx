@@ -7335,7 +7335,11 @@ export default function Game() {
       )}
       {/* 모바일 로그 버튼 삭제(사용자 요청) → 우측 패널 상단의 상태창/로그 탭으로 전환. Menu 버튼도 GameBoard 상단으로 이동됨.
           좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
-      {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
+      {/* [버그수정 2026-09-25 사용자 제보 "비딩 중에는 로그 자체가 안 보인다"] 폰에서 로그로 가는 길은 이 탭뿐인데
+          비딩 단계가 제외돼 있어, 종족을 잘못 고르고도 롤백 진입점(로그 줄 → '여기로 롤백 요청')에 닿을 수 없었다.
+          서버는 factionBidding 롤백을 이미 허용하고(2026-09-09) 넓은 화면에서는 같은 상황에서 로그가 보인다 —
+          폰만 막혀 있던 것. 제외를 푼다. */}
+      {isMobileViewport && (isSidebarOpen || splitActive) && game && (
         <div
           className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${myTurnTabBarClass} ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
           style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
