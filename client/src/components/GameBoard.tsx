@@ -357,6 +357,8 @@ interface GameBoardProps {
   highlightedTileId?: string | null;
   onPlaceGaiaformer?: (tileId: string, qicUsed?: number) => void;
   onEnterSpaceship?: (tileId: string, useRangeBonus: boolean, qicToUse: number) => void;
+  /** [발타크] 포머 N개를 QIC로 바꾼다(프리액션). 우주선 입장 QIC가 모자랄 때 입장 직전에 호출. */
+  onBalTakConvertFormers?: (count: number) => void;
   onUseShipAction?: (shipTileId: string, actionIndex: number, targetTileId?: string) => void;
   onTakeTwilightArtifact?: (artifactId: string) => void;
   onEclipseBuildAsteroidMine?: (tileId: string, qicToSpend: number) => void;
@@ -440,6 +442,7 @@ export function GameBoard({
   highlightedTileId,
   onPlaceGaiaformer,
   onEnterSpaceship,
+  onBalTakConvertFormers,
   onUseShipAction,
   onTakeTwilightArtifact,
   onEclipseBuildAsteroidMine,
@@ -2688,8 +2691,17 @@ export function GameBoard({
                     );
                     const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                     const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                    const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer?.qic ?? 0) * 2);
-                    const qicOk = neededQIC <= (currentPlayer?.qic ?? 0);
+                    /* [사용자 2026-09-25] 발타크는 포머 1개를 QIC 1로 바꿀 수 있는데(프리액션), 입장 판정이 지갑의 QIC만 봐서
+                       포머가 남아 있어도 "QIC 없음"으로 막혔다(봇은 balTakGaiaformerPreActionsForQicShortfall로 이미 하던 것).
+                       쓸 수 있는 포머 = 개인판 보유 − 이번 라운드 QIC로 잠근 수(서버 getEffectiveGaiaformers와 동일). */
+                    const spareFormers = currentPlayer?.faction === 'bal_tak'
+                      ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+                      : 0;
+                    const usableQic = (currentPlayer?.qic ?? 0) + spareFormers;
+                    const canReach = minDist === Infinity || minDist <= baseRange + (usableQic * 2);
+                    const qicOk = neededQIC <= usableQic;
+                    /** 입장 직전에 QIC로 바꿔야 할 포머 수(지갑 QIC를 먼저 쓰고 모자란 만큼만). */
+                    const formersToConvert = Math.max(0, Math.min(spareFormers, neededQIC - (currentPlayer?.qic ?? 0)));
                     const canEnter = seated && isMyTurn && game.currentPhase === 'main' && enteredCount < 3 && !!onEnterSpaceship;
 
                     return (
@@ -2766,7 +2778,7 @@ export function GameBoard({
                             {minDist !== Infinity && (
                               <p className="text-xs text-muted-foreground">
                                 거리: {minDist} | 기본 범위: {baseRange}
-                                {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>}
+                                {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}{formersToConvert > 0 ? ` (포머 ${formersToConvert}개로 충당)` : ''}</span>}
                               </p>
                             )}
                             {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
@@ -2777,11 +2789,19 @@ export function GameBoard({
                               size="sm"
                               disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
                               onClick={() => {
+                                // 변환(소켓 순서 보장)이 지갑을 채운 뒤 서버가 입장을 처리한다 — 광산·파워액션과 동일 패턴
+                                if (formersToConvert > 0) onBalTakConvertFormers?.(formersToConvert);
                                 onEnterSpaceship!(selectedTile.id, !!currentPlayer?.rangeBonusActive, neededQIC);
                                 setSelectedTile(null);
                               }}
                             >
-                              입장{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
+                              입장{neededQIC > 0
+                                ? (formersToConvert === 0
+                                  ? ` (${neededQIC} QIC)`
+                                  : formersToConvert === neededQIC
+                                    ? ` (포머 ${formersToConvert})`
+                                    : ` (QIC ${neededQIC - formersToConvert} · 포머 ${formersToConvert})`)
+                                : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
                             </Button>
                           </>
                         )}

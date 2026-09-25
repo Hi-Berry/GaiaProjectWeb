@@ -3997,6 +3997,7 @@ export default function Game() {
             }}
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
             onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
+            onBalTakConvertFormers={(count) => { for (let i = 0; i < count; i++) GameClient.useBalTakGaiaformerToQic(gameId!); }}
             onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
             onTakeTwilightArtifact={(artifactId) => handleTakeTwilightArtifact(artifactId)}
             onEclipseBuildAsteroidMine={(tileId, qicToSpend) => {
