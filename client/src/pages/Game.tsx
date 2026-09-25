@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
-import { actionLabel, actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
+import { actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
@@ -4946,17 +4946,6 @@ export default function Game() {
                 const shownVpCost = Math.max(0, shownAmount - 1);
                 const vpTooLow = shownVpCost > (currentPlayer?.score || 0);
 
-                /* [사용자 2026-09-26] "상대방 로그는 뜨지도 않고 파워 받는 창이 뜬다 — 건설 로그가 뜨고
-                   파워 수락 여부는 그 밑에 뜨면 안 되나?"
-                   폰에서는 로그가 별도 탭이라 상태창을 보고 있으면 무엇 때문에 제안이 왔는지 알 길이 없다.
-                   → 제안을 만든 건설을 이 창 첫 줄에 직접 싣고, 수락·거절을 그 아래에 둔다.
-                   오퍼의 tileId 로 같은 칸·같은 사람의 마지막 로그 줄을 찾는다(없으면 그 사람의 마지막 액션). */
-                const logs = game.gameLog ?? [];
-                const causeEntry =
-                  [...logs].reverse().find(e => e.playerId === offer.sourcePlayerId && e.tileId === offer.tileId && !!actionLabel(e.action, e.details ?? ''))
-                  ?? [...logs].reverse().find(e => e.playerId === offer.sourcePlayerId && !!actionLabel(e.action, e.details ?? ''));
-                const causeText = causeEntry ? actionLabel(causeEntry.action, causeEntry.details ?? '') : null;
-
                 return (
                   <motion.div
                     key={offer.id}
@@ -4971,24 +4960,15 @@ export default function Game() {
                        그동안 document.body에 인라인 pointer-events:none이 붙어(모달 밖 클릭 차단) 이 창도 상속받아 죽는다.
                        z-210으로 맨 위에 떠 있는데 수락·거절이 안 눌리면 남의 턴까지 멈춘 채 게임 전체가 막힌다
                        (안내 게이트 15ab7d1·롤백 투표 c2bc076과 동일 원인 중 가장 치명적인 자리). → 항상 클릭을 받는다. */
-                    className="fixed top-24 left-1/2 z-[210] pointer-events-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                    className="fixed top-24 left-1/2 z-[210] pointer-events-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
                     style={isMobileViewport ? ({ zoom: 0.82 } as CSSProperties) : undefined}
                   >
-                    {/* 원인이 된 건설 — 이 줄이 먼저, 수락·거절은 아래 줄 (w-full 이라 flex-wrap 이 줄을 나눈다) */}
-                    {causeText && (
-                      <div className="w-full text-center text-[11px] leading-tight text-zinc-300 pb-1 mb-0.5 border-b border-white/10">
-                        <span className="font-black text-white">{sourcePlayer?.name}</span>
-                        <span className="text-zinc-400"> 님이 </span>
-                        <span className="font-bold text-blue-300">{causeText}</span>
-                      </div>
-                    )}
                     <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
                       <div className="flex flex-col shrink-0 mr-2">
                         <h3 className="text-blue-400 font-black uppercase tracking-tighter text-[9px] leading-none">
                           Power Offer
                         </h3>
-                        {/* 위 첫 줄이 이미 누구인지 말하므로 그때는 이름을 되풀이하지 않는다 */}
-                        {!causeText && <span className="text-[10px] text-zinc-400 font-bold">from {sourcePlayer?.name}</span>}
+                        <span className="text-[10px] text-zinc-400 font-bold">from {sourcePlayer?.name}</span>
                       </div>
 
                       <div className="flex items-center gap-4 shrink-0">
