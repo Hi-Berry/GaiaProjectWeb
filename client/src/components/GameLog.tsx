@@ -509,15 +509,22 @@ export function GameLog({
           No actions yet
         </div>
       ) : (
-        [...logs].reverse()
-          .filter((log) => !isProvisional(log) || canSeeProvisional(log)) // 진행 중인 남의 줄은 턴 종료 전까지 감춘다
-          .filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
+        /* [깜박임 수정 2026-09-25 사용자 제보 "가끔 전체 화면이 깜박인다"] 목록은 최신이 위(역순)인데 key가 렌더 순서(index)였다.
+           로그가 한 줄 붙으면 모든 행의 index가 한 칸씩 밀려, React가 화면의 전 행을 '내용이 바뀐 행'으로 보고
+           src를 전부 갈아끼운다 → 행마다 있는 종족 초상·타일 이미지가 통째로 다시 로드되며 깜박인다.
+           실측(봇 4인 자가대국 관전, 25초): 이미지 로드 2,868회가 **전부 로그 패널 안**이었고
+           상위가 race_face_*.png 330~370회씩. → 시간순 원본 인덱스(origIdx)를 키로 쓴다. 뒤에 append만 되므로
+           기존 행의 origIdx는 변하지 않아 새 줄이 붙어도 기존 행은 그대로 유지된다.
+           openIdx(펼친 행)도 같은 이유로 origIdx 기준으로 바꾼다 — 예전엔 새 줄이 오면 펼친 행이 한 칸씩 밀렸다. */
+        logs.map((log, i) => ({ log, origIdx: i })).reverse()
+          .filter(({ log }) => !isProvisional(log) || canSeeProvisional(log)) // 진행 중인 남의 줄은 턴 종료 전까지 감춘다
+          .filter(({ log }) => !filterPlayerId || (log as any).playerId === filterPlayerId).map(({ log, origIdx }, index, rendered) => {
           // [사용자] 서버가 라운드 전환 순간에 넣는 명시적 'Round Start' 시스템 로그 → 라운드 구분선으로 렌더(일반 행 X).
           // 새 라운드의 첫 로그라 라벨이 라운드 경계(파워/액션 전)에 고정됨. R0/R1은 이 로그가 없어 아래 footer가 폴백.
           if (log.action === 'Round Start' && typeof log.round === 'number') {
             return (
               <div
-                key={index}
+                key={origIdx}
                 ref={(el) => { roundRefs.current[log.round as number] = el; }}
                 style={{ scrollMarginTop: '2.75rem' }}
                 className="flex items-center gap-2 px-1 pt-1 pb-2 select-none"
@@ -530,7 +537,7 @@ export function GameLog({
           }
           // 최신순 표시. 라운드 라벨은 그 라운드의 '가장 오래된 로그 아래(footer)'에 고정 — 라운드 경계 표시.
           // (header로 올렸더니 라벨이 최신 액션을 따라 움직여 "액션할 때마다 라운드 번호가 재부착"되는 버그 → footer 복원.)
-          const nextOlder = index < reversedLogs.length - 1 ? reversedLogs[index + 1] : null;
+          const nextOlder = index < rendered.length - 1 ? rendered[index + 1].log : null;
           const isRoundFooter = typeof log.round === 'number' && (!nextOlder || nextOlder.round !== log.round);
           const actionText = log.action || '';
           const isPowerAction = /power|income|energy|bowl/i.test(actionText) || /Accepted|Declined/i.test(actionText);
@@ -556,14 +563,14 @@ export function GameLog({
           const primaryImg = getLogPrimaryImage(log, player?.faction);
 
           return (
-            <Fragment key={index}>
+            <Fragment key={origIdx}>
             <div
               onMouseEnter={() => {
                 if (log.tileId) onEntryMouseEnter?.(log.tileId);
                 if (log.fedHexes?.length && log.playerId) onFedHexesMouseEnter?.(log.playerId, log.fedHexes);
               }}
               onMouseLeave={() => { onEntryMouseLeave?.(); onFedHexesMouseLeave?.(); }}
-              onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
+              onClick={() => setOpenIdx((prev) => (prev === origIdx ? null : origIdx))}
               title={isPending ? '아직 턴이 끝나지 않아 되돌릴 수 있는 행동입니다 (나에게만 보임) · 클릭해서 점수·자원 변동 보기' : '클릭해서 점수·자원 변동 보기'}
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-center gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
@@ -812,7 +819,7 @@ export function GameLog({
                   </div>
                 )}
                 {/* 클릭 시: 이 액션 후 점수/자원(결과) + 이 액션으로 인한 변동(base=액션 직전 대비) */}
-                {openIdx === index && (() => {
+                {openIdx === origIdx && (() => {
                   const snap = log.snap;
                   if (!snap) {
                     return (
@@ -821,8 +828,6 @@ export function GameLog({
                       </div>
                     );
                   }
-                  // 원본 시간순 인덱스: 필터 시 index가 어긋나므로 로그 객체로 직접 찾음(스냅샷 diff 정확).
-                  const origIdx = logs.indexOf(log);
                   // base(이 액션 직전 스냅샷)가 있으면 '이 액션만'의 변동. 없으면(구 로그) 같은 플레이어 직전 로그로 폴백.
                   const prev = log.base ?? prevSnapFor(origIdx, log.playerId);
                   return (
@@ -866,7 +871,7 @@ export function GameLog({
                 })()}
                 {/* [롤백] 호스트만: 이 지점(턴 시작)으로 되돌리기 요청 — 다른 사람 전원 동의 시 실행 */}
                 {/* 취소된 줄은 롤백 대상이 아니다 — seq가 이후 새 액션과 겹쳐(롤백 시 카운터도 되감김) 엉뚱한 지점으로 갈 수 있다. */}
-                {openIdx === index && canRollback && !isRolledBack && typeof log.seq === 'number' && onRollbackToSeq && (
+                {openIdx === origIdx && canRollback && !isRolledBack && typeof log.seq === 'number' && onRollbackToSeq && (
                   <div className="mt-1">
                     <button
                       type="button"
