@@ -5,6 +5,7 @@ import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 import { raceFaceSrc } from '@/lib/racePortrait';
+import { getCommitSeq } from '@/lib/turnCommit';
 
 /** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). Game.tsx의 매핑과 동일 순서. */
 const TINKEROID_SPECIAL_IMG: Record<string, string> = {
@@ -69,8 +70,7 @@ export function GameLog({
      뒤에 붙은 줄이 진행 중. 시작 광산·보너스 선택은 고르는 즉시 턴이 넘어가 되돌릴 수 없으므로 main 단계만 적용.
      ※ 내 줄은 '내 턴이 끝난 뒤 다음 사람 턴이 시작되기 전'(파워 수령 대기 등)에도 계속 보여야 하므로
        현재 턴 주인이 아니라 '그 줄의 주인'으로 판정한다 — 안 그러면 턴 종료 직후 내 로그가 잠깐 사라진다. */
-  const turnMarks = Object.values((game.turnMark ?? {}) as Record<string, number>);
-  const commitSeq = game.currentPhase !== 'main' || !turnMarks.length ? null : Math.max(...turnMarks);
+  const commitSeq = getCommitSeq(game);
   const isProvisional = (e: { seq?: number }) => commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq;
   const canSeeProvisional = (e: { playerId?: string }) => !!myPlayerId && e.playerId === myPlayerId;
   // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)

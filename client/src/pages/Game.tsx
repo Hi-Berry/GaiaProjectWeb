@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, storeSpectatorId, type GameState, type PlayerState } from '@/lib/gameClient';
+import { getCommitSeq } from '@/lib/turnCommit';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
@@ -1675,11 +1676,12 @@ export default function Game() {
        '마지막으로 시작된 턴'이므로, 그보다 앞선 seq는 이미 끝난 턴이라 되돌릴 수 없다.
        진행 중인 턴의 줄은 보류했다가 턴이 넘어간 뒤 읽는다(처음 요청대로 '액션 완료 시점').
        게임이 끝나면 더 기다릴 것이 없으므로 남은 줄을 전부 읽는다. */
-    const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
     /* [사용자 2026-08-24 "A 가져가고 B 가져가면 그제야 A 소리"] 보류는 리셋(Undo)이 가능한
        main 단계에서만. 시작 광산·보너스 선택은 고르는 즉시 턴이 넘어가 되돌릴 수 없는데도
-       보류가 걸려, 다음 사람 턴 시작(대개 그 사람의 선택과 같은 패킷)에야 읽혀 한 박자 늦었다. */
-    const commitSeq = game.currentPhase !== 'main' || !marks.length ? null : Math.max(...marks);
+       보류가 걸려, 다음 사람 턴 시작(대개 그 사람의 선택과 같은 패킷)에야 읽혀 한 박자 늦었다.
+       [2026-09-25] 기준 계산을 getCommitSeq 하나로 합쳤다 — 로그·보드와 안내가 어긋나면
+       화면엔 이미 뜬 줄을 한참 뒤에 읽는다. */
+    const commitSeq = getCommitSeq(game);
     let done = from;
     /** 이 패스에서 아직 본 액션을 못 만난 준비 동작 — 만나면 한 문장으로 합친다 */
     let pendingEnabler: { playerId: string; win: number; parts: string[] } | null = null;
@@ -2164,13 +2166,12 @@ export default function Game() {
        파워 수령 제안이 이미 그렇게 동작하므로(queuedPowerOffers → end_turn에서 공개) 화면도 같은 규칙이 된다.
        액션 사용 표시(파워 액션·우주선 칸·부스터·특수 액션)도 같은 상태에 들어 있어 함께 턴 종료 때 드러난다.
      규칙: 내 턴이면 전부 실시간(내가 조작하는 화면은 항상 최신). main 단계가 아니면 실시간.
-     스냅샷 갱신 시점: ①새 턴 시작(turnMark 최댓값 상승) ②턴 종료로 파워 수령 대기가 열릴 때
-       — ②가 없으면 '턴은 끝났는데 다음 턴이 아직'인 구간에서 리치 제안만 뜨고 원인 건물이 안 보인다.
+     기준(getCommitSeq)은 로그 감추기·액션 음성과 같은 함수를 쓴다. 따로 계산하면 어긋난다 —
+       실제로 턴 종료 후 파워 수령 대기 구간에서 보드만 먼저 열리고 로그는 닫혀 있었다.
      서버는 건드리지 않는다(클라가 이미 turnMark를 받는다). */
-  const viewTurnMarks = Object.values((game?.turnMark ?? {}) as Record<string, number>);
-  const viewCommitSeq = (!game || game.currentPhase !== 'main' || !viewTurnMarks.length) ? null : Math.max(...viewTurnMarks);
+  const viewCommitSeq = getCommitSeq(game);
   if (game) {
-    if (viewCommitSeq === null || viewCommitSeq !== lastCommitSeqRef.current || !!game.pendingTurnEndPlayerId) {
+    if (viewCommitSeq === null || viewCommitSeq !== lastCommitSeqRef.current) {
       lastCommitSeqRef.current = viewCommitSeq;
       committedGameRef.current = game;
     }
