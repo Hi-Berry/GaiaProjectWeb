@@ -389,6 +389,10 @@ export default function Game() {
     | { kind: 'mine'; tileId: string; useGaiaformer?: boolean; converts: number; label: string }
     | { kind: 'eclipse'; tileId: string; qicToSpend: number; converts: number; label: string }
     | { kind: 'gaiaformer'; tileId: string; qicUsed: number; converts: number; label: string }
+    /* [사용자 2026-09-25] 우주선 입장·잊혀진 행성도 나머지 6곳과 같은 확인창을 거친다 — 포머는 그 라운드
+       동안 잠기는 비용이라 "바로 실행"보다 확인을 받는 편이 일관적이라는 사용자 판단. */
+    | { kind: 'shipEnter'; tileId: string; useRangeBonus: boolean; qicToUse: number; converts: number; label: string }
+    | { kind: 'lostPlanet'; tileId: string; qicToSpend: number; converts: number; label: string }
     | null
   >(null);
   /** [사용자 2026-08-13] 연방 위성 / 인공물처럼 '토큰 개수'로 내는 비용이 모자랄 때
@@ -3975,6 +3979,13 @@ export default function Game() {
               setIvitsSpaceStationMode(false);
             }}
             onPlaceLostPlanet={(tileId, qicToSpend) => {
+              // 발타크: 거리 QIC가 모자라면 포머 변환 확인창(나머지 QIC 동작과 동일)
+              const meL = playerId ? game.players[playerId] : null;
+              const shortL = qicToSpend - (meL?.qic ?? 0);
+              if (meL && shortL > 0 && balTakSpareGaiaformers(meL) >= shortL) {
+                setConfirmQicConvert({ kind: 'lostPlanet', tileId, qicToSpend, converts: shortL, label: '잊혀진 행성 배치' });
+                return;
+              }
               if (gameId) GameClient.placeLostPlanet(gameId, tileId, qicToSpend);
             }}
             ambasSwapPiMineMode={ambasSwapPiMineMode}
@@ -3996,8 +4007,16 @@ export default function Game() {
               }
             }}
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
-            onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
-            onBalTakConvertFormers={(count) => { for (let i = 0; i < count; i++) GameClient.useBalTakGaiaformerToQic(gameId!); }}
+            onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => {
+              // 발타크: 거리 QIC가 모자라면 나머지 QIC 동작과 동일한 포머 변환 확인창
+              const me = playerId ? game.players[playerId] : null;
+              const shortS = qicToUse - (me?.qic ?? 0);
+              if (me && shortS > 0 && balTakSpareGaiaformers(me) >= shortS) {
+                setConfirmQicConvert({ kind: 'shipEnter', tileId, useRangeBonus, qicToUse, converts: shortS, label: '우주선 입장' });
+                return;
+              }
+              GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse);
+            }}
             onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
             onTakeTwilightArtifact={(artifactId) => handleTakeTwilightArtifact(artifactId)}
             onEclipseBuildAsteroidMine={(tileId, qicToSpend) => {
@@ -5190,6 +5209,10 @@ export default function Game() {
                         GameClient.eclipseBuildAsteroidMine(gameId, confirmQicConvert.tileId, confirmQicConvert.qicToSpend);
                       } else if (confirmQicConvert.kind === 'gaiaformer') {
                         GameClient.placeGaiaformer(gameId, confirmQicConvert.tileId, confirmQicConvert.qicUsed);
+                      } else if (confirmQicConvert.kind === 'shipEnter') {
+                        GameClient.enterSpaceship(gameId, confirmQicConvert.tileId, confirmQicConvert.useRangeBonus, confirmQicConvert.qicToUse);
+                      } else if (confirmQicConvert.kind === 'lostPlanet') {
+                        GameClient.placeLostPlanet(gameId, confirmQicConvert.tileId, confirmQicConvert.qicToSpend);
                       } else {
                         proceedShipAction(confirmQicConvert.shipTileId, confirmQicConvert.actionIndex, confirmQicConvert.targetTileId, { fromOverlay: confirmQicConvert.fromOverlay });
                       }

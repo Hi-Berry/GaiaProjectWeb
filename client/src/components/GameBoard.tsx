@@ -357,8 +357,6 @@ interface GameBoardProps {
   highlightedTileId?: string | null;
   onPlaceGaiaformer?: (tileId: string, qicUsed?: number) => void;
   onEnterSpaceship?: (tileId: string, useRangeBonus: boolean, qicToUse: number) => void;
-  /** [발타크] 포머 N개를 QIC로 바꾼다(프리액션). 우주선 입장 QIC가 모자랄 때 입장 직전에 호출. */
-  onBalTakConvertFormers?: (count: number) => void;
   onUseShipAction?: (shipTileId: string, actionIndex: number, targetTileId?: string) => void;
   onTakeTwilightArtifact?: (artifactId: string) => void;
   onEclipseBuildAsteroidMine?: (tileId: string, qicToSpend: number) => void;
@@ -442,7 +440,6 @@ export function GameBoard({
   highlightedTileId,
   onPlaceGaiaformer,
   onEnterSpaceship,
-  onBalTakConvertFormers,
   onUseShipAction,
   onTakeTwilightArtifact,
   onEclipseBuildAsteroidMine,
@@ -2789,8 +2786,7 @@ export function GameBoard({
                               size="sm"
                               disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
                               onClick={() => {
-                                // 변환(소켓 순서 보장)이 지갑을 채운 뒤 서버가 입장을 처리한다 — 광산·파워액션과 동일 패턴
-                                if (formersToConvert > 0) onBalTakConvertFormers?.(formersToConvert);
+                                // 변환은 Game.tsx의 확인창이 담당한다(나머지 QIC 동작과 동일) — 여기서는 필요 QIC만 넘긴다
                                 onEnterSpaceship!(selectedTile.id, !!currentPlayer?.rangeBonusActive, neededQIC);
                                 setSelectedTile(null);
                               }}
@@ -2998,7 +2994,6 @@ export function GameBoard({
                         size="sm"
                         disabled={!qicOk}
                         onClick={() => {
-                          if (lpFormersToConvert > 0) onBalTakConvertFormers?.(lpFormersToConvert);
                           onPlaceLostPlanet(selectedTile.id, neededQIC);
                           setSelectedTile(null);
                         }}
