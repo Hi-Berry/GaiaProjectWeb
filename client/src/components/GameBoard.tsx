@@ -2979,24 +2979,37 @@ export function GameBoard({
                   const baseRange = getRange(5) + (currentPlayer.navigationBonus ?? 0);
                   const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
                   const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                  const qicOk = (currentPlayer.qic ?? 0) >= neededQIC;
+                  /* [2026-09-25 전수 점검] 발타크 포머→QIC 조달이 QIC 드는 동작 6곳(광산·소행성·포머 배치·
+                     파워/QIC 액션·우주선 액션·우주선 입장)엔 붙어 있는데 여기만 빠져 있었다 — 우주선 입장과 같은 처리. */
+                  const lpSpareFormers = currentPlayer.faction === 'bal_tak'
+                    ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+                    : 0;
+                  const qicOk = neededQIC <= (currentPlayer.qic ?? 0) + lpSpareFormers;
+                  const lpFormersToConvert = Math.max(0, Math.min(lpSpareFormers, neededQIC - (currentPlayer.qic ?? 0)));
                   return (
                     <div className="space-y-2 p-2 bg-indigo-500/10 rounded-lg border border-indigo-400/30">
                       <p className="text-xs font-semibold text-indigo-300">잊혀진 행성 (Nav 5)</p>
                       <p className="text-xs text-muted-foreground">
                         거리: {minDist} | Nav 5 범위: {baseRange}
-                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
+                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}{lpFormersToConvert > 0 ? ` (포머 ${lpFormersToConvert}개로 충당)` : ''}</span>}
                       </p>
                       <Button
                         className="w-full text-xs"
                         size="sm"
                         disabled={!qicOk}
                         onClick={() => {
+                          if (lpFormersToConvert > 0) onBalTakConvertFormers?.(lpFormersToConvert);
                           onPlaceLostPlanet(selectedTile.id, neededQIC);
                           setSelectedTile(null);
                         }}
                       >
-                        잊혀진 행성 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
+                        잊혀진 행성 배치{neededQIC > 0
+                          ? (lpFormersToConvert === 0
+                            ? ` (${neededQIC} QIC)`
+                            : lpFormersToConvert === neededQIC
+                              ? ` (포머 ${lpFormersToConvert})`
+                              : ` (QIC ${neededQIC - lpFormersToConvert} · 포머 ${lpFormersToConvert})`)
+                          : ''}
                       </Button>
                     </div>
                   );
