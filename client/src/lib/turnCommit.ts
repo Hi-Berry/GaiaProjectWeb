@@ -3,8 +3,8 @@ import type { GaiaGameState as GameState } from '@shared/gameConfig';
 /**
  * [사용자 2026-09-25] "상태창에서 자원이 먼저 없어지고 나중에 로그에 연구소 지은 게 뜬다"
  *
- * 로그 감추기(GameLog)와 보드·상태창 고정(Game.tsx viewGame)이 각자 기준을 계산하다가 어긋났다.
- * 이제 둘 다 이 함수 하나만 본다.
+ * 로그 감추기(GameLog)·보드 고정(Game.tsx viewGame)·액션 음성이 각자 기준을 계산하다가 어긋났다.
+ * 이제 셋 다 이 함수 하나만 본다.
  *
  * 반환값
  *   null   — 지금은 감출 것이 없다. 로그도 보드도 실시간.
@@ -17,11 +17,60 @@ import type { GaiaGameState as GameState } from '@shared/gameConfig';
  * 턴 종료를 눌러 파워 수령 대기(pendingTurnEndPlayerId)에 들어갔으면 null 을 준다.
  * 그 시점부터는 서버가 리셋을 막아(gameState.ts 'reset' 핸들러) 되돌릴 수 없고,
  * 리치 제안을 받은 사람은 무엇 때문에 제안이 왔는지 보드와 로그 양쪽에서 봐야 한다.
+ *
+ * [사용자 2026-09-29] "상대 로그가 보였다가 갑자기 안 보이다가 다음 사람이 액션하면 같이 보인다"
+ *   기준이 뒤로 내려가는 구간이 있었다. 서버는 다음 사람 턴이 시작될 때 turnMark 를 올리는데
+ *   (captureTurnStartWithPrev), 수입 선택이 걸려 있으면 그 갱신을 건너뛴다(gameState.ts 의
+ *   `if (game.pendingIncomeOrder) return`). 그래서 '파워 수령 대기(전부 공개) → 대기 해소
+ *   → 아직 옛 turnMark' 순서로 흐르면 방금 보여 준 줄이 도로 감춰졌다가, 다음 사람이 움직여
+ *   turnMark 가 올라가면 다시 나타났다.
+ *   → 한 번 공개한 줄은 다시 감추지 않는다. 게임별로 '이미 공개한 최대 seq'를 들고 그 아래로는
+ *     절대 내려가지 않는다. 서버 어느 경로에서 갱신이 늦든 화면은 흔들리지 않는다.
+ *     롤백으로 로그가 실제로 뒤로 가면(최대 seq 자체가 줄면) 워터마크도 같이 내린다.
  */
+
+/** 게임별 '이미 공개한 최대 로그 seq'. 되돌아가지 않게 붙잡아 두는 값. */
+const revealed = new Map<string, number>();
+
+function maxLogSeq(game: GameState): number | null {
+	const logs = game.gameLog ?? [];
+	let m: number | null = null;
+	for (const e of logs) {
+		const s = (e as { seq?: number }).seq;
+		if (typeof s === 'number' && (m === null || s > m)) m = s;
+	}
+	return m;
+}
+
 export function getCommitSeq(game: GameState | null | undefined): number | null {
-	if (!game || game.currentPhase !== 'main') return null;
-	if (game.pendingTurnEndPlayerId) return null;
+	if (!game) return null;
+
 	const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
-	if (!marks.length) return null;
-	return Math.max(...marks);
+	const raw = (game.currentPhase !== 'main' || game.pendingTurnEndPlayerId || !marks.length)
+		? null
+		: Math.max(...marks);
+
+	const id = (game as { id?: string }).id;
+	if (!id) return raw; // 게임 id를 모르면 붙잡아 둘 곳이 없다 — 원래 값 그대로
+
+	const top = maxLogSeq(game);
+	let wm = revealed.get(id) ?? -1;
+	// 롤백으로 로그가 실제로 뒤로 갔으면 워터마크도 내린다(안 내리면 새 턴의 진행 중 액션이 노출된다)
+	if (top !== null && wm > top) wm = top;
+
+	if (raw === null) {
+		// 전부 공개되는 구간 — 지금까지의 줄은 '공개됨'으로 확정해 둔다
+		if (top !== null) wm = Math.max(wm, top);
+	} else {
+		wm = Math.max(wm, raw);
+	}
+
+	if (revealed.size > 8 && !revealed.has(id)) revealed.clear(); // 오래된 게임 id 정리
+	revealed.set(id, wm);
+	return raw === null ? null : wm;
+}
+
+/** 테스트용 — 게임별 워터마크를 지운다 */
+export function resetCommitSeqMemo(): void {
+	revealed.clear();
 }
