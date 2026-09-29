@@ -1381,8 +1381,11 @@ export class BotLogic {
                     // [flag: twiFireEarly] 리벨과 동일 패턴의 트왈 #1(3Q→연방보상) 선점 — 실게임 26판: 사람 60회 vs 봇 0회.
                     // twilightTimingOk(R4+ 또는 기술연방 후)는 twiTile 선정에 이미 반영. 리벨 발사 가능하면 리벨 우선(위에서 이미 return).
                     // [측정 2026-08-01] 40판 +5.03 (승률 67.5%, p=0.027) → 120판 확정 +2.02 ± 2.15 — 부호 일관 양성 → 채택 ON.
+                    // [버그수정 2026-09-29] 재수령할 연방이 하나도 없으면 발사 금지. 서버는 연방 유무를 안 보고 3QIC를 받은 뒤
+                    //   pendingTwilightFederation을 세우는데, 봇은 고를 보상이 없어(getBestTwilightFederationRewardId=null) 대기가
+                    //   안 풀려 pass도 실패 → forceSkip으로 턴·3QIC만 증발. 9/10~17 로그: 강제스킵 82건 중 59건이 이 직후, 매 R4/5/6 반복.
                     if (getPlayerFlag(playerId, 'twiFireEarly', true) && onTwi && twiTile && twiUnused
-                        && qNow >= 3
+                        && qNow >= 3 && getFederationEntries(player).length >= 1
                         && !candidates.some(c => c.type === 'form_federation')) {
                         log(`Bot ${player.name} twiFireEarly: 트왈 3Q 연방보상 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
                         return { type: 'use_ship_action', params: { shipTileId: twiTile.id, actionIndex: 1 } };
@@ -8042,13 +8045,15 @@ export class BotLogic {
                     //   봇의 이후 91라운드 중 QIC≥3 도달 35%, 3Q 사용 12회. 사람은 4P→1Q·아카QIC·브리지로 매 라운드 3Q를 만든다.
                     const techFund = (getPlayerFlag(playerId, 'techFedLoop', false) && this.hasTechFed(player) && player.faction !== 'taklons')
                         ? Math.min(Math.max(0, 3 - effShipQic), Math.floor(p3Now / 4)) : 0;
-                    if (i === 1 && effShipQic + techFund >= 3
+                    // [버그수정 2026-09-29] 재수령할 연방이 0개면 1번 액션 후보 자체를 만들지 않는다(twiFireEarly 주석 참조).
+                    const twiHasFed = getFederationEntries(player).length >= 1;
+                    if (i === 1 && twiHasFed && effShipQic + techFund >= 3
                         && !(getPlayerFlag(playerId, 'twilightQicPlan', true) && !this.twilightTimingOk(game, player))) {
                         // [flag: twilightQicPlan v2] 사용자 룰: 재수령은 R4+ 또는 기술연방 후 — 그 전엔 후보 제외(3Q 아낌)
                         score = 350; // 연방 보상 → 매우 강력
                         action = shipQicAction(shipId, i, 3);
                         if (techFund > 0) action = { ...action, preActions: [...(action.preActions ?? []), ...Array.from({ length: techFund }, () => ({ type: 'convert_resource' as const, params: { type: '4power-to-1qic' } }))] };
-                    } else if (i === 1 && (player.qic || 0) >= 0) {
+                    } else if (i === 1 && twiHasFed && (player.qic || 0) >= 0) {
                         score = 230;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
                     } else if (i === 2 && (player.ore || 0) >= 2 && p3Eff >= 3) {
