@@ -513,7 +513,7 @@ export interface GaiaGameState {
     /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3[,bs]) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
     powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 }>;
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
-  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; snap?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; base?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; round?: number; seq?: number; fedHexes?: string[] }>; // 게임 액션 로그 (fedHexes=이 액션으로 연방에 편입된 칸 — 리플레이용) (snap=이 로그 시점 행위자 점수/자원 스냅샷, 클릭 시 직전 대비 변동량 표시용; round=발생 라운드, 라운드 점프용)
+  gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; snap?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; base?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; round?: number; seq?: number; fedHexes?: string[]; rolledBack?: boolean }>; // 게임 액션 로그 (rolledBack=롤백으로 취소된 행동 — 표시용으로 남김, 저장 시 제외) (fedHexes=이 액션으로 연방에 편입된 칸 — 리플레이용) (snap=이 로그 시점 행위자 점수/자원 스냅샷, 클릭 시 직전 대비 변동량 표시용; round=발생 라운드, 라운드 점프용)
   /** 플레이어 채팅 (최근 N개만 유지). 재접속/관전 시 히스토리 복원용으로 게임 상태에 보관 */
   chatMessages?: Array<{ id: string; senderId: string; name: string; faction?: string | null; isSpectator?: boolean; text: string; ts: number }>;
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
@@ -1337,10 +1337,24 @@ export function simulateIncomeOrder(
   };
 }
 
-function compareIncomeBowlTotals(a: { p1: number; p2: number; p3: number }, b: { p1: number; p2: number; p3: number }): number {
-  if (a.p3 !== b.p3) return a.p3 - b.p3;
-  if (a.p2 !== b.p2) return a.p2 - b.p2;
-  return a.p1 - b.p1;
+/** [버그수정 2026-09-25 사용자 제보 "타클론은 자동 최적화가 잘 안 된다 — 브레인스톤이 3그릇까지 갈 수 있었는데
+ *  토큰을 먼저 받고 남은 파워 수익으로 2그릇에서 멈췄다"]
+ *  타클론 브레인스톤은 power1/2/3 개수에 **들어가지 않고** brainStoneBowl로 따로 추적된다(chargePowerTaklons는
+ *  스톤을 옮길 때 그릇 카운트를 건드리지 않는다). 그런데 이 비교가 개수만 봐서, 스톤을 3그릇에 올리는 순서와
+ *  일반 토큰을 2그릇에 올리는 순서가 "p3 동점 → p2 큰 쪽" 으로 뒤집혔다.
+ *  실측(재현): 0/0/0·스톤 2그릇에 토큰 +1·파워 +1이면 — 토큰 먼저 = 0/1/0·스톤 2그릇(쓸 수 있는 파워 0),
+ *  충전 먼저 = 1/0/0·스톤 3그릇(쓸 수 있는 파워 3)인데 전자를 골랐다.
+ *  → 스톤을 값어치대로 셈한다: 3그릇 스톤 = 3파워, 그 아래 그릇에선 진행도상 토큰 1개와 동급. */
+function compareIncomeBowlTotals(
+  a: { p1: number; p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3 },
+  b: { p1: number; p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3 },
+): number {
+  const v3 = (s: { p3: number; brainStoneBowl?: 1 | 2 | 3 }) => s.p3 + (s.brainStoneBowl === 3 ? 3 : 0);
+  const v2 = (s: { p2: number; brainStoneBowl?: 1 | 2 | 3 }) => s.p2 + (s.brainStoneBowl === 2 ? 1 : 0);
+  const v1 = (s: { p1: number; brainStoneBowl?: 1 | 2 | 3 }) => s.p1 + (s.brainStoneBowl === 1 ? 1 : 0);
+  if (v3(a) !== v3(b)) return v3(a) - v3(b);
+  if (v2(a) !== v2(b)) return v2(a) - v2(b);
+  return v1(a) - v1(b);
 }
 
 /** 수익 항목 적용 순서 최적화 (3그릇 > 2그릇 > 1그릇 우선) */

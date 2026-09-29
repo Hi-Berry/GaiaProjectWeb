@@ -2688,8 +2688,17 @@ export function GameBoard({
                     );
                     const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                     const neededQIC = minDist !== Infinity && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                    const canReach = minDist === Infinity || minDist <= baseRange + ((currentPlayer?.qic ?? 0) * 2);
-                    const qicOk = neededQIC <= (currentPlayer?.qic ?? 0);
+                    /* [사용자 2026-09-25] 발타크는 포머 1개를 QIC 1로 바꿀 수 있는데(프리액션), 입장 판정이 지갑의 QIC만 봐서
+                       포머가 남아 있어도 "QIC 없음"으로 막혔다(봇은 balTakGaiaformerPreActionsForQicShortfall로 이미 하던 것).
+                       쓸 수 있는 포머 = 개인판 보유 − 이번 라운드 QIC로 잠근 수(서버 getEffectiveGaiaformers와 동일). */
+                    const spareFormers = currentPlayer?.faction === 'bal_tak'
+                      ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+                      : 0;
+                    const usableQic = (currentPlayer?.qic ?? 0) + spareFormers;
+                    const canReach = minDist === Infinity || minDist <= baseRange + (usableQic * 2);
+                    const qicOk = neededQIC <= usableQic;
+                    /** 입장 직전에 QIC로 바꿔야 할 포머 수(지갑 QIC를 먼저 쓰고 모자란 만큼만). */
+                    const formersToConvert = Math.max(0, Math.min(spareFormers, neededQIC - (currentPlayer?.qic ?? 0)));
                     const canEnter = seated && isMyTurn && game.currentPhase === 'main' && enteredCount < 3 && !!onEnterSpaceship;
 
                     return (
@@ -2766,7 +2775,7 @@ export function GameBoard({
                             {minDist !== Infinity && (
                               <p className="text-xs text-muted-foreground">
                                 거리: {minDist} | 기본 범위: {baseRange}
-                                {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}</span>}
+                                {neededQIC > 0 && <span className="text-yellow-400"> | 필요 QIC: {neededQIC}{formersToConvert > 0 ? ` (포머 ${formersToConvert}개로 충당)` : ''}</span>}
                               </p>
                             )}
                             {!canReach && <p className="text-xs text-red-400">거리가 너무 멉니다</p>}
@@ -2777,11 +2786,18 @@ export function GameBoard({
                               size="sm"
                               disabled={!canReach || needVP || needToken || (neededQIC > 0 && !qicOk)}
                               onClick={() => {
+                                // 변환은 Game.tsx의 확인창이 담당한다(나머지 QIC 동작과 동일) — 여기서는 필요 QIC만 넘긴다
                                 onEnterSpaceship!(selectedTile.id, !!currentPlayer?.rangeBonusActive, neededQIC);
                                 setSelectedTile(null);
                               }}
                             >
-                              입장{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
+                              입장{neededQIC > 0
+                                ? (formersToConvert === 0
+                                  ? ` (${neededQIC} QIC)`
+                                  : formersToConvert === neededQIC
+                                    ? ` (포머 ${formersToConvert})`
+                                    : ` (QIC ${neededQIC - formersToConvert} · 포머 ${formersToConvert})`)
+                                : ''}{isItarsOrNevlas ? ' (1 토큰)' : ''}
                             </Button>
                           </>
                         )}
@@ -2959,13 +2975,19 @@ export function GameBoard({
                   const baseRange = getRange(5) + (currentPlayer.navigationBonus ?? 0);
                   const minDist = Math.min(...rangeTiles.map((t: HexTile) => getDistance(t, selectedTile)));
                   const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-                  const qicOk = (currentPlayer.qic ?? 0) >= neededQIC;
+                  /* [2026-09-25 전수 점검] 발타크 포머→QIC 조달이 QIC 드는 동작 6곳(광산·소행성·포머 배치·
+                     파워/QIC 액션·우주선 액션·우주선 입장)엔 붙어 있는데 여기만 빠져 있었다 — 우주선 입장과 같은 처리. */
+                  const lpSpareFormers = currentPlayer.faction === 'bal_tak'
+                    ? Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.balTakGaiaformersUsedForQic ?? 0))
+                    : 0;
+                  const qicOk = neededQIC <= (currentPlayer.qic ?? 0) + lpSpareFormers;
+                  const lpFormersToConvert = Math.max(0, Math.min(lpSpareFormers, neededQIC - (currentPlayer.qic ?? 0)));
                   return (
                     <div className="space-y-2 p-2 bg-indigo-500/10 rounded-lg border border-indigo-400/30">
                       <p className="text-xs font-semibold text-indigo-300">잊혀진 행성 (Nav 5)</p>
                       <p className="text-xs text-muted-foreground">
                         거리: {minDist} | Nav 5 범위: {baseRange}
-                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}</span>}
+                        {neededQIC > 0 && <span className="text-yellow-400"> | QIC: {neededQIC}{lpFormersToConvert > 0 ? ` (포머 ${lpFormersToConvert}개로 충당)` : ''}</span>}
                       </p>
                       <Button
                         className="w-full text-xs"
@@ -2976,7 +2998,13 @@ export function GameBoard({
                           setSelectedTile(null);
                         }}
                       >
-                        잊혀진 행성 배치{neededQIC > 0 ? ` (${neededQIC} QIC)` : ''}
+                        잊혀진 행성 배치{neededQIC > 0
+                          ? (lpFormersToConvert === 0
+                            ? ` (${neededQIC} QIC)`
+                            : lpFormersToConvert === neededQIC
+                              ? ` (포머 ${lpFormersToConvert})`
+                              : ` (QIC ${neededQIC - lpFormersToConvert} · 포머 ${lpFormersToConvert})`)
+                          : ''}
                       </Button>
                     </div>
                   );

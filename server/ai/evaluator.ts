@@ -375,9 +375,33 @@ export class Evaluator {
         // 좌석별 변형(head-to-head A/B)이 있으면 그 프로필을, 없으면 전역 프로필을 사용
         const profile = getPlayerProfile(playerId) ?? ACTIVE_PROFILE;
         const factionPatch = player.faction ? profile.byFaction?.[player.faction] : undefined;
-        const w = factionPatch
+        let w = factionPatch
             ? normalizeWeights({ ...profile.global, ...factionPatch } as EvaluatorWeights)
             : profile.global;
+
+        // [flag: structValueCalib 2026-09-22] 건물 가중치 실측 재보정(숫자: 0=OFF, 1=자가대국 비율, 2=사람 비율).
+        //   측정: 라운드말 건물 구성 → 최종 VP 회귀(게임내 편차 제거, 같은 판 4좌석 비교). R3 시점 계수(VP/채):
+        //     사람 1,654석 — 광산 4.1 · 교역소 6.4 · 연구소 9.6 · 의회 22.4 · 아카 20.6
+        //     봇 1,116석  — 광산 5.2 · 교역소 5.8 · 연구소 11.2 · 의회 10.4 · 아카 21.3
+        //   현재 가중치(광산=1): 교역소 2.31 · 연구소 2.35 · 의회 2.26 · 아카 3.51.
+        //   → **교역소가 실측(1.1~1.5x)의 두 배로 과대평가**되어 mine→TS 업글이 광산 신설을 이긴다(실측 업글 +0.48 vs 신설 +1.00).
+        //   아카데미는 양쪽 데이터 모두 과소평가(실측 4.1~5.0x vs 가중치 3.51x). 의회는 사람 4.80x인데 봇 게임에선 2.0x뿐 —
+        //   봇이 의회 능력(기오덴/란티다 회의 등)을 안 써서 실제로 가치가 안 나온다(geodensPiValue·bescodsPiValue 기각의 근본원인).
+        //   ※ 새 항 추가가 아니라 기존 가중치 재보정(평가기 '항 추가' 축은 3연속 기각으로 닫힘).
+        const svc = getPlayerFlag(playerId, 'structValueCalib', 0);
+        if (svc > 0) {
+            const m = w.structureMine;
+            const R = svc >= 2
+                ? { ts: 1.48, lab: 2.34, pi: 4.80, ac: 5.00 }   // 사람 실측 비율
+                : { ts: 1.12, lab: 2.15, pi: 2.00, ac: 4.10 };  // 자가대국 실측 비율(측정 환경 자체의 정답)
+            w = normalizeWeights({
+                ...w,
+                structureTradingStation: m * R.ts,
+                structureResearchLab: m * R.lab,
+                structurePlanetaryInstitute: m * R.pi,
+                structureAcademy: m * R.ac,
+            } as EvaluatorWeights);
+        }
 
         let score = 0;
         let logs: string[] = [];

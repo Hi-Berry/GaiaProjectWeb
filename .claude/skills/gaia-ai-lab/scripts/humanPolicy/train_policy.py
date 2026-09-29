@@ -9,6 +9,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--data', default='data/humanPolicy'); ap.add_argument('--epochs', type=int, default=40)
 ap.add_argument('--hidden', type=int, default=128); ap.add_argument('--lr', type=float, default=2e-3); ap.add_argument('--seed', type=int, default=0)
 ap.add_argument('--dropout', type=float, default=0.0); ap.add_argument('--wd', type=float, default=1e-5); ap.add_argument('--out', default='policy.json')
+# [2026-09-22 라벨 품질 실험] 학습 행 필터: 결정자 최종 점수 ≥ min-vp 또는 게임 내 순위 ≤ top-rank. 검증 집합은 필터하지 않는다(모델 간 비교 기준 고정).
+ap.add_argument('--min-vp', type=int, default=0); ap.add_argument('--top-rank', type=int, default=0)
 args = ap.parse_args()
 torch.manual_seed(args.seed); np.random.seed(args.seed)
 z = np.load(os.path.join(args.data, 'decisions.npz'))
@@ -16,7 +18,12 @@ Xs, Xc, mask, y, game, rnd, ncand = z['X_s'], z['X_c'], z['mask'], z['y'], z['ga
 games = np.unique(game); rng = np.random.RandomState(args.seed); rng.shuffle(games)
 val_games = set(games[: max(1, len(games) // 5)].tolist())
 va = np.array([g in val_games for g in game]); tr = ~va
-print(f"decisions {len(y)} | train {tr.sum()} val {va.sum()} | games {len(games)} (val {len(val_games)}) | state {Xs.shape[1]} cand {Xc.shape[2]}")
+seat_vp = z['seat_vp'] if 'seat_vp' in z.files else np.zeros(len(y)); seat_rank = z['seat_rank'] if 'seat_rank' in z.files else np.zeros(len(y))
+hq = np.ones(len(y), bool)
+if args.min_vp: hq &= seat_vp >= args.min_vp
+if args.top_rank: hq &= (seat_rank > 0) & (seat_rank <= args.top_rank)
+tr_all = tr.copy(); tr = tr & hq
+print(f"decisions {len(y)} | train {tr.sum()} (필터 전 {tr_all.sum()}, min-vp {args.min_vp} top-rank {args.top_rank}) val {va.sum()} | games {len(games)} (val {len(val_games)}) | state {Xs.shape[1]} cand {Xc.shape[2]}")
 
 class Ranker(nn.Module):
     def __init__(self, sd, cd, h):
@@ -58,6 +65,8 @@ model.load_state_dict(best[1]); print(f"best val top1 {best[0]:.3f} @ep{best[2]}
 cva, mva, topva = evaluate(vai)
 rand = (1.0 / ncand[vai]).mean(); first = (y[vai] == 0).mean()
 print(f"val: top1 {cva.mean():.3f} | 무작위 {rand:.3f} | 봇순서[0]={first:.3f}")
+hv = hq[vai]
+if hv.sum() and (~hv).sum(): print(f"val 고득점 부분집합(필터 조건 충족) n={hv.sum()} top1 {cva[hv].mean():.3f} | 나머지 n={(~hv).sum()} top1 {cva[~hv].mean():.3f}")
 for r in range(1, 7):
     sel = rnd[vai] == r
     if sel.sum(): print(f"  R{r} n={sel.sum():5d} top1 {cva[sel].mean():.3f}")

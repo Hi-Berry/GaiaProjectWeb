@@ -146,7 +146,9 @@ export function OnboardingTour({ steps, onDone }: { steps: TourStep[]; onDone: (
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[400]"
+      /* [2026-09-24] 안내 게이트와 같은 이유 — Radix Dialog가 열려 있으면 body의 pointer-events:none을 상속해
+         이 둘러보기 오버레이의 버튼도 죽는다. 직접 만든 포털이라 명시적으로 되살린다. */
+      className="fixed inset-0 z-[400] pointer-events-auto"
       role="dialog"
       aria-label="화면 둘러보기"
       /* 도움말 창과 같은 이유 — 이 오버레이도 맵 컨테이너 JSX 안이라 휠/터치가 맵 줌으로 올라간다. */

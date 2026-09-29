@@ -99,7 +99,7 @@ import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVar
 import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -472,6 +472,25 @@ function councilPendingActive(game: GaiaGameState): boolean {
 		//    여기 포함하지 않음 — 소유자 해소를 막지 않기 위함.)
 		|| ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange')
 		|| (game as any).pendingEclipseAsteroidMine || (game as any).pendingEclipseResearch);
+}
+
+/** [버그수정 2026-09-25 사용자 제보 "6원 액션에서 포머 바꾸시겠습니까 확인을 눌러도 안 지어지고 안 넘어간다"]
+ *  이클립스 6C(소행성 건설)·2K+3P(트랙 선택)는 **그 사람이 해소해야 하는 자기 대기**인데,
+ *  councilPendingActive가 이것까지 포함해서 프리 액션(변환·번·발타크 포머→QIC)을 소유자에게도 막았다.
+ *  그래서 거리 QIC가 모자라 뜬 '포머를 QIC로 바꿀까요?' 확인창에서 확인을 눌러도 변환이 조용히 무시되고,
+ *  이어지는 건설이 QIC 부족으로 false를 반환해 아무 일도 안 일어났다(양쪽 다 조용한 실패라 무반응으로 보임).
+ *  reset_turn이 이미 쓰는 패턴대로(내 대기는 내가 푼다) **내 이클립스 대기는 프리 액션을 막지 않는다**.
+ *  남의 대기와 의회/팅커/아이타 대기는 종전대로 차단 — 메인 액션 쪽 가드(councilPendingActive)는 건드리지 않는다. */
+function freeActionBlockedByPending(game: GaiaGameState, playerId: string): boolean {
+	const ecMine = (game as any).pendingEclipseAsteroidMine as { playerId?: string } | null | undefined;
+	const ecRes = (game as any).pendingEclipseResearch as { playerId?: string } | null | undefined;
+	if (ecMine && ecMine.playerId !== playerId) return true;
+	if (ecRes && ecRes.playerId !== playerId) return true;
+	return !!(game.pendingItarsGaiaformerExchange || game.pendingTerranCouncilBenefit
+		|| (game as any).pendingTinkeroidSpecialChoice
+		|| (game.terranCouncilQueue?.length ?? 0) > 0
+		|| ((game as any).terranCouncilQueueAfterItars?.length ?? 0) > 0
+		|| ((game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange'));
 }
 
 /** [상태 페이지 실시간 안내 2026-08-04, 사용자] 상태 페이지의 '여기서 플레이하세요' 안내를
@@ -890,7 +909,15 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	const fullGameState = JSON.parse(zlib.gunzipSync(entry.gz).toString('utf8'));
 	const restored = deepClone(fullGameState) as ServerGameState;
 	const synthStart: any = { gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength };
-	restored.gameLog = restoreGameLogForReset(game, synthStart, entry.playerId);
+	// [롤백 표시 2026-09-23] 되돌린 행동을 로그에서 지우지 않고 rolledBack으로 표시해 남긴다(클라가 빨간 배경+취소선으로 렌더).
+	let rolledBackSince: number | null = null;
+	restored.gameLog = restoreGameLogForReset(game, synthStart, entry.playerId, {
+		markRolledBack: true,
+		onRemoved: (removed) => { rolledBackSince = Math.min(...removed.map(e => e.timestamp || 0).filter(t => t > 0)); },
+	});
+	// 분석용 풀 로그(fullGameLog)는 append-only라 되돌린 행동이 '진짜 한 행동'처럼 섞여 있었다
+	// (실측: 롤백 1회 이상인 게임에서 주요 행동이 실제보다 6~11개 많음). 같은 시점 이후를 표시해 사후 분석이 걸러낼 수 있게 한다.
+	if (rolledBackSince != null && Number.isFinite(rolledBackSince)) markFullGameLogRolledBack(game.id, rolledBackSince);
 	restored.humanActionJournal = (game.humanActionJournal || []).slice(0, entry.humanActionJournalLength || 0);
 	clearFreeActionUndo(restored);
 	restored.turnStartState = { [entry.playerId]: buildTurnStartStateEntryForPlayer(restored, entry.playerId) };
@@ -910,7 +937,11 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback): ${err}`, 'error'));
 }
 
-function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string): NonNullable<GaiaGameState['gameLog']> {
+/** [롤백 표시 2026-09-23 사용자] opts.markRolledBack=true면 잘라낼 꼬리를 버리지 않고 `rolledBack: true`로 표시해 그대로 둔다.
+ *  (사용자: "롤백하면 있던 로그가 사라져서 헷갈린다 — 빨간 배경/엑스로 남겨 달라")
+ *  턴 리셋(내 턴 되돌리기)은 호출이 6곳이고 매번 빨간 줄이 쌓이면 로그가 지저분해지므로 기본값은 종전대로 '삭제'.
+ *  seq 경로에서만 표시한다 — 레거시 길이 슬라이스 경로는 표시된 엔트리가 길이에 섞이면 계산이 틀어진다. */
+function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string, opts?: { markRolledBack?: boolean; onRemoved?: (removed: NonNullable<GaiaGameState['gameLog']>) => void }): NonNullable<GaiaGameState['gameLog']> {
 	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
 	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
 	const live = (game.gameLog || []) as NonNullable<GaiaGameState['gameLog']>;
@@ -920,7 +951,14 @@ function restoreGameLogForReset(game: ServerGameState, startState: any, playerId
 	const liveSeq = (game as any).gameLogSeq;
 	if (typeof liveSeq === 'number' && typeof startState.gameLogSeqAt === 'number') {
 		const added = Math.max(0, Math.min(live.length, liveSeq - startState.gameLogSeqAt));
-		return live.slice(0, live.length - added);
+		const kept = live.slice(0, live.length - added);
+		const removed = added > 0 ? live.slice(live.length - added) : [];
+		if (removed.length) opts?.onRemoved?.(removed);
+		// 이미 표시된 과거 롤백 엔트리는 seq를 올리지 않으므로 위 added 계산에 섞이지 않는다(꼬리에만 쌓임).
+		if (opts?.markRolledBack && removed.length) {
+			return [...kept, ...removed.map(e => ({ ...e, rolledBack: true as const }))];
+		}
+		return kept;
 	}
 	// 레거시(seq 없는 구 스냅샷) 폴백: 기존 길이 슬라이스 + 꼬리 트림
 	const logs = live.slice(0, startState.gameLogLength || 0) as NonNullable<GaiaGameState['gameLog']>;
@@ -4731,6 +4769,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game || game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			// [버그수정 2026-09-23 사용자] 부스터 특수 액션도 '하나의 액션' — 거리 보너스가 켜진 턴엔 전부 차단(사용자 확정).
+			//   특히 range_3은 트왈 +3거리 위에 또 켜져 보너스가 중첩됐고(다른 7곳 가드가 막던 바로 그 중복), gaia_project도
+			//   '거리 보너스 + 특수 액션' 조합이라 동일하게 막는다. 허용 목록(광산·포머·소행성·우주선 입장)은 일반 메인 액션 경로만.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 
@@ -5060,6 +5102,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (game.hasDoneMainAction) return;
 			const player = game.players[playerId];
 			const entered = player.spaceshipsEntered ?? [];
@@ -5226,7 +5273,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			executeEclipseBuildAsteroidMine(io, game, playerId, tileId, qicToSpend);
+			// [버그수정 2026-09-25 사용자 제보] 실패해도 조용히 false만 돌려줘 "확인을 눌러도 아무 일이 없다"로 보였다.
+			//   (실제 원인은 그 앞의 포머→QIC 변환이 자기 대기에 막힌 것. 여기서도 사유를 알려 다음엔 원인이 보이게 한다.)
+			if (!executeEclipseBuildAsteroidMine(io, game, playerId, tileId, qicToSpend)) {
+				const p = game.players[playerId];
+				const tile = game.map.find(t => t.id === tileId);
+				const why = !game.pendingEclipseAsteroidMine ? '이 액션이 진행 중이 아닙니다'
+					: game.pendingEclipseAsteroidMine.playerId !== playerId ? '다른 플레이어의 액션입니다'
+					: !tile || tile.type !== 'asteroid' ? '소행성 칸이 아닙니다'
+					: tile.structure !== null ? '이미 건물이 있습니다'
+					: getStructureCount(game, playerId, 'mine') >= BUILDING_LIMITS.mine ? '광산 한도(8개)에 도달했습니다'
+					: `거리 QIC가 부족합니다 (보유 ${p?.qic ?? 0})`;
+				socket.emit('game_error', { message: `소행성 광산 건설 불가: ${why}` });
+			}
 		});
 
 		// 트왈라잇 액션1: 보유 연방 중 하나 선택 후 해당 해택 재수령 (federation reward id)
@@ -5330,6 +5389,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (game.hasDoneMainAction) return;
 
 			const player = game.players[playerId];
@@ -5578,7 +5642,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_hadsch_hallas_pi_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (councilPendingActive(game)) return;
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석)
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeUseHadschHallasPIAction(io, game as ServerGameState, playerId, actionId);
 		});
@@ -5590,7 +5654,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
@@ -5601,7 +5665,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증 (클라 버튼 비활성과 별개로 막음)
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
@@ -5618,7 +5682,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 프리액션은 자기 턴(메인 단계)에만 가능 — 서버 권위 검증
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			pushFreeActionUndoSnapshot(game);
@@ -5969,6 +6033,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (player.faction !== 'ambas') return;
 			if (player.usedSpecialActions?.includes('ambas-swap-pi-mine')) return;
 
@@ -5997,6 +6066,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (player.faction !== 'bescods') return;
 			if (player.usedSpecialActions?.includes('bescods-advance-lowest')) return;
 
@@ -6032,6 +6106,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
+			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
+			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
+			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
+			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			if (player.faction !== 'moweyip') return;
 			if (player.usedSpecialActions?.includes('moweyip-place-ring')) return;
 			if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return;
@@ -6095,6 +6174,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('firaks_downgrade', ({ gameId, tileId, trackId }: { gameId: string; tileId: string; trackId: ResearchTrack }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; } // [2026-09-23] 거리 보너스 중 비-거리 메인 액션 차단(위 주석 참조)
 			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); emitGameUpdated(io, game); }
 		});
 

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, storeSpectatorId, type GameState, type PlayerState } from '@/lib/gameClient';
+import { getCommitSeq } from '@/lib/turnCommit';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
@@ -300,11 +301,21 @@ export default function Game() {
   const handleWatchAsSpectator = async () => {
     if (!gameId) return;
     setWatchBusy(true);
+    setRejoinMsg('');
     try {
-      const res = await GameClient.watchGame(gameId);
+      /* [버그수정 2026-09-24 사용자 제보 "관전으로 보기 버튼을 눌러도 아무것도 안 된다"]
+         서버 watch_game은 2026-08-01부터 이름을 필수로 받는데(채팅·관전자 목록 표기용), 2026-09-02에 추가된
+         이 안내 게이트는 이름 없이 호출해 항상 '관전하려면 이름을 입력하세요'로 거부당했다. 게다가 실패 토스트는
+         z-[200]이고 이 모달이 z-[400]이라 화면 뒤에 가려져, 사용자에겐 '눌러도 무반응'으로 보였다.
+         → 입력한 이름(없으면 이 기기에 저장된 이름, 그것도 없으면 '관전자')을 실어 보내고,
+           실패 사유는 토스트 대신 모달 안에도 띄운다. */
+      const name = rejoinName.trim() || (localStorage.getItem('gaia-playerName') || '').trim() || '관전자';
+      const res = await GameClient.watchGame(gameId, name);
+      localStorage.setItem('gaia-playerName', name);
       storeSpectatorId(gameId, res.spectatorId);
       window.location.reload(); // 저장된 관전 ID로 정상 관전 부트
     } catch (e: any) {
+      setRejoinMsg(e?.message || '관전 입장에 실패했습니다.');
       toast({ title: '관전 입장 실패', description: e?.message || '', variant: 'destructive' });
       setWatchBusy(false);
     }
@@ -329,6 +340,10 @@ export default function Game() {
   };
   const [pendingAction, setPendingAction] = useState<PotentialAction | null>(null);
   const [loading, setLoading] = useState(true);
+  /** [2026-09-25] 표시 고정용 — 남의 턴 진행 중에 보여줄 '확정 시점' 상태와 그때의 commitSeq.
+   *  훅이므로 반드시 컴포넌트 최상단에서 선언한다(아래쪽은 이른 반환이 있어 훅 순서가 깨진다). */
+  const committedGameRef = useRef<GameState | null>(null);
+  const lastCommitSeqRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
   const [isResearchOpen, setIsResearchOpen] = useState(false);
@@ -379,6 +394,10 @@ export default function Game() {
     | { kind: 'mine'; tileId: string; useGaiaformer?: boolean; converts: number; label: string }
     | { kind: 'eclipse'; tileId: string; qicToSpend: number; converts: number; label: string }
     | { kind: 'gaiaformer'; tileId: string; qicUsed: number; converts: number; label: string }
+    /* [사용자 2026-09-25] 우주선 입장·잊혀진 행성도 나머지 6곳과 같은 확인창을 거친다 — 포머는 그 라운드
+       동안 잠기는 비용이라 "바로 실행"보다 확인을 받는 편이 일관적이라는 사용자 판단. */
+    | { kind: 'shipEnter'; tileId: string; useRangeBonus: boolean; qicToUse: number; converts: number; label: string }
+    | { kind: 'lostPlanet'; tileId: string; qicToSpend: number; converts: number; label: string }
     | null
   >(null);
   /** [사용자 2026-08-13] 연방 위성 / 인공물처럼 '토큰 개수'로 내는 비용이 모자랄 때
@@ -1657,11 +1676,12 @@ export default function Game() {
        '마지막으로 시작된 턴'이므로, 그보다 앞선 seq는 이미 끝난 턴이라 되돌릴 수 없다.
        진행 중인 턴의 줄은 보류했다가 턴이 넘어간 뒤 읽는다(처음 요청대로 '액션 완료 시점').
        게임이 끝나면 더 기다릴 것이 없으므로 남은 줄을 전부 읽는다. */
-    const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
     /* [사용자 2026-08-24 "A 가져가고 B 가져가면 그제야 A 소리"] 보류는 리셋(Undo)이 가능한
        main 단계에서만. 시작 광산·보너스 선택은 고르는 즉시 턴이 넘어가 되돌릴 수 없는데도
-       보류가 걸려, 다음 사람 턴 시작(대개 그 사람의 선택과 같은 패킷)에야 읽혀 한 박자 늦었다. */
-    const commitSeq = game.currentPhase !== 'main' || !marks.length ? null : Math.max(...marks);
+       보류가 걸려, 다음 사람 턴 시작(대개 그 사람의 선택과 같은 패킷)에야 읽혀 한 박자 늦었다.
+       [2026-09-25] 기준 계산을 getCommitSeq 하나로 합쳤다 — 로그·보드와 안내가 어긋나면
+       화면엔 이미 뜬 줄을 한참 뒤에 읽는다. */
+    const commitSeq = getCommitSeq(game);
     let done = from;
     /** 이 패스에서 아직 본 액션을 못 만난 준비 동작 — 만나면 한 문장으로 합친다 */
     let pendingEnabler: { playerId: string; win: number; parts: string[] } | null = null;
@@ -2140,6 +2160,25 @@ export default function Game() {
   /** 발타크가 지금 QIC로 바꿀 수 있는 포머 수 (다른 종족은 이 능력 자체가 없어 0). */
   const balTakSpareGaiaformers = (p: typeof currentPlayer): number =>
     (p && p.faction === 'bal_tak') ? availableGaiaformers(p) : 0;
+
+  /* [사용자 2026-09-25] "로그는 턴 종료 때 뜨게 했는데 보드·자원은 실시간이라 의미가 없다. 고칠 수 있나?"
+     → 남의 턴이 진행되는 동안에는 **그 턴이 시작된 시점의 상태**를 보여주고, 턴이 끝나면 한꺼번에 공개한다.
+       파워 수령 제안이 이미 그렇게 동작하므로(queuedPowerOffers → end_turn에서 공개) 화면도 같은 규칙이 된다.
+       액션 사용 표시(파워 액션·우주선 칸·부스터·특수 액션)도 같은 상태에 들어 있어 함께 턴 종료 때 드러난다.
+     규칙: 내 턴이면 전부 실시간(내가 조작하는 화면은 항상 최신). main 단계가 아니면 실시간.
+     기준(getCommitSeq)은 로그 감추기·액션 음성과 같은 함수를 쓴다. 따로 계산하면 어긋난다 —
+       실제로 턴 종료 후 파워 수령 대기 구간에서 보드만 먼저 열리고 로그는 닫혀 있었다.
+     서버는 건드리지 않는다(클라가 이미 turnMark를 받는다). */
+  const viewCommitSeq = getCommitSeq(game);
+  if (game) {
+    if (viewCommitSeq === null || viewCommitSeq !== lastCommitSeqRef.current) {
+      lastCommitSeqRef.current = viewCommitSeq;
+      committedGameRef.current = game;
+    }
+  }
+  const isMyTurnForView = !!game && game.turnOrder?.[game.currentPlayerIndex] === playerId;
+  /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game). */
+  const viewGame = (!isMyTurnForView && viewCommitSeq !== null && committedGameRef.current) ? committedGameRef.current : game;
 
   /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
   const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
@@ -3934,7 +3973,7 @@ export default function Game() {
         <div className="flex-1 min-h-0">
           <GameBoard
             specialStripQuick={showSpecialStrips ? { on: !stripQuickOff, toggle: () => setStripQuickOff(v => !v) } : undefined}
-            game={game}
+            game={viewGame!}
             playerId={playerId}
             colorOverrides={playerColorOverrides}
             hoveredPlayerId={hoveredPlayerId}
@@ -3965,6 +4004,13 @@ export default function Game() {
               setIvitsSpaceStationMode(false);
             }}
             onPlaceLostPlanet={(tileId, qicToSpend) => {
+              // 발타크: 거리 QIC가 모자라면 포머 변환 확인창(나머지 QIC 동작과 동일)
+              const meL = playerId ? game.players[playerId] : null;
+              const shortL = qicToSpend - (meL?.qic ?? 0);
+              if (meL && shortL > 0 && balTakSpareGaiaformers(meL) >= shortL) {
+                setConfirmQicConvert({ kind: 'lostPlanet', tileId, qicToSpend, converts: shortL, label: '잊혀진 행성 배치' });
+                return;
+              }
               if (gameId) GameClient.placeLostPlanet(gameId, tileId, qicToSpend);
             }}
             ambasSwapPiMineMode={ambasSwapPiMineMode}
@@ -3986,7 +4032,16 @@ export default function Game() {
               }
             }}
             onCancelMoweyipPlaceRing={() => setMoweyipPlaceRingMode(false)}
-            onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse)}
+            onEnterSpaceship={(tileId, useRangeBonus, qicToUse) => {
+              // 발타크: 거리 QIC가 모자라면 나머지 QIC 동작과 동일한 포머 변환 확인창
+              const me = playerId ? game.players[playerId] : null;
+              const shortS = qicToUse - (me?.qic ?? 0);
+              if (me && shortS > 0 && balTakSpareGaiaformers(me) >= shortS) {
+                setConfirmQicConvert({ kind: 'shipEnter', tileId, useRangeBonus, qicToUse, converts: shortS, label: '우주선 입장' });
+                return;
+              }
+              GameClient.enterSpaceship(gameId!, tileId, useRangeBonus, qicToUse);
+            }}
             onUseShipAction={(shipTileId, actionIndex, targetTileId) => handleUseShipAction(shipTileId, actionIndex, targetTileId)}
             onTakeTwilightArtifact={(artifactId) => handleTakeTwilightArtifact(artifactId)}
             onEclipseBuildAsteroidMine={(tileId, qicToSpend) => {
@@ -4262,7 +4317,7 @@ export default function Game() {
                       BonusTiles 그리드(auto-fill minmax 5.25rem)가 폭을 그대로 꽉 채우고 넘치면 다음 줄로 감. */}
                   <div className="w-full">
                     <BonusTiles
-                      game={game}
+                      game={viewGame!}
                       playerId={playerId}
                       isSelectionMode={isMyTurnBonusSelection}
                       onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : undefined}
@@ -4297,14 +4352,14 @@ export default function Game() {
               <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-4 space-y-8 custom-scrollbar">
                 <div className="max-w-6xl mx-auto">
                   <RoundBoard
-                    game={game}
+                    game={viewGame!}
                     playerId={playerId}
                     onEndGame={() => setConfirmPassWithTileId('dummy')}
                   />
                 </div>
                 <div className="h-[1px] bg-white/5 w-full" />
                 <BonusTiles
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   onSelectBonusTile={isMyTurnBonusSelection ? ((tileId) => GameClient.selectBonusTile(gameId!, tileId)) : isMyTurn ? ((tileId) => {
                     if (game.roundNumber === 6) {
@@ -4384,7 +4439,13 @@ export default function Game() {
             //   손이 닿지 않았다. 되돌릴 행동이 많거나(최근 8개까지 표기) 가로 모드일 때만 터져서 간헐적으로 보였다.
             //   → 창 높이를 가시영역으로 제한하고, 본문만 스크롤시키고 버튼 줄은 항상 아래에 고정한다.
             return (
-              <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+              /* [버그수정 2026-09-24 사용자 제보 "롤백 요청할 때 연방 고르는 중이면 승낙·거절 자체가 안 된다"]
+                 연방 보상 선택은 Radix AlertDialog(Game.tsx 5256)이고, Radix는 열려 있는 동안 document.body에
+                 인라인 pointer-events:none을 건다(모달 밖 클릭 차단). 이 투표 창은 Radix가 아니라 직접 만든
+                 오버레이라 z-300으로 위에 떠 있으면서도 그 상속을 받아 버튼이 죽었다. 안내 게이트(15ab7d1)와 같은 원인.
+                 연방 보상뿐 아니라 프리액션·관리자·기술타일 선택 등 다른 Radix 창이 열려 있어도 같은 현상이라,
+                 롤백 투표는 어떤 창 위에서도 눌려야 한다 → 항상 클릭을 받는다. */
+              <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
                 <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-amber-500/40 bg-zinc-950 shadow-2xl">
                   <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-3 space-y-3">
                   <div className="text-amber-300 font-black text-lg">↩ 롤백 요청</div>
@@ -4415,7 +4476,7 @@ export default function Game() {
             );
           }
           return (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 shadow-lg backdrop-blur">
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 pointer-events-auto shadow-lg backdrop-blur">
               <div>↩ 롤백 대기 중: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>
               {/* 누구를 기다리는지 보이게 — 내가 이미 동의했거나 대상이 아니어도 진행 상황은 알아야 한다 */}
               <div className="mt-1"><RosterList /></div>
@@ -4895,7 +4956,11 @@ export default function Game() {
                     /* [사용자 2026-08-19] z-[65]였을 때 폰 전체화면 패널(z-110·113)이나 보드 오버레이(z-190·200) 뒤에
                        가려 제안이 온 줄 모르고 다른 사람들이 대기하던 문제. 이 창은 남의 턴까지 멈추는 차단 UI라
                        항상 맨 위여야 한다 → 둘러보기(z-400) 아래, 나머지 전부 위인 z-[210]. */
-                    className="fixed top-24 left-1/2 z-[210] flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
+                    /* [버그수정 2026-09-25 전수 점검] Radix Dialog(프리액션·관리자·연방 보상·기술타일 선택 등)가 열려 있으면
+                       그동안 document.body에 인라인 pointer-events:none이 붙어(모달 밖 클릭 차단) 이 창도 상속받아 죽는다.
+                       z-210으로 맨 위에 떠 있는데 수락·거절이 안 눌리면 남의 턴까지 멈춘 채 게임 전체가 막힌다
+                       (안내 게이트 15ab7d1·롤백 투표 c2bc076과 동일 원인 중 가장 치명적인 자리). → 항상 클릭을 받는다. */
+                    className="fixed top-24 left-1/2 z-[210] pointer-events-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 p-2 px-3 md:px-4 bg-zinc-900/95 backdrop-blur-xl border border-blue-500/50 rounded-2xl md:rounded-full shadow-[0_0_30px_rgba(59,130,246,0.2)] max-w-[95vw]"
                     style={isMobileViewport ? ({ zoom: 0.82 } as CSSProperties) : undefined}
                   >
                     <div className="flex items-center gap-3 md:border-r md:border-white/10 md:pr-4">
@@ -5169,6 +5234,10 @@ export default function Game() {
                         GameClient.eclipseBuildAsteroidMine(gameId, confirmQicConvert.tileId, confirmQicConvert.qicToSpend);
                       } else if (confirmQicConvert.kind === 'gaiaformer') {
                         GameClient.placeGaiaformer(gameId, confirmQicConvert.tileId, confirmQicConvert.qicUsed);
+                      } else if (confirmQicConvert.kind === 'shipEnter') {
+                        GameClient.enterSpaceship(gameId, confirmQicConvert.tileId, confirmQicConvert.useRangeBonus, confirmQicConvert.qicToUse);
+                      } else if (confirmQicConvert.kind === 'lostPlanet') {
+                        GameClient.placeLostPlanet(gameId, confirmQicConvert.tileId, confirmQicConvert.qicToSpend);
                       } else {
                         proceedShipAction(confirmQicConvert.shipTileId, confirmQicConvert.actionIndex, confirmQicConvert.targetTileId, { fromOverlay: confirmQicConvert.fromOverlay });
                       }
@@ -5769,23 +5838,39 @@ export default function Game() {
             body 포털 + z-400: 포털 모달(z-200대)·배너들 위에 확실히 덮이도록. */}
         {/* (로비는 이 지점에 오기 전에 GameLobby로 분기되므로 별도 제외 불필요) */}
         {noIdentity && !playerId && !isSpectator && typeof document !== 'undefined' && createPortal(
-          <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          /* [버그수정 2026-09-24 사용자 제보 "버튼을 눌러도 아무것도 동작 안 한다"] Radix Dialog가 열려 있으면
+             그 동안 document.body에 인라인 `pointer-events: none`이 붙는다(모달 밖 클릭 차단). 이 안내 게이트는
+             Radix가 아니라 직접 만든 포털이라 그 상속을 그대로 받아, z-400으로 위에 떠 있는데도 버튼이 전부
+             죽어 있었다(실측: body pointer-events=none, 버튼 computed pointer-events=none,
+             elementFromPoint가 버튼 대신 뒤쪽 스크롤 컨테이너를 반환). URL만 열고 들어오면 그 게임 상태에 따라
+             '부스터 교체' 같은 Radix 다이얼로그가 같이 떠 있는 경우가 흔해 재현이 잦다. → 이 오버레이는 항상 받는다. */
+          <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
             <div className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950 p-6 space-y-4 shadow-2xl">
               <h2 className="text-lg font-black text-white">이 기기에는 접속 정보가 없습니다</h2>
               <p className="text-sm text-zinc-400 leading-relaxed">
                 주소만 복사해 열면 좌석·관전 정보가 없어 게임을 조작하거나 실시간으로 볼 수 없습니다.
                 아래 중 하나로 입장하세요.
               </p>
+              {/* [2026-09-24 사용자] 이름은 관전·좌석 이어하기가 함께 쓰는 값인데 '좌석 이어하기' 상자 안에, 그것도
+                  관전 버튼보다 아래 있어 관전만 하려는 사람에겐 자기 칸으로 안 보였다 → 공용 입력으로 위에 뺀다. */}
+              <div className="space-y-1">
+                <label htmlFor="ng-name" className="block text-[11px] font-black uppercase tracking-wider text-zinc-400">이름</label>
+                <input id="ng-name" value={rejoinName} onChange={(e) => setRejoinName(e.target.value)}
+                  placeholder="관전자 목록·채팅에 표시될 이름"
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleWatchAsSpectator(); }}
+                  className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
+              </div>
               <Button className="w-full h-11 font-bold" disabled={watchBusy} onClick={() => void handleWatchAsSpectator()}>
                 👁 관전으로 보기
               </Button>
+              {/* 실패 사유를 모달 안에 띄운다 — 토스트(z-200)는 이 모달(z-400) 뒤로 가려 안 보인다 */}
+              {rejoinMsg && <div className="text-[11px] text-red-400 -mt-1">{rejoinMsg}</div>}
               <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3 space-y-2">
                 <div className="text-[11px] font-black uppercase tracking-wider text-zinc-400">내 좌석 이어하기 (참가할 때 비밀번호를 걸었던 경우)</div>
-                <input value={rejoinName} onChange={(e) => setRejoinName(e.target.value)} placeholder="이름"
-                  className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
+                <div className="text-[11px] text-zinc-500">위에 적은 이름으로 참가했던 좌석을 되찾습니다.</div>
                 <input value={rejoinPw} onChange={(e) => setRejoinPw(e.target.value)} placeholder="비밀번호" type="password"
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleAccountRejoin(); }}
                   className="w-full h-9 rounded bg-zinc-900 border border-white/10 px-2 text-sm text-zinc-100" />
-                {rejoinMsg && <div className="text-[11px] text-red-400">{rejoinMsg}</div>}
                 <Button variant="outline" className="w-full h-9 text-sm font-bold" onClick={() => void handleAccountRejoin()}>
                   좌석으로 입장
                 </Button>
@@ -6034,7 +6119,12 @@ export default function Game() {
                     return 0; // 둘 다 플레이 중 → turnOrder 순서 유지
                   })
               ).map((id, cardIdx) => {
-                const p = game.players[id] as PlayerState | undefined;
+                // [2026-09-25] 카드에 찍히는 자원·점수·건물·수익은 '확정 시점' 기준(남의 턴 진행 중엔 고정).
+                //   누구 차례인지(isCurrentTurn)·봇 여부는 실시간 game을 그대로 쓴다.
+                //   단 **내 카드는 항상 실시간** — 남의 턴 중에도 내가 리치(파워 수령)를 수락하면
+                //   그 결과가 바로 보여야 한다(내가 누른 것이 화면에 안 나타나면 고장으로 보인다).
+                const cardGame = (id === playerId ? game : (viewGame ?? game));
+                const p = cardGame.players[id] as PlayerState | undefined;
                 if (!p) return null;
                 const fedEntries = getFederationEntries(p);
                 const faction = p.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
@@ -6042,8 +6132,8 @@ export default function Game() {
                 const isYou = id === playerId && !isBot;
                 const isCurrentTurn = game.turnOrder?.[game.currentPlayerIndex] === id;
                 const expanded = expandedPlayerId === id;
-                const counts = getStructureCountsForPlayer(game, id);
-                const incRaw = getNextRoundIncomePreview(id, game, { excludeBonusTiles: true });
+                const counts = getStructureCountsForPlayer(cardGame, id);
+                const incRaw = getNextRoundIncomePreview(id, cardGame, { excludeBonusTiles: true });
                 // 마지막 라운드(6)엔 받을 다음 수익이 없으므로 상태창 수익 표시(+N)를 숨긴다(사용자 요청)
                 const inc = game.roundNumber >= 6
                   ? { ...incRaw, ore: 0, credits: 0, knowledge: 0, qic: 0, powerTokens: 0, powerCharge: 0 }
@@ -7138,6 +7228,7 @@ export default function Game() {
                 ) : (
                   <GameLog
                     game={game}
+                    myPlayerId={playerId}
                     hideHeader
                     className="w-full"
                     maxHeight="none"
@@ -7298,7 +7389,11 @@ export default function Game() {
       )}
       {/* 모바일 로그 버튼 삭제(사용자 요청) → 우측 패널 상단의 상태창/로그 탭으로 전환. Menu 버튼도 GameBoard 상단으로 이동됨.
           좌측 info(기술/우주선/라운드)처럼 우측을 상태창/로그로 전환. 패널 상단에 고정 탭(분할=50%, 가로=0). */}
-      {isMobileViewport && (isSidebarOpen || splitActive) && game && game.currentPhase !== 'factionBidding' && (
+      {/* [버그수정 2026-09-25 사용자 제보 "비딩 중에는 로그 자체가 안 보인다"] 폰에서 로그로 가는 길은 이 탭뿐인데
+          비딩 단계가 제외돼 있어, 종족을 잘못 고르고도 롤백 진입점(로그 줄 → '여기로 롤백 요청')에 닿을 수 없었다.
+          서버는 factionBidding 롤백을 이미 허용하고(2026-09-09) 넓은 화면에서는 같은 상황에서 로그가 보인다 —
+          폰만 막혀 있던 것. 제외를 푼다. */}
+      {isMobileViewport && (isSidebarOpen || splitActive) && game && (
         <div
           className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${myTurnTabBarClass} ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
           style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
@@ -7353,6 +7448,7 @@ export default function Game() {
               ) : (
                 <GameLog
                   game={game}
+                  myPlayerId={playerId}
                   hideHeader
                   showToolbar={logFilterOpen}
                   className="w-full"
@@ -7701,7 +7797,7 @@ export default function Game() {
                       : renderInfoRoundBonus()
                 ) : (
                 <ResearchBoard
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   isMini={true}
                 onUsePowerAction={(actionId) => handleUsePowerAction(actionId)}
@@ -7795,13 +7891,13 @@ export default function Game() {
             >
               <MiniScaledContent panelWidth={bonusMiniWidth} className="flex flex-col gap-4">
                 <RoundBoard
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   isMini={true}
                 />
                 <div className="h-[1px] bg-white/10 w-full" />
                 <BonusTiles
-                  game={game}
+                  game={viewGame!}
                   playerId={playerId}
                   isMini={true}
                   onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {

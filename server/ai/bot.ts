@@ -52,6 +52,7 @@ import {
     executePlaceLostPlanet,
     getPlayerPlanetTypesForGeodens,
     emitGameUpdated,
+    getFederationRequiredPower,
 } from '../gameState';
 import { FederationPlanner } from './federationPlanner';
 import { log } from '../index';
@@ -1386,6 +1387,15 @@ export class BotLogic {
                         log(`Bot ${player.name} twiFireEarly: 트왈 3Q 연방보상 선점 발사 (R${rq}, q${qNow})`, 'game', game.id);
                         return { type: 'use_ship_action', params: { shipTileId: twiTile.id, actionIndex: 1 } };
                     }
+                    // [flag: techFedLoop] 기술연방 보유 + 트왈 탑승 + 슬롯 미사용인데 QIC가 3 미만이면 4P→1Q(그릇3)로 채워 즉시 발사 —
+                    //   재수령 = 기술타일+트랙 1칸(~8VP)이라 4파워/QIC 환율로도 남는 장사. 타클론(브레인 회계) 제외.
+                    if (getPlayerFlag(playerId, 'techFedLoop', false) && onTwi && twiTile && twiUnused && this.hasTechFed(player)
+                        && player.faction !== 'taklons' && qNow < 3 && qNow + Math.floor((player.power3 ?? 0) / 4) >= 3
+                        && !candidates.some(c => c.type === 'form_federation')) {
+                        const k = 3 - qNow;
+                        log(`Bot ${player.name} techFedLoop: 4P→1Q ×${k} 변환 후 트왈 3Q 기술타일 재수령 (R${rq}, q${qNow}, p3 ${player.power3})`, 'game', game.id);
+                        return { type: 'use_ship_action', params: { shipTileId: twiTile.id, actionIndex: 1 }, preActions: Array.from({ length: k }, () => ({ type: 'convert_resource' as const, params: { type: '4power-to-1qic' } })) };
+                    }
                     // [flag: rebelPrepPlus ②] 엠바스식 Nav 선행 입장(사용자): 3Q를 이미 들고 있는데 리벨이 사거리 밖이면
                     // QIC 점프 입장은 3정큐 스택 파괴 — Nav 연구 1레벨로 사거리 내가 되면 연구 먼저(무료 입장 + 3Q 보존).
                     // navBeforeJump(채택)의 입장 버전.
@@ -1787,9 +1797,29 @@ export class BotLogic {
                 if (!isSimulate && !game.simulation && getPlayerFlag(playerId, 'humanPolicyTopK', true)) {
                     const K = getPlayerFlag(playerId, 'humanPolicyK', 3);
                     if (candidates.length > K + 1) {
-                        const pr = pruneByHumanPolicy(game, playerId, candidates as any, K, getPlayerFlag(playerId, 'humanPolicyV2', false) ? 2 : 1); // [flag: humanPolicyV2] 확장 피처 모델(A/B용)
+                        const pr = pruneByHumanPolicy(game, playerId, candidates as any, K, getPlayerFlag(playerId, 'humanPolicyV2', false) ? 2 : getPlayerFlag(playerId, 'humanPolicyV3', false) ? 3 : 1); // [flag: humanPolicyV2] 확장 피처 모델(A/B용) · [flag: humanPolicyV3] 고득점 좌석만 학습한 v2 피처 모델(A/B용)
                         if (pr) {
                             mctsCands = pr.kept as any;
+                            // [flag: nextFedClusterKeep 2026-09-22] 후보 점수는 '후보 진입(광산 상한 10)'만 정하고 최종 선택은 정책 프루닝(K=3)→MCTS라
+                            //   nextFedCluster 가점만으로는 배치가 안 바뀜(40판: 최대 미연방 조각 2.27 vs 2.34 불변). 정책이 자른 뒤에도
+                            //   '다음 연방 군집 기여 최고' 광산 1개를 예약 슬롯으로 남겨 MCTS가 보게 한다(asteroidCandOpen 패턴, 선택은 MCTS).
+                            const nfcKeepW = getPlayerFlag(playerId, 'nextFedCluster', 0);
+                            if (nfcKeepW > 0 && getPlayerFlag(playerId, 'nextFedClusterKeep', false)) {
+                                let best: any = null, bestV = -Infinity;
+                                for (const c of candidates as any[]) {
+                                    if (c.type !== 'build_mine' || !c.params?.tileId) continue;
+                                    const t = game.map.find(x => x.id === c.params.tileId); if (!t) continue;
+                                    const v = this.nextFedClusterValue(game, playerId, t, nfcKeepW);
+                                    if (v > bestV) { bestV = v; best = c; }
+                                }
+                                // 예약 문턱: 기본 4w = 3파워 이상 조각에 붙는(또는 7 완성) 광산만. [flag: nextFedClusterKeepMin] 2 = 미연방 내 건물 1개라도 인접하면 예약
+                                //   (v1 4w는 40판에서 22회만 발동 — 첫 연방 뒤 미연방 조각이 1~2파워 파편이라 3파워 조각 자체가 드묾).
+                                const keepMin = getPlayerFlag(playerId, 'nextFedClusterKeepMin', 4);
+                                if (best && bestV >= nfcKeepW * keepMin && !(mctsCands as any[]).includes(best)) {
+                                    (mctsCands as any[]).push(best);
+                                    log(`Bot ${player.name} nextFedClusterKeep: 군집 광산 예약 ${best.params.tileId} (v=${bestV.toFixed(0)})`, 'game', game.id);
+                                }
+                            }
                             log(`Bot ${player.name} humanPolicyTopK: ${candidates.length}→${mctsCands.length} (top ${mctsCands.slice(0, 3).map((c: any, i: number) => `${c.type}${c.params?.target ? ':' + c.params.target : ''}${c.params?.actionIndex != null ? '#' + c.params.actionIndex : ''} ${pr.probs[i].toFixed(2)}`).join(' | ')})`, 'game', game.id);
                             // [flag: humanPolicyOverride] 정책 확신(top1−top2 마진)이 임계 이상이면 MCTS 없이 직접 픽(earlyHumanOverride의 전 라운드판).
                             //   오프라인: 마진≥0.5 = 결정의 12.6%, 정확도 74.8% / ≥0.4 = 18.4%, 68.2%. 패스·변환은 제외(패스 조기화 위험).
@@ -2321,7 +2351,14 @@ export class BotLogic {
         //   79~83%가 '위성 지불 후 잔여 토큰 ≤2'(후보 있던 경우는 5~8%). 봇 예비(getPowerTokenReserve R3~4=3, 리필 감안 1~3)가
         //   그 연방을 통째로 거른다 = 사람은 12VP/8VP+1Q 연방을 위해 토큰을 바닥까지 쓴다. 연방 후보에 한해 예비를 1로 완화
         //   (후보 추가만, 최종 선택은 MCTS). R5+는 예비가 이미 1/0이라 무영향.
-        const fedReserveRelax = getPlayerFlag(playerId, 'fedReserveRelaxR34', true) && _round >= 3 && _round <= 4;
+        // [flag: fedReserveRelaxR12 2026-09-22] 사람 연방 1,362건 리플레이 진단(script/fedReplayProbe.ts): 플래너는 89%에서 후보를 찾는데
+        //   봇 예비 가드(R1-2=4)가 사람 R2 연방의 절반(127건 중 예비4 통과 60·예비1 통과 118), R1은 50 중 30만 통과시킨다.
+        //   사람은 R2에도 위성 지불 후 잔여 토큰 중앙값 3으로 연방을 만든다 → R1-2도 연방 후보에 한해 예비 1로 완화.
+        const techShipType = getPlayerFlag(playerId, 'techFedLoop', false) && _round <= 3 ? this.techFedShipType(game) : null;
+        const techFedReachable = !!techShipType && (player.spaceshipsEntered ?? []).some(id => game.map.find(t => t.id === id)?.type === techShipType);
+        const fedReserveRelax = (getPlayerFlag(playerId, 'fedReserveRelaxR34', true) && _round >= 3 && _round <= 4)
+            || (getPlayerFlag(playerId, 'fedReserveRelaxR12', false) && _round <= 2)
+            || techFedReachable; // [flag: techFedLoop] 기술연방을 뽑을 수 있는 배에 탔으면 첫 연방을 서둔다(토큰 예비 1)
         // [flag: fedGapDiag] 계측(기본 OFF, 순수 로깅): R3+에서 연방 후보가 0개로 끝나는 결정의 기계적 원인 분포.
         const fedDiag = getPlayerFlag(playerId, 'fedGapDiag', false) && _round >= 3 && !game.simulation;
         const plannerDiag = FederationPlanner.lastDiag;
@@ -2330,10 +2367,16 @@ export class BotLogic {
             const spent = fedAction.spentTokens ?? 0;
             const tokenSurplus = totalPowerTokens - spent;
             // R≥3은 비싼 연방도 적극 허용, R≥4는 토큰 부족해도 일단 후보로 넣어 MCTS가 판단
-            const allowEarlyExpensiveFed = _round >= 4 || (_round >= 3 && (spent <= 6 || tokenSurplus >= 4)) || spent <= 2 || tokenSurplus >= 8;
-            const spendOk = fedReserveRelax
+            // [flag: earlyFedSat4 2026-09-22] 봇 자가대국 R1-2 리플레이 프로브(script/botEarlyFedProbe.ts, 120석): R2에 플래너 후보가 있는 좌석 53%인데
+            //   기존 게이트(위성≤2 또는 잔여≥8)+예비4를 통과하는 좌석은 10%, 실제 연방 9석 — 후보가 들어가면 MCTS는 대부분 고른다(11→9).
+            //   봇 R2 최소 위성은 3~6개가 80%(건물이 흩어져서). 사람 첫 연방(1,484건): 위성 ≤4가 97%, 지불 후 잔여 토큰 중앙값 4, 잔여<1은 4%.
+            //   → R1-2도 위성 ≤4·잔여 ≥2면 후보로 넣는다(사람 분포 안). 게이트 sat4_s2 통과 좌석 R1 4→8, R2 11→32(115석 중).
+            const earlySat4 = getPlayerFlag(playerId, 'earlyFedSat4', false) && _round <= 2 && spent <= 4
+                && (tokenSurplus >= 2 || player.faction === 'ivits');
+            const allowEarlyExpensiveFed = earlySat4 || _round >= 4 || (_round >= 3 && (spent <= 6 || tokenSurplus >= 4)) || spent <= 2 || tokenSurplus >= 8;
+            const spendOk = earlySat4 || (fedReserveRelax
                 ? (totalPowerTokens - spent >= 1 || player.faction === 'ivits')
-                : this.canSpendPowerTokensForStrategicAction(game, player, spent);
+                : this.canSpendPowerTokensForStrategicAction(game, player, spent));
             if (fedDiag) { if (!allowEarlyExpensiveFed) fedDropEarly++; else if (!spendOk) fedDropReserve++; else fedPushed++; }
             if (allowEarlyExpensiveFed && spendOk) {
                 // [flag: fedSpendBowl3] 사용자 관찰: 제노스 등이 연방하려 충전한 bowl3 토큰을 안 쓰고 그대로 둔 채 연방함.
@@ -2463,6 +2506,23 @@ export class BotLogic {
         }
 
         if (buildActions.length > 0) candidates.push(...buildActions);
+
+        // [flag: mineOreJit 2026-09-22] 사람 광산 갭 리프로브(7,513건)에서 '턴 시작 자원으론 불가(변환 후 건설)' **1,523건**이 미착수로 남아 있었다.
+        //   findBuildActions는 잔고(ore)만 보고 후보를 만들어서, 광석 0이면 3P→1O·1Q→1O로 낼 수 있는데도 광산 후보가 0개가 된다(자원기아 조기 반환).
+        //   자원원장 실측(2026-09-22, 봇 600석 vs 사람 1,724석): 프리액션 순광석 **사람 +1.8(3P→1O 0.71·1Q→1O 0.55) vs 봇 −0.8**, 게임당 광석 수입 22.6 vs 31.8.
+        //   ※ 광산 '강제' 축은 7연속 기각(mineFirstExpansion·mineKeepGate·expansionMineDrive…)이라 강제가 아니라 **후보 개방**(asteroidCandOpen·tfMineCandOpen 패턴).
+        //   ※ tsOreConvert v1(무제한 변환 개방 −8.20)의 교훈대로 게이트를 좁힌다: 이번 턴 광산 후보가 **0개**일 때만 · 변환 N회 이내 · 우주선 QIC 예비 불가침.
+        const jitN = getPlayerFlag(playerId, 'mineOreJit', 0);
+        // [flag: mineOreJitR13] v1(전 라운드·변환 2회, 48회 발동) = VP −3.04 · 광산 −0.32 · 파워액션 −0.44: 파워를 태워 광산을 열었는데
+        //   광산이 안 늘고 파워액션만 잃었다(shipActionBurn·tsOreConvert v1과 같은 '번-조달' 실패형). 광석 복리가 의미 있는 R1-3으로 좁혀 재측정.
+        const jitRoundOk = !getPlayerFlag(playerId, 'mineOreJitR13', false) || (game.roundNumber ?? 1) <= 3;
+        if (jitN > 0 && jitRoundOk && !game.simulation && !candidates.some(c => c.type === 'build_mine')) {
+            const jit = this.mineOreJitCandidate(game, playerId, jitN);
+            if (jit) {
+                candidates.push(jit);
+                log(`Bot ${player.name} mineOreJit: 변환 ${(jit.preActions ?? []).length}회 후 광산 후보 개방 ${(jit.params as any)?.tileId}`, 'game', game.id);
+            }
+        }
 
         // [flag: asteroidMainCandidate] per-candidate 데이터: 사람 소행성광산 48건이 봇 후보에 없었음 —
         // Eclipse 6C 소행성이 findAlternativeBuildAction(자원기아·광산캡 *폴백*)에만 있어 정상 상황에선 MCTS가 검토 불가.
@@ -5719,6 +5779,38 @@ export class BotLogic {
         actions.sort((a, b) => b.score - a.score);
         return actions.slice(0, 4).map(a => a.action); // 상위 4개로 확장
     }
+    /** [flag: mineOreJit] 광석만 모자라 광산 후보가 0개인 턴에, 잉여 파워(3P→1O)·QIC(1Q→1O)를 광석으로 바꿔 광산 1개를 후보로 연다.
+     *  변환을 최소 횟수만 시도하고(1회로 열리면 1회), 열리지 않으면 null — 후보 추가일 뿐 선택은 MCTS. */
+    private static mineOreJitCandidate(game: ServerGameState, playerId: string, maxConv: number): BotAction | null {
+        const player = game.players[playerId];
+        if (!player) return null;
+        if ((player.credits ?? 0) < 2) return null;      // 광산은 1O2C — 크레딧이 없으면 변환해도 못 지음
+        if (player.faction === 'taklons') return null;   // 브레인스톤 파워 회계 특수(전례: charge-drain·fedSpendBowl3도 제외)
+        const hasNevlasPI = player.faction === 'nevlas'
+            && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
+        const powType = this.nevlasOreConvType(playerId, player, hasNevlasPI);
+        const powCost = powType === '2power-to-1ore-1credit' ? 2 : 3;
+        const powGain = powType === '3power-to-2ore' ? 2 : 1;
+        const qicReserve = this.computeShipQicReserve(game, playerId);
+        const pre: BotAction[] = [];
+        let ore = player.ore ?? 0, qic = player.qic ?? 0, p1 = player.power1 ?? 0, p3 = player.power3 ?? 0;
+        for (let k = 0; k < maxConv; k++) {
+            // 파워 우선(토큰은 bowl3→bowl1 이동이라 개수 불변 = 연방 위성 지불력 무영향), 그다음 우주선 예비를 넘는 QIC
+            if (p3 >= powCost) {
+                pre.push({ type: 'convert_resource', params: { type: powType, useBrain: false } });
+                p3 -= powCost; p1 += powCost; ore += powGain;
+            } else if (qic - 1 >= qicReserve) {
+                pre.push({ type: 'convert_resource', params: { type: '1qic-to-1ore' } });
+                qic -= 1; ore += 1;
+            } else break;
+            const g2 = { ...game, players: { ...game.players, [playerId]: { ...player, ore, qic, power1: p1, power3: p3 } } } as ServerGameState;
+            let mine: BotAction | undefined;
+            try { mine = this.findBuildActions(g2, playerId).find(a => a.type === 'build_mine'); } catch { return null; }
+            if (mine) return { ...mine, preActions: [...pre, ...(mine.preActions ?? [])] };
+        }
+        return null;
+    }
+
     private static findAlternativeBuildAction(game: ServerGameState, playerId: string): BotAction | null {
         const player = game.players[playerId];
         const credits = player.credits ?? 0;
@@ -7813,6 +7905,11 @@ export class BotLogic {
             // 입장 점수(50+best*0.5)가 빌드(~300)보다 낮아 후순위로 밀려 봇이 우주선을 안 탐 → R1-2엔 입장을
             // 빌드와 경쟁하게 부스트. 특히 Rebellion(Nav+1=영구 +사거리=봇 reach 약점 직격, 사용자 "거의 이기는 액션")
             // 과 미보유 기술타일 우주선을 강하게. self-play는 contention 못 재현하니 boarding률 검증 + VP는 1:3로 판정.
+            // [flag: techFedLoop] 기술연방 보상이 붙은 배(미선점)에 R≤3·연방 0개일 때 입장 우대 — 입장 총량이 아니라 '어느 배'를 바꿈.
+            if (getPlayerFlag(playerId, 'techFedLoop', false) && round <= 3
+                && getFederationEntries(player).length === 0 && this.techFedShipType(game) === tile.type) {
+                score += 150;
+            }
             if (getPlayerFlag(playerId, 'r1ShipPriority', true) && round <= 2) {
                 score += 180; // 입장을 빌드와 경쟁권으로
                 const techId = (game.shipTechByShip ?? SHIP_TECH_BY_SHIP)[tile.type || ''];
@@ -7941,11 +8038,16 @@ export class BotLogic {
                 let action: BotAction | null = null;
 
                 if (shipTile.type === 'ship_twilight') {
-                    if (i === 1 && effShipQic >= 3
+                    // [flag: techFedLoop] 기술연방 보유 시 3Q 부족분을 4P→1Q 변환(그릇3)으로 즉석 조달 — 자가대국 실측: 기술연방+트왈 탑승
+                    //   봇의 이후 91라운드 중 QIC≥3 도달 35%, 3Q 사용 12회. 사람은 4P→1Q·아카QIC·브리지로 매 라운드 3Q를 만든다.
+                    const techFund = (getPlayerFlag(playerId, 'techFedLoop', false) && this.hasTechFed(player) && player.faction !== 'taklons')
+                        ? Math.min(Math.max(0, 3 - effShipQic), Math.floor(p3Now / 4)) : 0;
+                    if (i === 1 && effShipQic + techFund >= 3
                         && !(getPlayerFlag(playerId, 'twilightQicPlan', true) && !this.twilightTimingOk(game, player))) {
                         // [flag: twilightQicPlan v2] 사용자 룰: 재수령은 R4+ 또는 기술연방 후 — 그 전엔 후보 제외(3Q 아낌)
                         score = 350; // 연방 보상 → 매우 강력
                         action = shipQicAction(shipId, i, 3);
+                        if (techFund > 0) action = { ...action, preActions: [...(action.preActions ?? []), ...Array.from({ length: techFund }, () => ({ type: 'convert_resource' as const, params: { type: '4power-to-1qic' } }))] };
                     } else if (i === 1 && (player.qic || 0) >= 0) {
                         score = 230;
                         action = { type: 'use_ship_action', params: { shipTileId: shipId, actionIndex: i } };
@@ -8776,6 +8878,27 @@ export class BotLogic {
         return totalBonus;
     }
 
+    /** [flag: nextFedCluster] 이 칸에 광산을 놓았을 때 '다음 연방 군집' 기여 점수(w=파워 1당). 연방칸 인접(흡수)은 −2w. */
+    private static nextFedClusterValue(game: ServerGameState, playerId: string, tile: HexTile, nfcW: number): number {
+        const fedSet = new Set<string>((game as any).playerFederationHexes?.[playerId] || []);
+        const isOwnB = (t: HexTile) => (t.ownerId === playerId && !!t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === playerId || (t.spaceStation as { ownerId?: string } | null)?.ownerId === playerId;
+        const fedTiles = game.map.filter(t => fedSet.has(t.id));
+        if (fedTiles.some(f => getDistance(f, tile) === 1)) return -2 * nfcW;
+        const powOf = (t: HexTile) => t.ownerId === playerId && t.structure ? (t.structure === 'trading_station' || t.structure === 'research_lab' ? 2 : t.structure === 'planetary_institute' || t.structure === 'academy' ? 3 : 1) : 1;
+        const unfed = game.map.filter(t => isOwnB(t) && !fedSet.has(t.id) && t.id !== tile.id);
+        const chain = (d: number) => {
+            const seen = new Set<string>(); const stack = unfed.filter(t => getDistance(t, tile) === d); stack.forEach(t => seen.add(t.id));
+            while (stack.length) { const x = stack.pop()!; for (const y of unfed) if (!seen.has(y.id) && getDistance(x, y) === 1) { seen.add(y.id); stack.push(y); } }
+            return unfed.filter(t => seen.has(t.id)).reduce((a, t) => a + powOf(t), 0);
+        };
+        const pAdj = chain(1);
+        const req = getFederationRequiredPower(game, playerId);
+        let nfc = nfcW * (1 + Math.min(pAdj, req));
+        if (1 + pAdj >= req) nfc += 3 * nfcW;
+        if (pAdj === 0) nfc += 0.5 * nfcW * Math.min(chain(2), req); // 위성 1개로 잇는 거리(dist2) 조각 — 절반 가치
+        return nfc;
+    }
+
     private static calculateAdjacencyBonus(game: ServerGameState, playerId: string, tile: HexTile): number {
         let bonus = 0;
         const neighbors = game.map.filter(t => getDistance(t, tile) === 1);
@@ -8784,6 +8907,14 @@ export class BotLogic {
         const noInflateFed = getPlayerFlag(playerId, 'noInflateFed', true);
         const fedHexes: string[] = noInflateFed ? ((game as any).playerFederationHexes?.[playerId] || []) : [];
         const clusterCounts = (neighborId: string) => !(noInflateFed && fedHexes.includes(neighborId));
+
+        // [flag: nextFedCluster 2026-09-22] 숫자 플래그(0=OFF, w=파워 1당 가점). 종료 보드 실측(봇 240석 vs 사람 1,725석):
+        //   봇은 연방 1.7(건물연방 1.23) vs 사람 4.0(3.04). 봇 종료 시 미연방 건물 4.9개·6.9파워가 4.5개 조각(최대 조각 2.3파워)으로
+        //   흩어져 있고, 첫 연방 이후 지은 광산이 끝내 연방칸에 들어간 비율 봇 31% vs 사람 83%. 즉 두 번째 7파워 군집이 안 만들어진다.
+        //   기존 +50(인접 내건물)은 '이웃 1개'만 보고 군집 파워 진행도를 안 본다 → 이 광산이 잇는 미연방 조각의 파워(P)에 비례해
+        //   w×(1+P), 7 도달이면 +3w 점프, 연방칸 인접(= 규칙상 기존 연방에 흡수, 새 연방 기여 0)은 −2w. dist2(위성 1개)는 절반.
+        const nfcW = getPlayerFlag(playerId, 'nextFedCluster', 0);
+        if (nfcW > 0) bonus += this.nextFedClusterValue(game, playerId, tile, nfcW);
 
         // [flag: taklonsPowerPos] 타클론은 파워가 생명(브레인스톤 증폭) → 상대 건물(특히 광산: 업글확률↑=리치 더 받음) 옆 포지셔닝을 크게 우대.
         // 사용자 모델: "상대 있는 곳/중앙으로 가서 파워 받을 준비". 봇은 보통 자기영역만 안전 확장해 이 핵심을 놓침.
@@ -9172,6 +9303,20 @@ export class BotLogic {
      *  기술연방(ship-fed-tech) 획득 후에만 노린다 — v1(-9.58)은 조기 예약/사용 압박이 원인. */
     private static twilightTimingOk(game: ServerGameState, player: PlayerState): boolean {
         if ((game.roundNumber ?? 1) >= 4) return true;
+        return getFederationEntries(player).some(e => e.rewardId === 'ship-fed-tech');
+    }
+
+    /** [flag: techFedLoop 2026-09-22] 기술연방(ship-fed-tech) 보상이 아직 안 뽑혔으면 그 보상이 붙은 우주선 타입, 아니면 null.
+     *  실게임: 사람은 222건 중 151건을 R1에 가져가고 이후 트왈 3Q로 매 라운드 타일+트랙 재수령(JJC 2.4회) — 봇은 사람 게임에서 0/294석
+     *  (자가대국에선 10.8%, 첫 연방 R3.1이라 사람 R1에 늘 선점당함). */
+    private static techFedShipType(game: ServerGameState): string | null {
+        const byShip = (game as any).spaceshipFederationByShip as Record<string, string> | undefined;
+        if (!byShip) return null;
+        const taken = Object.values(game.players).some(p => getFederationEntries(p).some(e => e.rewardId === 'ship-fed-tech'));
+        if (taken) return null;
+        return Object.entries(byShip).find(([, rid]) => rid === 'ship-fed-tech')?.[0] ?? null;
+    }
+    private static hasTechFed(player: PlayerState): boolean {
         return getFederationEntries(player).some(e => e.rewardId === 'ship-fed-tech');
     }
 

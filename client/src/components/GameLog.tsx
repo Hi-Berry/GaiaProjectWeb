@@ -5,6 +5,7 @@ import { ChevronsUp, Layers } from 'lucide-react';
 import { type GaiaGameState as GameState, ALL_BONUS_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, SHIP_TECH_TILES, FACTIONS, PLANET_COLORS, RESEARCH_TRACKS, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, ARTIFACTS, FINAL_MISSION_LABELS } from '@shared/gameConfig';
 import { Clock } from 'lucide-react';
 import { raceFaceSrc } from '@/lib/racePortrait';
+import { getCommitSeq } from '@/lib/turnCommit';
 
 /** 팅커로이드 특수 ID → 이미지 (client/public/tinker/tile_0N.png). Game.tsx의 매핑과 동일 순서. */
 const TINKEROID_SPECIAL_IMG: Record<string, string> = {
@@ -41,6 +42,8 @@ interface GameLogProps {
   canRollback?: boolean;
   /** [롤백] 클릭 시 해당 로그 seq로 롤백 요청 (label = 클릭한 로그 요약) */
   onRollbackToSeq?: (seq: number, label?: string) => void;
+  /** [진행 중 로그 2026-09-24] 보는 사람의 playerId — 아직 확정 안 된(되돌릴 수 있는) 줄은 본인에게만 보여준다. 관전자는 undefined. */
+  myPlayerId?: string | null;
 }
 
 export function GameLog({
@@ -56,8 +59,20 @@ export function GameLog({
   showToolbar = true,
   canRollback = false,
   onRollbackToSeq,
+  myPlayerId,
 }: GameLogProps) {
   const logs = game.gameLog || [];
+  /* [사용자 2026-09-24] "연구소 클릭하면 로그에 이미 연구소가 떠 있는데, 그건 언제든 취소할 수 있는 내용이라
+     짓다가 턴 종료를 안 누르면 있던 로그가 사라지고 다른 로그가 남아 헷갈린다."
+     파워 수령 제안이 이미 '턴 종료 시점'에만 열리는 것과 맞춰(queuedPowerOffers → end_turn에서 activate),
+     아직 되돌릴 수 있는 줄은 남에게 감추고 본인에게만 '진행 중'으로 흐리게 보여준다.
+     판정은 액션 음성이 쓰는 규칙 그대로(Game.tsx commitSeq): turnMark(각자 턴 시작 로그 seq) 중 최댓값보다
+     뒤에 붙은 줄이 진행 중. 시작 광산·보너스 선택은 고르는 즉시 턴이 넘어가 되돌릴 수 없으므로 main 단계만 적용.
+     ※ 내 줄은 '내 턴이 끝난 뒤 다음 사람 턴이 시작되기 전'(파워 수령 대기 등)에도 계속 보여야 하므로
+       현재 턴 주인이 아니라 '그 줄의 주인'으로 판정한다 — 안 그러면 턴 종료 직후 내 로그가 잠깐 사라진다. */
+  const commitSeq = getCommitSeq(game);
+  const isProvisional = (e: { seq?: number }) => commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq;
+  const canSeeProvisional = (e: { playerId?: string }) => !!myPlayerId && e.playerId === myPlayerId;
   // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   type Snap = NonNullable<NonNullable<GameState['gameLog']>[number]['snap']>;
@@ -494,13 +509,22 @@ export function GameLog({
           No actions yet
         </div>
       ) : (
-        [...logs].reverse().filter((log) => !filterPlayerId || (log as any).playerId === filterPlayerId).map((log, index, reversedLogs) => {
+        /* [깜박임 수정 2026-09-25 사용자 제보 "가끔 전체 화면이 깜박인다"] 목록은 최신이 위(역순)인데 key가 렌더 순서(index)였다.
+           로그가 한 줄 붙으면 모든 행의 index가 한 칸씩 밀려, React가 화면의 전 행을 '내용이 바뀐 행'으로 보고
+           src를 전부 갈아끼운다 → 행마다 있는 종족 초상·타일 이미지가 통째로 다시 로드되며 깜박인다.
+           실측(봇 4인 자가대국 관전, 25초): 이미지 로드 2,868회가 **전부 로그 패널 안**이었고
+           상위가 race_face_*.png 330~370회씩. → 시간순 원본 인덱스(origIdx)를 키로 쓴다. 뒤에 append만 되므로
+           기존 행의 origIdx는 변하지 않아 새 줄이 붙어도 기존 행은 그대로 유지된다.
+           openIdx(펼친 행)도 같은 이유로 origIdx 기준으로 바꾼다 — 예전엔 새 줄이 오면 펼친 행이 한 칸씩 밀렸다. */
+        logs.map((log, i) => ({ log, origIdx: i })).reverse()
+          .filter(({ log }) => !isProvisional(log) || canSeeProvisional(log)) // 진행 중인 남의 줄은 턴 종료 전까지 감춘다
+          .filter(({ log }) => !filterPlayerId || (log as any).playerId === filterPlayerId).map(({ log, origIdx }, index, rendered) => {
           // [사용자] 서버가 라운드 전환 순간에 넣는 명시적 'Round Start' 시스템 로그 → 라운드 구분선으로 렌더(일반 행 X).
           // 새 라운드의 첫 로그라 라벨이 라운드 경계(파워/액션 전)에 고정됨. R0/R1은 이 로그가 없어 아래 footer가 폴백.
           if (log.action === 'Round Start' && typeof log.round === 'number') {
             return (
               <div
-                key={index}
+                key={origIdx}
                 ref={(el) => { roundRefs.current[log.round as number] = el; }}
                 style={{ scrollMarginTop: '2.75rem' }}
                 className="flex items-center gap-2 px-1 pt-1 pb-2 select-none"
@@ -513,7 +537,7 @@ export function GameLog({
           }
           // 최신순 표시. 라운드 라벨은 그 라운드의 '가장 오래된 로그 아래(footer)'에 고정 — 라운드 경계 표시.
           // (header로 올렸더니 라벨이 최신 액션을 따라 움직여 "액션할 때마다 라운드 번호가 재부착"되는 버그 → footer 복원.)
-          const nextOlder = index < reversedLogs.length - 1 ? reversedLogs[index + 1] : null;
+          const nextOlder = index < rendered.length - 1 ? rendered[index + 1].log : null;
           const isRoundFooter = typeof log.round === 'number' && (!nextOlder || nextOlder.round !== log.round);
           const actionText = log.action || '';
           const isPowerAction = /power|income|energy|bowl/i.test(actionText) || /Accepted|Declined/i.test(actionText);
@@ -527,6 +551,11 @@ export function GameLog({
           // 팅커로이드 특수는 위 getLogPrimaryImage가 타일 이미지로 갈음하므로 원문 details("Round N: tinkeroid-xxx")는 숨김.
           const hideDetailsText = /^Twilight: (Federation benefit|Spaceship Fed)$/i.test(actionText) || /Tinkeroid/i.test(actionText);
 
+          // [롤백 표시 2026-09-23 사용자] 롤백으로 취소된 행동은 지우지 않고 빨간 배경+취소선으로 남긴다
+          //   ("롤백하면 있던 로그가 사라져서 헷갈린다"). 서버가 rolledBack을 붙여 보낸다.
+          //   [2026-09-24 사용자] 취소선(line-through)은 글자를 가로질러 내용이 안 읽힌다 → 제거. 빨간 배경+✕ 배지로 충분.
+          const isRolledBack = !!(log as { rolledBack?: boolean }).rolledBack;
+          const isPending = !isRolledBack && isProvisional(log); // 아직 되돌릴 수 있는 내 줄
           const player = log.playerId ? game.players[log.playerId] : undefined;
           const factionObj = player?.faction ? FACTIONS.find(f => f.id === player.faction) : undefined;
           const factionColor = factionObj?.color;
@@ -534,28 +563,38 @@ export function GameLog({
           const primaryImg = getLogPrimaryImage(log, player?.faction);
 
           return (
-            <Fragment key={index}>
+            <Fragment key={origIdx}>
             <div
               onMouseEnter={() => {
                 if (log.tileId) onEntryMouseEnter?.(log.tileId);
                 if (log.fedHexes?.length && log.playerId) onFedHexesMouseEnter?.(log.playerId, log.fedHexes);
               }}
               onMouseLeave={() => { onEntryMouseLeave?.(); onFedHexesMouseLeave?.(); }}
-              onClick={() => setOpenIdx((prev) => (prev === index ? null : index))}
-              title="클릭해서 점수·자원 변동 보기"
+              onClick={() => setOpenIdx((prev) => (prev === origIdx ? null : origIdx))}
+              title={isPending ? '아직 턴이 끝나지 않아 되돌릴 수 있는 행동입니다 (나에게만 보임) · 클릭해서 점수·자원 변동 보기' : '클릭해서 점수·자원 변동 보기'}
               className={`flex ${isBonusTileLog ? 'items-center gap-1.5 py-0 px-1.5' : 'items-center gap-2 py-1 px-2'} rounded-lg border transition-all duration-200 ${isMainAction
                 ? 'bg-zinc-800/40 shadow-[0_0_15px_rgba(0,0,0,0.3)]'
                 : isPowerAction
                   ? 'bg-zinc-950/20 opacity-90'
                   : 'bg-zinc-900/30'
-                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'}`}
+                } ${log.tileId ? 'cursor-pointer hover:bg-zinc-800/80' : 'hover:bg-zinc-800/60'} ${isRolledBack ? 'opacity-70' : ''}`}
               style={{
                 // 칸 전체를 종족색으로 연하게 두름 (좌측 바 대체). 종족 없으면 액션 유형별 폴백.
-                borderColor: factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'),
+                borderColor: isRolledBack ? 'rgba(239,68,68,0.55)' : (factionColor ? hexToRgba(factionColor, 0.45) : (isMainAction ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)')),
+                ...(isRolledBack ? { background: 'rgba(127,29,29,0.35)' } : {}),
+                // [사용자 2026-09-24] '진행 중' 배지는 칸을 많이 먹는다 → 글자 없이 테두리색만 초록으로 바꿨다가
+                //   턴이 확정되면 원래 종족색으로 복원한다(배경·흐림도 건드리지 않아 본문 가독성 그대로).
+                ...(isPending ? { borderColor: 'rgba(74,222,128,0.9)' } : {}),
                 // 라운드 점프 시 상단 고정 툴바에 가리지 않도록 여백
                 scrollMarginTop: '2.75rem',
               }}
             >
+              {isRolledBack && (
+                <span
+                  className="shrink-0 text-red-300 font-black text-[11px] leading-none px-1 py-0.5 rounded bg-red-900/60 border border-red-400/40"
+                  title="롤백으로 취소된 행동 — 실제로는 일어나지 않았습니다"
+                >✕</span>
+              )}
               {portraitSrc && (
                 // 왼쪽에 종족 얼굴 초상(비딩 화면과 동일 이미지) — 색만으로 헷갈리는 종족 구분용.
                 <img
@@ -780,7 +819,7 @@ export function GameLog({
                   </div>
                 )}
                 {/* 클릭 시: 이 액션 후 점수/자원(결과) + 이 액션으로 인한 변동(base=액션 직전 대비) */}
-                {openIdx === index && (() => {
+                {openIdx === origIdx && (() => {
                   const snap = log.snap;
                   if (!snap) {
                     return (
@@ -789,8 +828,6 @@ export function GameLog({
                       </div>
                     );
                   }
-                  // 원본 시간순 인덱스: 필터 시 index가 어긋나므로 로그 객체로 직접 찾음(스냅샷 diff 정확).
-                  const origIdx = logs.indexOf(log);
                   // base(이 액션 직전 스냅샷)가 있으면 '이 액션만'의 변동. 없으면(구 로그) 같은 플레이어 직전 로그로 폴백.
                   const prev = log.base ?? prevSnapFor(origIdx, log.playerId);
                   return (
@@ -833,7 +870,8 @@ export function GameLog({
                   );
                 })()}
                 {/* [롤백] 호스트만: 이 지점(턴 시작)으로 되돌리기 요청 — 다른 사람 전원 동의 시 실행 */}
-                {openIdx === index && canRollback && typeof log.seq === 'number' && onRollbackToSeq && (
+                {/* 취소된 줄은 롤백 대상이 아니다 — seq가 이후 새 액션과 겹쳐(롤백 시 카운터도 되감김) 엉뚱한 지점으로 갈 수 있다. */}
+                {openIdx === origIdx && canRollback && !isRolledBack && typeof log.seq === 'number' && onRollbackToSeq && (
                   <div className="mt-1">
                     <button
                       type="button"
