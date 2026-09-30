@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AdminModeDialog } from '@/components/AdminModeDialog';
+import { RollbackRequestDialog } from '@/components/RollbackRequestDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -52,7 +53,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
@@ -342,6 +343,8 @@ export default function Game() {
   const [loading, setLoading] = useState(true);
   /** [2026-09-25] 표시 고정용 — 남의 턴 진행 중에 보여줄 '확정 시점' 상태와 그때의 commitSeq.
    *  훅이므로 반드시 컴포넌트 최상단에서 선언한다(아래쪽은 이른 반환이 있어 훅 순서가 깨진다). */
+  /** [2026-09-30] 롤백 요청 창 — 어느 로그 지점(seq)으로 요청하는지. null이면 닫힘. */
+  const [rollbackDraft, setRollbackDraft] = useState<{ seq: number; label: string } | null>(null);
   const committedGameRef = useRef<GameState | null>(null);
   const lastCommitSeqRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -2179,6 +2182,19 @@ export default function Game() {
   const isMyTurnForView = !!game && game.turnOrder?.[game.currentPlayerIndex] === playerId;
   /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game). */
   const viewGame = (!isMyTurnForView && viewCommitSeq !== null && committedGameRef.current) ? committedGameRef.current : game;
+
+  /* [사용자 2026-09-30] 롤백 횟수 제한 — "(1/3) → (2/3) → (3/3) → 다음에 누르면 '모두 사용했습니다'"
+     버튼에는 '다음에 요청하면 몇 번째인지'를 보여 주고, 다 썼으면 창을 열지 않고 바로 알린다. */
+  const myRollbackQuota = getRollbackQuota(game, playerId);
+  const rollbackBadge = myRollbackQuota.exhausted ? '모두 사용' : `${myRollbackQuota.next}/${myRollbackQuota.limit}`;
+  const openRollbackRequest = (seq: number, label?: string) => {
+    if (!gameId) return;
+    if (getRollbackQuota(game, playerId).exhausted) {
+      toast({ title: '롤백 사용 횟수를 모두 사용했습니다.', variant: 'destructive' });
+      return;
+    }
+    setRollbackDraft({ seq, label: label ?? '이 지점' });
+  };
 
   /** 파워액션 공용 핸들러: 3그릇이 부족해도 2그릇 태우기로 충당 가능하면 확인 후 실행 */
   const handleUsePowerAction = (actionId: string, options?: { closeResearchOverlay?: boolean }) => {
@@ -4398,6 +4414,17 @@ export default function Game() {
           </button>
         )}
 
+        <RollbackRequestDialog
+          open={!!rollbackDraft}
+          onOpenChange={(v) => { if (!v) setRollbackDraft(null); }}
+          targetLabel={rollbackDraft?.label ?? ''}
+          ordinal={myRollbackQuota.next}
+          limit={myRollbackQuota.limit}
+          onSubmit={async (reason) => {
+            if (!gameId || !rollbackDraft) return;
+            await GameClient.requestRollback(gameId, rollbackDraft.seq, reason);
+          }}
+        />
         {/* [롤백 투표] 대상자에겐 동의 다이얼로그, 그 외엔 대기 배너 */}
         {game.pendingRollback && (() => {
           const pr = game.pendingRollback!;
@@ -4448,7 +4475,14 @@ export default function Game() {
               <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
                 <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-amber-500/40 bg-zinc-950 shadow-2xl">
                   <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-3 space-y-3">
-                  <div className="text-amber-300 font-black text-lg">↩ 롤백 요청</div>
+                  <div className="text-amber-300 font-black text-lg">↩ 롤백 요청{pr.ordinal && pr.limit ? <span className="text-amber-200/90"> ({pr.ordinal}/{pr.limit})</span> : null}</div>
+                  {/* [사용자 2026-09-30] 왜 되돌리자는지 — 보고 수락/거절한다 */}
+                  {pr.reason && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold">사유</div>
+                      <div className="text-sm font-bold text-amber-100 break-words">{rollbackReasonText(pr.reason)}</div>
+                    </div>
+                  )}
                   <p className="text-sm text-zinc-200 leading-relaxed">
                     <span className="font-bold text-white">{pr.requesterName}</span>님이 <span className="font-bold text-amber-200">{pr.label}</span>(으)로 되돌리자고 요청했습니다.
                     <br />약 <span className="font-black text-amber-300">{pr.turnsBack}턴 전</span> · 행동 <span className="font-black text-red-300">{pr.undoneCount}개</span> 되돌림. 전원 동의 필요.
@@ -4477,7 +4511,8 @@ export default function Game() {
           }
           return (
             <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 pointer-events-auto shadow-lg backdrop-blur">
-              <div>↩ 롤백 대기 중: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>
+              <div>↩ 롤백 대기 중{pr.ordinal && pr.limit ? ` (${pr.ordinal}/${pr.limit})` : ''}: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>
+              {pr.reason && <div className="mt-0.5 text-amber-100/90">사유: <span className="font-bold">{rollbackReasonText(pr.reason)}</span></div>}
               {/* 누구를 기다리는지 보이게 — 내가 이미 동의했거나 대상이 아니어도 진행 상황은 알아야 한다 */}
               <div className="mt-1"><RosterList /></div>
             </div>
@@ -7235,7 +7270,8 @@ export default function Game() {
                     textScale={logTextScale}
                     showToolbar={logToolsOpen}
                     canRollback={!!(playerId && game.players?.[playerId]) && ['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))}
-                    onRollbackToSeq={(seq, label) => { if (!gameId) return; if (!window.confirm(`[${label ?? '이 지점'}] 이 로그가 속한 턴의 시작으로 되돌립니다.\n그 이후 행동은 모두 사라지고 그 턴부터 다시 진행됩니다.\n다른 플레이어 전원이 동의해야 실행됩니다. 요청할까요?`)) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
+                    onRollbackToSeq={openRollbackRequest}
+                    rollbackBadge={rollbackBadge}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}
                     onFedHexesMouseEnter={(pid, hexIds) => setHoveredLogFed({ playerId: pid, hexIds })}
@@ -7455,7 +7491,8 @@ export default function Game() {
                   maxHeight="none"
                   textScale={logTextScale}
                   canRollback={!!(playerId && game.players?.[playerId]) && ['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))}
-                  onRollbackToSeq={(seq) => { if (!gameId) return; if (!window.confirm('이 지점(턴 시작)으로 롤백을 요청할까요?\n다른 플레이어 전원이 동의해야 실행됩니다.')) return; GameClient.requestRollback(gameId, seq).catch((e) => toast({ title: '롤백 요청 실패', description: e?.message || '', variant: 'destructive' })); }}
+                  onRollbackToSeq={openRollbackRequest}
+                  rollbackBadge={rollbackBadge}
                   onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                   onEntryMouseLeave={() => setHighlightedTileId(null)}
                   onFedHexesMouseEnter={(pid, hexIds) => setHoveredLogFed({ playerId: pid, hexIds })}

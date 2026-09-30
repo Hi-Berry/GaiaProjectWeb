@@ -42,6 +42,8 @@ interface GameLogProps {
   canRollback?: boolean;
   /** [롤백] 클릭 시 해당 로그 seq로 롤백 요청 (label = 클릭한 로그 요약) */
   onRollbackToSeq?: (seq: number, label?: string) => void;
+  /** [2026-09-30] 롤백 버튼 옆 사용 현황 — "1/3" 또는 "모두 사용" */
+  rollbackBadge?: string;
   /** [진행 중 로그 2026-09-24] 보는 사람의 playerId — 아직 확정 안 된(되돌릴 수 있는) 줄은 본인에게만 보여준다. 관전자는 undefined. */
   myPlayerId?: string | null;
 }
@@ -59,6 +61,7 @@ export function GameLog({
   showToolbar = true,
   canRollback = false,
   onRollbackToSeq,
+  rollbackBadge,
   myPlayerId,
 }: GameLogProps) {
   const logs = game.gameLog || [];
@@ -879,7 +882,7 @@ export function GameLog({
                       className="px-2 py-0.5 rounded bg-amber-700/70 hover:bg-amber-600 text-white text-[10px] font-bold border border-amber-400/30"
                       title="이 지점의 턴 시작으로 롤백 요청 (다른 사람 전원 동의 필요)"
                     >
-                      ↩ 여기로 롤백 요청
+                      ↩ 여기로 롤백 요청{rollbackBadge ? ` (${rollbackBadge})` : ''}
                     </button>
                   </div>
                 )}

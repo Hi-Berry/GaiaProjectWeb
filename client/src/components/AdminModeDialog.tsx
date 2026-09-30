@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getFederationEntries } from '@shared/gameConfig';
+import { getFederationEntries, getRollbackQuota, ROLLBACK_LIMIT_PER_PLAYER } from '@shared/gameConfig';
 
 const ADMIN_PASSWORD = '0011';
 
@@ -317,6 +317,74 @@ function RollbackTurnPanel({ game }: { game: GameState }) {
   );
 }
 
+/* [사용자 2026-09-30] "어드민에는 롤백 잔여횟수 표기되고 수정할 수 있게 해줘"
+   사람마다 사용/한도/잔여를 보여 주고 잔여를 직접 고친다. 서버는 한도 = 이미 쓴 횟수 + 입력한 잔여로 기록한다. */
+function RollbackQuotaRow({ game, playerId }: { game: GameState; playerId: string }) {
+  const q = getRollbackQuota(game, playerId);
+  const [value, setValue] = useState(String(q.remaining));
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  // 게임에서 잔여가 바뀌면(롤백 실행 등) 입력칸도 따라간다 — 단 입력 중엔 덮지 않게 저장 직후만
+  useEffect(() => { if (!busy) setValue(String(q.remaining)); }, [q.remaining]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async (next: number) => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const r = await GameClient.adminSetRollbackRemaining(game.id, playerId, next, ADMIN_PASSWORD);
+      setValue(String(r.remaining));
+      setMessage(`잔여 ${r.remaining}회로 설정`);
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const n = Math.max(0, toNumber(value));
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-bold text-zinc-200 w-28 truncate shrink-0">{game.players[playerId]?.name ?? playerId}</span>
+      <span className={`text-[11px] tabular-nums w-40 shrink-0 ${q.exhausted ? 'text-red-300' : 'text-zinc-400'}`}>
+        잔여 <b className={q.exhausted ? 'text-red-300' : 'text-amber-200'}>{q.remaining}</b>회 · 사용 {q.used} / 한도 {q.limit}
+      </span>
+      <Button size="sm" variant="outline" className="h-7 w-7 p-0 border-white/15" disabled={busy || n <= 0} onClick={() => save(n - 1)} aria-label="잔여 1 줄이기">−</Button>
+      <Input
+        type="number"
+        min={0}
+        max={99}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') save(n); }}
+        className="h-7 w-16 text-xs bg-zinc-900 border-white/10"
+        aria-label="잔여 횟수"
+      />
+      <Button size="sm" variant="outline" className="h-7 w-7 p-0 border-white/15" disabled={busy || n >= 99} onClick={() => save(n + 1)} aria-label="잔여 1 늘리기">+</Button>
+      <Button size="sm" className="h-7 text-xs bg-amber-600 hover:bg-amber-500" disabled={busy} onClick={() => save(n)}>저장</Button>
+      {message && <span className="text-[10px] text-zinc-500">{message}</span>}
+    </div>
+  );
+}
+
+function RollbackQuotaPanel({ game }: { game: GameState }) {
+  const bots = new Set(game.botPlayerIds ?? []);
+  const order = (game.turnOrder && game.turnOrder.length ? game.turnOrder : Object.keys(game.players))
+    .filter((id) => game.players[id] && !bots.has(id));
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 space-y-2">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-amber-300">롤백 잔여 횟수</div>
+        <div className="text-[10px] text-zinc-400">
+          기본 한도 {ROLLBACK_LIMIT_PER_PLAYER}회. 동의를 받아 <b>실행된</b> 롤백만 소진됩니다(거절은 세지 않음). 잔여를 고치면 그 사람만 따로 한도가 붙습니다.
+        </div>
+      </div>
+      {order.length === 0 && <div className="text-[10px] text-zinc-500">사람 플레이어가 없습니다.</div>}
+      <div className="space-y-1.5">
+        {order.map((id) => <RollbackQuotaRow key={id} game={game} playerId={id} />)}
+      </div>
+    </div>
+  );
+}
+
 function SetCurrentTurnPanel({ game }: { game: GameState }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -493,6 +561,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
               <SetCurrentTurnPanel game={game} />
               <RollbackTurnPanel game={game} />
+              <RollbackQuotaPanel game={game} />
               <FederationTogglePanel game={game} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />
