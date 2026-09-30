@@ -133,7 +133,7 @@ export function build({ games, gamesPerPlayer }) {
   const stat = (key) => (take[key] ? rankTakers(take[key], gamesPerPlayer) : null);
   const cardIf = (key, label, imgHtml) => {
     const s = stat(key);
-    return s ? itemCard({ label, imgHtml, stat: s, verb: '사용' }) : '';
+    return s ? itemCard({ label, imgHtml, stat: s, verb: '사용', low: true }) : '';
   };
 
   const powerCards = POWER.map((p) => cardIf(`pw${p.idx}`, p.label, stripImg('pa', 7, p.idx, p.label))).join('');
@@ -158,7 +158,7 @@ export function build({ games, gamesPerPlayer }) {
     const s = rankTakers(byName, factionGames[fid] ?? {}, 3);
     const img = factionFaceB64(fid);
     const imgHtml = img ? `<img class="egg-img" src="${img}" alt="${esc(label)}" width="58" height="58" />` : emojiImg('👽', label);
-    return itemCard({ label, imgHtml, stat: s, verb: '사용' });
+    return itemCard({ label, imgHtml, stat: s, verb: '사용', low: true });
   };
   const fsCards = FACTION_SPECIALS.map((f) => factionCard(f.fid, f.label, take[`fs${f.fid}`])).join('')
     + factionCard('bal_tak', '발타크: 아카데미 4C', take['fsbaltak4c']);

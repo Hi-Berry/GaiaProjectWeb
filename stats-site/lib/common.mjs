@@ -80,10 +80,10 @@ export function podiumHtml(rows, kind) {
   if (!rows || rows.length === 0) return '<div class="empty">기록 없음</div>';
   return rows.map((r, i) => `
     <div class="row">
-      <span class="medal ${medalCls(i)}">${i + 1}</span>
+      <span class="medal ${kind === 'low' ? 'low' : medalCls(i)}">${i + 1}</span>
       <span class="pname">${esc(r.name)}</span>
       <span class="pval">${kind === 'cnt' ? `${r.cnt}개` : r.per.toFixed(2)}</span>
-      <span class="psub">${kind === 'cnt' ? `/${r.games}판` : '/판'}</span>
+      <span class="psub">${kind === 'cnt' ? `/${r.games}판` : kind === 'low' ? `/판 · ${r.cnt}회/${r.games}판` : '/판'}</span>
     </div>`).join('');
 }
 
@@ -93,15 +93,24 @@ export const TOP_N = 5;
 /** name→count 맵 → {byCnt, byPer, total} (판당비율은 minGames 이상만 — 기본 MIN_GAMES) */
 export function rankTakers(byName, gamesPerPlayer, minGames = MIN_GAMES) {
   const rows = Object.entries(byName).map(([name, cnt]) => ({ name, cnt, games: gamesPerPlayer[name] ?? 0, per: cnt / (gamesPerPlayer[name] || 1) }));
+  /* [사용자 2026-09-30] "거꾸로 5위" — 판당 비율이 가장 낮은 5명.
+     한 번도 안 가져간 사람(0회)도 들어가야 하므로 가져간 사람 목록이 아니라 판수 기준 전원에서 고른다.
+     같은 비율이면 판을 더 많이 하고도 적게 가져간 쪽이 더 아래(= 앞 순위). */
+  const everyone = Object.entries(gamesPerPlayer)
+    .filter(([, games]) => games >= minGames)
+    .map(([name, games]) => { const cnt = byName[name] ?? 0; return { name, cnt, games, per: cnt / games }; });
   return {
     total: rows.reduce((s, r) => s + r.cnt, 0),
     byCnt: [...rows].sort((a, b) => b.cnt - a.cnt || b.per - a.per).slice(0, TOP_N),
     byPer: rows.filter((r) => r.games >= minGames).sort((a, b) => b.per - a.per || b.cnt - a.cnt).slice(0, TOP_N),
+    byPerLow: everyone.sort((a, b) => a.per - b.per || b.games - a.games || a.name.localeCompare(b.name, 'ko')).slice(0, TOP_N),
+    minGames,
   };
 }
 
 /** 아이템 카드 (이미지 + 횟수/판당비율 포디움). imgHtml을 주면 img 태그 대신 그대로 사용(스트립 크롭/이모지용). */
-export function itemCard({ label, imgSrc, imgHtml, stat, verb = '획득' }) {
+/** low=true 면 '거꾸로 5위'(판당 비율 하위 5) 표를 두 표 아래에 가로로 붙인다. */
+export function itemCard({ label, imgSrc, imgHtml, stat, verb = '획득', low = false }) {
   return `
   <section class="egg">
     <header class="egg-head">
@@ -113,7 +122,8 @@ export function itemCard({ label, imgSrc, imgHtml, stat, verb = '획득' }) {
     </header>
     <div class="boards">
       <div class="board"><h4>횟수</h4>${podiumHtml(stat.byCnt, 'cnt')}</div>
-      <div class="board"><h4>판당 비율 <span class="cond">${MIN_GAMES}판↑</span></h4>${podiumHtml(stat.byPer, 'per')}</div>
+      <div class="board"><h4>판당 비율 <span class="cond">${stat.minGames ?? MIN_GAMES}판↑</span></h4>${podiumHtml(stat.byPer, 'per')}</div>
+      ${low ? `<div class="board low"><h4>거꾸로 5위 · 판당 비율 <span class="cond">${stat.minGames ?? MIN_GAMES}판↑ · 가장 적게 ${verb}</span></h4>${podiumHtml(stat.byPerLow, 'low')}</div>` : ''}
     </div>
   </section>`;
 }
@@ -192,6 +202,9 @@ export function pageShell({ title, emoji, iconImg = null, accent = '#79c99e', in
   .medal.silver { background: var(--silver); }
   .medal.bronze { background: var(--bronze); }
   .medal.rest { background: #2c3a57; color: var(--muted); }
+  .medal.low { background: #3a2233; color: #ff9b9b; }
+  .board.low { grid-column: 1 / -1; }
+  .board.low .psub { width: 9.5em; } /* '/판 · 40회/56판' 이 들어가도 잘리지 않게 */
   .pname { font-size: 12.5px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .pval { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
           font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; flex-shrink: 0; text-align: right; }
