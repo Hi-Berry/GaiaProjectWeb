@@ -2628,7 +2628,7 @@
       "details": "Lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315307863,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 5,
@@ -2658,7 +2658,7 @@
       "details": "Position: tile-65",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315312789,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 6,
@@ -2808,7 +2808,7 @@
       "details": "Position: tile-111",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315441608,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 11,
@@ -2955,7 +2955,7 @@
       "details": "1O | +2 Tokens",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315475902,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 16,
@@ -3013,7 +3013,7 @@
       "details": "Auto-optimal: Tokens +3 · 4/0/0 → 7/0/0",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315482147,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 18,
@@ -3043,9 +3043,9 @@
       "details": "2O, 3C",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +1P 마루",
@@ -3107,7 +3107,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315491480,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 20,
@@ -3176,9 +3176,9 @@
           "playerName": "구오"
         },
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -3318,7 +3318,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315536610,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 26,
@@ -3411,9 +3411,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +3P (-2VP) Un",
+          "text": "↳ Received Power +3P (-2VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +2P (-1VP) 구오",
@@ -3517,9 +3517,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +3P (-2VP) Un",
+          "text": "↳ Received Power +3P (-2VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -3553,7 +3553,7 @@
       "details": "terraforming to level 1 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315624050,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 33,
@@ -3671,7 +3671,7 @@
       "details": "Twilight · 5VP → 0VP (-5), 1QIC",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315673629,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 37,
@@ -3909,9 +3909,9 @@
       "details": "gaiaProject → Lv.1",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +1P 아이페르",
@@ -3955,7 +3955,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315741465,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 46,
@@ -3985,9 +3985,9 @@
       "details": "on gaia (1O, 2C)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -4139,7 +4139,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315790499,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 52,
@@ -4186,7 +4186,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315790499,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 53,
@@ -4335,7 +4335,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315846860,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 58,
@@ -4382,7 +4382,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315846860,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 59,
@@ -4538,7 +4538,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315984009,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 64,
@@ -4585,7 +4585,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315984011,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 65,
@@ -4615,9 +4615,9 @@
       "details": "2O, 3C",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -4741,7 +4741,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316028913,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 70,
@@ -4783,7 +4783,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316028913,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 71,
@@ -4930,7 +4930,7 @@
       "details": "navigation to level 1 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316185086,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 76,
@@ -5019,9 +5019,9 @@
       "details": "navigation → Lv.1",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -5158,7 +5158,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316265975,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 83,
@@ -5195,7 +5195,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316267718,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 84,
@@ -5318,7 +5318,7 @@
       "details": "navigation to level 2 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316315156,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 88,
@@ -5418,7 +5418,7 @@
       "details": "Rebellion · 7VP → 2VP (-5)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316341510,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 91,
@@ -5497,7 +5497,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316436619,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 93,
@@ -5563,7 +5563,7 @@
       },
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316463692,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 95,
@@ -5658,7 +5658,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +6 · 0/4/3 → 0/0/8",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316463747,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 99,
@@ -5894,7 +5894,7 @@
       "details": "2O, 3P (no 3O 5C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316546469,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 107,
@@ -5924,7 +5924,7 @@
       "details": "+1 Ore, +3 Knowledge",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316557237,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 108,
@@ -5965,7 +5965,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316557237,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 109,
@@ -6029,9 +6029,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -6124,7 +6124,7 @@
       "details": "1K (this turn)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316628776,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 114,
@@ -6161,7 +6161,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316631616,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 115,
@@ -6279,7 +6279,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316691587,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 119,
@@ -6309,7 +6309,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316695852,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 120,
@@ -6351,7 +6351,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316695854,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 121,
@@ -6445,9 +6445,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -6512,9 +6512,9 @@
       "details": "terraforming → Lv.2",
       "subLogs": [
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -6652,7 +6652,7 @@
       "details": "gaiaProject to level 1 (5K→1K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316792647,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 130,
@@ -6681,7 +6681,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316805560,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 131,
@@ -6746,9 +6746,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -6840,7 +6840,7 @@
       "details": "+3 Range",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316857737,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 136,
@@ -6870,7 +6870,7 @@
       "details": "Used 1 Gaiaformer, 0 remaining",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316861424,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 137,
@@ -7050,7 +7050,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316914631,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 143,
@@ -7080,7 +7080,7 @@
       "details": "on terra (1O, 2C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316924060,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 144,
@@ -7196,7 +7196,7 @@
       "details": "Reverted 1 free action step(s)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316955006,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 148,
@@ -7229,7 +7229,7 @@
       },
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317000215,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 149,
@@ -7293,9 +7293,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -7462,7 +7462,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 0/2/6 → 0/0/9",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317032023,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 157,
@@ -7549,7 +7549,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317155859,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 160,
@@ -7763,9 +7763,9 @@
       "details": "on titanium (1O, 2C)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -7800,7 +7800,7 @@
       "details": "1O, 3P (no 2O 3C/6C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317210123,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 168,
@@ -7835,9 +7835,9 @@
           "playerName": "구오"
         },
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +2P (-1VP) 마루",
@@ -7971,7 +7971,7 @@
       "details": "Bowl II -> III",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317271560,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 173,
@@ -8001,7 +8001,7 @@
       "details": "2O, 3P (no 3O 5C) (+2VP Round Research Track)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317275746,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 174,
@@ -8031,7 +8031,7 @@
       "details": "navigation → Lv.4 · +7 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317281429,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 175,
@@ -8164,9 +8164,9 @@
       "details": "2O, 3C",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -8213,7 +8213,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317330825,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 180,
@@ -8427,7 +8427,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317503701,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 187,
@@ -8550,9 +8550,9 @@
           "playerName": "구오"
         },
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +2P (-1VP) 마루",
@@ -8709,7 +8709,7 @@
       "tileId": "art-7vp-virtual-asteroid",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317613505,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 196,
@@ -8835,9 +8835,9 @@
       "details": "on oxide (1O, 2C, 2O terraform)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +1P 마루",
@@ -8876,7 +8876,7 @@
       "details": "science to level 1 (4K→0K) (+2VP Round Research Track)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317662981,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 201,
@@ -9095,7 +9095,7 @@
       "details": "1O → 1 Token",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317717834,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 208,
@@ -9128,7 +9128,7 @@
       },
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317728091,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 209,
@@ -9425,7 +9425,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 1/1/1 → 0/1/3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317832213,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 219,
@@ -9512,7 +9512,7 @@
       "details": "+3VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317860384,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 222,
@@ -9542,7 +9542,7 @@
       "details": "1O, 3P (no 2O 3C/6C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317860386,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 223,
@@ -9691,9 +9691,9 @@
       "details": "economy → Lv.1",
       "subLogs": [
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -9735,7 +9735,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317984239,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 229,
@@ -9912,7 +9912,7 @@
       "tileId": "internal-2",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318076910,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 235,
@@ -10013,9 +10013,9 @@
           "playerName": "마루"
         },
         {
-          "text": "↳ Received Power +3P (-2VP) Un",
+          "text": "↳ Received Power +3P (-2VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -10049,7 +10049,7 @@
       "details": "1P → 1C ×2",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318118426,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 239,
@@ -10086,7 +10086,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318123707,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 240,
@@ -10124,7 +10124,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318128955,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 241,
@@ -10301,7 +10301,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318207188,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 247,
@@ -10338,7 +10338,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318207188,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 248,
@@ -10493,9 +10493,9 @@
       "details": "on ice (1O, 2C)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +2P (-1VP) 아이페르",
@@ -10534,7 +10534,7 @@
       "details": "science to level 2 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318261180,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 254,
@@ -10630,9 +10630,9 @@
       "details": "2O, 3C (+3VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +3P (-2VP) 아이페르",
@@ -10671,7 +10671,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318308943,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 258,
@@ -10708,7 +10708,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318312957,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 259,
@@ -10738,9 +10738,9 @@
       "details": "2O, 3C (+3VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +1P 구오",
@@ -10889,7 +10889,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318359946,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 264,
@@ -10919,9 +10919,9 @@
       "details": "2O, 3C (+3VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Declined Power 구오",
@@ -11089,7 +11089,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318464195,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 270,
@@ -11119,7 +11119,7 @@
       "details": "TF Mars · 30VP → 25VP (-5)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318467636,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 271,
@@ -11208,7 +11208,7 @@
       "details": "(same as 3PW or bonus 1 Step, use when building)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318489816,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 274,
@@ -11238,7 +11238,7 @@
       "details": "on volcanic (1O, 2C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318491606,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 275,
@@ -11433,9 +11433,9 @@
       "details": "on titanium (1O, 2C, 1O terraform) (+2VP Advanced Terraform step)",
       "subLogs": [
         {
-          "text": "↳ Declined Power Un",
+          "text": "↳ Declined Power un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -11477,7 +11477,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318571876,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 282,
@@ -11600,9 +11600,9 @@
           "playerName": "구오"
         },
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_zix96rbz66",
@@ -11699,7 +11699,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318614327,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 289,
@@ -11733,7 +11733,7 @@
       },
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318651490,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 290,
@@ -11872,7 +11872,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 1/0/1 → 0/0/3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318656912,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 295,
@@ -11990,7 +11990,7 @@
       "details": "2O, 3P (no 3O 5C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318706011,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 299,
@@ -12020,7 +12020,7 @@
       "details": "Covered tech-imm-7vp → adv-imm-2vp-sector · +16VP (2/sector)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318718122,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 300,
@@ -12049,7 +12049,7 @@
       "details": "science → Lv.3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318727601,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 301,
@@ -12212,7 +12212,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318806363,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 306,
@@ -12272,9 +12272,9 @@
       "details": "on desert (1O, 2C)",
       "subLogs": [
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_zix96rbz66",
@@ -12309,9 +12309,9 @@
       "details": "on gaia (1O, 2C) (+3VP Tech Gaia Planet)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -12404,7 +12404,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319003172,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 312,
@@ -12434,7 +12434,7 @@
       "details": "6O, 6C (1QIC 액션)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319006313,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 313,
@@ -12464,7 +12464,7 @@
       "details": "Covered ship-tech-1o3k → adv-imm-1o-sector · +8O (1/sector)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319018904,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 314,
@@ -12505,7 +12505,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319023893,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 315,
@@ -12660,7 +12660,7 @@
       "details": "3O, 5C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319112208,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 320,
@@ -12697,7 +12697,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319114769,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 321,
@@ -12790,9 +12790,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -12826,7 +12826,7 @@
       "details": "+2 Power tokens (3P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319177306,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 325,
@@ -12978,9 +12978,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Declined Power Un",
+          "text": "↳ Declined Power un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +3P (-2VP) 구오",
@@ -13020,7 +13020,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319238641,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 331,
@@ -13062,7 +13062,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319238645,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 332,
@@ -13245,7 +13245,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319299786,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 338,
@@ -13282,7 +13282,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319305437,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 339,
@@ -13419,7 +13419,7 @@
       "details": "1 QIC (Special Action)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319418286,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 343,
@@ -13710,7 +13710,7 @@
       "details": "navigation to level 5 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319502893,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 352,
@@ -13747,7 +13747,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319506066,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 353,
@@ -13848,9 +13848,9 @@
       "details": "2O, 3C",
       "subLogs": [
         {
-          "text": "↳ Declined Power Un",
+          "text": "↳ Declined Power un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +3P (-2VP) 마루",
@@ -13922,7 +13922,7 @@
       "details": "science to level 4 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319602613,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 358,
@@ -14072,7 +14072,7 @@
       "details": "Reverted 4 free action step(s)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319706695,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 362,
@@ -14105,7 +14105,7 @@
       },
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319746833,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 363,
@@ -14140,9 +14140,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -14334,7 +14334,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 2/1/2 → 1/1/4",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319789793,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 371,
@@ -14541,7 +14541,7 @@
       "details": "7 VP 2O",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319880822,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 378,
@@ -14687,7 +14687,7 @@
       "details": "+4VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319944083,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 383,
@@ -14717,7 +14717,7 @@
       "details": "1O, 3P (no 2O 3C/6C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319944083,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 384,
@@ -14789,9 +14789,9 @@
       "details": "2O, 3C (+4VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Declined Power Un",
+          "text": "↳ Declined Power un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -14856,9 +14856,9 @@
       "details": "on oxide (1O, 2C, 1O terraform)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Declined Power 마루",
@@ -14897,7 +14897,7 @@
       "details": "artificialIntelligence to level 3 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320040061,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 389,
@@ -14927,9 +14927,9 @@
       "details": "on gaia (1O, 2C) (+3VP Tech Gaia Planet)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Received Power +1P 마루",
@@ -15069,7 +15069,7 @@
       "details": "6O, 6C (2K 수익)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320091495,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 394,
@@ -15106,7 +15106,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320094347,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 395,
@@ -15136,9 +15136,9 @@
       "details": "2O, 3C (+4VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Declined Power 마루",
@@ -15304,7 +15304,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320172244,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 400,
@@ -15341,7 +15341,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320180355,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 401,
@@ -15601,9 +15601,9 @@
       "details": "gaiaProject → Lv.3",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Declined Power 구오",
@@ -15642,7 +15642,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320303668,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 410,
@@ -15761,7 +15761,7 @@
       "details": "Gained 4 Power",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320346235,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 414,
@@ -15821,9 +15821,9 @@
       "details": "science → Lv.1 · +9 Knowledge",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         },
         {
           "text": "↳ Declined Power 마루",
@@ -15926,7 +15926,7 @@
       "details": "artificialIntelligence to level 5 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320470523,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 419,
@@ -16042,7 +16042,7 @@
       "details": "1 QIC (Special Action)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320503597,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 423,
@@ -16072,9 +16072,9 @@
       "details": "2O, 3C (+4VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -16168,9 +16168,9 @@
       "details": "on proto (1O, 2C, 3O terraform) (+6VP Advanced Terraform step)",
       "subLogs": [
         {
-          "text": "↳ Received Power +2P (-1VP) Un",
+          "text": "↳ Received Power +2P (-1VP) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_pe0f9564yu",
@@ -16270,7 +16270,7 @@
       "details": "+2 Knowledge (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320628030,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 430,
@@ -16329,9 +16329,9 @@
       "details": "on swamp (1O, 2C)",
       "subLogs": [
         {
-          "text": "↳ Declined Power Un",
+          "text": "↳ Declined Power un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -16440,7 +16440,7 @@
       "details": "3O, 5C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320657955,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 435,
@@ -16470,7 +16470,7 @@
       "details": "gaiaProject → Lv.2 · +1 Ore, +1 QIC",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320674056,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 436,
@@ -16536,7 +16536,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320693039,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 438,
@@ -16602,7 +16602,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320707584,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 440,
@@ -16667,9 +16667,9 @@
           "playerName": "아이페르"
         },
         {
-          "text": "↳ Received Power +1P Un",
+          "text": "↳ Received Power +1P un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -16704,7 +16704,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320728726,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 443,
@@ -16751,7 +16751,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320728726,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 444,
@@ -16810,7 +16810,7 @@
       "details": "7 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320751816,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 446,
@@ -16868,7 +16868,7 @@
       "details": "gaiaProject to level 3 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320768636,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 448,
@@ -16898,9 +16898,9 @@
       "details": "2O, 3C (+4VP Round Trading Station)",
       "subLogs": [
         {
-          "text": "↳ Declined Power Un",
+          "text": "↳ Declined Power un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -16937,7 +16937,7 @@
       },
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320788331,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 450,
@@ -16967,9 +16967,9 @@
       "details": "Used 1 Gaiaformer, 0 remaining",
       "subLogs": [
         {
-          "text": "↳ Declined Power (auto: passed) Un",
+          "text": "↳ Declined Power (auto: passed) un",
           "playerId": "p_1rn6qh203k",
-          "playerName": "Un"
+          "playerName": "un"
         }
       ],
       "playerId": "p_ayxq7fbk0m",
@@ -17186,7 +17186,7 @@
       "details": "+6 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320811719,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 457,
@@ -17246,7 +17246,7 @@
       "details": "+18 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320811720,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "seq": 459,
@@ -17341,7 +17341,7 @@
   ],
   "players": {
     "p_1rn6qh203k": {
-      "name": "Un",
+      "name": "un",
       "rank": 2,
       "score": 159,
       "faction": "lantids",
@@ -18204,7 +18204,7 @@
     "total": 2,
     "byPlayer": {
       "p_1rn6qh203k": {
-        "name": "Un",
+        "name": "un",
         "count": 1
       },
       "p_zix96rbz66": {
@@ -18365,7 +18365,7 @@
       "details": "Lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315307863,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18376,7 +18376,7 @@
       "details": "Position: tile-65",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315312789,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18431,7 +18431,7 @@
       "details": "Position: tile-111",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315441608,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18483,7 +18483,7 @@
       "details": "1O | +2 Tokens",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315475902,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18503,7 +18503,7 @@
       "details": "Auto-optimal: Tokens +3 · 4/0/0 → 7/0/0",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315482147,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18521,10 +18521,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315486240,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18555,7 +18555,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315491480,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18633,10 +18633,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315517055,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18678,7 +18678,7 @@
       "details": "4O, 6C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315536611,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18766,10 +18766,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +3P (-2VP) Un",
+      "details": "↳ Received Power +3P (-2VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315575384,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18839,10 +18839,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +3P (-2VP) Un",
+      "details": "↳ Received Power +3P (-2VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315600703,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18852,7 +18852,7 @@
       "details": "terraforming to level 1 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315624050,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18895,7 +18895,7 @@
       "details": "Twilight · 5VP → 0VP (-5), 1QIC",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315673629,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -18988,10 +18988,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315725570,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19021,7 +19021,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315741465,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19039,10 +19039,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315747239,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19094,7 +19094,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315790499,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19105,7 +19105,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315790499,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19189,7 +19189,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315846860,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19200,7 +19200,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315846860,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19364,7 +19364,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315984009,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19375,7 +19375,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315984011,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19423,10 +19423,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316009608,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19469,7 +19469,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316028913,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19480,7 +19480,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316028914,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19563,7 +19563,7 @@
       "details": "navigation to level 1 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316155718,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19573,7 +19573,7 @@
       "details": "navigation to level 1 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316185086,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19612,10 +19612,10 @@
       "phase": "main",
       "round": 1,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316200944,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19674,7 +19674,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316265975,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19692,7 +19692,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316267718,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19734,7 +19734,7 @@
       "details": "navigation to level 2 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316315157,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19776,7 +19776,7 @@
       "details": "Rebellion · 7VP → 2VP (-5)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316341512,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19819,7 +19819,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316436619,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19859,7 +19859,7 @@
       "details": "Returned bon-1o-2tokens, took bon-2pw-range3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316463692,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -19889,7 +19889,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +6 · 0/4/3 → 0/0/8",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316463747,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20004,7 +20004,7 @@
       "details": "2O, 3P (no 3O 5C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316546469,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20015,7 +20015,7 @@
       "details": "+1 Ore, +3 Knowledge",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316557237,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20025,7 +20025,7 @@
       "details": "navigation → Lv.3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316557237,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20083,10 +20083,10 @@
       "phase": "main",
       "round": 2,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316586372,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20118,7 +20118,7 @@
       "details": "1K (this turn)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316628781,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20129,7 +20129,7 @@
       "details": "on terra (1O, 2C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316631616,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20191,7 +20191,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316691588,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20202,7 +20202,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316695853,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20213,7 +20213,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316695854,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20282,10 +20282,10 @@
       "phase": "main",
       "round": 2,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316767327,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20314,10 +20314,10 @@
       "phase": "main",
       "round": 2,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316781099,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20374,7 +20374,7 @@
       "details": "gaiaProject to level 1 (5K→1K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316792651,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20384,7 +20384,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316805561,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20445,10 +20445,10 @@
       "phase": "main",
       "round": 2,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316844506,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20478,7 +20478,7 @@
       "details": "+3 Range",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316857737,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20489,7 +20489,7 @@
       "details": "Used 1 Gaiaformer, 0 remaining",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316861425,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20551,7 +20551,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316914631,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20562,7 +20562,7 @@
       "details": "on terra (1O, 2C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316924061,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20602,7 +20602,7 @@
       "details": "4P → 1K",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316953460,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20612,7 +20612,7 @@
       "details": "Reverted 1 free action step(s)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790316955006,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20622,7 +20622,7 @@
       "details": "Returned bon-2pw-range3, took bon-1o-1k",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317000215,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20670,10 +20670,10 @@
       "phase": "main",
       "round": 2,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317013668,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20723,7 +20723,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 0/2/6 → 0/0/9",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317032023,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20754,7 +20754,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317155859,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20875,10 +20875,10 @@
       "phase": "main",
       "round": 3,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317198596,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20889,7 +20889,7 @@
       "details": "1O, 3P (no 2O 3C/6C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317210123,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20917,10 +20917,10 @@
       "phase": "main",
       "round": 3,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317226639,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20981,7 +20981,7 @@
       "details": "Bowl II -> III",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317271560,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -20992,7 +20992,7 @@
       "details": "2O, 3P (no 3O 5C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317275746,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21003,7 +21003,7 @@
       "details": "navigation → Lv.4 · +7 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317281429,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21067,10 +21067,10 @@
       "phase": "main",
       "round": 3,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317311630,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21081,7 +21081,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317330825,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21175,7 +21175,7 @@
       "details": "on gaia (1O, 2C, 1QIC)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317503701,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21274,10 +21274,10 @@
       "phase": "main",
       "round": 3,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317530112,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21340,7 +21340,7 @@
       "details": "",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317613505,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21400,10 +21400,10 @@
       "phase": "main",
       "round": 3,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317652908,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21423,7 +21423,7 @@
       "details": "science to level 1 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317662981,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21529,7 +21529,7 @@
       "details": "1O → 1 Token",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317717834,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21539,7 +21539,7 @@
       "details": "Returned bon-1o-1k, took bon-1o-ts",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317728091,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21642,7 +21642,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 1/1/1 → 0/1/3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317832213,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21672,7 +21672,7 @@
       "details": "+3VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317860386,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21683,7 +21683,7 @@
       "details": "1O, 3P (no 2O 3C/6C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317860386,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21744,10 +21744,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317978054,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21758,7 +21758,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790317984239,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21832,7 +21832,7 @@
       "details": "",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318076910,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21891,10 +21891,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +3P (-2VP) Un",
+      "details": "↳ Received Power +3P (-2VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318112673,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21904,7 +21904,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318118250,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21914,7 +21914,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318118426,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21932,7 +21932,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318123708,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -21951,7 +21951,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318128955,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22024,7 +22024,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318207188,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22035,7 +22035,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318207188,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22115,10 +22115,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318248680,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22138,7 +22138,7 @@
       "details": "science to level 2 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318261180,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22187,10 +22187,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318289361,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22211,7 +22211,7 @@
       "details": "on gaia (1O, 2C, 1QIC)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318300648,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22221,7 +22221,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318308943,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22232,7 +22232,7 @@
       "details": "on gaia (1O, 2C, 1QIC)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318312957,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22260,10 +22260,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318322791,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22329,7 +22329,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318359946,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22357,10 +22357,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318372445,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22432,7 +22432,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318464195,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22443,7 +22443,7 @@
       "details": "TF Mars · 30VP → 25VP (-5)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318467636,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22475,7 +22475,7 @@
       "details": "(same as 3PW or bonus 1 Step, use when building)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318489816,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22486,7 +22486,7 @@
       "details": "on volcanic (1O, 2C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318491606,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22574,10 +22574,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Declined Power Un",
+      "details": "↳ Declined Power un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318563181,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22588,7 +22588,7 @@
       "details": "on gaia (1O, 2C, 1QIC)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318571876,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22657,10 +22657,10 @@
       "phase": "main",
       "round": 4,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318596260,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22690,7 +22690,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318614327,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22700,7 +22700,7 @@
       "details": "Returned bon-1o-ts, took bon-1o-1k",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318651490,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22740,7 +22740,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 1/0/1 → 0/0/3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318656912,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22783,7 +22783,7 @@
       "details": "2O, 3P (no 3O 5C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318706011,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22794,7 +22794,7 @@
       "details": "Covered tech-imm-7vp → adv-imm-2vp-sector · +16VP (2/sector)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318718122,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22804,7 +22804,7 @@
       "details": "science → Lv.3",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318727601,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22868,7 +22868,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318806363,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22907,10 +22907,10 @@
       "phase": "main",
       "round": 5,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318820825,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22928,10 +22928,10 @@
       "phase": "main",
       "round": 5,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318840785,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22982,7 +22982,7 @@
       "details": "1O → 1 Token",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318858069,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -22993,7 +22993,7 @@
       "details": "6O, 6C (1QIC 액션)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318932678,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23004,7 +23004,7 @@
       "details": "Covered ship-tech-1o3k → adv-imm-1o-sector · +8O (1/sector)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318938225,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23014,7 +23014,7 @@
       "details": "gaiaProject → Lv.2",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790318948056,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23024,7 +23024,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319003172,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23035,7 +23035,7 @@
       "details": "6O, 6C (1QIC 액션)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319006326,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23046,7 +23046,7 @@
       "details": "Covered ship-tech-1o3k → adv-imm-1o-sector · +8O (1/sector)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319018904,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23056,7 +23056,7 @@
       "details": "artificialIntelligence → Lv.1",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319023893,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23139,7 +23139,7 @@
       "details": "3O, 5C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319112208,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23150,7 +23150,7 @@
       "details": "artificialIntelligence → Lv.2",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319114769,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23208,10 +23208,10 @@
       "phase": "main",
       "round": 5,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319158300,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23221,7 +23221,7 @@
       "details": "+2 Power tokens (3P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319177306,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23290,10 +23290,10 @@
       "phase": "main",
       "round": 5,
       "action": "Received Power",
-      "details": "↳ Declined Power Un",
+      "details": "↳ Declined Power un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319213859,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23314,7 +23314,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319238641,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23325,7 +23325,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319238646,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23445,7 +23445,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319299786,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23463,7 +23463,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319305437,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23535,7 +23535,7 @@
       "details": "navigation to level 5 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319363594,
-      "playerName": "Un",
+      "playerName": "un",
       "rolledBack": true
     },
     {
@@ -23547,7 +23547,7 @@
       "details": "Placed",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319365903,
-      "playerName": "Un",
+      "playerName": "un",
       "rolledBack": true
     },
     {
@@ -23602,7 +23602,7 @@
       "details": "1 QIC (Special Action)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319418286,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23766,7 +23766,7 @@
       "details": "navigation to level 5 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319502894,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23777,7 +23777,7 @@
       "details": "Placed",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319506066,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23838,10 +23838,10 @@
       "phase": "main",
       "round": 5,
       "action": "Received Power",
-      "details": "↳ Declined Power Un",
+      "details": "↳ Declined Power un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319578028,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23871,7 +23871,7 @@
       "details": "science to level 4 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319602613,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23930,7 +23930,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319657654,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23940,7 +23940,7 @@
       "details": "1P → 1C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319657864,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23950,7 +23950,7 @@
       "details": "1O → 1 Token",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319661105,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23960,7 +23960,7 @@
       "details": "1O → 1 Token",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319671220,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23970,7 +23970,7 @@
       "details": "Reverted 4 free action step(s)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319706695,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -23980,7 +23980,7 @@
       "details": "Returned bon-1o-1k, took bon-1o-ts",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319746833,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24008,10 +24008,10 @@
       "phase": "main",
       "round": 5,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319751494,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24072,7 +24072,7 @@
       "details": "Auto-optimal: Tokens +1 / Power +4 · 2/1/2 → 1/1/4",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319789794,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24216,7 +24216,7 @@
       "details": "7 VP 2O",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319880822,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24267,7 +24267,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319936875,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24277,7 +24277,7 @@
       "details": "+4VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319944083,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24288,7 +24288,7 @@
       "details": "1O, 3P (no 2O 3C/6C)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319944084,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24337,10 +24337,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Declined Power Un",
+      "details": "↳ Declined Power un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319987756,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24369,10 +24369,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790319996194,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24393,7 +24393,7 @@
       "details": "6O, 6C (2K 수익)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320017485,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24403,7 +24403,7 @@
       "details": "artificialIntelligence to level 3 (8K→4K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320040061,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24421,10 +24421,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320053328,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24516,7 +24516,7 @@
       "details": "6O, 6C (2K 수익)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320091495,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24527,7 +24527,7 @@
       "details": "artificialIntelligence → Lv.4",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320094347,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24555,10 +24555,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320117893,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24653,7 +24653,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320172244,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24671,7 +24671,7 @@
       ],
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320180355,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24859,10 +24859,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320292707,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24882,7 +24882,7 @@
       "details": "+7 Credits (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320303668,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24926,7 +24926,7 @@
       "details": "Gained 4 Power",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320346236,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -24955,10 +24955,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320364103,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25009,7 +25009,7 @@
       "details": "artificialIntelligence to level 5 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320470523,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25049,7 +25049,7 @@
       "details": "1 QIC (Special Action)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320503597,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25067,10 +25067,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320509660,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25119,10 +25119,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +2P (-1VP) Un",
+      "details": "↳ Received Power +2P (-1VP) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320531613,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25213,7 +25213,7 @@
       "details": "+2 Knowledge (4P)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320628030,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25241,10 +25241,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Declined Power Un",
+      "details": "↳ Declined Power un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320638092,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25273,7 +25273,7 @@
       "details": "3O, 5C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320657955,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25284,7 +25284,7 @@
       "details": "gaiaProject → Lv.2 · +1 Ore, +1 QIC",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320674056,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25305,7 +25305,7 @@
       "details": "on gaia (1O, 2C, 1QIC)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320693039,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25336,7 +25336,7 @@
       "details": "2O, 3C",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320707584,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25385,10 +25385,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Received Power +1P Un",
+      "details": "↳ Received Power +1P un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320719579,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25399,7 +25399,7 @@
       "details": "1O, 2C (Lantida)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320728726,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25410,7 +25410,7 @@
       "details": "+2 Knowledge (parasitic build with PI)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320728726,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25472,7 +25472,7 @@
       "details": "7 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320751816,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25492,7 +25492,7 @@
       "details": "gaiaProject to level 3 (4K→0K)",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320768637,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25510,10 +25510,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Declined Power Un",
+      "details": "↳ Declined Power un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320780756,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25522,7 +25522,7 @@
       "action": "Selected Bonus",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320788332,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25540,10 +25540,10 @@
       "phase": "main",
       "round": 6,
       "action": "Received Power",
-      "details": "↳ Declined Power (auto: passed) Un",
+      "details": "↳ Declined Power (auto: passed) un",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320793443,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25630,7 +25630,7 @@
       "details": "+6 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320811719,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25652,7 +25652,7 @@
       "details": "+18 VP",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790320811720,
-      "playerName": "Un"
+      "playerName": "un"
     },
     {
       "isBot": false,
@@ -25905,10 +25905,10 @@
       "faction": "lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315307863,
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 10,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -25947,10 +25947,10 @@
       "faction": "lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315312789,
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 10,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -25978,7 +25978,7 @@
       },
       "scoreBefore": 10,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -26292,10 +26292,10 @@
       "faction": "lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315441608,
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 10,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -26323,7 +26323,7 @@
       },
       "scoreBefore": 10,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -26634,10 +26634,10 @@
       "faction": "lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315475902,
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 10,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -26665,7 +26665,7 @@
       },
       "scoreBefore": 10,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -26770,10 +26770,10 @@
       "faction": "lantids",
       "playerId": "p_1rn6qh203k",
       "timestamp": 1790315482147,
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 10,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -26812,7 +26812,7 @@
       },
       "scoreBefore": 10,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -27044,10 +27044,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 10,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -27086,7 +27086,7 @@
       },
       "scoreBefore": 10,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 10,
         "faction": "lantids",
         "research": {
@@ -27968,10 +27968,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 9,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -28010,7 +28010,7 @@
       },
       "scoreBefore": 9,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -29266,10 +29266,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 5,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 5,
         "faction": "lantids",
         "research": {
@@ -29313,7 +29313,7 @@
       },
       "scoreBefore": 5,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 5,
         "faction": "lantids",
         "research": {
@@ -29903,10 +29903,10 @@
           "tileId": "internal-0"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -29950,7 +29950,7 @@
       },
       "scoreBefore": 5,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 5,
         "faction": "lantids",
         "research": {
@@ -31312,10 +31312,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -31359,7 +31359,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -32308,10 +32308,10 @@
           "tileId": "tile-107"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -32355,7 +32355,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -32436,10 +32436,10 @@
           "tileId": "tile-107"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -32483,7 +32483,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -33197,10 +33197,10 @@
           "actionIndex": 3
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -33244,7 +33244,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -33326,10 +33326,10 @@
           "actionIndex": 3
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -33373,7 +33373,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -34133,10 +34133,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -34180,7 +34180,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -34277,10 +34277,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -34324,7 +34324,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -35054,10 +35054,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -35101,7 +35101,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -35189,10 +35189,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -35236,7 +35236,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -36081,10 +36081,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -36136,7 +36136,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -37104,10 +37104,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -37159,7 +37159,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -37238,10 +37238,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -37293,7 +37293,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -37871,10 +37871,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 7,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 7,
         "faction": "lantids",
         "research": {
@@ -37931,7 +37931,7 @@
       },
       "scoreBefore": 7,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 7,
         "faction": "lantids",
         "research": {
@@ -38344,10 +38344,10 @@
           "tileId": "internal-0"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -38404,7 +38404,7 @@
       },
       "scoreBefore": 7,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 7,
         "faction": "lantids",
         "research": {
@@ -38683,10 +38683,10 @@
           "tileId": "internal-4"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -38749,7 +38749,7 @@
       },
       "scoreBefore": 2,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -38958,10 +38958,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -39024,7 +39024,7 @@
       },
       "scoreBefore": 2,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -39249,10 +39249,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -39315,7 +39315,7 @@
       },
       "scoreBefore": 2,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -41243,12 +41243,12 @@
           "type": "take_twilight_artifact"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "shipTileId": "internal-1",
       "actionIndex": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -41311,7 +41311,7 @@
       },
       "scoreBefore": 2,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -41467,10 +41467,10 @@
           "type": "take_twilight_artifact"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -41535,7 +41535,7 @@
       },
       "scoreBefore": 2,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -41690,10 +41690,10 @@
           "type": "take_twilight_artifact"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -41758,7 +41758,7 @@
       },
       "scoreBefore": 2,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 2,
         "faction": "lantids",
         "research": {
@@ -42638,12 +42638,12 @@
           "type": "take_twilight_artifact"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 1,
       "shipTileId": "internal-1",
       "actionIndex": 3,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -42708,7 +42708,7 @@
       },
       "scoreBefore": 1,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -42861,10 +42861,10 @@
           "type": "take_twilight_artifact"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 1,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -42929,7 +42929,7 @@
       },
       "scoreBefore": 1,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -43550,10 +43550,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 1,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -43618,7 +43618,7 @@
       },
       "scoreBefore": 1,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -43714,10 +43714,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 1,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -43782,7 +43782,7 @@
       },
       "scoreBefore": 1,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -43878,10 +43878,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 1,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -43946,7 +43946,7 @@
       },
       "scoreBefore": 1,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 1,
         "faction": "lantids",
         "research": {
@@ -45456,10 +45456,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -45524,7 +45524,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -45617,10 +45617,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -45685,7 +45685,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -46569,10 +46569,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -46637,7 +46637,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -46763,10 +46763,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -46831,7 +46831,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -47859,10 +47859,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -47927,7 +47927,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -48014,10 +48014,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -48082,7 +48082,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -48664,10 +48664,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -48732,7 +48732,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -48814,10 +48814,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -48926,7 +48926,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -49008,10 +49008,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -49120,7 +49120,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -50517,10 +50517,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -50629,7 +50629,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -51230,10 +51230,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -51342,7 +51342,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -54055,12 +54055,12 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "shipTileId": "internal-2",
       "actionIndex": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -54169,7 +54169,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -55287,10 +55287,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -55399,7 +55399,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -55568,12 +55568,12 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 0,
       "shipTileId": "internal-1",
       "actionIndex": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -55682,7 +55682,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -55851,10 +55851,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 9,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -55964,7 +55964,7 @@
       },
       "scoreBefore": 0,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 0,
         "faction": "lantids",
         "research": {
@@ -57069,10 +57069,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 9,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -57182,7 +57182,7 @@
       },
       "scoreBefore": 9,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -58832,10 +58832,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 9,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -58945,7 +58945,7 @@
       },
       "scoreBefore": 9,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 9,
         "faction": "lantids",
         "research": {
@@ -61890,10 +61890,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 15,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 15,
         "faction": "lantids",
         "research": {
@@ -62003,7 +62003,7 @@
       },
       "scoreBefore": 8,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 8,
         "faction": "lantids",
         "research": {
@@ -63174,10 +63174,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 15,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 15,
         "faction": "lantids",
         "research": {
@@ -63287,7 +63287,7 @@
       },
       "scoreBefore": 15,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 15,
         "faction": "lantids",
         "research": {
@@ -65387,10 +65387,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 17,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -65500,7 +65500,7 @@
       },
       "scoreBefore": 17,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -65648,10 +65648,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 17,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -65761,7 +65761,7 @@
       },
       "scoreBefore": 17,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -67939,10 +67939,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 17,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -68052,7 +68052,7 @@
       },
       "scoreBefore": 17,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -68740,10 +68740,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 20,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -68853,7 +68853,7 @@
       },
       "scoreBefore": 17,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -69077,12 +69077,12 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 20,
       "shipTileId": "internal-2",
       "actionIndex": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -69192,7 +69192,7 @@
       },
       "scoreBefore": 17,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 17,
         "faction": "lantids",
         "research": {
@@ -71100,10 +71100,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 19,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 19,
         "faction": "lantids",
         "research": {
@@ -71213,7 +71213,7 @@
       },
       "scoreBefore": 19,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 19,
         "faction": "lantids",
         "research": {
@@ -72965,12 +72965,12 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 22,
       "shipTileId": "internal-2",
       "actionIndex": 3,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 22,
         "faction": "lantids",
         "research": {
@@ -73080,7 +73080,7 @@
       },
       "scoreBefore": 22,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 22,
         "faction": "lantids",
         "research": {
@@ -74177,10 +74177,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 20,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -74290,7 +74290,7 @@
       },
       "scoreBefore": 20,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -74485,10 +74485,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 20,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -74598,7 +74598,7 @@
       },
       "scoreBefore": 20,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -74793,10 +74793,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 20,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -74906,7 +74906,7 @@
       },
       "scoreBefore": 20,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -75102,10 +75102,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 20,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -75215,7 +75215,7 @@
       },
       "scoreBefore": 20,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 20,
         "faction": "lantids",
         "research": {
@@ -77257,10 +77257,10 @@
           "actionIndex": 3
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 27,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -77370,7 +77370,7 @@
       },
       "scoreBefore": 27,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -77555,10 +77555,10 @@
           "actionIndex": 3
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 27,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -77668,7 +77668,7 @@
       },
       "scoreBefore": 27,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -79436,10 +79436,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 27,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -79549,7 +79549,7 @@
       },
       "scoreBefore": 27,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -80666,10 +80666,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 27,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -80796,7 +80796,7 @@
       },
       "scoreBefore": 27,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -80976,10 +80976,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 27,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -81106,7 +81106,7 @@
       },
       "scoreBefore": 27,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -82560,10 +82560,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 27,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -82690,7 +82690,7 @@
       },
       "scoreBefore": 27,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 27,
         "faction": "lantids",
         "research": {
@@ -84487,10 +84487,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 30,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 30,
         "faction": "lantids",
         "research": {
@@ -84617,7 +84617,7 @@
       },
       "scoreBefore": 30,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 30,
         "faction": "lantids",
         "research": {
@@ -84801,10 +84801,10 @@
           "tileId": "internal-3"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 25,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -84931,7 +84931,7 @@
       },
       "scoreBefore": 30,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 30,
         "faction": "lantids",
         "research": {
@@ -85765,12 +85765,12 @@
           "actionIndex": 3
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 25,
       "shipTileId": "internal-3",
       "actionIndex": 3,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -85897,7 +85897,7 @@
       },
       "scoreBefore": 25,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -86082,10 +86082,10 @@
           "actionIndex": 3
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 25,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -86212,7 +86212,7 @@
       },
       "scoreBefore": 25,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -88439,10 +88439,10 @@
           "tileId": "tile-146"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 25,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -88569,7 +88569,7 @@
       },
       "scoreBefore": 25,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 25,
         "faction": "lantids",
         "research": {
@@ -90695,10 +90695,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 24,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 24,
         "faction": "lantids",
         "research": {
@@ -90825,7 +90825,7 @@
       },
       "scoreBefore": 24,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 24,
         "faction": "lantids",
         "research": {
@@ -90957,10 +90957,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 32,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 32,
         "faction": "lantids",
         "research": {
@@ -91087,7 +91087,7 @@
       },
       "scoreBefore": 24,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 24,
         "faction": "lantids",
         "research": {
@@ -92134,10 +92134,10 @@
           "type": "convert_resource"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 32,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 32,
         "faction": "lantids",
         "research": {
@@ -92264,7 +92264,7 @@
       },
       "scoreBefore": 24,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 24,
         "faction": "lantids",
         "research": {
@@ -93547,12 +93547,12 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 32,
       "shipTileId": "internal-1",
       "actionIndex": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 32,
         "faction": "lantids",
         "research": {
@@ -93679,7 +93679,7 @@
       },
       "scoreBefore": 32,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 32,
         "faction": "lantids",
         "research": {
@@ -93867,10 +93867,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 48,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 48,
         "faction": "lantids",
         "research": {
@@ -93998,7 +93998,7 @@
       },
       "scoreBefore": 32,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 32,
         "faction": "lantids",
         "research": {
@@ -94185,10 +94185,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 48,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 48,
         "faction": "lantids",
         "research": {
@@ -94316,7 +94316,7 @@
       },
       "scoreBefore": 32,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 32,
         "faction": "lantids",
         "research": {
@@ -96064,10 +96064,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 48,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 48,
         "faction": "lantids",
         "research": {
@@ -96195,7 +96195,7 @@
       },
       "scoreBefore": 48,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 48,
         "faction": "lantids",
         "research": {
@@ -98981,10 +98981,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 47,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -99112,7 +99112,7 @@
       },
       "scoreBefore": 47,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -99339,10 +99339,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 47,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -99470,7 +99470,7 @@
       },
       "scoreBefore": 47,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -99697,10 +99697,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 47,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -99829,7 +99829,7 @@
       },
       "scoreBefore": 47,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -100055,10 +100055,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 47,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -100187,7 +100187,7 @@
       },
       "scoreBefore": 47,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -101937,10 +101937,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 47,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -102069,7 +102069,7 @@
       },
       "scoreBefore": 47,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -102294,10 +102294,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 47,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -102427,7 +102427,7 @@
       },
       "scoreBefore": 47,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 47,
         "faction": "lantids",
         "research": {
@@ -103772,10 +103772,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 46,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -103905,7 +103905,7 @@
       },
       "scoreBefore": 46,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -105927,10 +105927,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 46,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -106060,7 +106060,7 @@
       },
       "scoreBefore": 46,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -106271,10 +106271,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 46,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -106404,7 +106404,7 @@
       },
       "scoreBefore": 46,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -108395,10 +108395,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 46,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -108540,7 +108540,7 @@
       },
       "scoreBefore": 46,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -108711,10 +108711,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 46,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -108856,7 +108856,7 @@
       },
       "scoreBefore": 46,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 46,
         "faction": "lantids",
         "research": {
@@ -110116,10 +110116,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -110261,7 +110261,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -114598,10 +114598,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -114743,7 +114743,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -114926,10 +114926,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -115071,7 +115071,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -116656,10 +116656,10 @@
           "trackId": "science"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -116801,7 +116801,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118059,10 +118059,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118204,7 +118204,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118365,10 +118365,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118510,7 +118510,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118671,10 +118671,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118816,7 +118816,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -118977,10 +118977,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -119122,7 +119122,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -119283,10 +119283,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -119440,7 +119440,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -119601,10 +119601,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -119758,7 +119758,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -122149,10 +122149,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -122306,7 +122306,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -128764,10 +128764,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 58,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -128921,7 +128921,7 @@
       },
       "scoreBefore": 58,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 58,
         "faction": "lantids",
         "research": {
@@ -130983,10 +130983,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -131144,7 +131144,7 @@
       },
       "scoreBefore": 65,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 65,
         "faction": "lantids",
         "research": {
@@ -131391,12 +131391,12 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "shipTileId": "internal-2",
       "actionIndex": 2,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -131554,7 +131554,7 @@
       },
       "scoreBefore": 65,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 65,
         "faction": "lantids",
         "research": {
@@ -133644,10 +133644,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -133805,7 +133805,7 @@
       },
       "scoreBefore": 69,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -135969,10 +135969,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -136138,7 +136138,7 @@
       },
       "scoreBefore": 69,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -136416,10 +136416,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -136586,7 +136586,7 @@
       },
       "scoreBefore": 69,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -138681,10 +138681,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -138851,7 +138851,7 @@
       },
       "scoreBefore": 69,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -139154,10 +139154,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 69,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -139324,7 +139324,7 @@
       },
       "scoreBefore": 69,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 69,
         "faction": "lantids",
         "research": {
@@ -146355,10 +146355,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 77,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -146525,7 +146525,7 @@
       },
       "scoreBefore": 77,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -148142,10 +148142,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 77,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -148312,7 +148312,7 @@
       },
       "scoreBefore": 77,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -150369,10 +150369,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 77,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -150539,7 +150539,7 @@
       },
       "scoreBefore": 77,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -152134,10 +152134,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 77,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -152304,7 +152304,7 @@
       },
       "scoreBefore": 77,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 77,
         "faction": "lantids",
         "research": {
@@ -156086,10 +156086,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 76,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -156260,7 +156260,7 @@
       },
       "scoreBefore": 76,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -158342,10 +158342,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 76,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -158516,7 +158516,7 @@
       },
       "scoreBefore": 76,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -158768,10 +158768,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 76,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -158943,7 +158943,7 @@
       },
       "scoreBefore": 76,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -159622,10 +159622,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 76,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -159797,7 +159797,7 @@
       },
       "scoreBefore": 76,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -160434,10 +160434,10 @@
           "actionIndex": 1
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 76,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -160609,7 +160609,7 @@
       },
       "scoreBefore": 76,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 76,
         "faction": "lantids",
         "research": {
@@ -161760,10 +161760,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 80,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 80,
         "faction": "lantids",
         "research": {
@@ -161935,7 +161935,7 @@
       },
       "scoreBefore": 80,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 80,
         "faction": "lantids",
         "research": {
@@ -162167,10 +162167,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 80,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 80,
         "faction": "lantids",
         "research": {
@@ -162342,7 +162342,7 @@
       },
       "scoreBefore": 80,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 80,
         "faction": "lantids",
         "research": {
@@ -163035,12 +163035,12 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 87,
       "shipTileId": "internal-3",
       "actionIndex": 1,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 87,
         "faction": "lantids",
         "research": {
@@ -163231,7 +163231,7 @@
       },
       "scoreBefore": 80,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 80,
         "faction": "lantids",
         "research": {
@@ -163918,10 +163918,10 @@
           "trackId": "economy"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 87,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 87,
         "faction": "lantids",
         "research": {
@@ -164112,7 +164112,7 @@
       },
       "scoreBefore": 87,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 87,
         "faction": "lantids",
         "research": {
@@ -164780,10 +164780,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 95,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 95,
         "faction": "lantids",
         "research": {
@@ -164974,7 +164974,7 @@
       },
       "scoreBefore": 87,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 87,
         "faction": "lantids",
         "research": {
@@ -167479,10 +167479,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 101,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 101,
         "faction": "lantids",
         "research": {
@@ -167673,7 +167673,7 @@
       },
       "scoreBefore": 87,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 87,
         "faction": "lantids",
         "research": {
@@ -168323,10 +168323,10 @@
           "type": "pass_round"
         }
       ],
-      "playerName": "Un",
+      "playerName": "un",
       "scoreAfter": 119,
       "playerAfter": {
-        "name": "Un",
+        "name": "un",
         "score": 119,
         "faction": "lantids",
         "research": {
@@ -168517,7 +168517,7 @@
       },
       "scoreBefore": 87,
       "playerBefore": {
-        "name": "Un",
+        "name": "un",
         "score": 87,
         "faction": "lantids",
         "research": {
