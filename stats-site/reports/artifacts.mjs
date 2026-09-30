@@ -46,7 +46,7 @@ export function build({ games, gamesPerPlayer }) {
     <h2>인공물 13종</h2>
     <div class="grid">${[...ARTS].filter((d) => stats[d.id])
       .sort((a, b) => stats[b.id].total - stats[a.id].total)
-      .map((d) => itemCard({ label: d.label, imgSrc: b64img(`Art${d.img}.png`), stat: stats[d.id], low: true })).join('')}</div>
+      .map((d) => itemCard({ label: d.label, imgSrc: b64img(`Art${d.img}.png`), stat: stats[d.id] })).join('')}</div>
   </div>`;
 
   return pageShell({

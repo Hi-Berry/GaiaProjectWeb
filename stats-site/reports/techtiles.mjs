@@ -52,7 +52,7 @@ export function build({ games, gamesPerPlayer }) {
     <h2>일반 기술 타일 9종 + 우주선 기술 타일 3종 (많이 나간 순)</h2>
     <div class="grid">${[...TILES].filter((d) => stats[d.id])
       .sort((a, b) => stats[b.id].total - stats[a.id].total)
-      .map((d) => itemCard({ label: d.label, imgSrc: techImgB64(d.img), stat: stats[d.id], low: true })).join('')}</div>
+      .map((d) => itemCard({ label: d.label, imgSrc: techImgB64(d.img), stat: stats[d.id] })).join('')}</div>
   </div>`;
 
   return pageShell({
