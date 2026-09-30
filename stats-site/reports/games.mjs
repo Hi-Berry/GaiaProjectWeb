@@ -33,8 +33,11 @@ const rankOf = (P, id) => 1 + Object.values(P).filter((x) => (x.score ?? 0) > (P
 /**
  * [사용자 2026-09-30] 배포본(pub)에는 판별 액션 순서를 싣지 않는다 — "결과 점수까지는 좋은데
  *   1라부터 어떤 액션부터 했는지는 안 뜨게, 내 로컬에서만". 화면에서 숨기는 게 아니라 조각 데이터에서 뺀다.
- *   빠지는 것: 전체 타임라인(tl) · 사람별 액션 감사 표(audit.rows).
- *   남는 것: 순위·점수·점수 내역·연구·타일·연방·보너스 · 라운드 끝 점수판 · 점수 검증 카드.
+ *   빠지는 것: 전체 타임라인(tl) · 사람별 감사(audit) 전체 — 액션 표·검증 카드·점수 내역 표까지.
+ *     [사용자 2026-09-30 후속] "'액션 외 변동 구간 31회 · 그중 자동 액션으로 설명 안 되는 … 16회' 같은 문구도
+ *     배포되면 안 돼. 사람 클릭하면 불필요한 게 많이 보인다." → 사람 상세(감사) 화면 자체가 점수 검증용
+ *     디버그 화면이라 배포본에서는 통째로 없앤다(카드도 누를 수 없게).
+ *   남는 것: 순위·점수·점수 내역·연구·타일·연방·보너스(게임 화면 카드) · 라운드 끝 점수판.
  */
 function gameDetail(g, file, pub) {
   const P = g.players; const ids = Object.keys(P);
@@ -60,7 +63,7 @@ function gameDetail(g, file, pub) {
       return {
         n: canon(p.name), raw: p.name, f: p.faction, s: p.score ?? 0, rk: rankOf(P, id), bot: isBot(g, id) ? 1 : 0,
         order: order.indexOf(id) + 1, bonus: p.bonusTile ? lab(p.bonusTile) : '', tiles: (p.techTiles ?? []).map(lab), feds: (p.federations ?? []).length,
-        research: researchStr(p.research), bd: breakdownGroups(p.scoreBreakdown), audit: pub ? publicAudit(auditPlayer(g, id)) : auditPlayer(g, id),
+        research: researchStr(p.research), bd: breakdownGroups(p.scoreBreakdown), ...(pub ? {} : { audit: auditPlayer(g, id) }),
       };
     }),
     board: rounds.map((r) => [r, ids.map((id) => board[r][id]?.vp ?? null), ids.map((id) => { const s = board[r][id]; return s ? RESK.slice(1).map(([k, l]) => `${l}${s[k] ?? 0}`).join(' ') : ''; })]),
@@ -68,10 +71,6 @@ function gameDetail(g, file, pub) {
   };
 }
 
-/** 감사 결과에서 액션 한 줄 한 줄(rows)을 뺀 배포용 사본 — 검증 카드·점수 내역·합계만 남긴다 */
-function publicAudit(a) {
-  return { rows: [], cards: a.cards, groups: a.groups, total: a.total, bid: a.bid, startVp: a.startVp };
-}
 
 export function build({ dist, pub }) {
   const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith('.json') && !EXCLUDE_GAMES.has(f)).sort().reverse();
@@ -102,7 +101,13 @@ export function build({ dist, pub }) {
     sizes.push(out.length);
   });
   const faces = Object.fromEntries(Object.keys(FACTION_KO).map((k) => [k, factionFaceB64(k)]).filter(([, v]) => v));
-  const client = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'gamesClient.js'), 'utf8');
+  let client = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'gamesClient.js'), 'utf8');
+  // 배포본: 사람 상세(감사) 화면 코드를 잘라 낸다 — 실행은 안 돼도 페이지 소스에 '액션 외 변동' 같은 문구가 남기 때문
+  if (pub) {
+    const cut = /\/\* @@PLAYER_START[\s\S]*?@@PLAYER_END \*\//;
+    if (!cut.test(client)) throw new Error('gamesClient.js 에 @@PLAYER_START/@@PLAYER_END 표시가 없다 — 배포본에서 감사 화면을 뺄 수 없어 빌드를 멈춘다');
+    client = client.replace(cut, '  function renderPlayer() {}');
+  }
   const body = fragment({ index, chunkCount: chunks.length, faces, client, pub });
   // 아티팩트용 조각(doctype/html/head/body 없음 — 게시 도구가 감싼다)
   fs.writeFileSync(path.join(dist, 'games.artifact.html'), body);
@@ -182,6 +187,8 @@ function fragment({ index, chunkCount, faces, client, pub }) {
   .pcards { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:12px; }
   .pcard { text-align:left; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; cursor:pointer; display:flex; flex-direction:column; gap:10px; min-width:0; transition:border-color .15s, transform .15s; border-top:3px solid var(--fc,var(--line)); }
   .pcard:hover { border-color:var(--acc); transform:translateY(-2px); }
+  .pcard.static { cursor:default; }
+  .pcard.static:hover { border-color:var(--line); transform:none; }
   .pcard .top { display:flex; align-items:center; gap:10px; min-width:0; }
   .pcard img.face { width:44px; height:44px; border-radius:50%; object-fit:cover; background:#0a0e18; border:2px solid var(--fc,var(--line)); flex-shrink:0; }
   .pcard .who { min-width:0; flex:1; }

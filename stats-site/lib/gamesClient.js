@@ -47,11 +47,12 @@
     app.innerHTML = crumbs(r) + '<div class="loading">게임 상세 불러오는 중…</div>';
     getGame(r.g).then((game) => {
       if (route().g !== r.g) return;
-      if (r.p != null && game.ps[r.p]) renderPlayer(game, r.p); else renderGame(game);
+      if (!PUB && r.p != null && game.ps[r.p]) renderPlayer(game, r.p); else renderGame(game);
       window.scrollTo(0, 0);
     }).catch(() => { app.innerHTML = crumbs(r) + '<div class="empty">상세 데이터 조각을 불러오지 못했습니다. 페이지를 새로 고쳐 보세요.</div>'; });
   }
   function crumbs(r) {
+    if (PUB) r = { ...r, p: null }; // 배포본엔 사람 단계가 없다
     const g = r.g ? byId[r.g] : null;
     const parts = [`<button type="button" data-go="">🗂️ 게임 기록실</button>`];
     if (g) parts.push(`<span class="sep">›</span>`, r.p != null ? `<button type="button" data-go="${g.id}">${g.d} 게임</button>` : `<span class="cur">${g.d} 게임</span>`);
@@ -71,7 +72,7 @@
     const facs = [...new Set(D.index.flatMap((g) => g.ps.map((p) => p.f)))].sort((a, b) => ko(a).localeCompare(ko(b), 'ko'));
     app.innerHTML = `
       <h1>🗂️ <span class="green">가이아</span> 게임 기록실</h1>
-      <p class="sub">저장된 사람 게임 로그 <b>${D.index.length}판</b>. 판을 누르면 네 사람의 결과가, 사람을 누르면 그 사람의 액션 하나하나와 점수 검증이 나옵니다.
+      <p class="sub">저장된 사람 게임 로그 <b>${D.index.length}판</b>. 판을 누르면 네 사람의 결과가${PUB ? '' : ', 사람을 누르면 그 사람의 액션 하나하나와 점수 검증이'} 나옵니다.
         기본은 <b>사람 4인 · 6라운드 완료</b> 판만 보이고, 체크를 끄면 봇 게임과 미완 게임도 보입니다.</p>
       <div class="stamp">🕐 ${esc(D.stamp)} 시점 자료 기준</div>
       <div class="bar">
@@ -82,7 +83,7 @@
       </div>
       <div class="tblwrap"><table class="glist"><thead><tr><th>날짜</th><th>참가자 (순위순 · 금테 = 1위)</th><th>라운드</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
       <p class="legend">이름은 계정 통합(같은 사람의 다른 아이디)을 적용한 표준 이름입니다. 점선 칩은 봇. 종족 검색은 한글 이름(하드쉬·아이타…)으로.</p>
-      <p class="foot">데이터: data/human-games 저장 로그 · 상세는 클릭할 때 조각 파일로 불러옵니다 (${D.chunkCount}조각).</p>`;
+      ${PUB ? '' : `<p class="foot">데이터: data/human-games 저장 로그 · 상세는 클릭할 때 조각 파일로 불러옵니다 (${D.chunkCount}조각).</p>`}`;
     const q = document.getElementById('q'), fac = document.getElementById('fac'), std = document.getElementById('std');
     q.addEventListener('input', () => { filt.q = q.value; drawRows(); });
     fac.addEventListener('change', () => { filt.fac = fac.value; drawRows(); });
@@ -118,13 +119,14 @@
     const maxBd = Math.max(1, ...game.ps.flatMap((p) => Object.values(p.bd).map(Math.abs)));
     const cards = ranked.map(({ p, i }) => {
       const bd = Object.entries(p.bd).sort((a, b) => b[1] - a[1]).filter(([, v]) => v !== 0);
-      return `<button type="button" class="pcard" data-go="${game.id}/${i}" style="--fc:${col(p.f)}" title="${esc(p.n)} 액션 감사 보기">
+      const open = PUB ? `<div class="pcard static" style="--fc:${col(p.f)}">` : `<button type="button" class="pcard" data-go="${game.id}/${i}" style="--fc:${col(p.f)}" title="${esc(p.n)} 액션 감사 보기">`;
+      return `${open}
         <div class="top"><span class="medal r${Math.min(p.rk, 4)}">${p.rk}</span>${face(p.f, 'face')}
           <div class="who"><div class="nm">${esc(p.n)}${p.bot ? ' <span class="pill">봇</span>' : ''}</div><div class="fc">${esc(ko(p.f))} · ${p.order}번째 시작</div></div>
           <div class="score">${p.s}<small>점</small></div></div>
         <div class="bd">${bd.map(([k, v]) => `<div class="bdr"><span class="lbl">${esc(bdKo(k))}</span><span class="val${v < 0 ? ' neg' : ''}">${v > 0 ? '+' : ''}${v}</span><span class="barbg"><i style="width:${Math.round(100 * Math.abs(v) / maxBd)}%"></i></span></div>`).join('')}</div>
         <div class="kv"><span>연구</span><b>${esc(p.research) || '–'}</b><span>연방</span><b>${p.feds}</b><span>보너스</span><b>${esc(p.bonus) || '–'}</b><span>타일 ${p.tiles.length}</span><span class="tiles">${p.tiles.map(esc).join(' · ') || '–'}</span></div>
-      </button>`;
+      ${PUB ? '</div>' : '</button>'}`;
     }).join('');
     const boardRows = game.board.map(([r, vps, res]) => {
       const lead = Math.max(...vps.filter((v) => v != null));
@@ -137,7 +139,7 @@
       <section class="sec"><h2>라운드 끝 점수판 <span class="hint">각 라운드 마지막 액션 직후 VP · 자원</span></h2>
         <div class="tblwrap"><table class="board"><thead><tr><th></th>${ranked.map(({ p }) => `<th>${esc(p.n)} <span style="color:${col(p.f)}">${esc(ko(p.f))}</span></th>`).join('')}</tr></thead><tbody>${boardRows}</tbody></table></div></section>
       ${PUB ? '' : `<section class="sec"><h2>전체 타임라인 <span class="hint">모든 사람의 액션을 순서대로</span></h2>${timeline(game, null)}</section>`}
-      <p class="foot">${PUB ? '카드를 누르면 그 사람의 점수 검증으로 들어갑니다.' : '카드를 누르면 그 사람의 액션별 자원 흐름과 점수 검증(감사)으로 들어갑니다.'}</p>`;
+      ${PUB ? '' : '<p class="foot">카드를 누르면 그 사람의 액션별 자원 흐름과 점수 검증(감사)으로 들어갑니다.</p>'}`;
   }
   function timeline(game, meIdx) {
     let cur = null; const out = [];
@@ -149,6 +151,7 @@
     return `<div class="tl${meIdx != null ? ' onlyme' : ''}" id="tl">${out.join('')}</div>`;
   }
 
+  /* @@PLAYER_START — 배포본(reports/games.mjs pub)에서는 여기부터 @@PLAYER_END까지 통째로 잘려 나간다 */
   // ── 3. 사람 (감사) ───────────────────────────────────────────────────
   const GK = ['C', 'O', 'K', 'Q', 'P1', 'P2', 'P3'];
   const cell = (val, delta, cls) => {
@@ -195,4 +198,5 @@
     const showall = document.getElementById('showall');
     if (showall) showall.addEventListener('change', (e) => { document.getElementById('tl').classList.toggle('onlyme', !e.target.checked); });
   }
+  /* @@PLAYER_END */
 })();
