@@ -174,6 +174,46 @@ export function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: Player
  *  관전(watch_game)에만 적용 — 좌석에 앉는 플레이어는 숨길 수 없다(게임 참가자라 항상 보여야 함).
  *  이름 비교는 trim 후 정확일치(' --- '도 숨김). 서버는 이 이름을 game 객체에 저장하지 않는다(gameState.ts hiddenSpectatorIds).
  *  참고: 이 상태로 채팅을 보내면 이름이 없어 일반 '관전자'로 표시된다 — 목록엔 없는데 발언이 있으면 존재는 드러난다. */
+/**
+ * [사용자 2026-09-30] 롤백 횟수 제한. 사람마다 게임당 이 횟수까지 롤백을 '실행'할 수 있다.
+ *   "3은 지금은 3인데 추후에는 2로 바꿀 예정" → 이 한 줄만 바꾸면 서버·클라·관리자 화면이 같이 바뀐다.
+ *   관리자가 특정 사람의 잔여 횟수를 고치면 그 사람만 따로 한도가 붙는다(rollbackUsage.limitByPlayer).
+ */
+export const ROLLBACK_LIMIT_PER_PLAYER = 3;
+
+/** 롤백 요청 사유 — 요청 창에서 고르고, 다른 사람들 동의 창에 그대로 뜬다. 'custom'만 직접 입력. */
+export const ROLLBACK_REASONS = [
+  { code: 'power', label: '파워 수락 여부 변경' },
+  { code: 'techTile', label: '기술 타일 변경' },
+  { code: 'techTrack', label: '기술 트랙 변경' },
+  { code: 'freeAction', label: '프리액션 수정' },
+  { code: 'otherAction', label: '다른 액션 사용' },
+  { code: 'custom', label: '기타 (직접 입력)' },
+] as const;
+export type RollbackReasonCode = typeof ROLLBACK_REASONS[number]['code'];
+export const ROLLBACK_REASON_TEXT_MAX = 80;
+
+/** 롤백 사유를 사람이 읽을 한 줄로. 'custom'이면 입력한 글을 그대로. */
+export function rollbackReasonText(reason: { code: string; text?: string } | null | undefined): string {
+  if (!reason) return '';
+  if (reason.code === 'custom') return (reason.text ?? '').trim() || '기타';
+  return ROLLBACK_REASONS.find(r => r.code === reason.code)?.label ?? '';
+}
+
+/**
+ * 사람 한 명의 롤백 사용 현황. used = 실행된 롤백 수(요청이 거절되면 세지 않는다).
+ * next = 다음에 요청하면 몇 번째인지 — 버튼·요청 창의 "(1/3)" 표기.
+ */
+export function getRollbackQuota(game: Pick<GaiaGameState, 'rollbackUsage'> | null | undefined, playerId: string | null | undefined): {
+  used: number; limit: number; remaining: number; next: number; exhausted: boolean;
+} {
+  const u = game?.rollbackUsage;
+  const used = (playerId && u?.used?.[playerId]) || 0;
+  const limit = (playerId && u?.limitByPlayer?.[playerId] != null) ? u!.limitByPlayer[playerId] : (u?.limit ?? ROLLBACK_LIMIT_PER_PLAYER);
+  const remaining = Math.max(0, limit - used);
+  return { used, limit, remaining, next: used + 1, exhausted: remaining <= 0 };
+}
+
 export const HIDDEN_SPECTATOR_NAME = '---';
 export function isHiddenSpectatorName(name?: string | null): boolean {
   return (name ?? '').trim() === HIDDEN_SPECTATOR_NAME;
@@ -632,7 +672,23 @@ export interface GaiaGameState {
     undoneActions: string[]; // 되돌릴 행동 요약(최근 몇 개, "이름: 액션")
     required: string[]; // 승인이 필요한 사람 playerId 목록
     approvals: string[];// 승인한 playerId 목록
+    /** 마지막 라운드에 이미 패스해 서버가 자동 승낙 처리한 사람 */
+    autoApproved?: string[];
+    /** [2026-09-30] 요청 사유 — 동의 창에 그대로 보여 준다 */
+    reason?: { code: string; text?: string };
+    /** [2026-09-30] 이 요청이 요청자의 몇 번째 롤백인지와 그 사람의 한도 — "(1/3)" 표기 */
+    ordinal?: number;
+    limit?: number;
   } | null;
+  /**
+   * [2026-09-30] 롤백 사용 현황 거울. 원본은 서버 모듈의 rollbackCounts 이고(게임 밖이라 롤백으로 안 되감긴다),
+   * 서버가 매 전송 직전에 여기에 찍어 보낸다. 클라는 읽기만 한다.
+   */
+  rollbackUsage?: {
+    limit: number;                       // 기본 한도(ROLLBACK_LIMIT_PER_PLAYER)
+    used: Record<string, number>;        // 사람별 실행된 롤백 수
+    limitByPlayer: Record<string, number>; // 관리자가 고친 사람별 한도(없으면 기본)
+  };
   /** 종족 비딩 진행 상태 (factionBidding 단계에서만) */
   factionBidding?: FactionBiddingState | null;
 }

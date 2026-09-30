@@ -92,6 +92,11 @@ import {
 	endgameLeftoverUnits,
 	RESEARCH_TRACKS,
 	isHiddenSpectatorName,
+	ROLLBACK_LIMIT_PER_PLAYER,
+	ROLLBACK_REASONS,
+	ROLLBACK_REASON_TEXT_MAX,
+	getRollbackQuota,
+	rollbackReasonText,
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
@@ -208,7 +213,7 @@ export function createGameDelta(
 function ensureGameSyncState(game: GaiaGameState): GameSyncState {
 	const existing = _gameSyncStates.get(game.id);
 	if (existing) return existing;
-	const publicGame = buildClientGameState(game, true);
+	const publicGame = clientStateOf(game, true);
 	const state = { revision: 0, game: publicGame, json: JSON.stringify(publicGame) };
 	_gameSyncStates.set(game.id, state);
 	return state;
@@ -363,7 +368,7 @@ function emitGameUpdatedNow(io: any, game: any) {
 	// MCTS/정책 탐색은 실제 방이 아닌 dummyIo를 사용한다. 네트워크 동기화·계측 상태와 절대 섞지 않는다.
 	if (game?.simulation) return;
 
-	const payload = buildClientGameState(game, true);
+	const payload = clientStateOf(game, true);
 	// [계측, EMIT_BYTES=1일 때만] 게임당 emit 바이트 실측(원본+deflate 근사 — 실제 스트림 압축은 이보다 유리)
 	if (process.env.EMIT_BYTES) {
 		try {
@@ -785,9 +790,36 @@ const turnHistories = new Map<string, TurnHistoryEntry[]>();
 /** [롤백 집계 2026-08-06 사용자 요청] 게임별 롤백 횟수 (요청자별 + GM).
  *  게임 객체가 아니라 여기(모듈 레벨)에 두는 이유: 롤백은 게임 상태를 스냅샷으로 통째 복원하므로
  *  game 안에 세면 카운터까지 같이 되감긴다. 밖에 두면 되감기와 무관하게 누적된다. */
-const rollbackCounts = new Map<string, { total: number; byPlayer: Record<string, number>; admin: number }>();
+/*  [사용자 2026-09-30] 여기가 롤백 횟수 제한의 원본이기도 하다. byPlayer = 사람별 '실행된' 롤백 수,
+ *  limitByPlayer = 관리자가 고친 사람별 한도(없으면 ROLLBACK_LIMIT_PER_PLAYER). 클라는 매 전송 때
+ *  stampRollbackUsage 가 game.rollbackUsage 로 찍어 준 거울만 본다. */
+type RollbackCount = { total: number; byPlayer: Record<string, number>; admin: number; limitByPlayer: Record<string, number> };
+const rollbackCounts = new Map<string, RollbackCount>();
+/** 이 게임의 집계를 꺼낸다. 없으면 게임에 실려 있던 거울로 되살린다(서버가 게임만 복원한 경우의 보험). */
+function rollbackCountOf(game: GaiaGameState): RollbackCount {
+	let c = rollbackCounts.get(game.id);
+	if (!c) {
+		const m = (game as any).rollbackUsage as GaiaGameState['rollbackUsage'];
+		const byPlayer = { ...(m?.used ?? {}) };
+		c = { total: Object.values(byPlayer).reduce((a, b) => a + b, 0), byPlayer, admin: 0, limitByPlayer: { ...(m?.limitByPlayer ?? {}) } };
+		rollbackCounts.set(game.id, c);
+	}
+	if (!c.limitByPlayer) c.limitByPlayer = {};
+	return c;
+}
+/** 전송 직전에 사용 현황을 게임에 찍는다. 롤백·리셋이 게임 객체를 스냅샷으로 통째 바꿔도 여기서 다시 맞춰진다. */
+function stampRollbackUsage(game: GaiaGameState): void {
+	if (!game?.id) return;
+	const c = rollbackCountOf(game);
+	(game as any).rollbackUsage = { limit: ROLLBACK_LIMIT_PER_PLAYER, used: { ...c.byPlayer }, limitByPlayer: { ...c.limitByPlayer } };
+}
+/** 클라로 보낼 상태 — 항상 사용 현황을 최신으로 찍은 뒤 만든다 */
+function clientStateOf(game: GaiaGameState, broadcast: boolean): Record<string, unknown> {
+	stampRollbackUsage(game);
+	return buildClientGameState(game, broadcast);
+}
 export function countRollback(gameId: string, actorId: string | null): void {
-	const c = rollbackCounts.get(gameId) ?? { total: 0, byPlayer: {}, admin: 0 };
+	const c = rollbackCounts.get(gameId) ?? { total: 0, byPlayer: {}, admin: 0, limitByPlayer: {} };
 	c.total++;
 	if (actorId) c.byPlayer[actorId] = (c.byPlayer[actorId] ?? 0) + 1;
 	else c.admin++;
@@ -3519,7 +3551,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) { callback?.({ error: 'Game not found' }); return; }
 
 			flushPendingEmit(gameId);
-			const current = buildClientGameState(game, true);
+			const current = clientStateOf(game, true);
 			const currentJson = JSON.stringify(current);
 			const known = _gameSyncStates.get(gameId);
 			if (known && known.json !== currentJson) emitGameUpdatedNow(io, game);
@@ -3531,7 +3563,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({
 				protocol: GAME_DELTA_ENABLED ? GAME_SYNC_PROTOCOL : 0,
 				revision: sync.revision,
-				game: buildClientGameState(game, false),
+				game: clientStateOf(game, false),
 			});
 		});
 
@@ -4108,12 +4140,22 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// [롤백 투표] 호스트가 로그의 특정 지점으로 롤백 요청 → 다른 사람(사람) 전원 동의 시 실행. 봇 자동 승인.
-		socket.on('request_rollback', ({ gameId, seq }: { gameId: string; seq: number }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+		socket.on('request_rollback', ({ gameId, seq, reason }: { gameId: string; seq: number; reason?: { code?: string; text?: string } }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
 			const game = games.get(gameId);
 			if (!game) { callback?.({ error: 'Game not found' }); return; }
 			const playerId = socketToPlayerMap.get(socket.id);
 			// [사용자] 방장 전용 → 참가자 누구나 요청 가능(어차피 나머지 전원 동의 필요). 봇·관전자만 차단.
 			if (!playerId || !game.players[playerId] || (game.botPlayerIds || []).includes(playerId)) { callback?.({ error: '게임 참가자만 롤백을 요청할 수 있습니다.' }); return; }
+			/* [사용자 2026-09-30] 롤백 횟수 제한 — 사람마다 게임당 ROLLBACK_LIMIT_PER_PLAYER 번까지 '실행'할 수 있다.
+			   거절된 요청은 세지 않는다(내가 원해서 날린 게 아니다). 다 쓰면 요청 자체를 막는다. */
+			stampRollbackUsage(game);
+			const quota = getRollbackQuota(game, playerId);
+			if (quota.exhausted) { callback?.({ error: '롤백 사용 횟수를 모두 사용했습니다.' }); return; }
+			/* [사용자 2026-09-30] 요청 사유 — 다른 사람들이 왜 되돌리자는지 보고 수락/거절할 수 있게. 필수. */
+			const code = String(reason?.code ?? '');
+			if (!ROLLBACK_REASONS.some(r => r.code === code)) { callback?.({ error: '롤백 사유를 골라 주세요.' }); return; }
+			const text = code === 'custom' ? String(reason?.text ?? '').trim().slice(0, ROLLBACK_REASON_TEXT_MAX) : undefined;
+			if (code === 'custom' && !text) { callback?.({ error: '기타 사유를 입력해 주세요.' }); return; }
 			// [사용자 2026-08-03] 최초 집 배치(startingMines)도 허용 — 첫 집을 잘못 놓으면 게임 전체가 꼬이므로 되돌릴 필요가 큼.
 			// [2026-09-09 사용자] 종족 비딩(pick) 단계도 허용 — 낙찰 유지·종족/턴 재선택 롤백
 			if (!['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))) { callback?.({ error: '진행 중·시작 배치·보너스 선택·종족 비딩 단계에서만 롤백 가능합니다.' }); return; }
@@ -4154,7 +4196,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 				seq: target.seq, label: target.phase === 'factionBidding' ? `${target.playerName} 종족 선택(낙찰 유지)` : target.phase === 'startingMines' ? `${target.playerName} 시작 광산 배치` : `R${target.round} · ${target.playerName} 턴 시작`,
 				turnsBack, undoneCount, undoneActions,
 				required, approvals: [], autoApproved,
+				reason: text ? { code, text } : { code },
+				ordinal: quota.next, limit: quota.limit,
 			};
+			log(`[ROLLBACK-REQ] ${gameId} ${game.players[playerId]?.name} (${quota.next}/${quota.limit}) 사유: ${rollbackReasonText({ code, text })}`, 'game', gameId);
 			if (required.length === 0) { // 다른 사람(사람) 없음 → 즉시 실행
 				countRollback(gameId, playerId);
 				executeRollbackToHistory(io, game, hist, target);
@@ -4589,6 +4634,24 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		// GM/Admin: 연방 토큰의 초록/빨강 상태 토글 (이미 사용해 뒤집힌 연방을 다시 초록으로 되돌리는 등 실수 복구용).
+		/* [사용자 2026-09-30] 관리자: 사람별 롤백 잔여 횟수를 직접 고친다.
+		   잔여 R 로 맞추면 그 사람의 한도 = 이미 쓴 횟수 + R 로 기록한다(쓴 기록은 건드리지 않는다).
+		   기본 한도가 나중에 3→2로 바뀌어도 관리자가 따로 준 사람의 한도는 그대로 유지된다. */
+		socket.on('admin_set_rollback_remaining', ({ gameId, adminCode, targetPlayerId, remaining }: { gameId: string; adminCode: string; targetPlayerId: string; remaining: number }, callback?: (r: { ok?: boolean; error?: string; remaining?: number; limit?: number }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			if (!game.players[targetPlayerId]) { callback?.({ error: 'Player not found' }); return; }
+			const r = Math.floor(Number(remaining));
+			if (!Number.isFinite(r) || r < 0 || r > 99) { callback?.({ error: '잔여 횟수는 0~99 사이로 입력해 주세요.' }); return; }
+			const c = rollbackCountOf(game);
+			const used = c.byPlayer[targetPlayerId] ?? 0;
+			c.limitByPlayer[targetPlayerId] = used + r;
+			log(`Admin: rollback remaining of ${game.players[targetPlayerId].name} → ${r} (used ${used}, limit ${used + r})`, 'game', gameId);
+			emitGameUpdated(io, game);
+			callback?.({ ok: true, remaining: r, limit: used + r });
+		});
+
 		socket.on('admin_toggle_federation_green', ({ gameId, targetPlayerId, federationIndex, adminCode }: { gameId: string; targetPlayerId: string; federationIndex: number; adminCode: string }, callback?: (r: { ok?: boolean; error?: string; isGreen?: boolean }) => void) => {
 			const game = games.get(gameId);
 			if (!game) { callback?.({ error: 'Game not found' }); return; }

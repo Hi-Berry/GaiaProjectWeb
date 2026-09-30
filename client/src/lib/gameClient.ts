@@ -329,10 +329,10 @@ export const GameClient = {
   },
 
   /** [롤백 투표] 호스트: 특정 로그 seq 지점으로 롤백 요청 (다른 사람 전원 동의 시 실행) */
-  requestRollback(gameId: string, seq: number): Promise<void> {
+  requestRollback(gameId: string, seq: number, reason: { code: string; text?: string }): Promise<void> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
-      s.emit('request_rollback', { gameId, seq }, (r: any) => {
+      s.emit('request_rollback', { gameId, seq, reason }, (r: any) => {
         if (r?.error) reject(new Error(r.error)); else resolve();
       });
     });
@@ -454,6 +454,17 @@ export const GameClient = {
       s.emit('admin_rollback_turn', { gameId, adminCode, targetPlayerId }, (response: any) => {
         if (response?.error) reject(new Error(response.error));
         else resolve(response?.playerName);
+      });
+    });
+  },
+
+  /** [2026-09-30] GM/Admin: 사람별 롤백 잔여 횟수 설정 */
+  adminSetRollbackRemaining(gameId: string, targetPlayerId: string, remaining: number, adminCode: string): Promise<{ remaining: number; limit: number }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('admin_set_rollback_remaining', { gameId, targetPlayerId, remaining, adminCode }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve({ remaining: response?.remaining ?? remaining, limit: response?.limit ?? 0 });
       });
     });
   },
