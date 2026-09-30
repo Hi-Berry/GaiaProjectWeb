@@ -3,6 +3,9 @@
 (function () {
   'use strict';
   const D = window.__GAIA;
+  /* [사용자 2026-09-30] 배포본이면 판별 액션 순서(타임라인·액션 감사 표)를 그리지 않는다.
+     데이터에서도 빠져 있다(reports/games.mjs publicAudit·tl:[]). 로컬 전용판(dist-local)은 전부 보인다. */
+  const PUB = !!D.pub;
   const app = document.getElementById('app');
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const ko = (f) => D.ko[f] ?? f ?? '?';
@@ -129,12 +132,12 @@
     }).join('');
     app.innerHTML = crumbs({ g: game.id }) + `
       <div class="ghead"><h1>${idx.d} <span class="green">${game.ps.length}인 게임</span></h1>
-        <div class="meta">${hm(game.start)} → ${hm(game.end)} · 실플레이 ${game.play}분${game.breaks ? ` (10분↑ 휴식 ${game.breaks}회 제외)` : ''} · 라운드 ${game.rounds} · 로그 ${game.tl.length}건 · <span title="게임 ID">${esc(game.id)}</span></div></div>
+        <div class="meta">${hm(game.start)} → ${hm(game.end)} · 실플레이 ${game.play}분${game.breaks ? ` (10분↑ 휴식 ${game.breaks}회 제외)` : ''} · 라운드 ${game.rounds}${PUB ? '' : ` · 로그 ${game.tl.length}건`} · <span title="게임 ID">${esc(game.id)}</span></div></div>
       <div class="pcards">${cards}</div>
       <section class="sec"><h2>라운드 끝 점수판 <span class="hint">각 라운드 마지막 액션 직후 VP · 자원</span></h2>
         <div class="tblwrap"><table class="board"><thead><tr><th></th>${ranked.map(({ p }) => `<th>${esc(p.n)} <span style="color:${col(p.f)}">${esc(ko(p.f))}</span></th>`).join('')}</tr></thead><tbody>${boardRows}</tbody></table></div></section>
-      <section class="sec"><h2>전체 타임라인 <span class="hint">모든 사람의 액션을 순서대로</span></h2>${timeline(game, null)}</section>
-      <p class="foot">카드를 누르면 그 사람의 액션별 자원 흐름과 점수 검증(감사)으로 들어갑니다.</p>`;
+      ${PUB ? '' : `<section class="sec"><h2>전체 타임라인 <span class="hint">모든 사람의 액션을 순서대로</span></h2>${timeline(game, null)}</section>`}
+      <p class="foot">${PUB ? '카드를 누르면 그 사람의 점수 검증으로 들어갑니다.' : '카드를 누르면 그 사람의 액션별 자원 흐름과 점수 검증(감사)으로 들어갑니다.'}</p>`;
   }
   function timeline(game, meIdx) {
     let cur = null; const out = [];
@@ -176,19 +179,20 @@
     app.innerHTML = crumbs({ g: game.id, p: pi }) + `
       <div class="ptabs">${ranked.map(({ p, i }) => `<button type="button" data-go="${game.id}/${i}" class="${i === pi ? 'on' : ''}" style="--fc:${col(p.f)}">${face(p.f, '')}<span class="nm">${esc(p.n)}</span><span class="sc">${esc(ko(p.f))} ${p.s}</span></button>`).join('')}</div>
       <h1>🔍 ${esc(me.n)} <span class="green">${esc(ko(me.f))} ${me.s}점</span> 감사</h1>
-      <p class="sub">${idx.d} · ${game.ps.length}인 중 ${me.rk}위 · ${me.order}번째 시작 · 액션 ${A.actions}개 · gameLog 대조 ${A.matched}개</p>
+      <p class="sub">${idx.d} · ${game.ps.length}인 중 ${me.rk}위 · ${me.order}번째 시작${PUB ? '' : ` · 액션 ${A.actions}개 · gameLog 대조 ${A.matched}개`}</p>
       <div class="cards" style="margin-top:16px">${A.cards.map((c) => `<div class="card${c.ok === false ? ' isbad' : ''}">${okMark(c.ok)} ${c.html}</div>`).join('')}</div>
-      ${A.rows.length === 0 ? `<div class="empty">${me.bot ? '봇은 액션 저널을 남기지 않아 액션별 감사 표가 없습니다. 아래 타임라인(모두 보기)에서 gameLog 기준 행동만 볼 수 있습니다.' : '이 사람의 액션 저널이 비어 있습니다(중도 이탈 등).'}</div>` : ''}
-      <div class="tblwrap"${A.rows.length === 0 ? ' hidden' : ''}><table class="audit"><thead><tr>
+      ${!PUB && A.rows.length === 0 ? `<div class="empty">${me.bot ? '봇은 액션 저널을 남기지 않아 액션별 감사 표가 없습니다. 아래 타임라인(모두 보기)에서 gameLog 기준 행동만 볼 수 있습니다.' : '이 사람의 액션 저널이 비어 있습니다(중도 이탈 등).'}</div>` : ''}
+      ${PUB ? '' : `<div class="tblwrap"${A.rows.length === 0 ? ' hidden' : ''}><table class="audit"><thead><tr>
         <th>R</th><th class="l">액션</th><th class="colsep vpcol">VP</th>${GK.map((k) => `<th class="colsep">${k}</th>`).join('')}<th class="colsep l">건물</th><th class="l">연구</th><th class="colsep l">기술 타일 (보유 순)</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
+      </tr></thead><tbody>${rows}</tbody></table></div>`}
       <div class="bdt tblwrap"><table class="audit"><thead><tr><th class="l">점수 내역 (scoreBreakdown)</th><th>VP</th></tr></thead><tbody>${bdRows}
         <tr><td class="l"><b>합계 (파워수령 차감 반영)</b></td><td><b>${A.total}</b> (+시작 ${A.startVp} = ${A.startVp + A.total})</td></tr></tbody></table></div>
-      <section class="sec"><h2>이 사람의 타임라인 <span class="hint">다른 사람 액션은 접음</span> <label class="toggle"><input type="checkbox" id="showall" /> 모두 보기</label></h2>${timeline(game, pi)}</section>
-      <p class="legend">읽는 법: 각 행 = ${esc(me.n)}의 액션 하나. 자원 칸은 <b>액션 후 보유량(±이번 액션 변동)</b> — 예: <b>4</b><em class="dn">(-3)</em>는 3을 쓰고 4가 남았다는 뜻. 변동 없는 칸은 흐리게.
+      ${PUB ? '' : `<section class="sec"><h2>이 사람의 타임라인 <span class="hint">다른 사람 액션은 접음</span> <label class="toggle"><input type="checkbox" id="showall" /> 모두 보기</label></h2>${timeline(game, pi)}</section>`}
+      ${PUB ? '' : `<p class="legend">읽는 법: 각 행 = ${esc(me.n)}의 액션 하나. 자원 칸은 <b>액션 후 보유량(±이번 액션 변동)</b> — 예: <b>4</b><em class="dn">(-3)</em>는 3을 쓰고 4가 남았다는 뜻. 변동 없는 칸은 흐리게.
         회색 〈액션 외 변동〉 행은 내 액션 사이에 생긴 변화(다른 사람 턴의 파워 leech 수락, 수익 단계 세부 등) — 직전 액션의 '후 보유'와 다음 액션의 '전 보유'의 차이를 그대로 보여주므로, 여기 이상한 값이 있으면 버그 후보입니다.
-        액션명 뒤 ' ·'는 gameLog에 대응 항목이 없어 직전 액션 후 상태를 기준으로 변동을 계산한 행(종족 자동 변환 등). 건물 열은 액션 이름으로 재구성한 M(광산)·T(교역소)·L(연구소)·P(행성연구소)·A(아카데미) 수, 노란색은 그 액션으로 바뀐 칸.</p>`;
+        액션명 뒤 ' ·'는 gameLog에 대응 항목이 없어 직전 액션 후 상태를 기준으로 변동을 계산한 행(종족 자동 변환 등). 건물 열은 액션 이름으로 재구성한 M(광산)·T(교역소)·L(연구소)·P(행성연구소)·A(아카데미) 수, 노란색은 그 액션으로 바뀐 칸.</p>`}`;
     const crumbP = document.getElementById('crumb-p'); if (crumbP) crumbP.textContent = `${me.n} (${ko(me.f)})`;
-    document.getElementById('showall').addEventListener('change', (e) => { document.getElementById('tl').classList.toggle('onlyme', !e.target.checked); });
+    const showall = document.getElementById('showall');
+    if (showall) showall.addEventListener('change', (e) => { document.getElementById('tl').classList.toggle('onlyme', !e.target.checked); });
   }
 })();

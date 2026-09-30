@@ -30,7 +30,13 @@ const diffStr = (a, b) => {
 };
 const rankOf = (P, id) => 1 + Object.values(P).filter((x) => (x.score ?? 0) > (P[id].score ?? 0)).length;
 
-function gameDetail(g, file) {
+/**
+ * [사용자 2026-09-30] 배포본(pub)에는 판별 액션 순서를 싣지 않는다 — "결과 점수까지는 좋은데
+ *   1라부터 어떤 액션부터 했는지는 안 뜨게, 내 로컬에서만". 화면에서 숨기는 게 아니라 조각 데이터에서 뺀다.
+ *   빠지는 것: 전체 타임라인(tl) · 사람별 액션 감사 표(audit.rows).
+ *   남는 것: 순위·점수·점수 내역·연구·타일·연방·보너스 · 라운드 끝 점수판 · 점수 검증 카드.
+ */
+function gameDetail(g, file, pub) {
   const P = g.players; const ids = Object.keys(P);
   const log = [...(g.gameLog ?? [])].sort((a, b) => (a.seq ?? Infinity) - (b.seq ?? Infinity) || (a.timestamp ?? 0) - (b.timestamp ?? 0));
   const ts = log.map((e) => e.timestamp).filter(Boolean).sort((a, b) => a - b);
@@ -54,15 +60,20 @@ function gameDetail(g, file) {
       return {
         n: canon(p.name), raw: p.name, f: p.faction, s: p.score ?? 0, rk: rankOf(P, id), bot: isBot(g, id) ? 1 : 0,
         order: order.indexOf(id) + 1, bonus: p.bonusTile ? lab(p.bonusTile) : '', tiles: (p.techTiles ?? []).map(lab), feds: (p.federations ?? []).length,
-        research: researchStr(p.research), bd: breakdownGroups(p.scoreBreakdown), audit: auditPlayer(g, id),
+        research: researchStr(p.research), bd: breakdownGroups(p.scoreBreakdown), audit: pub ? publicAudit(auditPlayer(g, id)) : auditPlayer(g, id),
       };
     }),
     board: rounds.map((r) => [r, ids.map((id) => board[r][id]?.vp ?? null), ids.map((id) => { const s = board[r][id]; return s ? RESK.slice(1).map(([k, l]) => `${l}${s[k] ?? 0}`).join(' ') : ''; })]),
-    tl,
+    tl: pub ? [] : tl,
   };
 }
 
-export function build({ dist }) {
+/** 감사 결과에서 액션 한 줄 한 줄(rows)을 뺀 배포용 사본 — 검증 카드·점수 내역·합계만 남긴다 */
+function publicAudit(a) {
+  return { rows: [], cards: a.cards, groups: a.groups, total: a.total, bid: a.bid, startVp: a.startVp };
+}
+
+export function build({ dist, pub }) {
   const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith('.json') && !EXCLUDE_GAMES.has(f)).sort().reverse();
   const index = []; const chunks = [];
   let cur = {}; let curN = 0;
@@ -78,7 +89,7 @@ export function build({ dist }) {
       std: ids.length === 4 && bots === 0 && (g.roundNumber ?? 0) >= 6 ? 1 : 0,
       ps: ids.map((id) => ({ n: canon(P[id].name), f: P[id].faction, s: P[id].score ?? 0, rk: rankOf(P, id), bot: isBot(g, id) ? 1 : 0 })).sort((a, b) => a.rk - b.rk),
     });
-    cur[gid] = gameDetail(g, f); curN++;
+    cur[gid] = gameDetail(g, f, pub); curN++;
     if (curN >= CHUNK) { chunks.push(cur); cur = {}; curN = 0; }
   }
   if (curN) chunks.push(cur);
@@ -92,7 +103,7 @@ export function build({ dist }) {
   });
   const faces = Object.fromEntries(Object.keys(FACTION_KO).map((k) => [k, factionFaceB64(k)]).filter(([, v]) => v));
   const client = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'gamesClient.js'), 'utf8');
-  const body = fragment({ index, chunkCount: chunks.length, faces, client });
+  const body = fragment({ index, chunkCount: chunks.length, faces, client, pub });
   // 아티팩트용 조각(doctype/html/head/body 없음 — 게시 도구가 감싼다)
   fs.writeFileSync(path.join(dist, 'games.artifact.html'), body);
   console.log(`    games: ${index.length}판 · 조각 ${chunks.length}개 (최대 ${(Math.max(...sizes) / 1e6).toFixed(1)}MB, 합 ${(sizes.reduce((s, x) => s + x, 0) / 1e6).toFixed(1)}MB)`);
@@ -100,8 +111,8 @@ export function build({ dist }) {
 <html lang="ko"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body><a class="back" href="./index.html">← 가이아 통계 홈</a>${body}</body></html>`; // 정적 사이트(dist)에서만 홈 링크 — 아티팩트 조각에는 index.html이 없음
 }
 
-function fragment({ index, chunkCount, faces, client }) {
-  const DATA = { index, chunkCount, faces, ko: FACTION_KO, color: FACTION_COLOR, stamp: buildStamp() };
+function fragment({ index, chunkCount, faces, client, pub }) {
+  const DATA = { index, chunkCount, faces, ko: FACTION_KO, color: FACTION_COLOR, stamp: buildStamp(), pub: pub ? 1 : 0 };
   return `<title>가이아 게임 기록실</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" />

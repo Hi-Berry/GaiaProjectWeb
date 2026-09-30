@@ -29,3 +29,6 @@ ecosystem.config.cjs
 .env
 .env.*
 /data/bgs-games
+
+# 통계 사이트 로컬 전용판(판별 액션 기록 포함) — 절대 커밋·배포하지 않는다
+stats-site/dist-local/
