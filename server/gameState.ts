@@ -5854,7 +5854,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game.spectatorIds?.includes(spectatorId)) { callback?.({ error: '이 방의 관전자가 아닙니다.' }); return; }
 			const b = chatBlockOf(gameId);
 			const targets = socketsOfSpectator(io, spectatorId);
-			const who = (game as any).spectatorNames?.[spectatorId] ?? spectatorId;
+			const who = (game as any).spectatorNames?.[spectatorId] ?? '관전자';
+			const by = game.players[pid].name;
+			const changed = blocked ? !b.has(spectatorId) : b.has(spectatorId); // 이미 그 상태면 알림을 또 띄우지 않는다
 			if (blocked) {
 				b.add(spectatorId);
 				for (const t of targets) { t.join(chatBlockRoom(gameId)); t.emit('chat_blocked', { gameId }); }
@@ -5862,7 +5864,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 				b.delete(spectatorId);
 				for (const t of targets) { t.leave(chatBlockRoom(gameId)); t.emit('chat_unblocked', { gameId }); }
 			}
-			log(`Chat ${blocked ? 'blocked' : 'unblocked'}: spectator ${who} by ${game.players[pid].name}`, 'game', gameId);
+			/* [사용자 2026-10-01] "누가 누구를 채팅 금지했다 채팅방에 뜨면 좋겠어" — 시스템 메시지로 남긴다.
+			   차단은 차단 방에 먼저 넣은 뒤 보내므로 당사자는 받지 않고, 해제는 먼저 빼낸 뒤 보내므로 당사자도 받는다. */
+			if (changed) {
+				pushChat(io, game, {
+					id: generatePlayerId(), gameId, senderId: 'system', name: '시스템', faction: null, isSpectator: false,
+					text: blocked ? `🚫 ${by}님이 ${who}님의 채팅을 금지했습니다.` : `✅ ${by}님이 ${who}님의 채팅 금지를 풀었습니다.`,
+					ts: Date.now(),
+				});
+			}
+			log(`Chat ${blocked ? 'blocked' : 'unblocked'}: spectator ${who} by ${by}`, 'game', gameId);
 			emitGameUpdated(io, game); // 플레이어 화면의 관전자 목록(차단 표시) 갱신
 			callback?.({ ok: true });
 		});

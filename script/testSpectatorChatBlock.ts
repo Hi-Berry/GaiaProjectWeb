@@ -67,6 +67,13 @@ P.on('connect', async () => {
 	await sleep(400);
 	check(!!ok?.ok && blockEvents.S1.includes('blocked'), `③ 플레이어가 S1 차단 → S1 에게 차단 알림`);
 	check((lastP?.chatBlockedSpectators ?? []).includes(s1Id), `③ 게임 상태에 차단 표시 (${JSON.stringify(lastP?.chatBlockedSpectators)})`);
+	// [2026-10-01] 누가 누구를 금지했는지 채팅방에 시스템 메시지 — 당사자는 못 받는다
+	const banMsg = '🚫 Host님이 구경꾼1님의 채팅을 금지했습니다.';
+	check(got.P.includes(banMsg) && got.S2.includes(banMsg), `③ 채팅방에 "${banMsg}" (플레이어·S2)`);
+	check(!got.S1.includes(banMsg), `③ 금지당한 S1 은 그 알림도 받지 않는다`);
+	const nBan = got.P.filter((t) => t === banMsg).length;
+	await emit<any>(P, 'set_spectator_chat_block', { gameId, spectatorId: s1Id, blocked: true }); await sleep(300);
+	check(got.P.filter((t) => t === banMsg).length === nBan, `③ 이미 금지된 사람을 또 눌러도 알림이 중복되지 않는다`);
 
 	// ④ 차단 뒤
 	const before = { P: got.P.length, S1: got.S1.length, S2: got.S2.length };
@@ -100,6 +107,9 @@ P.on('connect', async () => {
 	await emit<any>(P, 'set_spectator_chat_block', { gameId, spectatorId: s1Id, blocked: false });
 	await sleep(400);
 	check(blockEvents.S1b.includes('unblocked') && !(lastP?.chatBlockedSpectators ?? []).includes(s1Id), `⑦ 해제 알림 · 상태에서 차단 표시 사라짐`);
+	// 재입장 때 이름을 '새이름'으로 바꿨으므로 알림에도 지금 이름이 찍힌다
+	const unbanMsg = '✅ Host님이 새이름님의 채팅 금지를 풀었습니다.';
+	check(got.P.includes(unbanMsg) && got.S1b.includes(unbanMsg), `⑦ 채팅방에 "${unbanMsg}" (플레이어·당사자 모두)`);
 	P.emit('send_chat', { gameId, text: '해제 후' });
 	S1b.emit('send_chat', { gameId, text: 'S1 복귀' });
 	await sleep(500);
