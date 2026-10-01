@@ -774,6 +774,44 @@ export const GameClient = {
     return () => s.off('chat_message', callback);
   },
 
+  /** [2026-10-01] 채팅 기록 — 게임 상태에 더는 실리지 않아 따로 받는다. 차단된 관전자면 blocked=true */
+  getChatHistory(gameId: string): Promise<{ messages: ChatMessage[]; blocked: boolean }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('get_chat_history', { gameId }, (r: any) => {
+        if (r?.error) reject(new Error(r.error));
+        else resolve({ messages: r?.messages ?? [], blocked: !!r?.blocked });
+      });
+    });
+  },
+
+  /** [2026-10-01] 플레이어: 관전자 채팅 차단/해제 */
+  setSpectatorChatBlock(gameId: string, spectatorId: string, blocked: boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('set_spectator_chat_block', { gameId, spectatorId, blocked }, (r: any) => {
+        if (r?.error) reject(new Error(r.error)); else resolve();
+      });
+    });
+  },
+
+  /** 내가 채팅 차단됐을 때 / 풀렸을 때 */
+  onChatBlockChange(callback: (blocked: boolean, gameId: string) => void) {
+    const s = getSocket();
+    const onB = (p: { gameId: string }) => callback(true, p?.gameId);
+    const onU = (p: { gameId: string }) => callback(false, p?.gameId);
+    s.on('chat_blocked', onB);
+    s.on('chat_unblocked', onU);
+    return () => { s.off('chat_blocked', onB); s.off('chat_unblocked', onU); };
+  },
+
+  /** 소켓이 (재)연결될 때 — 끊긴 동안 놓친 채팅을 다시 받기 위해 */
+  onReconnect(callback: () => void) {
+    const s = getSocket();
+    s.on('connect', callback);
+    return () => s.off('connect', callback);
+  },
+
   onGameDeleted(callback: (payload: { gameId: string }) => void) {
     const s = getSocket();
     s.on('game_deleted', callback);

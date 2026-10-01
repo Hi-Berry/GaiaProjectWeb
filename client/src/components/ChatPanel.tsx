@@ -26,6 +26,8 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         try { return localStorage.getItem('gaia-chat-open') === '1'; } catch { return false; }
     });
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    /** [2026-10-01] 플레이어가 나(관전자)의 채팅을 차단했으면 채팅창 자체를 띄우지 않는다(보내기·보기 모두 불가) */
+    const [blocked, setBlocked] = useState(false);
     const [draft, setDraft] = useState('');
     const [unread, setUnread] = useState(0);
     // [사용자 2026-09-14] 옛 채팅을 스크롤해 보는 중에 새 메시지가 오면 맨 아래로 휙 내려가 읽기 어려움.
@@ -164,10 +166,32 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         });
     }, []);
 
-    // 접속/재접속 시 게임 상태에 담긴 최근 히스토리 시드
+    /* [2026-10-01] 채팅 기록은 더 이상 게임 상태(game.chatMessages)에 실리지 않는다 — 차단된 관전자에게는
+       안 보내야 하는데 게임 상태는 방 전원에게 똑같이 가기 때문. 접속 때와 재연결 때 서버에 따로 받는다.
+       재연결 직후엔 좌석 복귀가 아직이라 서버가 '이 게임 소속 아님'을 줄 수 있어 몇 번 다시 묻는다. */
+    const loadHistory = useCallback(() => {
+        let tries = 0;
+        const attempt = () => {
+            GameClient.getChatHistory(gameId)
+                .then(({ messages: hist, blocked: b }) => { setBlocked(b); if (b) setMessages([]); else merge(hist); })
+                .catch(() => { if (++tries < 4) setTimeout(attempt, 500 * 2 ** tries); });
+        };
+        attempt();
+    }, [gameId, merge]);
     useEffect(() => {
-        if (game.chatMessages?.length) merge(game.chatMessages);
-    }, [game.chatMessages, merge]);
+        loadHistory();
+        const off = GameClient.onReconnect(() => setTimeout(loadHistory, 600));
+        return () => { off(); };
+    }, [loadHistory]);
+    // 차단/해제가 지금 걸리면 바로 반영
+    useEffect(() => {
+        const off = GameClient.onChatBlockChange((b, gid) => {
+            if (gid && gid !== gameId) return;
+            setBlocked(b);
+            if (b) { setMessages([]); setUnread(0); setPendingNew(0); } else loadHistory();
+        });
+        return () => { off(); };
+    }, [gameId, loadHistory]);
 
     // 라이브 메시지 수신
     useEffect(() => {
@@ -242,7 +266,16 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
         inputRef.current?.focus();
     };
 
-    if (!canChat) return null;
+    if (!canChat || blocked) return null;
+
+    // [2026-10-01] 플레이어(좌석에 앉은 사람)는 관전자 이름을 눌러 그 사람의 채팅을 차단/해제할 수 있다
+    const amPlayer = !!selfId && !!game.players?.[selfId] && !(game.botPlayerIds ?? []).includes(selfId);
+    const blockedSpecs = new Set(game.chatBlockedSpectators ?? []);
+    const toggleBlock = (spectatorId: string, name: string) => {
+        const next = !blockedSpecs.has(spectatorId);
+        GameClient.setSpectatorChatBlock(gameId, spectatorId, next)
+            .catch((e) => window.alert(`${name} 채팅 ${next ? '차단' : '해제'} 실패: ${e?.message ?? ''}`));
+    };
 
     const colorFor = (m: ChatMessage) =>
         m.faction ? FACTIONS.find((f) => f.id === m.faction)?.color ?? '#a1a1aa' : '#a1a1aa';
@@ -283,13 +316,34 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                                 const g = game as unknown as { connectedSpectators?: string[]; spectatorNames?: Record<string, string> };
                                 // [숨은 관전 아이디] 서버가 '---'는 애초에 connectedSpectators/spectatorNames에 안 넣지만,
                                 //   "절대 안 보여야 하는" 성질이라 표시 단계에서 한 번 더 막는다(서버측 누락 시 최후 방어).
-                                const names = (g.connectedSpectators ?? []).map((id) => g.spectatorNames?.[id])
-                                    .filter((n): n is string => !!n && !isHiddenSpectatorName(n));
-                                return names.length > 0 ? (
+                                const specs = (g.connectedSpectators ?? []).map((id) => ({ id, name: g.spectatorNames?.[id] }))
+                                    .filter((x): x is { id: string; name: string } => !!x.name && !isHiddenSpectatorName(x.name));
+                                if (specs.length === 0) return null;
+                                return (
                                     <span className="normal-case tracking-normal font-medium text-[10px] text-amber-300/90 truncate">
-                                        (관전자 : {names.join(', ')})
+                                        (관전자 : {specs.map((sp, i) => {
+                                            const isBlocked = blockedSpecs.has(sp.id);
+                                            return (
+                                                <span key={sp.id}>
+                                                    {i > 0 ? ', ' : ''}
+                                                    {amPlayer ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleBlock(sp.id, sp.name)}
+                                                            onDoubleClick={(e) => e.stopPropagation()}
+                                                            className={`underline decoration-dotted underline-offset-2 hover:text-white ${isBlocked ? 'text-red-400 line-through' : ''}`}
+                                                            title={isBlocked ? `${sp.name} 채팅 차단 해제` : `${sp.name} 채팅 차단 (관전은 계속, 채팅 보기·쓰기만 막힘)`}
+                                                        >
+                                                            {sp.name}{isBlocked ? ' 🚫' : ''}
+                                                        </button>
+                                                    ) : (
+                                                        <span className={isBlocked ? 'text-red-400 line-through' : ''}>{sp.name}</span>
+                                                    )}
+                                                </span>
+                                            );
+                                        })})
                                     </span>
-                                ) : null;
+                                );
                             })()}
                         </span>
                         <button

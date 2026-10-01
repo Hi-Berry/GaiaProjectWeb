@@ -816,6 +816,8 @@ function stampRollbackUsage(game: GaiaGameState): void {
 /** 클라로 보낼 상태 — 항상 사용 현황을 최신으로 찍은 뒤 만든다 */
 function clientStateOf(game: GaiaGameState, broadcast: boolean): Record<string, unknown> {
 	stampRollbackUsage(game);
+	chatHistoryOf(game); // 채팅 기록은 게임 상태에 싣지 않는다(게임 객체에 남아 있으면 여기서 옮긴다)
+	(game as any).chatBlockedSpectators = Array.from(chatBlocks.get(game.id) ?? []);
 	return buildClientGameState(game, broadcast);
 }
 export function countRollback(gameId: string, actorId: string | null): void {
@@ -832,6 +834,8 @@ const _netOutAtGameStart = new Map<string, number>();
  *  게임 종료 경로엔 이미 정리가 있지만 '방 삭제'는 그 경로를 안 탄다. */
 function clearGameMeasurementState(gameId: string): void {
 	rollbackCounts.delete(gameId);   // 방이 사라지면 집계도 버린다(모듈 레벨 Map이라 안 지우면 누수)
+	chatHistories.delete(gameId);
+	chatBlocks.delete(gameId);
 	_emitPrev.delete(gameId);
 	_emitRecon.delete(gameId);
 	_emitPrevStr.delete(gameId);
@@ -840,6 +844,64 @@ function clearGameMeasurementState(gameId: string): void {
 	_netUsageAtEnd.delete(gameId);
 	delete _emitStats[gameId];
 }
+/* ── [사용자 2026-10-01] 채팅 기록 · 관전자 채팅 차단 ─────────────────────────────────────────
+ * "관전자들이 익명으로 들어와서 문제 … 밖으로 킥하는 게 아니라 차단된 사람은 채팅을 못 하고 채팅창도 못 보게."
+ *
+ * 채팅 기록을 게임 객체(game.chatMessages)에서 꺼내 여기 둔다. 게임 객체에 있으면 매 업데이트·참가 응답에 실려
+ * 방의 모든 소켓에 똑같이 가므로 '이 사람만 못 보게'를 할 수 없다. 덤으로 롤백이 게임을 스냅샷으로 되감아도
+ * 채팅은 되감기지 않는다. 기록은 get_chat_history 로 소켓마다 따로 받는다(차단이면 안 준다).
+ * 차단은 관전자 id 로 건다. 관전 id 는 브라우저에 저장돼 재접속·이름 변경에도 그대로 쓰이므로(watch_game prevId)
+ *   이름만 바꿔 다시 들어와도 그대로 막힌다. 접속 주소(IP)로는 걸지 않는다 — 서버가 nginx 프록시 뒤에 있고
+ *   X-Forwarded-For 를 안 넘기면 모든 관전자가 같은 주소로 보여 한 명을 막으면 전원이 막히고, 같은 집 와이파이·
+ *   통신사 공유 주소에서도 엉뚱한 사람이 막힌다. 좌석에 앉은 플레이어에게는 절대 적용하지 않는다. */
+type ChatMsg = NonNullable<GaiaGameState['chatMessages']>[number] & { gameId?: string };
+const CHAT_HISTORY_CAP = 100;
+const chatHistories = new Map<string, ChatMsg[]>();
+const chatBlocks = new Map<string, Set<string>>(); // gameId → 채팅 차단된 관전자 id
+const chatBlockRoom = (gameId: string) => `chatblock:${gameId}`;
+function chatHistoryOf(game: GaiaGameState): ChatMsg[] {
+	let h = chatHistories.get(game.id);
+	if (!h) {
+		// 예전 서버가 게임 객체에 남겨 둔 기록이 있으면 넘겨받는다
+		h = [...(((game as any).chatMessages as ChatMsg[] | undefined) ?? [])];
+		chatHistories.set(game.id, h);
+	}
+	// 게임 객체에는 두지 않는다 — 롤백 스냅샷에서 되살아난 옛 기록도 여기서 지운다
+	if ((game as any).chatMessages) delete (game as any).chatMessages;
+	return h;
+}
+/** 채팅 한 줄 기록 + 차단된 관전자를 뺀 방 전원에게 전송 */
+function pushChat(io: SocketIOServer, game: GaiaGameState, msg: ChatMsg): void {
+	const h = chatHistoryOf(game);
+	h.push(msg);
+	if (h.length > CHAT_HISTORY_CAP) h.splice(0, h.length - CHAT_HISTORY_CAP);
+	io.to(game.id).except(chatBlockRoom(game.id)).emit('chat_message', msg);
+}
+function chatBlockOf(gameId: string): Set<string> {
+	let b = chatBlocks.get(gameId);
+	if (!b) { b = new Set(); chatBlocks.set(gameId, b); }
+	return b;
+}
+function isChatBlocked(gameId: string, spectatorId: string | undefined): boolean {
+	return !!spectatorId && !!chatBlocks.get(gameId)?.has(spectatorId);
+}
+/** 관전자 소켓이 방에 들어올 때 호출 — 차단된 관전자면 차단 방에 넣고 알린다 */
+function applyChatBlockOnJoin(socket: any, gameId: string, spectatorId: string): void {
+	if (!isChatBlocked(gameId, spectatorId)) return;
+	socket.join(chatBlockRoom(gameId));
+	socket.emit('chat_blocked', { gameId });
+}
+/** 지금 이 관전자 id 로 붙어 있는 소켓들 */
+function socketsOfSpectator(io: SocketIOServer, spectatorId: string): any[] {
+	const out: any[] = [];
+	for (const [sid, id] of Array.from(socketToSpectatorMap.entries())) {
+		if (id !== spectatorId) continue;
+		const sk = io.sockets.sockets.get(sid);
+		if (sk) out.push(sk);
+	}
+	return out;
+}
+
 /** 방 크기 조회용 io 참조 (setupGameServer에서 주입) */
 let _io: SocketIOServer | null = null;
 
@@ -2273,7 +2335,7 @@ function setSpectatorConnected(game: any, spectatorId: string, on: boolean) {
 function joinGameRoom(socket: { id: string; rooms: Set<string>; join: (r: string) => void; leave: (r: string) => void }, gameId: string) {
 	for (const r of Array.from(socket.rooms)) {
 		if (r === socket.id || r === gameId) continue;
-		if (games.has(r) || r.startsWith(DELTA_ROOM_PREFIX)) socket.leave(r);
+		if (games.has(r) || r.startsWith(DELTA_ROOM_PREFIX) || r.startsWith('chatblock:')) socket.leave(r);
 	}
 	socket.join(gameId);
 }
@@ -3951,6 +4013,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
 				joinGameRoom(socket, gameId);
+				applyChatBlockOnJoin(socket, gameId, playerId);
 				// [숨은 관전 아이디] 새로고침으로 재접속할 때 다시 목록에 뜨면 숨김이 무의미해진다 → 숨은 id면 등록 생략.
 				//   (게임은 서버 메모리에만 있어 재시작하면 게임 자체가 사라지므로 이 Set이 게임보다 먼저 없어질 일은 없다.)
 				if (!hiddenSpectatorIds.has(playerId)) setSpectatorConnected(game, playerId, true);
@@ -3996,10 +4059,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					text: `🔄 ${name}님이 다시 접속했습니다.`,
 					ts: Date.now(),
 				};
-				if (!game.chatMessages) game.chatMessages = [];
-				game.chatMessages.push(msg);
-				if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
-				io.to(gameId).emit('chat_message', msg);
+				pushChat(io, game, msg);
 			}
 
 			emitGameUpdated(io, game);
@@ -4053,6 +4113,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			joinGameRoom(socket, gameId);
+			applyChatBlockOnJoin(socket, gameId, spectatorId);
 			log(`Spectator joined game ${gameId} (${spectatorId})${hiddenSpectator ? ' [hidden]' : ''}`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
 			// 관전자 목록 갱신 브로드캐스트. 숨은 관전자는 목록이 안 바뀌므로 보내지 않는다 —
@@ -5755,6 +5816,39 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 		});
 
+		/* [2026-10-01] 채팅 기록 — 소켓마다 따로 받는다. 차단된 관전자에게는 주지 않는다. */
+		socket.on('get_chat_history', ({ gameId }: { gameId: string }, callback?: (r: { messages?: ChatMsg[]; blocked?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId); if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const pid = socketToPlayerMap.get(socket.id);
+			const sid = socketToSpectatorMap.get(socket.id);
+			const isPlayer = !!pid && !!game.players[pid];
+			const isSpec = !!sid && !!game.spectatorIds?.includes(sid);
+			if (!isPlayer && !isSpec) { callback?.({ error: 'Not in this game' }); return; }
+			if (!isPlayer && isChatBlocked(gameId, sid)) { callback?.({ blocked: true }); return; }
+			callback?.({ messages: chatHistoryOf(game) });
+		});
+
+		/* [2026-10-01] 관전자 채팅 차단/해제 — 이 방에 앉은 사람 플레이어 누구나. 관전은 계속되고 채팅만 막힌다. */
+		socket.on('set_spectator_chat_block', ({ gameId, spectatorId, blocked }: { gameId: string; spectatorId: string; blocked: boolean }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId); if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const pid = socketToPlayerMap.get(socket.id);
+			if (!pid || !game.players[pid] || (game.botPlayerIds ?? []).includes(pid)) { callback?.({ error: '게임에 참가한 플레이어만 차단할 수 있습니다.' }); return; }
+			if (!game.spectatorIds?.includes(spectatorId)) { callback?.({ error: '이 방의 관전자가 아닙니다.' }); return; }
+			const b = chatBlockOf(gameId);
+			const targets = socketsOfSpectator(io, spectatorId);
+			const who = (game as any).spectatorNames?.[spectatorId] ?? spectatorId;
+			if (blocked) {
+				b.add(spectatorId);
+				for (const t of targets) { t.join(chatBlockRoom(gameId)); t.emit('chat_blocked', { gameId }); }
+			} else {
+				b.delete(spectatorId);
+				for (const t of targets) { t.leave(chatBlockRoom(gameId)); t.emit('chat_unblocked', { gameId }); }
+			}
+			log(`Chat ${blocked ? 'blocked' : 'unblocked'}: spectator ${who} by ${game.players[pid].name}`, 'game', gameId);
+			emitGameUpdated(io, game); // 플레이어 화면의 관전자 목록(차단 표시) 갱신
+			callback?.({ ok: true });
+		});
+
 		// 인게임 채팅: 플레이어/관전자 모두 전송 가능. 가벼운 'chat_message' 이벤트로 즉시 전파하고,
 		// 재접속/관전자 히스토리 복원을 위해 게임 상태에 최근 100개만 보관(전체 game_updated는 보내지 않음).
 		socket.on('send_chat', ({ gameId, text }: { gameId: string; text: string }) => {
@@ -5767,6 +5861,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const spectatorId = rawSpectatorId && game.spectatorIds?.includes(rawSpectatorId) ? rawSpectatorId : undefined;
 			const senderId = playerId || spectatorId;
 			if (!senderId) return; // 이 게임에 속하지 않은 소켓은 무시
+			// [2026-10-01] 채팅 차단된 관전자 — 보내지 못한다(화면도 다시 닫게 알린다)
+			if (!playerId && isChatBlocked(gameId, spectatorId)) { socket.emit('chat_blocked', { gameId }); return; }
 			if (typeof text !== 'string') return;
 			const clean = text.replace(/\s+/g, ' ').trim().slice(0, 300);
 			if (!clean) return;
@@ -5781,10 +5877,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				text: clean,
 				ts: Date.now(),
 			};
-			if (!game.chatMessages) game.chatMessages = [];
-			game.chatMessages.push(msg);
-			if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
-			io.to(gameId).emit('chat_message', msg);
+			pushChat(io, game, msg);
 		});
 
 		socket.on('undo_free_action', ({ gameId, steps }: { gameId: string; steps?: number }) => {
@@ -7100,10 +7193,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 									text: `🚪 ${name}님이 게임을 떠났습니다.`,
 									ts: Date.now(),
 								};
-								if (!g.chatMessages) g.chatMessages = [];
-								g.chatMessages.push(msg);
-								if (g.chatMessages.length > 100) g.chatMessages = g.chatMessages.slice(-100);
-								io.to(gameId).emit('chat_message', msg);
+								pushChat(io, g, msg);
 							}, LEFT_ANNOUNCE_DELAY_MS);
 							leftAnnounceTimers.set(key, timer);
 						}
