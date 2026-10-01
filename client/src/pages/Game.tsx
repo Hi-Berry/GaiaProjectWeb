@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, storeSpectatorId, type GameState, type PlayerState } from '@/lib/gameClient';
-import { getCommitSeq } from '@/lib/turnCommit';
+import { getCommitSeq, createViewFreeze } from '@/lib/turnCommit';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
@@ -345,8 +345,7 @@ export default function Game() {
    *  훅이므로 반드시 컴포넌트 최상단에서 선언한다(아래쪽은 이른 반환이 있어 훅 순서가 깨진다). */
   /** [2026-09-30] 롤백 요청 창 — 어느 로그 지점(seq)으로 요청하는지. null이면 닫힘. */
   const [rollbackDraft, setRollbackDraft] = useState<{ seq: number; label: string } | null>(null);
-  const committedGameRef = useRef<GameState | null>(null);
-  const lastCommitSeqRef = useRef<number | null>(null);
+  const viewFreezeRef = useRef(createViewFreeze());
   const [error, setError] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
   const [isResearchOpen, setIsResearchOpen] = useState(false);
@@ -2172,16 +2171,9 @@ export default function Game() {
      기준(getCommitSeq)은 로그 감추기·액션 음성과 같은 함수를 쓴다. 따로 계산하면 어긋난다 —
        실제로 턴 종료 후 파워 수령 대기 구간에서 보드만 먼저 열리고 로그는 닫혀 있었다.
      서버는 건드리지 않는다(클라가 이미 turnMark를 받는다). */
-  const viewCommitSeq = getCommitSeq(game);
-  if (game) {
-    if (viewCommitSeq === null || viewCommitSeq !== lastCommitSeqRef.current) {
-      lastCommitSeqRef.current = viewCommitSeq;
-      committedGameRef.current = game;
-    }
-  }
-  const isMyTurnForView = !!game && game.turnOrder?.[game.currentPlayerIndex] === playerId;
-  /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game). */
-  const viewGame = (!isMyTurnForView && viewCommitSeq !== null && committedGameRef.current) ? committedGameRef.current : game;
+  /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game).
+   *  규칙은 lib/turnCommit.ts createViewFreeze 한 곳 — script/testRollbackBoardView.ts 가 같은 코드를 실서버로 돌린다. */
+  const viewGame = viewFreezeRef.current.view(game, playerId);
 
   /* [사용자 2026-09-30] 롤백 횟수 제한 — "(1/3) → (2/3) → (3/3) → 다음에 누르면 '모두 사용했습니다'"
      버튼에는 '다음에 요청하면 몇 번째인지'를 보여 주고, 다 썼으면 창을 열지 않고 바로 알린다. */

@@ -32,10 +32,19 @@ import type { GaiaGameState as GameState } from '@shared/gameConfig';
 /** 게임별 '이미 공개한 최대 로그 seq'. 되돌아가지 않게 붙잡아 두는 값. */
 const revealed = new Map<string, number>();
 
-function maxLogSeq(game: GameState): number | null {
+/**
+ * 살아 있는(롤백으로 취소되지 않은) 로그 줄의 최대 seq.
+ * [사용자 2026-10-01] "1번에 짓고 롤백하고 2번에 지어도 1번에 광산이 있다. 새로고침하면 2번에 있다."
+ *   롤백된 행동은 지우지 않고 rolledBack 표시로 로그에 남긴다(빨간 줄). 그 줄들까지 세면 롤백 뒤에도 최대 seq 가
+ *   줄지 않아, 아래 워터마크가 '롤백이 일어났다'를 알아채지 못하고 롤백 전 높은 값에 그대로 붙어 있었다.
+ *   그러면 화면 고정(viewGame)이 롤백 전 보드를 계속 붙잡고, 로그도 새 진행 중 액션을 남에게 일찍 보여 준다.
+ *   서버는 롤백 때 seq 카운터도 되감아 새 행동이 같은 번호를 다시 쓴다 — 취소된 줄은 반드시 빼고 센다.
+ */
+export function liveMaxLogSeq(game: GameState): number | null {
 	const logs = game.gameLog ?? [];
 	let m: number | null = null;
 	for (const e of logs) {
+		if ((e as { rolledBack?: boolean }).rolledBack) continue;
 		const s = (e as { seq?: number }).seq;
 		if (typeof s === 'number' && (m === null || s > m)) m = s;
 	}
@@ -53,7 +62,7 @@ export function getCommitSeq(game: GameState | null | undefined): number | null 
 	const id = (game as { id?: string }).id;
 	if (!id) return raw; // 게임 id를 모르면 붙잡아 둘 곳이 없다 — 원래 값 그대로
 
-	const top = maxLogSeq(game);
+	const top = liveMaxLogSeq(game);
 	let wm = revealed.get(id) ?? -1;
 	// 롤백으로 로그가 실제로 뒤로 갔으면 워터마크도 내린다(안 내리면 새 턴의 진행 중 액션이 노출된다)
 	if (top !== null && wm > top) wm = top;
@@ -73,4 +82,27 @@ export function getCommitSeq(game: GameState | null | undefined): number | null 
 /** 테스트용 — 게임별 워터마크를 지운다 */
 export function resetCommitSeqMemo(): void {
 	revealed.clear();
+}
+
+/**
+ * 화면 표시용 상태 고르기(Game.tsx viewGame) — 남의 턴 진행 중엔 그 턴 시작 시점으로 고정한다.
+ * 컴포넌트마다 하나씩(useRef) 만들어 렌더마다 view() 를 부른다.
+ */
+export function createViewFreeze() {
+	let lastSeq: number | null | undefined;
+	let lastTop: number | null = null;
+	let committed: GameState | null = null;
+	return {
+		view<T extends GameState>(game: T, myPlayerId: string | null | undefined): T {
+			const seq = getCommitSeq(game);
+			// 롤백(또는 턴 리셋)으로 살아 있는 로그의 끝이 뒤로 갔다 = 그 시점 상태로 통째로 바뀌었다.
+			// 확정 시점 값이 우연히 같게 나와도 붙잡고 있던 옛 보드를 반드시 버린다.
+			const top = liveMaxLogSeq(game);
+			const rewound = top !== null && lastTop !== null && top < lastTop;
+			lastTop = top;
+			if (seq === null || seq !== lastSeq || rewound || !committed) { lastSeq = seq; committed = game; }
+			const myTurn = !!myPlayerId && game.turnOrder?.[game.currentPlayerIndex] === myPlayerId;
+			return (!myTurn && seq !== null && committed) ? committed as T : game;
+		},
+	};
 }
