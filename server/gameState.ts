@@ -676,6 +676,20 @@ function clearFreeActionUndo(game: ServerGameState): void {
 	game.freeActionUndoContext = undefined;
 }
 
+/**
+ * [사용자 질문 2026-10-01 "번(2그릇→3그릇) Undo·Undo All 정상인가?"] 실측해 보니 아니었다.
+ * burn_power·convert_resource 는 실행 '전에' 되돌리기 지점을 쌓는데, 실행이 실패(토큰·자원 부족)해도
+ * 그 지점이 그대로 남았다. 게다가 실패하면 업데이트를 안 보내 화면의 Undo 칸 수가 실제보다 적었다.
+ *   - 다음 Undo 한 번은 '실패한 시도 직전 = 지금과 같은 상태'로 돌아가 아무 변화가 없고,
+ *   - Undo All 은 화면이 아는 칸 수만큼만 되돌려 앞선 진짜 번이 남았다.
+ * (예: 2그릇 2개에서 번을 두 번 누름 → 둘째는 실패 → Undo All 을 눌러도 번이 안 풀림)
+ * 실패하면 방금 쌓은 지점을 빼고 상태를 다시 보낸다(낙관적으로 먼저 그려 둔 화면도 바로잡힌다).
+ */
+function dropFailedFreeActionSnapshot(io: SocketIOServer, game: ServerGameState): void {
+	game.freeActionUndoStack?.pop();
+	clampPlayerResources(game); emitGameUpdated(io, game);
+}
+
 function pushFreeActionUndoSnapshot(game: ServerGameState): void {
 	const playerId = game.turnOrder?.[game.currentPlayerIndex];
 	const context = {
@@ -5797,6 +5811,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			if (executeConvertResource(io, game, playerId, type, useBrain)) {
 				// 이미 executeConvertResource에서 clamp 및 emit을 수행함
+			} else {
+				dropFailedFreeActionSnapshot(io, game); // 실패한 변환이 Undo 칸을 남기지 않게
 			}
 		});
 
@@ -5813,6 +5829,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			if (executeBurnPower(game, playerId, moveBrainToBowl3)) {
 				clampPlayerResources(game); emitGameUpdated(io, game);
+			} else {
+				dropFailedFreeActionSnapshot(io, game); // 실패한 번(토큰 부족)이 Undo 칸을 남기지 않게
 			}
 		});
 
