@@ -7232,13 +7232,20 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const spectatorId = socketToSpectatorMap.get(socket.id);
 			if (spectatorId) {
 				// [관전자 목록] 접속 끊기면 '현재 관전 중' 목록에서 제거 (spectatorIds는 재접속용으로 유지)
-				const specGameId = spectatorToGameMap.get(spectatorId);
-				const specGame = specGameId ? games.get(specGameId) : undefined;
-				spectatorToGameMap.delete(spectatorId);
 				socketToSpectatorMap.delete(socket.id);
-				if (specGame) {
-					setSpectatorConnected(specGame, spectatorId, false);
-					emitGameUpdated(io, specGame);
+				/* [사용자 2026-10-03] "관전자가 채팅하고 있는데 목록에 없다가 몇 분 뒤에 뜬다."
+				   휴대폰이 잠깐 끊겼다 새 연결로 다시 붙으면(같은 관전 id), 서버는 옛 연결이 끊긴 걸 핑 시간 초과로
+				   수십 초 뒤에야 알아챈다. 그때 같은 사람이 새 연결로 아직 보고 있는지 안 보고 목록에서 빼 버렸다.
+				   탭 두 개 중 하나를 닫을 때도 같았다. → 같은 관전 id 로 살아 있는 연결이 남아 있으면 그대로 둔다. */
+				const stillWatching = Array.from(socketToSpectatorMap.values()).includes(spectatorId);
+				if (!stillWatching) {
+					const specGameId = spectatorToGameMap.get(spectatorId);
+					const specGame = specGameId ? games.get(specGameId) : undefined;
+					spectatorToGameMap.delete(spectatorId);
+					if (specGame) {
+						setSpectatorConnected(specGame, spectatorId, false);
+						emitGameUpdated(io, specGame);
+					}
 				}
 			}
 		});
