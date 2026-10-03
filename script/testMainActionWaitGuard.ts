@@ -79,7 +79,8 @@ A.on('connect', async () => {
 	await sleep(500);
 	check(!!lastA?.pendingRollback, '대기 상태(롤백 투표 중)를 만들었다');
 
-	const WAIT = '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.';
+	// [2026-10-03] 대기 문구가 무엇을·누구를 기다리는지 말하도록 구체화됐다(롤백 투표 대기)
+	const WAIT = '롤백 투표가 진행 중입니다. 끝나면 이어집니다.';
 	const ship = (lastA.map || []).find((t: any) => String(t.type).startsWith('ship_'));
 	const attempts: Array<[string, string, any]> = [
 		['특수 액션(아카데미 QIC)', 'use_special_action', { gameId, actionId: 'academy-qic' }],
@@ -108,5 +109,22 @@ A.on('connect', async () => {
 	cur.emit('use_special_action', { gameId, actionId: 'academy-qic' });
 	const after = await p2;
 	check(after !== WAIT, `대기가 풀린 뒤엔 대기 사유로 막지 않는다 ("${after ?? '실행됨'}")`);
+
+	// [사용자 2026-10-03] "오류 메시지 뜰 때 누가 오류인지 안 뜬다" → 방 전체 오류에 행동한 사람을 싣는다(2번 안)
+	//   가이아 포머 없이 소행성에 광산 → 방 전체 오류. 상대 화면에도 '누구' 가 함께 간다.
+	const asteroid = (lastA.map || []).find((t: any) => t.type === 'asteroid' && !t.ownerId);
+	const myGf = (lastA.players[curId]?.gaiaformers ?? 0);
+	if (!asteroid || myGf > 0) {
+		console.log(`(건너뜀) 소행성 없음 또는 포머 보유 — 방 전체 오류 이름 확인 생략`);
+	} else {
+		const raw = (sock: Socket) => new Promise<any>((res) => { const t = setTimeout(() => res(null), 900); sock.once('game_error', (e: any) => { clearTimeout(t); res(e); }); });
+		const pMine = raw(cur), pOther = raw(other);
+		cur.emit('build_mine', { gameId, tileId: asteroid.id });
+		const [eMine, eOther] = await Promise.all([pMine, pOther]);
+		const curName = lastA.players[curId].name;
+		check(eOther?.playerId === curId && eOther?.playerName === curName && /가이아 포머/.test(eOther?.message ?? ''),
+			`상대 화면에 오는 오류에 행동한 사람이 실린다 (${eOther?.playerName}: ${eOther?.message})`);
+		check(eMine?.playerId === curId, `내 화면에 오는 같은 오류도 내 것으로 표시된다(이름 없이 보이도록)`);
+	}
 	finish();
 });

@@ -1385,9 +1385,12 @@ export default function Game() {
         typeof (err as any) === 'string'
           ? (err as any)
           : (err as any)?.message ?? '알 수 없는 오류';
+      /* [사용자 2026-10-03] "오류 메시지 뜰 때 누가 오류인지 안 뜬다" — 방 전체에 가는 오류는 서버가 행동한 사람을
+         함께 보낸다(emitRoomError). 남의 오류면 "이름: 문구"로, 내 오류면 그대로 보여 준다. */
+      const who = (err as any)?.playerId && (err as any).playerId !== playerId ? ((err as any).playerName ?? '다른 플레이어') : null;
       toast({
-        title: '오류',
-        description: message,
+        title: who ? `${who}님의 오류` : '오류',
+        description: who ? `${who}: ${message}` : message,
         variant: 'destructive',
       });
     });
