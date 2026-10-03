@@ -53,7 +53,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText, getExpandedFederationHexIds } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
 
@@ -6177,6 +6177,8 @@ export default function Game() {
                 // 연방 건물 파워: (연방 헥스에 포함된 내 건물 파워 / 전체 내 건물 파워).
                 // 연방 파워 산정과 동일하게 내 구조물(우주선 제외) + 란티다 기생광산 + 우주정거장을 합산.
                 // 파워값: PI/Academy=3(big타일 시 4) / TS·Lab=2 / 광산=1 / 기생광산·우주정거장=1.
+                // [버그수정 2026-10-04 사용자 "하이브 14파워 다 이어졌는데 12/14"] 저장된 연방 칸 목록만 세면
+                //   우주정거장 등으로 나중에 이어진 기존 건물이 빠진다 → 맵 호버 하이라이트와 같은 확장 범위로 센다.
                 const { fedBuildingPower, totalBuildingPower } = (() => {
                   const hasBig = (p.techTiles?.includes('tech-big-4str') && !p.coveredTechTiles?.includes('tech-big-4str')) ?? false;
                   const structPower = (s: StructureType | null | undefined): number => {
@@ -6190,7 +6192,7 @@ export default function Game() {
                       default: return 0;
                     }
                   };
-                  const fedHexes = new Set(game.playerFederationHexes?.[id] ?? []);
+                  const fedHexes = getExpandedFederationHexIds(game.map, game.playerFederationHexes?.[id] ?? [], id);
                   let total = 0, fed = 0;
                   for (const t of game.map) {
                     let tp = 0;

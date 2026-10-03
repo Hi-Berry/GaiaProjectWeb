@@ -107,7 +107,8 @@ import {
   SHIP_TECH_BY_SHIP,
   SHIP_TECH_TILES,
   SPACESHIP_FEDERATION_REWARDS,
-  getFederationEntries
+  getFederationEntries,
+  getExpandedFederationHexIds
 } from '@shared/gameConfig';
 
 // [테스트용] true면 모든 보드 칸에 위성 1개씩을, 종족색을 순환해서 깔아 색별 가시성을 확인.
@@ -908,44 +909,10 @@ export function GameBoard({
   // 연방 로그 호버: 형성 당시 스냅샷(fedHexes)을 그대로 하이라이트 — 확장(BFS) 없음
   const hoveredLogFedHexSet = useMemo(() => new Set(hoveredLogFed?.hexIds ?? []), [hoveredLogFed]);
 
+  // 상태창 '연방 건물 파워'와 같은 범위(공용 함수) — 저장된 연방 칸 + 맞닿아 이어진 내 건물
   const hoveredFederationHexIds = useMemo(() => {
-    const seeds = hoveredPlayerId ? game.playerFederationHexes?.[hoveredPlayerId] ?? [] : [];
-    const expanded = new Set(seeds);
-    if (!hoveredPlayerId || seeds.length === 0) return expanded;
-
-    const byId = new Map(game.map.map((t: HexTile) => [t.id, t]));
-    const byCoord = new Map(game.map.map((t: HexTile) => [`${t.q},${t.r}`, t]));
-    const dirs = [
-      [1, 0], [1, -1], [0, -1],
-      [-1, 0], [-1, 1], [0, 1],
-    ];
-    const getNeighborTiles = (tile: HexTile) => dirs
-      .map(([dq, dr]) => byCoord.get(`${tile.q + dq},${tile.r + dr}`))
-      .filter((t): t is HexTile => Boolean(t));
-    const isOwnFederationNode = (tile: HexTile) =>
-      (tile.ownerId === hoveredPlayerId && Boolean(tile.structure) && tile.structure !== 'ship')
-      || tile.parasiticMine?.ownerId === hoveredPlayerId
-      || tile.spaceStation?.ownerId === hoveredPlayerId;
-    const addConnectedComponent = (start: HexTile) => {
-      if (!isOwnFederationNode(start)) return;
-      const queue = [start];
-      expanded.add(start.id);
-      for (let i = 0; i < queue.length; i += 1) {
-        for (const neighbor of getNeighborTiles(queue[i])) {
-          if (expanded.has(neighbor.id) || !isOwnFederationNode(neighbor)) continue;
-          expanded.add(neighbor.id);
-          queue.push(neighbor);
-        }
-      }
-    };
-
-    for (const seedId of seeds) {
-      const seed = byId.get(seedId);
-      if (!seed) continue;
-      addConnectedComponent(seed);
-      getNeighborTiles(seed).forEach(addConnectedComponent);
-    }
-    return expanded;
+    if (!hoveredPlayerId) return new Set<string>();
+    return getExpandedFederationHexIds(game.map, game.playerFederationHexes?.[hoveredPlayerId] ?? [], hoveredPlayerId);
   }, [game.map, game.playerFederationHexes, hoveredPlayerId]);
 
   const isEclipseAsteroidMode = game.pendingEclipseAsteroidMine?.playerId === playerId;
