@@ -8,7 +8,7 @@
  *
  * 사용: PORT=5097 npx tsx script/testFiraksDowngradeReason.ts   (서버 모듈을 불러오므로 개발 서버와 다른 포트)
  */
-import { firaksDowngradeBlockReason, executeFiraksDowngrade, FIRAKS_DOWNGRADE_TS_FULL_MSG } from '../server/gameState';
+import { firaksDowngradeBlockReason, executeFiraksDowngrade, FIRAKS_DOWNGRADE_TS_FULL_MSG, mainActionWaitReason } from '../server/gameState';
 
 const ME = 'p_fk', OTHER = 'p_ot';
 function mk(opts: { ts?: number; used?: boolean; myTurn?: boolean; mainDone?: boolean; sciLevel?: number; pi?: boolean } = {}) {
@@ -75,6 +75,20 @@ for (const [name, o, track, want] of cases) {
 	const { game } = mk();
 	const ts = game.map.find((x: any) => x.structure === 'trading_station').id;
 	check(firaksDowngradeBlockReason(game, ME, ts, 'science') === '되돌릴 내 연구소를 골라 주세요.', `연구소가 아닌 칸 → 사유 안내`);
+}
+
+// [2026-10-03] 라운드 시작 처리 대기 중엔 메인 액션 금지 — 의회·팅커 대기도 같은 입구 함수가 막는다
+for (const [name, pending] of [
+	['아이타 의회', { pendingItarsGaiaformerExchange: { playerId: OTHER, tokensRemaining: 4 } }],
+	['테란 의회', { pendingTerranCouncilBenefit: { playerId: OTHER, tokenCount: 2 } }],
+	['팅커로이드 특수 선택', { pendingTinkeroidSpecialChoice: { playerId: OTHER } }],
+	['수익 순서 선택', { pendingIncomeOrder: { playerId: OTHER, incomeItems: [], appliedItems: [] } }],
+] as Array<[string, any]>) {
+	const { game, lab } = mk({ ts: 3 });
+	Object.assign(game, pending);
+	const wait = mainActionWaitReason(game);
+	check(!!wait && firaksDowngradeBlockReason(game, ME, lab, 'science') === wait, `${name} 대기 중 → 메인 액션 금지 ("${wait}")`);
+	check(executeFiraksDowngrade(game, ME, lab, 'science') === false, `${name} 대기 중 → 다운그레이드 실행도 거부`);
 }
 
 console.log(bad === 0 ? '\n전부 통과' : `\n${bad}건 실패`);

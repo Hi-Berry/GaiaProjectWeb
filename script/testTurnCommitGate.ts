@@ -91,5 +91,36 @@ const logs = (upTo: number) => Array.from({ length: upTo + 1 }, (_, i) => ({ seq
 	check(shown.tag === 'next', '화면 고정기 — 롤백 뒤 새 턴 시작 상태를 잡는다(롤백 전 보드를 붙잡지 않음)', shown.tag, 'next');
 }
 
+// ── 5) [사용자 2026-10-03] 라운드 시작 처리(아이타·테란·팅커·수익 선택) 대기 중엔 남의 카드를 붙잡지 않는다 ──
+{
+	const P = (passed: boolean, credits: number) => ({ hasPassed: passed, credits });
+	const base = (extra: any) => ({ id: 'rs', currentPhase: 'main', turnOrder: ['A', 'B', 'C', 'D'], ...extra });
+	const lastTurn = base({ roundNumber: 1, currentPlayerIndex: 3, turnMark: { A: 40, B: 44, C: 47, D: 50 }, gameLog: logs(50),
+		players: { A: P(true, 5), B: P(true, 6), C: P(true, 7), D: P(false, 8) } });
+	for (const [name, pending] of [
+		['아이타 의회', { pendingItarsGaiaformerExchange: { playerId: 'C', tokensRemaining: 4 } }],
+		['테란 의회', { pendingTerranCouncilBenefit: { playerId: 'C', tokenCount: 2 } }],
+		['팅커로이드 특수 선택', { pendingTinkeroidSpecialChoice: { playerId: 'C' } }],
+		['수익 순서 선택', { pendingIncomeOrder: { playerId: 'C', incomeItems: [], appliedItems: [] } }],
+	] as Array<[string, any]>) {
+		resetCommitSeqMemo();
+		const vf = createViewFreeze();
+		vf.view(lastTurn as any, 'B');
+		const wait = base({ roundNumber: 2, currentPlayerIndex: 0, turnMark: lastTurn.turnMark, gameLog: logs(58), ...pending,
+			players: { A: P(false, 15), B: P(false, 16), C: P(false, 17), D: P(false, 18) } });
+		const shown = vf.view(wait as any, 'B') as any;
+		const ok = ['A', 'C', 'D'].every((id) => shown.players[id].hasPassed === false && shown.players[id].credits === (wait as any).players[id].credits);
+		check(ok && getCommitSeq(wait as any) === null, `${name} 대기 중 — 남의 카드도 수익 받은 실제 상태(감출 것 없음)`, ok ? '실시간' : JSON.stringify(shown.players), '실시간');
+	}
+	// 안전장치: 대기 표시가 없어도 라운드가 바뀌면 지난 라운드 화면을 버린다
+	resetCommitSeqMemo();
+	const vf2 = createViewFreeze();
+	vf2.view(lastTurn as any, 'B');
+	const nextRound = base({ roundNumber: 2, currentPlayerIndex: 0, turnMark: lastTurn.turnMark, gameLog: logs(58),
+		players: { A: P(false, 15), B: P(false, 16), C: P(false, 17), D: P(false, 18) } });
+	const shown2 = vf2.view(nextRound as any, 'B') as any;
+	check(shown2.roundNumber === 2 && shown2.players.A.credits === 15, '라운드가 바뀌면 붙잡던 지난 라운드 화면을 버린다', shown2.roundNumber, 2);
+}
+
 console.log(bad === 0 ? '\n전부 통과' : `\n${bad}건 실패`);
 process.exit(bad === 0 ? 0 : 1);

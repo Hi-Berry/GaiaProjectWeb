@@ -51,11 +51,29 @@ export function liveMaxLogSeq(game: GameState): number | null {
 	return m;
 }
 
+/**
+ * [사용자 2026-10-03] "아이타 의회 처리할 때 일부는 수익 받은 활성 상태, 일부는 지난 라운드 패스 상태+옛 자원으로 보인다."
+ * 서버는 라운드가 넘어가 수익을 주고 팅커로이드·아이타·테란 선택을 기다리는 동안에도 단계를 'main' 으로 두고,
+ * 새 라운드 첫 턴의 turnMark 는 그 선택이 다 끝난 뒤에야 찍는다. 그래서 이 대기를 '지난 라운드 마지막 턴이
+ * 아직 진행 중'으로 잘못 봐 남의 카드를 그 턴 시작 시점(패스 상태·옛 자원)에 붙잡고, 수익 로그도 감췄다.
+ * 이 구간은 누군가의 되돌릴 수 있는 행동이 아니라 라운드 시작 처리다 → 감출 것 없음(전부 실시간).
+ */
+export function isRoundStartPending(game: GameState): boolean {
+	const g = game as GameState & Record<string, any>;
+	return !!(g.pendingIncomeOrder
+		|| g.pendingTinkeroidSpecialChoice
+		|| g.pendingItarsGaiaformerExchange
+		|| g.pendingTerranCouncilBenefit
+		|| (g.terranCouncilQueue?.length ?? 0) > 0
+		|| (g.terranCouncilQueueAfterItars?.length ?? 0) > 0
+		|| g.pendingTechTileSelection?.structureType === 'itars_pi_exchange');
+}
+
 export function getCommitSeq(game: GameState | null | undefined): number | null {
 	if (!game) return null;
 
 	const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
-	const raw = (game.currentPhase !== 'main' || game.pendingTurnEndPlayerId || !marks.length)
+	const raw = (game.currentPhase !== 'main' || game.pendingTurnEndPlayerId || !marks.length || isRoundStartPending(game))
 		? null
 		: Math.max(...marks);
 
@@ -100,7 +118,9 @@ export function createViewFreeze() {
 			const top = liveMaxLogSeq(game);
 			const rewound = top !== null && lastTop !== null && top < lastTop;
 			lastTop = top;
-			if (seq === null || seq !== lastSeq || rewound || !committed) { lastSeq = seq; committed = game; }
+			// 라운드가 바뀌었으면 붙잡고 있던 건 무조건 지난 라운드 화면이다 — 안전장치로 버린다
+			const newRound = !!committed && committed.roundNumber !== game.roundNumber;
+			if (seq === null || seq !== lastSeq || rewound || newRound || !committed) { lastSeq = seq; committed = game; }
 			const myTurn = !!myPlayerId && game.turnOrder?.[game.currentPlayerIndex] === myPlayerId;
 			return (!myTurn && seq !== null && committed) ? committed as T : game;
 		},

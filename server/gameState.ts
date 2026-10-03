@@ -2033,6 +2033,19 @@ export function mainActionBlockedByPending(game: ServerGameState): boolean {
 		|| Boolean((game as any).pendingRollback); // 롤백 투표 중엔 게임 얼림
 }
 
+/**
+ * [사용자 2026-10-03] "수익 단계 전 팅커/테란/아이타 하는 중에 간헐적으로 액션을 하는 경우가 있다 — 우주선 액션도 된다는 말이 있다."
+ * 메인 액션 23종을 대조해 보니 대기 검사 두 가지(의회·팅커 / 수익·파워·롤백) 중 하나라도 빠진 곳이 다섯 군데였다
+ * (특수 액션·파이락 다운그레이드는 둘 다, 우주선 입장·보너스 액션·하이브 우주정거장은 수익·파워·롤백 쪽).
+ * 라운드가 막 바뀐 순간엔 현재 차례가 지난 라운드 사람을 가리킬 수 있어, 그 사람이 '내 차례'로 보고 눌렀다.
+ * 메인 액션의 입구는 모두 이 함수 하나로 묻는다 — 막혔으면 사람에게 보여 줄 이유, 아니면 null.
+ */
+export function mainActionWaitReason(game: ServerGameState): string | null {
+	if (councilPendingActive(game)) return '다른 플레이어의 선택(의회·팅커로이드·이클립스)이 진행 중입니다. 완료되면 이어집니다.';
+	if (mainActionBlockedByPending(game)) return '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.';
+	return null;
+}
+
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
 	// 끝난 플레이어의 마지막 로그에 로그 이후 적용된 효과까지 끌어올림(변동량 정확도 보강)
 	finalizeLogSnap(game, endedPlayerId);
@@ -4906,7 +4919,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_bonus_action', ({ gameId }) => {
 			const game = games.get(gameId); if (!game || game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 수익·파워·롤백 대기도 함께
 			// [버그수정 2026-09-23 사용자] 부스터 특수 액션도 '하나의 액션' — 거리 보너스가 켜진 턴엔 전부 차단(사용자 확정).
 			//   특히 range_3은 트왈 +3거리 위에 또 켜져 보너스가 중첩됐고(다른 7곳 가드가 막던 바로 그 중복), gaia_project도
 			//   '거리 보너스 + 특수 액션' 조합이라 동일하게 막는다. 허용 목록(광산·포머·소행성·우주선 입장)은 일반 메인 액션 경로만.
@@ -4942,7 +4955,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 수익·파워·롤백 대기 중 입장이 통과되던 구멍
 
 			const error = executeEnterSpaceship(io, game, playerId, tileId, useRangeBonus, qicToUse);
 			if (error) {
@@ -4958,7 +4971,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 의회 대기 때 조용히 무시하던 것 → 이유 표시
 			// [버그수정 2026-08-31 사용자: 아카데미 QIC 특수액션 후 End Turn 없이 리벨리온 2K 액션이 또 됨]
 			// 이 핸들러만 hasDoneMainAction 입구 가드가 없어 한 턴에 메인 액션 2개가 가능했다.
 			// 보조 칸(트왈라잇 +3거리, TF마스 3C→1TF)도 '메인 액션 전에 쓰는' 설계이고, 메인 액션 후 허용하면
@@ -5526,7 +5539,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 수익·파워·롤백 대기도 함께, 조용히 무시하지 않음
 			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
 			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
@@ -6172,6 +6185,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_special_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 대기 중 특수 액션이 통과되던 구멍
 			// 이미 거리 보너스가 켜져 있으면 글린 +2항해 포함 모든 스페셜 액션 차단 (중복 활성 방지)
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			const ok = executeUseSpecialAction(io, game, playerId, actionId);
@@ -8869,6 +8883,7 @@ export function firaksDowngradeBlockReason(game: ServerGameState, playerId: stri
 	const player = game.players[playerId];
 	if (!player) return '플레이어를 찾을 수 없습니다.';
 	if (game.currentPhase !== 'main') return '액션 단계에서만 할 수 있습니다.';
+	{ const wait = mainActionWaitReason(game); if (wait) return wait; } // [2026-10-03] 라운드 시작 처리·수익·파워·롤백 대기 중 차단
 	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return '내 턴이 아닙니다.';
 	if (game.hasDoneMainAction) return '이번 턴 메인 액션을 이미 사용했습니다.';
 	if (player.faction !== 'firaks') return '파이락만 쓸 수 있는 능력입니다.';
