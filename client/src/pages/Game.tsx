@@ -2179,6 +2179,17 @@ export default function Game() {
      버튼에는 '다음에 요청하면 몇 번째인지'를 보여 주고, 다 썼으면 창을 열지 않고 바로 알린다. */
   const myRollbackQuota = getRollbackQuota(game, playerId);
   const rollbackBadge = myRollbackQuota.exhausted ? '모두 사용' : `${myRollbackQuota.next}/${myRollbackQuota.limit}`;
+  /* [사용자 2026-10-03] 파이락 다운그레이드는 세 곳(왼쪽 메뉴 버튼·상태창 내 카드 버튼·액션 칩)에서 누를 수 있는데
+     교역소 4개 검사는 왼쪽 버튼에만 있었다. 나머지 둘은 바로 연구소 선택으로 들어가, 트랙까지 고른 뒤 서버가
+     조용히 거부해 무반응이었다. → 세 곳 모두 이 함수로 들어오게 해 처음에 바로 사유를 띄운다. */
+  const startFiraksDowngrade = () => {
+    const tsCount = game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0;
+    if (tsCount >= 4) {
+      toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
+      return;
+    }
+    setFiraksDowngradeMode(true);
+  };
   const openRollbackRequest = (seq: number, label?: string) => {
     if (!gameId) return;
     if (getRollbackQuota(game, playerId).exhausted) {
@@ -3906,14 +3917,7 @@ export default function Game() {
             <Button
               variant={firaksDowngradeMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
-              onClick={() => {
-                const tsCount = game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0;
-                if (tsCount >= 4) {
-                  toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
-                  return;
-                }
-                setFiraksDowngradeMode(true);
-              }}
+              onClick={startFiraksDowngrade}
             >
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-amber-500/30 border-amber-500/50 text-[8px]">S</Badge>
@@ -6070,7 +6074,7 @@ export default function Game() {
                     else if (id === 'bescods-advance-lowest') setBescodsAdvanceLowestOpen(true);
                     else if (id === 'ambas-swap-pi-mine') setAmbasSwapPiMineMode(true);
                     else if (id === 'moweyip-place-ring') setMoweyipPlaceRingMode(true);
-                    else if (id === 'firaks-downgrade') setFiraksDowngradeMode(true);
+                    else if (id === 'firaks-downgrade') startFiraksDowngrade();
                     else if (id === 'tech-act-4p' || id === 'adv-act-3k' || id === 'adv-act-3o' || id === 'adv-act-1q-5c') GameClient.useTechAction(gameId, id);
                     else GameClient.useSpecialAction(gameId, id);
                   }}
@@ -6224,7 +6228,7 @@ export default function Game() {
                             } else if (actionId === 'moweyip-place-ring') {
                               setMoweyipPlaceRingMode(true);
                             } else if (actionId === 'firaks-downgrade') {
-                              setFiraksDowngradeMode(true);
+                              startFiraksDowngrade();
                             } else if (
                               actionId === 'tech-act-4p' ||
                               actionId === 'adv-act-3k' ||

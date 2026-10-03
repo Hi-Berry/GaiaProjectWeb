@@ -6360,6 +6360,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; } // [2026-09-23] 거리 보너스 중 비-거리 메인 액션 차단(위 주석 참조)
+			const why = firaksDowngradeBlockReason(game, playerId, tileId, trackId);
+			if (why) { socket.emit('game_error', { message: `다운그레이드 불가: ${why}` }); return; } // 예전엔 조용히 무시돼 무반응이었다
 			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); emitGameUpdated(io, game); }
 		});
 
@@ -8857,28 +8859,43 @@ export function executeSelectBonus(
  * 파이락 의회 능력: 연구소 1개를 교역소로 다운그레이드하고 연구 1트랙 1단계 전진(메인 액션, 라운드당 1회).
  * 소켓 핸들러와 봇(performAction)이 공유 — 룰 중복 방지. 조건/효과는 firaks_downgrade 핸들러와 동일.
  */
-export function executeFiraksDowngrade(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): boolean {
+/**
+ * 파이락 다운그레이드를 지금 할 수 없는 이유(한국어). 할 수 있으면 null.
+ * [사용자 2026-10-03] "교역소 4개일 때 다운그레이드 누르면 에러 뜨나?" — 상태창·액션 칩에서 들어가면
+ *   연구소·트랙까지 다 고른 뒤 서버가 조용히 거부해 무반응이었다. 거부 사유를 돌려줘 화면에 띄운다.
+ *   검사 순서·조건은 executeFiraksDowngrade 가 그대로 쓴다(두 곳이 어긋나지 않게 이 함수 하나만 본다).
+ */
+export function firaksDowngradeBlockReason(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): string | null {
 	const player = game.players[playerId];
-	if (!player) return false;
-	if (game.currentPhase !== 'main') return false;
-	if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return false;
-	if (player.faction !== 'firaks') return false;
-	if (player.usedSpecialActions?.includes('firaks-downgrade')) return false;
-	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return false;
+	if (!player) return '플레이어를 찾을 수 없습니다.';
+	if (game.currentPhase !== 'main') return '액션 단계에서만 할 수 있습니다.';
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return '내 턴이 아닙니다.';
+	if (game.hasDoneMainAction) return '이번 턴 메인 액션을 이미 사용했습니다.';
+	if (player.faction !== 'firaks') return '파이락만 쓸 수 있는 능력입니다.';
+	if (player.usedSpecialActions?.includes('firaks-downgrade')) return '이번 라운드에 이미 다운그레이드를 사용했습니다.';
+	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return '의회가 있어야 다운그레이드할 수 있습니다.';
 	// [사용자 2026-08-25] 교역소 토큰은 4개 — 전부 보드에 있으면 연구소를 교역소로 되돌릴 토큰이 없다.
 	// (교역소를 연구소 등으로 업그레이드하면 재고가 돌아와 다시 가능해지는 일시적 제한.)
-	if (getStructureCount(game, playerId, 'trading_station') >= 4) return false;
+	if (getStructureCount(game, playerId, 'trading_station') >= 4) return FIRAKS_DOWNGRADE_TS_FULL_MSG;
 	const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab');
-	if (!tile) return false;
+	if (!tile) return '되돌릴 내 연구소를 골라 주세요.';
 	const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
-	if (!tracks.includes(trackId)) return false;
+	if (!tracks.includes(trackId)) return '올릴 연구 트랙을 골라 주세요.';
 	const currentLevel = player.research?.[trackId] ?? 0;
-	if (currentLevel >= 5) return false;
-	if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return false;
+	if (currentLevel >= 5) return '이미 최고 단계인 트랙입니다.';
+	if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return '그 트랙 5단계는 이미 다른 사람이 차지했습니다.';
 	// [버그수정] L5 도달(4→5)은 초록 연방 1개가 필요하고 소모(플립)된다 — Firaks 다운그레이드 advance도 동일.
-	// 기존엔 요구·소모를 안 해 AI L5 등을 초록연방 안 뒤집고 공짜로 올리던 문제(사용자 관찰).
-	if (currentLevel === 4 && countGreenFederations(player) < 1) return false;
-	if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
+	if (currentLevel === 4 && countGreenFederations(player) < 1) return '5단계로 올리려면 초록(미사용) 연방이 1개 필요합니다.';
+	if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return '항법 트랙을 지금 올릴 수 없습니다.';
+	return null;
+}
+export const FIRAKS_DOWNGRADE_TS_FULL_MSG = '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.';
+
+export function executeFiraksDowngrade(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): boolean {
+	if (firaksDowngradeBlockReason(game, playerId, tileId, trackId)) return false;
+	const player = game.players[playerId];
+	const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab')!;
+	const currentLevel = player.research?.[trackId] ?? 0;
 	saveActionStartState(game, playerId);
 	tile.structure = 'trading_station';
 	if (!player.usedSpecialActions) player.usedSpecialActions = [];
