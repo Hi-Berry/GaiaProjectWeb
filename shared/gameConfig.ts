@@ -556,6 +556,8 @@ export interface GaiaGameState {
   gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; snap?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; base?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; round?: number; seq?: number; fedHexes?: string[]; rolledBack?: boolean }>; // 게임 액션 로그 (rolledBack=롤백으로 취소된 행동 — 표시용으로 남김, 저장 시 제외) (fedHexes=이 액션으로 연방에 편입된 칸 — 리플레이용) (snap=이 로그 시점 행위자 점수/자원 스냅샷, 클릭 시 직전 대비 변동량 표시용; round=발생 라운드, 라운드 점프용)
   /** 플레이어 채팅 (최근 N개만 유지). 재접속/관전 시 히스토리 복원용으로 게임 상태에 보관 */
   chatMessages?: Array<{ id: string; senderId: string; name: string; faction?: string | null; isSpectator?: boolean; text: string; ts: number }>;
+  /** [2026-10-01] 채팅이 차단된 관전자 id 목록(서버가 전송 직전에 찍는다). 채팅 기록 자체는 더 이상 게임 상태에 싣지 않는다(get_chat_history). */
+  chatBlockedSpectators?: string[];
   economyVariant?: 'power' | 'vp'; // 경제 트랙 변형: 'power' = 파워 수익, 'vp' = 점수 수익
   /** [음성 안내] 사람별 '턴 시작 시점의 로그 seq' — 턴이 바뀌었는지 판정용(turnStartState는 클라 전송 제외라 이것만 보낸다) */
   turnMark?: Record<string, number>;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -964,12 +965,24 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             const usedBy = isUsed ? ship.usedActionBy?.[actionNum] : undefined;
                                                             const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
                                                             const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
+                                                            /* [사용자 2026-10-03] "우주선에 안 들어가 있는데 그 우주선 액션을 누르면 무반응이라 사람들이 모른다.
+                                                               집 8개일 때 더 지으려 하면 에러 뜨는 것처럼 에러를 띄워 줘."
+                                                               예전엔 disabled 버튼이라 클릭 자체가 무시됐고, 이유는 마우스를 올려야 보이는 title 뿐(폰에선 안 보임).
+                                                               → 버튼은 그대로 눌리게 두고, 쓸 수 없으면 이유를 에러로 띄운다. 관전자(좌석 없음)는 조용히 둔다. */
+                                                            const amSeated = !!playerId && !!game.players?.[playerId];
+                                                            const blockReason = !amSeated || canUse ? null
+                                                                : isUsed ? `이번 라운드에 ${usedByPlayer?.name ?? '다른 플레이어'}님이 이미 사용한 칸입니다.`
+                                                                : !isInShip ? `${SHIP_NAMES[tile.type] ?? '이'} 우주선에 입장해야 이 액션을 쓸 수 있습니다. 보드에서 우주선을 눌러 먼저 입장하세요.`
+                                                                : null;
                                                             return (
                                                                 <button
                                                                     key={idx}
-                                                                    disabled={!canUse}
-                                                                    onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
-                                                                    className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
+                                                                    aria-disabled={!canUse}
+                                                                    onClick={() => {
+                                                                        if (canUse) { onUseShipAction(tile.id, actionNum); return; }
+                                                                        if (blockReason) toast({ title: '우주선 액션 불가', description: blockReason, variant: 'destructive' });
+                                                                    }}
+                                                                    className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : blockReason ? 'cursor-not-allowed' : 'cursor-default'}`}
                                                                     title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
                                                                 >
                                                                     {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}

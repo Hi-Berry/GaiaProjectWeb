@@ -676,6 +676,20 @@ function clearFreeActionUndo(game: ServerGameState): void {
 	game.freeActionUndoContext = undefined;
 }
 
+/**
+ * [사용자 질문 2026-10-01 "번(2그릇→3그릇) Undo·Undo All 정상인가?"] 실측해 보니 아니었다.
+ * burn_power·convert_resource 는 실행 '전에' 되돌리기 지점을 쌓는데, 실행이 실패(토큰·자원 부족)해도
+ * 그 지점이 그대로 남았다. 게다가 실패하면 업데이트를 안 보내 화면의 Undo 칸 수가 실제보다 적었다.
+ *   - 다음 Undo 한 번은 '실패한 시도 직전 = 지금과 같은 상태'로 돌아가 아무 변화가 없고,
+ *   - Undo All 은 화면이 아는 칸 수만큼만 되돌려 앞선 진짜 번이 남았다.
+ * (예: 2그릇 2개에서 번을 두 번 누름 → 둘째는 실패 → Undo All 을 눌러도 번이 안 풀림)
+ * 실패하면 방금 쌓은 지점을 빼고 상태를 다시 보낸다(낙관적으로 먼저 그려 둔 화면도 바로잡힌다).
+ */
+function dropFailedFreeActionSnapshot(io: SocketIOServer, game: ServerGameState): void {
+	game.freeActionUndoStack?.pop();
+	clampPlayerResources(game); emitGameUpdated(io, game);
+}
+
 function pushFreeActionUndoSnapshot(game: ServerGameState): void {
 	const playerId = game.turnOrder?.[game.currentPlayerIndex];
 	const context = {
@@ -816,6 +830,8 @@ function stampRollbackUsage(game: GaiaGameState): void {
 /** 클라로 보낼 상태 — 항상 사용 현황을 최신으로 찍은 뒤 만든다 */
 function clientStateOf(game: GaiaGameState, broadcast: boolean): Record<string, unknown> {
 	stampRollbackUsage(game);
+	chatHistoryOf(game); // 채팅 기록은 게임 상태에 싣지 않는다(게임 객체에 남아 있으면 여기서 옮긴다)
+	(game as any).chatBlockedSpectators = Array.from(chatBlocks.get(game.id) ?? []);
 	return buildClientGameState(game, broadcast);
 }
 export function countRollback(gameId: string, actorId: string | null): void {
@@ -832,6 +848,8 @@ const _netOutAtGameStart = new Map<string, number>();
  *  게임 종료 경로엔 이미 정리가 있지만 '방 삭제'는 그 경로를 안 탄다. */
 function clearGameMeasurementState(gameId: string): void {
 	rollbackCounts.delete(gameId);   // 방이 사라지면 집계도 버린다(모듈 레벨 Map이라 안 지우면 누수)
+	chatHistories.delete(gameId);
+	chatBlocks.delete(gameId);
 	_emitPrev.delete(gameId);
 	_emitRecon.delete(gameId);
 	_emitPrevStr.delete(gameId);
@@ -840,6 +858,64 @@ function clearGameMeasurementState(gameId: string): void {
 	_netUsageAtEnd.delete(gameId);
 	delete _emitStats[gameId];
 }
+/* ── [사용자 2026-10-01] 채팅 기록 · 관전자 채팅 차단 ─────────────────────────────────────────
+ * "관전자들이 익명으로 들어와서 문제 … 밖으로 킥하는 게 아니라 차단된 사람은 채팅을 못 하고 채팅창도 못 보게."
+ *
+ * 채팅 기록을 게임 객체(game.chatMessages)에서 꺼내 여기 둔다. 게임 객체에 있으면 매 업데이트·참가 응답에 실려
+ * 방의 모든 소켓에 똑같이 가므로 '이 사람만 못 보게'를 할 수 없다. 덤으로 롤백이 게임을 스냅샷으로 되감아도
+ * 채팅은 되감기지 않는다. 기록은 get_chat_history 로 소켓마다 따로 받는다(차단이면 안 준다).
+ * 차단은 관전자 id 로 건다. 관전 id 는 브라우저에 저장돼 재접속·이름 변경에도 그대로 쓰이므로(watch_game prevId)
+ *   이름만 바꿔 다시 들어와도 그대로 막힌다. 접속 주소(IP)로는 걸지 않는다 — 서버가 nginx 프록시 뒤에 있고
+ *   X-Forwarded-For 를 안 넘기면 모든 관전자가 같은 주소로 보여 한 명을 막으면 전원이 막히고, 같은 집 와이파이·
+ *   통신사 공유 주소에서도 엉뚱한 사람이 막힌다. 좌석에 앉은 플레이어에게는 절대 적용하지 않는다. */
+type ChatMsg = NonNullable<GaiaGameState['chatMessages']>[number] & { gameId?: string };
+const CHAT_HISTORY_CAP = 100;
+const chatHistories = new Map<string, ChatMsg[]>();
+const chatBlocks = new Map<string, Set<string>>(); // gameId → 채팅 차단된 관전자 id
+const chatBlockRoom = (gameId: string) => `chatblock:${gameId}`;
+function chatHistoryOf(game: GaiaGameState): ChatMsg[] {
+	let h = chatHistories.get(game.id);
+	if (!h) {
+		// 예전 서버가 게임 객체에 남겨 둔 기록이 있으면 넘겨받는다
+		h = [...(((game as any).chatMessages as ChatMsg[] | undefined) ?? [])];
+		chatHistories.set(game.id, h);
+	}
+	// 게임 객체에는 두지 않는다 — 롤백 스냅샷에서 되살아난 옛 기록도 여기서 지운다
+	if ((game as any).chatMessages) delete (game as any).chatMessages;
+	return h;
+}
+/** 채팅 한 줄 기록 + 차단된 관전자를 뺀 방 전원에게 전송 */
+function pushChat(io: SocketIOServer, game: GaiaGameState, msg: ChatMsg): void {
+	const h = chatHistoryOf(game);
+	h.push(msg);
+	if (h.length > CHAT_HISTORY_CAP) h.splice(0, h.length - CHAT_HISTORY_CAP);
+	io.to(game.id).except(chatBlockRoom(game.id)).emit('chat_message', msg);
+}
+function chatBlockOf(gameId: string): Set<string> {
+	let b = chatBlocks.get(gameId);
+	if (!b) { b = new Set(); chatBlocks.set(gameId, b); }
+	return b;
+}
+function isChatBlocked(gameId: string, spectatorId: string | undefined): boolean {
+	return !!spectatorId && !!chatBlocks.get(gameId)?.has(spectatorId);
+}
+/** 관전자 소켓이 방에 들어올 때 호출 — 차단된 관전자면 차단 방에 넣고 알린다 */
+function applyChatBlockOnJoin(socket: any, gameId: string, spectatorId: string): void {
+	if (!isChatBlocked(gameId, spectatorId)) return;
+	socket.join(chatBlockRoom(gameId));
+	socket.emit('chat_blocked', { gameId });
+}
+/** 지금 이 관전자 id 로 붙어 있는 소켓들 */
+function socketsOfSpectator(io: SocketIOServer, spectatorId: string): any[] {
+	const out: any[] = [];
+	for (const [sid, id] of Array.from(socketToSpectatorMap.entries())) {
+		if (id !== spectatorId) continue;
+		const sk = io.sockets.sockets.get(sid);
+		if (sk) out.push(sk);
+	}
+	return out;
+}
+
 /** 방 크기 조회용 io 참조 (setupGameServer에서 주입) */
 let _io: SocketIOServer | null = null;
 
@@ -1957,6 +2033,48 @@ export function mainActionBlockedByPending(game: ServerGameState): boolean {
 		|| Boolean((game as any).pendingRollback); // 롤백 투표 중엔 게임 얼림
 }
 
+/**
+ * [사용자 2026-10-03] "수익 단계 전 팅커/테란/아이타 하는 중에 간헐적으로 액션을 하는 경우가 있다 — 우주선 액션도 된다는 말이 있다."
+ * 메인 액션 23종을 대조해 보니 대기 검사 두 가지(의회·팅커 / 수익·파워·롤백) 중 하나라도 빠진 곳이 다섯 군데였다
+ * (특수 액션·파이락 다운그레이드는 둘 다, 우주선 입장·보너스 액션·하이브 우주정거장은 수익·파워·롤백 쪽).
+ * 라운드가 막 바뀐 순간엔 현재 차례가 지난 라운드 사람을 가리킬 수 있어, 그 사람이 '내 차례'로 보고 눌렀다.
+ * 메인 액션의 입구는 모두 이 함수 하나로 묻는다 — 막혔으면 사람에게 보여 줄 이유, 아니면 null.
+ */
+export function mainActionWaitReason(game: ServerGameState): string | null {
+	/* [사용자 2026-10-03] "오류 메시지 뜰 때 누가 오류인지 안 뜬다" — 무엇을, 누구를 기다리는지 이름으로 알려 준다.
+	   판정 조건은 councilPendingActive · mainActionBlockedByPending 그대로(아래 두 줄이 최종 판정), 문구만 구체화. */
+	const g = game as ServerGameState & Record<string, any>;
+	const nm = (id?: string | null) => (id && game.players[id]?.name) || '다른 플레이어';
+	if (councilPendingActive(game)) {
+		if (g.pendingTinkeroidSpecialChoice) return `${nm(g.pendingTinkeroidSpecialChoice.playerId)}님의 팅커로이드 특수 타일 선택을 기다리는 중입니다. 끝나면 이어집니다.`;
+		if (g.pendingItarsGaiaformerExchange || g.pendingTechTileSelection?.structureType === 'itars_pi_exchange')
+			return `${nm(g.pendingItarsGaiaformerExchange?.playerId ?? g.pendingTechTileSelection?.playerId)}님의 아이타 의회 선택을 기다리는 중입니다. 끝나면 이어집니다.`;
+		if (g.pendingTerranCouncilBenefit || (g.terranCouncilQueue?.length ?? 0) > 0 || (g.terranCouncilQueueAfterItars?.length ?? 0) > 0)
+			return `${nm(g.pendingTerranCouncilBenefit?.playerId ?? g.terranCouncilQueue?.[0]?.playerId ?? g.terranCouncilQueueAfterItars?.[0]?.playerId)}님의 테란 의회 선택을 기다리는 중입니다. 끝나면 이어집니다.`;
+		if (g.pendingEclipseAsteroidMine || g.pendingEclipseResearch)
+			return `${nm(g.pendingEclipseAsteroidMine?.playerId ?? g.pendingEclipseResearch?.playerId)}님의 이클립스 선택을 기다리는 중입니다. 끝나면 이어집니다.`;
+		return '다른 플레이어의 선택이 진행 중입니다. 완료되면 이어집니다.';
+	}
+	if (mainActionBlockedByPending(game)) {
+		if (g.pendingRollback) return '롤백 투표가 진행 중입니다. 끝나면 이어집니다.';
+		if (game.pendingIncomeOrder) return `${nm(game.pendingIncomeOrder.playerId)}님의 수익 순서 선택을 기다리는 중입니다. 끝나면 이어집니다.`;
+		const waiting = Array.from(new Set((game.pendingPowerOffers ?? []).filter((o) => o && !o.responded).map((o) => nm(o.targetPlayerId))));
+		if (waiting.length) return `${waiting.join(', ')}님의 파워 수령 응답을 기다리는 중입니다. 끝나면 이어집니다.`;
+		return '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.';
+	}
+	return null;
+}
+
+/**
+ * [사용자 2026-10-03] 방 전체에 뿌리는 오류에 '누구 행동인지'를 함께 싣는다(사용자 선택: 모두에게 보내되 이름 붙이기).
+ * 예전엔 이름 없이 모두의 화면에 "오류: QIC가 부족합니다"가 떠서 자기 실수로 오해했다.
+ * 문구는 그대로 두고 playerId·playerName 을 같이 보낸다 — 화면이 남의 오류면 "이름: 문구"로 보여 준다.
+ */
+function emitRoomError(io: SocketIOServer, game: GaiaGameState, playerId: string | null | undefined, message: string): void {
+	const playerName = playerId ? game.players?.[playerId]?.name : undefined;
+	io.to(game.id).emit('game_error', { message, playerId: playerId ?? undefined, playerName });
+}
+
 function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerId: string, options?: { triggerBot?: boolean; reason?: string }) {
 	// 끝난 플레이어의 마지막 로그에 로그 이후 적용된 효과까지 끌어올림(변동량 정확도 보강)
 	finalizeLogSnap(game, endedPlayerId);
@@ -2273,7 +2391,7 @@ function setSpectatorConnected(game: any, spectatorId: string, on: boolean) {
 function joinGameRoom(socket: { id: string; rooms: Set<string>; join: (r: string) => void; leave: (r: string) => void }, gameId: string) {
 	for (const r of Array.from(socket.rooms)) {
 		if (r === socket.id || r === gameId) continue;
-		if (games.has(r) || r.startsWith(DELTA_ROOM_PREFIX)) socket.leave(r);
+		if (games.has(r) || r.startsWith(DELTA_ROOM_PREFIX) || r.startsWith('chatblock:')) socket.leave(r);
 	}
 	socket.join(gameId);
 }
@@ -3951,6 +4069,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
 				joinGameRoom(socket, gameId);
+				applyChatBlockOnJoin(socket, gameId, playerId);
 				// [숨은 관전 아이디] 새로고침으로 재접속할 때 다시 목록에 뜨면 숨김이 무의미해진다 → 숨은 id면 등록 생략.
 				//   (게임은 서버 메모리에만 있어 재시작하면 게임 자체가 사라지므로 이 Set이 게임보다 먼저 없어질 일은 없다.)
 				if (!hiddenSpectatorIds.has(playerId)) setSpectatorConnected(game, playerId, true);
@@ -3996,10 +4115,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 					text: `🔄 ${name}님이 다시 접속했습니다.`,
 					ts: Date.now(),
 				};
-				if (!game.chatMessages) game.chatMessages = [];
-				game.chatMessages.push(msg);
-				if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
-				io.to(gameId).emit('chat_message', msg);
+				pushChat(io, game, msg);
 			}
 
 			emitGameUpdated(io, game);
@@ -4053,6 +4169,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			socketToSpectatorMap.set(socket.id, spectatorId);
 			spectatorToGameMap.set(spectatorId, gameId);
 			joinGameRoom(socket, gameId);
+			applyChatBlockOnJoin(socket, gameId, spectatorId);
 			log(`Spectator joined game ${gameId} (${spectatorId})${hiddenSpectator ? ' [hidden]' : ''}`, 'game', undefined, { simulation: (game as any).simulation });
 			callback({ gameId, spectatorId, game });
 			// 관전자 목록 갱신 브로드캐스트. 숨은 관전자는 목록이 안 바뀌므로 보내지 않는다 —
@@ -4743,7 +4860,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!playerId) return;
 			const err = FactionBidding.processFactionBidRaise(game, playerId, newBid);
 			if (err) {
-				io.to(gameId).emit('game_error', { message: err });
+				emitRoomError(io, game, playerId, err);
 				return;
 			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
@@ -4756,7 +4873,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!playerId) return;
 			const err = FactionBidding.processFactionBidPass(game, playerId);
 			if (err) {
-				io.to(gameId).emit('game_error', { message: err });
+				emitRoomError(io, game, playerId, err);
 				return;
 			}
 			// [롤백 2026-09-09 사용자] 낙찰 확정(pick 진입) 시점을 롤백 지점으로 남긴다 — 여기로 되돌리면 입찰액·낙찰자는 그대로고
@@ -4772,7 +4889,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!playerId) return;
 			const err = FactionBidding.processFactionBidPick(game, io, playerId, factionId, turnOrder, factionBiddingDeps());
 			if (err) {
-				io.to(gameId).emit('game_error', { message: err });
+				emitRoomError(io, game, playerId, err);
 				return;
 			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
@@ -4813,7 +4930,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			const error = executePlaceStartingMine(io, game, playerId, tileId, factionId);
 			if (error) {
-				io.to(gameId).emit('game_error', { message: error });
+				emitRoomError(io, game, playerId, error);
 			}
 		});
 
@@ -4831,7 +4948,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_bonus_action', ({ gameId }) => {
 			const game = games.get(gameId); if (!game || game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 수익·파워·롤백 대기도 함께
 			// [버그수정 2026-09-23 사용자] 부스터 특수 액션도 '하나의 액션' — 거리 보너스가 켜진 턴엔 전부 차단(사용자 확정).
 			//   특히 range_3은 트왈 +3거리 위에 또 켜져 보너스가 중첩됐고(다른 7곳 가드가 막던 바로 그 중복), gaia_project도
 			//   '거리 보너스 + 특수 액션' 조합이라 동일하게 막는다. 허용 목록(광산·포머·소행성·우주선 입장)은 일반 메인 액션 경로만.
@@ -4855,8 +4972,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 
 			executeBuildMine(io, game, playerId, tileId, useGaiaformer);
 		});
@@ -4867,7 +4984,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 수익·파워·롤백 대기 중 입장이 통과되던 구멍
 
 			const error = executeEnterSpaceship(io, game, playerId, tileId, useRangeBonus, qicToUse);
 			if (error) {
@@ -4881,9 +4998,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 의회 대기 때 조용히 무시하던 것 → 이유 표시
 			// [버그수정 2026-08-31 사용자: 아카데미 QIC 특수액션 후 End Turn 없이 리벨리온 2K 액션이 또 됨]
 			// 이 핸들러만 hasDoneMainAction 입구 가드가 없어 한 턴에 메인 액션 2개가 가능했다.
 			// 보조 칸(트왈라잇 +3거리, TF마스 3C→1TF)도 '메인 액션 전에 쓰는' 설계이고, 메인 액션 후 허용하면
@@ -5163,7 +5280,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
 			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
@@ -5439,8 +5556,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('place_gaiaformer', ({ gameId, tileId, qicUsed }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			// 실패 사유는 요청자에게만 (방 전체 브로드캐스트 X)
 			executePlaceGaiaformer(io, game, playerId, tileId, qicUsed, (message) => socket.emit('game_error', { message }));
 		});
@@ -5451,7 +5568,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
-			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 수익·파워·롤백 대기도 함께, 조용히 무시하지 않음
 			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
 			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
@@ -5505,8 +5622,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			executeUpgradeStructure(io, game, playerId, tileId, target);
@@ -5644,8 +5761,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
 			// [버그수정 2026-07-31] 남의 파워 수령/수입 처리 중엔 연구 전진 불가(자기 pending 트랙전진은 mid-turn이라 pendingPowerOffers 없음 → 미차단).
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			// 거리 보너스가 진행 중인데 Eclipse/우주선 트랙 보상 진행이 아니면 막음
 			if (hasActiveRangeBonus(game.players[playerId])
 				&& game.pendingEclipseResearch?.playerId !== playerId
@@ -5693,8 +5810,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_power_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			executeUsePowerAction(io, game, playerId, actionId);
 		});
@@ -5706,7 +5823,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석)
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeUseHadschHallasPIAction(io, game as ServerGameState, playerId, actionId);
 		});
 
@@ -5718,7 +5835,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			executeBalTakGaiaformerToQic(io, game, playerId);
 		});
 
@@ -5729,13 +5846,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			// Free Action을 수행하기 직전, 게임 상태 스냅샷 저장 (매 단계 저장)
 			pushFreeActionUndoSnapshot(game);
 
 			if (executeConvertResource(io, game, playerId, type, useBrain)) {
 				// 이미 executeConvertResource에서 clamp 및 emit을 수행함
+			} else {
+				dropFailedFreeActionSnapshot(io, game); // 실패한 변환이 Undo 칸을 남기지 않게
 			}
 		});
 
@@ -5746,13 +5865,59 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'main') return;
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (freeActionBlockedByPending(game, playerId)) return; // 내 이클립스 대기는 내가 풀어야 하므로 프리 액션은 허용(위 헬퍼 주석) // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 
 			pushFreeActionUndoSnapshot(game);
 
 			if (executeBurnPower(game, playerId, moveBrainToBowl3)) {
 				clampPlayerResources(game); emitGameUpdated(io, game);
+			} else {
+				dropFailedFreeActionSnapshot(io, game); // 실패한 번(토큰 부족)이 Undo 칸을 남기지 않게
 			}
+		});
+
+		/* [2026-10-01] 채팅 기록 — 소켓마다 따로 받는다. 차단된 관전자에게는 주지 않는다. */
+		socket.on('get_chat_history', ({ gameId }: { gameId: string }, callback?: (r: { messages?: ChatMsg[]; blocked?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId); if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const pid = socketToPlayerMap.get(socket.id);
+			const sid = socketToSpectatorMap.get(socket.id);
+			const isPlayer = !!pid && !!game.players[pid];
+			const isSpec = !!sid && !!game.spectatorIds?.includes(sid);
+			if (!isPlayer && !isSpec) { callback?.({ error: 'Not in this game' }); return; }
+			if (!isPlayer && isChatBlocked(gameId, sid)) { callback?.({ blocked: true }); return; }
+			callback?.({ messages: chatHistoryOf(game) });
+		});
+
+		/* [2026-10-01] 관전자 채팅 차단/해제 — 이 방에 앉은 사람 플레이어 누구나. 관전은 계속되고 채팅만 막힌다. */
+		socket.on('set_spectator_chat_block', ({ gameId, spectatorId, blocked }: { gameId: string; spectatorId: string; blocked: boolean }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId); if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const pid = socketToPlayerMap.get(socket.id);
+			if (!pid || !game.players[pid] || (game.botPlayerIds ?? []).includes(pid)) { callback?.({ error: '게임에 참가한 플레이어만 차단할 수 있습니다.' }); return; }
+			if (!game.spectatorIds?.includes(spectatorId)) { callback?.({ error: '이 방의 관전자가 아닙니다.' }); return; }
+			const b = chatBlockOf(gameId);
+			const targets = socketsOfSpectator(io, spectatorId);
+			const who = (game as any).spectatorNames?.[spectatorId] ?? '관전자';
+			const by = game.players[pid].name;
+			const changed = blocked ? !b.has(spectatorId) : b.has(spectatorId); // 이미 그 상태면 알림을 또 띄우지 않는다
+			if (blocked) {
+				b.add(spectatorId);
+				for (const t of targets) { t.join(chatBlockRoom(gameId)); t.emit('chat_blocked', { gameId }); }
+			} else {
+				b.delete(spectatorId);
+				for (const t of targets) { t.leave(chatBlockRoom(gameId)); t.emit('chat_unblocked', { gameId }); }
+			}
+			/* [사용자 2026-10-01] "누가 누구를 채팅 금지했다 채팅방에 뜨면 좋겠어" — 시스템 메시지로 남긴다.
+			   차단은 차단 방에 먼저 넣은 뒤 보내므로 당사자는 받지 않고, 해제는 먼저 빼낸 뒤 보내므로 당사자도 받는다. */
+			if (changed) {
+				pushChat(io, game, {
+					id: generatePlayerId(), gameId, senderId: 'system', name: '시스템', faction: null, isSpectator: false,
+					text: blocked ? `🚫 ${by}님이 ${who}님의 채팅을 금지했습니다.` : `✅ ${by}님이 ${who}님의 채팅 금지를 풀었습니다.`,
+					ts: Date.now(),
+				});
+			}
+			log(`Chat ${blocked ? 'blocked' : 'unblocked'}: spectator ${who} by ${by}`, 'game', gameId);
+			emitGameUpdated(io, game); // 플레이어 화면의 관전자 목록(차단 표시) 갱신
+			callback?.({ ok: true });
 		});
 
 		// 인게임 채팅: 플레이어/관전자 모두 전송 가능. 가벼운 'chat_message' 이벤트로 즉시 전파하고,
@@ -5767,6 +5932,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const spectatorId = rawSpectatorId && game.spectatorIds?.includes(rawSpectatorId) ? rawSpectatorId : undefined;
 			const senderId = playerId || spectatorId;
 			if (!senderId) return; // 이 게임에 속하지 않은 소켓은 무시
+			// [2026-10-01] 채팅 차단된 관전자 — 보내지 못한다(화면도 다시 닫게 알린다)
+			if (!playerId && isChatBlocked(gameId, spectatorId)) { socket.emit('chat_blocked', { gameId }); return; }
 			if (typeof text !== 'string') return;
 			const clean = text.replace(/\s+/g, ' ').trim().slice(0, 300);
 			if (!clean) return;
@@ -5781,10 +5948,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				text: clean,
 				ts: Date.now(),
 			};
-			if (!game.chatMessages) game.chatMessages = [];
-			game.chatMessages.push(msg);
-			if (game.chatMessages.length > 100) game.chatMessages = game.chatMessages.slice(-100);
-			io.to(gameId).emit('chat_message', msg);
+			pushChat(io, game, msg);
 		});
 
 		socket.on('undo_free_action', ({ gameId, steps }: { gameId: string; steps?: number }) => {
@@ -6016,8 +6180,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_tech_action', ({ gameId, tileId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			const ok = executeUseTechAction(io, game, playerId, tileId);
 			if (!ok) {
@@ -6050,6 +6214,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('use_special_action', ({ gameId, actionId }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			{ const wait = mainActionWaitReason(game); if (wait) { socket.emit('game_error', { message: wait }); return; } } // [2026-10-03] 대기 중 특수 액션이 통과되던 구멍
 			// 이미 거리 보너스가 켜져 있으면 글린 +2항해 포함 모든 스페셜 액션 차단 (중복 활성 방지)
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 			const ok = executeUseSpecialAction(io, game, playerId, actionId);
@@ -6094,7 +6259,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
 			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
 			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
@@ -6127,7 +6292,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
 			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
 			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
@@ -6167,7 +6332,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			const player = game.players[playerId];
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) return; // 의회 선택 대기
 			// [버그수정 2026-09-23 사용자 제보] 거리 보너스(+3거리/글린 +2항해)는 RANGE_BONUS_BLOCK_MSG대로 '광산 건설·가이아포머·소행성 광산·우주선 입장'만
 			//   열어주는 보조 효과다. 이 핸들러들은 use_special_action을 안 거치는 전용 경로라 그 가드가 빠져 있었다 — 실제 사례(2026-09-22 s5vp93jt R5):
@@ -6238,6 +6403,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; } // [2026-09-23] 거리 보너스 중 비-거리 메인 액션 차단(위 주석 참조)
+			const why = firaksDowngradeBlockReason(game, playerId, tileId, trackId);
+			if (why) { socket.emit('game_error', { message: `다운그레이드 불가: ${why}` }); return; } // 예전엔 조용히 무시돼 무반응이었다
 			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); emitGameUpdated(io, game); }
 		});
 
@@ -6246,8 +6413,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.hasDoneMainAction) return;
@@ -6345,8 +6512,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			if (game.currentPhase !== 'main') return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (!game.federationMode || game.federationMode.playerId !== playerId) return;
 			if (game.pendingFederationReward) return;
 
@@ -6364,7 +6531,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// [버그수정] Ivits도 선택한 위성·건물이 하나로 연결돼야 함 (기존엔 파워만 검사 → A옆·B옆 따로 위성을 놓아도 연방이 서던 문제).
 				if (!computeIvitsFederationConnected(game, playerId, selectedHexIds, selectedSpaceStationHexIds, selectedPlanetIds)) {
 					log(`Federation complete rejected (Ivits): selected hexes not one connected component`, 'game', undefined, { simulation: (game as any).simulation });
-					io.to(gameId).emit('game_error', { message: '선택한 위성·건물이 하나로 연결되어야 합니다. (연결 안 된 위성은 제거하세요)' });
+					emitRoomError(io, game, playerId, '선택한 위성·건물이 하나로 연결되어야 합니다. (연결 안 된 위성은 제거하세요)');
 					return;
 				}
 				// Ivits(하이브): 요구파워 누적(7→14→21) + 기존 연방 건물까지 시드에 포함하는 기존 로직 유지.
@@ -6385,7 +6552,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				power = getFederationBuildingPower(game, playerId, planetIdsForPower, seedHexIds);
 				if (power < requiredPower) {
 					log(`Federation complete rejected: building power ${power} < ${requiredPower}`, 'game', undefined, { simulation: (game as any).simulation });
-					io.to(gameId).emit('game_error', { message: `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)` });
+					emitRoomError(io, game, playerId, `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)`);
 					return;
 				}
 			} else {
@@ -6394,12 +6561,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const net = computeConnectedFederation(game, playerId, selectedHexIds, selectedSpaceStationHexIds, selectedPlanetIds);
 				if (!net.connected) {
 					log(`Federation complete rejected: selected hexes not one connected component`, 'game', undefined, { simulation: (game as any).simulation });
-					io.to(gameId).emit('game_error', { message: '선택한 위성·건물이 하나로 연결되어야 합니다. (연결 안 된 위성은 제거하세요)' });
+					emitRoomError(io, game, playerId, '선택한 위성·건물이 하나로 연결되어야 합니다. (연결 안 된 위성은 제거하세요)');
 					return;
 				}
 				if (net.power < requiredPower) {
 					log(`Federation complete rejected: building power ${net.power} < ${requiredPower}`, 'game', undefined, { simulation: (game as any).simulation });
-					io.to(gameId).emit('game_error', { message: `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)` });
+					emitRoomError(io, game, playerId, `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)`);
 					return;
 				}
 				// 불필요한 위성 경고: 위성 하나를 빼도 연결+파워 충족이면 토큰 낭비 → 확인 후 진행 (force=true면 통과)
@@ -6421,7 +6588,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (isIvits) {
 				if (player.qic < numEmpty) {
 					log(`Federation complete rejected (Ivits): need ${numEmpty} QIC, have ${player.qic}`, 'game', undefined, { simulation: (game as any).simulation });
-					io.to(gameId).emit('game_error', { message: `QIC가 부족합니다. (필요: ${numEmpty}, 보유: ${player.qic})` });
+					emitRoomError(io, game, playerId, `QIC가 부족합니다. (필요: ${numEmpty}, 보유: ${player.qic})`);
 					return;
 				}
 				player.qic -= numEmpty;
@@ -6431,12 +6598,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const totalPower = (player.power1 || 0) + (player.power2 || 0) + (player.power3 || 0) + brainTok;
 				if (totalPower < numEmpty) {
 					log(`Federation complete rejected: need ${numEmpty} power tokens, have ${totalPower}`, 'game', undefined, { simulation: (game as any).simulation });
-					io.to(gameId).emit('game_error', { message: `파워 토큰이 부족합니다. (필요: ${numEmpty}, 보유: ${totalPower})` });
+					emitRoomError(io, game, playerId, `파워 토큰이 부족합니다. (필요: ${numEmpty}, 보유: ${totalPower})`);
 					return;
 				}
 				cashDoomedBowl3Tokens(game, playerId, numEmpty);
 				if (!spendPowerTokens(player, numEmpty)) {
-					io.to(gameId).emit('game_error', { message: '파워 토큰 소비에 실패했습니다.' });
+					emitRoomError(io, game, playerId, '파워 토큰 소비에 실패했습니다.');
 					return;
 				}
 			}
@@ -6482,7 +6649,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const enteredTileIds = player.spaceshipsEntered ?? [];
 				const hasEnteredThisShip = shipTypeForReward && game.map.some(t => t.type === shipTypeForReward && enteredTileIds.includes(t.id));
 				if (!hasEnteredThisShip) {
-					io.to(gameId).emit('game_error', { message: '해당 우주선에 입장한 플레이어만 그 우주선 연방을 선택할 수 있습니다.' });
+					emitRoomError(io, game, playerId, '해당 우주선에 입장한 플레이어만 그 우주선 연방을 선택할 수 있습니다.');
 					return;
 				}
 				// [사용자 2026-08-26] 기술 타일 보상인데 가져올 수 있는 타일이 0개면 이 보상은 고를 수 없다 — 다른 보상 선택
@@ -6499,7 +6666,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 				const pool = game.federationPool;
 				if (pool[rewardId] == null || pool[rewardId] < 1) {
-					io.to(gameId).emit('game_error', { message: '해당 연방 보상을 선택할 수 없습니다.' });
+					emitRoomError(io, game, playerId, '해당 연방 보상을 선택할 수 없습니다.');
 					return;
 				}
 			}
@@ -6843,7 +7010,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const player = game.players[targetPlayerId];
 			const totalCost = qic * 4 + knowledge * 4 + ore * 3 + credits * 1;
 			if (totalCost > pending.tokenCount || totalCost < 0) {
-				io.to(gameId).emit('game_error', { message: 'Terran council: invalid benefit total (4=QIC/K, 3=O, 1=C).' });
+				emitRoomError(io, game, playerId, 'Terran council: invalid benefit total (4=QIC/K, 3=O, 1=C).');
 				return;
 			}
 			// [버그수정] 테란 의회 보너스는 '추가 자원'만 준다 — 가이아포머 토큰은 종족 능력대로 이미 2그릇으로
@@ -7014,8 +7181,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
-			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
+			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			executePassRound(io, game, playerId, newBonusTileId);
@@ -7100,10 +7267,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 									text: `🚪 ${name}님이 게임을 떠났습니다.`,
 									ts: Date.now(),
 								};
-								if (!g.chatMessages) g.chatMessages = [];
-								g.chatMessages.push(msg);
-								if (g.chatMessages.length > 100) g.chatMessages = g.chatMessages.slice(-100);
-								io.to(gameId).emit('chat_message', msg);
+								pushChat(io, g, msg);
 							}, LEFT_ANNOUNCE_DELAY_MS);
 							leftAnnounceTimers.set(key, timer);
 						}
@@ -7113,13 +7277,20 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const spectatorId = socketToSpectatorMap.get(socket.id);
 			if (spectatorId) {
 				// [관전자 목록] 접속 끊기면 '현재 관전 중' 목록에서 제거 (spectatorIds는 재접속용으로 유지)
-				const specGameId = spectatorToGameMap.get(spectatorId);
-				const specGame = specGameId ? games.get(specGameId) : undefined;
-				spectatorToGameMap.delete(spectatorId);
 				socketToSpectatorMap.delete(socket.id);
-				if (specGame) {
-					setSpectatorConnected(specGame, spectatorId, false);
-					emitGameUpdated(io, specGame);
+				/* [사용자 2026-10-03] "관전자가 채팅하고 있는데 목록에 없다가 몇 분 뒤에 뜬다."
+				   휴대폰이 잠깐 끊겼다 새 연결로 다시 붙으면(같은 관전 id), 서버는 옛 연결이 끊긴 걸 핑 시간 초과로
+				   수십 초 뒤에야 알아챈다. 그때 같은 사람이 새 연결로 아직 보고 있는지 안 보고 목록에서 빼 버렸다.
+				   탭 두 개 중 하나를 닫을 때도 같았다. → 같은 관전 id 로 살아 있는 연결이 남아 있으면 그대로 둔다. */
+				const stillWatching = Array.from(socketToSpectatorMap.values()).includes(spectatorId);
+				if (!stillWatching) {
+					const specGameId = spectatorToGameMap.get(spectatorId);
+					const specGame = specGameId ? games.get(specGameId) : undefined;
+					spectatorToGameMap.delete(spectatorId);
+					if (specGame) {
+						setSpectatorConnected(specGame, spectatorId, false);
+						emitGameUpdated(io, specGame);
+					}
 				}
 			}
 		});
@@ -7267,7 +7438,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			const newLevel = canAdvance ? targetLevel : 0;
 			const isAdvancedTile = techTileId.startsWith('adv-') || Object.values(game.advancedTechTilesByTrack || {}).some((t: { id?: string } | null) => t?.id === techTileId);
 			const greenNeeded = (isAdvancedTile ? 1 : 0) + (newLevel === 5 ? 1 : 0);
-			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) { io.to(game.id).emit('game_error', { message: '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.' }); return; }
+			if (greenNeeded > 0 && countGreenFederations(player) < greenNeeded) { emitRoomError(io, game, playerId, '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.'); return; }
 			for (let i = 0; i < greenNeeded; i++) spendGreenFederation(player);
 			if (canAdvance) {
 				player.research[track]++;
@@ -7287,7 +7458,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 	} else {
 		const isRebellionGain = game.pendingTechTileSelection.structureType === 'rebellion_gain';
 		const hasTrackId = trackId != null && String(trackId).trim() !== '';
-		if (!hasTrackId && !isRebellionGain) { io.to(game.id).emit('game_error', { message: '기술 타일을 받을 연구 트랙을 먼저 선택하세요.' });
+		if (!hasTrackId && !isRebellionGain) { emitRoomError(io, game, playerId, '기술 타일을 받을 연구 트랙을 먼저 선택하세요.');
 			log(`Player ${player.name} selected pool tile but no trackId provided (trackId=${JSON.stringify(trackId)})`, 'game', undefined, { simulation: (game as any).simulation });
 			return;
 		}
@@ -7312,7 +7483,7 @@ export function executeSelectTechTile(io: SocketIOServer, game: ServerGameState,
 			return;
 		}
 		const greenNeededPool = (isAdvancedPool ? 1 : 0) + (newLevelPool === 5 ? 1 : 0);
-		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) { io.to(game.id).emit('game_error', { message: '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.' }); return; }
+		if (greenNeededPool > 0 && countGreenFederations(player) < greenNeededPool) { emitRoomError(io, game, playerId, '녹색 연방 토큰이 없어 이 타일(고급/5단계 진행)을 받을 수 없습니다. 다른 트랙·타일을 고르세요.'); return; }
 		for (let i = 0; i < greenNeededPool; i++) spendGreenFederation(player);
 		if (canAdvancePool && selectedTrack) {
 			player.research[selectedTrack]++;
@@ -7689,7 +7860,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			? 0 : getTerraformStepsForFaction(game, player.faction!, tile.type);
 		if (stepsNeeded < 1) {
 			debugLog(game, `executeBuildMine rejected: terraform step pending but target ${tileId} (${tile.type}) needs 0 steps`, 'error');
-			io.to(game.id).emit('game_error', '테라포밍 스텝을 구매한 상태에서는 1스텝 이상 소모되는 행성에만 광산을 지을 수 있습니다.');
+			emitRoomError(io, game, playerId, '테라포밍 스텝을 구매한 상태에서는 1스텝 이상 소모되는 행성에만 광산을 지을 수 있습니다.');
 			return false;
 		}
 	}
@@ -7700,7 +7871,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		if (game.pendingSpaceshipFedMine?.playerId === playerId) { game.pendingSpaceshipFedMine = null; addGameLog(game, playerId, 'Spaceship Fed', 'Free mine forfeited (mine limit)'); }
 		const errorMsg = `광산 건설 제한(${BUILDING_LIMITS.mine}개)에 도달했습니다.`;
 		debugLog(game, `executeBuildMine failed: ${errorMsg}`, 'error');
-		io.to(game.id).emit('game_error', errorMsg);
+		emitRoomError(io, game, playerId, errorMsg);
 		return false;
 	}
 
@@ -7710,7 +7881,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		const unbuildable = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'];
 		// [사용자 관찰 2026-07-22: "클릭해도 아무 반응 없음"] 조용한 거부(debugLog만)를 사람에겐 에러 토스트로 안내
 		const notifyReject = (msg: string) => {
-			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', msg);
+			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) emitRoomError(io, game, playerId, msg);
 		};
 		if (unbuildable.includes(tile.type) || tile.structure !== null) {
 			debugLog(game, `executeBuildMine failed (Spaceship Fed): Tile ${tileId} is unbuildable (${tile.type}) or has structure (${tile.structure})`, 'error');
@@ -7895,7 +8066,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			debugLog(game, `executeBuildMine failed (Asteroid): No available gaiaformers (total=${player.gaiaformers ?? 0}, locked=${player.balTakGaiaformersUsedForQic ?? 0})`, 'error');
 			// 봇/시뮬의 잘못된 시도는 방 전체에 브로드캐스트하지 않는다(사람 화면에 봇 에러가 새던 문제). 봇은 실패 시 재스케줄됨.
 			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
-				io.to(game.id).emit('game_error', errorMsg);
+				emitRoomError(io, game, playerId, errorMsg);
 			}
 			return false;
 		}
@@ -7913,7 +8084,7 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			astNeededQIC = astMinDist > astBaseRange ? Math.ceil((astMinDist - astBaseRange) / 2) : 0;
 			if ((player.qic ?? 0) < astNeededQIC) {
 				debugLog(game, `executeBuildMine failed (Asteroid): out of range (need ${astNeededQIC} QIC, have ${player.qic ?? 0})`, 'error');
-				if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) io.to(game.id).emit('game_error', `소행성이 사거리 밖입니다 (필요 QIC ${astNeededQIC}, 보유 ${player.qic ?? 0}).`);
+				if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) emitRoomError(io, game, playerId, `소행성이 사거리 밖입니다 (필요 QIC ${astNeededQIC}, 보유 ${player.qic ?? 0}).`);
 				return false;
 			}
 			if (player.tempRangeBonus) player.tempRangeBonus = false;
@@ -8731,28 +8902,44 @@ export function executeSelectBonus(
  * 파이락 의회 능력: 연구소 1개를 교역소로 다운그레이드하고 연구 1트랙 1단계 전진(메인 액션, 라운드당 1회).
  * 소켓 핸들러와 봇(performAction)이 공유 — 룰 중복 방지. 조건/효과는 firaks_downgrade 핸들러와 동일.
  */
-export function executeFiraksDowngrade(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): boolean {
+/**
+ * 파이락 다운그레이드를 지금 할 수 없는 이유(한국어). 할 수 있으면 null.
+ * [사용자 2026-10-03] "교역소 4개일 때 다운그레이드 누르면 에러 뜨나?" — 상태창·액션 칩에서 들어가면
+ *   연구소·트랙까지 다 고른 뒤 서버가 조용히 거부해 무반응이었다. 거부 사유를 돌려줘 화면에 띄운다.
+ *   검사 순서·조건은 executeFiraksDowngrade 가 그대로 쓴다(두 곳이 어긋나지 않게 이 함수 하나만 본다).
+ */
+export function firaksDowngradeBlockReason(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): string | null {
 	const player = game.players[playerId];
-	if (!player) return false;
-	if (game.currentPhase !== 'main') return false;
-	if (game.turnOrder[game.currentPlayerIndex] !== playerId || game.hasDoneMainAction) return false;
-	if (player.faction !== 'firaks') return false;
-	if (player.usedSpecialActions?.includes('firaks-downgrade')) return false;
-	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return false;
+	if (!player) return '플레이어를 찾을 수 없습니다.';
+	if (game.currentPhase !== 'main') return '액션 단계에서만 할 수 있습니다.';
+	{ const wait = mainActionWaitReason(game); if (wait) return wait; } // [2026-10-03] 라운드 시작 처리·수익·파워·롤백 대기 중 차단
+	if (game.turnOrder[game.currentPlayerIndex] !== playerId) return '내 턴이 아닙니다.';
+	if (game.hasDoneMainAction) return '이번 턴 메인 액션을 이미 사용했습니다.';
+	if (player.faction !== 'firaks') return '파이락만 쓸 수 있는 능력입니다.';
+	if (player.usedSpecialActions?.includes('firaks-downgrade')) return '이번 라운드에 이미 다운그레이드를 사용했습니다.';
+	if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return '의회가 있어야 다운그레이드할 수 있습니다.';
 	// [사용자 2026-08-25] 교역소 토큰은 4개 — 전부 보드에 있으면 연구소를 교역소로 되돌릴 토큰이 없다.
 	// (교역소를 연구소 등으로 업그레이드하면 재고가 돌아와 다시 가능해지는 일시적 제한.)
-	if (getStructureCount(game, playerId, 'trading_station') >= 4) return false;
+	if (getStructureCount(game, playerId, 'trading_station') >= 4) return FIRAKS_DOWNGRADE_TS_FULL_MSG;
 	const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab');
-	if (!tile) return false;
+	if (!tile) return '되돌릴 내 연구소를 골라 주세요.';
 	const tracks: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
-	if (!tracks.includes(trackId)) return false;
+	if (!tracks.includes(trackId)) return '올릴 연구 트랙을 골라 주세요.';
 	const currentLevel = player.research?.[trackId] ?? 0;
-	if (currentLevel >= 5) return false;
-	if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return false;
+	if (currentLevel >= 5) return '이미 최고 단계인 트랙입니다.';
+	if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return '그 트랙 5단계는 이미 다른 사람이 차지했습니다.';
 	// [버그수정] L5 도달(4→5)은 초록 연방 1개가 필요하고 소모(플립)된다 — Firaks 다운그레이드 advance도 동일.
-	// 기존엔 요구·소모를 안 해 AI L5 등을 초록연방 안 뒤집고 공짜로 올리던 문제(사용자 관찰).
-	if (currentLevel === 4 && countGreenFederations(player) < 1) return false;
-	if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return false;
+	if (currentLevel === 4 && countGreenFederations(player) < 1) return '5단계로 올리려면 초록(미사용) 연방이 1개 필요합니다.';
+	if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return '항법 트랙을 지금 올릴 수 없습니다.';
+	return null;
+}
+export const FIRAKS_DOWNGRADE_TS_FULL_MSG = '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.';
+
+export function executeFiraksDowngrade(game: ServerGameState, playerId: string, tileId: string, trackId: ResearchTrack): boolean {
+	if (firaksDowngradeBlockReason(game, playerId, tileId, trackId)) return false;
+	const player = game.players[playerId];
+	const tile = game.map.find(t => t.id === tileId && t.ownerId === playerId && t.structure === 'research_lab')!;
+	const currentLevel = player.research?.[trackId] ?? 0;
 	saveActionStartState(game, playerId);
 	tile.structure = 'trading_station';
 	if (!player.usedSpecialActions) player.usedSpecialActions = [];
@@ -9281,7 +9468,7 @@ export function executeUsePowerAction(
 	// 봇·시뮬은 제외(7366 가드와 동일 기준 — 봇은 이 경로를 악용하지 않고, 막으면 교착 위험).
 	if ((game.players[playerId]?.pendingTerraformSteps || 0) > 0
 		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
-		io.to(game.id).emit('game_error', '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
+		emitRoomError(io, game, playerId, '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
 		return false;
 	}
 
@@ -9424,7 +9611,7 @@ export function executeUseSpecialAction(
 	// 스텝을 겹치거나 한 턴에 두 액션을 하는 것 차단. 봇·시뮬 제외(파워 액션 가드와 동일 기준).
 	if ((player.pendingTerraformSteps || 0) > 0
 		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
-		io.to(game.id).emit('game_error', '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
+		emitRoomError(io, game, playerId, '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
 		return false;
 	}
 
@@ -9528,7 +9715,7 @@ export function executeUseBonusAction(
 	// [사용자 2026-08-26] 테라포밍 스텝 보유 중엔 광산 건설만 — 보너스 액션도 차단. 봇·시뮬 제외(파워 액션 가드와 동일)
 	if ((player.pendingTerraformSteps || 0) > 0
 		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation) {
-		io.to(game.id).emit('game_error', '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
+		emitRoomError(io, game, playerId, '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.');
 		return rej('terraformStepsPending');
 	}
 

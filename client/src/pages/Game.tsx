@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, storeSpectatorId, type GameState, type PlayerState } from '@/lib/gameClient';
-import { getCommitSeq } from '@/lib/turnCommit';
+import { getCommitSeq, createViewFreeze } from '@/lib/turnCommit';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
@@ -345,8 +345,7 @@ export default function Game() {
    *  훅이므로 반드시 컴포넌트 최상단에서 선언한다(아래쪽은 이른 반환이 있어 훅 순서가 깨진다). */
   /** [2026-09-30] 롤백 요청 창 — 어느 로그 지점(seq)으로 요청하는지. null이면 닫힘. */
   const [rollbackDraft, setRollbackDraft] = useState<{ seq: number; label: string } | null>(null);
-  const committedGameRef = useRef<GameState | null>(null);
-  const lastCommitSeqRef = useRef<number | null>(null);
+  const viewFreezeRef = useRef(createViewFreeze());
   const [error, setError] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
   const [isResearchOpen, setIsResearchOpen] = useState(false);
@@ -1386,9 +1385,12 @@ export default function Game() {
         typeof (err as any) === 'string'
           ? (err as any)
           : (err as any)?.message ?? '알 수 없는 오류';
+      /* [사용자 2026-10-03] "오류 메시지 뜰 때 누가 오류인지 안 뜬다" — 방 전체에 가는 오류는 서버가 행동한 사람을
+         함께 보낸다(emitRoomError). 남의 오류면 "이름: 문구"로, 내 오류면 그대로 보여 준다. */
+      const who = (err as any)?.playerId && (err as any).playerId !== playerId ? ((err as any).playerName ?? '다른 플레이어') : null;
       toast({
-        title: '오류',
-        description: message,
+        title: who ? `${who}님의 오류` : '오류',
+        description: who ? `${who}: ${message}` : message,
         variant: 'destructive',
       });
     });
@@ -2172,21 +2174,25 @@ export default function Game() {
      기준(getCommitSeq)은 로그 감추기·액션 음성과 같은 함수를 쓴다. 따로 계산하면 어긋난다 —
        실제로 턴 종료 후 파워 수령 대기 구간에서 보드만 먼저 열리고 로그는 닫혀 있었다.
      서버는 건드리지 않는다(클라가 이미 turnMark를 받는다). */
-  const viewCommitSeq = getCommitSeq(game);
-  if (game) {
-    if (viewCommitSeq === null || viewCommitSeq !== lastCommitSeqRef.current) {
-      lastCommitSeqRef.current = viewCommitSeq;
-      committedGameRef.current = game;
-    }
-  }
-  const isMyTurnForView = !!game && game.turnOrder?.[game.currentPlayerIndex] === playerId;
-  /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game). */
-  const viewGame = (!isMyTurnForView && viewCommitSeq !== null && committedGameRef.current) ? committedGameRef.current : game;
+  /** 화면 표시용 상태 — 남의 턴 진행 중에는 그 턴 시작 시점으로 고정된다. 조작·판정에는 쓰지 말 것(항상 game).
+   *  규칙은 lib/turnCommit.ts createViewFreeze 한 곳 — script/testRollbackBoardView.ts 가 같은 코드를 실서버로 돌린다. */
+  const viewGame = viewFreezeRef.current.view(game, playerId);
 
   /* [사용자 2026-09-30] 롤백 횟수 제한 — "(1/3) → (2/3) → (3/3) → 다음에 누르면 '모두 사용했습니다'"
      버튼에는 '다음에 요청하면 몇 번째인지'를 보여 주고, 다 썼으면 창을 열지 않고 바로 알린다. */
   const myRollbackQuota = getRollbackQuota(game, playerId);
   const rollbackBadge = myRollbackQuota.exhausted ? '모두 사용' : `${myRollbackQuota.next}/${myRollbackQuota.limit}`;
+  /* [사용자 2026-10-03] 파이락 다운그레이드는 세 곳(왼쪽 메뉴 버튼·상태창 내 카드 버튼·액션 칩)에서 누를 수 있는데
+     교역소 4개 검사는 왼쪽 버튼에만 있었다. 나머지 둘은 바로 연구소 선택으로 들어가, 트랙까지 고른 뒤 서버가
+     조용히 거부해 무반응이었다. → 세 곳 모두 이 함수로 들어오게 해 처음에 바로 사유를 띄운다. */
+  const startFiraksDowngrade = () => {
+    const tsCount = game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0;
+    if (tsCount >= 4) {
+      toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
+      return;
+    }
+    setFiraksDowngradeMode(true);
+  };
   const openRollbackRequest = (seq: number, label?: string) => {
     if (!gameId) return;
     if (getRollbackQuota(game, playerId).exhausted) {
@@ -3914,14 +3920,7 @@ export default function Game() {
             <Button
               variant={firaksDowngradeMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
-              onClick={() => {
-                const tsCount = game?.map?.filter((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'trading_station').length ?? 0;
-                if (tsCount >= 4) {
-                  toast({ title: '다운그레이드 불가', description: '교역소가 이미 4개 모두 건설되어 있어 연구소를 되돌릴 교역소 건물이 없습니다. 교역소를 업그레이드하면 다시 가능해집니다.', variant: 'destructive' });
-                  return;
-                }
-                setFiraksDowngradeMode(true);
-              }}
+              onClick={startFiraksDowngrade}
             >
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center bg-amber-500/30 border-amber-500/50 text-[8px]">S</Badge>
@@ -6078,7 +6077,7 @@ export default function Game() {
                     else if (id === 'bescods-advance-lowest') setBescodsAdvanceLowestOpen(true);
                     else if (id === 'ambas-swap-pi-mine') setAmbasSwapPiMineMode(true);
                     else if (id === 'moweyip-place-ring') setMoweyipPlaceRingMode(true);
-                    else if (id === 'firaks-downgrade') setFiraksDowngradeMode(true);
+                    else if (id === 'firaks-downgrade') startFiraksDowngrade();
                     else if (id === 'tech-act-4p' || id === 'adv-act-3k' || id === 'adv-act-3o' || id === 'adv-act-1q-5c') GameClient.useTechAction(gameId, id);
                     else GameClient.useSpecialAction(gameId, id);
                   }}
@@ -6232,7 +6231,7 @@ export default function Game() {
                             } else if (actionId === 'moweyip-place-ring') {
                               setMoweyipPlaceRingMode(true);
                             } else if (actionId === 'firaks-downgrade') {
-                              setFiraksDowngradeMode(true);
+                              startFiraksDowngrade();
                             } else if (
                               actionId === 'tech-act-4p' ||
                               actionId === 'adv-act-3k' ||
