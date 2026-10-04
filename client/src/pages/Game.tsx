@@ -55,7 +55,12 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 
 import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText, getExpandedFederationHexIds } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
+import { whenVisibleImagesSettled } from '@/lib/imgRetry';
+
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
+
+/** 미리 받기는 탭 하나에 한 번이면 된다(게임을 옮겨 다녀도 브라우저 캐시에 남는다) */
+let preloadStarted = false;
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3R: 테라1스텝·1QIC·4파워 / 4–6R: 3K·2QIC·테라3스텝)
  *  [사용자 2026-08-09] 예전 '1 TF + 광산 건설' 표기는 오해 — 실제로는 테라포밍 단계만 주고 광산은 직접 짓는다(보너스 타일 테라 액션과 동일). */
@@ -1090,7 +1095,14 @@ export default function Game() {
 
   // 이미지 프리로드(브라우저 캐시 워밍): Research/미니뷰는 닫으면 언마운트돼 <img>가 파괴됐다 다시 그려지면서
   // 재로딩 깜빡임이 생긴다. 자주 쓰는 이미지를 한 번 로드해 캐시에 올려두면, 재마운트 시 즉시 표시된다.
+  // [사용자 제보 2026-10-04] "게임 시작하면 외곽 맵 구역·건물 이미지가 깨진 채 안 돌아온다."
+  //   이 97장(1.5MB)이 화면이 뜨자마자 먼저 요청돼, 정작 맵에 보일 외곽 구역·건물이 맨 뒤(113~128번째)에 줄을 섰다.
+  //   회선이 느리거나 불안하면 맨 뒤 요청이 가장 오래 기다리고 멈추기 쉽다.
+  //   → 맵이 그려지고 화면의 이미지가 다 받아진 뒤(최대 15초)에, 6장씩 나눠 미리 받는다.
+  const boardReady = !!game?.map?.length;
   useEffect(() => {
+    if (!boardReady || preloadStarted) return;
+    preloadStarted = true;
     const urls: string[] = [];
     [...ALL_TECH_TILES, ...ALL_ADVANCED_TECH_TILES, ...SHIP_TECH_TILES].forEach(t => { if (t.image) urls.push(t.image); });
     FEDERATION_REWARDS.forEach((_, i) => urls.push(`/image/Federation_${i + 1}.gif`));
@@ -1101,9 +1113,22 @@ export default function Game() {
     ROUND_MISSION_POOL.forEach(t => urls.push(`/image/RS_${t.id.replace('rs', '')}.gif`));
     // 최종 미션(EGS_*.jpg) — FINAL_MISSION_LABELS 키 인덱스 기준
     Object.keys(FINAL_MISSION_LABELS).forEach((_, i) => urls.push(`/image/EGS_${i + 1}.jpg`));
-    const imgs = Array.from(new Set(urls)).map(u => { const img = new Image(); img.src = u; return img; });
+    const queue = Array.from(new Set(urls));
+    const imgs: HTMLImageElement[] = [];
     (window as any).__gaiaPreloadedImages = imgs; // GC 방지용 참조 유지
-  }, []);
+    const loadOne = () => new Promise<void>((resolve) => {
+      const u = queue.shift();
+      if (!u) { resolve(); return; }
+      const img = new Image();
+      // 미리 받기는 화면에 없어 멈춤 감시 대상이 아니다 — 10초 넘게 안 끝나면 버리고 다음으로 넘어간다
+      const t = window.setTimeout(resolve, 10000);
+      img.onload = img.onerror = () => { clearTimeout(t); resolve(); };
+      img.src = u;
+      imgs.push(img);
+    });
+    const worker = async () => { while (queue.length) await loadOne(); };
+    whenVisibleImagesSettled(15000, 'image[href*="/map/Map_"]').then(() => { for (let i = 0; i < 6; i++) void worker(); });
+  }, [boardReady]);
 
   const handleConfirm = () => {
     if (!pendingAction || !gameId) return;
