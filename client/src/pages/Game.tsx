@@ -6390,6 +6390,8 @@ export default function Game() {
                     .filter((t) => typeof t.sector === 'number' && t.sector >= 11 && t.sector < 20)
                     .map((t) => t.sector)
                 ).size;
+                const totalStructureCount = getFinalMissionValue(game, id, 'fm_total_structures');
+                const parasiticMineCount = game.map?.filter((t) => t.parasiticMine?.ownerId === id).length ?? 0;
                 const satelliteCount = Object.values(game.satellites ?? {})
                   .filter((ids) => Array.isArray(ids) && ids.includes(id))
                   .length;
@@ -6865,8 +6867,15 @@ export default function Game() {
                           )}
                           {hasPlanetTypeDetailRow && (
                             <div className="flex gap-0 items-stretch">
-                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                              {/* [사용자 2026-10-04] '행성' 밑에 총 건물 수 — 최종 미션 '건물 수'와 같은 기준(기생·인공물 광산 포함) */}
+                              <div className="w-[3rem] shrink-0 flex flex-col items-center justify-center px-0.5 gap-0.5">
                                 <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">행성</span>
+                                <span
+                                  className="text-muted-foreground/80 font-bold text-[8px] leading-none tabular-nums text-center"
+                                  title="총 건물 수 (광산·교역소·연구소·의회·아카데미, 기생 광산·인공물 광산 포함 — 최종 미션 '건물 수'와 같은 기준)"
+                                >
+                                  건물 {totalStructureCount}
+                                </span>
                               </div>
                               <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
                               <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">
@@ -6908,6 +6917,21 @@ export default function Game() {
                                     })}
                                   </div>
                                 ))}
+                                {/* [사용자 2026-10-04] 란티다: 동그라미 맨 끝에 기생 광산 수 */}
+                                {p.faction === 'lantids' && (
+                                  <div className="flex flex-wrap items-center gap-0.5">
+                                    <span className="mx-0.5 text-[9px] font-black text-white/20 leading-none">/</span>
+                                    <div
+                                      className={`relative inline-flex items-center justify-center rounded-full border border-dashed transition-all ${parasiticMineCount > 0 ? 'w-4 h-4 border-pink-300/80 bg-black/40' : 'w-3.5 h-3.5 border-white/25 bg-black/20'}`}
+                                      title={`기생 광산: ${parasiticMineCount}`}
+                                    >
+                                      <span className={`text-[7px] font-black leading-none ${parasiticMineCount > 0 ? 'text-pink-200' : 'text-zinc-500'}`}>기생</span>
+                                      <span className={`absolute -bottom-1 -right-1 text-[7px] font-black leading-none rounded px-[2px] ${parasiticMineCount > 0 ? 'bg-zinc-100 text-black' : 'bg-zinc-800 text-zinc-400'}`}>
+                                        {parasiticMineCount}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
