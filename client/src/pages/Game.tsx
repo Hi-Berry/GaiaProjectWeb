@@ -737,6 +737,22 @@ export default function Game() {
   const [advanceTechDialog, setAdvanceTechDialog] = useState<{ open: boolean; trackId: ResearchTrack | null }>({ open: false, trackId: null });
   // 팅커로이드 라운드 Special 팝업 접기(맵·라운드 보며 고르기)
   const [tinkeroidSpecialCollapsed, setTinkeroidSpecialCollapsed] = useState(false);
+  /** [사용자 제보 2026-10-05] "액션 끝나고 Reset 누르면 1초쯤 렉" — 리셋 자체는 수십 ms인데, 서버 응답이 올 때까지
+   *  Reset/End Turn 바가 그대로 있고, 응답 뒤에도 사라지는 애니메이션으로 0.5초 더 남아(실측 508~530ms) 리셋이
+   *  안 된 것처럼 보였다. 누르는 즉시 바를 숨긴다. 서버가 거절해 상태가 안 바뀌면 3초 뒤 다시 보인다. */
+  const [turnBarSuppressedUntil, setTurnBarSuppressedUntil] = useState(0);
+  const suppressTurnBar = useCallback(() => {
+    const until = Date.now() + 3000;
+    setTurnBarSuppressedUntil(until);
+    window.setTimeout(() => setTurnBarSuppressedUntil((u) => (u === until ? 0 : u)), 3000);
+  }, []);
+  // 서버가 리셋·턴 종료를 반영한 상태(메인 액션 전이거나 내 차례가 아님)가 오면 숨김을 바로 푼다 —
+  // 그래야 리셋 직후 곧바로 다시 액션을 끝냈을 때 바가 3초 동안 안 보이는 일이 없다.
+  useEffect(() => {
+    if (!turnBarSuppressedUntil || !game) return;
+    const myTurn = game.turnOrder?.[game.currentPlayerIndex] === playerId;
+    if (!game.hasDoneMainAction || !myTurn || game.pendingTurnEndPlayerId) setTurnBarSuppressedUntil(0);
+  }, [game, playerId, turnBarSuppressedUntil]);
   const [isFactionSelectOpen, setIsFactionSelectOpen] = useState(false);
   /** 트왈라잇 액션2: TS→연구소 업그레이드 시 선택할 교역소 타일 (shipTileId) */
   const [pendingTwilightTSUpgrade, setPendingTwilightTSUpgrade] = useState<string | null>(null);
@@ -7686,11 +7702,12 @@ export default function Game() {
             CSS zoom이 오프셋까지 축소하는 것도 같은 방향으로 겹친다.
             → left/translate 대신 전체 폭 flex 중앙정렬. zoom은 안쪽 알약에만 걸어 부모가 '축소된 실제
               크기'를 기준으로 가운데를 맞추게 한다. PC 사이드바 보정은 컨테이너 우측 패딩으로 유지. */}
-        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
+        {(pendingAction || (game && Date.now() >= turnBarSuppressedUntil && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
+          /* 나타날 때만 애니메이션. 사라질 땐(리셋·턴 종료·확인) 바로 지운다 — 예전 스프링 exit 가 0.5초 동안
+             버튼을 남겨 '렉'으로 보였고, 그 사이 남은 End Turn 이 눌릴 수도 있었다. */
           <motion.div
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -50, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed top-20 left-0 right-0 z-[130] flex justify-center px-2 pointer-events-none"
             style={{ paddingRight: !isMobileViewport && isSidebarOpen ? effectiveSidebarWidth : undefined }}
@@ -7775,7 +7792,7 @@ export default function Game() {
                     variant="outline"
                     size="sm"
                     className="h-7 px-3 border-red-500/30 text-red-500 hover:bg-red-500/10 text-[10px] font-black uppercase tracking-tight"
-                    onClick={() => GameClient.resetTurn(gameId!)}
+                    onClick={() => { suppressTurnBar(); GameClient.resetTurn(gameId!); }}
                   >
                     Reset
                   </Button>
@@ -7786,9 +7803,11 @@ export default function Game() {
                       if (gameId) {
                         const pendSteps = game.players[playerId!]?.pendingTerraformSteps ?? 0;
                         if (pendSteps > 0 && !window.confirm(`테라포밍 ${pendSteps}단계가 남아 있습니다. 사용하지 않고 턴을 종료할까요?`)) return;
+                        suppressTurnBar();
                         try {
                           await GameClient.endTurn(gameId);
                         } catch (e: any) {
+                          setTurnBarSuppressedUntil(0);
                           toast({ title: '턴 종료 실패', description: e.message, variant: 'destructive' });
                         }
                       }
