@@ -1061,6 +1061,31 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
  *  (사용자: "롤백하면 있던 로그가 사라져서 헷갈린다 — 빨간 배경/엑스로 남겨 달라")
  *  턴 리셋(내 턴 되돌리기)은 호출이 6곳이고 매번 빨간 줄이 쌓이면 로그가 지저분해지므로 기본값은 종전대로 '삭제'.
  *  seq 경로에서만 표시한다 — 레거시 길이 슬라이스 경로는 표시된 엔트리가 길이에 섞이면 계산이 틀어진다. */
+/**
+ * [버그수정 2026-10-05 사용자 "리셋(롤백)했을 때 로그가 깔끔하게 안 남는다 — ✕ 가 일부에만 붙는다"]
+ * 스냅샷 지점(seqAt) 이후에 생긴 '살아 있는' 로그 줄을 골라낸다 — 리셋·롤백·프리액션 되돌리기 공용.
+ * 예전엔 'seq 차이 = 지울 줄 수'로 보고 꼬리에서 그만큼 잘랐다. 그런데 롤백한 줄은 지우지 않고 ✕(rolledBack)로
+ * 꼬리에 남기므로, 그보다 앞 지점으로 다시 롤백하면 꼬리의 ✕ 줄을 다시 세고 정작 되돌린 줄은 살아 있는 채로
+ * 남았다(실측: 25번 지점 롤백 뒤 21번 지점으로 다시 롤백 → 21~24번 4줄이 ✕ 없이 '실제 행동'으로 잔류).
+ * → 개수가 아니라 seq 로 고른다. 이미 ✕ 인 줄은 건드리지 않는다. seq 없는 줄(구버전·종료 줄)은
+ *   첫 대상 줄보다 뒤에 있으면 그 이후에 생긴 것이므로 함께 고른다.
+ */
+function splitLogAfterSeq(log: NonNullable<GaiaGameState['gameLog']>, seqAt: number): { removedIdx: Set<number>; removed: NonNullable<GaiaGameState['gameLog']> } {
+	const removedIdx = new Set<number>();
+	let firstIdx = -1;
+	log.forEach((e, i) => {
+		if ((e as any).rolledBack) return;
+		const seq = (e as any).seq;
+		if (typeof seq === 'number' && seq > seqAt) { removedIdx.add(i); if (firstIdx < 0) firstIdx = i; }
+	});
+	if (firstIdx >= 0) {
+		log.forEach((e, i) => {
+			if (i > firstIdx && !(e as any).rolledBack && typeof (e as any).seq !== 'number') removedIdx.add(i);
+		});
+	}
+	return { removedIdx, removed: log.filter((_, i) => removedIdx.has(i)) };
+}
+
 function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string, opts?: { markRolledBack?: boolean; onRemoved?: (removed: NonNullable<GaiaGameState['gameLog']>) => void }): NonNullable<GaiaGameState['gameLog']> {
 	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
 	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
@@ -1070,15 +1095,13 @@ function restoreGameLogForReset(game: ServerGameState, startState: any, playerId
 	// 단조 증가 카운터(gameLogSeq)로 '턴 시작 이후 추가된 엔트리 수'를 구해 꼬리에서 그만큼 잘라낸다(shift 무관·정확).
 	const liveSeq = (game as any).gameLogSeq;
 	if (typeof liveSeq === 'number' && typeof startState.gameLogSeqAt === 'number') {
-		const added = Math.max(0, Math.min(live.length, liveSeq - startState.gameLogSeqAt));
-		const kept = live.slice(0, live.length - added);
-		const removed = added > 0 ? live.slice(live.length - added) : [];
+		const { removedIdx, removed } = splitLogAfterSeq(live, startState.gameLogSeqAt);
 		if (removed.length) opts?.onRemoved?.(removed);
-		// 이미 표시된 과거 롤백 엔트리는 seq를 올리지 않으므로 위 added 계산에 섞이지 않는다(꼬리에만 쌓임).
-		if (opts?.markRolledBack && removed.length) {
-			return [...kept, ...removed.map(e => ({ ...e, rolledBack: true as const }))];
+		if (opts?.markRolledBack) {
+			// 되돌린 줄은 그 자리에서 ✕ 표시만 붙인다(순서 그대로)
+			return live.map((e, i) => (removedIdx.has(i) ? { ...e, rolledBack: true as const } : e));
 		}
-		return kept;
+		return live.filter((_, i) => !removedIdx.has(i));
 	}
 	// 레거시(seq 없는 구 스냅샷) 폴백: 기존 길이 슬라이스 + 꼬리 트림
 	const logs = live.slice(0, startState.gameLogLength || 0) as NonNullable<GaiaGameState['gameLog']>;
@@ -4299,7 +4322,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const bots = new Set(game.botPlayerIds || []);
 			// [표시] 몇 턴 전인지 + 되돌릴 로그 내용(target.seq 이후 로그 요약, 최근 8개)
 			const turnsBack = hist.length - 1 - targetIdx; // target 이후 턴 시작 수
-			const undone = (game.gameLog || []).filter(e => typeof (e as any).seq === 'number' && (e as any).seq > target.seq);
+			const undone = (game.gameLog || []).filter(e => !(e as any).rolledBack && typeof (e as any).seq === 'number' && (e as any).seq > target.seq);
 			const undoneCount = undone.length;
 			const undoneActions = undone.slice(-8).map(e => `${e.playerName}: ${e.action}`);
 
@@ -6006,8 +6029,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					const snapSeq = (restoredGame as any).gameLogSeq;
 					let liveLog = (game.gameLog || []) as NonNullable<GaiaGameState['gameLog']>;
 					if (typeof liveSeq === 'number' && typeof snapSeq === 'number') {
-						const added = Math.max(0, Math.min(liveLog.length, liveSeq - snapSeq));
-						liveLog = liveLog.slice(0, liveLog.length - added);
+						const { removedIdx } = splitLogAfterSeq(liveLog, snapSeq);
+						liveLog = liveLog.filter((_, i) => !removedIdx.has(i));
 					}
 					restoredGame.gameLog = liveLog;
 				}
