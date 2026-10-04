@@ -4909,9 +4909,13 @@ export default function Game() {
           const labelOf = (actionId: string) => TINKEROID_SPECIAL_LABELS[actionId as keyof typeof TINKEROID_SPECIAL_LABELS] ?? actionId;
 
           // 접힌 상태: 모달 배경 없이 하단 작은 바 → 맵·라운드 보면서 바로 선택 가능
+          // [사용자 제보 2026-10-04] "접으면 모바일에서 다시 볼 방법이 없다" — 바가 z-50 이라 모바일 세로 화면의
+          //   아래쪽 절반(정보창·상태창, z-80~135) 뒤에 통째로 깔려 고르기도 펼치기도 못 했다(새로고침만 가능).
+          //   → 패널들보다 위(z-160, 전체 화면 창 190+ 보다는 아래)로 올리고, 세로 분할일 땐 아래 패널 바로 위에 붙인다.
           if (tinkeroidSpecialCollapsed) {
+            const barBottom = mapBottomInsetPx > 0 ? `${mapBottomInsetPx + 8}px` : '5rem';
             return (
-              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 shadow-2xl max-w-[92vw]">
+              <div className="fixed left-1/2 -translate-x-1/2 z-[160] flex flex-wrap items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 shadow-2xl max-w-[92vw]" style={{ bottom: barBottom }}>
                 <span className="text-amber-300 text-xs font-bold shrink-0">팅커로이드 R{pending.round} Special:</span>
                 {pending.options.map((actionId: string) => (
                   <Button
