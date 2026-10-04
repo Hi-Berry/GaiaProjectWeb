@@ -158,6 +158,14 @@ const DELTA_ROOM_PREFIX = '__game_delta_v1__:';
 const deltaRoomName = (gameId: string) => `${DELTA_ROOM_PREFIX}${gameId}`;
 const GAME_DELTA_ENABLED = process.env.GAME_DELTA_ENABLED !== '0';
 
+/** 키 순서와 무관한 JSON 문자열 — 객체 키를 정렬해 직렬화한다. JSON 규칙(undefined 생략, toJSON 우선,
+ *  열거 불가 필드 제외)은 그대로 따른다(toJSON 은 replacer 보다 먼저 적용된다). */
+export function stableJson(value: unknown): string {
+	return JSON.stringify(value, (_k, v) => (v && typeof v === 'object' && !Array.isArray(v))
+		? Object.fromEntries(Object.keys(v).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+		: v);
+}
+
 export function createGameDelta(
 	prev: Record<string, unknown>,
 	next: Record<string, unknown>,
@@ -426,7 +434,11 @@ function emitGameUpdatedNow(io: any, game: any) {
 	// 서버에서도 실제 적용 결과를 확인한다. 실패하면 해당 업데이트만 전체 스냅샷으로 폴백한다.
 	let useFullSnapshot = false;
 	try {
-		useFullSnapshot = JSON.stringify(applyGameStateDelta(previous.game, delta)) !== currentJson;
+		// [사용자 2026-10-05] 글자 단위 비교는 '키 순서'까지 따져서, 새 최상위 키가 생기는 업데이트(광산 짓기 →
+		//   queuedPowerOffers 등)마다 적용 결과의 키가 맨 뒤에 붙어 '불일치'로 오판 → 판 전체(약 50KB)를 보냈다
+		//   (같은 내용의 델타는 약 7KB, 키 순서만 무시하면 3회 모두 일치 — 실측). 클라는 키 순서를 쓰지 않으므로
+		//   내용만 비교한다.
+		useFullSnapshot = stableJson(applyGameStateDelta(previous.game, delta)) !== stableJson(payload);
 	} catch {
 		useFullSnapshot = true;
 	}
