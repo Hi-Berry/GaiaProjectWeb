@@ -1854,6 +1854,45 @@ export function GameBoard({
                         );
                       })()}
 
+                    {/* [사용자 2026-10-04] 링을 연방 테두리(로그 호버·상태창 호버)보다 먼저 그린다 — 링 색이 미연방 시안
+                        테두리와 비슷한데 링이 위에 덮여 연방 여부가 헷갈렸다. 테두리가 링 위에 보이게 한다. */}
+                    {/* 모웨이드 링 — 건물 밑 레이어(헥스 살짝 넘쳐도 OK). 톱니형 청록 링 + 핑크 점 2개 */}
+                    {tile.moweyipRing && (() => {
+                      const teeth = 15;
+                      // 바깥 크기 유지, 구멍을 키워 띠 두께만 0.7배 (기존 4.84-2.97=1.87 → 약 1.31)
+                      const rOut = 4.84, rTooth = 4.5, hole = 3.53;
+                      // 톱니형 바깥 경계 (큰/작은 반지름 교차)
+                      let cog = '';
+                      for (let i = 0; i < teeth * 2; i++) {
+                        const ang = (Math.PI / teeth) * i - Math.PI / 2;
+                        const r = i % 2 === 0 ? rOut : rTooth;
+                        cog += `${i === 0 ? 'M' : 'L'}${(r * Math.cos(ang)).toFixed(2)} ${(r * Math.sin(ang)).toFixed(2)} `;
+                      }
+                      cog += 'Z';
+                      // 안쪽 구멍 (evenodd로 뚫음 → 가운데 건물이 그대로 보임)
+                      const holePath = `M${hole} 0 A${hole} ${hole} 0 1 0 ${-hole} 0 A${hole} ${hole} 0 1 0 ${hole} 0 Z`;
+                      // 방사형 리지(줄무늬) 라인
+                      const ridges = Array.from({ length: teeth }, (_, i) => {
+                        const ang = (2 * Math.PI / teeth) * i - Math.PI / 2;
+                        const c = Math.cos(ang), s = Math.sin(ang);
+                        return (
+                          <line key={i}
+                            x1={(hole * c).toFixed(2)} y1={(hole * s).toFixed(2)}
+                            x2={(rTooth * c).toFixed(2)} y2={(rTooth * s).toFixed(2)}
+                            stroke="rgba(28,96,96,0.5)" strokeWidth="0.14" />
+                        );
+                      });
+                      return (
+                        <g opacity="0.97">
+                          <path d={`${cog} ${holePath}`} fillRule="evenodd" fill="#5cc2bd" stroke="#2a8f8a" strokeWidth="0.16" />
+                          {ridges}
+                          {/* 하단 핑크 점 2개 (얇아진 띠 중앙에 맞춤) */}
+                          <circle cx="-0.62" cy="4.15" r="0.36" fill="#ff3ea5" stroke="#c01e74" strokeWidth="0.06" />
+                          <circle cx="0.62" cy="4.15" r="0.36" fill="#ff3ea5" stroke="#c01e74" strokeWidth="0.06" />
+                        </g>
+                      );
+                    })()}
+
                     {/* [사용자 2026-08-31] 연방 로그 호버 — 그 연방 형성 당시의 칸만 금색 링 (건물·위성·빈 연결칸 포함) */}
                     {hoveredLogFed && hoveredLogFedHexSet.has(tile.id) && (
                       <g className="pointer-events-none">
@@ -1900,43 +1939,6 @@ export function GameBoard({
                             }}
                           />
                           <circle r="4.6" fill="none" stroke={highlightColor} strokeWidth={0.25} opacity={0.75} />
-                        </g>
-                      );
-                    })()}
-
-                    {/* 모웨이드 링 — 건물 밑 레이어(헥스 살짝 넘쳐도 OK). 톱니형 청록 링 + 핑크 점 2개 */}
-                    {tile.moweyipRing && (() => {
-                      const teeth = 15;
-                      // 바깥 크기 유지, 구멍을 키워 띠 두께만 0.7배 (기존 4.84-2.97=1.87 → 약 1.31)
-                      const rOut = 4.84, rTooth = 4.5, hole = 3.53;
-                      // 톱니형 바깥 경계 (큰/작은 반지름 교차)
-                      let cog = '';
-                      for (let i = 0; i < teeth * 2; i++) {
-                        const ang = (Math.PI / teeth) * i - Math.PI / 2;
-                        const r = i % 2 === 0 ? rOut : rTooth;
-                        cog += `${i === 0 ? 'M' : 'L'}${(r * Math.cos(ang)).toFixed(2)} ${(r * Math.sin(ang)).toFixed(2)} `;
-                      }
-                      cog += 'Z';
-                      // 안쪽 구멍 (evenodd로 뚫음 → 가운데 건물이 그대로 보임)
-                      const holePath = `M${hole} 0 A${hole} ${hole} 0 1 0 ${-hole} 0 A${hole} ${hole} 0 1 0 ${hole} 0 Z`;
-                      // 방사형 리지(줄무늬) 라인
-                      const ridges = Array.from({ length: teeth }, (_, i) => {
-                        const ang = (2 * Math.PI / teeth) * i - Math.PI / 2;
-                        const c = Math.cos(ang), s = Math.sin(ang);
-                        return (
-                          <line key={i}
-                            x1={(hole * c).toFixed(2)} y1={(hole * s).toFixed(2)}
-                            x2={(rTooth * c).toFixed(2)} y2={(rTooth * s).toFixed(2)}
-                            stroke="rgba(28,96,96,0.5)" strokeWidth="0.14" />
-                        );
-                      });
-                      return (
-                        <g opacity="0.97">
-                          <path d={`${cog} ${holePath}`} fillRule="evenodd" fill="#5cc2bd" stroke="#2a8f8a" strokeWidth="0.16" />
-                          {ridges}
-                          {/* 하단 핑크 점 2개 (얇아진 띠 중앙에 맞춤) */}
-                          <circle cx="-0.62" cy="4.15" r="0.36" fill="#ff3ea5" stroke="#c01e74" strokeWidth="0.06" />
-                          <circle cx="0.62" cy="4.15" r="0.36" fill="#ff3ea5" stroke="#c01e74" strokeWidth="0.06" />
                         </g>
                       );
                     })()}
