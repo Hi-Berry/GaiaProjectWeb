@@ -2055,12 +2055,42 @@ export default function Game() {
     }
   };
   useLayoutEffect(() => { applyStripPos.current(); });
+  // [사용자 제보 2026-10-04 'GPU process crashed'] 예전엔 rAF 로 '매 프레임' 위치를 다시 쟀다 — 가만히 있어도
+  //   화면이 초당 60번 레이아웃을 읽고 스타일을 쓰며 쉬지 못했다. 카드가 움직이는 순간에만 다시 잰다:
+  //   스크롤(어느 목록이든)·창 크기·목록/카드 크기 변화·트랜지션 끝, 그리고 렌더 직후(위 useLayoutEffect).
+  //   놓치는 경우(이미지가 늦게 떠 높이가 바뀌는 등)를 위해 0.5초 간격 보정만 남긴다.
   useEffect(() => {
     if (!trackCardStrips) return;
     let raf = 0;
-    const tick = () => { applyStripPos.current(); raf = window.requestAnimationFrame(tick); };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => { raf = 0; applyStripPos.current(); });
+    };
+    window.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('resize', schedule);
+    window.addEventListener('transitionend', schedule, true);
+    window.addEventListener('animationend', schedule, true);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
+    const cont = playerListScrollRef.current;
+    if (ro && cont) {
+      ro.observe(cont);
+      Array.from(cont.children).forEach((c) => ro.observe(c));
+      Object.values(cardRefs.current).forEach((c) => { if (c) ro.observe(c); });
+    }
+    // 상태창이 열리며 미끄러져 들어오는 동안(트랜지션 0.3초)은 프레임마다 따라간다
+    const openUntil = performance.now() + 400;
+    const followOpen = () => { applyStripPos.current(); if (performance.now() < openUntil) raf = window.requestAnimationFrame(followOpen); else raf = 0; };
+    raf = window.requestAnimationFrame(followOpen);
+    const fallback = window.setInterval(schedule, 500);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearInterval(fallback);
+      ro?.disconnect();
+      window.removeEventListener('scroll', schedule, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('transitionend', schedule, true);
+      window.removeEventListener('animationend', schedule, true);
+    };
   }, [trackCardStrips]);
 
   if (loading) {
