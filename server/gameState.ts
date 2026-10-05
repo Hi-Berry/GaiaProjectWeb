@@ -2337,10 +2337,14 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	}
 	for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 	game.currentPhase = 'gameEnd';
-	turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
-	rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
-	saveFinalGameState(game);
-	flushGameData(game);
+	// [ai2 2026-10-05] 시뮬 상태(MCTS·헤드리스 구동기)가 종료에 닿아도 라이브 부수효과 금지 — 같은 game.id라 라이브 게임의
+	//   롤백 히스토리를 지우고 final_state 덮어쓰기·사람 데이터 export·점수사이트 제출까지 시도하던 경로(헤드리스 검증 중 발견).
+	if (!(game as any).simulation) {
+		turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
+		rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
+		saveFinalGameState(game);
+		flushGameData(game);
+	}
 	clampPlayerResources(game);
 	emitGameUpdated(io, game);
 }
@@ -9269,10 +9273,12 @@ export function executePassRound(
 			}
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
-			turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
-			rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
-			saveFinalGameState(game);
-			flushGameData(game);
+			if (!(game as any).simulation) { // [ai2 2026-10-05] 시뮬 종료는 라이브 부수효과 금지(위 종료 경로 주석 참조)
+				turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
+				rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
+				saveFinalGameState(game);
+				flushGameData(game);
+			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
