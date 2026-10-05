@@ -11,6 +11,7 @@ import { MCTS } from '../server/ai/mcts';
 import { prepareHeadless, runToEnd, botFullPolicy, Policy } from '../server/ai2/headlessDriver';
 import { NetClient } from '../server/ai2/netClient';
 import { greedyPolicy, searchPolicy, newSearchStats } from '../server/ai2/ai2Policy';
+import { puctPolicy, newPuctStats } from '../server/ai2/puct';
 
 const args = process.argv.slice(2);
 const opt = (k: string, d: string) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
@@ -35,7 +36,9 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 (async () => {
 	const net = new NetClient(opt('--model', 'data/ai2/model_v0.pt'));
 	const st = newSearchStats();
-	const ai2 = mode === 'search' ? searchPolicy(net, st, { k: Number(opt('--k', '5')), conf: Number(opt('--conf', '0.7')) }) : greedyPolicy(net, st);
+	const pst = newPuctStats();
+	const ai2 = mode === 'puct' ? puctPolicy(net, pst, { sims: Number(opt('--sims', '48')), cpuct: Number(opt('--cpuct', '1.5')), maxChildren: Number(opt('--maxc', '12')) })
+		: mode === 'search' ? searchPolicy(net, st, { k: Number(opt('--k', '5')), conf: Number(opt('--conf', '0.7')) }) : greedyPolicy(net, st);
 	const dir = path.join(process.cwd(), 'logs', 'round-start');
 	// --starts <json>: 이 시작 상태들만(학습 검증용으로 떼어 둔 것 — 학습에 쓴 판으로 대결하면 새 AI에 유리)
 	const only = args.includes('--starts') ? new Set<string>(JSON.parse(fs.readFileSync(opt('--starts', ''), 'utf8'))) : null;
@@ -56,7 +59,7 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 		const bm = b.length ? b.reduce((x, y) => x + y, 0) / b.length : NaN;
 		const rank = 1 + others.filter(v => v > sc[seat]).length;
 		out(JSON.stringify({ result: true, mode, start, seat, ended: r.ended, stuck: r.stuck, ai2: sc[seat], others, margin, baseMargin: bm, delta: margin - bm, rank, faction: (g.players[seat] as any).faction }));
-		out(`[${mode} s${shard}] ${start} ${(g.players[seat] as any).faction} ai2=${sc[seat]} 상대=${others.join('/')} margin ${margin.toFixed(1)} vs 봇기준 ${bm.toFixed(1)} → Δ ${(margin - bm).toFixed(1)} · 순위 ${rank} · ${((Date.now() - t0) / 1000).toFixed(0)}s · 탐색 ${st.searched}/${st.decisions} 바꿈 ${st.changedFromTop}`);
+		out(`[${mode} s${shard}] ${start} ${(g.players[seat] as any).faction} ai2=${sc[seat]} 상대=${others.join('/')} margin ${margin.toFixed(1)} vs 봇기준 ${bm.toFixed(1)} → Δ ${(margin - bm).toFixed(1)} · 순위 ${rank} · ${((Date.now() - t0) / 1000).toFixed(0)}s · 탐색 ${st.searched}/${st.decisions} 바꿈 ${st.changedFromTop}${mode === 'puct' ? ` · puct 결정 ${pst.decisions} 시뮬 ${pst.sims} 전개 ${pst.expansions} 불법 ${pst.illegal} 깊이 ${pst.depthMax} 바꿈 ${pst.changedFromTop} ${(pst.ms / Math.max(1, pst.decisions)).toFixed(0)}ms/결정` : ''}`);
 	}
 	net.close();
 	process.exit(0);
