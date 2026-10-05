@@ -992,6 +992,24 @@ export function buildRollbackSummary(game: GaiaGameState): string | null {
 }
 const TURN_HISTORY_CAP = 300; // 안전 상한(게임당). dedup 후엔 보통 이보다 훨씬 적음.
 
+/**
+ * [ai2 학습 데이터 2026-10-05] 사람 좌석의 턴 시작 전체 상태를 data/human-states/<날짜>_<gameId>.jsonl에 한 줄씩 남긴다.
+ * 저장된 사람 게임(data/human-games)엔 게임 설정(라운드 미션·기술 타일 배치 등)이 없어 결정 시점 상태를 재구성할 수 없었다.
+ * 라벨(그 턴에 사람이 한 수)은 human-games의 actionJournal과 (playerId, 시각)으로 맞춘다.
+ * 비용: 롤백 히스토리용으로 이미 만든 gzip 버퍼를 재사용 — 추가는 비동기 파일 쓰기뿐. AI2_HUMAN_STATES=0이면 끈다.
+ */
+function recordHumanDecisionState(game: ServerGameState, playerId: string, entry: any, gz: Buffer): void {
+	if (process.env.AI2_HUMAN_STATES === '0') return;
+	if ((game.botPlayerIds ?? []).includes(playerId)) return; // 사람 좌석만
+	try {
+		const dir = path.join(process.cwd(), 'data', 'human-states');
+		fs.mkdirSync(dir, { recursive: true });
+		const date = new Date((game as any).createdAt ?? Date.now()).toISOString().slice(0, 10);
+		const line = JSON.stringify({ gameId: game.id, playerId, ts: Date.now(), seq: entry.gameLogSeqAt, round: entry.roundNumber, idx: entry.currentPlayerIndex, phase: String(game.currentPhase), gz: gz.toString('base64') });
+		fs.appendFile(path.join(dir, `${date}_${game.id}.jsonl`), line + '\n', () => { /* 기록 실패는 게임에 무영향 */ });
+	} catch { /* 기록 실패는 게임에 무영향 */ }
+}
+
 function pushTurnHistory(game: ServerGameState, playerId: string): void {
 	if ((game as any).simulation) return; // 자가대전/시뮬은 롤백 불필요 → 오버헤드 스킵
 	const entry: any = game.turnStartState?.[playerId];
@@ -1001,6 +1019,7 @@ function pushTurnHistory(game: ServerGameState, playerId: string): void {
 	// dedup: 직전 엔트리와 같은 seq(그 사이 새 로그 없음)면 스킵 — 재진입/중복 캡처 제거(핵심). 실측: ~1102콜 → 32개 유지.
 	if (hist.length && hist[hist.length - 1].seq === entry.gameLogSeqAt) return;
 	const gz = zlib.gzipSync(Buffer.from(JSON.stringify(entry.fullGameState)), { level: 1 });
+	recordHumanDecisionState(game, playerId, entry, gz);
 	hist.push({ seq: entry.gameLogSeqAt, round: entry.roundNumber, playerId, playerName: game.players[playerId]?.name ?? playerId, currentPlayerIndex: entry.currentPlayerIndex, gz, gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength ?? 0, ts: Date.now(), phase: String(game.currentPhase) });
 	if (hist.length > TURN_HISTORY_CAP) hist.splice(0, hist.length - TURN_HISTORY_CAP);
 }
