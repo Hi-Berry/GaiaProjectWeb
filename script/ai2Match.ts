@@ -37,7 +37,9 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 	const st = newSearchStats();
 	const ai2 = mode === 'search' ? searchPolicy(net, st, { k: Number(opt('--k', '5')), conf: Number(opt('--conf', '0.7')) }) : greedyPolicy(net, st);
 	const dir = path.join(process.cwd(), 'logs', 'round-start');
-	const files = fs.readdirSync(dir).filter(f => f.endsWith('_r1.json')).sort().filter((_, i) => i % shards === shard);
+	// --starts <json>: 이 시작 상태들만(학습 검증용으로 떼어 둔 것 — 학습에 쓴 판으로 대결하면 새 AI에 유리)
+	const only = args.includes('--starts') ? new Set<string>(JSON.parse(fs.readFileSync(opt('--starts', ''), 'utf8'))) : null;
+	const files = fs.readdirSync(dir).filter(f => f.endsWith('_r1.json') && (!only || only.has(f.replace('_r1.json', '')))).sort().filter((_, i) => i % shards === shard);
 	const t0 = Date.now();
 	for (const [gi, f] of files.entries()) {
 		const start = f.replace('_r1.json', '');
