@@ -6581,6 +6581,16 @@ export default function Game() {
                                     FA {freeActionMode ? 'ON' : 'OFF'}
                                   </button>
                                 )}
+                                {/* [사용자] 미사용(초록) 연방 개수 칩 "FED N" — 5단계/고급기술에 아직 안 쓴 연방 수. 없으면 미표시.
+                                    [2026-10-05 사용자] 예전엔 포머 줄 오른쪽이라 파워 수익(+Tok·충전)이 많으면 포머 점을 가렸다 → 이름줄 칩 묶음으로 이동
+                                    (이름은 말줄임으로 줄어들어 칩이 가려지지 않음). */}
+                                {(() => {
+                                  const green = getFederationEntries(p as PlayerState).filter((f) => f.isGreen).length;
+                                  if (green === 0) return null;
+                                  return (
+                                    <span className="text-[9px] font-black leading-none px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 tracking-tight" title={`미사용 연방 ${green}개 (5단계·고급기술에 사용 가능)`}>FED {green}</span>
+                                  );
+                                })()}
                                 {(p.factionBidVp ?? 0) > 0 && (
                                   <span
                                     className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-none text-rose-300 font-semibold tabular-nums"
@@ -6745,14 +6755,6 @@ export default function Game() {
                                   })()}
 
                                   <div className="flex items-center gap-1 shrink-0">
-                                    {/* [사용자] 포머 표시 우측에 미사용(초록) 연방 개수 칩 하나 — "FED N". 5단계/고급기술에 아직 안 쓴 연방 수. 없으면 미표시. */}
-                                    {(() => {
-                                      const green = getFederationEntries(p as PlayerState).filter((f) => f.isGreen).length;
-                                      if (green === 0) return null;
-                                      return (
-                                        <span className="text-[8px] font-black leading-none px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 tracking-tight" title={`미사용 연방 ${green}개 (5단계·고급기술에 사용 가능)`}>FED {green}</span>
-                                      );
-                                    })()}
                                     {inc.powerTokens > 0 && (
                                       <span className="text-[10px] md:text-xs text-zinc-400 font-bold">+{inc.powerTokens}Tok</span>
                                     )}
