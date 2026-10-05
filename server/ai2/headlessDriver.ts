@@ -32,15 +32,23 @@ import {
 	scoreTerminalStateForRollout,
 } from '../gameState';
 import { getPlayerFlag } from '../ai/variant';
+import { generateMoves, generatePendingOptions } from './moveGen';
+import { executeRespondPowerOffer } from '../gameState';
 import { getFederationEntries } from '@shared/gameConfig';
 import type { ResearchTrack } from '@shared/gameConfig';
 
 const io = { to: () => ({ emit: () => { /* noop */ } }), emit: () => { /* noop */ } } as any;
 const TRACKS: ResearchTrack[] = ['economy', 'terraforming', 'science', 'navigation', 'artificialIntelligence', 'gaiaProject'];
 
-/** 정책이 내려야 하는 결정. main = 일반 턴(패스 포함), 그 외는 턴 중 생긴 보류 선택. */
-export type DecisionKind = 'main' | 'setup';
-export interface Decision { kind: DecisionKind; playerId: string }
+/**
+ * 정책이 내려야 하는 결정.
+ *  main    = 일반 턴(패스 포함). ai2 좌석이면 options = 합법 수 생성기 출력(의사-합법, 적용 실패 시 구동기가 다음 처리).
+ *  pending = 턴 중 보류 선택(기술 타일·연구 트랙·연방 보상 등, ai2 좌석만). pendingKey로 종류 구분.
+ *  leech   = 파워 리치 수락/거절(ai2 좌석만). options = respond_power_offer 2개.
+ *  setup   = 셋업 단계(아직 기존 봇 경로).
+ */
+export type DecisionKind = 'main' | 'setup' | 'pending' | 'leech';
+export interface Decision { kind: DecisionKind; playerId: string; options?: BotAction[]; pendingKey?: string }
 /** 정책: 결정과 그 시점 상태를 받아 수를 고른다(null = 패스/턴 종료 의사). 상태를 변경하면 안 된다. */
 export type Policy = (game: ServerGameState, d: Decision) => Promise<BotAction | null>;
 
@@ -191,7 +199,26 @@ const fingerprint = (g: ServerGameState) => {
 	return `${g.currentPhase}|R${g.roundNumber}|i${g.currentPlayerIndex}|m${g.hasDoneMainAction ? 1 : 0}|${g.turnOrder.map(id => (g.players[id].hasPassed ? 1 : 0)).join('')}|${Object.keys(x).filter(k => /^pending/.test(k) && x[k]).join(',')}|s${Object.values(g.players).map((p: any) => p.score).join(',')}|t${g.map.filter(t => t.structure).length}`;
 };
 
-export interface StepOptions { botParity?: boolean }
+export interface StepOptions {
+	botParity?: boolean;
+	/** 새 AI가 두는 좌석. 이 좌석의 메인 턴·보류 선택·리치는 생성기 선택지로 정책에 묻는다(그 외 좌석은 기존 봇 경로). */
+	ai2Seats?: Set<string>;
+}
+
+/** ai2 좌석을 서버의 botPlayerIds에서 뺀다 — 그래야 리치가 자동 처리되지 않고 응답 대기(pendingPowerOffers)로 온다.
+ *  부작용: 남은 봇 좌석은 '사람이 있는 게임'으로 보고 사람 상대 전용 플래그를 켠다(실게임 1:3과 같은 조건). */
+export function markAi2Seats(game: ServerGameState, seats: Set<string>): void {
+	game.botPlayerIds = (game.botPlayerIds ?? []).filter(id => !seats.has(id));
+}
+
+async function applyLeech(game: ServerGameState, pid: string, a: BotAction): Promise<boolean> {
+	const { offerId, accept } = (a.params ?? {}) as any;
+	const before = (game.pendingPowerOffers ?? []).find(o => o.id === offerId);
+	if (!before || before.responded) return false;
+	executeRespondPowerOffer(io, game, pid, offerId, !!accept);
+	const after = (game.pendingPowerOffers ?? []).find(o => o.id === offerId);
+	return !after || !!after.responded;
+}
 
 /**
  * 한 단계 진행: 자동 해소 가능한 보류를 먼저 처리하고, 정책 결정이 필요하면 정책을 불러 적용한다.
@@ -199,13 +226,37 @@ export interface StepOptions { botParity?: boolean }
  */
 export async function step(game: ServerGameState, policy: Policy, stats: DriverStats, opt: StepOptions = {}): Promise<StepResult> {
 	if (game.currentPhase === 'gameEnd') return { done: true };
+	const ai2 = opt.ai2Seats;
+	if (ai2?.size) {
+		// ① 리치: ai2 좌석 대상 미응답 제안
+		const offer = (game.pendingPowerOffers ?? []).find(o => !o.responded && ai2.has(o.targetPlayerId));
+		if (offer) {
+			const options: BotAction[] = [true, false].map(accept => ({ type: 'respond_power_offer' as any, params: { offerId: offer.id, accept } }));
+			stats.decisions++;
+			const pick = await policy(game, { kind: 'leech', playerId: offer.targetPlayerId, options });
+			if (!(pick && await applyLeech(game, offer.targetPlayerId, pick))) executeRespondPowerOffer(io, game, offer.targetPlayerId, offer.id, false);
+			return { done: false, decided: true };
+		}
+		// ② ai2 좌석의 보류 선택
+		for (const seat of Array.from(ai2)) {
+			const po = generatePendingOptions(game, seat);
+			if (!po || !po.options.length) continue;
+			stats.decisions++;
+			const pick = await policy(game, { kind: 'pending', playerId: seat, options: po.options, pendingKey: po.key });
+			if (pick && await applyAction(game, seat, pick)) { stats.actionsApplied++; bump(stats, `ai2:${po.key}`); return { done: false, decided: true }; }
+			stats.actionFailures++;
+			// 정책 실패 → 선택지 중 서버가 받는 첫 것(교착 방지)
+			for (const o of po.options) if (await applyAction(game, seat, o)) { bump(stats, `ai2fallback:${po.key}`); return { done: false }; }
+			break; // 선택지 전부 거부 → 아래 기존 자동 해소에 맡김
+		}
+	}
 	if (await autoResolveOne(game, stats)) return { done: false };
 
 	const pid = currentPlayer(game);
 	if (!pid) return { done: true, stuck: `no current player (phase=${game.currentPhase})` };
 	const player = game.players[pid];
 	if (game.currentPhase === 'main') {
-		if ((game.pendingPowerOffers ?? []).some(o => !o.responded)) return { done: true, stuck: 'unresponded power offer (사람 대상 — 헤드리스는 전원 봇 가정)' };
+		if ((game.pendingPowerOffers ?? []).some(o => !o.responded)) return { done: true, stuck: 'unresponded power offer (ai2 좌석도 봇도 아닌 대상)' };
 		if (player.hasPassed) return { done: true, stuck: `current player ${pid} already passed` };
 		// 메인 액션을 했고 본인 보류가 없으면 턴 종료(리치 활성화·다음 차례는 서버 executeEndTurn이 처리)
 		if (game.hasDoneMainAction && !hasOwnTurnPending(game, pid)) {
@@ -241,7 +292,8 @@ export async function step(game: ServerGameState, policy: Policy, stats: DriverS
 	}
 
 	stats.decisions++;
-	const action = await policy(game, { kind: game.currentPhase === 'main' ? 'main' : 'setup', playerId: pid });
+	const isAi2Main = game.currentPhase === 'main' && !!ai2?.has(pid);
+	const action = await policy(game, { kind: game.currentPhase === 'main' ? 'main' : 'setup', playerId: pid, options: isAi2Main ? generateMoves(game, pid) : undefined });
 	if (action && await applyAction(game, pid, action)) { stats.actionsApplied++; return { done: false, decided: true }; }
 	if (action) stats.actionFailures++;
 

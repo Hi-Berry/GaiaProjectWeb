@@ -17,8 +17,8 @@ import { BotLogic } from '../ai/bot';
 import { FederationPlanner } from '../ai/federationPlanner';
 import { StateCloner } from '../ai/stateCloner';
 import { stripHeavy } from './headlessDriver';
-import { ServerGameState, upgradeRejectReason, researchRejectReason, techActionRejectReason } from '../gameState';
-import { getRange, getDistance, ALL_BONUS_TILES, getTerraformCost, getTerraformStepsForFaction, getGaiaBaseQic } from '@shared/gameConfig';
+import { ServerGameState, upgradeRejectReason, researchRejectReason, techActionRejectReason, getLegalEclipseAsteroidMineTileIds } from '../gameState';
+import { getRange, getDistance, ALL_BONUS_TILES, getTerraformCost, getTerraformStepsForFaction, getGaiaBaseQic, getFederationEntries, SHIP_TECH_TILES } from '@shared/gameConfig';
 import type { ResearchTrack, HexTile } from '@shared/gameConfig';
 
 const TRACKS: ResearchTrack[] = ['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'];
@@ -45,16 +45,37 @@ function minDist(anchors: HexTile[], t: HexTile): number {
 	let m = Infinity; for (const a of anchors) { const d = getDistance(a, t); if (d < m) m = d; } return m;
 }
 
-/** 메인 액션 전: 일반 턴의 모든 의사-합법 수 */
-function mainActionMoves(game: ServerGameState, pid: string): BotAction[] {
+const fedCache = new Map<string, any[]>();
+const FED_CACHE_MAX = 20000;
+export const fedCacheStats = { hit: 0, miss: 0 };
+/** 연방 탐색 결과가 의존하는 것: 보드 점유(건물·기생·정거장·포머)·연방 헥스·위성·토큰/QIC·보상 풀·라운드·내 타일/연방 수 */
+function fedKey(game: ServerGameState, pid: string): string {
+	const p: any = game.players[pid];
+	let occ = '';
+	for (const t of game.map as any[]) if (t.structure || t.parasiticMine || t.spaceStation) occ += `${t.id}:${t.ownerId ?? ''}${t.structure ?? ''}${t.parasiticMine?.ownerId ?? ''}${t.spaceStation?.ownerId ?? ''};`;
+	return [pid, game.roundNumber, p.power1, p.power2, p.power3, p.qic, p.brainStoneBowl ?? '', p.brainStoneInGaia ? 1 : 0,
+		(p.techTiles ?? []).join(','), (p.federations ?? []).length, JSON.stringify((game as any).playerFederationHexes ?? {}),
+		JSON.stringify((game as any).satellites ?? {}), JSON.stringify((game as any).federationPool ?? {}), occ].join('|');
+}
+function federationMoves(game: ServerGameState, pid: string): any[] {
+	const key = fedKey(game, pid);
+	const hit = fedCache.get(key);
+	if (hit) { fedCacheStats.hit++; return hit; }
+	fedCacheStats.miss++;
+	let res: any[] = [];
+	try { res = FederationPlanner.getFederationActions(game, pid, 0, 8); } catch { /* 플래너 실패는 연방 수 없음으로 */ }
+	if (fedCache.size >= FED_CACHE_MAX) fedCache.clear();
+	fedCache.set(key, res);
+	return res;
+}
+
+/** 일반 광산 수(메인 액션 또는 메인 뒤 보류된 테라포밍 스텝·무료 광산 해소에 공용) */
+export function mineMoves(game: ServerGameState, pid: string): BotAction[] {
 	const p: any = game.players[pid];
 	const out: BotAction[] = [];
-	const ore = p.ore ?? 0, cr = p.credits ?? 0, qic = p.qic ?? 0, k = p.knowledge ?? 0;
-	const p1 = p.power1 ?? 0, p2 = p.power2 ?? 0, p3 = p.power3 ?? 0;
+	const ore = p.ore ?? 0, cr = p.credits ?? 0, qic = p.qic ?? 0;
 	const anchors = myAnchors(game, pid);
 	const range = getRange(p.research?.navigation ?? 0) + (p.tempRangeBonus || p.rangeBonusActive ? 3 : 0) + (p.gleensNavBonusActive ? 2 : 0);
-	const reach = range + 2 * (qic + (p.faction === 'bal_tak' ? (p.gaiaformers ?? 0) : 0));
-
 	// 광산(일반·가이아·소행성): 빈 행성. 지금 자원으로 낼 수 있는 비용만(광석=1+테라포밍, QIC=사거리+가이아 기본) — 변환이 필요하면
 	//   변환(프리액션 수) 뒤 상태에서 합법이 된다. 비용 공식은 상한 근사, 최종 판정은 서버.
 	const tfCost = getTerraformCost(p.research?.terraforming ?? 0);
@@ -82,6 +103,20 @@ function mainActionMoves(game: ServerGameState, pid: string): BotAction[] {
 		}
 		out.push({ type: 'build_mine', params: { tileId: t.id } });
 	}
+	return out;
+}
+
+/** 메인 액션 전: 일반 턴의 모든 의사-합법 수 */
+function mainActionMoves(game: ServerGameState, pid: string): BotAction[] {
+	const p: any = game.players[pid];
+	const out: BotAction[] = [];
+	const ore = p.ore ?? 0, cr = p.credits ?? 0, qic = p.qic ?? 0, k = p.knowledge ?? 0;
+	const p1 = p.power1 ?? 0, p2 = p.power2 ?? 0, p3 = p.power3 ?? 0;
+	const anchors = myAnchors(game, pid);
+	const range = getRange(p.research?.navigation ?? 0) + (p.tempRangeBonus || p.rangeBonusActive ? 3 : 0) + (p.gleensNavBonusActive ? 2 : 0);
+	const reach = range + 2 * (qic + (p.faction === 'bal_tak' ? (p.gaiaformers ?? 0) : 0));
+
+	out.push(...mineMoves(game, pid));
 	// 란티다 기생광산: 남의 건물 위
 	if (p.faction === 'lantids' && ore >= 1 && cr >= 2) {
 		for (const t of game.map) {
@@ -177,8 +212,8 @@ function mainActionMoves(game: ServerGameState, pid: string): BotAction[] {
 	}
 	// 하드시 할라 의회 / 발타크 포머→QIC
 	if (p.faction === 'hadsch_hallas' && hasPI) for (const id of (cr >= 4 ? ['hh-4c-1qic', 'hh-3c-1o', 'hh-4c-1k'] : cr >= 3 ? ['hh-3c-1o'] : [])) out.push({ type: 'use_hadsch_hallas_pi_action', params: { actionId: id } });
-	// 연방(기하 탐색은 플래너 재사용 — 상위 8개)
-	try { for (const fed of FederationPlanner.getFederationActions(game, pid, 0, 8)) out.push({ type: 'form_federation', params: fed } as any); } catch { /* 플래너 실패는 연방 수 없음으로 */ }
+	// 연방(기하 탐색은 플래너 재사용 — 상위 8개). 생성 시간의 90%라 결과를 보드 키로 캐시(탐색 형제 노드는 보드가 같은 경우가 많음).
+	for (const fed of federationMoves(game, pid)) out.push({ type: 'form_federation', params: fed } as any);
 	// 패스(보너스 타일별; R6은 보너스 없음)
 	const bonuses = (game.availableBonusTiles ?? []) as any[];
 	for (const b of bonuses) out.push({ type: 'pass_round', params: { bonusTileId: b.id } });
@@ -223,4 +258,78 @@ export async function tryApply(game: ServerGameState, pid: string, m: BotAction)
 	const s = StateCloner.cloneGameStateForSimulation(game) as any;
 	s.simulation = true; s.headless = (game as any).headless; s.botCanceled = (game as any).botCanceled;
 	try { return (await BotLogic.performAction(io, s, m, pid)) ? s : null; } catch { return null; }
+}
+
+/**
+ * 턴 중 보류 선택(기술 타일·이클립스 연구·잊혀진 행성·TF마스 가이아·트왈 연방 보상·트랙 전진·고급 타일 커버·
+ * 이클립스 소행성·보류된 광산 건설)의 선택지. 해당 플레이어가 지금 내야 할 보류가 없으면 null.
+ * 수익 순서·팅커로이드·테란 의회·아이타 교환은 아직 구동기 자동 해소(전용 실행 함수가 봇용뿐).
+ */
+export function generatePendingOptions(game: ServerGameState, pid: string): { key: string; options: BotAction[] } | null {
+	const g: any = game; const p: any = game.players[pid];
+	if (!p) return null;
+	const owns = (k: string) => g[k]?.playerId === pid;
+	if (owns('pendingTechTileSelection')) {
+		const opts: BotAction[] = [];
+		const owned = new Set<string>(p.techTiles ?? []);
+		const tracksFor = (tr: ResearchTrack | null) => (tr ? [tr] : TRACKS);
+		const push = (techTileId: string, tr: ResearchTrack | null) => {
+			for (const t of tracksFor(tr)) {
+				opts.push({ type: 'select_tech_tile', params: { techTileId, trackId: t, advanceToLevel5: false } });
+				if ((p.research?.[t] ?? 0) === 4) opts.push({ type: 'select_tech_tile', params: { techTileId, trackId: t, advanceToLevel5: true } });
+			}
+		};
+		for (const [tr, val] of Object.entries(g.techTilesByTrack ?? {})) {
+			const first = (Array.isArray(val) ? val : [val]).find((x: any) => x?.id);
+			if (first && !owned.has((first as any).id)) push((first as any).id, tr as ResearchTrack);
+		}
+		for (const t of (g.techTilesPool ?? []) as any[]) if (t?.id && !owned.has(t.id)) push(t.id, null);
+		for (const id of (g.availableShipTechTileIds ?? []) as string[]) if (!owned.has(id) && SHIP_TECH_TILES.some(x => x.id === id)) push(id, null);
+		if (getFederationEntries(p).some((f: any) => f.isGreen !== false)) {
+			for (const [tr, adv] of Object.entries(g.advancedTechTilesByTrack ?? {})) {
+				if ((adv as any)?.id && !owned.has((adv as any).id) && (p.research?.[tr] ?? 0) >= 4) opts.push({ type: 'select_advanced_tech_tile', params: { advancedTileId: (adv as any).id, trackId: tr } });
+			}
+		}
+		return { key: 'techTile', options: opts };
+	}
+	if (owns('pendingAdvancedTechCover')) {
+		const covered = new Set<string>(p.coveredTechTiles ?? []);
+		return { key: 'advTechCover', options: (p.techTiles ?? []).filter((t: string) => !t.startsWith('adv-') && !covered.has(t)).map((t: string) => ({ type: 'cover_advanced_tech_tile', params: { coverTileId: t } })) };
+	}
+	if (owns('pendingShipTechTrackAdvance') || owns('pendingAdvancedTechTrackAdvance')) {
+		return { key: owns('pendingShipTechTrackAdvance') ? 'shipTechTrack' : 'advTechTrack', options: TRACKS.filter(t => (p.research?.[t] ?? 0) < 5).map(t => ({ type: 'advance_tech', params: { trackId: t } })) };
+	}
+	if (owns('pendingEclipseResearch')) return { key: 'eclipseResearch', options: TRACKS.filter(t => (p.research?.[t] ?? 0) < 5).map(t => ({ type: 'eclipse_advance_track', params: { trackId: t } })) };
+	if (owns('pendingEclipseAsteroidMine')) return { key: 'eclipseAsteroid', options: getLegalEclipseAsteroidMineTileIds(game, pid).map(id => ({ type: 'eclipse_build_asteroid_mine', params: { tileId: id } })) };
+	if (owns('pendingTwilightFederation')) return { key: 'twilightFed', options: getFederationEntries(p).map((f: any) => ({ type: 'confirm_twilight_federation', params: { rewardId: f.rewardId } })) };
+	if (owns('pendingLostPlanet')) {
+		const anchors = myAnchors(game, pid);
+		const range = getRange(p.research?.navigation ?? 0);
+		const opts: BotAction[] = [];
+		for (const t of game.map) {
+			if ((t.type !== 'space' && t.type !== 'deep_space') || t.ownerId || (t as any).spaceStation) continue;
+			const d = minDist(anchors, t); const need = Math.max(0, Math.ceil((d - range) / 2));
+			if (need <= (p.qic ?? 0)) opts.push({ type: 'place_lost_planet', params: { tileId: t.id, qicToSpend: need } });
+		}
+		return { key: 'lostPlanet', options: opts };
+	}
+	if (owns('pendingTFMarsGaiaProject')) {
+		const anchors = myAnchors(game, pid);
+		const range = getRange(p.research?.navigation ?? 0);
+		const opts: BotAction[] = [{ type: 'skip_tfmars_gaia_project', params: {} }];
+		for (const t of game.map) {
+			if (t.type !== 'transdim' || t.ownerId || t.hasGaiaformer) continue;
+			const d = minDist(anchors, t); const need = Math.max(0, Math.ceil((d - range) / 2));
+			if (need <= (p.qic ?? 0)) opts.push({ type: 'place_gaiaformer', params: { tileId: t.id, qicUsed: need } });
+		}
+		return { key: 'tfMarsGaia', options: opts };
+	}
+	// 메인 뒤 보류된 광산(우주선 기술 2TF+광산·연방 무료 광산·테라포밍 스텝): 광산 수 + 건너뛰기
+	if (game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === pid
+		&& (owns('pendingShipTechMine') || owns('pendingSpaceshipFedMine') || (p.pendingTerraformSteps ?? 0) > 0)) {
+		const opts = mineMoves(game, pid);
+		if (owns('pendingShipTechMine')) opts.push({ type: 'skip_ship_tech_mine', params: {} });
+		return { key: 'pendingMine', options: opts };
+	}
+	return null;
 }
