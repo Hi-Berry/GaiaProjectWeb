@@ -1009,6 +1009,7 @@ function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void
 	// [사용자 2026-08-26] 수입 선택이 걸려 있는 중간 상태는 롤백 지점으로 부적합 — 어떤 경로로 와도 캡처하지 않는다
 	// (executePassRound 전환 경로 스킵과 이중 방어. 깨끗한 스냅샷은 수입·가이아 완료 후 라운드 시작에서 찍힌다).
 	if (game.pendingIncomeOrder) return;
+	if ((game as any).headless) return; // [ai2] 헤드리스 시뮬은 롤백 지점 불필요 — 턴마다 전체 상태 사본(~330KB) 생성 스킵
 	if (!game.turnStartState) game.turnStartState = {};
 	if (game.turnStartState[playerId]?.fullGameState) {
 		if (!game.prevTurnStartState) game.prevTurnStartState = {};
@@ -7360,6 +7361,7 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
 	if (!game.hasDoneMainAction) {
 		clearFreeActionUndo(game);
 	}
+	if ((game as any).headless) return; // [ai2] 헤드리스 시뮬은 액션 취소 지점 불필요(전체 상태 사본 생성 스킵 — 지연 검증 비용의 절반)
 	// 이미 해당 플레이어의 턴 시작 상태가 저장되어 있다면(이 턴의 첫 번째 액션이 아니라면) 덮어쓰지 않는다.
 	if (game.turnStartState?.[playerId]) return;
 	if (game.hasDoneMainAction) return;

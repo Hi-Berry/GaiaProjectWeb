@@ -32,6 +32,7 @@ import {
 	scoreTerminalStateForRollout,
 } from '../gameState';
 import { getPlayerFlag } from '../ai/variant';
+import { getFederationEntries } from '@shared/gameConfig';
 import type { ResearchTrack } from '@shared/gameConfig';
 
 const io = { to: () => ({ emit: () => { /* noop */ } }), emit: () => { /* noop */ } } as any;
@@ -58,12 +59,20 @@ export interface DriverStats {
 
 export function newStats(): DriverStats { return { decisions: 0, actionsApplied: 0, actionFailures: 0, autoResolved: {} }; }
 
+/** 헤드리스에 불필요한 대용량 필드 제거 — 서버가 턴마다 붙이는 롤백용 전체 상태 사본(turnStartState·prevTurnStartState
+ *  각 ~330KB)이 복제 비용을 7배로 키웠다(상태 46KB→640KB, clone 0.37→2.4ms). 롤백은 시뮬에 의미 없음. */
+export function stripHeavy(g: any): void {
+	g.turnStartState = undefined; g.prevTurnStartState = undefined; g.freeActionUndoState = undefined;
+	g.gameLog = []; g.botActionsForFeedback = undefined; g.lastBotActionForFeedback = undefined; g.humanActionJournal = undefined;
+}
+
 /** 스냅샷/라이브 상태 → 헤드리스 시뮬 상태. 라이브 객체는 절대 건드리지 않도록 항상 복제한다. */
 export function prepareHeadless(src: ServerGameState): ServerGameState {
 	const g = StateCloner.cloneGameStateForSimulation(src) as any;
 	g.simulation = true;   // 로그·방송·진단 경로가 시뮬 분기를 탄다
 	g.headless = true;     // 수익 체인 동기 실행(gameState.continueIncomeChain)
 	g.botCanceled = true;  // 서버 코드 안에서 호출되는 executeBotTurnIfNeeded를 즉시 반환시킨다(봇 루프가 시뮬 상태에서 돌지 않게)
+	stripHeavy(g);
 	return g as ServerGameState;
 }
 
@@ -208,6 +217,14 @@ export async function step(game: ServerGameState, policy: Policy, stats: DriverS
 			const keys = ownPendingKeys(game, pid).join('+');
 			const fix = await BotLogic.getNextMove(game, pid, true);
 			if (fix && fix.type !== 'end_turn' && await applyAction(game, pid, fix)) { bump(stats, `post:${keys}`); stats.actionsApplied++; return { done: false }; }
+			// 트왈 연방 재수령: 기존 봇 점수가 전부 0 이하면 보상을 못 골라(null) 막힌다 → 보유 연방 보상 중 서버가 받는 첫 것
+			if ((game as any).pendingTwilightFederation?.playerId === pid) {
+				for (const f of getFederationEntries(game.players[pid])) {
+					if (await BotLogic.performAction(io, game, { type: 'confirm_twilight_federation', params: { rewardId: f.rewardId } } as BotAction, pid)) {
+						bump(stats, 'post:twilightFallback'); return { done: false };
+					}
+				}
+			}
 			// 남은 게 테라포밍 스텝뿐인데 지을 곳이 없음 → 스텝 포기 후 턴 종료(botHandler '스텝 포기(무한루프 방지)'와 동일)
 			if (keys === 'pendingTerraformSteps') {
 				(game.players[pid] as any).pendingTerraformSteps = 0;
@@ -248,6 +265,7 @@ export async function runToEnd(game: ServerGameState, policy: Policy, opt: StepO
 	let last = '', same = 0, stuck: string | undefined;
 	for (let i = 0; i < (opt.maxSteps ?? 5000); i++) {
 		const r = await step(game, policy, stats, opt);
+		stripHeavy(game);
 		if (r.done) { stuck = r.stuck; break; }
 		const fp = fingerprint(game);
 		if (fp === last) { if (++same >= (opt.maxSame ?? 30)) { stuck = `no progress x${same}: ${fp}`; break; } } else { same = 0; last = fp; }
