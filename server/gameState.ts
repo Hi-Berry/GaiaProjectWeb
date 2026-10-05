@@ -3490,6 +3490,17 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 
 	log(`[RoundStart] New round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', undefined, { simulation: (game as any).simulation });
 
+	// [ai2 헤드리스 구동기 2026-10-05] AI_ROUND_START_SNAPSHOTS=1이면 액션 단계 시작 시점(수입·가이아 단계 완료, 선 플레이어 차례)의
+	// 전체 상태를 덤프 — 헤드리스 구동기(server/ai2/headlessDriver.ts)의 깨끗한 시작점. R1 포함(AI_ROUND_SNAPSHOTS는 R2-5 전환 중간 상태).
+	if (process.env.AI_ROUND_START_SNAPSHOTS === '1' && !(game as any).simulation) {
+		try {
+			const dir = path.join(process.cwd(), 'logs', 'round-start');
+			fs.mkdirSync(dir, { recursive: true });
+			const { gameLog: _gl, turnStartState: _ts, freeActionUndoState: _fa, ...rest } = game as any;
+			fs.writeFileSync(path.join(dir, `${game.id}_r${game.roundNumber}.json`), JSON.stringify(rest));
+		} catch { /* 스냅샷 실패는 게임에 무영향 */ }
+	}
+
 	// [분석] 라운드별 빌드 페이스 스냅샷 (봇 약점 진단용). AI_PACE_LOG=1 일 때만.
 	if (process.env.AI_PACE_LOG === '1') {
 		for (const pid of game.turnOrder) {
@@ -10185,6 +10196,13 @@ export function executeUseShipAction(
 }
 
 /** Bot용: 수익 단계 파워/토큰 자동 선택. select_all_income_items + finish_income_selection 재현. */
+/** 봇 수익 자동수령 뒤 수익 체인(다음 대기자·액션 단계 시작) 재개. 라이브는 기존대로 100ms 뒤(소켓 방송 순서 유지),
+ *  [ai2 헤드리스 구동기 2026-10-05] game.headless(시뮬 전용, 라이브 미설정)면 즉시 동기 실행 — 타이머가 끝난 시뮬 상태를 나중에 건드리지 않게. */
+function continueIncomeChain(io: SocketIOServer, game: ServerGameState): void {
+	if ((game as any).headless) { helperTriggerIncomePhase(io, game); return; }
+	setTimeout(() => helperTriggerIncomePhase(io, game), 100);
+}
+
 export function executeBotIncomeSelection(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string
@@ -10199,7 +10217,7 @@ export function executeBotIncomeSelection(
 		game.pendingIncomeOrder = null;
 		clampPlayerResources(game);
 		emitGameUpdated(io, game);
-		setTimeout(() => helperTriggerIncomePhase(io, game), 100);
+		continueIncomeChain(io, game);
 		return true;
 	}
 
@@ -10220,7 +10238,7 @@ export function executeBotIncomeSelection(
 	game.pendingIncomeOrder = null;
 	clampPlayerResources(game);
 	emitGameUpdated(io, game);
-	setTimeout(() => helperTriggerIncomePhase(io, game), 100);
+	continueIncomeChain(io, game);
 	return true;
 }
 
