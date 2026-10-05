@@ -5075,6 +5075,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (shipTile.type === 'ship_twilight') {
 				if (actionIndex === 1) {
 					if (player.qic < 3) return;
+					// [2026-10-05] 재수령할 연방이 없으면 거부 — 3QIC만 내고 고를 보상이 없는 pendingTwilightFederation이 세워져 턴이 막혔다
+					//   (9/29 봇 쪽 twiFireEarly 가드와 같은 조건, 헤드리스 무작위 대국에서 재현).
+					if (getFederationEntries(player).length === 0) return;
 					player.qic -= 3;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -5358,8 +5361,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			const art = ARTIFACTS.find(a => a.id === artifactId)!;
 			if (art.id === 'art-fed-once') {
-				game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
-				addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+				// [2026-10-05] 연방이 없으면 고를 보상이 없어 보류가 영영 안 풀린다(턴 막힘) — 보류 없이 혜택 없음으로 기록
+				if (getFederationEntries(player).length === 0) addGameLog(game, playerId, 'Artifact: Federation benefit', 'No federation — no benefit', art.id);
+				else {
+					game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
+					addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+				}
 			} else if (art.id === 'art-vp-gaia') {
 				const lvl = player.research.gaiaProject ?? 0;
 				const vp = lvl * 3;
@@ -9950,6 +9957,7 @@ export function executeUseShipAction(
 	if (shipTile.type === 'ship_twilight') {
 		if (actionIndex === 1) {
 			if (player.qic < 3) return false;
+			if (getFederationEntries(player).length === 0) return false; // [2026-10-05] 재수령할 연방 없음 → 거부(소켓 경로와 동일)
 			player.qic -= 3;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -11383,8 +11391,12 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 
 	const art = ARTIFACTS.find(a => a.id === artifactId)!;
 	if (art.id === 'art-fed-once') {
-		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
-		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+		// [2026-10-05] 연방 없음 → 보류 없이 혜택 없음(소켓 경로와 동일)
+		if (getFederationEntries(player).length === 0) addGameLog(game, playerId, 'Artifact: Federation benefit', 'No federation — no benefit', art.id);
+		else {
+			game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
+			addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+		}
 	} else if (art.id === 'art-vp-gaia') {
 		const lvl = player.research.gaiaProject ?? 0;
 		const vp = lvl * 3;
