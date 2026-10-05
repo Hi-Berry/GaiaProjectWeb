@@ -20,7 +20,9 @@ ap.add_argument('--vw', type=float, default=1.0, help='가치 손실 가중'); a
 ap.add_argument('--device', default='cpu')  # MPS는 torch 2.0에서 gather 경로 Bus error(실측) — CPU 기본
 args = ap.parse_args()
 random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
-C, H, W = 51, 20, 24; FLAT = 1091; MOVE = 203; GRID = C * H * W
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from model_def import Net, C, H, W, FLAT, MOVE  # 추론 서버(infer_server.py)와 공용
+GRID = C * H * W
 
 # ── 로드 ──
 t_load = time.time()
@@ -71,28 +73,6 @@ def batchify(rs, dev):
     mv = torch.zeros(B * K * MOVE); mv[torch.from_numpy(np.concatenate(mI))] = torch.from_numpy(np.concatenate(mV))
     out = [g.view(B, C, H, W), fl.view(B, FLAT), mv.view(B, K, MOVE), torch.from_numpy(cell), torch.from_numpy(mask), torch.from_numpy(y), torch.from_numpy(v)]
     return [t.to(dev) for t in out]
-
-class Net(nn.Module):
-    def __init__(self, ch=64, emb=256):
-        super().__init__()
-        self.conv = nn.Sequential(nn.Conv2d(C, ch, 3, padding=1), nn.ReLU(), nn.Conv2d(ch, ch, 3, padding=1), nn.ReLU(), nn.Conv2d(ch, ch, 3, padding=1), nn.ReLU())
-        self.flat = nn.Sequential(nn.Linear(FLAT, 256), nn.ReLU(), nn.Linear(256, 256), nn.ReLU())
-        self.state = nn.Sequential(nn.Linear(ch + 256, emb), nn.ReLU())
-        self.move = nn.Sequential(nn.Linear(MOVE + ch, 128), nn.ReLU())
-        self.pol = nn.Sequential(nn.Linear(emb + 128, 128), nn.ReLU(), nn.Linear(128, 1))
-        self.val = nn.Sequential(nn.Linear(emb, 64), nn.ReLU(), nn.Linear(64, 1))
-        self.ch = ch
-    def forward(self, g, fl, mv, cell, mask):
-        fm = self.conv(g)                                   # B,ch,H,W
-        B, K = cell.shape
-        gpool = fm.mean(dim=(2, 3))
-        s = self.state(torch.cat([gpool, self.flat(fl)], -1))  # B,emb
-        flatfm = fm.view(B, self.ch, H * W).transpose(1, 2)    # B,HW,ch
-        safe = cell.clamp(min=0)
-        cf = torch.gather(flatfm, 1, safe.unsqueeze(-1).expand(-1, -1, self.ch)) * (cell >= 0).unsqueeze(-1).float()
-        me = self.move(torch.cat([mv, cf], -1))              # B,K,128
-        logit = self.pol(torch.cat([s.unsqueeze(1).expand(-1, K, -1), me], -1)).squeeze(-1).masked_fill(~mask, -1e9)
-        return logit, self.val(s).squeeze(-1)
 
 dev = args.device
 net = Net().to(dev); opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
