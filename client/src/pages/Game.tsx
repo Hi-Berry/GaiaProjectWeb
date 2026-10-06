@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AdminModeDialog } from '@/components/AdminModeDialog';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { RollbackRequestDialog } from '@/components/RollbackRequestDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -129,6 +130,72 @@ const SCORE_CATEGORY_LABELS: Record<string, string> = {
   finalMissions: '최종 미션', researchTracks: '연구 트랙', remainingResources: '잔여 자원',
   powerReceived: '파워 수령', spaceships: '우주선', other: '기타',
 };
+
+/** [사용자 2026-10-06] 결과 화면 '파워 수령(−)' 툴팁 — 상대별로 받은 파워·횟수·잃은 VP.
+ *  출처 = 게임 로그(롤백된 줄 제외): ①상대 행동 아래 하위 로그 '↳ Received Power +NP (-MVP) 이름'(받는 사람 = 하위 로그 playerId,
+ *  준 사람 = 상위 행동 playerId) ②따로 남은 'Received Power' 줄('+NP from 이름 (-MVP)'). 사람 게임 778좌석 중 776좌석이
+ *  점수 내역의 파워 수령 VP와 일치(어긋난 2건은 10/4 겹친 롤백 로그 버그 수정 전 기록). */
+function leechBreakdown(game: GameState, pid: string): { from: string; power: number; vp: number; count: number }[] {
+  const byName: Record<string, string> = {};
+  Object.entries(game.players ?? {}).forEach(([id, p]) => { if (p?.name) byName[p.name] = id; });
+  const acc: Record<string, { power: number; vp: number; count: number }> = {};
+  const add = (from: string, power: number, vp: number) => { const a = (acc[from] ??= { power: 0, vp: 0, count: 0 }); a.power += power; a.vp += vp; a.count++; };
+  for (const e of ((game as any).gameLog ?? []) as any[]) {
+    if (!e || e.rolledBack) continue;
+    for (const sl of (e.subLogs ?? []) as any[]) {
+      if (sl?.playerId !== pid) continue;
+      const m = /^↳ Received Power \+(\d+)P(?: \(-(\d+)VP\))?/.exec(String(sl.text ?? ''));
+      if (m && e.playerId) add(e.playerId, Number(m[1]), Number(m[2] ?? 0));
+    }
+    if (e.playerId === pid && /^(↳ )?Received Power$/.test(String(e.action ?? ''))) {
+      const d = String(e.details ?? '');
+      const pw = /\+(\d+)P/.exec(d), vp = /-(\d+)VP/.exec(d), fr = /from (.+?)(?: \(|$)/.exec(d);
+      if (pw) add(fr ? (byName[fr[1]] ?? fr[1]) : '?', Number(pw[1]), vp ? Number(vp[1]) : 0);
+    }
+  }
+  // 상대 전원(받은 게 없어도 0으로) — 턴 순서대로
+  const order = (game.turnOrder?.length ? game.turnOrder : Object.keys(game.players ?? {})).filter((id) => id !== pid);
+  const rows = order.map((id) => ({ from: id, ...(acc[id] ?? { power: 0, vp: 0, count: 0 }) }));
+  for (const [id, a] of Object.entries(acc)) if (!order.includes(id)) rows.push({ from: id, ...a });
+  return rows;
+}
+
+/** '파워 수령(−)' 칸 래퍼 — 잠깐 머물면 상대별 받은 파워·횟수·잃은 VP 툴팁(요약 표·상세 탭 공용) */
+function LeechTooltip({ game, pid, total, children }: { game: GameState; pid: string; total: number; children: React.ReactNode }) {
+  const rows = leechBreakdown(game, pid);
+  const logVp = rows.reduce((s, r) => s + r.vp, 0);
+  const logPw = rows.reduce((s, r) => s + r.power, 0);
+  return (
+    <Tooltip delayDuration={250}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right" className="bg-zinc-950/95 border-white/15 text-zinc-100 px-3 py-2">
+        <div className="text-[11px] font-black text-red-300 mb-1.5">{game.players?.[pid]?.name} — 상대별 파워 수령</div>
+        <div className="space-y-1">
+          {rows.map((r) => {
+            const op = game.players?.[r.from];
+            const fac = FACTIONS.find((f) => f.id === op?.faction);
+            return (
+              <div key={r.from} className="flex items-center gap-2 text-[11px] tabular-nums">
+                <span className="w-2 h-2 rounded-full shrink-0 border border-white/50" style={{ backgroundColor: fac?.color ?? '#666' }} />
+                <span className="w-28 truncate text-zinc-300">{fac?.name ?? '?'} <span className="text-zinc-500">({op?.name ?? r.from})</span></span>
+                <span className="w-14 text-right text-violet-300">+{r.power}P</span>
+                <span className="w-8 text-right text-zinc-500">{r.count}회</span>
+                <span className={`w-12 text-right font-bold ${r.vp > 0 ? 'text-red-400' : 'text-zinc-500'}`}>−{r.vp} VP</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-1.5 pt-1.5 border-t border-white/10 flex justify-between text-[11px] font-bold tabular-nums">
+          <span className="text-zinc-400">합계</span>
+          <span><span className="text-violet-300">+{logPw}P</span> · <span className="text-red-400">−{logVp} VP</span></span>
+        </div>
+        {logVp !== total && (
+          <div className="mt-1 text-[10px] text-amber-400">로그 기준 합계가 점수 내역(−{total})과 다릅니다(롤백 기록 영향 가능).</div>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** other 항목 표시 라벨(연방 계열은 '연방'으로 합산) */
 const scoreSourceLabel = (source: string): string => {
@@ -2898,7 +2965,13 @@ export default function Game() {
                             <tr key={label} className="border-b border-white/5 even:bg-white/[0.035] hover:bg-white/[0.07]">
                               <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{negLabels.has(label) ? `${label}(−)` : label}</td>
                               {cols.map(c => (
-                                <td key={c.pid} className="py-1.5 px-3 text-center">{cell(valOf(c, label))}</td>
+                                label === '파워 수령' && valOf(c, label) !== 0
+                                  ? (
+                                    <LeechTooltip key={c.pid} game={game} pid={c.pid} total={-valOf(c, label)}>
+                                      <td className="py-1.5 px-3 text-center cursor-help">{cell(valOf(c, label))}</td>
+                                    </LeechTooltip>
+                                  )
+                                  : <td key={c.pid} className="py-1.5 px-3 text-center">{cell(valOf(c, label))}</td>
                               ))}
                             </tr>
                           ))}
@@ -3012,10 +3085,12 @@ export default function Game() {
                               </div>
                             )}
                             {b.powerReceived > 0 && (
-                              <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
-                                <span className="text-xs font-bold text-red-400/80">파워 수령(−)</span>
-                                <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
-                              </div>
+                              <LeechTooltip game={game} pid={pid} total={b.powerReceived}>
+                                <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors cursor-help">
+                                  <span className="text-xs font-bold text-red-400/80">파워 수령(−)</span>
+                                  <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
+                                </div>
+                              </LeechTooltip>
                             )}
                             {spaceshipsSum !== 0 && (
                               <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors">
