@@ -53,9 +53,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText, getExpandedFederationHexIds } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
+import { whenVisibleImagesSettled } from '@/lib/imgRetry';
+
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
+
+/** 미리 받기는 탭 하나에 한 번이면 된다(게임을 옮겨 다녀도 브라우저 캐시에 남는다) */
+let preloadStarted = false;
 
 /** 팅커로이드 라운드 Special 액션 ID → 라벨 (1–3R: 테라1스텝·1QIC·4파워 / 4–6R: 3K·2QIC·테라3스텝)
  *  [사용자 2026-08-09] 예전 '1 TF + 광산 건설' 표기는 오해 — 실제로는 테라포밍 단계만 주고 광산은 직접 짓는다(보너스 타일 테라 액션과 동일). */
@@ -732,6 +737,22 @@ export default function Game() {
   const [advanceTechDialog, setAdvanceTechDialog] = useState<{ open: boolean; trackId: ResearchTrack | null }>({ open: false, trackId: null });
   // 팅커로이드 라운드 Special 팝업 접기(맵·라운드 보며 고르기)
   const [tinkeroidSpecialCollapsed, setTinkeroidSpecialCollapsed] = useState(false);
+  /** [사용자 제보 2026-10-05] "액션 끝나고 Reset 누르면 1초쯤 렉" — 리셋 자체는 수십 ms인데, 서버 응답이 올 때까지
+   *  Reset/End Turn 바가 그대로 있고, 응답 뒤에도 사라지는 애니메이션으로 0.5초 더 남아(실측 508~530ms) 리셋이
+   *  안 된 것처럼 보였다. 누르는 즉시 바를 숨긴다. 서버가 거절해 상태가 안 바뀌면 3초 뒤 다시 보인다. */
+  const [turnBarSuppressedUntil, setTurnBarSuppressedUntil] = useState(0);
+  const suppressTurnBar = useCallback(() => {
+    const until = Date.now() + 3000;
+    setTurnBarSuppressedUntil(until);
+    window.setTimeout(() => setTurnBarSuppressedUntil((u) => (u === until ? 0 : u)), 3000);
+  }, []);
+  // 서버가 리셋·턴 종료를 반영한 상태(메인 액션 전이거나 내 차례가 아님)가 오면 숨김을 바로 푼다 —
+  // 그래야 리셋 직후 곧바로 다시 액션을 끝냈을 때 바가 3초 동안 안 보이는 일이 없다.
+  useEffect(() => {
+    if (!turnBarSuppressedUntil || !game) return;
+    const myTurn = game.turnOrder?.[game.currentPlayerIndex] === playerId;
+    if (!game.hasDoneMainAction || !myTurn || game.pendingTurnEndPlayerId) setTurnBarSuppressedUntil(0);
+  }, [game, playerId, turnBarSuppressedUntil]);
   const [isFactionSelectOpen, setIsFactionSelectOpen] = useState(false);
   /** 트왈라잇 액션2: TS→연구소 업그레이드 시 선택할 교역소 타일 (shipTileId) */
   const [pendingTwilightTSUpgrade, setPendingTwilightTSUpgrade] = useState<string | null>(null);
@@ -1090,7 +1111,14 @@ export default function Game() {
 
   // 이미지 프리로드(브라우저 캐시 워밍): Research/미니뷰는 닫으면 언마운트돼 <img>가 파괴됐다 다시 그려지면서
   // 재로딩 깜빡임이 생긴다. 자주 쓰는 이미지를 한 번 로드해 캐시에 올려두면, 재마운트 시 즉시 표시된다.
+  // [사용자 제보 2026-10-04] "게임 시작하면 외곽 맵 구역·건물 이미지가 깨진 채 안 돌아온다."
+  //   이 97장(1.5MB)이 화면이 뜨자마자 먼저 요청돼, 정작 맵에 보일 외곽 구역·건물이 맨 뒤(113~128번째)에 줄을 섰다.
+  //   회선이 느리거나 불안하면 맨 뒤 요청이 가장 오래 기다리고 멈추기 쉽다.
+  //   → 맵이 그려지고 화면의 이미지가 다 받아진 뒤(최대 15초)에, 6장씩 나눠 미리 받는다.
+  const boardReady = !!game?.map?.length;
   useEffect(() => {
+    if (!boardReady || preloadStarted) return;
+    preloadStarted = true;
     const urls: string[] = [];
     [...ALL_TECH_TILES, ...ALL_ADVANCED_TECH_TILES, ...SHIP_TECH_TILES].forEach(t => { if (t.image) urls.push(t.image); });
     FEDERATION_REWARDS.forEach((_, i) => urls.push(`/image/Federation_${i + 1}.gif`));
@@ -1101,9 +1129,22 @@ export default function Game() {
     ROUND_MISSION_POOL.forEach(t => urls.push(`/image/RS_${t.id.replace('rs', '')}.gif`));
     // 최종 미션(EGS_*.jpg) — FINAL_MISSION_LABELS 키 인덱스 기준
     Object.keys(FINAL_MISSION_LABELS).forEach((_, i) => urls.push(`/image/EGS_${i + 1}.jpg`));
-    const imgs = Array.from(new Set(urls)).map(u => { const img = new Image(); img.src = u; return img; });
+    const queue = Array.from(new Set(urls));
+    const imgs: HTMLImageElement[] = [];
     (window as any).__gaiaPreloadedImages = imgs; // GC 방지용 참조 유지
-  }, []);
+    const loadOne = () => new Promise<void>((resolve) => {
+      const u = queue.shift();
+      if (!u) { resolve(); return; }
+      const img = new Image();
+      // 미리 받기는 화면에 없어 멈춤 감시 대상이 아니다 — 10초 넘게 안 끝나면 버리고 다음으로 넘어간다
+      const t = window.setTimeout(resolve, 10000);
+      img.onload = img.onerror = () => { clearTimeout(t); resolve(); };
+      img.src = u;
+      imgs.push(img);
+    });
+    const worker = async () => { while (queue.length) await loadOne(); };
+    whenVisibleImagesSettled(15000, 'image[href*="/map/Map_"]').then(() => { for (let i = 0; i < 6; i++) void worker(); });
+  }, [boardReady]);
 
   const handleConfirm = () => {
     if (!pendingAction || !gameId) return;
@@ -2030,12 +2071,42 @@ export default function Game() {
     }
   };
   useLayoutEffect(() => { applyStripPos.current(); });
+  // [사용자 제보 2026-10-04 'GPU process crashed'] 예전엔 rAF 로 '매 프레임' 위치를 다시 쟀다 — 가만히 있어도
+  //   화면이 초당 60번 레이아웃을 읽고 스타일을 쓰며 쉬지 못했다. 카드가 움직이는 순간에만 다시 잰다:
+  //   스크롤(어느 목록이든)·창 크기·목록/카드 크기 변화·트랜지션 끝, 그리고 렌더 직후(위 useLayoutEffect).
+  //   놓치는 경우(이미지가 늦게 떠 높이가 바뀌는 등)를 위해 0.5초 간격 보정만 남긴다.
   useEffect(() => {
     if (!trackCardStrips) return;
     let raf = 0;
-    const tick = () => { applyStripPos.current(); raf = window.requestAnimationFrame(tick); };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => { raf = 0; applyStripPos.current(); });
+    };
+    window.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('resize', schedule);
+    window.addEventListener('transitionend', schedule, true);
+    window.addEventListener('animationend', schedule, true);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
+    const cont = playerListScrollRef.current;
+    if (ro && cont) {
+      ro.observe(cont);
+      Array.from(cont.children).forEach((c) => ro.observe(c));
+      Object.values(cardRefs.current).forEach((c) => { if (c) ro.observe(c); });
+    }
+    // 상태창이 열리며 미끄러져 들어오는 동안(트랜지션 0.3초)은 프레임마다 따라간다
+    const openUntil = performance.now() + 400;
+    const followOpen = () => { applyStripPos.current(); if (performance.now() < openUntil) raf = window.requestAnimationFrame(followOpen); else raf = 0; };
+    raf = window.requestAnimationFrame(followOpen);
+    const fallback = window.setInterval(schedule, 500);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearInterval(fallback);
+      ro?.disconnect();
+      window.removeEventListener('scroll', schedule, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('transitionend', schedule, true);
+      window.removeEventListener('animationend', schedule, true);
+    };
   }, [trackCardStrips]);
 
   if (loading) {
@@ -4854,9 +4925,13 @@ export default function Game() {
           const labelOf = (actionId: string) => TINKEROID_SPECIAL_LABELS[actionId as keyof typeof TINKEROID_SPECIAL_LABELS] ?? actionId;
 
           // 접힌 상태: 모달 배경 없이 하단 작은 바 → 맵·라운드 보면서 바로 선택 가능
+          // [사용자 제보 2026-10-04] "접으면 모바일에서 다시 볼 방법이 없다" — 바가 z-50 이라 모바일 세로 화면의
+          //   아래쪽 절반(정보창·상태창, z-80~135) 뒤에 통째로 깔려 고르기도 펼치기도 못 했다(새로고침만 가능).
+          //   → 패널들보다 위(z-160, 전체 화면 창 190+ 보다는 아래)로 올리고, 세로 분할일 땐 아래 패널 바로 위에 붙인다.
           if (tinkeroidSpecialCollapsed) {
+            const barBottom = mapBottomInsetPx > 0 ? `${mapBottomInsetPx + 8}px` : '5rem';
             return (
-              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 shadow-2xl max-w-[92vw]">
+              <div className="fixed left-1/2 -translate-x-1/2 z-[160] flex flex-wrap items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900/95 border border-amber-500/50 shadow-2xl max-w-[92vw]" style={{ bottom: barBottom }}>
                 <span className="text-amber-300 text-xs font-bold shrink-0">팅커로이드 R{pending.round} Special:</span>
                 {pending.options.map((actionId: string) => (
                   <Button
@@ -6177,6 +6252,8 @@ export default function Game() {
                 // 연방 건물 파워: (연방 헥스에 포함된 내 건물 파워 / 전체 내 건물 파워).
                 // 연방 파워 산정과 동일하게 내 구조물(우주선 제외) + 란티다 기생광산 + 우주정거장을 합산.
                 // 파워값: PI/Academy=3(big타일 시 4) / TS·Lab=2 / 광산=1 / 기생광산·우주정거장=1.
+                // [버그수정 2026-10-04 사용자 "하이브 14파워 다 이어졌는데 12/14"] 저장된 연방 칸 목록만 세면
+                //   우주정거장 등으로 나중에 이어진 기존 건물이 빠진다 → 맵 호버 하이라이트와 같은 확장 범위로 센다.
                 const { fedBuildingPower, totalBuildingPower } = (() => {
                   const hasBig = (p.techTiles?.includes('tech-big-4str') && !p.coveredTechTiles?.includes('tech-big-4str')) ?? false;
                   const structPower = (s: StructureType | null | undefined): number => {
@@ -6190,7 +6267,7 @@ export default function Game() {
                       default: return 0;
                     }
                   };
-                  const fedHexes = new Set(game.playerFederationHexes?.[id] ?? []);
+                  const fedHexes = getExpandedFederationHexIds(game.map, game.playerFederationHexes?.[id] ?? [], id);
                   let total = 0, fed = 0;
                   for (const t of game.map) {
                     let tp = 0;
@@ -6329,6 +6406,8 @@ export default function Game() {
                     .filter((t) => typeof t.sector === 'number' && t.sector >= 11 && t.sector < 20)
                     .map((t) => t.sector)
                 ).size;
+                const totalStructureCount = getFinalMissionValue(game, id, 'fm_total_structures');
+                const parasiticMineCount = game.map?.filter((t) => t.parasiticMine?.ownerId === id).length ?? 0;
                 const satelliteCount = Object.values(game.satellites ?? {})
                   .filter((ids) => Array.isArray(ids) && ids.includes(id))
                   .length;
@@ -6804,8 +6883,15 @@ export default function Game() {
                           )}
                           {hasPlanetTypeDetailRow && (
                             <div className="flex gap-0 items-stretch">
-                              <div className="w-[3rem] shrink-0 flex items-center justify-center px-0.5">
+                              {/* [사용자 2026-10-04] '행성' 밑에 총 건물 수 — 최종 미션 '건물 수'와 같은 기준(기생·인공물 광산 포함) */}
+                              <div className="w-[3rem] shrink-0 flex flex-col items-center justify-center px-0.5 gap-0.5">
                                 <span className="text-muted-foreground font-medium text-[9px] leading-snug text-center">행성</span>
+                                <span
+                                  className="text-muted-foreground/80 font-bold text-[8px] leading-none tabular-nums text-center"
+                                  title="총 건물 수 (광산·교역소·연구소·의회·아카데미, 기생 광산·인공물 광산 포함 — 최종 미션 '건물 수'와 같은 기준)"
+                                >
+                                  건물 {totalStructureCount}
+                                </span>
                               </div>
                               <div className="w-px self-stretch shrink-0 bg-white/15" aria-hidden />
                               <div className="flex flex-wrap gap-1 flex-1 min-w-0 pl-2 content-center py-0.5">
@@ -6847,6 +6933,21 @@ export default function Game() {
                                     })}
                                   </div>
                                 ))}
+                                {/* [사용자 2026-10-04] 란티다: 동그라미 맨 끝에 기생 광산 수 */}
+                                {p.faction === 'lantids' && (
+                                  <div className="flex flex-wrap items-center gap-0.5">
+                                    <span className="mx-0.5 text-[9px] font-black text-white/20 leading-none">/</span>
+                                    <div
+                                      className={`relative inline-flex items-center justify-center rounded-full border border-dashed transition-all ${parasiticMineCount > 0 ? 'w-4 h-4 border-pink-300/80 bg-black/40' : 'w-3.5 h-3.5 border-white/25 bg-black/20'}`}
+                                      title={`기생 광산: ${parasiticMineCount}`}
+                                    >
+                                      <span className={`text-[7px] font-black leading-none ${parasiticMineCount > 0 ? 'text-pink-200' : 'text-zinc-500'}`}>기생</span>
+                                      <span className={`absolute -bottom-1 -right-1 text-[7px] font-black leading-none rounded px-[2px] ${parasiticMineCount > 0 ? 'bg-zinc-100 text-black' : 'bg-zinc-800 text-zinc-400'}`}>
+                                        {parasiticMineCount}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
@@ -7601,11 +7702,12 @@ export default function Game() {
             CSS zoom이 오프셋까지 축소하는 것도 같은 방향으로 겹친다.
             → left/translate 대신 전체 폭 flex 중앙정렬. zoom은 안쪽 알약에만 걸어 부모가 '축소된 실제
               크기'를 기준으로 가운데를 맞추게 한다. PC 사이드바 보정은 컨테이너 우측 패딩으로 유지. */}
-        {(pendingAction || (game && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
+        {(pendingAction || (game && Date.now() >= turnBarSuppressedUntil && game.hasDoneMainAction && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.pendingTurnEndPlayerId && !game.botPlayerIds?.includes(playerId) && (!game.pendingTFMarsGaiaProject || game.pendingTFMarsGaiaProject.playerId !== playerId) && (!game.pendingShipTechMine || game.pendingShipTechMine.playerId !== playerId) && (!game.pendingSpaceshipFedMine || game.pendingSpaceshipFedMine.playerId !== playerId) && (!game.pendingLostPlanet || game.pendingLostPlanet.playerId !== playerId))) && (
+          /* 나타날 때만 애니메이션. 사라질 땐(리셋·턴 종료·확인) 바로 지운다 — 예전 스프링 exit 가 0.5초 동안
+             버튼을 남겨 '렉'으로 보였고, 그 사이 남은 End Turn 이 눌릴 수도 있었다. */
           <motion.div
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -50, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed top-20 left-0 right-0 z-[130] flex justify-center px-2 pointer-events-none"
             style={{ paddingRight: !isMobileViewport && isSidebarOpen ? effectiveSidebarWidth : undefined }}
@@ -7690,7 +7792,7 @@ export default function Game() {
                     variant="outline"
                     size="sm"
                     className="h-7 px-3 border-red-500/30 text-red-500 hover:bg-red-500/10 text-[10px] font-black uppercase tracking-tight"
-                    onClick={() => GameClient.resetTurn(gameId!)}
+                    onClick={() => { suppressTurnBar(); GameClient.resetTurn(gameId!); }}
                   >
                     Reset
                   </Button>
@@ -7701,9 +7803,11 @@ export default function Game() {
                       if (gameId) {
                         const pendSteps = game.players[playerId!]?.pendingTerraformSteps ?? 0;
                         if (pendSteps > 0 && !window.confirm(`테라포밍 ${pendSteps}단계가 남아 있습니다. 사용하지 않고 턴을 종료할까요?`)) return;
+                        suppressTurnBar();
                         try {
                           await GameClient.endTurn(gameId);
                         } catch (e: any) {
+                          setTurnBarSuppressedUntil(0);
                           toast({ title: '턴 종료 실패', description: e.message, variant: 'destructive' });
                         }
                       }

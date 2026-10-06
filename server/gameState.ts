@@ -158,6 +158,14 @@ const DELTA_ROOM_PREFIX = '__game_delta_v1__:';
 const deltaRoomName = (gameId: string) => `${DELTA_ROOM_PREFIX}${gameId}`;
 const GAME_DELTA_ENABLED = process.env.GAME_DELTA_ENABLED !== '0';
 
+/** 키 순서와 무관한 JSON 문자열 — 객체 키를 정렬해 직렬화한다. JSON 규칙(undefined 생략, toJSON 우선,
+ *  열거 불가 필드 제외)은 그대로 따른다(toJSON 은 replacer 보다 먼저 적용된다). */
+export function stableJson(value: unknown): string {
+	return JSON.stringify(value, (_k, v) => (v && typeof v === 'object' && !Array.isArray(v))
+		? Object.fromEntries(Object.keys(v).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+		: v);
+}
+
 export function createGameDelta(
 	prev: Record<string, unknown>,
 	next: Record<string, unknown>,
@@ -426,7 +434,11 @@ function emitGameUpdatedNow(io: any, game: any) {
 	// 서버에서도 실제 적용 결과를 확인한다. 실패하면 해당 업데이트만 전체 스냅샷으로 폴백한다.
 	let useFullSnapshot = false;
 	try {
-		useFullSnapshot = JSON.stringify(applyGameStateDelta(previous.game, delta)) !== currentJson;
+		// [사용자 2026-10-05] 글자 단위 비교는 '키 순서'까지 따져서, 새 최상위 키가 생기는 업데이트(광산 짓기 →
+		//   queuedPowerOffers 등)마다 적용 결과의 키가 맨 뒤에 붙어 '불일치'로 오판 → 판 전체(약 50KB)를 보냈다
+		//   (같은 내용의 델타는 약 7KB, 키 순서만 무시하면 3회 모두 일치 — 실측). 클라는 키 순서를 쓰지 않으므로
+		//   내용만 비교한다.
+		useFullSnapshot = stableJson(applyGameStateDelta(previous.game, delta)) !== stableJson(payload);
 	} catch {
 		useFullSnapshot = true;
 	}
@@ -980,6 +992,24 @@ export function buildRollbackSummary(game: GaiaGameState): string | null {
 }
 const TURN_HISTORY_CAP = 300; // 안전 상한(게임당). dedup 후엔 보통 이보다 훨씬 적음.
 
+/**
+ * [ai2 학습 데이터 2026-10-05] 사람 좌석의 턴 시작 전체 상태를 data/human-states/<날짜>_<gameId>.jsonl에 한 줄씩 남긴다.
+ * 저장된 사람 게임(data/human-games)엔 게임 설정(라운드 미션·기술 타일 배치 등)이 없어 결정 시점 상태를 재구성할 수 없었다.
+ * 라벨(그 턴에 사람이 한 수)은 human-games의 actionJournal과 (playerId, 시각)으로 맞춘다.
+ * 비용: 롤백 히스토리용으로 이미 만든 gzip 버퍼를 재사용 — 추가는 비동기 파일 쓰기뿐. AI2_HUMAN_STATES=0이면 끈다.
+ */
+function recordHumanDecisionState(game: ServerGameState, playerId: string, entry: any, gz: Buffer): void {
+	if (process.env.AI2_HUMAN_STATES === '0') return;
+	if ((game.botPlayerIds ?? []).includes(playerId)) return; // 사람 좌석만
+	try {
+		const dir = path.join(process.cwd(), 'data', 'human-states');
+		fs.mkdirSync(dir, { recursive: true });
+		const date = new Date((game as any).createdAt ?? Date.now()).toISOString().slice(0, 10);
+		const line = JSON.stringify({ gameId: game.id, playerId, ts: Date.now(), seq: entry.gameLogSeqAt, round: entry.roundNumber, idx: entry.currentPlayerIndex, phase: String(game.currentPhase), gz: gz.toString('base64') });
+		fs.appendFile(path.join(dir, `${date}_${game.id}.jsonl`), line + '\n', () => { /* 기록 실패는 게임에 무영향 */ });
+	} catch { /* 기록 실패는 게임에 무영향 */ }
+}
+
 function pushTurnHistory(game: ServerGameState, playerId: string): void {
 	if ((game as any).simulation) return; // 자가대전/시뮬은 롤백 불필요 → 오버헤드 스킵
 	const entry: any = game.turnStartState?.[playerId];
@@ -989,6 +1019,7 @@ function pushTurnHistory(game: ServerGameState, playerId: string): void {
 	// dedup: 직전 엔트리와 같은 seq(그 사이 새 로그 없음)면 스킵 — 재진입/중복 캡처 제거(핵심). 실측: ~1102콜 → 32개 유지.
 	if (hist.length && hist[hist.length - 1].seq === entry.gameLogSeqAt) return;
 	const gz = zlib.gzipSync(Buffer.from(JSON.stringify(entry.fullGameState)), { level: 1 });
+	recordHumanDecisionState(game, playerId, entry, gz);
 	hist.push({ seq: entry.gameLogSeqAt, round: entry.roundNumber, playerId, playerName: game.players[playerId]?.name ?? playerId, currentPlayerIndex: entry.currentPlayerIndex, gz, gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength ?? 0, ts: Date.now(), phase: String(game.currentPhase) });
 	if (hist.length > TURN_HISTORY_CAP) hist.splice(0, hist.length - TURN_HISTORY_CAP);
 }
@@ -997,6 +1028,7 @@ function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void
 	// [사용자 2026-08-26] 수입 선택이 걸려 있는 중간 상태는 롤백 지점으로 부적합 — 어떤 경로로 와도 캡처하지 않는다
 	// (executePassRound 전환 경로 스킵과 이중 방어. 깨끗한 스냅샷은 수입·가이아 완료 후 라운드 시작에서 찍힌다).
 	if (game.pendingIncomeOrder) return;
+	if ((game as any).headless) return; // [ai2] 헤드리스 시뮬은 롤백 지점 불필요 — 턴마다 전체 상태 사본(~330KB) 생성 스킵
 	if (!game.turnStartState) game.turnStartState = {};
 	if (game.turnStartState[playerId]?.fullGameState) {
 		if (!game.prevTurnStartState) game.prevTurnStartState = {};
@@ -1049,6 +1081,31 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
  *  (사용자: "롤백하면 있던 로그가 사라져서 헷갈린다 — 빨간 배경/엑스로 남겨 달라")
  *  턴 리셋(내 턴 되돌리기)은 호출이 6곳이고 매번 빨간 줄이 쌓이면 로그가 지저분해지므로 기본값은 종전대로 '삭제'.
  *  seq 경로에서만 표시한다 — 레거시 길이 슬라이스 경로는 표시된 엔트리가 길이에 섞이면 계산이 틀어진다. */
+/**
+ * [버그수정 2026-10-05 사용자 "리셋(롤백)했을 때 로그가 깔끔하게 안 남는다 — ✕ 가 일부에만 붙는다"]
+ * 스냅샷 지점(seqAt) 이후에 생긴 '살아 있는' 로그 줄을 골라낸다 — 리셋·롤백·프리액션 되돌리기 공용.
+ * 예전엔 'seq 차이 = 지울 줄 수'로 보고 꼬리에서 그만큼 잘랐다. 그런데 롤백한 줄은 지우지 않고 ✕(rolledBack)로
+ * 꼬리에 남기므로, 그보다 앞 지점으로 다시 롤백하면 꼬리의 ✕ 줄을 다시 세고 정작 되돌린 줄은 살아 있는 채로
+ * 남았다(실측: 25번 지점 롤백 뒤 21번 지점으로 다시 롤백 → 21~24번 4줄이 ✕ 없이 '실제 행동'으로 잔류).
+ * → 개수가 아니라 seq 로 고른다. 이미 ✕ 인 줄은 건드리지 않는다. seq 없는 줄(구버전·종료 줄)은
+ *   첫 대상 줄보다 뒤에 있으면 그 이후에 생긴 것이므로 함께 고른다.
+ */
+function splitLogAfterSeq(log: NonNullable<GaiaGameState['gameLog']>, seqAt: number): { removedIdx: Set<number>; removed: NonNullable<GaiaGameState['gameLog']> } {
+	const removedIdx = new Set<number>();
+	let firstIdx = -1;
+	log.forEach((e, i) => {
+		if ((e as any).rolledBack) return;
+		const seq = (e as any).seq;
+		if (typeof seq === 'number' && seq > seqAt) { removedIdx.add(i); if (firstIdx < 0) firstIdx = i; }
+	});
+	if (firstIdx >= 0) {
+		log.forEach((e, i) => {
+			if (i > firstIdx && !(e as any).rolledBack && typeof (e as any).seq !== 'number') removedIdx.add(i);
+		});
+	}
+	return { removedIdx, removed: log.filter((_, i) => removedIdx.has(i)) };
+}
+
 function restoreGameLogForReset(game: ServerGameState, startState: any, playerId: string, opts?: { markRolledBack?: boolean; onRemoved?: (removed: NonNullable<GaiaGameState['gameLog']>) => void }): NonNullable<GaiaGameState['gameLog']> {
 	// gameLogState(전체 복제)는 더 이상 저장하지 않는다(메모리). 항상 길이 기준으로 라이브 로그를 잘라 복원하고,
 	// 해당 플레이어가 이번 턴에 남긴 되돌릴 수 있는 액션 로그가 꼬리에 남아 있으면 제거한다.
@@ -1058,15 +1115,13 @@ function restoreGameLogForReset(game: ServerGameState, startState: any, playerId
 	// 단조 증가 카운터(gameLogSeq)로 '턴 시작 이후 추가된 엔트리 수'를 구해 꼬리에서 그만큼 잘라낸다(shift 무관·정확).
 	const liveSeq = (game as any).gameLogSeq;
 	if (typeof liveSeq === 'number' && typeof startState.gameLogSeqAt === 'number') {
-		const added = Math.max(0, Math.min(live.length, liveSeq - startState.gameLogSeqAt));
-		const kept = live.slice(0, live.length - added);
-		const removed = added > 0 ? live.slice(live.length - added) : [];
+		const { removedIdx, removed } = splitLogAfterSeq(live, startState.gameLogSeqAt);
 		if (removed.length) opts?.onRemoved?.(removed);
-		// 이미 표시된 과거 롤백 엔트리는 seq를 올리지 않으므로 위 added 계산에 섞이지 않는다(꼬리에만 쌓임).
-		if (opts?.markRolledBack && removed.length) {
-			return [...kept, ...removed.map(e => ({ ...e, rolledBack: true as const }))];
+		if (opts?.markRolledBack) {
+			// 되돌린 줄은 그 자리에서 ✕ 표시만 붙인다(순서 그대로)
+			return live.map((e, i) => (removedIdx.has(i) ? { ...e, rolledBack: true as const } : e));
 		}
-		return kept;
+		return live.filter((_, i) => !removedIdx.has(i));
 	}
 	// 레거시(seq 없는 구 스냅샷) 폴백: 기존 길이 슬라이스 + 꼬리 트림
 	const logs = live.slice(0, startState.gameLogLength || 0) as NonNullable<GaiaGameState['gameLog']>;
@@ -2302,10 +2357,14 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	}
 	for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 	game.currentPhase = 'gameEnd';
-	turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
-	rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
-	saveFinalGameState(game);
-	flushGameData(game);
+	// [ai2 2026-10-05] 시뮬 상태(MCTS·헤드리스 구동기)가 종료에 닿아도 라이브 부수효과 금지 — 같은 game.id라 라이브 게임의
+	//   롤백 히스토리를 지우고 final_state 덮어쓰기·사람 데이터 export·점수사이트 제출까지 시도하던 경로(헤드리스 검증 중 발견).
+	if (!(game as any).simulation) {
+		turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
+		rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
+		saveFinalGameState(game);
+		flushGameData(game);
+	}
 	clampPlayerResources(game);
 	emitGameUpdated(io, game);
 }
@@ -3451,6 +3510,17 @@ export function helperStartNewRoundTurn(io: SocketIOServer, game: GaiaGameState)
 
 	log(`[RoundStart] New round ${game.roundNumber} action phase starts. First player: ${currentId}`, 'game', undefined, { simulation: (game as any).simulation });
 
+	// [ai2 헤드리스 구동기 2026-10-05] AI_ROUND_START_SNAPSHOTS=1이면 액션 단계 시작 시점(수입·가이아 단계 완료, 선 플레이어 차례)의
+	// 전체 상태를 덤프 — 헤드리스 구동기(server/ai2/headlessDriver.ts)의 깨끗한 시작점. R1 포함(AI_ROUND_SNAPSHOTS는 R2-5 전환 중간 상태).
+	if (process.env.AI_ROUND_START_SNAPSHOTS === '1' && !(game as any).simulation) {
+		try {
+			const dir = path.join(process.cwd(), 'logs', 'round-start');
+			fs.mkdirSync(dir, { recursive: true });
+			const { gameLog: _gl, turnStartState: _ts, freeActionUndoState: _fa, ...rest } = game as any;
+			fs.writeFileSync(path.join(dir, `${game.id}_r${game.roundNumber}.json`), JSON.stringify(rest));
+		} catch { /* 스냅샷 실패는 게임에 무영향 */ }
+	}
+
 	// [분석] 라운드별 빌드 페이스 스냅샷 (봇 약점 진단용). AI_PACE_LOG=1 일 때만.
 	if (process.env.AI_PACE_LOG === '1') {
 		for (const pid of game.turnOrder) {
@@ -4287,7 +4357,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const bots = new Set(game.botPlayerIds || []);
 			// [표시] 몇 턴 전인지 + 되돌릴 로그 내용(target.seq 이후 로그 요약, 최근 8개)
 			const turnsBack = hist.length - 1 - targetIdx; // target 이후 턴 시작 수
-			const undone = (game.gameLog || []).filter(e => typeof (e as any).seq === 'number' && (e as any).seq > target.seq);
+			const undone = (game.gameLog || []).filter(e => !(e as any).rolledBack && typeof (e as any).seq === 'number' && (e as any).seq > target.seq);
 			const undoneCount = undone.length;
 			const undoneActions = undone.slice(-8).map(e => `${e.playerName}: ${e.action}`);
 
@@ -5025,6 +5095,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (shipTile.type === 'ship_twilight') {
 				if (actionIndex === 1) {
 					if (player.qic < 3) return;
+					// [2026-10-05] 재수령할 연방이 없으면 거부 — 3QIC만 내고 고를 보상이 없는 pendingTwilightFederation이 세워져 턴이 막혔다
+					//   (9/29 봇 쪽 twiFireEarly 가드와 같은 조건, 헤드리스 무작위 대국에서 재현).
+					if (getFederationEntries(player).length === 0) return;
 					player.qic -= 3;
 					shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 					shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -5308,8 +5381,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			const art = ARTIFACTS.find(a => a.id === artifactId)!;
 			if (art.id === 'art-fed-once') {
-				game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
-				addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+				// [2026-10-05] 연방이 없으면 고를 보상이 없어 보류가 영영 안 풀린다(턴 막힘) — 보류 없이 혜택 없음으로 기록
+				if (getFederationEntries(player).length === 0) addGameLog(game, playerId, 'Artifact: Federation benefit', 'No federation — no benefit', art.id);
+				else {
+					game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
+					addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+				}
 			} else if (art.id === 'art-vp-gaia') {
 				const lvl = player.research.gaiaProject ?? 0;
 				const vp = lvl * 3;
@@ -5994,8 +6071,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 					const snapSeq = (restoredGame as any).gameLogSeq;
 					let liveLog = (game.gameLog || []) as NonNullable<GaiaGameState['gameLog']>;
 					if (typeof liveSeq === 'number' && typeof snapSeq === 'number') {
-						const added = Math.max(0, Math.min(liveLog.length, liveSeq - snapSeq));
-						liveLog = liveLog.slice(0, liveLog.length - added);
+						const { removedIdx } = splitLogAfterSeq(liveLog, snapSeq);
+						liveLog = liveLog.filter((_, i) => !removedIdx.has(i));
 					}
 					restoredGame.gameLog = liveLog;
 				}
@@ -7303,6 +7380,7 @@ export function saveActionStartState(game: ServerGameState, playerId: string) {
 	if (!game.hasDoneMainAction) {
 		clearFreeActionUndo(game);
 	}
+	if ((game as any).headless) return; // [ai2] 헤드리스 시뮬은 액션 취소 지점 불필요(전체 상태 사본 생성 스킵 — 지연 검증 비용의 절반)
 	// 이미 해당 플레이어의 턴 시작 상태가 저장되어 있다면(이 턴의 첫 번째 액션이 아니라면) 덮어쓰지 않는다.
 	if (game.turnStartState?.[playerId]) return;
 	if (game.hasDoneMainAction) return;
@@ -9234,10 +9312,12 @@ export function executePassRound(
 			}
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
-			turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
-			rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
-			saveFinalGameState(game);
-			flushGameData(game);
+			if (!(game as any).simulation) { // [ai2 2026-10-05] 시뮬 종료는 라이브 부수효과 금지(위 종료 경로 주석 참조)
+				turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
+				rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
+				saveFinalGameState(game);
+				flushGameData(game);
+			}
 			clampPlayerResources(game); emitGameUpdated(io, game);
 			return true;
 		}
@@ -9898,6 +9978,7 @@ export function executeUseShipAction(
 	if (shipTile.type === 'ship_twilight') {
 		if (actionIndex === 1) {
 			if (player.qic < 3) return false;
+			if (getFederationEntries(player).length === 0) return false; // [2026-10-05] 재수령할 연방 없음 → 거부(소켓 경로와 동일)
 			player.qic -= 3;
 			shipState.usedActionIndices = [...(shipState.usedActionIndices ?? []), actionIndex];
 			shipState.actionsUsed = shipState.usedActionIndices.length;
@@ -10144,6 +10225,13 @@ export function executeUseShipAction(
 }
 
 /** Bot용: 수익 단계 파워/토큰 자동 선택. select_all_income_items + finish_income_selection 재현. */
+/** 봇 수익 자동수령 뒤 수익 체인(다음 대기자·액션 단계 시작) 재개. 라이브는 기존대로 100ms 뒤(소켓 방송 순서 유지),
+ *  [ai2 헤드리스 구동기 2026-10-05] game.headless(시뮬 전용, 라이브 미설정)면 즉시 동기 실행 — 타이머가 끝난 시뮬 상태를 나중에 건드리지 않게. */
+function continueIncomeChain(io: SocketIOServer, game: ServerGameState): void {
+	if ((game as any).headless) { helperTriggerIncomePhase(io, game); return; }
+	setTimeout(() => helperTriggerIncomePhase(io, game), 100);
+}
+
 export function executeBotIncomeSelection(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string
@@ -10158,7 +10246,7 @@ export function executeBotIncomeSelection(
 		game.pendingIncomeOrder = null;
 		clampPlayerResources(game);
 		emitGameUpdated(io, game);
-		setTimeout(() => helperTriggerIncomePhase(io, game), 100);
+		continueIncomeChain(io, game);
 		return true;
 	}
 
@@ -10179,7 +10267,7 @@ export function executeBotIncomeSelection(
 	game.pendingIncomeOrder = null;
 	clampPlayerResources(game);
 	emitGameUpdated(io, game);
-	setTimeout(() => helperTriggerIncomePhase(io, game), 100);
+	continueIncomeChain(io, game);
 	return true;
 }
 
@@ -11324,8 +11412,12 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 
 	const art = ARTIFACTS.find(a => a.id === artifactId)!;
 	if (art.id === 'art-fed-once') {
-		game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
-		addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+		// [2026-10-05] 연방 없음 → 보류 없이 혜택 없음(소켓 경로와 동일)
+		if (getFederationEntries(player).length === 0) addGameLog(game, playerId, 'Artifact: Federation benefit', 'No federation — no benefit', art.id);
+		else {
+			game.pendingTwilightFederation = { playerId, shipTileId: twilightTile.id, fromArtifact: true };
+			addGameLog(game, playerId, 'Artifact: Federation benefit', 'Choose one federation reward', art.id);
+		}
 	} else if (art.id === 'art-vp-gaia') {
 		const lvl = player.research.gaiaProject ?? 0;
 		const vp = lvl * 3;

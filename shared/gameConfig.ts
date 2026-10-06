@@ -2789,6 +2789,48 @@ export function getNeighborCoords(q: number, r: number): Array<{ q: number; r: n
   return HEX_NEIGHBORS.map(([dq, dr]) => ({ q: q + dq, r: r + dr }));
 }
 
+/**
+ * 플레이어 연방에 속한 칸 전체(저장된 연방 칸 목록을 맞닿은 내 건물·기생광산·우주정거장까지 넓힌 것).
+ * 서버는 연방을 만들 때 쓴 칸만 저장하므로, 나중에 우주정거장 등으로 이어진 기존 건물은 목록에 없다.
+ * 맵 호버 하이라이트와 상태창 '연방 건물 파워'가 같은 범위를 보도록 이 함수 하나로 계산한다.
+ * [사용자 2026-10-04] 하이브가 14파워 전부 이어졌는데 상태창이 12/14로 뜨던 문제.
+ */
+export function getExpandedFederationHexIds(
+  map: Array<Pick<HexTile, 'id' | 'q' | 'r' | 'ownerId' | 'structure' | 'parasiticMine' | 'spaceStation'>>,
+  seeds: readonly string[],
+  playerId: string,
+): Set<string> {
+  const expanded = new Set<string>(seeds);
+  if (seeds.length === 0) return expanded;
+  const byId = new Map(map.map((t) => [t.id, t]));
+  const byCoord = new Map(map.map((t) => [`${t.q},${t.r}`, t]));
+  const neighborTiles = (t: { q: number; r: number }) =>
+    getNeighborCoords(t.q, t.r).map((c) => byCoord.get(`${c.q},${c.r}`)).filter((x): x is NonNullable<typeof x> => Boolean(x));
+  const isNode = (t: (typeof map)[number]) =>
+    (t.ownerId === playerId && Boolean(t.structure) && t.structure !== 'ship')
+    || t.parasiticMine?.ownerId === playerId
+    || (t.spaceStation as { ownerId?: string } | null | undefined)?.ownerId === playerId;
+  const addComponent = (start: (typeof map)[number]) => {
+    if (!isNode(start)) return;
+    const queue = [start];
+    expanded.add(start.id);
+    for (let i = 0; i < queue.length; i += 1) {
+      for (const n of neighborTiles(queue[i])) {
+        if (expanded.has(n.id) || !isNode(n)) continue;
+        expanded.add(n.id);
+        queue.push(n);
+      }
+    }
+  };
+  for (const id of seeds) {
+    const seed = byId.get(id);
+    if (!seed) continue;
+    addComponent(seed);
+    neighborTiles(seed).forEach(addComponent);
+  }
+  return expanded;
+}
+
 export function getNeighbors(map: HexTile[], tile: HexTile): HexTile[] {
   const coords = getNeighborCoords(tile.q, tile.r);
   return map.filter(t => coords.some(c => t.q === c.q && t.r === c.r));

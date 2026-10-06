@@ -52,6 +52,16 @@
   }
 }
 
+/* [사용자 제보 2026-10-04] "아무것도 안 하고 게임하는데 화면이 하얗게 됐다가 돌아온다" — chrome://gpu 에
+ *   'GPU process crashed' 확인. 반투명 흐림(backdrop-filter)은 그 뒤에 있는 걸 매번 다시 그려 흐리게 하는
+ *   가장 비싼 GPU 효과인데, 화면 높이 전체를 덮는 상태창·채팅창·전체 화면 창 등 65곳에 걸려 있었다
+ *   (가만히 있을 때도 12개, 화면의 절반 면적). 배경이 대부분 80~95% 불투명이라 흐림을 빼도 겉모습은 거의 같다.
+ *   → 앱 전체에서 끈다. 컴포넌트마다 지우면 새로 추가되는 곳에서 다시 생기므로 여기 한 곳에서 막는다. */
+*, *::before, *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 /* Custom Hex Grid Styles */
 .hex-grid-container {
   filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));

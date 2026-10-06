@@ -5205,7 +5205,13 @@ export class BotLogic {
                     if (ore < 2 || credits < 2) { BotLogic.traceMine(tile.id, 4592); continue; } // 1O(mine) + 1O(gaia cost)
                     if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4593); continue; }
                 } else {
-                    if (totalQicNeeded > maxPayQicForMine) { BotLogic.traceMine(tile.id, 4595); continue; }
+                    // [flag: gaiaQicOverReserve 2026-10-05] 사람 로그 갭(9/19~ 180판): R3+ QIC 지불 가이아 광산 사람 302건 중 131건(43%)이
+                    //   봇 후보에 없음 — 사람 지갑 QIC 1~2가 대부분. 유력 원인 = computeShipQicReserve ②(리벨/트왈 탑승 중 3Q 미사용 → 예약 3)가
+                    //   라운드 내내 QIC 1~2를 묶어 사거리 안(0점프) 가이아도 못 지음. R3+·사거리 QIC 0인 가이아에 한해 예약분까지 지불 허용
+                    //   (후보 개방만, 선택은 정책/MCTS).
+                    const overReserve = getPlayerFlag(playerId, 'gaiaQicOverReserve', false)
+                        && (game.roundNumber ?? 1) >= 3 && neededQicForRange === 0 ? qicReserveForShips : 0;
+                    if (totalQicNeeded > maxPayQicForMine + overReserve) { BotLogic.traceMine(tile.id, 4595); continue; }
                     if (totalQicNeeded > 4) { BotLogic.traceMine(tile.id, 4596); continue; } // QIC 캡을 2에서 4로 늘려 장거리 가이아 진출 허용
                 }
 
