@@ -18,8 +18,9 @@ for i in 0 1 2 3 4 5; do
 done; wait
 grep -h "완료" data/ai2/tmp/sp${NEXT}_*.log | sed 's/^/   /' | tee -a "$LOG"
 
-say "② v${NEXT} 학습: v${PREV}에서 이어, 자가대국 + 기존 봇 데이터 30%"
-python3 -u scripts/ai2/train_ai2.py --data data/ai2/selfplay_it${NEXT} --old data/ai2/selfplay --old-frac 0.3 --init data/ai2/model_v${PREV}.pt \
+say "② v${NEXT} 학습: v${PREV}에서 이어, 이번·직전 자가대국 + 기존 봇 데이터 30%"
+DATA=data/ai2/selfplay_it${NEXT}; [ -d data/ai2/selfplay_it${PREV} ] && DATA="$DATA,data/ai2/selfplay_it${PREV}"  # 직전 반복 자가대국도 함께(리플레이 버퍼)
+python3 -u scripts/ai2/train_ai2.py --data $DATA --old data/ai2/selfplay --old-frac 0.3 --init data/ai2/model_v${PREV}.pt \
   --val-starts $VAL --epochs 3 --lr 3e-4 --out data/ai2/model_v${NEXT}.pt > data/ai2/tmp/train_v${NEXT}.log 2>&1
 grep -E "행 \(|결정|기준선|ep[0-9]|최고" data/ai2/tmp/train_v${NEXT}.log | sed 's/^/   /' | tee -a "$LOG"
 
