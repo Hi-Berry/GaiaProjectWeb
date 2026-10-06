@@ -230,6 +230,86 @@ function RejoinLinkPanel({ game }: { game: GameState }) {
   );
 }
 
+/** [사용자 2026-10-06] 좌석 비밀번호 강제 설정 — 이어하기 링크(?as=…)가 길어서, 관리자가 비번을 정해 주고
+ *  플레이어는 게임 주소에서 '내 좌석 이어하기'에 이름 + 비번으로 들어오게 한다. 기존 비번은 덮어쓴다. */
+function SeatPasswordRow({ game, playerId }: { game: GameState; playerId: string }) {
+  const name = game.players[playerId]?.name ?? playerId;
+  const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null); // 마지막으로 설정한 비번(안내 문구용)
+  const [message, setMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+  const notice = done ? `게임 주소: ${window.location.origin}/game/${game.id}\n'내 좌석 이어하기'에서 이름: ${name} / 비밀번호: ${done}` : '';
+
+  const save = async () => {
+    if (!pw.trim()) { setMessage('비밀번호를 입력하세요'); return; }
+    setBusy(true);
+    setMessage('');
+    try {
+      await GameClient.adminSetSeatPassword(game.id, playerId, pw, ADMIN_PASSWORD);
+      setDone(pw);
+      setPw('');
+      setMessage('설정했습니다');
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(notice); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    catch { window.prompt('아래 안내를 복사하세요', notice); }
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-zinc-200 w-28 truncate shrink-0" title={name}>{name}</span>
+        <Input
+          value={pw}
+          onChange={(e) => { setPw(e.target.value); setMessage(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+          placeholder="새 비밀번호"
+          autoComplete="off"
+          className="h-7 w-32 text-xs bg-zinc-900 border-white/10"
+          aria-label={`${name} 좌석 비밀번호`}
+        />
+        <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-500" disabled={busy} onClick={save}>{busy ? '설정 중…' : '설정'}</Button>
+        {message && <span className="text-[10px] text-zinc-500">{message}</span>}
+      </div>
+      {done && (
+        <div className="flex flex-wrap items-center gap-2 pl-[7.5rem]">
+          <span className="text-[11px] text-violet-200">이름 <b>{name}</b> · 비밀번호 <b>{done}</b></span>
+          <Button size="sm" variant="outline" className="h-6 text-[10px] border-violet-500/40 text-violet-200 hover:bg-violet-500/20" onClick={copy}>
+            {copied ? '복사됨 ✓' : '안내 문구 복사'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeatPasswordPanel({ game }: { game: GameState }) {
+  const bots = new Set(game.botPlayerIds ?? []);
+  const order = (game.turnOrder && game.turnOrder.length ? game.turnOrder : Object.keys(game.players))
+    .filter((id) => game.players[id] && !bots.has(id));
+  return (
+    <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 p-3 space-y-2">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-violet-300">좌석 비밀번호 설정</div>
+        <div className="text-[10px] text-zinc-400">
+          비밀번호를 정해 주면 그 사람은 게임 주소에서 <b>'내 좌석 이어하기'</b>에 <b>자기 이름 + 이 비밀번호</b>로 들어옵니다(이름은 대소문자 무관).
+          기존 비밀번호는 덮어씁니다.
+        </div>
+      </div>
+      {order.length === 0 && <div className="text-[10px] text-zinc-500">사람 플레이어가 없습니다.</div>}
+      <div className="space-y-1.5">
+        {order.map((id) => <SeatPasswordRow key={id} game={game} playerId={id} />)}
+      </div>
+    </div>
+  );
+}
+
 function ForceEndGameButton({ gameId, ended }: { gameId: string; ended: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -557,6 +637,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
         ) : (
           <ScrollArea className="max-h-[70vh]">
             <div className="p-5 space-y-3">
+              <SeatPasswordPanel game={game} />
               <RejoinLinkPanel game={game} />
               <ForceEndGameButton gameId={game.id} ended={game.currentPhase === 'gameEnd'} />
               <SetCurrentTurnPanel game={game} />

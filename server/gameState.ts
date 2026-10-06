@@ -4773,6 +4773,23 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true });
 		});
 
+		// GM/Admin: 좌석 비밀번호 강제 설정 [2026-10-06 사용자] "링크(?as=…)가 길다 — 내가 비번을 정해 주고 그걸로 로그인하게"
+		//   기존 비번이 있어도 덮어쓴다. 로그인은 기존 '내 좌석 이어하기'(이름 + 비번 → account_rejoin) 그대로.
+		//   비번 원문은 로그에 남기지 않는다. 저장은 기존 좌석 비번과 같은 서버 메모리(accounts.ts).
+		socket.on('admin_set_seat_password', ({ gameId, targetPlayerId, password, adminCode }: { gameId: string; targetPlayerId: string; password: string; adminCode: string }, callback?: (r: { ok?: boolean; name?: string; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			const target = game.players[targetPlayerId];
+			if (!target) { callback?.({ error: 'Player not found' }); return; }
+			if ((game.botPlayerIds ?? []).includes(targetPlayerId)) { callback?.({ error: '봇 좌석에는 비밀번호를 걸 수 없습니다' }); return; }
+			const pw = String(password ?? '');
+			if (!pw.trim()) { callback?.({ error: '비밀번호를 입력하세요' }); return; }
+			setSeatPassword(gameId, targetPlayerId, target.name, pw);
+			log(`Admin: seat password set for ${target.name} (${targetPlayerId})`, 'game', gameId);
+			callback?.({ ok: true, name: target.name });
+		});
+
 		// GM/Admin: 게임 즉시 종료 → 최종 점수 계산 후 점수 화면 표시 (테스트용)
 		socket.on('admin_force_end_game', ({ gameId, adminCode }: { gameId: string; adminCode: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
 			const game = games.get(gameId);

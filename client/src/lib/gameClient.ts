@@ -438,6 +438,17 @@ export const GameClient = {
   },
 
   /** GM/Admin: 현재 턴을 특정 플레이어로 강제 지정 (디버그용, 서버 가드 있음) */
+  /** 관리자: 좌석 비밀번호 강제 설정(덮어쓰기). 로그인은 '내 좌석 이어하기'에 이름 + 이 비번. */
+  adminSetSeatPassword(gameId: string, targetPlayerId: string, password: string, adminCode: string): Promise<{ name: string }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('admin_set_seat_password', { gameId, targetPlayerId, password, adminCode }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve({ name: response?.name ?? '' });
+      });
+    });
+  },
+
   adminSetCurrentTurn(gameId: string, targetPlayerId: string, adminCode: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const s = getSocket();
