@@ -2965,7 +2965,7 @@ export default function Game() {
                             <tr key={label} className="border-b border-white/5 even:bg-white/[0.035] hover:bg-white/[0.07]">
                               <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">{negLabels.has(label) ? `${label}(−)` : label}</td>
                               {cols.map(c => (
-                                label === '파워 수령' && valOf(c, label) !== 0
+                                label === '파워 수령' && (valOf(c, label) !== 0 || leechBreakdown(game, c.pid).some((r) => r.power > 0)) // 공짜(0VP) 수령만 있어도 툴팁
                                   ? (
                                     <LeechTooltip key={c.pid} game={game} pid={c.pid} total={-valOf(c, label)}>
                                       <td className="py-1.5 px-3 text-center cursor-help">{cell(valOf(c, label))}</td>
@@ -3084,11 +3084,12 @@ export default function Game() {
                                 <span className="text-sm font-black text-emerald-400/90">+{remainingResourcesVp} VP</span>
                               </div>
                             )}
-                            {b.powerReceived > 0 && (
+                            {/* [사용자 2026-10-06] 공짜(0VP) 수령만 있어도 줄·툴팁 표시 — 받은 파워 내역을 보려는 용도 */}
+                            {(b.powerReceived > 0 || leechBreakdown(game, pid).some((r) => r.power > 0)) && (
                               <LeechTooltip game={game} pid={pid} total={b.powerReceived}>
                                 <div className="p-3 flex justify-between items-center group hover:bg-white/[0.07] transition-colors cursor-help">
-                                  <span className="text-xs font-bold text-red-400/80">파워 수령(−)</span>
-                                  <span className="text-sm font-black text-red-500">−{b.powerReceived} VP</span>
+                                  <span className={`text-xs font-bold ${b.powerReceived > 0 ? 'text-red-400/80' : 'text-zinc-400'}`}>파워 수령(−)</span>
+                                  <span className={`text-sm font-black ${b.powerReceived > 0 ? 'text-red-500' : 'text-zinc-500'}`}>−{b.powerReceived} VP</span>
                                 </div>
                               </LeechTooltip>
                             )}
