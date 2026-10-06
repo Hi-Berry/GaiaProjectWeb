@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FlaskConical, Gift, Lock } from 'lucide-react';
 import type { GaiaGameState as GameState, ResearchTrack, TechTile } from '@shared/gameConfig';
+import { ActionHistoryTip, useActionHistory, powerKey, shipKey } from '@/components/ActionHistoryTip';
 import { FACTIONS, RESEARCH_TRACKS, SHIP_TECH_BY_SHIP, SHIP_TECH_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, FEDERATION_REWARDS, ARTIFACTS, getFirstTrackTile, countGreenFederations, isTechTileCovered, SPACESHIP_FEDERATION_REWARDS, getFederationEntries } from '@shared/gameConfig';
 
 interface ResearchBoardProps {
@@ -187,6 +188,8 @@ const POWER_ACTION_BTN = {
 export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSkipTechTileSelection, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all', showPendingSelections }: ResearchBoardProps) {
     const showTech = section !== 'ships';
     const showShips = section !== 'tech';
+    // [사용자 2026-10-06] 액션 칸 호버 → 1라운드부터 사용 기록 툴팁(게임 로그에서 계산)
+    const actionHistory = useActionHistory(game);
     const showPending = showPendingSelections ?? !isMini; // 펜딩 안내 블록 — 모바일 R 오버레이(미니 렌더)는 true로 켬
     const players = Object.entries(game.players).map(([id, p]) => ({ ...p, id }));
     // [사용자] 발타크는 의회(PI) 없이는 Nav 트랙 진행 불가 → 그동안 Nav 마커(B 토큰)만 숨기고, 의회 지으면 표시.
@@ -801,17 +804,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     {game.powerActions.map((action) => {
                                         const usedByColor = action.isUsed && action.usedByPlayerId ? FACTIONS.find(f => f.id === game.players[action.usedByPlayerId!]?.faction)?.color : undefined;
                                         return (
+                                            <ActionHistoryTip key={action.id} game={game} uses={actionHistory[powerKey(action.id)]} title={`${action.label} (${action.cost} ${action.costType.toUpperCase()})`}>
                                             <button
-                                                key={action.id}
                                                 disabled={action.isUsed}
                                                 onClick={() => !action.isUsed && onUsePowerAction(action.id)}
-                                                className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
-                                                title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
+                                                className={`relative w-full h-full transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
                                             >
                                                 {/* [사용자] '사용됨' 표시: 어두운 오버레이 + 코너 색 점만 (전체 틴트·색 테두리는 정신 사나워 폐지). */}
                                                 {action.isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                 {usedByColor && <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />}
                                             </button>
+                                            </ActionHistoryTip>
                                         );
                                     })}
                                 </div>
@@ -975,21 +978,21 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                 : !isInShip ? `${SHIP_NAMES[tile.type] ?? '이'} 우주선에 입장해야 이 액션을 쓸 수 있습니다. 보드에서 우주선을 눌러 먼저 입장하세요.`
                                                                 : null;
                                                             return (
+                                                                <ActionHistoryTip key={idx} game={game} uses={actionHistory[shipKey(tile.type, actionNum)]} title={`${SHIP_NAMES[tile.type] ?? ''} #${actionNum} · ${label}${!isInShip && !isUsed ? ' (탑승 필요)' : ''}`}>
                                                                 <button
-                                                                    key={idx}
                                                                     aria-disabled={!canUse}
                                                                     onClick={() => {
                                                                         if (canUse) { onUseShipAction(tile.id, actionNum); return; }
                                                                         if (blockReason) toast({ title: '우주선 액션 불가', description: blockReason, variant: 'destructive' });
                                                                     }}
-                                                                    className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : blockReason ? 'cursor-not-allowed' : 'cursor-default'}`}
-                                                                    title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                                    className={`relative w-full h-full transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : blockReason ? 'cursor-not-allowed' : 'cursor-default'}`}
                                                                 >
                                                                     {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                                     {usedByColor && (
                                                                         <span className="absolute top-0 right-0 w-2 h-2 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
                                                                     )}
                                                                 </button>
+                                                                </ActionHistoryTip>
                                                             );
                                                         })}
                                                     </div>
@@ -1481,17 +1484,17 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                     {game.powerActions.map((action) => {
                                         const usedByColor = action.isUsed && action.usedByPlayerId ? FACTIONS.find(f => f.id === game.players[action.usedByPlayerId!]?.faction)?.color : undefined;
                                         return (
+                                            <ActionHistoryTip key={action.id} game={game} uses={actionHistory[powerKey(action.id)]} title={`${action.label} (${action.cost} ${action.costType.toUpperCase()})`}>
                                             <button
-                                                key={action.id}
                                                 disabled={action.isUsed}
                                                 onClick={() => !action.isUsed && onUsePowerAction(action.id)}
-                                                className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
-                                                title={action.isUsed ? `${action.label} (${action.cost} ${action.costType.toUpperCase()}) · 사용: ${action.usedByPlayerName ?? '?'}` : `${action.label} (${action.cost} ${action.costType.toUpperCase()})`}
+                                                className={`relative w-full h-full transition-colors ${action.isUsed ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-amber-300/25'}`}
                                             >
                                                 {/* [사용자] '사용됨' 표시: 어두운 오버레이 + 코너 색 점만 (전체 틴트·색 테두리는 정신 사나워 폐지). */}
                                                 {action.isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                 {usedByColor && <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />}
                                             </button>
+                                            </ActionHistoryTip>
                                         );
                                     })}
                                 </div>
@@ -1652,18 +1655,18 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     const usedByPlayer = usedBy ? game.players[usedBy] : undefined;
                                                                     const usedByColor = usedByPlayer?.faction ? FACTIONS.find(f => f.id === usedByPlayer.faction)?.color : undefined;
                                                                     return (
+                                                                        <ActionHistoryTip key={idx} game={game} uses={actionHistory[shipKey(tile.type, actionNum)]} title={`${SHIP_NAMES[tile.type] ?? ''} #${actionNum} · ${label}${!isInShip && !isUsed ? ' (탑승 필요)' : ''}`}>
                                                                         <button
-                                                                            key={idx}
                                                                             disabled={!canUse}
                                                                             onClick={() => canUse && onUseShipAction(tile.id, actionNum)}
-                                                                            className={`relative h-full border-r last:border-r-0 border-black/30 transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
-                                                                            title={label + (isUsed ? ` (사용: ${usedByPlayer?.name ?? '?'})` : !isInShip ? ' (우주선 탑승 필요)' : '')}
+                                                                            className={`relative w-full h-full transition-colors ${canUse ? 'cursor-pointer hover:bg-emerald-300/25' : 'cursor-default'}`}
                                                                         >
                                                                             {isUsed && <div className="absolute inset-0 bg-black/60 pointer-events-none" />}
                                                                             {usedByColor && (
                                                                                 <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/80 shadow" style={{ backgroundColor: usedByColor }} />
                                                                             )}
                                                                         </button>
+                                                                        </ActionHistoryTip>
                                                                     );
                                                                 })}
                                                             </div>
