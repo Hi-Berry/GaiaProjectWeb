@@ -58,8 +58,12 @@ async function makeNode(net: NetClient, state: ServerGameState, seat: string, d:
 export interface PuctStats { decisions: number; sims: number; expansions: number; illegal: number; ms: number; changedFromTop: number; depthMax: number }
 export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansions: 0, illegal: 0, ms: 0, changedFromTop: 0, depthMax: 0 });
 
-export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number } = {}): Policy {
+/** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
+export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number }) => void;
+
+export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
+	let rs = (opt.seed ?? 1) >>> 0 || 1; const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 	return async (game, d) => {
 		if (!d.options) return botFastPolicy(game, d);
 		if (d.kind !== 'main') { // 보류·리치는 기존 봇 선택
@@ -105,12 +109,18 @@ export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; 
 			for (const [n, i] of path) { n.N[i]++; n.W[i] += leafValue; n.visits++; }
 			if (path.length === 0 && root.child.every(c => c === null)) break;
 		}
-		// 최다 방문(동률이면 사전확률)
+		// 최다 방문(동률이면 사전확률). 자가대국 다양성: sampleUntilRound 이하 라운드는 방문 비율로 표본 추출.
 		let pick = -1;
 		for (let i = 0; i < root.moves.length; i++) {
 			if (root.child[i] === null || root.child[i] === undefined) continue;
 			if (pick < 0 || root.N[i] > root.N[pick] || (root.N[i] === root.N[pick] && root.priors[i] > root.priors[pick])) pick = i;
 		}
+		if (pick >= 0 && opt.sampleUntilRound && (game.roundNumber ?? 1) <= opt.sampleUntilRound) {
+			const tot = root.N.reduce((a, b, i) => a + (root.child[i] ? b : 0), 0);
+			let x = rnd() * tot;
+			for (let i = 0; i < root.moves.length; i++) { if (!root.child[i]) continue; x -= root.N[i]; if (x <= 0) { pick = i; break; } }
+		}
+		if (pick >= 0 && opt.onSearch) opt.onSearch({ game, seat, moves: root.moves, visits: root.moves.map((_, i) => (root.child[i] ? root.N[i] : 0)), pick });
 		st.ms += Date.now() - t0;
 		if (pick < 0) return null;
 		const top = root.priors.indexOf(Math.max(...root.priors));
