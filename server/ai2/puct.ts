@@ -59,7 +59,7 @@ export interface PuctStats { decisions: number; sims: number; expansions: number
 export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansions: 0, illegal: 0, ms: 0, changedFromTop: 0, depthMax: 0 });
 
 /** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
-export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number }) => void;
+export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number; rootQ: number; rootValue: number }) => void;
 
 export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
@@ -120,7 +120,10 @@ export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; 
 			let x = rnd() * tot;
 			for (let i = 0; i < root.moves.length; i++) { if (!root.child[i]) continue; x -= root.N[i]; if (x <= 0) { pick = i; break; } }
 		}
-		if (pick >= 0 && opt.onSearch) opt.onSearch({ game, seat, moves: root.moves, visits: root.moves.map((_, i) => (root.child[i] ? root.N[i] : 0)), pick });
+		// 루트 Q = 방문 가중 평균 가치(가치망 단독 예측보다 노이즈가 적은 가치 학습 목표)
+		const nSum = root.N.reduce((a, b) => a + b, 0), wSum = root.W.reduce((a, b) => a + b, 0);
+		const rootQ = nSum > 0 ? wSum / nSum : root.value;
+		if (pick >= 0 && opt.onSearch) opt.onSearch({ game, seat, moves: root.moves, visits: root.moves.map((_, i) => (root.child[i] ? root.N[i] : 0)), pick, rootQ, rootValue: root.value });
 		st.ms += Date.now() - t0;
 		if (pick < 0) return null;
 		const top = root.priors.indexOf(Math.max(...root.priors));

@@ -35,7 +35,7 @@ const files = fs.readdirSync(startDir).filter(f => f.endsWith('_r1.json')).sort(
 fs.mkdirSync(outDir, { recursive: true });
 const outPath = path.join(outDir, `shard${shard}_${Date.now()}.jsonl.gz`);
 const gz = zlib.createGzip({ level: 6 });
-gz.pipe(fs.createWriteStream(outPath));
+const ws = fs.createWriteStream(outPath); gz.pipe(ws); // 종료 전 'finish'까지 기다려야 gzip 꼬리가 안 잘린다
 const write = (o: any) => gz.write(JSON.stringify(o) + '\n');
 
 const stat = { decisions: 0, matched: 0, unmatched: {} as Record<string, number>, games: 0, ended: 0 };
@@ -94,7 +94,7 @@ function recordingPolicy(gameId: string): Policy {
 		}
 	}
 	gz.end();
-	await new Promise(r => setTimeout(r, 500));
+	await new Promise(r => ws.on('finish', r));
 	fs.writeSync(1, `[shard ${shard}] 완료: 게임 ${stat.ended}/${stat.games} · 결정 ${stat.decisions} · 일치 ${(100 * stat.matched / Math.max(1, stat.decisions)).toFixed(1)}% · 불일치 ${JSON.stringify(stat.unmatched)} → ${outPath}\n`);
 	process.exit(0);
 })();

@@ -22,7 +22,7 @@ const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] =
 (async () => {
 	fs.mkdirSync(outDir, { recursive: true });
 	const outPath = path.join(outDir, `shard${shard}_${Date.now()}.jsonl.gz`);
-	const gz = zlib.createGzip({ level: 6 }); gz.pipe(fs.createWriteStream(outPath));
+	const gz = zlib.createGzip({ level: 6 }); const ws = fs.createWriteStream(outPath); gz.pipe(ws); // 종료 전 'finish'까지 기다려야 gzip 꼬리가 안 잘린다
 	const write = (o: any) => gz.write(JSON.stringify(o) + '\n');
 	const net = new NetClient(opt('--model', 'data/ai2/model_v1.pt'));
 	const dir = path.join(process.cwd(), 'logs', 'round-start');
@@ -38,12 +38,12 @@ const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] =
 		const curGame = gameId;
 		const ai2: Policy = puctPolicy(net, st, {
 			sims: Number(opt('--sims', '48')), sampleUntilRound: Number(opt('--sampleRound', '2')), seed: shard * 100003 + games + 1,
-			onSearch: ({ game, seat, moves, visits, pick }) => {
+			onSearch: ({ game, seat, moves, visits, pick, rootQ }) => {
 				const tot = visits.reduce((a, b) => a + b, 0) || 1;
 				const e = encodeState(game, seat);
 				const piI: number[] = [], piV: number[] = [];
 				visits.forEach((n, i) => { if (n > 0) { piI.push(i); piV.push(Math.round((n / tot) * 1000) / 1000); } });
-				write({ g: curGame, p: seat, r: game.roundNumber, y: pick, pi: [piI, piV], kind: 'main', flat: sparse(e.flat), grid: sparse(e.grid),
+				write({ g: curGame, p: seat, r: game.roundNumber, y: pick, pi: [piI, piV], q: Math.round(rootQ * 1000) / 1000, kind: 'main', flat: sparse(e.flat), grid: sparse(e.grid),
 					moves: moves.map(m => { const em = encodeMove(game, seat, m); return { f: sparse(em.flat), c: em.cell, k: moveKey(m) }; }) });
 				decisions++;
 			},
@@ -55,7 +55,7 @@ const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] =
 		games++;
 		fs.writeSync(1, `[sp s${shard}] ${curGame} ${r.ended ? 'END' : 'STUCK ' + r.stuck} scores=${Object.values(r.scores).join('/')} · 결정 ${decisions} · ${((Date.now() - t0) / 60000).toFixed(1)}분\n`);
 	}
-	gz.end(); await new Promise(r => setTimeout(r, 500)); net.close();
+	gz.end(); await new Promise(r => ws.on('finish', r)); net.close();
 	fs.writeSync(1, `[sp s${shard}] 완료 게임 ${games} · 결정 ${decisions} → ${outPath}\n`);
 	process.exit(0);
 })();
