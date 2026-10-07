@@ -1,0 +1,5672 @@
+{
+  "map": [
+    {
+      "q": 4,
+      "r": 2,
+      "id": "tile-1",
+      "type": "transdim",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 3,
+      "id": "tile-2",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 4,
+      "id": "tile-3",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 2,
+      "id": "tile-4",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 3,
+      "id": "tile-5",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 4,
+      "id": "tile-6",
+      "type": "titanium",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 5,
+      "id": "tile-7",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 2,
+      "id": "tile-8",
+      "type": "terra",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 3,
+      "id": "tile-9",
+      "type": "ice",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 4,
+      "id": "tile-10",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 5,
+      "id": "tile-11",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 6,
+      "id": "tile-12",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 3,
+      "id": "tile-13",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 4,
+      "id": "tile-14",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 5,
+      "id": "tile-15",
+      "type": "oxide",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 6,
+      "id": "tile-16",
+      "type": "transdim",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 4,
+      "id": "tile-17",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 5,
+      "id": "tile-18",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 6,
+      "id": "tile-19",
+      "type": "space",
+      "sector": 7,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 1,
+      "id": "tile-20",
+      "type": "ice",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 2,
+      "id": "tile-21",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 3,
+      "id": "tile-22",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 1,
+      "id": "tile-23",
+      "type": "transdim",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 2,
+      "id": "tile-24",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 3,
+      "id": "tile-25",
+      "type": "gaia",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 4,
+      "id": "tile-26",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 1,
+      "id": "tile-27",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 2,
+      "id": "tile-28",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 3,
+      "id": "tile-29",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 4,
+      "id": "tile-30",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 5,
+      "id": "tile-31",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 2,
+      "id": "tile-32",
+      "type": "oxide",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 3,
+      "id": "tile-33",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 4,
+      "id": "tile-34",
+      "type": "titanium",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 5,
+      "id": "tile-35",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 3,
+      "id": "tile-36",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 4,
+      "id": "tile-37",
+      "type": "space",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 5,
+      "id": "tile-38",
+      "type": "swamp",
+      "sector": 8,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 0,
+      "id": "tile-39",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 0,
+      "id": "tile-40",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 0,
+      "id": "tile-41",
+      "type": "terra",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 1,
+      "id": "tile-42",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 1,
+      "id": "tile-43",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 1,
+      "id": "tile-44",
+      "type": "swamp",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 1,
+      "id": "tile-45",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 2,
+      "id": "tile-46",
+      "type": "titanium",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 2,
+      "id": "tile-47",
+      "type": "volcanic",
+      "sector": 3,
+      "ownerId": "p_3ka9xcizrs",
+      "rotation": 0,
+      "structure": "mine",
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 2,
+      "id": "tile-48",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 2,
+      "id": "tile-49",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 2,
+      "id": "tile-50",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 3,
+      "id": "tile-51",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 3,
+      "id": "tile-52",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 3,
+      "id": "tile-53",
+      "type": "oxide",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 3,
+      "id": "tile-54",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 4,
+      "id": "tile-55",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 4,
+      "id": "tile-56",
+      "type": "ice",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 4,
+      "id": "tile-57",
+      "type": "space",
+      "sector": 3,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -4,
+      "r": 11,
+      "id": "tile-58",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -4,
+      "r": 10,
+      "id": "tile-59",
+      "type": "desert",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -4,
+      "r": 9,
+      "id": "tile-60",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 11,
+      "id": "tile-61",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 10,
+      "id": "tile-62",
+      "type": "ice",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 9,
+      "id": "tile-63",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 8,
+      "id": "tile-64",
+      "type": "transdim",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 11,
+      "id": "tile-65",
+      "type": "titanium",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 10,
+      "id": "tile-66",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 9,
+      "id": "tile-67",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 8,
+      "id": "tile-68",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 7,
+      "id": "tile-69",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 10,
+      "id": "tile-70",
+      "type": "oxide",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 9,
+      "id": "tile-71",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 8,
+      "id": "tile-72",
+      "type": "swamp",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 7,
+      "id": "tile-73",
+      "type": "volcanic",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 9,
+      "id": "tile-74",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 8,
+      "id": "tile-75",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 7,
+      "id": "tile-76",
+      "type": "space",
+      "sector": 1,
+      "ownerId": null,
+      "rotation": 4,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 8,
+      "id": "tile-77",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 9,
+      "id": "tile-78",
+      "type": "titanium",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 10,
+      "id": "tile-79",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 7,
+      "id": "tile-80",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 8,
+      "id": "tile-81",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 9,
+      "id": "tile-82",
+      "type": "ice",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 10,
+      "id": "tile-83",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 6,
+      "id": "tile-84",
+      "type": "transdim",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 7,
+      "id": "tile-85",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 8,
+      "id": "tile-86",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 9,
+      "id": "tile-87",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 10,
+      "id": "tile-88",
+      "type": "desert",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 6,
+      "id": "tile-89",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 7,
+      "id": "tile-90",
+      "type": "gaia",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 8,
+      "id": "tile-91",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 9,
+      "id": "tile-92",
+      "type": "terra",
+      "sector": 2,
+      "ownerId": "p_wxejvaoojt",
+      "rotation": 2,
+      "structure": "mine",
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 6,
+      "id": "tile-93",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 7,
+      "id": "tile-94",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 8,
+      "id": "tile-95",
+      "type": "space",
+      "sector": 2,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 5,
+      "id": "tile-96",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 6,
+      "id": "tile-97",
+      "type": "transdim",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 7,
+      "id": "tile-98",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 5,
+      "id": "tile-99",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 6,
+      "id": "tile-100",
+      "type": "terra",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 7,
+      "id": "tile-101",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 8,
+      "id": "tile-102",
+      "type": "oxide",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 5,
+      "id": "tile-103",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 6,
+      "id": "tile-104",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 7,
+      "id": "tile-105",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 8,
+      "id": "tile-106",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 9,
+      "id": "tile-107",
+      "type": "volcanic",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 6,
+      "id": "tile-108",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 7,
+      "id": "tile-109",
+      "type": "swamp",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 8,
+      "id": "tile-110",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 9,
+      "id": "tile-111",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 7,
+      "id": "tile-112",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 8,
+      "id": "tile-113",
+      "type": "desert",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 9,
+      "id": "tile-114",
+      "type": "space",
+      "sector": 0,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 15,
+      "r": 6,
+      "id": "tile-115",
+      "type": "transdim",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 7,
+      "id": "tile-116",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 8,
+      "id": "tile-117",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 15,
+      "r": 5,
+      "id": "tile-118",
+      "type": "transdim",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 6,
+      "id": "tile-119",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 7,
+      "id": "tile-120",
+      "type": "gaia",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 8,
+      "id": "tile-121",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 15,
+      "r": 4,
+      "id": "tile-122",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 5,
+      "id": "tile-123",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 6,
+      "id": "tile-124",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 7,
+      "id": "tile-125",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 8,
+      "id": "tile-126",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 14,
+      "r": 4,
+      "id": "tile-127",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 13,
+      "r": 5,
+      "id": "tile-128",
+      "type": "desert",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 6,
+      "id": "tile-129",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 7,
+      "id": "tile-130",
+      "type": "volcanic",
+      "sector": 9,
+      "ownerId": "p_3ka9xcizrs",
+      "rotation": 2,
+      "structure": "mine",
+      "isGaiaformed": false,
+      "parasiticMine": {
+        "ownerId": "p_wxejvaoojt"
+      }
+    },
+    {
+      "q": 13,
+      "r": 4,
+      "id": "tile-131",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 12,
+      "r": 5,
+      "id": "tile-132",
+      "type": "space",
+      "sector": 9,
+      "ownerId": null,
+      "rotation": 2,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 6,
+      "id": "tile-133",
+      "type": "terra",
+      "sector": 9,
+      "ownerId": "p_wxejvaoojt",
+      "rotation": 2,
+      "structure": "trading_station",
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 15,
+      "id": "tile-134",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 15,
+      "id": "tile-135",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 15,
+      "id": "tile-136",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 14,
+      "id": "tile-137",
+      "type": "swamp",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 14,
+      "id": "tile-138",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 14,
+      "id": "tile-139",
+      "type": "gaia",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 14,
+      "id": "tile-140",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 13,
+      "id": "tile-141",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 13,
+      "id": "tile-142",
+      "type": "volcanic",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 13,
+      "id": "tile-143",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 13,
+      "id": "tile-144",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -3,
+      "r": 13,
+      "id": "tile-145",
+      "type": "titanium",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 12,
+      "id": "tile-146",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 12,
+      "id": "tile-147",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 12,
+      "id": "tile-148",
+      "type": "gaia",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -2,
+      "r": 12,
+      "id": "tile-149",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 1,
+      "r": 11,
+      "id": "tile-150",
+      "type": "transdim",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 0,
+      "r": 11,
+      "id": "tile-151",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": -1,
+      "r": 11,
+      "id": "tile-152",
+      "type": "space",
+      "sector": 6,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 14,
+      "id": "tile-153",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 14,
+      "id": "tile-154",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 14,
+      "id": "tile-155",
+      "type": "desert",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 13,
+      "id": "tile-156",
+      "type": "transdim",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 13,
+      "id": "tile-157",
+      "type": "terra",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 13,
+      "id": "tile-158",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 13,
+      "id": "tile-159",
+      "type": "transdim",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 12,
+      "id": "tile-160",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 12,
+      "id": "tile-161",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 12,
+      "id": "tile-162",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 12,
+      "id": "tile-163",
+      "type": "gaia",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 2,
+      "r": 12,
+      "id": "tile-164",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 11,
+      "id": "tile-165",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 11,
+      "id": "tile-166",
+      "type": "swamp",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 11,
+      "id": "tile-167",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 3,
+      "r": 11,
+      "id": "tile-168",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 6,
+      "r": 10,
+      "id": "tile-169",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 5,
+      "r": 10,
+      "id": "tile-170",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 4,
+      "r": 10,
+      "id": "tile-171",
+      "type": "space",
+      "sector": 5,
+      "ownerId": null,
+      "rotation": 3,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 9,
+      "id": "tile-172",
+      "type": "transdim",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 9,
+      "id": "tile-173",
+      "type": "volcanic",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 9,
+      "id": "tile-174",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 10,
+      "id": "tile-175",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 10,
+      "id": "tile-176",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 10,
+      "id": "tile-177",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 10,
+      "id": "tile-178",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 11,
+      "id": "tile-179",
+      "type": "ice",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 11,
+      "id": "tile-180",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 11,
+      "id": "tile-181",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 11,
+      "id": "tile-182",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 11,
+      "r": 11,
+      "id": "tile-183",
+      "type": "desert",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 12,
+      "id": "tile-184",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 12,
+      "id": "tile-185",
+      "type": "gaia",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 12,
+      "id": "tile-186",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 10,
+      "r": 12,
+      "id": "tile-187",
+      "type": "oxide",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 13,
+      "id": "tile-188",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 8,
+      "r": 13,
+      "id": "tile-189",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 9,
+      "r": 13,
+      "id": "tile-190",
+      "type": "space",
+      "sector": 4,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null,
+      "isGaiaformed": false
+    },
+    {
+      "q": 7,
+      "r": 10,
+      "id": "internal-0",
+      "type": "ship_rebellion",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 2,
+      "r": 11,
+      "id": "internal-1",
+      "type": "ship_eclipse",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 4,
+      "r": 5,
+      "id": "internal-2",
+      "type": "ship_twilight",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 11,
+      "r": 5,
+      "id": "internal-3",
+      "type": "ship_tf_mars",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 9,
+      "r": 4,
+      "id": "internal-4",
+      "type": "asteroid",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 1,
+      "r": 7,
+      "id": "internal-5",
+      "type": "proto",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 6,
+      "r": 6,
+      "id": "internal-6",
+      "type": "space",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 0,
+      "r": 10,
+      "id": "internal-7",
+      "type": "asteroid",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 5,
+      "r": 9,
+      "id": "internal-8",
+      "type": "asteroid",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 10,
+      "r": 8,
+      "id": "internal-9",
+      "type": "asteroid",
+      "sector": 90,
+      "ownerId": null,
+      "structure": null
+    },
+    {
+      "q": 6,
+      "r": 1,
+      "id": "bridge-0-0",
+      "side": "B",
+      "spin": 0,
+      "type": "transdim",
+      "sector": 13,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 5,
+      "r": 1,
+      "id": "bridge-0-1",
+      "side": "B",
+      "spin": 0,
+      "type": "asteroid",
+      "sector": 13,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 5,
+      "r": 2,
+      "id": "bridge-0-2",
+      "side": "B",
+      "spin": 0,
+      "type": "space",
+      "sector": 13,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 11,
+      "r": 0,
+      "id": "bridge-1-0",
+      "side": "O",
+      "spin": 1,
+      "type": "asteroid",
+      "sector": 15,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 10,
+      "r": 0,
+      "id": "bridge-1-1",
+      "side": "O",
+      "spin": 1,
+      "type": "space",
+      "sector": 15,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 10,
+      "r": 1,
+      "id": "bridge-1-2",
+      "side": "O",
+      "spin": 1,
+      "type": "proto",
+      "sector": 15,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 15,
+      "r": 2,
+      "id": "bridge-2-0",
+      "side": "B",
+      "spin": 1,
+      "type": "asteroid",
+      "sector": 14,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 14,
+      "r": 3,
+      "id": "bridge-2-1",
+      "side": "B",
+      "spin": 1,
+      "type": "space",
+      "sector": 14,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 15,
+      "r": 3,
+      "id": "bridge-2-2",
+      "side": "B",
+      "spin": 1,
+      "type": "proto",
+      "sector": 14,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 13,
+      "r": 9,
+      "id": "bridge-3-0",
+      "side": "B",
+      "spin": 2,
+      "type": "space",
+      "sector": 17,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 12,
+      "r": 9,
+      "id": "bridge-3-1",
+      "side": "B",
+      "spin": 2,
+      "type": "transdim",
+      "sector": 17,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 12,
+      "r": 10,
+      "id": "bridge-3-2",
+      "side": "B",
+      "spin": 2,
+      "type": "space",
+      "sector": 17,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": 6,
+      "r": 13,
+      "id": "bridge-4-0",
+      "side": "O",
+      "spin": 2,
+      "type": "asteroid",
+      "sector": 11,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 5,
+      "r": 14,
+      "id": "bridge-4-1",
+      "side": "O",
+      "spin": 2,
+      "type": "space",
+      "sector": 11,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 6,
+      "r": 14,
+      "id": "bridge-4-2",
+      "side": "O",
+      "spin": 2,
+      "type": "space",
+      "sector": 11,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 1,
+      "r": 14,
+      "id": "bridge-5-0",
+      "side": "B",
+      "spin": 1,
+      "type": "proto",
+      "sector": 16,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 0,
+      "r": 15,
+      "id": "bridge-5-1",
+      "side": "B",
+      "spin": 1,
+      "type": "space",
+      "sector": 16,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": 1,
+      "r": 15,
+      "id": "bridge-5-2",
+      "side": "B",
+      "spin": 1,
+      "type": "space",
+      "sector": 16,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": -3,
+      "r": 12,
+      "id": "bridge-6-0",
+      "side": "O",
+      "spin": 1,
+      "type": "space",
+      "sector": 18,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": -4,
+      "r": 12,
+      "id": "bridge-6-1",
+      "side": "O",
+      "spin": 1,
+      "type": "asteroid",
+      "sector": 18,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": -4,
+      "r": 13,
+      "id": "bridge-6-2",
+      "side": "O",
+      "spin": 1,
+      "type": "space",
+      "sector": 18,
+      "ownerId": null,
+      "rotation": 1,
+      "structure": null
+    },
+    {
+      "q": -1,
+      "r": 5,
+      "id": "bridge-7-0",
+      "side": "B",
+      "spin": 2,
+      "type": "proto",
+      "sector": 12,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": -2,
+      "r": 6,
+      "id": "bridge-7-1",
+      "side": "B",
+      "spin": 2,
+      "type": "transdim",
+      "sector": 12,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    },
+    {
+      "q": -1,
+      "r": 6,
+      "id": "bridge-7-2",
+      "side": "B",
+      "spin": 2,
+      "type": "space",
+      "sector": 12,
+      "ownerId": null,
+      "rotation": 0,
+      "structure": null
+    }
+  ],
+  "gameId": "hjjstpiw",
+  "gameLog": [
+    {
+      "seq": 1,
+      "base": {
+        "c": 15,
+        "k": 2,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 15,
+        "k": 2,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266353334,
+      "playerName": "하이"
+    },
+    {
+      "seq": 2,
+      "base": {
+        "c": 15,
+        "k": 2,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 15,
+        "k": 2,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Hadsch Hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266363166,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 3,
+      "base": {
+        "c": 13,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 13,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-133",
+      "details": "Position: tile-133",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266367054,
+      "playerName": "하이"
+    },
+    {
+      "seq": 4,
+      "base": {
+        "c": 15,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 15,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-130",
+      "details": "Position: tile-130",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266371243,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 5,
+      "base": {
+        "c": 15,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 15,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-47",
+      "details": "Position: tile-47",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266374738,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 6,
+      "base": {
+        "c": 13,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 13,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-92",
+      "details": "Position: tile-92",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266378353,
+      "playerName": "하이"
+    },
+    {
+      "seq": 7,
+      "base": {
+        "c": 15,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 15,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 2,
+        "p2": 4,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Selected Bonus Tile",
+      "details": "1O | 3VP/GF",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266381069,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 8,
+      "base": {
+        "c": 13,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 13,
+        "k": 3,
+        "o": 4,
+        "q": 1,
+        "p1": 4,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 0,
+      "action": "Selected Bonus Tile",
+      "details": "1O | 1K",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266382926,
+      "playerName": "하이"
+    },
+    {
+      "seq": 9,
+      "base": {
+        "c": 13,
+        "k": 5,
+        "o": 8,
+        "q": 1,
+        "p1": 5,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 11,
+        "k": 5,
+        "o": 7,
+        "q": 1,
+        "p1": 5,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 1,
+      "action": "Built Parasitic Mine",
+      "tileId": "tile-130",
+      "details": "1O, 2C (Lantida)",
+      "subLogs": [
+        {
+          "text": "↳ Received Power +1P Player 2",
+          "playerId": "p_3ka9xcizrs",
+          "playerName": "Player 2"
+        }
+      ],
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266385789,
+      "playerName": "하이"
+    },
+    {
+      "seq": 10,
+      "base": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 1,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 1,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 5
+      },
+      "round": 1,
+      "action": "Entered Ship",
+      "tileId": "internal-0",
+      "details": "Rebellion · 10VP → 5VP (-5), 2QIC",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266798245,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 11,
+      "base": {
+        "c": 11,
+        "k": 5,
+        "o": 7,
+        "q": 1,
+        "p1": 5,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 11,
+        "k": 5,
+        "o": 7,
+        "q": 1,
+        "p1": 5,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "round": 1,
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-1k, took bon-1o-planettype",
+      "passInfo": {
+        "tookTileId": "bon-1o-planettype",
+        "returnedTileId": "bon-1o-1k"
+      },
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266812070,
+      "playerName": "하이"
+    },
+    {
+      "seq": 12,
+      "base": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 1,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 5
+      },
+      "snap": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 7,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 5
+      },
+      "round": 1,
+      "action": "Rebellion: Gain tech tile",
+      "tileId": "internal-0",
+      "details": "3 QIC (choose tile + track advance)",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266840712,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 13,
+      "base": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 7,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 5
+      },
+      "snap": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 7,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 5
+      },
+      "round": 1,
+      "action": "Rebellion: Gained Tech Tile",
+      "tileId": "tech-inc-4c",
+      "details": "gaiaProject → Lv.1",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266841935,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 14,
+      "base": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 7,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 5
+      },
+      "snap": {
+        "c": 20,
+        "k": 4,
+        "o": 8,
+        "q": 7,
+        "p1": 0,
+        "p2": 6,
+        "p3": 0,
+        "vp": 8
+      },
+      "round": 1,
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-gaiaformer, took bon-3c-bridge",
+      "passInfo": {
+        "bonusVp": 3,
+        "tookTileId": "bon-3c-bridge",
+        "returnedTileId": "bon-1o-gaiaformer"
+      },
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266846855,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 15,
+      "round": 2,
+      "action": "Round Start",
+      "playerId": "",
+      "timestamp": 1791266846857,
+      "playerName": ""
+    },
+    {
+      "seq": 16,
+      "base": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 10,
+        "p1": 6,
+        "p2": 0,
+        "p3": 0,
+        "vp": 10
+      },
+      "snap": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 8,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 5
+      },
+      "round": 2,
+      "action": "Entered Ship",
+      "tileId": "internal-0",
+      "details": "Rebellion · 10VP → 5VP (-5), 2QIC",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266852241,
+      "playerName": "하이"
+    },
+    {
+      "seq": 17,
+      "base": {
+        "c": 30,
+        "k": 5,
+        "o": 11,
+        "q": 7,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1,
+        "vp": 8
+      },
+      "snap": {
+        "c": 30,
+        "k": 5,
+        "o": 11,
+        "q": 7,
+        "p1": 0,
+        "p2": 5,
+        "p3": 1,
+        "vp": 8
+      },
+      "round": 2,
+      "action": "Selected Bonus",
+      "details": "Returned bon-3c-bridge, took bon-4c-gaia",
+      "passInfo": {
+        "tookTileId": "bon-4c-gaia",
+        "returnedTileId": "bon-3c-bridge"
+      },
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266856276,
+      "playerName": "Player 2"
+    },
+    {
+      "seq": 18,
+      "base": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 8,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 5
+      },
+      "snap": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 5,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 5
+      },
+      "round": 2,
+      "action": "Rebellion: Gain tech tile",
+      "tileId": "internal-0",
+      "details": "3 QIC (choose tile + track advance)",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266865939,
+      "playerName": "하이"
+    },
+    {
+      "seq": 19,
+      "base": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 5,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 5
+      },
+      "snap": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 5,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 5
+      },
+      "round": 2,
+      "action": "Rebellion: Gained Tech Tile",
+      "tileId": "tech-inc-4c",
+      "details": "gaiaProject → Lv.1",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266866852,
+      "playerName": "하이"
+    },
+    {
+      "seq": 20,
+      "base": {
+        "c": 11,
+        "k": 6,
+        "o": 11,
+        "q": 5,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 5
+      },
+      "snap": {
+        "c": 8,
+        "k": 6,
+        "o": 9,
+        "q": 5,
+        "p1": 4,
+        "p2": 2,
+        "p3": 0,
+        "vp": 9
+      },
+      "round": 2,
+      "action": "Upgraded to Trading Station",
+      "tileId": "tile-133",
+      "details": "2O, 3C (+4VP Round Trading Station)",
+      "subLogs": [
+        {
+          "text": "↳ Received Power +1P Player 2",
+          "playerId": "p_3ka9xcizrs",
+          "playerName": "Player 2"
+        }
+      ],
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266968718,
+      "playerName": "하이"
+    },
+    {
+      "round": 2,
+      "action": "Game Finished",
+      "details": "최종 점수 정산",
+      "playerId": "",
+      "timestamp": 1791266976819,
+      "playerName": "Game"
+    }
+  ],
+  "players": {
+    "p_3ka9xcizrs": {
+      "name": "Player 2",
+      "rank": 1,
+      "score": 27,
+      "faction": "hadsch_hallas",
+      "research": {
+        "economy": 1,
+        "science": 0,
+        "navigation": 0,
+        "gaiaProject": 1,
+        "terraforming": 0,
+        "artificialIntelligence": 0
+      },
+      "bonusTile": "bon-4c-gaia",
+      "resources": {
+        "ore": 11,
+        "qic": 7,
+        "power1": 0,
+        "power2": 4,
+        "power3": 2,
+        "credits": 30,
+        "knowledge": 5
+      },
+      "techTiles": [
+        "tech-inc-4c"
+      ],
+      "federations": [],
+      "liveVariant": null,
+      "scoreBreakdown": {
+        "other": [
+          {
+            "vp": -5,
+            "source": "우주선 입장"
+          }
+        ],
+        "techTiles": [],
+        "spaceships": [],
+        "bonusTilePass": [
+          {
+            "vp": 3,
+            "round": 1,
+            "tileId": "bon-1o-gaiaformer"
+          },
+          {
+            "vp": 0,
+            "round": 2,
+            "tileId": "bon-3c-bridge"
+          }
+        ],
+        "finalMissions": 0,
+        "powerReceived": 0,
+        "roundMissions": [],
+        "researchTracks": 0,
+        "remainingResources": 19,
+        "finalMissionDetails": []
+      }
+    },
+    "p_wxejvaoojt": {
+      "name": "하이",
+      "rank": 2,
+      "score": 18,
+      "faction": "lantids",
+      "research": {
+        "economy": 0,
+        "science": 0,
+        "navigation": 0,
+        "gaiaProject": 1,
+        "terraforming": 0,
+        "artificialIntelligence": 0
+      },
+      "bonusTile": "bon-1o-planettype",
+      "resources": {
+        "ore": 9,
+        "qic": 5,
+        "power1": 4,
+        "power2": 2,
+        "power3": 0,
+        "credits": 8,
+        "knowledge": 6
+      },
+      "techTiles": [
+        "tech-inc-4c"
+      ],
+      "federations": [],
+      "liveVariant": null,
+      "scoreBreakdown": {
+        "other": [
+          {
+            "vp": -5,
+            "source": "우주선 입장"
+          }
+        ],
+        "techTiles": [],
+        "spaceships": [],
+        "bonusTilePass": [
+          {
+            "vp": 0,
+            "round": 1,
+            "tileId": "bon-1o-1k"
+          }
+        ],
+        "finalMissions": 0,
+        "powerReceived": 0,
+        "roundMissions": [
+          {
+            "vp": 4,
+            "round": 2
+          }
+        ],
+        "researchTracks": 0,
+        "remainingResources": 9,
+        "finalMissionDetails": []
+      }
+    }
+  },
+  "version": 1,
+  "netUsage": {
+    "bots": 0,
+    "seats": 2,
+    "outBytes": 932993,
+    "receivers": 1,
+    "spectators": 0,
+    "concurrentGames": 1
+  },
+  "createdAt": 1791266345621,
+  "rollbacks": {
+    "admin": 0,
+    "total": 0,
+    "byPlayer": {}
+  },
+  "turnOrder": [
+    "p_wxejvaoojt",
+    "p_3ka9xcizrs"
+  ],
+  "satellites": {},
+  "completedAt": "2026-10-06T06:09:36.835Z",
+  "fullGameLog": [
+    {
+      "isBot": false,
+      "phase": "factionSelect",
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266353335,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "factionSelect",
+      "round": 0,
+      "action": "Selected Faction",
+      "details": "Hadsch Hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266363166,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-133",
+      "details": "Position: tile-133",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266367055,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-130",
+      "details": "Position: tile-130",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266371243,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-47",
+      "details": "Position: tile-47",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266374738,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "tileId": "tile-92",
+      "details": "Position: tile-92",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266378353,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "bonusSelection",
+      "round": 0,
+      "action": "Selected Bonus Tile",
+      "details": "1O | 3VP/GF",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266381069,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "bonusSelection",
+      "round": 0,
+      "action": "Selected Bonus Tile",
+      "details": "1O | 1K",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266382926,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Built Parasitic Mine",
+      "tileId": "tile-130",
+      "details": "1O, 2C (Lantida)",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266385789,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Received Power",
+      "details": "↳ Received Power +1P Player 2",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266387068,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Entered Ship",
+      "tileId": "internal-0",
+      "details": "Rebellion · 10VP → 5VP (-5), 2QIC",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266798245,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-1k, took bon-1o-planettype",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266812070,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Rebellion: Gain tech tile",
+      "tileId": "internal-0",
+      "details": "3 QIC (choose tile + track advance)",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266840712,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Rebellion: Gained Tech Tile",
+      "tileId": "tech-inc-4c",
+      "details": "gaiaProject → Lv.1",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266841935,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 1,
+      "action": "Selected Bonus",
+      "details": "Returned bon-1o-gaiaformer, took bon-3c-bridge",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266846855,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 2,
+      "action": "Entered Ship",
+      "tileId": "internal-0",
+      "details": "Rebellion · 10VP → 5VP (-5), 2QIC",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266852241,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 2,
+      "action": "Selected Bonus",
+      "details": "Returned bon-3c-bridge, took bon-4c-gaia",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266856276,
+      "playerName": "Player 2"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 2,
+      "action": "Rebellion: Gain tech tile",
+      "tileId": "internal-0",
+      "details": "3 QIC (choose tile + track advance)",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266865939,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 2,
+      "action": "Rebellion: Gained Tech Tile",
+      "tileId": "tech-inc-4c",
+      "details": "gaiaProject → Lv.1",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266866852,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 2,
+      "action": "Upgraded to Trading Station",
+      "tileId": "tile-133",
+      "details": "2O, 3C",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266968718,
+      "playerName": "하이"
+    },
+    {
+      "isBot": false,
+      "phase": "main",
+      "round": 2,
+      "action": "Received Power",
+      "details": "↳ Received Power +1P Player 2",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266969880,
+      "playerName": "Player 2"
+    }
+  ],
+  "roundNumber": 2,
+  "botPlayerIds": [],
+  "actionJournal": [
+    {
+      "id": "hjjstpiw-1791266367054-0",
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "gameId": "hjjstpiw",
+      "tileId": "tile-133",
+      "details": "Position: tile-133",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266367054,
+      "playerName": "하이",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266371243-1",
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "gameId": "hjjstpiw",
+      "tileId": "tile-130",
+      "details": "Position: tile-130",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266371243,
+      "playerName": "Player 2",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266374738-2",
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "gameId": "hjjstpiw",
+      "tileId": "tile-47",
+      "details": "Position: tile-47",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266374738,
+      "playerName": "Player 2",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266378353-3",
+      "phase": "startingMines",
+      "round": 0,
+      "action": "Placed Starting Mine",
+      "gameId": "hjjstpiw",
+      "tileId": "tile-92",
+      "details": "Position: tile-92",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266378353,
+      "playerName": "하이",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266381069-4",
+      "phase": "bonusSelection",
+      "round": 0,
+      "action": "Selected Bonus Tile",
+      "gameId": "hjjstpiw",
+      "details": "1O | 3VP/GF",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266381069,
+      "playerName": "Player 2",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 2,
+          "power2": 4,
+          "power3": 0,
+          "credits": 15,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266382926-5",
+      "phase": "bonusSelection",
+      "round": 0,
+      "action": "Selected Bonus Tile",
+      "gameId": "hjjstpiw",
+      "details": "1O | 1K",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266382926,
+      "playerName": "하이",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-1k",
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": null,
+        "resources": {
+          "ore": 4,
+          "qic": 1,
+          "power1": 4,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 3
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": null
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266385789-6",
+      "phase": "main",
+      "round": 1,
+      "action": "Built Parasitic Mine",
+      "gameId": "hjjstpiw",
+      "tileId": "tile-130",
+      "details": "1O, 2C (Lantida)",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266385789,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-133"
+        },
+        {
+          "type": "build_mine",
+          "tileId": "tile-130"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "하이",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-1k",
+        "resources": {
+          "ore": 7,
+          "qic": 1,
+          "power1": 5,
+          "power2": 0,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 5
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [
+            {
+              "vp": 4,
+              "round": 2
+            }
+          ],
+          "researchTracks": 0,
+          "remainingResources": 9,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-1k",
+        "resources": {
+          "ore": 8,
+          "qic": 1,
+          "power1": 5,
+          "power2": 0,
+          "power3": 0,
+          "credits": 13,
+          "knowledge": 5
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266798245-7",
+      "phase": "main",
+      "round": 1,
+      "action": "Entered Ship",
+      "gameId": "hjjstpiw",
+      "tileId": "internal-0",
+      "details": "Rebellion · 10VP → 5VP (-5), 2QIC",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266798245,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-130"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "Player 2",
+      "scoreAfter": 5,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 5,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 1,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 3,
+              "round": 1,
+              "tileId": "bon-1o-gaiaformer"
+            },
+            {
+              "vp": 0,
+              "round": 2,
+              "tileId": "bon-3c-bridge"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 19,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 10,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 1,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266812070-8",
+      "phase": "main",
+      "round": 1,
+      "action": "Selected Bonus",
+      "gameId": "hjjstpiw",
+      "details": "Returned bon-1o-1k, took bon-1o-planettype",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266812070,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-133"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "하이",
+      "scoreAfter": 10,
+      "playerAfter": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 7,
+          "qic": 1,
+          "power1": 5,
+          "power2": 0,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 5
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [
+            {
+              "vp": 4,
+              "round": 2
+            }
+          ],
+          "researchTracks": 0,
+          "remainingResources": 9,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-1k",
+        "resources": {
+          "ore": 7,
+          "qic": 1,
+          "power1": 5,
+          "power2": 0,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 5
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266840712-9",
+      "phase": "main",
+      "round": 1,
+      "action": "Rebellion: Gain tech tile",
+      "gameId": "hjjstpiw",
+      "tileId": "internal-0",
+      "details": "3 QIC (choose tile + track advance)",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266840712,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-130"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "Player 2",
+      "scoreAfter": 5,
+      "shipTileId": "internal-0",
+      "actionIndex": 1,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 5,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 7,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 3,
+              "round": 1,
+              "tileId": "bon-1o-gaiaformer"
+            },
+            {
+              "vp": 0,
+              "round": 2,
+              "tileId": "bon-3c-bridge"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 19,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 5,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 5,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 1,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266841935-10",
+      "phase": "main",
+      "round": 1,
+      "action": "Rebellion: Gained Tech Tile",
+      "gameId": "hjjstpiw",
+      "tileId": "tech-inc-4c",
+      "details": "gaiaProject → Lv.1",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266841935,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-130"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "Player 2",
+      "scoreAfter": 5,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 5,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 7,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 3,
+              "round": 1,
+              "tileId": "bon-1o-gaiaformer"
+            },
+            {
+              "vp": 0,
+              "round": 2,
+              "tileId": "bon-3c-bridge"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 19,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 5,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 5,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 1,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266846855-11",
+      "phase": "main",
+      "round": 1,
+      "action": "Selected Bonus",
+      "gameId": "hjjstpiw",
+      "details": "Returned bon-1o-gaiaformer, took bon-3c-bridge",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266846855,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-130"
+        },
+        {
+          "type": "build_mine",
+          "tileId": "internal-9"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "Player 2",
+      "scoreAfter": 8,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 8,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-3c-bridge",
+        "resources": {
+          "ore": 8,
+          "qic": 7,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 3,
+              "round": 1,
+              "tileId": "bon-1o-gaiaformer"
+            },
+            {
+              "vp": 0,
+              "round": 2,
+              "tileId": "bon-3c-bridge"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 19,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 5,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 5,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-gaiaformer",
+        "resources": {
+          "ore": 8,
+          "qic": 7,
+          "power1": 0,
+          "power2": 6,
+          "power3": 0,
+          "credits": 20,
+          "knowledge": 4
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266852241-12",
+      "phase": "main",
+      "round": 2,
+      "action": "Entered Ship",
+      "gameId": "hjjstpiw",
+      "tileId": "internal-0",
+      "details": "Rebellion · 10VP → 5VP (-5), 2QIC",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266852241,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-133"
+        },
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-92"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-0"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "하이",
+      "scoreAfter": 5,
+      "playerAfter": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 8,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [
+            {
+              "vp": 4,
+              "round": 2
+            }
+          ],
+          "researchTracks": 0,
+          "remainingResources": 9,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 10,
+      "playerBefore": {
+        "name": "하이",
+        "score": 10,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 10,
+          "power1": 6,
+          "power2": 0,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266856276-13",
+      "phase": "main",
+      "round": 2,
+      "action": "Selected Bonus",
+      "gameId": "hjjstpiw",
+      "details": "Returned bon-3c-bridge, took bon-4c-gaia",
+      "faction": "hadsch_hallas",
+      "playerId": "p_3ka9xcizrs",
+      "timestamp": 1791266856276,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-130"
+        },
+        {
+          "type": "build_mine",
+          "tileId": "internal-9"
+        },
+        {
+          "type": "build_mine",
+          "tileId": "tile-41"
+        },
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-47"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 1
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-97"
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-172"
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "bridge-3-1"
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-23"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "Player 2",
+      "scoreAfter": 8,
+      "playerAfter": {
+        "name": "Player 2",
+        "score": 8,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-4c-gaia",
+        "resources": {
+          "ore": 11,
+          "qic": 7,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1,
+          "credits": 30,
+          "knowledge": 5
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 3,
+              "round": 1,
+              "tileId": "bon-1o-gaiaformer"
+            },
+            {
+              "vp": 0,
+              "round": 2,
+              "tileId": "bon-3c-bridge"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 19,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 8,
+      "playerBefore": {
+        "name": "Player 2",
+        "score": 8,
+        "faction": "hadsch_hallas",
+        "research": {
+          "economy": 1,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-3c-bridge",
+        "resources": {
+          "ore": 11,
+          "qic": 7,
+          "power1": 0,
+          "power2": 5,
+          "power3": 1,
+          "credits": 30,
+          "knowledge": 5
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 3,
+              "round": 1,
+              "tileId": "bon-1o-gaiaformer"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266865939-14",
+      "phase": "main",
+      "round": 2,
+      "action": "Rebellion: Gain tech tile",
+      "gameId": "hjjstpiw",
+      "tileId": "internal-0",
+      "details": "3 QIC (choose tile + track advance)",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266865939,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-133"
+        },
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-92"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 1
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "하이",
+      "scoreAfter": 5,
+      "shipTileId": "internal-0",
+      "actionIndex": 1,
+      "playerAfter": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 5,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [
+            {
+              "vp": 4,
+              "round": 2
+            }
+          ],
+          "researchTracks": 0,
+          "remainingResources": 9,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 5,
+      "playerBefore": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 8,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266866852-15",
+      "phase": "main",
+      "round": 2,
+      "action": "Rebellion: Gained Tech Tile",
+      "gameId": "hjjstpiw",
+      "tileId": "tech-inc-4c",
+      "details": "gaiaProject → Lv.1",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266866852,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-133"
+        },
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-92"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 1
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "하이",
+      "scoreAfter": 5,
+      "playerAfter": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 5,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [
+            {
+              "vp": 4,
+              "round": 2
+            }
+          ],
+          "researchTracks": 0,
+          "remainingResources": 9,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 5,
+      "playerBefore": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 0,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 8,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    },
+    {
+      "id": "hjjstpiw-1791266968718-16",
+      "phase": "main",
+      "round": 2,
+      "action": "Upgraded to Trading Station",
+      "gameId": "hjjstpiw",
+      "tileId": "tile-133",
+      "details": "2O, 3C",
+      "faction": "lantids",
+      "playerId": "p_wxejvaoojt",
+      "timestamp": 1791266968718,
+      "candidates": [
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-133"
+        },
+        {
+          "type": "build_mine",
+          "tileId": "internal-7"
+        },
+        {
+          "type": "upgrade_structure",
+          "target": "trading_station",
+          "tileId": "tile-92"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-1"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-3"
+        },
+        {
+          "type": "enter_spaceship",
+          "tileId": "internal-2"
+        },
+        {
+          "type": "use_ship_action",
+          "shipTileId": "internal-0",
+          "actionIndex": 3
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-97"
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-16"
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-150"
+        },
+        {
+          "type": "place_gaiaformer",
+          "tileId": "tile-172"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "navigation"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "terraforming"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "gaiaProject"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "artificialIntelligence"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "economy"
+        },
+        {
+          "type": "advance_research",
+          "trackId": "science"
+        }
+      ],
+      "playerName": "하이",
+      "scoreAfter": 5,
+      "playerAfter": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 9,
+          "qic": 5,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 8,
+          "knowledge": 6
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [
+            {
+              "vp": 4,
+              "round": 2
+            }
+          ],
+          "researchTracks": 0,
+          "remainingResources": 9,
+          "finalMissionDetails": []
+        }
+      },
+      "scoreBefore": 5,
+      "playerBefore": {
+        "name": "하이",
+        "score": 5,
+        "faction": "lantids",
+        "research": {
+          "economy": 0,
+          "science": 0,
+          "navigation": 0,
+          "gaiaProject": 1,
+          "terraforming": 0,
+          "artificialIntelligence": 0
+        },
+        "bonusTile": "bon-1o-planettype",
+        "resources": {
+          "ore": 11,
+          "qic": 5,
+          "power1": 4,
+          "power2": 2,
+          "power3": 0,
+          "credits": 11,
+          "knowledge": 6
+        },
+        "techTiles": [
+          "tech-inc-4c"
+        ],
+        "federations": [],
+        "liveVariant": null,
+        "scoreBreakdown": {
+          "other": [
+            {
+              "vp": -5,
+              "source": "우주선 입장"
+            }
+          ],
+          "techTiles": [],
+          "spaceships": [],
+          "bonusTilePass": [
+            {
+              "vp": 0,
+              "round": 1,
+              "tileId": "bon-1o-1k"
+            }
+          ],
+          "finalMissions": 0,
+          "powerReceived": 0,
+          "roundMissions": [],
+          "researchTracks": 0,
+          "remainingResources": 0,
+          "finalMissionDetails": []
+        }
+      }
+    }
+  ]
+}
