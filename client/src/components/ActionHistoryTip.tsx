@@ -7,7 +7,7 @@
  *  - 우주선 액션: 배 종류마다 한 척이고 칸마다 로그 문구가 고유(서버 executeUseShipAction·소켓 경로 문구)라 문구로 칸 식별.
  *    트왈 #1은 보상을 고를 때 'Twilight: Federation benefit / Spaceship Fed'로 남는다(인공물 경로는 'Artifact: …'라 제외됨).
  */
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { FACTIONS, type GaiaGameState as GameState } from '@shared/gameConfig';
 
@@ -65,15 +65,90 @@ export function useActionHistory(game: GameState): ActionHistory {
 	}, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-/** 액션 칸 래퍼: 잠깐 머무르면 사용 기록 툴팁. 비활성 버튼도 감지되게 바깥 div가 트리거. */
+/** 길게 누르기로 인정하는 시간·손가락 흔들림 허용치 */
+const LONG_PRESS_MS = 450;
+const MOVE_TOLERANCE_PX = 10;
+
+/**
+ * 액션 칸 래퍼: 마우스는 잠깐 머무르면, 터치는 길게 누르면 사용 기록 툴팁.
+ * [사용자 제보 2026-10-09] "폰으로는 잘 안 되고, 어떻게 하는지도 모르겠고, 잠깐 보였다가 사라진다"
+ *   툴팁은 마우스 올리기 전용이라 터치로는 열 방법이 없었다. 짧게 누르면 칸 안의 액션 버튼이 눌려(내 차례면 실행)
+ *   그 포커스로 잠깐 열렸다가, 다른 곳을 누르면 바로 닫혔다.
+ *   → 터치: 길게 누르면(0.45초) 열고 그 누름은 액션으로 넘기지 않는다. 다른 곳을 누를 때까지 열어 둔다.
+ *     짧게 누르면 지금처럼 액션 — 그때 생기는 '포커스로 잠깐 열림'은 막는다. 사용법은 모바일 패널 제목 옆에 늘 적어 둔다
+ *     (팝업 안내는 짧게 누를 때 뜨는 액션 안내에 바로 덮였다 — 안내는 한 번에 하나만 보인다).
+ */
 export function ActionHistoryTip({ game, uses, title, children }: { game: GameState; uses: ActionUse[] | undefined; title: string; children: ReactNode }) {
 	const round = game.roundNumber ?? 0;
+	const [open, setOpen] = useState(false);
+	const [pinned, setPinned] = useState(false); // 길게 눌러 연 상태 — 바깥을 누를 때까지 유지
+	const lastPointer = useRef<string>('mouse');
+	const timer = useRef<number | null>(null);
+	const start = useRef<{ x: number; y: number } | null>(null);
+	const swallowClick = useRef(false);
+	const triggerRef = useRef<HTMLDivElement | null>(null);
+	const contentRef = useRef<HTMLDivElement | null>(null);
+
+	const clearTimer = () => { if (timer.current !== null) { clearTimeout(timer.current); timer.current = null; } };
+	useEffect(() => () => clearTimer(), []);
+
+	// 길게 눌러 연 뒤엔 바깥을 누르면 닫는다
+	useEffect(() => {
+		if (!pinned) return;
+		const onDown = (e: PointerEvent) => {
+			const t = e.target as Node;
+			if (triggerRef.current?.contains(t) || contentRef.current?.contains(t)) return;
+			setPinned(false); setOpen(false);
+		};
+		document.addEventListener('pointerdown', onDown, true);
+		return () => document.removeEventListener('pointerdown', onDown, true);
+	}, [pinned]);
+
+	const onPointerDown = (e: React.PointerEvent) => {
+		lastPointer.current = e.pointerType;
+		if (e.pointerType === 'mouse') return;
+		clearTimer();
+		start.current = { x: e.clientX, y: e.clientY };
+		timer.current = window.setTimeout(() => {
+			timer.current = null;
+			swallowClick.current = true;
+			setPinned(true); setOpen(true);
+		}, LONG_PRESS_MS);
+	};
+	const onPointerMove = (e: React.PointerEvent) => {
+		if (e.pointerType === 'mouse' || !start.current || timer.current === null) return;
+		if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > MOVE_TOLERANCE_PX) clearTimer(); // 스크롤·스와이프
+	};
+	const onPointerEnd = () => { clearTimer(); start.current = null; };
+	// 길게 누른 직후 따라오는 click 은 칸 안 버튼(액션)으로 내려보내지 않는다
+	const onClickCapture = (e: React.MouseEvent) => {
+		if (swallowClick.current) { swallowClick.current = false; e.preventDefault(); e.stopPropagation(); }
+	};
+	const onOpenChange = (next: boolean) => {
+		if (next) {
+			if (lastPointer.current !== 'mouse') return; // 터치의 '포커스로 잠깐 열림'은 막는다 — 터치는 길게 누르기로만 연다
+			setOpen(true);
+		} else {
+			if (pinned) return; // 손가락을 떼며 생기는 닫힘 신호는 무시(바깥을 눌러야 닫힌다)
+			setOpen(false);
+		}
+	};
+
 	return (
-		<Tooltip delayDuration={350} disableHoverableContent>
+		<Tooltip delayDuration={350} disableHoverableContent open={open} onOpenChange={onOpenChange}>
 			<TooltipTrigger asChild>
-				<div className="relative h-full border-r last:border-r-0 border-black/30">{children}</div>
+				<div
+					ref={triggerRef}
+					className="relative h-full border-r last:border-r-0 border-black/30 select-none [-webkit-touch-callout:none]"
+					onPointerDown={onPointerDown}
+					onPointerMove={onPointerMove}
+					onPointerUp={onPointerEnd}
+					onPointerCancel={onPointerEnd}
+					onClickCapture={onClickCapture}
+					onContextMenu={(e) => { if (lastPointer.current !== 'mouse') e.preventDefault(); }}
+				>{children}</div>
 			</TooltipTrigger>
-			<TooltipContent side="top" className="bg-zinc-950/95 border-white/15 text-zinc-100 px-2.5 py-2 max-w-[220px]">
+			<TooltipContent ref={contentRef} side="top" className="bg-zinc-950/95 border-white/15 text-zinc-100 px-2.5 py-2 max-w-[220px]">
 				<div className="text-[11px] font-black text-amber-200 mb-1">{title}</div>
 				{!uses?.length && <div className="text-[10px] text-zinc-500">아직 사용한 사람이 없습니다</div>}
 				{!!uses?.length && (

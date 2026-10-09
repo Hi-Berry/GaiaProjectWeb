@@ -7693,6 +7693,10 @@ export default function Game() {
           <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30" onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'info' ? null : 'info')} title="더블터치: 전체화면 전환">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 truncate">
               {infoLayout === 'vertical' ? '기술 · 우주선 · 라운드' : (infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스')}
+              {/* [사용자 2026-10-09] 폰에선 마우스 올리기가 없어 액션 칸 사용 기록을 여는 법을 몰랐다 — 길게 누르기 안내를 늘 보이게 */}
+              {(infoLayout === 'vertical' || infoPage === 1) && (
+                <span className="ml-1.5 text-[9px] font-medium normal-case tracking-normal text-zinc-400">칸 길게 눌러 기록</span>
+              )}
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {infoLayout === 'horizontal' && (
