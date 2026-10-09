@@ -8553,7 +8553,10 @@ export function executeUpgradeStructure(
 		tile.structure = 'academy';
 		tile.academyType = target === 'academy_left' ? 'left' : 'right';
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left' ? `6O, 6C (${player.faction === 'itars' ? 3 : 2}K 수익)` : '6O, 6C (1QIC 액션)', tileId);
+		// [사용자 2026-10-09] 발타크 오른쪽 아카데미는 1QIC 가 아니라 4C 액션 — 로그만 1QIC 로 고정돼 있었다(실제 지급은 4C 로 정상).
+		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left'
+			? `6O, 6C (${player.faction === 'itars' ? 3 : 2}K 수익)`
+			: `6O, 6C (${player.faction === 'bal_tak' ? '4C' : '1QIC'} 액션)`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);
