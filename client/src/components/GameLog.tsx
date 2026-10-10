@@ -74,7 +74,10 @@ export function GameLog({
      ※ 내 줄은 '내 턴이 끝난 뒤 다음 사람 턴이 시작되기 전'(파워 수령 대기 등)에도 계속 보여야 하므로
        현재 턴 주인이 아니라 '그 줄의 주인'으로 판정한다 — 안 그러면 턴 종료 직후 내 로그가 잠깐 사라진다. */
   const commitSeq = getCommitSeq(game);
-  const isProvisional = (e: { seq?: number }) => commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq;
+  /* [사용자 제보 2026-10-10] "롤백 취소 로그 2개가, 롤백된 사람이 다시 액션하면 1개만 보이거나 안 보이다가 턴을 끝내면 2개로 돌아온다"
+     롤백으로 취소된 줄(✕)은 롤백 전 seq 를 그대로 갖는데 서버는 롤백 때 seq 를 되감는다. 그래서 다음 턴 시작 표시가
+     ✕ 줄보다 작아져, ✕ 줄이 '진행 중인 남의 줄'로 걸려 감춰졌다. ✕ 줄은 확정된 기록이라 진행 중일 수 없다 → 제외. */
+  const isProvisional = (e: { seq?: number; rolledBack?: boolean }) => !e.rolledBack && commitSeq !== null && typeof e.seq === 'number' && e.seq > commitSeq;
   const canSeeProvisional = (e: { playerId?: string }) => !!myPlayerId && e.playerId === myPlayerId;
   // 로그 클릭 시 그 액션 전후 점수/자원 변동 표시 (게임 정상 진행 점검용)
   const [openIdx, setOpenIdx] = useState<number | null>(null);
