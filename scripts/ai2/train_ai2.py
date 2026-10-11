@@ -150,6 +150,7 @@ for ep in range(args.epochs):
     a1, a3, mae, corr, sign, by_round = evaluate(va)
     print(f"ep{ep} loss {tl / len(tr):.3f} · val 정책 top-1 {a1:.3f} top-3 {a3:.3f} · 가치 MAE {mae:.1f}VP 상관 {corr:.2f} 부호 {sign:.2f} · 라운드별 상관 {by_round} · {time.time() - t0:.0f}s", flush=True)
     score = a1 + corr  # 정책 정확도 + 가치 상관 — 둘 다 나아질 때 갱신
+    if not va or score != score: score = ep  # 검증 행이 없거나 지표가 NaN이면 마지막 에포크를 저장
     if score > best:
         best = score; torch.save({'state_dict': net.state_dict(), 'epoch': ep, 'val': {'top1': a1, 'top3': a3, 'mae': mae, 'corr': corr}}, args.out)
         print(f'  → 최고 갱신, 저장 {args.out}', flush=True)
