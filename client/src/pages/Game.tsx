@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AdminModeDialog } from '@/components/AdminModeDialog';
+import { MajorEventsPopup } from '@/components/MajorEventsPopup';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { RollbackRequestDialog } from '@/components/RollbackRequestDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7504,6 +7505,8 @@ export default function Game() {
         )}
       </div>
 
+      {/* [사용자 2026-10-12] 주요 이벤트 알려주기 — 내 턴 시작 때 그 사이 연방 선언·내 우주선 입장을 팝업으로 */}
+      {game && !isSpectator && <MajorEventsPopup game={game} playerId={playerId} />}
       {game && (
         <AdminModeDialog
           open={isAdminModeOpen}

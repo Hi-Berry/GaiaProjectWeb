@@ -316,15 +316,18 @@ function DisplayTogglesSection() {
 	const [stripOn, setStripOn] = useState(true);
 	const [singleOn, setSingleOn] = useState(false);
 	const [incomeAutoOn, setIncomeAutoOn] = useState(true);
+	const [majorEventsOn, setMajorEventsOn] = useState(true);
 	useEffect(() => {
 		if (typeof localStorage === 'undefined') return;
 		if (localStorage.getItem('left-action-buttons') === 'off') setLeftOn(false);
 		if (localStorage.getItem('special-action-strip') === 'off') setStripOn(false);
 		if (localStorage.getItem('single-mini-view') === 'on') setSingleOn(true);
 		if (localStorage.getItem('income-auto-optimal') === 'off') setIncomeAutoOn(false);
+		if (localStorage.getItem('major-event-popup') === 'off') setMajorEventsOn(false);
 	}, []);
-	const choose = (key: 'left-action-buttons' | 'special-action-strip' | 'single-mini-view' | 'income-auto-optimal', v: boolean) => {
+	const choose = (key: 'left-action-buttons' | 'special-action-strip' | 'single-mini-view' | 'income-auto-optimal' | 'major-event-popup', v: boolean) => {
 		if (key === 'left-action-buttons') setLeftOn(v);
+		else if (key === 'major-event-popup') setMajorEventsOn(v);
 		else if (key === 'special-action-strip') setStripOn(v);
 		else if (key === 'income-auto-optimal') setIncomeAutoOn(v);
 		else setSingleOn(v);
@@ -385,6 +388,16 @@ function DisplayTogglesSection() {
 					</div>
 				</div>
 				{btn(incomeAutoOn, () => choose('income-auto-optimal', !incomeAutoOn))}
+			</div>
+			{/* [사용자 2026-10-12] 주요 이벤트 알려주기 — 기본 켜짐 */}
+			<div className="flex items-center justify-between gap-3 border-t border-white/8 px-2 py-1.5">
+				<div className="min-w-0">
+					<div className="text-[10px] font-semibold text-zinc-200">주요 이벤트 알려주기</div>
+					<div className="text-[9px] leading-snug text-zinc-500">
+						내 턴이 끝난 뒤 다시 내 턴이 오기 전에 누군가 연방을 선언하거나 내가 탄 우주선에 들어오면, 내 턴이 시작될 때 화면 가운데에 알려 줍니다. 확인을 눌러 닫습니다.
+					</div>
+				</div>
+				{btn(majorEventsOn, () => choose('major-event-popup', !majorEventsOn))}
 			</div>
 		</section>
 	);
