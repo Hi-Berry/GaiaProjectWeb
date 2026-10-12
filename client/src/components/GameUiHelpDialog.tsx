@@ -316,14 +316,14 @@ function DisplayTogglesSection() {
 	const [stripOn, setStripOn] = useState(true);
 	const [singleOn, setSingleOn] = useState(false);
 	const [incomeAutoOn, setIncomeAutoOn] = useState(true);
-	const [majorEventsOn, setMajorEventsOn] = useState(true);
+	const [majorEventsOn, setMajorEventsOn] = useState(false);
 	useEffect(() => {
 		if (typeof localStorage === 'undefined') return;
 		if (localStorage.getItem('left-action-buttons') === 'off') setLeftOn(false);
 		if (localStorage.getItem('special-action-strip') === 'off') setStripOn(false);
 		if (localStorage.getItem('single-mini-view') === 'on') setSingleOn(true);
 		if (localStorage.getItem('income-auto-optimal') === 'off') setIncomeAutoOn(false);
-		if (localStorage.getItem('major-event-popup') === 'off') setMajorEventsOn(false);
+		if (localStorage.getItem('major-event-popup') === 'on') setMajorEventsOn(true);
 	}, []);
 	const choose = (key: 'left-action-buttons' | 'special-action-strip' | 'single-mini-view' | 'income-auto-optimal' | 'major-event-popup', v: boolean) => {
 		if (key === 'left-action-buttons') setLeftOn(v);
@@ -389,7 +389,7 @@ function DisplayTogglesSection() {
 				</div>
 				{btn(incomeAutoOn, () => choose('income-auto-optimal', !incomeAutoOn))}
 			</div>
-			{/* [사용자 2026-10-12] 주요 이벤트 알려주기 — 기본 켜짐 */}
+			{/* [사용자 2026-10-12] 주요 이벤트 알려주기 — 기본 꺼짐(켠 사람만) */}
 			<div className="flex items-center justify-between gap-3 border-t border-white/8 px-2 py-1.5">
 				<div className="min-w-0">
 					<div className="text-[10px] font-semibold text-zinc-200">주요 이벤트 알려주기</div>

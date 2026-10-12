@@ -7,7 +7,7 @@
  *   우주선 = 'Entered Ship' 줄(tileId = 우주선 칸) 중 지금 내가 탑승 중인 배.
  * - '어디까지 봤나'는 기기에 저장(gaia-<게임>-<좌석>-majorEventsSeq). 처음 열면 현재 위치로만 맞추고 띄우지 않는다
  *   (새로고침·중간 입장 때 지난 일이 한꺼번에 뜨지 않게).
- * - 설정: '?' 안내창 > 화면 표시 > '주요 이벤트 알려주기'(major-event-popup, 기본 켜짐).
+ * - 설정: '?' 안내창 > 화면 표시 > '주요 이벤트 알려주기'(major-event-popup, 기본 꺼짐 — 켠 사람만).
  */
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -30,7 +30,7 @@ function fedRewardImg(rewardId?: string): string | null {
 const isRewardId = (s?: string) => !!s && /^(gleens-fed-|ship-fed-|fed-)/i.test(s);
 
 export const MAJOR_EVENT_POPUP_KEY = 'major-event-popup';
-const enabled = () => { try { return localStorage.getItem(MAJOR_EVENT_POPUP_KEY) !== 'off'; } catch { return true; } };
+const enabled = () => { try { return localStorage.getItem(MAJOR_EVENT_POPUP_KEY) === 'on'; } catch { return false; } }; // 기본 꺼짐(켠 사람만)
 
 interface MajorEvent { kind: 'federation' | 'ship'; playerId: string; name: string; faction?: string; round: number; img: string | null; shipType?: string; detail?: string }
 
