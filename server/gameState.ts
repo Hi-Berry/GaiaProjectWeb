@@ -1067,6 +1067,7 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	(game as any).botCanceled = true;
 	cancelBotExecution(game.id);
 	hideHeavyServerFields(restored);
+	carrySpectatorSession(game, restored);
 	games.set(game.id, restored);
 	clampPlayerResources(restored);
 	// 이 seq 이후 히스토리 제거(새 타임라인)
@@ -2440,6 +2441,21 @@ function generateGameId(): string {
  *  방을 넘나든 소켓이 이전 방에 남아 그 방의 채팅/업데이트를 계속 받던 문제(사용자 관찰: 채팅이 모든 방에 보임). */
 /** [관전자 목록] 현재 접속 중인 관전자 id 목록(game.connectedSpectators) 갱신 — 채팅창 "(관전자: AA, BB)" 표기용.
  *  spectatorIds(재접속 허용 명단)와 별개: 이건 '지금 보고 있는 사람'만. */
+/**
+ * [버그수정 2026-10-11 사용자 "운영자 아이디(하이)로 관전하면 예상 점수가 뜨다가 시간이 지나면 안 보인다"]
+ * 관전자 명단·이름·접속 목록은 판의 내용이 아니라 '지금 방에 붙어 있는 사람'에 대한 정보다. 그런데 게임 객체에 있어,
+ * 리셋·롤백·관리자 롤백·프리액션 되돌리기·트왈라잇 취소가 '턴 시작 때 찍어 둔 판 전체'로 바꿔 끼우면 그 턴이 시작된 뒤
+ * 들어온 관전자가 통째로 사라졌다(실측: 입장 → 광산 → Reset 뒤 이름·허용 명단·접속 목록 모두 없음).
+ * → 이름이 없어 예상 점수가 숨고, 관전자 목록에서 빠지고, 채팅 금지가 '이 방의 관전자가 아닙니다'로 거부됐다.
+ * 판을 되돌릴 때 이 값들은 지금 값을 그대로 옮겨 붙인다.
+ */
+function carrySpectatorSession(live: any, restored: any): void {
+	for (const k of ['spectatorIds', 'spectatorNames', 'connectedSpectators'] as const) {
+		if (live?.[k] !== undefined) restored[k] = live[k];
+		else delete restored[k];
+	}
+}
+
 function setSpectatorConnected(game: any, spectatorId: string, on: boolean) {
 	const list: string[] = game.connectedSpectators ?? (game.connectedSpectators = []);
 	const i = list.indexOf(spectatorId);
@@ -4915,6 +4931,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			(game as any).botCanceled = true;
 			cancelBotExecution(gameId);
 			hideHeavyServerFields(restored);
+			carrySpectatorSession(game, restored);
 			games.set(gameId, restored);
 			clampPlayerResources(restored);
 			log(`Admin: rolled back turn for ${restored.players[playerId]?.name ?? playerId}`, 'game', gameId);
@@ -5785,6 +5802,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				};
 
 				hideHeavyServerFields(restored);
+				carrySpectatorSession(game, restored);
 				games.set(gameId, restored);
 
 				clampPlayerResources(restored);
@@ -6106,6 +6124,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 복구할 스냅샷에서 클라이언트가 보지 말아야 할/유지해야 할 세션 정보 등
 				// 통째로 덮어쓰고, Map에 반영.
 				hideHeavyServerFields(restoredGame);
+				carrySpectatorSession(game, restoredGame);
 				games.set(gameId, restoredGame);
 				const player = restoredGame.players[playerId];
 				log(`Player ${player?.name} undone free actions (${popCount} step)`, 'game', undefined, { simulation: (game as any).simulation });
@@ -7300,6 +7319,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 						[playerId]: buildTurnStartStateEntryForPlayer(restored, playerId),
 					};
 					hideHeavyServerFields(restored);
+					carrySpectatorSession(game, restored);
 					games.set(gameId, restored);
 					clampPlayerResources(restored);
 					emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
@@ -8553,7 +8573,10 @@ export function executeUpgradeStructure(
 		tile.structure = 'academy';
 		tile.academyType = target === 'academy_left' ? 'left' : 'right';
 		game.hasDoneMainAction = true;
-		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left' ? `6O, 6C (${player.faction === 'itars' ? 3 : 2}K 수익)` : '6O, 6C (1QIC 액션)', tileId);
+		// [사용자 2026-10-09] 발타크 오른쪽 아카데미는 1QIC 가 아니라 4C 액션 — 로그만 1QIC 로 고정돼 있었다(실제 지급은 4C 로 정상).
+		addGameLog(game, playerId, 'Upgraded to Academy', target === 'academy_left'
+			? `6O, 6C (${player.faction === 'itars' ? 3 : 2}K 수익)`
+			: `6O, 6C (${player.faction === 'bal_tak' ? '4C' : '1QIC'} 액션)`, tileId);
 		applyRoundMissionScore(game, playerId, 'build_big_building');
 		createPowerOffers(game, tile, playerId);
 		addBuildingToFederationIfAdjacent(game, playerId, tileId);

@@ -1799,7 +1799,10 @@ export default function Game() {
     /** 이 패스에서 아직 본 액션을 못 만난 준비 동작 — 만나면 한 문장으로 합친다 */
     let pendingEnabler: { playerId: string; win: number; parts: string[] } | null = null;
     for (const raw of log.slice(from)) {
-      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number; tileId?: string; seq?: number };
+      const e = raw as { playerId?: string; action?: string; details?: string; timestamp?: number; tileId?: string; seq?: number; rolledBack?: boolean };
+      // [2026-10-10] 롤백으로 취소된 줄(✕)은 일어나지 않은 행동 — 읽지 않고 지나간다. 롤백 전 seq 를 그대로 갖고 있어
+      //   아래 '진행 중' 판정에 걸리면 그 뒤의 확정된 줄까지 못 읽고 멈춘다(서버가 롤백 때 seq 를 되감으므로).
+      if (e.rolledBack) { done++; continue; }
       // 아직 되돌릴 수 있는 줄(진행 중인 턴) → 여기서 멈춘다. 다음 상태 갱신 때 다시 본다.
       // 경계: 서버 reset_turn은 seq > 턴시작표시 인 줄만 지운다(gameState.ts의 트림 조건) →
       // seq == 표시 인 줄은 직전 턴 소속이라 이미 안전하다. >= 로 하면 이 줄이 영영 안 읽힌다(실측 off-by-one).
@@ -7693,6 +7696,10 @@ export default function Game() {
           <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-white/10 bg-black/30" onDoubleClick={() => splitActive && setMobileZoomPanel(p => p === 'info' ? null : 'info')} title="더블터치: 전체화면 전환">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 truncate">
               {infoLayout === 'vertical' ? '기술 · 우주선 · 라운드' : (infoPage === 0 ? '기술 타일' : infoPage === 1 ? '우주선 · 파워' : '라운드 · 보너스')}
+              {/* [사용자 2026-10-09] 폰에선 마우스 올리기가 없어 액션 칸 사용 기록을 여는 법을 몰랐다 — 길게 누르기 안내를 늘 보이게 */}
+              {(infoLayout === 'vertical' || infoPage === 1) && (
+                <span className="ml-1.5 text-[9px] font-medium normal-case tracking-normal text-zinc-400">칸 길게 눌러 기록</span>
+              )}
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {infoLayout === 'horizontal' && (
