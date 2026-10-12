@@ -6534,16 +6534,26 @@ export default function Game() {
                           예전: 포머 줄 오른쪽(파워 수익에 가려 포머 점을 덮음) → 이름줄 칩(눈에 잘 안 띔, 사용자 피드백) → 모서리 배지.
                           모서리 바깥으로 살짝 걸쳐 그 자리의 점수 숫자를 가리지 않는다. 없으면 미표시. */}
                       {(() => {
-                        const green = getFederationEntries(p as PlayerState).filter((f) => f.isGreen).length;
-                        if (green === 0) return null;
+                        const feds = getFederationEntries(p as PlayerState);
+                        const green = feds.filter((f) => f.isGreen).length;
+                        // [사용자 2026-10-12] 상시 표시 + "초록/전체"(예: 1/2). 초록이 없으면 회색. 초록을 5단계·고급 타일에 쓰면 앞 숫자만 준다.
+                        const on = green > 0;
+                        // 브라우저 기본 title 툴팁은 내장 브라우저(앱 미리보기 등)에서 안 뜨고 일반 브라우저도 1초 지연 → 다른 툴팁과 같은 Radix 툴팁
                         return (
-                          <span
-                            className="absolute -top-2 -left-2 z-20 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-400 text-zinc-950 text-[10px] font-black leading-none flex items-center justify-center ring-2 ring-zinc-950 shadow-[0_0_8px_rgba(52,211,153,0.7)] pointer-events-auto"
-                            title={`미사용 연방 ${green}개 (5단계·고급기술에 사용 가능)`}
-                            aria-label={`미사용 연방 ${green}개`}
-                          >
-                            {green}
-                          </span>
+                          <Tooltip delayDuration={150}>
+                            <TooltipTrigger asChild>
+                              <span
+                                className={`absolute -top-2 -left-2 z-20 min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black leading-none tabular-nums flex items-center justify-center ring-2 ring-zinc-950 pointer-events-auto cursor-help ${on ? 'bg-emerald-400 text-zinc-950 shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'bg-zinc-700 text-zinc-400'}`}
+                                aria-label={`미사용 연방 ${green}개, 전체 ${feds.length}개`}
+                              >
+                                {green}/{feds.length}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" align="start" collisionPadding={8} className="bg-zinc-950/95 border-white/15 text-zinc-100 px-2.5 py-1.5 text-[11px] max-w-[260px]">
+                              <div><b className="text-emerald-300">초록(미사용) {green}</b> / 전체 연방 {feds.length}</div>
+                              <div className="text-zinc-400 text-[10px]">초록 연방은 연구 5단계·고급 기술 타일에 쓸 수 있고, 쓰면 빨강이 됩니다 (12VP 연방은 처음부터 빨강)</div>
+                            </TooltipContent>
+                          </Tooltip>
                         );
                       })()}
                       <PopoverTrigger asChild>
@@ -6581,7 +6591,8 @@ export default function Game() {
                             <div className="flex items-center gap-2 min-w-0 mb-1 md:mb-1.5">
                               {/* [사용자] 패스 딤은 점수+이름에만 — PASSED 배지는 dim 밖(아래 ml-auto)이라 밝게 보임 */}
                               <div className={`flex items-center gap-2 min-w-0 flex-1 ${hasPassed ? 'grayscale opacity-60 brightness-[0.7]' : ''}`}>
-                              <span className="w-5 md:w-7 text-left text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
+                              {/* [사용자 2026-10-12] 왼쪽 위 연방 배지가 점수를 가려서 점수를 오른쪽 정렬(이름 쪽)로. 최대 3자리. */}
+                              <span className="w-8 md:w-10 text-right text-sm md:text-base font-bold text-white flex-shrink-0 tabular-nums leading-none">
                                 {p.score}
                               </span>
 
