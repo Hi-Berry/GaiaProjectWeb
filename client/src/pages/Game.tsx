@@ -6530,6 +6530,22 @@ export default function Game() {
                             : 'bg-muted/50 border-border'
                         }`}
                     >
+                      {/* [사용자 2026-10-12] 미사용(초록) 연방 개수 — 카드 왼쪽 위 모서리 동그라미 배지(알림 배지처럼). 5단계/고급기술에 아직 안 쓴 연방 수.
+                          예전: 포머 줄 오른쪽(파워 수익에 가려 포머 점을 덮음) → 이름줄 칩(눈에 잘 안 띔, 사용자 피드백) → 모서리 배지.
+                          모서리 바깥으로 살짝 걸쳐 그 자리의 점수 숫자를 가리지 않는다. 없으면 미표시. */}
+                      {(() => {
+                        const green = getFederationEntries(p as PlayerState).filter((f) => f.isGreen).length;
+                        if (green === 0) return null;
+                        return (
+                          <span
+                            className="absolute -top-2 -left-2 z-20 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-400 text-zinc-950 text-[10px] font-black leading-none flex items-center justify-center ring-2 ring-zinc-950 shadow-[0_0_8px_rgba(52,211,153,0.7)] pointer-events-auto"
+                            title={`미사용 연방 ${green}개 (5단계·고급기술에 사용 가능)`}
+                            aria-label={`미사용 연방 ${green}개`}
+                          >
+                            {green}
+                          </span>
+                        );
+                      })()}
                       <PopoverTrigger asChild>
                         <div
                           role="button"
@@ -6660,16 +6676,6 @@ export default function Game() {
                                     FA {freeActionMode ? 'ON' : 'OFF'}
                                   </button>
                                 )}
-                                {/* [사용자] 미사용(초록) 연방 개수 칩 "FED N" — 5단계/고급기술에 아직 안 쓴 연방 수. 없으면 미표시.
-                                    [2026-10-05 사용자] 예전엔 포머 줄 오른쪽이라 파워 수익(+Tok·충전)이 많으면 포머 점을 가렸다 → 이름줄 칩 묶음으로 이동
-                                    (이름은 말줄임으로 줄어들어 칩이 가려지지 않음). */}
-                                {(() => {
-                                  const green = getFederationEntries(p as PlayerState).filter((f) => f.isGreen).length;
-                                  if (green === 0) return null;
-                                  return (
-                                    <span className="text-[9px] font-black leading-none px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 tracking-tight" title={`미사용 연방 ${green}개 (5단계·고급기술에 사용 가능)`}>FED {green}</span>
-                                  );
-                                })()}
                                 {(p.factionBidVp ?? 0) > 0 && (
                                   <span
                                     className="inline-flex min-w-[2.75rem] items-center justify-center rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-none text-rose-300 font-semibold tabular-nums"
