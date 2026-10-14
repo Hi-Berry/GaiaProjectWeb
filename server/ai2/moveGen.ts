@@ -32,7 +32,7 @@ const io = { to: () => ({ emit: () => { /* noop */ } }), emit: () => { /* noop *
 export function moveKey(a: BotAction): string {
 	const p: any = a.params ?? {};
 	return [a.type, p.tileId, p.target, p.trackId, p.actionId, p.shipTileId, p.actionIndex, p.targetTileId, p.bonusTileId,
-		p.rewardId, p.artifactId, p.mineTileId, p.type, p.useBrain ? 'B' : ''].filter(x => x != null && x !== '').join('|');
+		p.rewardId, p.artifactId, p.mineTileId, p.type, p.useBrain ? 'B' : '', p.techTileId, p.advancedTileId, p.coverTileId, p.advanceToLevel5 ? 'L5' : ''].filter(x => x != null && x !== '').join('|');
 }
 
 function myAnchors(game: ServerGameState, pid: string): HexTile[] {
@@ -213,7 +213,27 @@ function mainActionMoves(game: ServerGameState, pid: string): BotAction[] {
 	// 하드시 할라 의회 / 발타크 포머→QIC
 	if (p.faction === 'hadsch_hallas' && hasPI) for (const id of (cr >= 4 ? ['hh-4c-1qic', 'hh-3c-1o', 'hh-4c-1k'] : cr >= 3 ? ['hh-3c-1o'] : [])) out.push({ type: 'use_hadsch_hallas_pi_action', params: { actionId: id } });
 	// 연방(기하 탐색은 플래너 재사용 — 상위 8개). 생성 시간의 90%라 결과를 보드 키로 캐시(탐색 형제 노드는 보드가 같은 경우가 많음).
-	for (const fed of federationMoves(game, pid)) out.push({ type: 'form_federation', params: fed } as any);
+	// [ai2 2026-10-13] 보상도 정책이 고르도록: 플래너는 모양마다 보상을 1개(봇 점수 최고)만 붙이므로, 최상위 모양에
+	//   받을 수 있는 보상 전부를 변형으로 추가한다(사람 연방 보상 선택 학습·탐색용).
+	const feds = federationMoves(game, pid);
+	const fedSeen = new Set<string>();
+	for (const fed of feds) { out.push({ type: 'form_federation', params: fed } as any); fedSeen.add(`${fed.rewardId}|${[...fed.selectedPlanetIds].sort().join(',')}|${[...fed.selectedHexIds].sort().join(',')}`); }
+	if (feds.length) {
+		let rewards: string[] = [];
+		try { rewards = (FederationPlanner as any).getAvailableRewardIds(game, pid) ?? []; } catch { rewards = []; }
+		const geoSeen = new Set<string>();
+		for (const fed of feds) {
+			const geo = `${[...fed.selectedPlanetIds].sort().join(',')}|${[...fed.selectedHexIds].sort().join(',')}`;
+			if (geoSeen.has(geo)) continue;
+			geoSeen.add(geo);
+			if (geoSeen.size > 1) break; // 중복 제거 키(moveKey)가 보상 id까지라 모양 하나만
+			for (const rid of rewards) {
+				if (fedSeen.has(`${rid}|${geo}`)) continue;
+				fedSeen.add(`${rid}|${geo}`);
+				out.push({ type: 'form_federation', params: { ...fed, rewardId: rid } } as any);
+			}
+		}
+	}
 	// 패스(보너스 타일별; R6은 보너스 없음)
 	const bonuses = (game.availableBonusTiles ?? []) as any[];
 	for (const b of bonuses) out.push({ type: 'pass_round', params: { bonusTileId: b.id } });

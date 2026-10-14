@@ -61,11 +61,30 @@ export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansion
 /** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
 export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number; rootQ: number; rootValue: number }) => void;
 
-export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number } = {}): Policy {
+export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
 	let rs = (opt.seed ?? 1) >>> 0 || 1; const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 	return async (game, d) => {
 		if (!d.options) return botFastPolicy(game, d);
+		if (d.kind === 'pending' && opt.pendingNet && d.options.length > 1) {
+			// [2026-10-13] 보류 선택(기술 타일·트랙·고급 타일 덮기·트왈 보상 등)은 정책망 최고 확률 수 — 사람 선택으로 학습한 결정.
+			//   불법이면 다음 확률 순(구동기가 받는 것). 탐색 안의 보류는 여전히 기존 봇(속도).
+			const [o] = await net.evaluate([{ game, pov: d.playerId, moves: d.options }]);
+			const order = d.options.map((m, i) => [o.priors[i], m] as const).sort((a, b) => b[0] - a[0]);
+			for (const [, m] of order) if (await tryApply(game, d.playerId, m)) return m;
+		}
+		if (d.kind === 'pending' && opt.pendingValue && d.options.length > 1) {
+			// [2026-10-14] 보류 선택을 가치망으로: 선택지마다 적용해 본 상태의 가치(내 최종 − 상대 평균 예측)가 가장 큰 것.
+			//   정책망 확률만으로 고르면 −11점(사람 흉내 정확도 29%) — 결과 상태를 평가하는 기존 봇 방식에 가깝게.
+			const applied: { m: BotAction; s: ServerGameState }[] = [];
+			for (const m of d.options) { const s2 = await tryApply(game, d.playerId, m); if (s2) applied.push({ m, s: s2 }); }
+			if (applied.length > 1) {
+				const outs = await net.evaluate(applied.map(a => ({ game: a.s, pov: d.playerId, moves: [{ type: 'pass_round', params: {} } as BotAction] })));
+				let bi = 0; for (let i = 1; i < outs.length; i++) if (outs[i].value > outs[bi].value) bi = i;
+				return applied[bi].m;
+			}
+			if (applied.length === 1) return applied[0].m;
+		}
 		if (d.kind !== 'main') { // 보류·리치는 기존 봇 선택
 			const bot = await BotLogic.getNextMove(game, d.playerId, true);
 			if (bot && d.options.some(o => moveKey(o) === moveKey(bot))) return bot;

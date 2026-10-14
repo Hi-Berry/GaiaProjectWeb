@@ -37,7 +37,7 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 	const net = new NetClient(opt('--model', 'data/ai2/model_v0.pt'));
 	const st = newSearchStats();
 	const pst = newPuctStats();
-	const ai2 = mode === 'puct' ? puctPolicy(net, pst, { sims: Number(opt('--sims', '48')), cpuct: Number(opt('--cpuct', '1.5')), maxChildren: Number(opt('--maxc', '12')) })
+	const ai2 = mode === 'puct' ? puctPolicy(net, pst, { sims: Number(opt('--sims', '48')), cpuct: Number(opt('--cpuct', '1.5')), maxChildren: Number(opt('--maxc', '12')), pendingNet: args.includes('--pendingNet'), pendingValue: args.includes('--pendingValue') })
 		: mode === 'search' ? searchPolicy(net, st, { k: Number(opt('--k', '5')), conf: Number(opt('--conf', '0.7')) }) : greedyPolicy(net, st);
 	const dir = path.join(process.cwd(), 'logs', 'round-start');
 	// --starts <json>: 이 시작 상태들만(학습 검증용으로 떼어 둔 것 — 학습에 쓴 판으로 대결하면 새 AI에 유리)

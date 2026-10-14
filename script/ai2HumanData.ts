@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import { BotAction } from '../server/ai/bot';
 import { prepareHeadless } from '../server/ai2/headlessDriver';
-import { generateMoves, generatePendingOptions, moveKey } from '../server/ai2/moveGen';
+import { generateMoves, generatePendingOptions, moveKey, tryApply } from '../server/ai2/moveGen';
 import { encodeState, encodeMove } from '../server/ai2/encoder';
 import { ALL_BONUS_TILES } from '@shared/gameConfig';
 
@@ -41,7 +41,10 @@ function matcher(e: any, game: any): { kind: string; pred: (m: BotAction) => boo
 	if (/^Upgraded to Academy/.test(a)) { const side = /QIC/.test(d) ? 'academy_right' : 'academy_left'; return { kind: 'upgrade:Acad', pred: m => m.type === 'upgrade_structure' && p(m).target === side && p(m).tileId === tid }; }
 	if (/^Selected Bonus/.test(a) && e.phase === 'main') { const b = ALL_BONUS_TILES.find(x => x.label === d); return { kind: 'pass', pred: m => m.type === 'pass_round' && (!b || !p(m).bonusTileId || p(m).bonusTileId === b.id) }; }
 	if (/^Power Action/.test(a)) { const hit = POWER.find(([re]) => re.test(d)); return hit ? { kind: 'power', pred: m => m.type === 'use_power_action' && p(m).actionId === hit[1] && !p(m).useBrain } : null; }
-	if (/^Federation$/.test(a)) return { kind: 'federation', pred: m => m.type === 'form_federation' }; // 위성 조합까지는 맞추지 않음(첫 후보)
+	if (/^Federation$/.test(a)) { // 위성 조합까지는 맞추지 않음(보상이 같은 첫 후보). 보상 = 바로 뒤 'Federation Reward' 줄
+		const rid = e._rewardId as string | undefined;
+		return { kind: 'federation', pred: m => m.type === 'form_federation' && (!rid || p(m).rewardId === rid) };
+	}
 	if (/^Used Tech Action/.test(a)) return { kind: 'tech_action', pred: m => m.type === 'use_tech_action' && p(m).tileId === tid };
 	if (/^Entered Ship/.test(a)) return { kind: 'enter_ship', pred: m => m.type === 'enter_spaceship' && p(m).tileId === tid };
 	if (/^Academy \(/.test(a)) return { kind: 'academy_qic', pred: m => m.type === 'use_special_action' && p(m).actionId === 'academy-qic' };
@@ -57,13 +60,38 @@ function matcher(e: any, game: any): { kind: string; pred: (m: BotAction) => boo
 	return null;
 }
 
+const LV = /(\w+) → Lv\.(\d)/;
+/** 메인 액션 뒤 보류 선택(기술 타일 등)의 사람 선택 판별. 쓴 저널 항목은 used에 넣어 다시 쓰지 않는다. */
+function pendingMatcher(key: string, entries: any[], used: Set<any>): { e: any; pred: (m: BotAction) => boolean } | null {
+	const find = (re: RegExp, f: (e: any) => boolean = () => true, reuse = false) => entries.find(e => (reuse || !used.has(e)) && re.test(String(e.action ?? '')) && f(e));
+	const p = (m: BotAction) => m.params as any;
+	const lvOf = (e: any) => LV.exec(String(e.details ?? '')) ?? [];
+	if (key === 'techTile') {
+		const e = find(/Tech Tile$|^Ship Tech: (?!Advanced track)/, x => typeof x.tileId === 'string' && /^(tech-|ship-tech-|adv-)/.test(x.tileId));
+		if (!e) return null;
+		if (e.tileId.startsWith('adv-')) return { e, pred: m => m.type === 'select_advanced_tech_tile' && p(m).advancedTileId === e.tileId };
+		const [, tr, lv] = lvOf(e);
+		if (e.tileId.startsWith('ship-tech-') || !tr) return { e, pred: m => m.type === 'select_tech_tile' && p(m).techTileId === e.tileId };
+		return { e, pred: m => m.type === 'select_tech_tile' && p(m).techTileId === e.tileId && p(m).trackId === tr && !!p(m).advanceToLevel5 === (Number(lv) === 5) };
+	}
+	if (key === 'advTechCover') { const e = find(/^Advanced Tech Tile$/, undefined, true); /* 고급 타일 고르기와 같은 줄 */ const c = e && (/Covered (\S+)/.exec(String(e.details ?? '')) ?? [])[1]; return e && c ? { e, pred: m => p(m).coverTileId === c } : null; }
+	if (key === 'shipTechTrack' || key === 'advTechTrack') { const e = find(key === 'shipTechTrack' ? /^Ship Tech: Advanced track/ : /^Advanced Tech: Advanced track/); const tr = e && lvOf(e)[1]; return tr ? { e, pred: m => p(m).trackId === tr } : null; }
+	if (key === 'eclipseResearch') { const e = find(/^Eclipse: Research$/); const tr = e && lvOf(e)[1]; return tr ? { e, pred: m => p(m).trackId === tr } : null; }
+	if (key === 'twilightFed') { const e = find(/^(Twilight|Artifact): (Federation benefit|Spaceship Fed)/, x => !!x.tileId && x.tileId !== 'art-fed-once', true); /* 메인 액션 줄 자체가 보상을 담는다 */ return e ? { e, pred: m => p(m).rewardId === e.tileId } : null; }
+	if (key === 'lostPlanet') { const e = find(/^Lost Planet/); return e ? { e, pred: m => p(m).tileId === e.tileId } : null; }
+	if (key === 'eclipseAsteroid') { const e = find(/^Eclipse: Built mine on asteroid/); return e ? { e, pred: m => p(m).tileId === e.tileId } : null; }
+	if (key === 'tfMarsGaia') { const e = find(/^Placed Gaiaformer/); return e ? { e, pred: m => m.type === 'place_gaiaformer' && p(m).tileId === e.tileId } : null; }
+	if (key === 'pendingMine') { const e = find(/^Built (Mine|Mine on Asteroid)$/); return e ? { e, pred: m => m.type === 'build_mine' && p(m).tileId === e.tileId } : null; }
+	return null;
+}
+
 (async () => {
 	fs.mkdirSync(outDir, { recursive: true });
 	const outPath = path.join(outDir, `human_${Date.now()}.jsonl.gz`);
 	const gz = zlib.createGzip({ level: 6 }); const ws = fs.createWriteStream(outPath); gz.pipe(ws);
 	const write = (o: any) => gz.write(JSON.stringify(o) + '\n');
 	const hg = new Map(fs.readdirSync('data/human-games').map(f => [f.replace(/^\d{4}-\d{2}-\d{2}_/, '').replace('.json', ''), f]));
-	const st = { games: 0, noJournal: 0, states: 0, labeled: 0, inOptions: 0, byKind: {} as Record<string, [number, number]>, noMain: 0 };
+	const st = { games: 0, noJournal: 0, states: 0, labeled: 0, inOptions: 0, pending: 0, byKind: {} as Record<string, [number, number]>, noMain: 0 };
 	for (const f of fs.readdirSync('data/human-states').sort()) {
 		const gid = f.replace(/^\d{4}-\d{2}-\d{2}_/, '').replace('.jsonl', '');
 		const hf = hg.get(gid);
@@ -79,8 +107,11 @@ function matcher(e: any, game: any): { kind: string; pred: (m: BotAction) => boo
 			if (g.turnOrder[g.currentPlayerIndex] !== o.playerId || g.hasDoneMainAction) continue; // 턴 시작이 아닌 캡처(대기 상태 등)
 			st.states++;
 			const entries = journal.filter(e => e.playerId === o.playerId && e.timestamp >= o.ts && e.timestamp < nextTs);
-			let mt: ReturnType<typeof matcher> = null;
-			for (const e of entries) { mt = matcher(e, g); if (mt) break; }
+			let mt: ReturnType<typeof matcher> = null; let mainE: any = null;
+			for (const e of entries) {
+				if (/^Federation$/.test(String(e.action))) e._rewardId = entries.find(x => x.timestamp >= e.timestamp && x.action === 'Federation Reward')?.tileId;
+				mt = matcher(e, g); if (mt) { mainE = e; break; }
+			}
 			if (!mt) { st.noMain++; continue; }
 			const po = generatePendingOptions(g, o.playerId);
 			const options = po?.options.length ? po.options : generateMoves(g, o.playerId);
@@ -90,13 +121,30 @@ function matcher(e: any, game: any): { kind: string; pred: (m: BotAction) => boo
 			const e = encodeState(g, o.playerId);
 			write({ g: gid, p: o.playerId, r: g.roundNumber, y, kind: 'human', name: hgame.players?.[o.playerId]?.name,
 				flat: sparse(e.flat), grid: sparse(e.grid), moves: options.map(m => { const em = encodeMove(g, o.playerId, m); return { f: sparse(em.flat), c: em.cell, k: moveKey(m) }; }) });
+			// 메인 액션 뒤 보류 선택(기술 타일·연방 보상 재수령·트랙 전진 등): 수를 적용한 상태에서 사람 선택을 라벨로
+			if (po?.options.length || args.includes('--mainOnly')) continue; // 이미 보류 상태였던 캡처 / 메인 액션만
+			let s2 = await tryApply(g, o.playerId, options[y]);
+			const used = new Set<any>([mainE]); const after = entries.filter(x => x.timestamp >= mainE.timestamp);
+			for (let depth = 0; s2 && depth < 4; depth++) {
+				const pp = generatePendingOptions(s2, o.playerId);
+				if (!pp || !pp.options.length) break;
+				const pk = (st.byKind[`p:${pp.key}`] ??= [0, 0]); pk[1]++;
+				const pm = pendingMatcher(pp.key, after, used);
+				const y2 = pm ? pp.options.findIndex(pm.pred) : -1;
+				if (y2 < 0) { if (process.env.DBG && pp.key === 'techTile') fs.writeSync(1, `[miss] ${pm ? `${pm.e.action}|${pm.e.tileId}|${pm.e.details}` : 'no entry: ' + after.slice(0, 4).map(x => x.action).join(',')} :: ${pp.options.slice(0, 6).map(moveKey).join(' ; ')}\n`); break; }
+				pk[0]++; used.add(pm!.e); st.pending++;
+				const e2 = encodeState(s2, o.playerId); const sx = s2;
+				write({ g: gid, p: o.playerId, r: s2.roundNumber, y: y2, kind: pp.key, name: hgame.players?.[o.playerId]?.name,
+					flat: sparse(e2.flat), grid: sparse(e2.grid), moves: pp.options.map(m => { const em = encodeMove(sx, o.playerId, m); return { f: sparse(em.flat), c: em.cell, k: moveKey(m) }; }) });
+				s2 = await tryApply(s2, o.playerId, pp.options[y2]);
+			}
 		}
 		const scores = Object.fromEntries(Object.entries<any>(hgame.players ?? {}).map(([id, p]) => [id, p.score ?? 0]));
 		write({ final: true, g: gid, ended: true, scores, names: Object.fromEntries(Object.entries<any>(hgame.players ?? {}).map(([id, p]) => [id, p.name])), bots: hgame.botPlayerIds ?? [] });
 		fs.writeSync(1, `${f}: 누적 상태 ${st.states} · 라벨 ${st.labeled} · 선택지 포함 ${st.inOptions}\n`);
 	}
 	gz.end(); await new Promise(r => ws.on('finish', r));
-	fs.writeSync(1, `\n게임 ${st.games} (행동 기록 없음 ${st.noJournal}) · 턴 시작 상태 ${st.states} · 메인 액션 라벨 ${st.labeled} (못 찾음 ${st.noMain}) · 생성기 선택지에 있음 ${st.inOptions} (${(100 * st.inOptions / Math.max(1, st.labeled)).toFixed(1)}%)\n`);
+	fs.writeSync(1, `\n게임 ${st.games} (행동 기록 없음 ${st.noJournal}) · 턴 시작 상태 ${st.states} · 메인 액션 라벨 ${st.labeled} (못 찾음 ${st.noMain}) · 생성기 선택지에 있음 ${st.inOptions} (${(100 * st.inOptions / Math.max(1, st.labeled)).toFixed(1)}%) · 보류 선택 라벨 ${st.pending}\n`);
 	for (const [k, [ok, n]] of Object.entries(st.byKind).sort((a, b) => b[1][1] - a[1][1])) fs.writeSync(1, `  ${k.padEnd(26)} ${ok}/${n} (${(100 * ok / n).toFixed(0)}%)\n`);
 	fs.writeSync(1, `→ ${outPath}\n`);
 	process.exit(0);
