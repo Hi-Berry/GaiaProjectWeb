@@ -9,9 +9,9 @@
  */
 import { BotAction, BotLogic } from '../ai/bot';
 import { ServerGameState } from '../gameState';
-import { step, newStats, botFastPolicy, Decision, Policy } from './headlessDriver';
+import { step, newStats, botFastPolicy, Decision, Policy, fingerprint } from './headlessDriver';
 import { moveKey, tryApply } from './moveGen';
-import { NetClient } from './netClient';
+import type { Evaluator } from './onnxNet';
 
 class Stop { constructor(public d: Decision) {} }
 
@@ -28,11 +28,15 @@ export async function advanceToOwnMain(game: ServerGameState, seat: string, maxS
 		}
 		return botFastPolicy(g, d);
 	};
+	let last = '', same = 0;
 	for (let i = 0; i < maxSteps; i++) {
 		try {
 			const r = await step(game, pol, stats, { botParity: true, ai2Seats: seats });
 			if (r.done) return null;
 		} catch (e) { if (e instanceof Stop) return e.d; throw e; }
+		// 진행 없음(같은 지문 반복 — 리치 대기 등 구동기가 못 푸는 상태)이면 끝으로 보고 끊는다(실전 시간 낭비 방지)
+		const fp = fingerprint(game);
+		if (fp === last) { if (++same >= 20) return null; } else { same = 0; last = fp; }
 	}
 	return null;
 }
@@ -49,7 +53,7 @@ interface Node {
 	visits: number;
 }
 
-async function makeNode(net: NetClient, state: ServerGameState, seat: string, d: Decision | null): Promise<Node> {
+async function makeNode(net: Evaluator, state: ServerGameState, seat: string, d: Decision | null): Promise<Node> {
 	if (!d || !d.options?.length) return { state, terminal: true, value: marginOf(state, seat), moves: [], priors: [], N: [], W: [], child: [], visits: 0 };
 	const [o] = await net.evaluate([{ game: state, pov: seat, moves: d.options }]);
 	return { state, terminal: false, value: o.value, moves: d.options, priors: o.priors, N: d.options.map(() => 0), W: d.options.map(() => 0), child: d.options.map(() => undefined), visits: 0 };
@@ -61,7 +65,7 @@ export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansion
 /** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
 export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number; rootQ: number; rootValue: number }) => void;
 
-export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean } = {}): Policy {
+export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
 	let rs = (opt.seed ?? 1) >>> 0 || 1; const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 	return async (game, d) => {
@@ -97,6 +101,7 @@ export function puctPolicy(net: NetClient, st: PuctStats, opt: { sims?: number; 
 		const allowed = (n: Node) => { const idx = n.priors.map((p, i) => [p, i] as const).sort((a, b) => b[0] - a[0]).slice(0, MAXC).map(x => x[1]); return new Set(idx); };
 		const allowCache = new Map<Node, Set<number>>();
 		for (let s = 0; s < SIMS; s++) {
+			if (opt.maxMs && s > 0 && Date.now() - t0 > opt.maxMs) break; // [실전] 시간 상한 — 그때까지의 방문 수로 결정
 			st.sims++;
 			const path: [Node, number][] = [];
 			let node = root; let leafValue = 0; let depth = 0;

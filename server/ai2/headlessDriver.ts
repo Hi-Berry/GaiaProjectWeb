@@ -194,7 +194,7 @@ async function applyAction(game: ServerGameState, pid: string, a: BotAction): Pr
 	} catch { return false; }
 }
 
-const fingerprint = (g: ServerGameState) => {
+export const fingerprint = (g: ServerGameState) => {
 	const x = g as any;
 	return `${g.currentPhase}|R${g.roundNumber}|i${g.currentPlayerIndex}|m${g.hasDoneMainAction ? 1 : 0}|${g.turnOrder.map(id => (g.players[id].hasPassed ? 1 : 0)).join('')}|${Object.keys(x).filter(k => /^pending/.test(k) && x[k]).join(',')}|s${Object.values(g.players).map((p: any) => p.score).join(',')}|t${g.map.filter(t => t.structure).length}`;
 };

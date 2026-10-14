@@ -1,6 +1,6 @@
 // Bot turn execution helper
 import { Server as SocketIOServer } from 'socket.io';
-import { BotLogic } from './ai/bot';
+import { BotLogic, BotAction } from './ai/bot';
 import {
     ServerGameState,
     executeBotIncomeSelection,
@@ -577,7 +577,16 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
             return;
         }
     }
-    const action = await BotLogic.getNextMove(game, currentPlayerId);
+    // [ai2 실전 2026-10-14] 새 AI 좌석(liveExperiment {"name":"ai2","flags":{"ai2":true}}의 ON 그룹)은 메인 액션을
+    //   새 AI(정책·가치망 + PUCT 160회)가 고른다. 결정 불가·실패·예외면 null → 기존 봇으로 폴백. 그 외 좌석은 모듈을 불러오지도 않는다.
+    let action: BotAction | null = null;
+    const ai2Mod = (getPlayerFlag(currentPlayerId, 'ai2', false) || (player as any).liveVariant?.flags?.ai2) ? await import('./ai2/live') : null;
+    if (ai2Mod && ai2Mod.isAi2Seat(game, currentPlayerId)) {
+        const r = await ai2Mod.ai2LiveDecide(game, currentPlayerId);
+        if (r.reason !== 'not-decidable') log(`Bot ${player.name} [AI2] ${r.action ? r.action.type : `fallback(${r.reason})`} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options}`, 'game', game.id);
+        action = r.action;
+    }
+    if (!action) action = await BotLogic.getNextMove(game, currentPlayerId);
     // [selfJournal] AI_SELF_JOURNAL=1일 때만: 후보 리스트 + 최종 선택을 자가대국 모방 학습용으로 기록(bot.ts 참조)
     BotLogic.selfJournalRecord(game, currentPlayerId, action);
     // [flag: ratioDiag] 계측(기본 OFF): 실제 턴마다 자원상태 + 고른 액션을 게임파일 로그. "크레딧 많은데 광석 없어
