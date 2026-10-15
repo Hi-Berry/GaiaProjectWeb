@@ -4121,11 +4121,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [실게임 좌석 A/B 2026-09-18] server/ai/liveExperiment.json에 실험이 있으면 이 봇을 ON/OFF 그룹에
 			//   번갈아 배정(같은 게임 안 쌍비교). 없으면 no-op — 기존 동작과 동일.
 			const liveGroup = assignLiveBotVariant(game as any, botId);
+			// [사용자 2026-10-15] 새 AI 실험(ai2)일 땐 이름으로 어느 AI인지 보이게 — 'AI Bot N (신형)/(기존)'.
+			//   분석 스크립트가 /^AI Bot/로 봇을 가리므로 앞부분은 그대로 두고 뒤에만 붙인다.
+			if (liveGroup && (game.players[botId] as any)?.liveVariant?.name === 'ai2') {
+				game.players[botId].name = `${name} (${liveGroup === 'on' ? '신형' : '기존'})`;
+			}
 
-			log(`AI Bot added: ${name} (${botId}) to game ${gameId}${liveGroup ? ` [live A/B: ${liveGroup}]` : ''}`, 'game', undefined, { simulation: (game as any).simulation });
+			const finalName = game.players[botId].name;
+			log(`AI Bot added: ${finalName} (${botId}) to game ${gameId}${liveGroup ? ` [live A/B: ${liveGroup}]` : ''}`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game);
 			emitGameUpdated(io, game);
-			callback({ botId, name, game });
+			callback({ botId, name: finalName, game });
 		});
 
 		/** 방장 전용: 로비에서 추가한 플레이어/봇 제거 (잘못 추가 시). 방장 본인은 제거 불가. */
