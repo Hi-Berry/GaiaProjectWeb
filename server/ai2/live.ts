@@ -8,7 +8,7 @@
  *   (보류 선택을 신경망에 맡기면 판당 −11~12점 — RESULTS.md).
  * 안전: 라이브 상태는 절대 건드리지 않는다(prepareHeadless 복제본에서만 탐색). 실패·시간 초과·예외면 null →
  *   호출부가 기존 봇으로 폴백. 모델은 처음 쓸 때 한 번 불러온다.
- * 설정(환경변수): AI2_MODEL(기본 server/ai2/models/ai2_v4h4.onnx) · AI2_SIMS(160) · AI2_MAX_MS(8000)
+ * 설정(환경변수): AI2_MODEL(기본 server/ai2/models/ai2_v4h6.onnx) · AI2_SIMS(160) · AI2_MAX_MS(8000)
  */
 import * as path from 'path';
 import { BotAction } from '../ai/bot';
@@ -23,7 +23,7 @@ let net: OnnxNet | null = null;
 let netFailed = false;
 const getNet = (): OnnxNet | null => {
 	if (netFailed) return null;
-	if (!net) net = new OnnxNet(path.resolve(process.cwd(), process.env.AI2_MODEL || 'server/ai2/models/ai2_v4h4.onnx'));
+	if (!net) net = new OnnxNet(path.resolve(process.cwd(), process.env.AI2_MODEL || 'server/ai2/models/ai2_v4h6.onnx'));
 	return net;
 };
 
