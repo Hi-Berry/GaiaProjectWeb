@@ -98,6 +98,16 @@ function peopleText(x){
   return `접속 ${x.online}명 (${parts.join(' · ')})`;
 }
 
+/** 0..n-1 중 하나. 같은 날 같은 '게임 중 서버 구성'이면 누가 열어도 같은 값(문자열 해시 FNV-1a). */
+function pickIndex(n, list){
+  const d = new Date();
+  const seed = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}|`
+    + list.map(x=>x.state==='up' ? (x.games>0?'1':'0') : 'x').join('');
+  let h = 2166136261;
+  for (let i=0;i<seed.length;i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h>>>0) % n;
+}
+
 function render(list){
   // [사용자 2026-08-13] 이 페이지는 '사람을 모으는 곳'이 아니라 **빈 서버를 찾는 곳**이다
   //   (4명을 채팅방에서 모은 뒤 들어온다). 그래서 접속 인원 기반 추천/모집 문구는 쓰지 않고,
@@ -107,15 +117,17 @@ function render(list){
   //   여러 서버에 지정이 남아 있으면 가장 최근에 지정된 것(noticeAt 최대)을 쓴다 → 새로 지정할 때 나머지를
   //   일일이 해제할 필요 없이 URL 하나로 전환된다. 지정이 없으면 기존 자동 추천 로직 그대로.
   const pinned = ups.filter(x=>x.recommend).sort((a,b)=>b.noticeAt-a.noticeAt)[0];
-  // [사용자 2026-08-13] 메인 서버 중심으로 전환: 기본은 메인에서 플레이하고, 메인이 게임 중이면
-  //   비어 있는 예비 서버로 보낸다. '플레이 가능' = 켜져 있고 진행 중 게임이 없는 서버.
+  // '플레이 가능' = 켜져 있고 진행 중 게임이 없는 서버.
+  // [사용자 2026-08-13] 메인이 비어 있으면 항상 메인.
+  // [사용자 2026-10-13] 메인이 게임 중일 때 예비 서버를 늘 1번부터 가리키면 한 서버에 몰린다 → 빈 예비 서버 중 무작위로 분산.
+  //   단 채팅방에서 모인 4명이 각자 이 페이지를 열어도 같은 서버를 보도록 진짜 난수 대신
+  //   '오늘 날짜 + 지금 게임 중인 서버 목록'으로 정해지는 의사 난수를 쓴다 → 같은 상황이면 모두 같은 손가락,
+  //   가리키던 곳(또는 다른 곳)에 방이 생겨 상황이 바뀌면 다른 서버로 옮겨 간다. AI 봇 서버는 느려서 사람 전용 우선.
   const main = ups.find(x=>x.main);
-  const spares = ups.filter(x=>!x.main);
-  const freeSpares = spares.filter(x=>x.games===0);
-  const mainFree = main && main.games===0;
-  // 강조할 카드: 지정 > 비어 있는 메인 > 비어 있는 예비(사람 전용 우선) > 없음
-  const auto = mainFree ? main
-    : (freeSpares.filter(x=>!x.ai)[0] || freeSpares[0]);
+  const freeSpares = ups.filter(x=>!x.main && x.games===0);
+  const pool = freeSpares.filter(x=>!x.ai).length ? freeSpares.filter(x=>!x.ai) : freeSpares;
+  const auto = (main && main.games===0) ? main
+    : pool.length ? pool[pickIndex(pool.length, list)] : undefined;
   const best = pinned || auto;
   const grid = document.getElementById('grid');
   grid.innerHTML = list.map(x=>{
@@ -143,17 +155,8 @@ function render(list){
   if(pinned){
     b.innerHTML = `👉 <b>${esc(pinned.name)}</b> 에서 플레이하세요`
       + (pinned.notice?` — ${esc(pinned.notice)}`:'');
-  } else if(mainFree){
-    b.innerHTML = `👉 <b>${esc(main.name)}</b>에서 플레이하세요`;
-  } else if(main){
-    // 메인이 게임 중 — 예비 서버 중 비어 있는 곳으로 안내
-    b.innerHTML = `⚠️ <b>${esc(main.name)}</b>에서 게임 진행 중입니다. 예비 서버 중에 플레이 가능한 곳에서 플레이해주세요.`
-      + (freeSpares.length?` — 지금 비어 있는 곳: <b>${freeSpares.map(x=>esc(x.name)).join(', ')}</b>`
-                          :' — 지금은 예비 서버도 모두 게임 중입니다.');
-  } else if(freeSpares.length){
-    // 메인이 응답 없음
-    b.innerHTML = '⚠️ 메인 서버가 응답하지 않습니다. 예비 서버 중에 플레이 가능한 곳에서 플레이해주세요.'
-      + ` — 지금 비어 있는 곳: <b>${freeSpares.map(x=>esc(x.name)).join(', ')}</b>`;
+  } else if(auto){
+    b.innerHTML = `👉 <b>${esc(auto.name)}</b>에서 플레이하세요`;
   } else if(ups.length){
     b.innerHTML = '⚠️ 지금 플레이 가능한(비어 있는) 서버가 없습니다. 모두 게임 진행 중이거나 응답이 없습니다.';
   } else {
