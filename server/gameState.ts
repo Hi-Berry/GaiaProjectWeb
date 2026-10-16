@@ -4019,6 +4019,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game || Object.keys(game.players).length >= game.maxPlayers || game.currentPhase !== 'lobby') {
 				callback({ error: 'Cannot join game' }); return;
 			}
+			releaseSocketSpectator();
+			releaseSocketPlayer();
 			const playerId = generatePlayerId();
 			game.players[playerId] = createInitialPlayerState(playerName);
 			game.turnOrder.push(playerId);
@@ -4158,6 +4160,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 관전자 재접속: 플레이어 슬롯 없이 방만 구독
 			if (game.spectatorIds?.includes(playerId)) {
+				releaseSocketPlayer(); // 좌석 → 관전 전환(위 watch_game과 같은 이유)
 				socketToSpectatorMap.set(socket.id, playerId);
 				spectatorToGameMap.set(playerId, gameId);
 				joinGameRoom(socket, gameId);
@@ -4171,6 +4174,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			if (!game.players[playerId]) { callback({ error: 'Player not found' }); return; }
+
+			// 관전 → 좌석, 또는 다른 좌석 → 이 좌석으로 바꿔 들어온 소켓이면 예전 신원을 놓는다(관전자 목록에 유령이 남지 않게).
+			releaseSocketSpectator();
+			if (socketToPlayerMap.get(socket.id) !== playerId) releaseSocketPlayer();
 
 			// '떠났습니다'와 대칭으로 '다시 접속했습니다' 알림(사용자 요청). 단 이 소켓 등록 '전에' 같은 플레이어의
 			// 다른 소켓이 없었을 때만 = 진짜 떠나있다 돌아온 경우만. (여러 탭/빠른 새로고침 중복 알림 방지.) 봇 제외.
@@ -4222,6 +4229,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const specName = typeof name === 'string' ? name.trim().slice(0, 20) : '';
 			// [사용자 2026-08-01] Join처럼 관전도 이름 필수 — 채팅/관전자 목록 표기에 쓰임
 			if (!specName) { callback({ error: '관전하려면 이름을 입력하세요.' }); return; }
+
+			// [사용자 제보 2026-10-16] 한 컴퓨터에서 a로 게임하다 나가서 b로 관전하면 관전자 목록엔 b가 뜨는데 채팅은 a로 나갔다.
+			//   같은 소켓에 a 좌석 연결이 남아 있었고, 채팅(과 모든 액션)은 좌석 연결을 먼저 본다. → 관전으로 바꾸면 좌석 연결을 놓는다.
+			releaseSocketPlayer();
 
 			// [버그수정 2026-08-14, 리뷰] 같은 사람이 관전을 다시 시작할 때마다 유령 이름이 쌓이던 문제.
 			//   ① 이 소켓이 이미 다른 관전 ID로 붙어 있었으면 그 ID를 먼저 목록에서 뺀다.
@@ -7353,7 +7364,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 
 
-		socket.on('disconnect', () => {
+		/** 이 소켓의 좌석 연결을 해제한다(연결 끊김·관전으로 전환 공용). 같은 플레이어의 다른 탭이 없으면 '떠났습니다' 예약. */
+		function releaseSocketPlayer() {
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (playerId) {
 				socketToPlayerMap.delete(socket.id); // 이 소켓 먼저 제거 후 '다른 탭 남았나' 판정
@@ -7394,6 +7406,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 					}
 				}
 			}
+		}
+		/** 이 소켓의 관전 연결을 해제한다(연결 끊김·좌석으로 전환 공용). */
+		function releaseSocketSpectator() {
 			const spectatorId = socketToSpectatorMap.get(socket.id);
 			if (spectatorId) {
 				// [관전자 목록] 접속 끊기면 '현재 관전 중' 목록에서 제거 (spectatorIds는 재접속용으로 유지)
@@ -7413,6 +7428,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 					}
 				}
 			}
+		}
+
+		socket.on('disconnect', () => {
+			releaseSocketPlayer();
+			releaseSocketSpectator();
 		});
 	});
 
