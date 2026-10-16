@@ -50,7 +50,25 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 		const g = prepareHeadless(snap);
 		const seat = g.turnOrder[(gi + shard + Number(opt('--seatOffset', '0'))) % g.turnOrder.length]; // 좌석 회전(--seatOffset으로 같은 시작의 다른 좌석)
 		const seats = new Set([seat]);
-		const policy: Policy = async (game, d) => (seats.has(d.playerId) ? ai2(game, d) : botFullPolicy(game, d));
+		// [2026-10-17] 좌석별 라운드 메인 액션 수·패스 순서(사람 게임 분석 realGameGap과 비교용). 헤드리스는 게임 로그를 비우므로 정책에서 센다.
+		const acts: Record<string, number[]> = {}; const passOrd: Record<string, number[]> = {}; const passCnt: number[] = [];
+		// [2026-10-17 사용자 관찰: 돈이 없을 때 파워를 아껴 7크레딧으로 순환시키지 못함] 패스 시 자원 · 파워 액션 선택과 그 직전 자원
+		const passRes: Record<string, any[]> = {}; const pwActs: Record<string, any[]> = {};
+		const FREE = new Set(['convert_resource', 'burn_power', 'end_turn', 'respond_power_offer', 'taklons_burn_brain', 'bal_tak_gaiaformer_to_qic']);
+		const policy: Policy = async (game, d) => {
+			const a = await (seats.has(d.playerId) ? ai2(game, d) : botFullPolicy(game, d));
+			const r = game.roundNumber ?? 0;
+			if (a && d.kind === 'main' && game.currentPhase === 'main' && r >= 1) {
+				const p: any = game.players[d.playerId];
+				if (a.type === 'pass_round') (passRes[d.playerId] ??= [])[r] = { c: p.credits, o: p.ore, k: p.knowledge, q: p.qic, p3: p.power3 };
+				if (a.type === 'use_power_action') (pwActs[d.playerId] ??= []).push({ r, id: (a.params as any)?.actionId, c: p.credits, o: p.ore });
+			}
+			if (a && d.kind === 'main' && game.currentPhase === 'main' && r >= 1 && !FREE.has(a.type as string)) {
+				(acts[d.playerId] ??= [0, 0, 0, 0, 0, 0, 0])[r]++;
+				if (a.type === 'pass_round') { passCnt[r] = (passCnt[r] ?? 0) + 1; (passOrd[d.playerId] ??= [])[r] = passCnt[r]; }
+			}
+			return a;
+		};
 		const r = await runToEnd(g, policy, { botParity: true, ai2Seats: seats });
 		const sc = r.scores as Record<string, number>;
 		const others = Object.entries(sc).filter(([k]) => k !== seat).map(([, v]) => v);
@@ -58,7 +76,13 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 		const b = base.get(`${start}|${seat}`) ?? [];
 		const bm = b.length ? b.reduce((x, y) => x + y, 0) / b.length : NaN;
 		const rank = 1 + others.filter(v => v > sc[seat]).length;
-		out(JSON.stringify({ result: true, mode, start, seat, ended: r.ended, stuck: r.stuck, ai2: sc[seat], others, margin, baseMargin: bm, delta: margin - bm, rank, faction: (g.players[seat] as any).faction }));
+		const sumVp = (v: any) => Array.isArray(v) ? v.reduce((t, x) => t + (x?.vp ?? 0), 0) : (typeof v === 'number' ? v : 0);
+		const seatStats = Object.fromEntries(g.turnOrder.map(id => {
+			const p: any = g.players[id];
+			const bd = Object.fromEntries(Object.entries(p.scoreBreakdown ?? {}).filter(([k]) => k !== 'finalMissionDetails').map(([k, v]) => [k, sumVp(v)]));
+			return [id, { score: p.score, bd, tiles: p.techTiles ?? [], feds: (p.federations ?? []).length, res: Object.values(p.research ?? {}).reduce((t: number, x: any) => t + x, 0), acts: acts[id] ?? [], pass: passOrd[id] ?? [], passRes: passRes[id] ?? [], pw: pwActs[id] ?? [] }];
+		}));
+		out(JSON.stringify({ result: true, mode, start, seat, ended: r.ended, stuck: r.stuck, ai2: sc[seat], others, margin, baseMargin: bm, delta: margin - bm, rank, faction: (g.players[seat] as any).faction, seatStats }));
 		out(`[${mode} s${shard}] ${start} ${(g.players[seat] as any).faction} ai2=${sc[seat]} 상대=${others.join('/')} margin ${margin.toFixed(1)} vs 봇기준 ${bm.toFixed(1)} → Δ ${(margin - bm).toFixed(1)} · 순위 ${rank} · ${((Date.now() - t0) / 1000).toFixed(0)}s · 탐색 ${st.searched}/${st.decisions} 바꿈 ${st.changedFromTop}${mode === 'puct' ? ` · puct 결정 ${pst.decisions} 시뮬 ${pst.sims} 전개 ${pst.expansions} 불법 ${pst.illegal} 깊이 ${pst.depthMax} 바꿈 ${pst.changedFromTop} ${(pst.ms / Math.max(1, pst.decisions)).toFixed(0)}ms/결정` : ''}`);
 	}
 	net.close();

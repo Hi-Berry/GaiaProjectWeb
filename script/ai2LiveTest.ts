@@ -22,7 +22,7 @@ import { tryApply } from '../server/ai2/moveGen';
 		const h1 = crypto.createHash('md5').update(JSON.stringify(live)).digest('hex');
 		const legal = r.action ? !!(await tryApply(StateCloner.cloneGameStateForSimulation(live) as any, pid, r.action)) : false;
 		times.push(r.ms);
-		console.log(`${f}: ${r.action?.type ?? 'null'}${r.reason ? `(${r.reason})` : ''} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options} · 상태 불변 ${h0 === h1 ? 'O' : 'X 변경됨!'} · 합법 ${legal ? 'O' : 'X'}`);
+		console.log(`${f}: ${r.action ? JSON.stringify(r.action.params).slice(0, 60) : ""} ${r.action?.type ?? "null"}${r.reason ? `(${r.reason})` : ''} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options} · 상태 불변 ${h0 === h1 ? 'O' : 'X 변경됨!'} · 합법 ${legal ? 'O' : 'X'}`);
 	}
 	console.log(`평균 ${(times.reduce((a, b) => a + b, 0) / times.length).toFixed(0)}ms · 최대 ${Math.max(...times)}ms`);
 	process.exit(0);

@@ -8,6 +8,7 @@
  * 합법성은 펼칠 때 서버 규칙으로 판정(불법 간선은 제거). 분기 폭은 사전확률 상위 maxChildren개로 제한.
  */
 import { BotAction, BotLogic } from '../ai/bot';
+import { FederationPlanner } from '../ai/federationPlanner';
 import { ServerGameState } from '../gameState';
 import { step, newStats, botFastPolicy, Decision, Policy, fingerprint } from './headlessDriver';
 import { moveKey, tryApply } from './moveGen';
@@ -65,7 +66,7 @@ export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansion
 /** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
 export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number; rootQ: number; rootValue: number }) => void;
 
-export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number } = {}): Policy {
+export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number; lite?: boolean } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
 	let rs = (opt.seed ?? 1) >>> 0 || 1; const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 	return async (game, d) => {
@@ -96,6 +97,11 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 		}
 		const t0 = Date.now(); st.decisions++;
 		const seat = d.playerId;
+		// 탐색 동안만 연방 계산 캐시 켬(상대 봇 후보 생성의 68%). 결과는 상태로 결정되므로 같은 키면 같은 값.
+		const prevMemo = FederationPlanner.memo; if (process.env.AI2_FEDMEMO !== '0') FederationPlanner.memo = fedMemo;
+		try { return await searchMain(game, d, seat, t0); } finally { FederationPlanner.memo = prevMemo; }
+	};
+	async function searchMain(game: ServerGameState, d: Decision, seat: string, t0: number): Promise<BotAction | null> {
 		const root = await makeNode(net, game, seat, d);
 		// 분기 제한: 사전확률 상위 MAXC개만 후보
 		const allowed = (n: Node) => { const idx = n.priors.map((p, i) => [p, i] as const).sort((a, b) => b[0] - a[0]).slice(0, MAXC).map(x => x[1]); return new Set(idx); };
@@ -122,6 +128,7 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 					// 펼치기: 수 적용(서버 규칙 검증) → 내 다음 메인 결정까지 진행 → 가치망 평가
 					const applied = await tryApply(node.state, seat, node.moves[best]);
 					if (!applied) { node.child[best] = null; st.illegal++; path.pop(); depth--; continue; }
+					if (opt.lite !== false && process.env.AI2_LITE !== '0') (applied as any).ai2SearchLite = true; // 탐색 안 상대 모델 간소화(bot.ts) — 복제로 자식에 이어짐
 					const nd = await advanceToOwnMain(applied, seat);
 					const child = await makeNode(net, applied, seat, nd);
 					node.child[best] = child; st.expansions++;
@@ -153,5 +160,6 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 		const top = root.priors.indexOf(Math.max(...root.priors));
 		if (pick !== top) st.changedFromTop++;
 		return root.moves[pick];
-	};
+	}
 }
+const fedMemo = new Map<string, any>();

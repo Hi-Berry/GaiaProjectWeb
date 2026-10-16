@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { ServerGameState } from '../gameState';
 import {
     HexTile,
@@ -36,7 +37,45 @@ export class FederationPlanner {
      * 연방 후보 여러 개 반환 (상위 limit개).
      * - 봇이 "1개만 연방"에 고착되는 문제를 줄이기 위해, 좋은 대안 연방도 후보로 제공.
      */
+    /**
+     * [ai2 탐색 속도 2026-10-17] 결과 캐시 — 기본 꺼짐(null). 새 AI 탐색 중에만 켠다(server/ai2/puct.ts).
+     * 프로파일: 탐색 시간의 68%가 상대 봇 후보 생성 안의 이 함수(같은 보드를 수천 번 재계산). 키 = 결과가 의존하는 상태 전부.
+     * 라이브 봇·MCTS는 캐시를 쓰지 않으므로 동작 불변.
+     */
+    static memo: Map<string, { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number }[]> | null = null;
+    static memoStats = { hit: 0, miss: 0 };
+    private static memoKey(game: ServerGameState, playerId: string, extraTokens: number, limit: number): string {
+        const p: any = game.players[playerId];
+        let occ = '';
+        for (const t of game.map as any[]) if (t.structure || t.parasiticMine || t.spaceStation || t.hasGaiaformer) occ += `${t.id}:${t.ownerId ?? ''}${t.structure ?? ''}${t.parasiticMine?.ownerId ?? ''}${t.spaceStation?.ownerId ?? ''}${t.hasGaiaformer ? 'g' : ''};`;
+        return [playerId, extraTokens, limit, game.roundNumber, p.power1, p.power2, p.power3, p.gaiaPower ?? '', p.qic, p.credits, p.ore, p.knowledge, p.bonusTile ?? '', p.brainStoneBowl ?? '', p.brainStoneInGaia ? 1 : 0,
+            (p.techTiles ?? []).join(','), JSON.stringify(p.federations ?? []), (p.spaceshipsEntered ?? []).join(','), JSON.stringify(p.research ?? {}),
+            JSON.stringify((game as any).playerFederationHexes ?? {}), JSON.stringify((game as any).satellites ?? {}), JSON.stringify((game as any).federationPool ?? {}),
+            JSON.stringify((game as any).spaceshipFederationByShip ?? {}), occ].join('|');
+    }
+    private static memoHash(key: string): string { return createHash('sha1').update(key).digest('base64'); } // 긴 키(수 KB) 대신 20바이트 — 메모리
+
     static getFederationActions(
+        game: ServerGameState,
+        playerId: string,
+        extraTokens = 0,
+        limit = 3
+    ): { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number }[] {
+        if (!FederationPlanner.memo) return FederationPlanner.computeFederationActions(game, playerId, extraTokens, limit);
+        const key = FederationPlanner.memoHash(FederationPlanner.memoKey(game, playerId, extraTokens, limit));
+        let hit = FederationPlanner.memo.get(key);
+        if (hit) FederationPlanner.memoStats.hit++;
+        else {
+            FederationPlanner.memoStats.miss++;
+            hit = FederationPlanner.computeFederationActions(game, playerId, extraTokens, limit);
+            if (FederationPlanner.memo.size > 20000) FederationPlanner.memo.clear();
+            FederationPlanner.memo.set(key, hit);
+        }
+        // 호출부가 배열을 고칠 수 있으니 사본
+        return hit.map(x => ({ ...x, selectedHexIds: [...x.selectedHexIds], selectedPlanetIds: [...x.selectedPlanetIds] }));
+    }
+
+    private static computeFederationActions(
         game: ServerGameState,
         playerId: string,
         extraTokens = 0,
@@ -93,7 +132,12 @@ export class FederationPlanner {
 
         const results: { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number, score: number }[] = [];
 
-        for (const startTile of myStructures) {
+        // [사용자 2026-10-17] 하이브 룰: 2번째 연방부터는 기존 연방에 붙여 키워야 한다. effRequired(차액)도 그 전제라,
+        //   아무 건물에서나 시작하면 기존 연방과 떨어진 7파워 덩어리를 따로 연방으로 냈다(실측: 봇만 3건).
+        //   → 기존 연방이 있으면 시작점은 '기존 연방' 하나뿐.
+        const extendIvitsFed = isIvits && fedHexes.length > 0;
+        const starts: (HexTile | null)[] = extendIvitsFed ? [null] : myStructures;
+        for (const startTile of starts) {
             diag.starts++;
             const result = this.tryFormFederationFrom(game, playerId, startTile, effRequired, availableTokens);
             if (!result) { diag.nulls++; continue; }
@@ -394,7 +438,7 @@ export class FederationPlanner {
     private static tryFormFederationFrom(
         game: ServerGameState,
         playerId: string,
-        startTile: HexTile,
+        startTile: HexTile | null, // null = 하이브가 기존 연방을 키우는 경우(기존 연방 칸에서 출발, 그 파워는 requiredPower에서 이미 뺌)
         requiredPower: number,
         maxTokens: number
     ): { selectedHexIds: string[], selectedPlanetIds: string[], rewardId: string, spentTokens: number } | null {
@@ -403,17 +447,21 @@ export class FederationPlanner {
         const fedHexes = game.playerFederationHexes?.[playerId] || [];
         const player = game.players[playerId];
         const isIvits = player?.faction === 'ivits';
+        const fromExistingFed = startTile === null;
 
         // Always include the starting planet's connected component
-        const initialComponent = getPlanetConnectedComponent(game, playerId, startTile.id);
+        const initialComponent = fromExistingFed ? new Set<string>() : getPlanetConnectedComponent(game, playerId, startTile.id);
         initialComponent.forEach(id => selectedPlanetIds.add(id));
 
         // [flag: ivitsFedCumulative] 서버 연결성(computeIvitsFederationConnected)은 기존 연방 칸을 통과 가능
         // 통로로 인정 — BFS도 동일하게 무비용 커넥터로 쓴다(선택/위성비용엔 미포함).
-        const fedConnector = isIvits && getPlayerFlag(playerId, 'ivitsFedCumulative', true);
+        // 기존 연방에서 출발할 땐 연방 칸이 곧 출발점이라 플래그와 무관하게 통로로 쓴다.
+        const fedConnector = isIvits && (fromExistingFed || getPlayerFlag(playerId, 'ivitsFedCumulative', true));
+        const fedTiles = fromExistingFed ? game.map.filter(t => fedHexes.includes(t.id)) : [];
+        const fedHexSet = new Set(fedHexes);
 
         let currentPower = getFederationBuildingPower(game, playerId, selectedPlanetIds);
-        if (currentPower >= requiredPower) {
+        if (!fromExistingFed && currentPower >= requiredPower) {
             // [flag: fedMinTrim] 연결 컴포넌트가 이미 7 이상이면 통째로 묶지 말고 "딱 7 넘는 최소 연결 부분집합"만
             // 연방에 넣어 초과분 건물을 다음 연방 씨앗으로 보존. 강자는 연방을 작게·여러 개 만들어 보상/초록토큰을 늘림.
             // (봇 최대 병목: 연방 1.4 vs 사람 4.5). Ivits는 누적규칙이라 제외.
@@ -434,6 +482,12 @@ export class FederationPlanner {
         // BFS to find paths to other components
         const queue: { currentHexId: string, path: string[], cost: number }[] = [];
         const visited = new Set<string>();
+
+        // 기존 연방에서 출발: 연방 칸 자체를 무비용 통로로 큐에 넣는다 → 꺼낼 때 바로 옆 내 건물(새 건물)을 병합하고, 빈칸으로 뻗는다.
+        for (const t of fedTiles) {
+            queue.push({ currentHexId: t.id, path: [], cost: 0 });
+            visited.add(t.id);
+        }
 
         // Initialize queue with neighbors of our current component
         initialComponent.forEach(pid => {
@@ -485,7 +539,8 @@ export class FederationPlanner {
                 const ownNode = (n.ownerId === playerId && n.structure && n.structure !== 'ship')
                     || (getPlayerFlag(playerId, 'fedParasiticNodes', true) && n.parasiticMine?.ownerId === playerId); // [flag: fedParasiticNodes]
                 if (isPlanetHex(n) && ownNode && !fedHexes.includes(n.id)) {
-                    const comp = getPlanetConnectedComponent(game, playerId, n.id);
+                    // 기존 연방에서 출발할 땐 이미 연방에 든 건물은 막는다(그 파워는 requiredPower에서 이미 뺐으므로 이중 계산 방지)
+                    const comp = getPlanetConnectedComponent(game, playerId, n.id, fromExistingFed ? fedHexSet : undefined);
                     // Check if this component is already included
                     let hasNew = false;
                     comp.forEach(cid => {
@@ -530,6 +585,7 @@ export class FederationPlanner {
 
                 // 모든 현재 연방에 속한 행성들 및 위성들에서 다시 1거리 빈 공간 탐색
                 const currentFedTiles = [
+                    ...fedTiles, // 기존 연방에서 출발한 경우 그 칸들도 계속 뻗어 나갈 출발점
                     ...Array.from(currentPlanetIds).map(id => game.map.find(t => t.id === id)!),
                     ...Array.from(currentHexIds).map(id => game.map.find(t => t.id === id)!)
                 ];

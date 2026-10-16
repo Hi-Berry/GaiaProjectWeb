@@ -2400,7 +2400,9 @@ export class BotLogic {
 
         // 1b. 프리 액션 kO→k토큰 후 연방: k=2..min(ore,6) 각각 후보로 넣어서 MCTS가 효율(최소 오레로 12VP 등) 판단
         // Ivits는 연방 위성 비용이 QIC이므로, 여기서 "오레->토큰" 프리액션을 섞으면 계산(availableTokens)이 틀어져 QIC 마이너스가 날 수 있음.
-        if (player.faction !== 'ivits' && !holdFedForPi) {
+        // [ai2 탐색 속도 2026-10-17] 새 AI 탐색 안의 상대 모델링(복제 상태에 ai2SearchLite 표시)에서는 이 '광석→토큰 k개 후 연방'
+        //   변형 탐색(k마다 연방 계획기 재호출 — 탐색 시간의 대부분)을 생략. 실제 게임·대결의 봇은 표시가 없어 그대로.
+        if (player.faction !== 'ivits' && !holdFedForPi && !(game as any).ai2SearchLite) {
             const oreForFed = player.ore ?? 0;
             // [flag: oreFedGuard] 사용자 관찰(2026-07-04): "쓸모없이 Ore 다 위성 변환해서 무리한 연방".
             // 기존 R4+는 광석 8개까지 + 위성수 무제한 → 후반 evaluator가 광석을 싸게 쳐(resMultLate) 8O 올인 연방.
