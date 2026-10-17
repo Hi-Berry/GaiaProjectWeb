@@ -1653,6 +1653,16 @@ export function getFederationPlanetIdsFromSelectedEmpties(game: ServerGameState,
 }
 
 /** 연방 1회당 필요 파워. 제노스는 의회 보유 시 6, 그 외 7 */
+/** 사람 게임에 들어가는 봇의 실전 실험 배정(liveExperiment.json) + ai2 실험이면 이름에 방식 표시 'AI Bot N (신경망)/(MCTS)'.
+ *  [사용자 2026-10-15] 분석 스크립트가 /^AI Bot/로 봇을 가리므로 앞부분은 그대로 두고 뒤에만 붙인다. */
+function assignLiveBotAndName(game: ServerGameState, botId: string): 'on' | 'off' | null {
+	const liveGroup = assignLiveBotVariant(game as any, botId);
+	if (liveGroup && (game.players[botId] as any)?.liveVariant?.name === 'ai2') {
+		game.players[botId].name = `${game.players[botId].name} (${liveGroup === 'on' ? '신경망' : 'MCTS'})`;
+	}
+	return liveGroup;
+}
+
 export function getFederationRequiredPower(game: ServerGameState, playerId: string): number {
 	const player = game.players[playerId];
 	const hasPI = player && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute');
@@ -4122,12 +4132,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// [실게임 좌석 A/B 2026-09-18] server/ai/liveExperiment.json에 실험이 있으면 이 봇을 ON/OFF 그룹에
 			//   번갈아 배정(같은 게임 안 쌍비교). 없으면 no-op — 기존 동작과 동일.
-			const liveGroup = assignLiveBotVariant(game as any, botId);
-			// [사용자 2026-10-15] 새 AI 실험(ai2)일 땐 이름으로 어떤 방식의 AI인지 보이게 — 'AI Bot N (신경망)/(MCTS)'.
-			//   분석 스크립트가 /^AI Bot/로 봇을 가리므로 앞부분은 그대로 두고 뒤에만 붙인다.
-			if (liveGroup && (game.players[botId] as any)?.liveVariant?.name === 'ai2') {
-				game.players[botId].name = `${name} (${liveGroup === 'on' ? '신경망' : 'MCTS'})`;
-			}
+			const liveGroup = assignLiveBotAndName(game, botId);
 
 			const finalName = game.players[botId].name;
 			log(`AI Bot added: ${finalName} (${botId}) to game ${gameId}${liveGroup ? ` [live A/B: ${liveGroup}]` : ''}`, 'game', undefined, { simulation: (game as any).simulation });
@@ -4582,12 +4587,16 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (selfPlay && !game.botPlayerIds.includes(game.hostId)) {
 				game.botPlayerIds.push(game.hostId); // 자기대국: 호스트 슬롯도 봇이 수행
 			}
+			// [사용자 2026-10-17] 사람이 실제로 쓰는 'Auto Setup (Random)'도 봇 추가와 같이 실험 배정(신경망/MCTS)과 이름 표시.
+			//   예전엔 이 경로만 빠져 전부 기존 봇·이름 표시 없음이었다. 하니스용 옵션(selfPlay/headToHead/fixedSetup)은 그대로 둔다.
+			const liveAssign = !selfPlay && !headToHead && !fixedSetup;
 			while (Object.keys(game.players).length < 4) {
 				const botId = `bot-${generatePlayerId()}`;
 				const name = `AI Bot ${Object.keys(game.players).length + 1}`;
 				game.players[botId] = createInitialPlayerState(name);
 				game.turnOrder.push(botId);
 				game.botPlayerIds.push(botId);
+				if (liveAssign) assignLiveBotAndName(game, botId);
 			}
 
 			// [paired h2h] 고정 맵 주입: 하니스가 generateMap()으로 그룹당 맵 하나 만들어 그룹 내 모든 게임에 동일 주입.
