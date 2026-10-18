@@ -146,6 +146,12 @@
   100% { transform: scale(1.0); opacity: 1; }   /* 원본 칸 크기로 부드럽게 축소 (오버슈트 없음) */
 }
 .gaia-log-pop { transform-box: fill-box; transform-origin: center; animation: gaiaLogPop 0.4s ease-out; }
+/* [사용자 2026-10-18] 시작 광산 배치 차례: 놓을 수 있는 모행성 칸 — 빛줄기 느린 회전(14초) + 글로우 숨쉬기(3.6초) */
+@keyframes gaiaStartSpin { to { transform: rotate(360deg); } }
+.gaia-start-spin { transform-box: fill-box; transform-origin: center; animation: gaiaStartSpin 14s linear infinite; }
+@keyframes gaiaStartBreath { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+.gaia-start-breath { animation: gaiaStartBreath 3.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .gaia-log-pop { animation: none; }
+  .gaia-start-spin, .gaia-start-breath { animation: none; }
 }

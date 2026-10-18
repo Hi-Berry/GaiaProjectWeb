@@ -905,6 +905,8 @@ export function GameBoard({
   const currentPlayer = playerId ? game.players[playerId] : null;
   const isStartingPhase = game.currentPhase === 'startingMines' && currentPlayer && (currentPlayer.startingMinesPlaced || 0) < (currentPlayer.faction ? (FACTIONS.find(f => f.id === currentPlayer.faction)?.startingMines ?? 2) : 2);
   const faction = currentPlayer?.faction ? FACTIONS.find(f => f.id === currentPlayer.faction) : null;
+  // [사용자 2026-10-18] 시작 광산 배치 때 자기 차례인 줄 모르는 사람이 많다 → 내 차례면 놓을 수 있는 모행성 칸에 회전 링 강조.
+  const startingMineSpotlight = !!(isStartingPhase && isMyTurnForNotify && faction?.homePlanet);
 
   // 연방 로그 호버: 형성 당시 스냅샷(fedHexes)을 그대로 하이라이트 — 확장(BFS) 없음
   const hoveredLogFedHexSet = useMemo(() => new Set(hoveredLogFed?.hexIds ?? []), [hoveredLogFed]);
@@ -1840,6 +1842,35 @@ export function GameBoard({
                         <circle r="4.7" fill="none" stroke="#f0c27a" strokeWidth={0.25} opacity={0.5} />
                       </g>
                     )}
+
+                    {/* [사용자 2026-10-18] 시작 광산: 내 차례면 놓을 수 있는 모행성 칸마다 '팍 줌인(로그 클릭과 같은 팝)' 후
+                        금색 글로우가 천천히 숨쉬고, 흐린 궤도 위로 꼬리 달린 빛줄기 하나가 느리게(14초/바퀴) 돈다.
+                        (첫 버전의 6초 회전 점선 + 빠른 깜빡임은 정신 사납다는 피드백) 차례가 넘어가면 사라진다. */}
+                    {startingMineSpotlight && tile.type === faction!.homePlanet && tile.structure == null && (() => {
+                      // 글로우는 행성색이 아니라 '내 차례' 금색 — 티타늄·트랜스딤처럼 어두운 행성색은 거의 안 보였다
+                      const c = '#fbbf24';
+                      const R = 5.0, C = 2 * Math.PI * R, arc = C * 0.3;
+                      const gid = `gaiaStartArc-${tile.id}`;
+                      return (
+                        <g className="gaia-log-pop pointer-events-none">
+                          <defs>
+                            {/* 왼쪽(꼬리)→오른쪽(머리)으로 밝아짐. 빛줄기를 12시→3시 구간에 두고 시계 방향으로 돌려 머리가 앞선다. */}
+                            <linearGradient id={gid} x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0.5" stopColor="#ffffff" stopOpacity={0} />
+                              <stop offset="1" stopColor="#ffffff" stopOpacity={1} />
+                            </linearGradient>
+                          </defs>
+                          <circle r="4.35" fill="none" stroke={c} strokeWidth={0.7} className="gaia-start-breath"
+                            style={{ filter: `drop-shadow(0 0 4px ${c}) drop-shadow(0 0 2px ${c})` }} />
+                          <circle r={R} fill="none" stroke="#ffffff" strokeWidth={0.22} opacity={0.18} />
+                          <g className="gaia-start-spin">
+                            <circle r={R} fill="none" stroke={`url(#${gid})`} strokeWidth={0.6} strokeLinecap="round"
+                              strokeDasharray={`${arc} ${C - arc}`} strokeDashoffset={-(C - arc)}
+                              style={{ filter: 'drop-shadow(0 0 1.5px rgba(255,255,255,0.8))' }} />
+                          </g>
+                        </g>
+                      );
+                    })()}
 
                     {/* [사용자 2026-09-02] 편의기능 '남은 땅' 호버 — 그 유형의 비어 있는 행성을 유형 색 링으로 */}
                     {hoveredLandType && tile.type === hoveredLandType
