@@ -6273,9 +6273,13 @@ export default function Game() {
             onMouseDown={startSidebarResize}
           />
         )}
-        {/* 종족 비딩 패널: 상태창+로그 영역을 통째로 덮는 오버레이(가운데 맵/미니뷰는 그대로 보임) */}
+        {/* 종족 비딩 패널: 상태창+로그 영역을 통째로 덮는 오버레이(가운데 맵/미니뷰는 그대로 보임)
+            [사용자 2026-10-18] 폰에선 '종족 비딩' 제목이 위의 상태창/로그 탭과 겹쳤다 — 패널이 absolute inset-0이라
+            사이드바의 paddingTop(탭바 높이)을 무시했다. 폰이면 같은 만큼 위·아래를 띄운 상자 안에 넣는다. */}
         {game.currentPhase === 'factionBidding' && (
-          <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
+          <div className="absolute inset-x-0" style={isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: 0 }}>
+            <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
+          </div>
         )}
         {(isSidebarOpen || splitActive) && (
           <div
