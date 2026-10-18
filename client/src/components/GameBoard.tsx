@@ -855,8 +855,39 @@ export function GameBoard({
   // [사용자 2026-09-02] 편의기능 '남은 땅' 행 마우스오버 → 그 유형의 비어 있는 행성을 맵에 하이라이트
   const [hoveredLandType, setHoveredLandType] = useState<PlanetType | null>(null);
   const clearMeasure = useCallback(() => { setMeasureA(null); setMeasureB(null); setMeasureMode(null); }, []);
+  // [사용자 2026-10-18] 편의기능 '위성 메모': 위성 놓을 칸을 플레이어 색별로 미리 찍어 두고 개수를 본다(내 화면에만, 게임별 저장).
+  //   satMemo = { 플레이어id: [칸id…] }. 보기/끄기는 지도 표시만, 편집 색(satMemoEditPid)이 있으면 칸 클릭 = 그 색으로 체크/해제.
+  const satMemoKey = `gaia-satmemo-${game.id}`;
+  const [satMemo, setSatMemo] = useState<Record<string, string[]>>(() => {
+    try { const v = JSON.parse(localStorage.getItem(`gaia-satmemo-${game.id}`) || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem(satMemoKey, JSON.stringify(satMemo)); } catch { /* noop */ } }, [satMemoKey, satMemo]);
+  const [satMemoVisible, setSatMemoVisible] = useState<boolean>(() => { try { return localStorage.getItem('gaia-satmemo-visible') !== '0'; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem('gaia-satmemo-visible', satMemoVisible ? '1' : '0'); } catch { /* noop */ } }, [satMemoVisible]);
+  const [satMemoEditPid, setSatMemoEditPid] = useState<string | null>(null);
+  const toggleSatMemoHex = useCallback((pid: string, tileId: string) => {
+    setSatMemo(prev => {
+      const cur = prev[pid] ?? [];
+      return { ...prev, [pid]: cur.includes(tileId) ? cur.filter(x => x !== tileId) : [...cur, tileId] };
+    });
+  }, []);
+  const clearSatMemo = useCallback((pid: string | null) => {
+    setSatMemo(prev => { if (!pid) return {}; const n = { ...prev }; delete n[pid]; return n; });
+  }, []);
+  // 실제로 위성이 놓이면(연방 선언) 그 플레이어의 메모에서 자동으로 지운다 — 예측이 현실이 된 칸이 메모로 남아 헷갈리지 않게.
+  useEffect(() => {
+    setSatMemo(prev => {
+      let changed = false; const next: Record<string, string[]> = {};
+      for (const [pid, ids] of Object.entries(prev)) {
+        const keep = ids.filter(id => { const sl = game.satellites?.[id]; return !(Array.isArray(sl) ? sl.includes(pid) : sl === pid); });
+        if (keep.length !== ids.length) changed = true;
+        if (keep.length) next[pid] = keep; else if (ids.length) changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [game.satellites]);
   // 창을 닫으면 맵 위의 A·B 표시도 같이 정리(닫아 놓고 표식만 남아 헷갈리지 않게)
-  useEffect(() => { if (!utilityOpen) { clearMeasure(); setHoveredLandType(null); } }, [utilityOpen, clearMeasure]);
+  useEffect(() => { if (!utilityOpen) { clearMeasure(); setHoveredLandType(null); setSatMemoEditPid(null); } }, [utilityOpen, clearMeasure]);
   // 기본 위치를 '맵 영역 우하단'으로 — 우측 상태창/로그 폭만큼 띄운다. 사이드바 폭 변경도 따라가게 ResizeObserver.
   const [mapAnchorRight, setMapAnchorRight] = useState(12);
   useEffect(() => {
@@ -1083,12 +1114,64 @@ export function GameBoard({
     }
   }, [game.federationMode?.playerId, game.federationMode?.toggleSeq, game.federationMode?.selectedHexIds, game.federationMode?.selectedPlanetIds, game.federationMode?.selectedSpaceStationHexIds, playerId]);
 
+  // [편의기능] 위성 메모 → '이대로 연방하기': 연방 구현 버튼을 누르고 메모한 칸을 그대로 클릭한 뒤 완료를 누른 것과 같다.
+  //   서버 미리보기가 '연결됨 + 파워 충족'이면 자동으로 완료, 아니면 평소 연방 창을 열어 둔 채 멈춘다(조용히 실패하지 않게).
+  //   하이브 2번째 연방부터는 클릭할 때마다 기존 네트워크에 닿아야 하므로 내 건물에서 가까운 칸부터 보낸다.
+  const memoFedPendingRef = useRef<{ n: number; at: number } | null>(null);
+  const satMemoMine = playerId ? (satMemo[playerId] ?? []) : [];
+  const canFederateFromMemo = !!playerId && satMemoMine.length > 0 && !isFederationMode && !!onFederationToggleMode && !!onFederationToggleHex
+    && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward;
+  const federateFromMemo = useCallback(() => {
+    if (!canFederateFromMemo || !playerId || !onFederationToggleMode || !onFederationToggleHex) return;
+    const mineNodes = game.map.filter((t: HexTile) => (t.ownerId === playerId && t.structure && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId);
+    const distToMine = (t: HexTile) => (mineNodes.length ? Math.min(...mineNodes.map((m: HexTile) => getDistance(m, t))) : 0);
+    const ids = satMemoMine
+      .map(id => game.map.find((t: HexTile) => t.id === id))
+      .filter((t): t is HexTile => {
+        if (!t || (t.type !== 'space' && t.type !== 'deep_space') || t.structure != null) return false;
+        const satList = game.satellites?.[t.id];
+        const mine = Array.isArray(satList) ? satList.includes(playerId) : satList === playerId;
+        return !mine || t.spaceStation?.ownerId === playerId;
+      })
+      .sort((a, b) => distToMine(a) - distToMine(b))
+      .map(t => t.id);
+    if (!ids.length) return;
+    setSatMemoEditPid(null);
+    onFederationToggleMode();
+    fedOptimisticSeqRef.current = ids.length;
+    setFederationSelectedIds(new Set(ids));
+    ids.forEach(id => onFederationToggleHex(id));
+    memoFedPendingRef.current = { n: ids.length, at: Date.now() };
+  }, [canFederateFromMemo, playerId, onFederationToggleMode, onFederationToggleHex, game.map, game.satellites, satMemoMine]);
+  useEffect(() => {
+    const pend = memoFedPendingRef.current;
+    if (!pend) return;
+    if (Date.now() - pend.at > 5000) { memoFedPendingRef.current = null; return; } // 일부 칸이 거부되면 자동 완료 안 함(수동으로)
+    const fm = game.federationMode;
+    if (!fm || fm.playerId !== playerId || (fm.toggleSeq ?? 0) < pend.n) return;
+    const pv = game.federationPreview;
+    if (!pv) return;
+    memoFedPendingRef.current = null;
+    if (pv.connected !== false && pv.power >= pv.requiredPower) onFederationComplete?.();
+  }, [game.federationMode, game.federationPreview, playerId, onFederationComplete]);
+  // 지도 표시용: 칸 → 메모한 플레이어들(턴 순서대로)
+  const satMemoByTile = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const pid of game.turnOrder ?? []) for (const id of satMemo[pid] ?? []) (m.get(id) ?? m.set(id, []).get(id)!).push(pid);
+    return m;
+  }, [satMemo, game.turnOrder]);
+
   const handleTileClick = useCallback((tile: HexTile) => {
     // [편의기능] 거리 측정 선택 중이면 그 칸을 A/B로 찍고 끝 — 타일 상세 패널은 열지 않는다.
     //   다른 어떤 모드보다 먼저 처리한다(측정은 순수 조회라 게임 액션을 건드리면 안 됨).
     if (measureMode && !hasDragged) {
       if (measureMode === 'A') setMeasureA(tile.id); else setMeasureB(tile.id);
       setMeasureMode(null);
+      return;
+    }
+    // [편의기능] 위성 메모 편집 중: 빈 우주 칸이면 그 색으로 체크/해제. 다른 칸은 무시(패널도 안 연다 — 메모 중 오조작 방지).
+    if (satMemoEditPid && !hasDragged) {
+      if ((tile.type === 'space' || tile.type === 'deep_space') && tile.structure == null) toggleSatMemoHex(satMemoEditPid, tile.id);
       return;
     }
     if (ivitsSpaceStationMode && !hasDragged) {
@@ -1154,7 +1237,7 @@ export function GameBoard({
     if (!hasDragged) {
       setSelectedTile(tile);
     }
-  }, [measureMode, ivitsSpaceStationMode, ambasSwapPiMineMode, onAmbasSwapPiMine, firaksDowngradeMode, onFiraksDowngradeSelectLab, moweyipPlaceRingMode, onMoweyipPlaceRing, hasDragged, isFederationMode, onFederationToggleHex, game.satellites, playerId, onEclipseBuildAsteroidMine, isEclipseAsteroidMode, eclipseBuildableTileIds, eclipseNeededQic, onTwilightTSUpgrade, twilightTSSelectableIds, onRebellionMineToTS, rebellionMineSelectableIds]);
+  }, [measureMode, satMemoEditPid, toggleSatMemoHex, ivitsSpaceStationMode, ambasSwapPiMineMode, onAmbasSwapPiMine, firaksDowngradeMode, onFiraksDowngradeSelectLab, moweyipPlaceRingMode, onMoweyipPlaceRing, hasDragged, isFederationMode, onFederationToggleHex, game.satellites, playerId, onEclipseBuildAsteroidMine, isEclipseAsteroidMode, eclipseBuildableTileIds, eclipseNeededQic, onTwilightTSUpgrade, twilightTSSelectableIds, onRebellionMineToTS, rebellionMineSelectableIds]);
 
   const handleZoomIn = useCallback(() => {
     setZoom(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
@@ -2096,6 +2179,26 @@ export function GameBoard({
                       );
                     })()}
 
+                    {/* [편의기능] 위성 메모 표식 — 메모한 플레이어 색 점(여럿이면 칸 안에 둘러 배치). 보기를 끄거나
+                        편의기능 창을 닫으면 숨김(사용자 2026-10-18 — 창을 다시 열면 보기 설정대로 다시 보인다). */}
+                    {utilityOpen && satMemoVisible && satMemoByTile.has(tile.id) && (() => {
+                      const pids = satMemoByTile.get(tile.id)!;
+                      const n = pids.length;
+                      return (
+                        <g pointerEvents="none">
+                          {pids.map((pid, i) => {
+                            const col = FACTIONS.find(f => f.id === game.players[pid]?.faction)?.color ?? '#e5e7eb';
+                            const ang = (2 * Math.PI * i) / n - Math.PI / 2;
+                            const off = n === 1 ? 0 : 1.55;
+                            return (
+                              <circle key={pid} cx={off * Math.cos(ang)} cy={off * Math.sin(ang)} r={n === 1 ? 1.45 : 1.1}
+                                fill={col} stroke="#ffffff" strokeWidth={0.32} style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.9))' }} />
+                            );
+                          })}
+                        </g>
+                      );
+                    })()}
+
                   </Hexagon>
                 );
               })}
@@ -2290,7 +2393,7 @@ export function GameBoard({
               variant="secondary"
               onClick={() => setUtilityOpen((v) => !v)}
               data-testid="button-toggle-utility"
-              title="편의기능 (남은 땅 · 거리 측정기) — Y"
+              title="편의기능 (남은 땅 · 거리 측정기 · 위성 메모) — Y"
               className={utilityOpen ? 'text-sky-300 hover:text-sky-200 ring-1 ring-sky-400/60' : 'text-zinc-300 hover:text-white'}
             >
               <Ruler className="w-4 h-4" />
@@ -2410,6 +2513,14 @@ export function GameBoard({
             measureB={measureB}
             onClearMeasure={clearMeasure}
             onHoverLandType={setHoveredLandType}
+            satMemo={satMemo}
+            satMemoVisible={satMemoVisible}
+            setSatMemoVisible={setSatMemoVisible}
+            satMemoEditPid={satMemoEditPid}
+            setSatMemoEditPid={setSatMemoEditPid}
+            onClearSatMemo={clearSatMemo}
+            canFederateFromMemo={canFederateFromMemo}
+            onFederateFromMemo={federateFromMemo}
           />,
           document.body
         )}

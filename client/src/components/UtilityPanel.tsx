@@ -7,6 +7,8 @@
  *  2) 남은 땅: 맵에 아직 아무도 안 지은 행성을 유형별로 센다.
  *  3) 거리 측정기: A/B로 칸 두 개를 찍으면 헥스 거리를 보여준다.
  *     최종미션 '의회-아카데미 거리'(fm_pi_academy_distance)와 같은 getDistance를 쓴다.
+ *  4) 위성 메모 [2026-10-18]: 플레이어 색을 골라 빈 우주 칸을 찍으면 그 색 위성 예정 칸으로 체크/해제, 색별 개수 표시.
+ *     내 색은 내 차례에 '이대로 연방하기'로 실제 연방 선언까지(연방 구현 → 그 칸 클릭 → 완료와 같음).
  *
  * [사용자 2026-08-11] 넣을 기능이 계속 늘어날 예정이라 각 항목을 제목 클릭으로 여닫는 접이식으로 둔다.
  *   열림 상태는 항목별로 localStorage에 남아 다음에 열 때 그대로 복원된다.
@@ -126,9 +128,19 @@ export interface UtilityPanelProps {
   onClearMeasure: () => void;
   /** [사용자 2026-09-02] '남은 땅' 행 호버 시 그 유형의 빈 행성을 맵에 하이라이트 */
   onHoverLandType?: (type: PlanetType | null) => void;
+  /** [사용자 2026-10-18] 위성 메모 */
+  satMemo: Record<string, string[]>;
+  satMemoVisible: boolean;
+  setSatMemoVisible: (v: boolean) => void;
+  satMemoEditPid: string | null;
+  setSatMemoEditPid: (pid: string | null) => void;
+  onClearSatMemo: (pid: string | null) => void;
+  canFederateFromMemo: boolean;
+  onFederateFromMemo: () => void;
 }
 
-export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMode, setMeasureMode, measureA, measureB, onClearMeasure, onHoverLandType }: UtilityPanelProps) {
+export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMode, setMeasureMode, measureA, measureB, onClearMeasure, onHoverLandType,
+  satMemo, satMemoVisible, setSatMemoVisible, satMemoEditPid, setSatMemoEditPid, onClearSatMemo, canFederateFromMemo, onFederateFromMemo }: UtilityPanelProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 위치 드래그 — 채팅창과 동일 방식. null이면 기본(맵 우하단) 앵커.
@@ -393,6 +405,78 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
             )}
           </div>
           <div className="mt-1 text-[8px] leading-snug text-zinc-600">최종미션 &apos;의회-아카데미 거리&apos;와 같은 계산입니다. 내 화면에서만 보입니다.</div>
+        </Section>
+
+        {/* 4) 위성 메모 */}
+        <Section id="satmemo" title="위성 메모" accent="text-violet-300">
+          <div className="flex items-center gap-1 mb-1.5">
+            <button
+              type="button"
+              onClick={() => { setSatMemoVisible(!satMemoVisible); if (satMemoVisible) setSatMemoEditPid(null); }}
+              className={`rounded border px-2 py-0.5 text-[10px] font-bold transition-colors ${satMemoVisible
+                ? 'border-violet-400/60 bg-violet-500/20 text-violet-100'
+                : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
+              title="맵의 메모 표시 보기/끄기"
+            >
+              {satMemoVisible ? '보기 켜짐' : '보기 꺼짐'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { onClearSatMemo(null); setSatMemoEditPid(null); }}
+              className="ml-auto rounded border border-white/10 bg-zinc-800/60 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400 hover:text-zinc-200"
+              title="모든 색의 메모 지우기"
+            >
+              모두 지우기
+            </button>
+          </div>
+          {satMemoVisible && (
+            <div className="space-y-1">
+              {(game.turnOrder ?? []).filter((pid) => game.players?.[pid]).map((pid) => {
+                const p = game.players[pid];
+                const color = FACTIONS.find((f) => f.id === p.faction)?.color ?? '#a1a1aa';
+                const n = satMemo[pid]?.length ?? 0;
+                const editing = satMemoEditPid === pid;
+                return (
+                  <div key={pid} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSatMemoEditPid(editing ? null : pid)}
+                      className={`flex-1 min-w-0 flex items-center gap-1.5 rounded border px-1.5 py-1 text-left transition-colors ${editing
+                        ? 'border-violet-300 bg-violet-500/25'
+                        : 'border-white/8 bg-zinc-900/50 hover:bg-white/5'}`}
+                      title={editing ? '맵에서 빈 우주 칸을 눌러 체크/해제 — 다시 누르면 끝' : '이 색으로 칸 찍기'}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-white/60" style={{ background: color }} />
+                      <span className={`text-[10px] truncate ${pid === playerId ? 'font-bold text-amber-100' : 'text-zinc-300'}`}>{p.name}</span>
+                      {editing && <span className="text-[9px] text-violet-200 shrink-0">찍는 중…</span>}
+                      <span className={`ml-auto text-[13px] font-black leading-none ${n ? 'text-violet-200' : 'text-zinc-600'}`}>{n}</span>
+                    </button>
+                    {n > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => onClearSatMemo(pid)}
+                        className="shrink-0 rounded border border-white/10 bg-zinc-800/60 px-1 py-1 text-[9px] text-zinc-500 hover:text-zinc-200"
+                        title="이 색 메모 지우기"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {canFederateFromMemo && (
+                <button
+                  type="button"
+                  onClick={onFederateFromMemo}
+                  className="w-full mt-1 rounded-md bg-sky-600 hover:bg-sky-500 px-2 py-1.5 text-[11px] font-bold text-white transition-colors"
+                  title="연방 구현 → 메모한 칸 선택 → 완료와 같습니다. 파워·연결이 안 맞으면 연방 창을 연 채로 멈춥니다."
+                >
+                  이대로 연방하기 (위성 {(playerId && satMemo[playerId]?.length) || 0}개)
+                </button>
+              )}
+            </div>
+          )}
+          <div className="mt-1 text-[8px] leading-snug text-zinc-600">색을 고르고 맵의 빈 우주 칸을 누르면 체크/해제됩니다. 내 화면에서만 보입니다.</div>
         </Section>
       </div>
     </div>

@@ -43,7 +43,7 @@ const HELP_COLUMNS: HelpSection[][] = [
         { label: 'R', description: '연구 보드', isKey: true },
         { label: 'T', description: '보너스 타일 보드', isKey: true },
         { label: 'F', description: 'Free Actions', isKey: true },
-        { label: 'Y', description: '편의기능 (남은 땅 · 거리 측정기)', isKey: true },
+        { label: 'Y', description: '편의기능 (남은 땅 · 거리 측정기 · 위성 메모)', isKey: true },
         { label: 'Space', description: '미니보드 핀', isKey: true },
         { label: 'Esc', description: '오버레이 닫기', isKey: true },
       ],
