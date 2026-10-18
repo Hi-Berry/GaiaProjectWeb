@@ -1807,10 +1807,15 @@ function computeIvitsFederationConnected(
 	const passable = (t: HexTile) => satSet.has(t.id) || fedHexes.has(t.id) || ownedBuilding(t);
 	const selected = [...selectedHexIds, ...selectedSpaceStationHexIds, ...selectedPlanetIds];
 	if (selected.length === 0) return true; // 선택 없음 → 경고 안 함 (미리보기용)
-	const startId = selected.find(id => { const t = game.map.find(x => x.id === id); return !!t && passable(t); });
-	if (!startId) return false;
-	const comp = new Set<string>([startId]);
-	const queue = [startId];
+	// [사용자 2026-10-17] 하이브 룰: 첫 연방은 아무 데나, 2번째부터는 기존 연방에 붙여 키워야 한다.
+	//   예전엔 '선택끼리 이어졌나'만 봐서 기존 연방과 떨어진 곳에 따로 연방이 섰다(봇 실측 3건) →
+	//   기존 연방이 있으면 BFS를 그 칸들에서 시작해 선택이 모두 거기 닿는지 본다.
+	const startIds = fedHexes.size > 0
+		? Array.from(fedHexes)
+		: [selected.find(id => { const t = game.map.find(x => x.id === id); return !!t && passable(t); })].filter((x): x is string => !!x);
+	if (startIds.length === 0) return false;
+	const comp = new Set<string>(startIds);
+	const queue = [...startIds];
 	while (queue.length) {
 		const cid = queue.shift()!; // [버그수정] 예전엔 game.map.find(t => t.id === queue.shift())로 써서 shift가 find 술어 안에서 맵 원소마다 호출돼 큐가 잘못 비워졌음(BFS가 첫 노드에서 끝나 연방이 거의 항상 '연결 안 됨'으로 거부됨). shift를 먼저 꺼낸다.
 		const cur = game.map.find(t => t.id === cid);
@@ -1822,12 +1827,27 @@ function computeIvitsFederationConnected(
 	return selected.every(id => comp.has(id));
 }
 
+/** 하이브 연방 파워: 기존 연방 칸 + 이번 선택 칸(위성·정거장·건물)과 그 이웃의 내 건물 덩어리 전체 파워.
+ *  요구치는 누적(7×연방 수)이라 기존 연방까지 함께 센다. 사람 경로(federation_complete)·미리보기·봇 경로 공용. */
+export function computeIvitsFederationPower(game: ServerGameState, playerId: string, selectedHexIds: string[], selectedPlanetIds: string[]): { planetIds: Set<string>; power: number } {
+	const fedHexes = game.playerFederationHexes?.[playerId] ?? [];
+	const seedHexIds = [...fedHexes, ...selectedHexIds, ...selectedPlanetIds];
+	const planetIds = new Set<string>();
+	const isNode = (t: HexTile) => isPlanetHex(t) || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId;
+	for (const hexId of seedHexIds) {
+		const tile = game.map.find(t => t.id === hexId);
+		if (!tile) continue;
+		if (isNode(tile)) getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIds.add(pid));
+		for (const n of getNeighbors(game.map, tile)) if (isNode(n)) getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIds.add(pid));
+	}
+	return { planetIds, power: getFederationBuildingPower(game, playerId, planetIds, seedHexIds) };
+}
+
 /** 연방 모드 선택 기준으로 포함될 건물·파워 미리보기 계산 */
 function computeFederationPreview(game: ServerGameState, playerId: string): { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected: boolean; redundant: number } | null {
 	const mode = game.federationMode;
 	if (!mode || mode.playerId !== playerId) return null;
 	const isIvits = game.players[playerId]?.faction === 'ivits';
-	const fedHexes = game.playerFederationHexes?.[playerId] ?? [];
 	const selectedHexIds = mode.selectedHexIds ?? [];
 	const selectedPlanetIds = mode.selectedPlanetIds ?? [];
 	const selectedSpaceStationHexIds = mode.selectedSpaceStationHexIds ?? [];
@@ -1837,22 +1857,8 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 	let planetIds: Set<string>;
 	let power: number;
 	let connected = true;
-	const seedHexIds = [...fedHexes, ...selectedHexIds, ...selectedSpaceStationHexIds, ...selectedPlanetIds];
 	if (isIvits) {
-		planetIds = new Set<string>();
-		seedHexIds.forEach(hexId => {
-			const tile = game.map.find(t => t.id === hexId);
-			if (!tile) return;
-			if (isPlanetHex(tile) || tile.spaceStation?.ownerId === playerId || tile.parasiticMine?.ownerId === playerId) {
-				getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIds.add(pid));
-			}
-			getNeighbors(game.map, tile).forEach(n => {
-				if (isPlanetHex(n) || n.spaceStation?.ownerId === playerId || n.parasiticMine?.ownerId === playerId) {
-					getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIds.add(pid));
-				}
-			});
-		});
-		power = getFederationBuildingPower(game, playerId, planetIds, seedHexIds);
+		({ planetIds, power } = computeIvitsFederationPower(game, playerId, [...selectedHexIds, ...selectedSpaceStationHexIds], selectedPlanetIds));
 		connected = computeIvitsFederationConnected(game, playerId, selectedHexIds, selectedSpaceStationHexIds, selectedPlanetIds);
 	} else {
 		const net = computeConnectedFederation(game, playerId, selectedHexIds, selectedSpaceStationHexIds, selectedPlanetIds);
@@ -6670,25 +6676,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// [버그수정] Ivits도 선택한 위성·건물이 하나로 연결돼야 함 (기존엔 파워만 검사 → A옆·B옆 따로 위성을 놓아도 연방이 서던 문제).
 				if (!computeIvitsFederationConnected(game, playerId, selectedHexIds, selectedSpaceStationHexIds, selectedPlanetIds)) {
 					log(`Federation complete rejected (Ivits): selected hexes not one connected component`, 'game', undefined, { simulation: (game as any).simulation });
-					emitRoomError(io, game, playerId, '선택한 위성·건물이 하나로 연결되어야 합니다. (연결 안 된 위성은 제거하세요)');
+					emitRoomError(io, game, playerId, fedHexes.length > 0
+						? '하이브는 2번째 연방부터 기존 연방에 이어 붙여야 합니다. (선택한 위성·건물이 기존 연방과 연결되어야 합니다)'
+						: '선택한 위성·건물이 하나로 연결되어야 합니다. (연결 안 된 위성은 제거하세요)');
 					return;
 				}
 				// Ivits(하이브): 요구파워 누적(7→14→21) + 기존 연방 건물까지 시드에 포함하는 기존 로직 유지.
-				const seedHexIds = [...fedHexes, ...selectedHexIds, ...selectedSpaceStationHexIds, ...selectedPlanetIds];
-				planetIdsForPower = new Set<string>();
-				seedHexIds.forEach(hexId => {
-					const tile = game.map.find(t => t.id === hexId);
-					if (!tile) return;
-					if (isPlanetHex(tile) || tile.spaceStation?.ownerId === playerId || tile.parasiticMine?.ownerId === playerId) {
-						getPlanetConnectedComponent(game, playerId, hexId).forEach(pid => planetIdsForPower.add(pid));
-					}
-					getNeighbors(game.map, tile).forEach(n => {
-						if (isPlanetHex(n) || n.spaceStation?.ownerId === playerId || n.parasiticMine?.ownerId === playerId) {
-							getPlanetConnectedComponent(game, playerId, n.id).forEach(pid => planetIdsForPower.add(pid));
-						}
-					});
-				});
-				power = getFederationBuildingPower(game, playerId, planetIdsForPower, seedHexIds);
+				({ planetIds: planetIdsForPower, power } = computeIvitsFederationPower(game, playerId, [...selectedHexIds, ...selectedSpaceStationHexIds], selectedPlanetIds));
 				if (power < requiredPower) {
 					log(`Federation complete rejected: building power ${power} < ${requiredPower}`, 'game', undefined, { simulation: (game as any).simulation });
 					emitRoomError(io, game, playerId, `연방에 포함된 내 건물·우주정거장 파워가 ${requiredPower} 이상이어야 합니다. (위성=0, 우주정거장=1)`);
@@ -10869,6 +10863,21 @@ export function executeBotFederation(
 
 	const isIvits = player.faction === 'ivits';
 	const numEmpty = selectedHexIds.length;
+	// [사용자 2026-10-17] 하이브 2번째 연방부터는 기존 연방에 붙어야 한다 — 사람 경로와 같은 연결 검사를 봇에도 적용.
+	//   (우주정거장 칸은 봇 경로에서 selectedHexIds에 섞여 오므로 위성/정거장 구분 없이 넘긴다 — 통로 판정은 같다)
+	if (isIvits && !computeIvitsFederationConnected(game, playerId, selectedHexIds, [], selectedPlanetIds)) {
+		log(`Bot federation rejected (Ivits): not connected to existing federation`, 'game', game.id, { simulation: (game as any).simulation });
+		return false;
+	}
+	// [2026-10-18] 봇 경로엔 파워 검사가 없어 계획기가 기존 연방 건물 파워를 두 번 센 후보(실측 12건)도 그대로 섰다 → 사람 경로와 같은 판정.
+	if (isIvits) {
+		const required = getFederationRequiredPower(game, playerId);
+		const { power } = computeIvitsFederationPower(game, playerId, selectedHexIds, selectedPlanetIds);
+		if (power < required) {
+			log(`Bot federation rejected (Ivits): power ${power} < ${required}`, 'game', game.id, { simulation: (game as any).simulation });
+			return false;
+		}
+	}
 	// UI의 federation_complete과 동일한 검증/차감을 bot에서도 강제:
 	// - Ivits: QIC로 위성(빈칸) 수만큼 차감
 	// - 그 외: 파워 토큰으로 위성(빈칸) 수만큼 차감

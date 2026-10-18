@@ -14,7 +14,8 @@ import {
     getFederationRequiredPower,
     getFederationBuildingPower,
     getPlanetConnectedComponent,
-    getFederationPlanetIdsFromSelectedEmpties
+    getFederationPlanetIdsFromSelectedEmpties,
+    computeIvitsFederationPower,
 } from '../gameState';
 import { getPlayerFlag } from './variant';
 
@@ -134,13 +135,17 @@ export class FederationPlanner {
 
         // [사용자 2026-10-17] 하이브 룰: 2번째 연방부터는 기존 연방에 붙여 키워야 한다. effRequired(차액)도 그 전제라,
         //   아무 건물에서나 시작하면 기존 연방과 떨어진 7파워 덩어리를 따로 연방으로 냈다(실측: 봇만 3건).
-        //   → 기존 연방이 있으면 시작점은 '기존 연방' 하나뿐.
+        //   → 기존 연방이 있으면 '기존 연방에서 출발'을 먼저 시도하고, 탐욕 탐색이 위성을 엉뚱한 데 써 놓치는 경우를 위해
+        //   건물별 출발도 그대로 돌리되 기존 연방에 닿지 않는 결과는 버린다(실측: 연방 출발만 쓰면 합법 연방 5건을 놓침).
         const extendIvitsFed = isIvits && fedHexes.length > 0;
-        const starts: (HexTile | null)[] = extendIvitsFed ? [null] : myStructures;
+        const starts: (HexTile | null)[] = extendIvitsFed ? [null, ...myStructures] : myStructures;
         for (const startTile of starts) {
             diag.starts++;
             const result = this.tryFormFederationFrom(game, playerId, startTile, effRequired, availableTokens);
             if (!result) { diag.nulls++; continue; }
+            if (extendIvitsFed && !this.touchesExistingFed(game, fedHexes, result.selectedHexIds, result.selectedPlanetIds)) { diag.nulls++; continue; }
+            // 서버와 같은 파워 판정(기존 연방 포함 누적) — 계획기의 차액 계산이 1 모자란 후보를 내던 것(실측 46건, 모두 1 부족) 차단
+            if (extendIvitsFed && computeIvitsFederationPower(game, playerId, result.selectedHexIds, result.selectedPlanetIds).power < requiredPower) { diag.nulls++; continue; }
 
             // [flag: fedMax5Buildings] 사용자 정책(2026-06-29): 마지막 라운드(R6) 아니면 연방에 건물 5개 초과 금지.
             //   봇 연방 sprawl(많은 집을 한 연방에 몰아 위성 낭비 + 2번째 연방 재료 소진) 억제 — 좁게 모아 연방 수↑.
@@ -450,7 +455,10 @@ export class FederationPlanner {
         const fromExistingFed = startTile === null;
 
         // Always include the starting planet's connected component
-        const initialComponent = fromExistingFed ? new Set<string>() : getPlanetConnectedComponent(game, playerId, startTile.id);
+        // 하이브가 기존 연방을 키울 땐 이미 연방에 든 건물을 막는다 — 그 파워는 requiredPower(차액)에서 이미 뺐다.
+        //   (예전엔 시작 건물 옆 연방 건물까지 컴포넌트로 묶어 파워를 두 번 셌다 → 서버 기준 파워 미달 연방, 실측 12건)
+        const blockFed = isIvits && fedHexes.length > 0 ? new Set(fedHexes) : undefined;
+        const initialComponent = fromExistingFed ? new Set<string>() : getPlanetConnectedComponent(game, playerId, startTile.id, blockFed);
         initialComponent.forEach(id => selectedPlanetIds.add(id));
 
         // [flag: ivitsFedCumulative] 서버 연결성(computeIvitsFederationConnected)은 기존 연방 칸을 통과 가능
@@ -458,7 +466,6 @@ export class FederationPlanner {
         // 기존 연방에서 출발할 땐 연방 칸이 곧 출발점이라 플래그와 무관하게 통로로 쓴다.
         const fedConnector = isIvits && (fromExistingFed || getPlayerFlag(playerId, 'ivitsFedCumulative', true));
         const fedTiles = fromExistingFed ? game.map.filter(t => fedHexes.includes(t.id)) : [];
-        const fedHexSet = new Set(fedHexes);
 
         let currentPower = getFederationBuildingPower(game, playerId, selectedPlanetIds);
         if (!fromExistingFed && currentPower >= requiredPower) {
@@ -539,8 +546,7 @@ export class FederationPlanner {
                 const ownNode = (n.ownerId === playerId && n.structure && n.structure !== 'ship')
                     || (getPlayerFlag(playerId, 'fedParasiticNodes', true) && n.parasiticMine?.ownerId === playerId); // [flag: fedParasiticNodes]
                 if (isPlanetHex(n) && ownNode && !fedHexes.includes(n.id)) {
-                    // 기존 연방에서 출발할 땐 이미 연방에 든 건물은 막는다(그 파워는 requiredPower에서 이미 뺐으므로 이중 계산 방지)
-                    const comp = getPlanetConnectedComponent(game, playerId, n.id, fromExistingFed ? fedHexSet : undefined);
+                    const comp = getPlanetConnectedComponent(game, playerId, n.id, blockFed);
                     // Check if this component is already included
                     let hasNew = false;
                     comp.forEach(cid => {
@@ -575,7 +581,7 @@ export class FederationPlanner {
                 currentPower = getFederationBuildingPower(game, playerId, currentPlanetIds, Array.from(currentHexIds));
 
                 if (currentPower >= requiredPower) {
-                    return this.finalizeFederation(game, playerId, Array.from(currentHexIds), Array.from(currentPlanetIds), tokensSpent, requiredPower);
+                    return this.finalizeFederation(game, playerId, Array.from(currentHexIds), Array.from(currentPlanetIds), tokensSpent, requiredPower, isIvits ? fedHexes : []);
                 }
 
                 // Since we added new planets, add their empty neighbors to the queue
@@ -662,9 +668,22 @@ export class FederationPlanner {
      * BFS가 연결 컴포넌트를 통째로 병합해 7파워 초과 + 잉여 위성 → 연결성·요구파워 유지하며 잉여 건물/위성 제거.
      * 안전: 결과가 연결+≥요구파워 + 실제 축소일 때만 채택, 아니면 원본(무효 연방 → game_error 방지).
      */
+    /** 하이브: 고른 칸이 모두 기존 연방 칸에서 (기존 연방 + 고른 칸)만 밟고 닿는가. 선택 밖 건물은 통로로 안 친다(연방에 안 든 건물). */
+    private static touchesExistingFed(game: ServerGameState, fedHexes: string[], hexIds: string[], planetIds: string[]): boolean {
+        const sel = new Set<string>([...hexIds, ...planetIds]);
+        const allowed = new Set<string>(fedHexes.concat(Array.from(sel)));
+        const seen = new Set<string>(fedHexes); const stack = [...fedHexes];
+        while (stack.length) {
+            const id = stack.pop()!; const t = game.map.find(x => x.id === id); if (!t) continue;
+            for (const n of getNeighbors(game.map, t)) if (allowed.has(n.id) && !seen.has(n.id)) { seen.add(n.id); stack.push(n.id); }
+        }
+        return Array.from(sel).every(id => seen.has(id));
+    }
+
     private static trimFederationSet(
         game: ServerGameState, playerId: string,
-        hexIds: string[], planetIds: string[], requiredPower: number
+        hexIds: string[], planetIds: string[], requiredPower: number,
+        anchorIds: string[] = [] // 하이브가 기존 연방을 키울 때 그 연방 칸 — 트림 후에도 남은 칸이 모두 여기에 닿아야 한다
     ): { hexIds: string[], planetIds: string[] } {
         const orig = { hexIds, planetIds };
         try {
@@ -678,11 +697,13 @@ export class FederationPlanner {
                 if (t.spaceStation?.ownerId === playerId) p += 1;
                 return p;
             };
+            // [사용자 2026-10-17] 하이브 기존 연방이 앵커면 그 칸도 통로로 넣고 거기서 출발한다 — 예전엔 '남은 것끼리'만 이어지면
+            //   통과라, 기존 연방과 잇는 다리 건물·위성을 '없어도 파워 충분'으로 잘라 떨어진 연방을 냈다.
             const connected = (P: Set<string>, H: Set<string>): boolean => {
-                const all = new Set<string>(Array.from(P).concat(Array.from(H)));
+                const all = new Set<string>(Array.from(P).concat(Array.from(H), anchorIds));
                 if (all.size <= 1) return true;
-                const start = all.values().next().value as string;
-                const seen = new Set<string>([start]); const stack = [start];
+                const starts = anchorIds.length > 0 ? anchorIds : [all.values().next().value as string];
+                const seen = new Set<string>(starts); const stack = [...starts];
                 while (stack.length) {
                     const id = stack.pop()!; const t = game.map.find(x => x.id === id); if (!t) continue;
                     for (const n of getNeighbors(game.map, t)) {
@@ -715,12 +736,13 @@ export class FederationPlanner {
         selectedHexIds: string[],
         selectedPlanetIds: string[],
         spentTokens: number,
-        requiredPower?: number
+        requiredPower?: number,
+        anchorIds: string[] = []
     ) {
         // [flag: fedTrimSatPath] 위성 경로(hex 있음)면 과포함 트림 시도(안전 폴백 내장).
         if (requiredPower != null && selectedHexIds.length > 0
             && getPlayerFlag(playerId, 'fedTrimSatPath', true)) {
-            const trimmed = this.trimFederationSet(game, playerId, selectedHexIds, selectedPlanetIds, requiredPower);
+            const trimmed = this.trimFederationSet(game, playerId, selectedHexIds, selectedPlanetIds, requiredPower, anchorIds);
             selectedHexIds = trimmed.hexIds;
             selectedPlanetIds = trimmed.planetIds;
             spentTokens = trimmed.hexIds.length;
