@@ -54,10 +54,12 @@ interface Node {
 	visits: number;
 }
 
-async function makeNode(net: Evaluator, state: ServerGameState, seat: string, d: Decision | null): Promise<Node> {
+async function makeNode(net: Evaluator, state: ServerGameState, seat: string, d: Decision | null, valueNet?: Evaluator): Promise<Node> {
 	if (!d || !d.options?.length) return { state, terminal: true, value: marginOf(state, seat), moves: [], priors: [], N: [], W: [], child: [], visits: 0 };
 	const [o] = await net.evaluate([{ game: state, pov: seat, moves: d.options }]);
-	return { state, terminal: false, value: o.value, moves: d.options, priors: o.priors, N: d.options.map(() => 0), W: d.options.map(() => 0), child: d.options.map(() => undefined), visits: 0 };
+	// [2026-10-19] 가치 전용 모델이 있으면 마디 가치는 그쪽(사전확률은 정책 모델)
+	const value = valueNet ? (await valueNet.evaluate([{ game: state, pov: seat, moves: [{ type: 'pass_round', params: {} } as BotAction] }]))[0].value : o.value;
+	return { state, terminal: false, value, moves: d.options, priors: o.priors, N: d.options.map(() => 0), W: d.options.map(() => 0), child: d.options.map(() => undefined), visits: 0 };
 }
 
 export interface PuctStats { decisions: number; sims: number; expansions: number; illegal: number; ms: number; changedFromTop: number; depthMax: number }
@@ -66,7 +68,7 @@ export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansion
 /** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
 export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number; rootQ: number; rootValue: number }) => void;
 
-export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number; lite?: boolean } = {}): Policy {
+export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number; lite?: boolean; valueNet?: Evaluator } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
 	let rs = (opt.seed ?? 1) >>> 0 || 1; const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 	return async (game, d) => {
@@ -102,7 +104,7 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 		try { return await searchMain(game, d, seat, t0); } finally { FederationPlanner.memo = prevMemo; }
 	};
 	async function searchMain(game: ServerGameState, d: Decision, seat: string, t0: number): Promise<BotAction | null> {
-		const root = await makeNode(net, game, seat, d);
+		const root = await makeNode(net, game, seat, d, opt.valueNet);
 		// 분기 제한: 사전확률 상위 MAXC개만 후보
 		const allowed = (n: Node) => { const idx = n.priors.map((p, i) => [p, i] as const).sort((a, b) => b[0] - a[0]).slice(0, MAXC).map(x => x[1]); return new Set(idx); };
 		const allowCache = new Map<Node, Set<number>>();
@@ -130,7 +132,7 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 					if (!applied) { node.child[best] = null; st.illegal++; path.pop(); depth--; continue; }
 					if (opt.lite !== false && process.env.AI2_LITE !== '0') (applied as any).ai2SearchLite = true; // 탐색 안 상대 모델 간소화(bot.ts) — 복제로 자식에 이어짐
 					const nd = await advanceToOwnMain(applied, seat);
-					const child = await makeNode(net, applied, seat, nd);
+					const child = await makeNode(net, applied, seat, nd, opt.valueNet);
 					node.child[best] = child; st.expansions++;
 					leafValue = child.value; break;
 				}

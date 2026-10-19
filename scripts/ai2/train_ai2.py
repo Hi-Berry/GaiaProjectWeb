@@ -16,7 +16,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--data', default='data/ai2/selfplay'); ap.add_argument('--epochs', type=int, default=8)
 ap.add_argument('--batch', type=int, default=64); ap.add_argument('--lr', type=float, default=1e-3)
 ap.add_argument('--maxk', type=int, default=96); ap.add_argument('--seed', type=int, default=0)
-ap.add_argument('--vw', type=float, default=1.0, help='가치 손실 가중'); ap.add_argument('--out', default='data/ai2/model_v0.pt')
+ap.add_argument('--vw', type=float, default=1.0, help='가치 손실 가중'); ap.add_argument('--value-only', action='store_true', help='정책 손실 끔(가치 전용 모델)'); ap.add_argument('--out', default='data/ai2/model_v0.pt')
 ap.add_argument('--old', default='', help='[자기 강화] 섞을 이전 데이터 디렉터리(기존 봇 대국 등)'); ap.add_argument('--old-frac', type=float, default=0.3, help='--old 행 중 사용할 비율')
 ap.add_argument('--init', default='', help='[자기 강화] 이어 학습할 체크포인트')
 ap.add_argument('--extra', default='', help='[가치망 강화] 가치 전용 데이터 디렉터리(쉼표 구분, vo=1 행)')
@@ -40,7 +40,7 @@ def compact(o):
     gi, gv = o['grid']; fi, fv = o['flat']
     lens = [len(m['f'][0]) for m in o['moves']]
     pi = o.get('pi')
-    return {'g': o['g'], 'p': o['p'], 'y': o['y'], 'k': o.get('kind') if o.get('kind') not in (None, 'human', 'main') else 'main', 'r': int(o.get('r') or 0), 'vo': bool(o.get('vo')), 'q': o.get('q'),
+    return {'g': o['g'], 'p': o['p'], 'y': o['y'], 'k': o.get('kind') if o.get('kind') not in (None, 'human', 'main') else 'main', 'r': int(o.get('r') or 0), 'vo': bool(o.get('vo')), 'q': o.get('q'), 'vt': o.get('vt'),
             '_pii': np.asarray(pi[0], np.int32) if pi else None, '_piv': np.asarray(pi[1], np.float32) if pi else None,
             '_gi': np.asarray(gi, np.int32), '_gv': np.asarray(gv, np.float16),
             '_fi': np.asarray(fi, np.int32), '_fv': np.asarray(fv, np.float16),
@@ -66,12 +66,12 @@ def load_dir(d, frac=1.0):
 for d in args.data.split(','): load_dir(d)
 if args.old: load_dir(args.old, args.old_frac)
 for d in [x for x in args.extra.split(',') if x]: load_dir(d)
-rows = [r for r in rows if r['g'] in finals]
+rows = [r for r in rows if r['g'] in finals or r.get('vt') is not None]  # vt = 여러 번 굴린 평균 목표(ai2ValueRollouts)
 def value_target(r):
     sc = finals[r['g']]; me = sc[r['p']]; others = [v for k, v in sc.items() if k != r['p']]
     return (me - sum(others) / max(1, len(others))) / 50.0
 for r in rows:
-    r['vout'] = value_target(r)  # 실제 최종 결과(평가용)
+    r['vout'] = r['vt'] if r.get('vt') is not None else value_target(r)  # 평가·학습 목표: 굴림 평균이 있으면 그것, 없으면 실제 최종 결과
     r['v'] = (1 - args.q_mix) * r['vout'] + args.q_mix * float(r['q']) if r.get('q') is not None else r['vout']  # 학습 목표
 if args.skill_weight > 0:
     # 플레이어 실력: 사람 판에서 (내 점수 − 상대 평균)의 평균, 판 수가 적으면 0 쪽으로 당김(n/(n+3))
@@ -182,12 +182,12 @@ for ep in range(args.epochs):
         logit, val = net(g, fl, mv, cell, mask)
         pol_row = -(P * F.log_softmax(logit, dim=-1)).sum(-1)  # 소프트 목표 CE(원-핫이면 기존 CE와 같음)
         pol = (pol_row * pw).sum() / pw.sum().clamp(min=1.0)  # 가치 전용 행 제외
-        loss = pol + args.vw * F.mse_loss(val, v)
+        loss = (0.0 if args.value_only else pol) + args.vw * F.mse_loss(val, v)
         opt.zero_grad(); loss.backward(); opt.step(); tl += loss.item() * len(y)
     a1, a3, mae, corr, sign, by_round = evaluate(va)
     print(f"ep{ep} loss {tl / len(tr):.3f} · val 정책 top-1 {a1:.3f} top-3 {a3:.3f} · 가치 MAE {mae:.1f}VP 상관 {corr:.2f} 부호 {sign:.2f} · 라운드별 상관 {by_round} · {time.time() - t0:.0f}s", flush=True)
     print(f"   종류별 top-1: {last_kind}", flush=True)
-    score = a1 + corr  # 정책 정확도 + 가치 상관 — 둘 다 나아질 때 갱신
+    score = corr if args.value_only else a1 + corr  # 정책 정확도 + 가치 상관 — 둘 다 나아질 때 갱신(가치 전용이면 상관만)
     if not va or score != score: score = ep  # 검증 행이 없거나 지표가 NaN이면 마지막 에포크를 저장
     if score > best:
         best = score; torch.save({'state_dict': net.state_dict(), 'epoch': ep, 'val': {'top1': a1, 'top3': a3, 'mae': mae, 'corr': corr}}, args.out)
