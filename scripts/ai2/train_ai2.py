@@ -22,6 +22,7 @@ ap.add_argument('--init', default='', help='[자기 강화] 이어 학습할 체
 ap.add_argument('--extra', default='', help='[가치망 강화] 가치 전용 데이터 디렉터리(쉼표 구분, vo=1 행)')
 ap.add_argument('--q-mix', type=float, default=0.5, help='[가치망 강화] 자가대국 행의 가치 목표 = (1−λ)·최종결과 + λ·루트Q')
 ap.add_argument('--skill-weight', type=float, default=0.0, help='사람 행 정책 가중 = clip(1 + 실력/이 값, 0.25, 2) — 실력 = 플레이어 평균 (내 점수−상대 평균), 판 수로 보정. 0이면 끔')
+ap.add_argument('--elo-weight', default='', help='사람 행 정책 가중을 실력 점수 파일(scripts/ai2/playerElo.mjs)로: clip(1 + (elo−1500)/150, 0.3, 1.8), 8판 미만은 1')
 ap.add_argument('--val-starts', default='', help='검증 시작 상태 목록 고정(JSON) — 반복 간 같은 기준으로 비교하고 대결 시작 상태가 학습에 새지 않게')
 ap.add_argument('--device', default='cpu')  # MPS는 torch 2.0에서 gather 경로 Bus error(실측) — CPU 기본
 args = ap.parse_args()
@@ -90,6 +91,14 @@ if args.skill_weight > 0:
     print('실력 가중: 상위', [(n, round(v, 1)) for n, v in top[:5]], '하위', [(n, round(v, 1)) for n, v in top[-3:]], flush=True)
     ws = [r['w'] for r in rows if r['g'] in final_names]
     print(f'  사람 행 가중 평균 {np.mean(ws):.2f} · 최소 {min(ws):.2f} · 최대 {max(ws):.2f} · 행 {len(ws)}', flush=True)
+if args.elo_weight:
+    E = json.load(open(args.elo_weight))
+    wf = lambda nm: (float(min(1.8, max(0.3, 1 + (E[nm]['elo'] - 1500) / 150))) if nm in E and E[nm]['games'] >= 8 else 1.0)
+    for r in rows:
+        nm = final_names.get(r['g'], {}).get(r['p'])
+        r['w'] = wf(nm.strip()) if nm else 1.0
+    ws = [r['w'] for r in rows if r['g'] in final_names]
+    print(f'실력(Elo) 가중: 사람 행 {len(ws)} · 평균 {np.mean(ws):.2f} · 최소 {min(ws):.2f} · 최대 {max(ws):.2f}', flush=True)
 games = sorted({r['g'].split('#')[0] for r in rows}); random.shuffle(games)
 val_g = set(json.load(open(args.val_starts))) if args.val_starts else set(games[: max(1, len(games) // 5)])
 tr = [r for r in rows if r['g'].split('#')[0] not in val_g]; va = [r for r in rows if r['g'].split('#')[0] in val_g]
