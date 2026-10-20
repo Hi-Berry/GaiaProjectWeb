@@ -16,16 +16,26 @@ import { StateCloner } from '../server/ai/stateCloner';
 import { prepareHeadless, runToEnd, botFastPolicy, Policy } from '../server/ai2/headlessDriver';
 import { encodeState } from '../server/ai2/encoder';
 import { ServerGameState } from '../server/gameState';
+import { OnnxNet } from '../server/ai2/onnxNet';
+import { greedyPolicy, newSearchStats } from '../server/ai2/ai2Policy';
 
 const args = process.argv.slice(2);
 const opt = (k: string, d: string) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
 const shard = Number(opt('--shard', '0')), shards = Number(opt('--shards', '1'));
 const minutes = Number(opt('--minutes', '60')), R = Number(opt('--rollouts', '8')), every = Number(opt('--every', '15')), eps = Number(opt('--eps', '0.1'));
 const outDir = opt('--out', 'data/ai2/vroll');
+// [2026-10-19] --roll net <model.onnx>: 남은 판을 기존 봇 대신 신경망(사람 흉내 정책, 탐색 없이 최고 확률 수)이 네 좌석 모두 두게 한다.
+//   기존 봇 굴림 목표(vnet1)는 예측은 정확해졌지만 '봇이 이어 둘 때' 가치라 대결이 나빠졌다(−5.2).
+const rollNet = opt('--roll', 'bot') === 'net' ? new OnnxNet(opt('--model', 'server/ai2/models/ai2_v4h6.onnx')) : null;
 const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] = []; for (let k = 0; k < a.length; k++) if (a[k] !== 0) { i.push(k); v.push(Math.round(a[k] * 1000) / 1000); } return [i, v]; };
 
 let s = (shard * 7919 + 17) >>> 0; const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const gst = newSearchStats();
 const epsPolicy = (e: number): Policy => async (game, d) => {
+	if (rollNet && d.options && d.kind === 'main' && game.currentPhase === 'main') {
+		if (rnd() < e) { const o = d.options.filter(m => m.type !== 'pass_round'); if (o.length) return o[Math.floor(rnd() * o.length)]; }
+		return greedyPolicy(rollNet, gst)(game, d);
+	}
 	if (d.kind === 'main' && game.currentPhase === 'main' && rnd() < e) {
 		const cands = BotLogic.getCandidateMoves(game, d.playerId).filter(c => c.type !== 'end_turn' && c.type !== 'pass_round');
 		if (cands.length) return cands[Math.floor(rnd() * cands.length)];
@@ -60,14 +70,15 @@ class Sample { constructor(public g: ServerGameState) {} }
 			if (d.kind === 'main' && game.currentPhase === 'main' && rnd() < 1 / every) picks.push(StateCloner.cloneGameStateForSimulation(game));
 			return base(game, d);
 		};
-		const r0 = await runToEnd(g, pol, { botParity: true });
+		const seatsAll = rollNet ? new Set(g.turnOrder) : undefined;
+		const r0 = await runToEnd(g, pol, { botParity: true, ai2Seats: seatsAll });
 		games++;
 		if (!r0.ended) continue;
 		for (const st of picks) {
 			const acc: Record<string, number[]> = {};
 			for (let i = 0; i < R; i++) {
 				const c = prepareHeadless(st);
-				const r = await runToEnd(c, epsPolicy(eps), { botParity: true, maxSteps: 4000 });
+				const r = await runToEnd(c, epsPolicy(eps), { botParity: true, maxSteps: 4000, ai2Seats: rollNet ? new Set(c.turnOrder) : undefined });
 				if (!r.ended) continue;
 				for (const [id, m] of Object.entries(margins(r.scores as Record<string, number>))) (acc[id] ??= []).push(m);
 			}

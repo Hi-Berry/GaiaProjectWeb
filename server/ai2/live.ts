@@ -8,7 +8,7 @@
  *   (보류 선택을 신경망에 맡기면 판당 −11~12점 — RESULTS.md).
  * 안전: 라이브 상태는 절대 건드리지 않는다(prepareHeadless 복제본에서만 탐색). 실패·시간 초과·예외면 null →
  *   호출부가 기존 봇으로 폴백. 모델은 처음 쓸 때 한 번 불러온다.
- * 설정(환경변수): AI2_MODEL(기본 server/ai2/models/ai2_v4h8.onnx) · AI2_SIMS(160) · AI2_MAX_MS(8000)
+ * 설정(환경변수): AI2_MODEL(정책, 기본 server/ai2/models/ai2_v4h6.onnx) · AI2_VALUE_MODEL(가치, 기본 ai2_vnet2.onnx, none=끔) · AI2_SIMS(160) · AI2_MAX_MS(8000)
  */
 import * as path from 'path';
 import { BotAction } from '../ai/bot';
@@ -20,11 +20,19 @@ import { puctPolicy, newPuctStats } from './puct';
 import { OnnxNet } from './onnxNet';
 
 let net: OnnxNet | null = null;
+let valueNet: OnnxNet | null = null;
 let netFailed = false;
 const getNet = (): OnnxNet | null => {
 	if (netFailed) return null;
-	if (!net) net = new OnnxNet(path.resolve(process.cwd(), process.env.AI2_MODEL || 'server/ai2/models/ai2_v4h8.onnx'));
+	if (!net) net = new OnnxNet(path.resolve(process.cwd(), process.env.AI2_MODEL || 'server/ai2/models/ai2_v4h6.onnx'));
 	return net;
+};
+/** [2026-10-20] 가치 전용 모델(신경망이 이어 둔 8회 굴림 평균 목표) — v4h6 정책과 함께 144판 +8.4±2.5(v4h6 단독 대비). AI2_VALUE_MODEL=none 이면 끔. */
+const getValueNet = (): OnnxNet | null => {
+	const p = process.env.AI2_VALUE_MODEL ?? 'server/ai2/models/ai2_vnet2.onnx';
+	if (p === 'none') return null;
+	if (!valueNet) valueNet = new OnnxNet(path.resolve(process.cwd(), p));
+	return valueNet;
 };
 
 /** 이 좌석이 새 AI 좌석인가(실험 플래그 — 재시작 뒤엔 저장된 liveVariant로 복원) */
@@ -53,14 +61,15 @@ export async function ai2LiveDecide(game: ServerGameState, pid: string): Promise
 		if (!decidable(game, pid)) return { action: null, ms: 0, sims: 0, options: 0, reason: 'not-decidable' };
 		const n = getNet();
 		if (!n) return { action: null, ms: 0, sims: 0, options: 0, reason: 'no-model' };
-		try { await n.ready(); } catch (e) { netFailed = true; return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: `model-load: ${(e as Error).message}` }; }
+		const vn = getValueNet();
+		try { await n.ready(); if (vn) await vn.ready(); } catch (e) { netFailed = true; return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: `model-load: ${(e as Error).message}` }; }
 		const g = prepareHeadless(game);
 		// 탐색 안에서 나 말고는 전부 기존 봇 빠른 경로로 모델링 — 사람 좌석의 리치·보류도 봇처럼 자동 처리되게
 		g.botPlayerIds = g.turnOrder.filter(id => id !== pid);
 		const options = generateMoves(g, pid);
 		if (!options.length) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'no-options' };
 		const st = newPuctStats();
-		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 160), maxMs: Number(process.env.AI2_MAX_MS || 8000) });
+		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 160), maxMs: Number(process.env.AI2_MAX_MS || 8000), valueNet: vn ?? undefined });
 		const action = await policy(g, { kind: 'main', playerId: pid, options });
 		return { action, ms: Date.now() - t0, sims: st.sims, options: options.length, reason: action ? undefined : 'no-pick' };
 	} catch (e) {
