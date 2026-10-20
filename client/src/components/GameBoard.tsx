@@ -874,18 +874,16 @@ export function GameBoard({
   const clearSatMemo = useCallback((pid: string | null) => {
     setSatMemo(prev => { if (!pid) return {}; const n = { ...prev }; delete n[pid]; return n; });
   }, []);
-  // 실제로 위성이 놓이면(연방 선언) 그 플레이어의 메모에서 자동으로 지운다 — 예측이 현실이 된 칸이 메모로 남아 헷갈리지 않게.
-  useEffect(() => {
-    setSatMemo(prev => {
-      let changed = false; const next: Record<string, string[]> = {};
-      for (const [pid, ids] of Object.entries(prev)) {
-        const keep = ids.filter(id => { const sl = game.satellites?.[id]; return !(Array.isArray(sl) ? sl.includes(pid) : sl === pid); });
-        if (keep.length !== ids.length) changed = true;
-        if (keep.length) next[pid] = keep; else if (ids.length) changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [game.satellites]);
+  // 실제로 그 플레이어 위성이 놓인 칸은 메모에서 '숨긴다'(지우지 않음) — 예측이 현실이 된 칸이 메모로 남아 헷갈리지 않게.
+  //   [사용자 2026-10-20] 예전엔 지워 버려서 '이대로 연방하기' 후 롤백하면 위성은 빠지는데 메모가 안 돌아왔다.
+  //   저장은 그대로 두고 표시·개수·연방하기에만 이 걸러진 목록을 쓰므로 롤백하면 메모가 다시 보인다.
+  const satMemoShown = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const [pid, ids] of Object.entries(satMemo)) {
+      out[pid] = ids.filter(id => { const sl = game.satellites?.[id]; return !(Array.isArray(sl) ? sl.includes(pid) : sl === pid); });
+    }
+    return out;
+  }, [satMemo, game.satellites]);
   // 창을 닫으면 맵 위의 A·B 표시도 같이 정리(닫아 놓고 표식만 남아 헷갈리지 않게)
   useEffect(() => { if (!utilityOpen) { clearMeasure(); setHoveredLandType(null); setSatMemoEditPid(null); } }, [utilityOpen, clearMeasure]);
   // 기본 위치를 '맵 영역 우하단'으로 — 우측 상태창/로그 폭만큼 띄운다. 사이드바 폭 변경도 따라가게 ResizeObserver.
@@ -1118,7 +1116,7 @@ export function GameBoard({
   //   서버 미리보기가 '연결됨 + 파워 충족'이면 자동으로 완료, 아니면 평소 연방 창을 열어 둔 채 멈춘다(조용히 실패하지 않게).
   //   하이브 2번째 연방부터는 클릭할 때마다 기존 네트워크에 닿아야 하므로 내 건물에서 가까운 칸부터 보낸다.
   const memoFedPendingRef = useRef<{ n: number; at: number } | null>(null);
-  const satMemoMine = playerId ? (satMemo[playerId] ?? []) : [];
+  const satMemoMine = playerId ? (satMemoShown[playerId] ?? []) : [];
   const canFederateFromMemo = !!playerId && satMemoMine.length > 0 && !isFederationMode && !!onFederationToggleMode && !!onFederationToggleHex
     && game.turnOrder[game.currentPlayerIndex] === playerId && game.currentPhase === 'main' && !game.hasDoneMainAction && !game.pendingFederationReward;
   const federateFromMemo = useCallback(() => {
@@ -1157,9 +1155,9 @@ export function GameBoard({
   // 지도 표시용: 칸 → 메모한 플레이어들(턴 순서대로)
   const satMemoByTile = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const pid of game.turnOrder ?? []) for (const id of satMemo[pid] ?? []) (m.get(id) ?? m.set(id, []).get(id)!).push(pid);
+    for (const pid of game.turnOrder ?? []) for (const id of satMemoShown[pid] ?? []) (m.get(id) ?? m.set(id, []).get(id)!).push(pid);
     return m;
-  }, [satMemo, game.turnOrder]);
+  }, [satMemoShown, game.turnOrder]);
 
   const handleTileClick = useCallback((tile: HexTile) => {
     // [편의기능] 거리 측정 선택 중이면 그 칸을 A/B로 찍고 끝 — 타일 상세 패널은 열지 않는다.
@@ -2513,7 +2511,7 @@ export function GameBoard({
             measureB={measureB}
             onClearMeasure={clearMeasure}
             onHoverLandType={setHoveredLandType}
-            satMemo={satMemo}
+            satMemo={satMemoShown}
             satMemoVisible={satMemoVisible}
             setSatMemoVisible={setSatMemoVisible}
             satMemoEditPid={satMemoEditPid}
