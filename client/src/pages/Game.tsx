@@ -2677,7 +2677,7 @@ export default function Game() {
       acts.push({ label: '1P→가이아+1K', disabled: (me.power3 ?? 0) < 1, run: () => GameClient.convertResource(gameId, '1power-to-1k-gaiaformer') });
       // 네뷸라 의회(PI) 전용 변환 — 서버가 hasNevlasPI 요구. (기본 O/K/Q/C는 상태창에서 PI 할인가로 처리)
       if (hasPI(playerId!)) {
-        acts.push({ label: '2P→1O1C', disabled: (me.power3 ?? 0) < 2, run: () => GameClient.convertResource(gameId, '2power-to-1ore-1credit') });
+        acts.push({ label: '2P→1Ore+1Credit', disabled: (me.power3 ?? 0) < 2, run: () => GameClient.convertResource(gameId, '2power-to-1ore-1credit') });
       }
     }
     if (me.faction === 'bal_tak') {
