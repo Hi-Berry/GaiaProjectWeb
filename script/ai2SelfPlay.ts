@@ -25,6 +25,7 @@ const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] =
 	const gz = zlib.createGzip({ level: 6 }); const ws = fs.createWriteStream(outPath); gz.pipe(ws); // 종료 전 'finish'까지 기다려야 gzip 꼬리가 안 잘린다
 	const write = (o: any) => gz.write(JSON.stringify(o) + '\n');
 	const net = new NetClient(opt('--model', 'data/ai2/model_v1.pt'));
+	const valueNet = process.argv.includes('--valueModel') ? new NetClient(opt('--valueModel', '')) : undefined; // [2026-10-22] 가치 전용 모델로 탐색
 	const dir = path.join(process.cwd(), 'logs', 'round-start');
 	// 학습 검증용으로 떼어 둔 시작 상태는 제외(대결 기준선 보존)
 	const valStarts = new Set<string>(fs.existsSync(opt('--exclude', 'data/ai2/model_v1.val_starts.json')) ? JSON.parse(fs.readFileSync(opt('--exclude', 'data/ai2/model_v1.val_starts.json'), 'utf8')) : []);
@@ -37,7 +38,7 @@ const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] =
 		const st = newPuctStats();
 		const curGame = gameId;
 		const ai2: Policy = puctPolicy(net, st, {
-			sims: Number(opt('--sims', '48')), sampleUntilRound: Number(opt('--sampleRound', '2')), seed: shard * 100003 + games + 1,
+			sims: Number(opt('--sims', '48')), sampleUntilRound: Number(opt('--sampleRound', '2')), seed: shard * 100003 + games + 1, valueNet,
 			onSearch: ({ game, seat, moves, visits, pick, rootQ }) => {
 				const tot = visits.reduce((a, b) => a + b, 0) || 1;
 				const e = encodeState(game, seat);

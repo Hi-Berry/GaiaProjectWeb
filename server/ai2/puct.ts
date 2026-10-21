@@ -86,7 +86,7 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 			const applied: { m: BotAction; s: ServerGameState }[] = [];
 			for (const m of d.options) { const s2 = await tryApply(game, d.playerId, m); if (s2) applied.push({ m, s: s2 }); }
 			if (applied.length > 1) {
-				const outs = await net.evaluate(applied.map(a => ({ game: a.s, pov: d.playerId, moves: [{ type: 'pass_round', params: {} } as BotAction] })));
+				const outs = await (opt.valueNet ?? net).evaluate(applied.map(a => ({ game: a.s, pov: d.playerId, moves: [{ type: 'pass_round', params: {} } as BotAction] }))); // 가치 전용 모델이 있으면 그쪽(2026-10-22)
 				let bi = 0; for (let i = 1; i < outs.length; i++) if (outs[i].value > outs[bi].value) bi = i;
 				return applied[bi].m;
 			}
