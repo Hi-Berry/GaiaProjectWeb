@@ -17,7 +17,7 @@ import { prepareHeadless, runToEnd, botFastPolicy, Policy } from '../server/ai2/
 import { encodeState } from '../server/ai2/encoder';
 import { ServerGameState } from '../server/gameState';
 import { OnnxNet } from '../server/ai2/onnxNet';
-import { greedyPolicy, newSearchStats } from '../server/ai2/ai2Policy';
+import { greedyPolicy, valueGreedyPolicy, newSearchStats } from '../server/ai2/ai2Policy';
 
 const args = process.argv.slice(2);
 const opt = (k: string, d: string) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
@@ -26,15 +26,19 @@ const minutes = Number(opt('--minutes', '60')), R = Number(opt('--rollouts', '8'
 const outDir = opt('--out', 'data/ai2/vroll');
 // [2026-10-19] --roll net <model.onnx>: 남은 판을 기존 봇 대신 신경망(사람 흉내 정책, 탐색 없이 최고 확률 수)이 네 좌석 모두 두게 한다.
 //   기존 봇 굴림 목표(vnet1)는 예측은 정확해졌지만 '봇이 이어 둘 때' 가치라 대결이 나빠졌다(−5.2).
-const rollNet = opt('--roll', 'bot') === 'net' ? new OnnxNet(opt('--model', 'server/ai2/models/ai2_v4h6.onnx')) : null;
+const rollMode = opt('--roll', 'bot');
+const rollNet = rollMode === 'net' || rollMode === 'netv' ? new OnnxNet(opt('--model', 'server/ai2/models/ai2_v4h6.onnx')) : null;
+// --roll netv --valueModel <onnx>: 정책 상위 5수를 가치 모델로 1수 앞보기(이어 두는 쪽을 더 강하게 — 다음 반복)
+const rollValue = rollMode === 'netv' ? new OnnxNet(opt('--valueModel', 'server/ai2/models/ai2_vnet2.onnx')) : null;
 const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] = []; for (let k = 0; k < a.length; k++) if (a[k] !== 0) { i.push(k); v.push(Math.round(a[k] * 1000) / 1000); } return [i, v]; };
 
-let s = (shard * 7919 + 17) >>> 0; const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+// --seed: 반복마다 다른 판(같으면 이전 생성과 똑같은 판이 나온다)
+let s = (shard * 7919 + 17 + Number(opt('--seed', '0')) * 104729) >>> 0; const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 const gst = newSearchStats();
 const epsPolicy = (e: number): Policy => async (game, d) => {
 	if (rollNet && d.options && d.kind === 'main' && game.currentPhase === 'main') {
 		if (rnd() < e) { const o = d.options.filter(m => m.type !== 'pass_round'); if (o.length) return o[Math.floor(rnd() * o.length)]; }
-		return greedyPolicy(rollNet, gst)(game, d);
+		return (rollValue ? valueGreedyPolicy(rollNet, rollValue, gst, 5) : greedyPolicy(rollNet, gst))(game, d);
 	}
 	if (d.kind === 'main' && game.currentPhase === 'main' && rnd() < e) {
 		const cands = BotLogic.getCandidateMoves(game, d.playerId).filter(c => c.type !== 'end_turn' && c.type !== 'pass_round');
@@ -59,9 +63,9 @@ class Sample { constructor(public g: ServerGameState) {} }
 	const val = new Set<string>(fs.existsSync(excl) ? JSON.parse(fs.readFileSync(excl, 'utf8')) : []);
 	const files = fs.readdirSync(dir).filter(f => f.endsWith('_r1.json') && !val.has(f.replace('_r1.json', ''))).sort();
 	const t0 = Date.now(); let games = 0, states = 0, sdSum = 0;
-	for (let k = shard; (Date.now() - t0) / 60000 < minutes; k += shards) {
+	for (let k = shard + Number(opt('--seed', '0')) * 37; (Date.now() - t0) / 60000 < minutes; k += shards) {
 		const f = files[k % files.length];
-		const gid = `${f.replace('_r1.json', '')}#vr${shard}_${games}`;
+		const gid = `${f.replace('_r1.json', '')}#vr${opt('--seed', '0')}_${shard}_${games}`;
 		const g = prepareHeadless(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
 		// 표본 국면: 메인 결정 시점에 확률 1/every로 상태를 복제해 둔다(게임 진행은 그대로)
 		const picks: ServerGameState[] = [];

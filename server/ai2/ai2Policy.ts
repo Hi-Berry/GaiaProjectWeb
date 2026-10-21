@@ -70,3 +70,22 @@ export function searchPolicy(net: NetClient, st: SearchStats, opt: { k?: number;
 		return best.m;
 	};
 }
+
+/**
+ * [ai2 2026-10-21] 가치 1수 앞보기: 정책 상위 k개 합법 수를 둬 본 상태를 가치 모델로 평가해 최고를 고른다(탐색 없음, 빠름).
+ *  가치 학습용 굴림의 '이어 두는 쪽'을 사람 흉내(greedy)보다 강하게 — vnet2(greedy 굴림 목표)가 대결 +8.4였던 다음 반복용.
+ */
+export function valueGreedyPolicy(net: NetClient | any, valueNet: NetClient | any, st: SearchStats, k = 5): Policy {
+	return async (game, d) => {
+		if (!d.options) return botFastPolicy(game, d);
+		if (d.kind === 'pending' || d.kind === 'leech') return pendingPick(game, d);
+		st.decisions++;
+		const cands = await topLegal(net, game, d, k);
+		if (cands.length <= 1) return cands[0]?.m ?? null;
+		const outs = await valueNet.evaluate(cands.map(c => ({ game: c.s, pov: d.playerId, moves: [{ type: 'pass_round', params: {} } as BotAction] })));
+		let bi = 0; for (let i = 1; i < outs.length; i++) if (outs[i].value > outs[bi].value) bi = i;
+		if (bi !== 0) st.changedFromTop++;
+		return cands[bi].m;
+	};
+}
+

@@ -8,7 +8,7 @@
  *   (보류 선택을 신경망에 맡기면 판당 −11~12점 — RESULTS.md).
  * 안전: 라이브 상태는 절대 건드리지 않는다(prepareHeadless 복제본에서만 탐색). 실패·시간 초과·예외면 null →
  *   호출부가 기존 봇으로 폴백. 모델은 처음 쓸 때 한 번 불러온다.
- * 설정(환경변수): AI2_MODEL(정책, 기본 server/ai2/models/ai2_v4h6.onnx) · AI2_VALUE_MODEL(가치, 기본 ai2_vnet2.onnx, none=끔) · AI2_SIMS(160) · AI2_MAX_MS(8000)
+ * 설정(환경변수): AI2_MODEL(정책, 기본 server/ai2/models/ai2_v4h10e.onnx) · AI2_VALUE_MODEL(가치, 기본 ai2_vnet3.onnx, none=끔) · AI2_SIMS(160) · AI2_MAX_MS(8000)
  */
 import * as path from 'path';
 import { BotAction } from '../ai/bot';
@@ -24,12 +24,12 @@ let valueNet: OnnxNet | null = null;
 let netFailed = false;
 const getNet = (): OnnxNet | null => {
 	if (netFailed) return null;
-	if (!net) net = new OnnxNet(path.resolve(process.cwd(), process.env.AI2_MODEL || 'server/ai2/models/ai2_v4h6.onnx'));
+	if (!net) net = new OnnxNet(path.resolve(process.cwd(), process.env.AI2_MODEL || 'server/ai2/models/ai2_v4h10e.onnx'));
 	return net;
 };
 /** [2026-10-20] 가치 전용 모델(신경망이 이어 둔 8회 굴림 평균 목표) — v4h6 정책과 함께 144판 +8.4±2.5(v4h6 단독 대비). AI2_VALUE_MODEL=none 이면 끔. */
 const getValueNet = (): OnnxNet | null => {
-	const p = process.env.AI2_VALUE_MODEL ?? 'server/ai2/models/ai2_vnet2.onnx';
+	const p = process.env.AI2_VALUE_MODEL ?? 'server/ai2/models/ai2_vnet3.onnx';
 	if (p === 'none') return null;
 	if (!valueNet) valueNet = new OnnxNet(path.resolve(process.cwd(), p));
 	return valueNet;
