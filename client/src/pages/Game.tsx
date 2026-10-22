@@ -1899,10 +1899,10 @@ export default function Game() {
     const pendingTechPlayer = game.pendingTechTileSelection?.playerId;
     const isMyTech = pendingTechPlayer === playerId;
     if (pendingTechPlayer !== lastPendingTechSelectionRef.current || isMyTech !== lastWasMyTechRef.current) {
+      // [사용자 2026-10-22] 남이 기술 타일을 고르는 순간 울리던 '삐'는 뺀다 — 그 사람 턴 도중이라, 화면·로그는
+      //   턴 종료 때 공개하는데 소리로 '연구소/아카데미/기술 연방을 했다'가 실시간으로 새었다. 내 선택 알림만 남긴다.
       if (isMyTech && !lastWasMyTechRef.current) {
         playMyTurnSound();
-      } else if (!isMyTech && pendingTechPlayer && pendingTechPlayer !== lastPendingTechSelectionRef.current) {
-        playOtherTurnSound();
       }
       lastPendingTechSelectionRef.current = pendingTechPlayer || null;
       lastWasMyTechRef.current = isMyTech;
