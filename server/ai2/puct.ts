@@ -62,13 +62,13 @@ async function makeNode(net: Evaluator, state: ServerGameState, seat: string, d:
 	return { state, terminal: false, value, moves: d.options, priors: o.priors, N: d.options.map(() => 0), W: d.options.map(() => 0), child: d.options.map(() => undefined), visits: 0 };
 }
 
-export interface PuctStats { decisions: number; sims: number; expansions: number; illegal: number; ms: number; changedFromTop: number; depthMax: number }
+export interface PuctStats { decisions: number; sims: number; expansions: number; illegal: number; ms: number; changedFromTop: number; depthMax: number; earlyStops?: number }
 export const newPuctStats = (): PuctStats => ({ decisions: 0, sims: 0, expansions: 0, illegal: 0, ms: 0, changedFromTop: 0, depthMax: 0 });
 
 /** 탐색 결과 보고(자기 강화 데이터용): 루트 상태·선택지·방문 수·고른 수 */
 export type SearchReport = (r: { game: ServerGameState; seat: string; moves: BotAction[]; visits: number[]; pick: number; rootQ: number; rootValue: number }) => void;
 
-export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number; lite?: boolean; valueNet?: Evaluator } = {}): Policy {
+export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; cpuct?: number; maxChildren?: number; onSearch?: SearchReport; sampleUntilRound?: number; seed?: number; pendingNet?: boolean; pendingValue?: boolean; maxMs?: number; lite?: boolean; valueNet?: Evaluator; earlyStop?: boolean } = {}): Policy {
 	const SIMS = opt.sims ?? 48, CP = opt.cpuct ?? 1.5, MAXC = opt.maxChildren ?? 12;
 	let rs = (opt.seed ?? 1) >>> 0 || 1; const rnd = () => ((rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 	return async (game, d) => {
@@ -110,6 +110,13 @@ export function puctPolicy(net: Evaluator, st: PuctStats, opt: { sims?: number; 
 		const allowCache = new Map<Node, Set<number>>();
 		for (let s = 0; s < SIMS; s++) {
 			if (opt.maxMs && s > 0 && Date.now() - t0 > opt.maxMs) break; // [실전] 시간 상한 — 그때까지의 방문 수로 결정
+			// [2026-10-22 조기 종료] 최종 선택 = 최다 방문. 1등과 2등의 방문 차가 남은 시뮬 수보다 크면 끝까지 돌려도 1등이 바뀌지 않는다
+			//   → 같은 수를 더 빨리 고른다(결과 동일, 시간만 절약). 뻔한 결정(압도적 후보·후보 소수)에서 크게 줄어든다.
+			if (opt.earlyStop !== false && s >= 16) {
+				let n1 = 0, n2 = 0;
+				for (let i = 0; i < root.N.length; i++) { if (root.child[i] === null) continue; const n = root.N[i]; if (n > n1) { n2 = n1; n1 = n; } else if (n > n2) n2 = n; }
+				if (n1 - n2 > SIMS - s) { st.earlyStops = (st.earlyStops ?? 0) + 1; break; }
+			}
 			st.sims++;
 			const path: [Node, number][] = [];
 			let node = root; let leafValue = 0; let depth = 0;

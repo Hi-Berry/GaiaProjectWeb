@@ -38,7 +38,7 @@ const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] =
 		const st = newPuctStats();
 		const curGame = gameId;
 		const ai2: Policy = puctPolicy(net, st, {
-			sims: Number(opt('--sims', '48')), sampleUntilRound: Number(opt('--sampleRound', '2')), seed: shard * 100003 + games + 1, valueNet,
+			sims: Number(opt('--sims', '48')), sampleUntilRound: Number(opt('--sampleRound', '2')), seed: shard * 100003 + games + 1, valueNet, earlyStop: false, // 방문 분포가 학습 목표라 끝까지
 			onSearch: ({ game, seat, moves, visits, pick, rootQ }) => {
 				const tot = visits.reduce((a, b) => a + b, 0) || 1;
 				const e = encodeState(game, seat);

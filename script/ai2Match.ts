@@ -58,6 +58,11 @@ for (const fn of fs.readdirSync('data/ai2/selfplay').filter(f => f.endsWith('.js
 		const FREE = new Set(['convert_resource', 'burn_power', 'end_turn', 'respond_power_offer', 'taklons_burn_brain', 'bal_tak_gaiaformer_to_qic']);
 		const policy: Policy = async (game, d) => {
 			const a = await (seats.has(d.playerId) ? ai2(game, d) : botFullPolicy(game, d));
+			if (process.env.AI2_DEBUG_FED) { // [진단] 새 AI 좌석의 연방 수 변화와 직전 수
+				const g2: any = game; g2._dbgFed ??= {}; g2._dbgLast ??= {};
+				for (const id of game.turnOrder) { const fc = ((game.players[id] as any).federations ?? []).length; if (fc !== (g2._dbgFed[id] ?? 0)) { fs.writeSync(2, `[fed] R${game.roundNumber} ${(game.players[id] as any).faction} 연방 ${g2._dbgFed[id] ?? 0}→${fc} 그 좌석 직전 수: ${g2._dbgLast[id]}\n`); g2._dbgFed[id] = fc; } }
+				if (a) g2._dbgLast[d.playerId] = `${d.kind} ${a.type} ${JSON.stringify(a.params).slice(0, 140)}`;
+			}
 			const r = game.roundNumber ?? 0;
 			if (a && d.kind === 'main' && game.currentPhase === 'main' && r >= 1) {
 				const p: any = game.players[d.playerId];

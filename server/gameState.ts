@@ -10878,6 +10878,20 @@ export function executeBotFederation(
 			return false;
 		}
 	}
+	// [2026-10-22] 비-하이브 봇 연방은 연결·파워 검사가 없어, 이미 연방에 든 건물을 다시 묶은 후보도 섰다(대결 기록 11,808석 중
+	//   6석이 7~17연방 — 기존 봇 4·새 AI 2, 모두 봇 경로). 사람 경로(federation_complete)와 같은 판정(computeConnectedFederation:
+	//   기존 연방 칸 제외 + 하나로 연결 + 파워 ≥ 요구치)을 적용. BOT_FED_STRICT=warn 이면 거절하지 않고 세기만(검증용).
+	if (!isIvits) {
+		const required = getFederationRequiredPower(game, playerId);
+		const net = computeConnectedFederation(game, playerId, selectedHexIds, [], selectedPlanetIds);
+		if (!net.connected || net.power < required) {
+			const g: any = globalThis; g.__botFedReject = (g.__botFedReject ?? 0) + 1;
+			if (process.env.BOT_FED_DEBUG) { const fh = new Set(game.playerFederationHexes?.[playerId] ?? []); process.stderr.write(`[botfed] ${player.faction} R${game.roundNumber} connected=${net.connected} power=${net.power}/${required} 위성${selectedHexIds.length} 건물${selectedPlanetIds.length} 기존연방칸과 겹침 ${[...selectedHexIds, ...selectedPlanetIds].filter(id => fh.has(id)).length} 보상 ${rewardId}\n`); }
+			log(`Bot federation ${process.env.BOT_FED_STRICT === 'warn' ? 'WOULD BE ' : ''}rejected: connected=${net.connected} power ${net.power} < ${required}?`, 'game', game.id, { simulation: (game as any).simulation });
+			if (process.env.BOT_FED_STRICT !== 'warn') return false;
+		}
+		const g: any = globalThis; g.__botFedOk = (g.__botFedOk ?? 0) + 1;
+	}
 	// UI의 federation_complete과 동일한 검증/차감을 bot에서도 강제:
 	// - Ivits: QIC로 위성(빈칸) 수만큼 차감
 	// - 그 외: 파워 토큰으로 위성(빈칸) 수만큼 차감
