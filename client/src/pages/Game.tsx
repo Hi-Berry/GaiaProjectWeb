@@ -3608,7 +3608,7 @@ export default function Game() {
   /** 모바일 Info 오버레이용: 기술/우주선 섹션을 핀 미니뷰와 동일 핸들러로 재사용(section만 다름). 호출은 game 가드 내부에서만 → game! 안전 */
   const renderInfoResearch = (section: 'tech' | 'ships' | 'all') => (
     <ResearchBoard
-      game={game!}
+      game={(viewGame ?? game)!}
       playerId={playerId}
       isMini={true}
       section={section}
@@ -3645,10 +3645,10 @@ export default function Game() {
   /** 모바일 Info 오버레이 P3(라운드·보너스) — 가로/세로 모드 공용 */
   const renderInfoRoundBonus = () => (
     <div className="flex flex-col gap-4">
-      <RoundBoard game={game!} playerId={playerId} isMini={true} />
+      <RoundBoard game={(viewGame ?? game)!} playerId={playerId} isMini={true} />
       <div className="h-[1px] bg-white/10 w-full" />
       <BonusTiles
-        game={game!}
+        game={(viewGame ?? game)!}
         playerId={playerId}
         isMini={true}
         onSelectBonusTile={isMyTurnBonusSelection ? ((id) => GameClient.selectBonusTile(gameId!, id)) : isMyTurn ? ((id) => {
@@ -4706,7 +4706,9 @@ export default function Game() {
               <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner bg-black/20 p-2 custom-scrollbar">
                 {(() => {
                   const boardProps: Omit<ComponentProps<typeof ResearchBoard>, 'isMini' | 'section'> = {
-                    game,
+                    // [사용자 2026-10-22] 연구판(파워·우주선 액션 사용 표시, 기술 타일, 트랙 말)도 남의 턴엔 턴 시작 시점으로 —
+                    //   예전엔 이 판만 실시간이라 '뭘 하다 취소했는지'가 액션 칸에 그대로 보였다. 내 턴이면 viewGame = game.
+                    game: viewGame ?? game,
                     playerId,
                     onUsePowerAction: (actionId) => handleUsePowerAction(actionId, { closeResearchOverlay: true }),
                     onUseHadschHallasPIAction: (actionId) => {
@@ -6362,9 +6364,9 @@ export default function Game() {
                       default: return 0;
                     }
                   };
-                  const fedHexes = getExpandedFederationHexIds(game.map, game.playerFederationHexes?.[id] ?? [], id);
+                  const fedHexes = getExpandedFederationHexIds(cardGame.map, cardGame.playerFederationHexes?.[id] ?? [], id);
                   let total = 0, fed = 0;
-                  for (const t of game.map) {
+                  for (const t of cardGame.map) {
                     let tp = 0;
                     if (t.ownerId === id && t.structure && t.structure !== 'ship') tp += structPower(t.structure);
                     if (t.parasiticMine?.ownerId === id) tp += 1;
@@ -6438,10 +6440,10 @@ export default function Game() {
 
                 const bonusForDetail = p.bonusTile ? ALL_BONUS_TILES.find((t) => t.id === p.bonusTile) : undefined;
                 const hasBonusDetailRow = !!(bonusForDetail?.specialAction);
-                const hasPIForDetail = game.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
+                const hasPIForDetail = cardGame.map?.some((t: any) => t.ownerId === id && t.structure === 'planetary_institute') ?? false;
                 const ownedPlanetCounts = (() => {
                   const counts: Partial<Record<PlanetType, number>> = {};
-                  game.map
+                  cardGame.map
                     ?.filter((t) => t.ownerId === id && t.structure && t.structure !== 'ship')
                     .forEach((t) => {
                       // 잊혀진 행성(검은 행성)은 우주(space) 칸에 lost_planet_mine으로 놓이므로 tile.type이 아닌 구조물로 카운트
@@ -6451,7 +6453,7 @@ export default function Game() {
                       counts[type] = (counts[type] ?? 0) + 1;
                     });
                   // 인공물 가상 광산(소행성/원시행성)도 보유 행성 유형으로 표시 (점수 계산과 일관)
-                  const pl = game.players[id];
+                  const pl = cardGame.players[id];
                   if (pl?.virtualMineAsteroid) counts['asteroid'] = (counts['asteroid'] ?? 0) + 1;
                   if (pl?.virtualMineProto) counts['proto'] = (counts['proto'] ?? 0) + 1;
                   return counts;
@@ -6490,7 +6492,7 @@ export default function Game() {
                   .filter((type) => (ownedPlanetCounts[type] ?? 0) > 0)
                   .length;
                 // 섹터 점유: 내 건물 + 란티다 기생 광산 (서버 tileOccupiesSector·fm_sectors와 동일하게 기생 포함)
-                const sectorOccupyingTiles = game.map?.filter((t) => (t.ownerId === id && t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === id) ?? [];
+                const sectorOccupyingTiles = cardGame.map?.filter((t) => (t.ownerId === id && t.structure && t.structure !== 'ship') || t.parasiticMine?.ownerId === id) ?? [];
                 const occupiedSectorCount = new Set(
                   sectorOccupyingTiles
                     .filter((t) => typeof t.sector === 'number' && t.sector < 11)
@@ -6502,8 +6504,8 @@ export default function Game() {
                     .map((t) => t.sector)
                 ).size;
                 const totalStructureCount = getFinalMissionValue(game, id, 'fm_total_structures');
-                const parasiticMineCount = game.map?.filter((t) => t.parasiticMine?.ownerId === id).length ?? 0;
-                const satelliteCount = Object.values(game.satellites ?? {})
+                const parasiticMineCount = cardGame.map?.filter((t) => t.parasiticMine?.ownerId === id).length ?? 0;
+                const satelliteCount = Object.values(cardGame.satellites ?? {})
                   .filter((ids) => Array.isArray(ids) && ids.includes(id))
                   .length;
                 const hasPlanetTypeDetailRow = true;
@@ -6513,7 +6515,7 @@ export default function Game() {
                     const tile = ALL_TECH_TILES.find((t) => t.id === tid) ?? ALL_ADVANCED_TECH_TILES.find((t) => t.id === tid);
                     return !!tile?.specialAction;
                   })) return true;
-                  if (game.map?.some((t) => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')) return true;
+                  if (cardGame.map?.some((t) => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')) return true;
                   if (p.faction === 'bescods' || p.faction === 'ivits' || p.faction === 'gleens' || p.faction === 'space_giants') return true;
                   if (p.faction === 'moweyip' && hasPIForDetail) return true;
                   if (p.faction === 'ambas' && hasPIForDetail) return true;
@@ -6762,7 +6764,7 @@ export default function Game() {
                               {(() => {
                                 const faActive = isYou && freeActionMode;
                                 const faIsTak = p.faction === 'taklons';
-                                const faNevPI = p.faction === 'nevlas' && (game.map?.some(t => t.ownerId === id && t.structure === 'planetary_institute') ?? false);
+                                const faNevPI = p.faction === 'nevlas' && (cardGame.map?.some(t => t.ownerId === id && t.structure === 'planetary_institute') ?? false);
                                 // [사용자] 타클론도 상태창 활성화는 '일반 파워토큰' 기준(브레인 미포함). 브레인 조합은 왼쪽 스트립.
                                 const faCanPow = (cost: number) =>
                                   faNevPI ? (p.power3 ?? 0) >= Math.ceil(cost / 2) : (p.power3 ?? 0) >= cost;
@@ -6771,7 +6773,7 @@ export default function Game() {
                                   ore: (p.power3 ?? 0) >= 3,
                                   credit: faCanPow(1),
                                   knowledge: faCanPow(4),
-                                  qic: faCanPow(4) && !(p.faction === 'gleens' && !game.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')),
+                                  qic: faCanPow(4) && !(p.faction === 'gleens' && !cardGame.map?.some(t => t.ownerId === id && t.structure === 'academy' && t.academyType === 'right')),
                                 };
                                 // w-fit: 그리드 칸 폭과 무관하게 내용물(라벨+숫자+수입)에 정확히 맞는 박스
                                 const faCellCls = (kind: 'ore' | 'knowledge' | 'qic' | 'credit') =>
