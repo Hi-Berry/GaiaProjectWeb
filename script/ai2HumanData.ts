@@ -60,6 +60,40 @@ function matcher(e: any, game: any): { kind: string; pred: (m: BotAction) => boo
 	return null;
 }
 
+// [2026-10-22 사용자: 프리 액션도 배우게] 사람 기록의 프리 액션 줄 → 낱개 수 판별 함수 목록(순서대로).
+//   'Free Actions'는 연속 변환이 한 줄로 합쳐진다("1P → 1C ×3, 1O → 1 Token"). 변환 문구는 서버 executeConvertResource와 1:1.
+const CONV: [RegExp, string, boolean?][] = [
+	[/^1P → [12]C$/, '1power-to-1credit'], [/^1B → 3C$/, '1brain-to-3credit', true], [/^1P → Gaiaformer \+ 1K$/, '1power-to-1k-gaiaformer'],
+	[/^[23]P → 1O$/, '3power-to-1ore'], [/^1B → 1O$/, '3power-to-1ore', true], [/^3P → 2O$/, '3power-to-2ore'], [/^2P → 1O$/, '3power-to-1ore'],
+	[/^[24]P → 1Q$/, '4power-to-1qic'], [/^1B\+1P → 1Q$/, '4power-to-1qic', true], [/^[24]P → 1K$/, '4power-to-1knowledge'], [/^1B\+1P → 1K$/, '4power-to-1knowledge', true],
+	[/^1K → 1C$/, '1knowledge-to-1credit'], [/^1Q → 1O$/, '1qic-to-1ore'], [/^1O → 1C$/, '1ore-to-1credit'], [/^1O → 1 Token( to Bowl III)?$/, '1ore-to-1token'],
+];
+const HH: [RegExp, string][] = [[/3C\s*→\s*1O/, 'hh-3c-1o'], [/4C\s*→\s*1Q/, 'hh-4c-1qic'], [/4C\s*→\s*1K/, 'hh-4c-1k']];
+type Pred = (m: BotAction) => boolean;
+/** 프리 액션 저널 항목 1개 → 낱개 수 판별 함수들(못 알아보면 null = 연결 중단) */
+function freePreds(e: any): Pred[] | null {
+	const a = String(e.action ?? ''), d = String(e.details ?? '');
+	const p = (m: BotAction) => m.params as any;
+	if (a === 'Power Burn' || /^Burn 2 Power/.test(a) || a === 'Taklons: Burn (B+T)') return [m => m.type === 'burn_power'];
+	if (/^Bal T'aks: 1 Gaiaformer/.test(a)) return [m => m.type === 'bal_tak_gaiaformer_to_qic'];
+	if (a === 'Hadsch Hallas PI') { const h = HH.find(([re]) => re.test(d)); return h ? [m => m.type === 'use_hadsch_hallas_pi_action' && p(m).actionId === h[1]] : null; }
+	if (a !== 'Free Actions') return null;
+	const out: Pred[] = [];
+	// '2P → 1O, 1C'(변환 1개)가 쉼표로 쪼개지지 않게 먼저 합친다
+	for (const raw of d.replace(/2P → 1O, 1C/g, '2P→1O1C').split(/,\s*/)) {
+		const mm = /^(.*?)(?: ×(\d+))?$/.exec(raw.trim()); if (!mm) return null;
+		const txt = mm[1].trim(), n = Number(mm[2] ?? 1);
+		let pred: Pred | null = null;
+		if (txt === '2P→1O1C') pred = m => m.type === 'convert_resource' && p(m).type === '2power-to-1ore-1credit';
+		else if (/^Bowl II -> III$/.test(txt) || /^Brain\(2\)/.test(txt)) pred = m => m.type === 'burn_power';
+		else { const c = CONV.find(([re]) => re.test(txt)); if (c) { const [, t, brain] = c; pred = m => m.type === 'convert_resource' && p(m).type === t && (brain === undefined || !!p(m).useBrain === brain || t === '1brain-to-3credit'); } }
+		if (!pred) return null;
+		for (let i = 0; i < n; i++) out.push(pred);
+	}
+	return out;
+}
+const FREE_ACTION = (e: any) => /^(Free Actions|Power Burn|Burn 2 Power|Taklons: Burn \(B\+T\)|Bal T'aks: 1 Gaiaformer|Hadsch Hallas PI)/.test(String(e.action ?? ''));
+
 const LV = /(\w+) → Lv\.(\d)/;
 /** 메인 액션 뒤 보류 선택(기술 타일 등)의 사람 선택 판별. 쓴 저널 항목은 used에 넣어 다시 쓰지 않는다. */
 function pendingMatcher(key: string, entries: any[], used: Set<any>): { e: any; pred: (m: BotAction) => boolean } | null {
@@ -91,13 +125,14 @@ function pendingMatcher(key: string, entries: any[], used: Set<any>): { e: any; 
 	const gz = zlib.createGzip({ level: 6 }); const ws = fs.createWriteStream(outPath); gz.pipe(ws);
 	const write = (o: any) => gz.write(JSON.stringify(o) + '\n');
 	const hg = new Map(fs.readdirSync('data/human-games').map(f => [f.replace(/^\d{4}-\d{2}-\d{2}_/, '').replace('.json', ''), f]));
-	const st = { games: 0, noJournal: 0, states: 0, labeled: 0, inOptions: 0, pending: 0, byKind: {} as Record<string, [number, number]>, noMain: 0 };
+	const st = { games: 0, noJournal: 0, states: 0, labeled: 0, inOptions: 0, pending: 0, free: 0, byKind: {} as Record<string, [number, number]>, noMain: 0 };
 	for (const f of fs.readdirSync('data/human-states').sort()) {
 		const gid = f.replace(/^\d{4}-\d{2}-\d{2}_/, '').replace('.jsonl', '');
 		const hf = hg.get(gid);
 		if (!hf) { st.noJournal++; continue; }
 		const hgame = JSON.parse(fs.readFileSync(path.join('data/human-games', hf), 'utf8'));
-		const journal = ((hgame.actionJournal ?? []) as any[]).filter(e => e.phase === 'main').sort((a, b) => a.timestamp - b.timestamp);
+		const journalAll = ((hgame.actionJournal ?? []) as any[]).filter(e => e.phase === 'main').sort((a, b) => a.timestamp - b.timestamp);
+		const journal = journalAll;
 		const lines = fs.readFileSync(path.join('data/human-states', f), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(o => o.phase === 'main');
 		st.games++;
 		for (let i = 0; i < lines.length; i++) {
@@ -113,17 +148,38 @@ function pendingMatcher(key: string, entries: any[], used: Set<any>): { e: any; 
 				mt = matcher(e, g); if (mt) { mainE = e; break; }
 			}
 			if (!mt) { st.noMain++; continue; }
-			const po = generatePendingOptions(g, o.playerId);
-			const options = po?.options.length ? po.options : generateMoves(g, o.playerId);
+			let po = generatePendingOptions(g, o.playerId);
+			let gm: any = g; // 메인 액션을 라벨할 상태(--free면 사람 프리 액션을 차례로 적용한 뒤)
+			if (args.includes('--free') && !po?.options.length) {
+				const pre = journalAll.filter(x => x.playerId === o.playerId && x.timestamp >= o.ts && x.timestamp < mainE.timestamp && FREE_ACTION(x));
+				const preds: Pred[] = []; let okAll = true;
+				for (const x of pre) { const ps = freePreds(x); if (!ps) { okAll = false; break; } preds.push(...ps); }
+				const fk = (st.byKind['free'] ??= [0, 0]);
+				let s1: any = g;
+				for (const pr of (okAll ? preds : [])) {
+					fk[1]++;
+					const opts = generateMoves(s1, o.playerId); const yi = opts.findIndex(pr);
+					if (yi < 0) { s1 = null; break; }
+					const nx = await tryApply(s1, o.playerId, opts[yi]); if (!nx) { s1 = null; break; }
+					fk[0]++; st.free++;
+					const ef = encodeState(s1, o.playerId); const sx = s1;
+					write({ g: gid, p: o.playerId, r: s1.roundNumber, y: yi, kind: 'free', name: hgame.players?.[o.playerId]?.name,
+						flat: sparse(ef.flat), grid: sparse(ef.grid), moves: opts.map(m => { const em = encodeMove(sx, o.playerId, m); return { f: sparse(em.flat), c: em.cell, k: moveKey(m) }; }) });
+					s1 = nx;
+				}
+				if (!okAll) fk[1]++;
+				if (s1 && s1 !== g) { gm = s1; po = null; }
+			}
+			const options = po?.options.length ? po.options : generateMoves(gm, o.playerId);
 			const y = options.findIndex(mt.pred);
 			const k = (st.byKind[mt.kind] ??= [0, 0]); k[1]++; st.labeled++;
 			if (y >= 0) { k[0]++; st.inOptions++; } else continue;
-			const e = encodeState(g, o.playerId);
-			write({ g: gid, p: o.playerId, r: g.roundNumber, y, kind: 'human', name: hgame.players?.[o.playerId]?.name,
-				flat: sparse(e.flat), grid: sparse(e.grid), moves: options.map(m => { const em = encodeMove(g, o.playerId, m); return { f: sparse(em.flat), c: em.cell, k: moveKey(m) }; }) });
+			const e = encodeState(gm, o.playerId);
+			write({ g: gid, p: o.playerId, r: gm.roundNumber, y, kind: 'human', name: hgame.players?.[o.playerId]?.name,
+				flat: sparse(e.flat), grid: sparse(e.grid), moves: options.map(m => { const em = encodeMove(gm, o.playerId, m); return { f: sparse(em.flat), c: em.cell, k: moveKey(m) }; }) });
 			// 메인 액션 뒤 보류 선택(기술 타일·연방 보상 재수령·트랙 전진 등): 수를 적용한 상태에서 사람 선택을 라벨로
 			if (po?.options.length || args.includes('--mainOnly')) continue; // 이미 보류 상태였던 캡처 / 메인 액션만
-			let s2 = await tryApply(g, o.playerId, options[y]);
+			let s2 = await tryApply(gm, o.playerId, options[y]);
 			const used = new Set<any>([mainE]); const after = entries.filter(x => x.timestamp >= mainE.timestamp);
 			for (let depth = 0; s2 && depth < 4; depth++) {
 				const pp = generatePendingOptions(s2, o.playerId);
@@ -144,7 +200,7 @@ function pendingMatcher(key: string, entries: any[], used: Set<any>): { e: any; 
 		fs.writeSync(1, `${f}: 누적 상태 ${st.states} · 라벨 ${st.labeled} · 선택지 포함 ${st.inOptions}\n`);
 	}
 	gz.end(); await new Promise(r => ws.on('finish', r));
-	fs.writeSync(1, `\n게임 ${st.games} (행동 기록 없음 ${st.noJournal}) · 턴 시작 상태 ${st.states} · 메인 액션 라벨 ${st.labeled} (못 찾음 ${st.noMain}) · 생성기 선택지에 있음 ${st.inOptions} (${(100 * st.inOptions / Math.max(1, st.labeled)).toFixed(1)}%) · 보류 선택 라벨 ${st.pending}\n`);
+	fs.writeSync(1, `\n게임 ${st.games} (행동 기록 없음 ${st.noJournal}) · 턴 시작 상태 ${st.states} · 메인 액션 라벨 ${st.labeled} (못 찾음 ${st.noMain}) · 생성기 선택지에 있음 ${st.inOptions} (${(100 * st.inOptions / Math.max(1, st.labeled)).toFixed(1)}%) · 보류 선택 라벨 ${st.pending} · 프리 액션 라벨 ${st.free}\n`);
 	for (const [k, [ok, n]] of Object.entries(st.byKind).sort((a, b) => b[1][1] - a[1][1])) fs.writeSync(1, `  ${k.padEnd(26)} ${ok}/${n} (${(100 * ok / n).toFixed(0)}%)\n`);
 	fs.writeSync(1, `→ ${outPath}\n`);
 	process.exit(0);
