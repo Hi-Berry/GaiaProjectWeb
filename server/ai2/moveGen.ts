@@ -255,7 +255,10 @@ function freeActionMoves(game: ServerGameState, pid: string): BotAction[] {
 	for (const t of CONVERT_TYPES) if (need[t]) out.push({ type: 'convert_resource', params: { type: t } });
 	// 타클론: 파워 변환에 브레인스톤(3파워) 사용 변형
 	if (p.faction === 'taklons' && p.brainStoneBowl === 3) for (const t of ['1power-to-1credit', '3power-to-1ore', '4power-to-1qic', '4power-to-1knowledge']) out.push({ type: 'convert_resource', params: { type: t, useBrain: true } });
-	if (p2 >= 2) out.push({ type: 'burn_power', params: {} });
+	// [2026-10-22 사용자: 타클론 브레인 스톤 활용이 안 배워짐] 브레인이 2그릇이면 일반 토큰 1개로도 번(브레인+1 → 브레인 3그릇)이 된다
+	//   (서버 executeBurnPower). 전엔 p2≥2만 후보라 토큰 1개 상황에서 이 수를 아예 못 뒀다 — 사람 타클론은 판당 ~12회 사용.
+	const brainIn2 = p.faction === 'taklons' && p.brainStoneBowl === 2 && !p.brainStoneInGaia;
+	if (p2 >= 2 || (brainIn2 && p2 >= 1)) out.push({ type: 'burn_power', params: brainIn2 ? { moveBrainToBowl3: true } : {} });
 	if (p.faction === 'bal_tak' && (p.gaiaformers ?? 0) > 0) out.push({ type: 'bal_tak_gaiaformer_to_qic', params: {} });
 	void cr;
 	return out;
