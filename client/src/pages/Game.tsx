@@ -2498,8 +2498,18 @@ export default function Game() {
 
   /** 프리액션 모드: 내 상태창 자원/파워 클릭 → 즉시 변환. 네뷸라 의회는 O 연속 클릭(3P→2O)·O 후 C(2P→1O+1C) 체인 지원 */
   // 프리액션 우클릭: K 우클릭 → 1K→1C, Q 우클릭 → 1Q→1O (표준 프리액션). 좌클릭(파워변환)과 별개.
+  // [사용자 2026-10-22] 내 차례가 아닐 때 프리액션 — 서버는 조용히 거부하는데 화면엔 낙관 반영돼, 내 차례가 오면
+  //   권위 상태가 덮어써 '원상복귀'처럼 보였다. 차례가 아니면 아예 막고 이유를 알려 준다.
+  const notMyFreeActionTurn = () => {
+    if (!game || game.currentPhase !== 'main' || game.turnOrder[game.currentPlayerIndex] !== playerId) {
+      toast({ title: '내 차례가 아닙니다', description: '프리액션은 내 차례에만 할 수 있습니다.', variant: 'destructive' });
+      return true;
+    }
+    return false;
+  };
   const handleFreeActionRightClick = (kind: 'ore' | 'knowledge' | 'qic') => {
     if (!gameId || !currentPlayer || !playerId) return;
+    if (notMyFreeActionTurn()) return;
     const p = currentPlayer;
     let type: string;
     let delta: Record<string, number>;
@@ -2526,6 +2536,7 @@ export default function Game() {
 
   const handleFreeActionClick = (kind: 'ore' | 'knowledge' | 'qic' | 'credit' | 'bowl1' | 'bowl2' | 'bowl3' | 'baltak-gf') => {
     if (!gameId || !currentPlayer) return;
+    if (notMyFreeActionTurn()) return;
     const p = currentPlayer;
     const isTak = p.faction === 'taklons';
     const hasNevPI = p.faction === 'nevlas' && (game.map?.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') ?? false);
