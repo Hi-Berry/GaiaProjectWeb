@@ -2831,8 +2831,37 @@ export function getExpandedFederationHexIds(
   return expanded;
 }
 
+/**
+ * [성능 2026-10-23] 좌표 색인 — 예전엔 호출마다 맵 전체(~224칸)를 훑었다(새 AI 탐색 시간의 13%가 이 함수 자체, 연방 경로 탐색이 수없이 부름).
+ * 결과는 예전과 같다: 맵 순서대로, 같은 좌표 칸이 둘 이상이면 예전 방식으로. 색인은 맵 배열(객체 정체성)별로 만들고,
+ * 칸이 바뀌었으면(위치의 좌표가 다르면) 다시 만든다.
+ */
+const neighborIndex = new WeakMap<HexTile[], { n: number; pos: Map<string, number> } | null>();
+function neighborIndexOf(map: HexTile[]): { n: number; pos: Map<string, number> } | null {
+  let ix = neighborIndex.get(map);
+  if (ix === undefined || (ix && ix.n !== map.length)) {
+    const pos = new Map<string, number>(); let dup = false;
+    for (let i = 0; i < map.length; i++) { const k = `${map[i].q},${map[i].r}`; if (pos.has(k)) { dup = true; break; } pos.set(k, i); }
+    ix = dup ? null : { n: map.length, pos };
+    neighborIndex.set(map, ix);
+  }
+  return ix;
+}
 export function getNeighbors(map: HexTile[], tile: HexTile): HexTile[] {
   const coords = getNeighborCoords(tile.q, tile.r);
+  const ix = neighborIndexOf(map);
+  if (ix) {
+    const idx: number[] = []; let stale = false;
+    for (const c of coords) {
+      const i = ix.pos.get(`${c.q},${c.r}`);
+      if (i === undefined) continue;
+      const t = map[i];
+      if (!t || t.q !== c.q || t.r !== c.r) { stale = true; break; }
+      idx.push(i);
+    }
+    if (!stale) return idx.sort((a, b) => a - b).map(i => map[i]);
+    neighborIndex.delete(map);
+  }
   return map.filter(t => coords.some(c => t.q === c.q && t.r === c.r));
 }
 
