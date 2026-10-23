@@ -218,7 +218,10 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
             game.pendingShipTechMine?.playerId, (game as any).pendingTFMarsGaiaProject?.playerId,
         ].some(pid => pid && !(game.botPlayerIds ?? []).includes(pid))
             || (game.pendingPowerOffers ?? []).some(o => !o.responded && !(game.botPlayerIds ?? []).includes(o.targetPlayerId));
-        if (game.pendingIncomeOrder || (game as any).pendingBonusSelection || game.currentPhase === 'bonusSelection' || humanHeldPending) {
+        // [2026-10-23] 새 AI(신경망) 생각 중엔 정당한 대기 — 한 수에 최대 15초(느린 서버에선 그 이상)라 20초 무진행 판정에 걸려
+        //   라운드를 통째로 잃었다(실전 4인 신경망 좌석 215라운드 중 7라운드 패스 기록 없음, MCTS 0). 2분 넘게 안 끝나면 그때는 멈춘 것으로 본다.
+        const ai2Thinking = g._ai2ThinkingSince && Date.now() - g._ai2ThinkingSince < 120000;
+        if (game.pendingIncomeOrder || (game as any).pendingBonusSelection || game.currentPhase === 'bonusSelection' || humanHeldPending || ai2Thinking) {
             g._botWallFpr = null;
             g._botWallFprTs = Date.now();
         } else {
@@ -582,7 +585,15 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     let action: BotAction | null = null;
     const ai2Mod = (getPlayerFlag(currentPlayerId, 'ai2', false) || (player as any).liveVariant?.flags?.ai2) ? await import('./ai2/live') : null;
     if (ai2Mod && ai2Mod.isAi2Seat(game, currentPlayerId)) {
-        const r = await ai2Mod.ai2LiveDecide(game, currentPlayerId);
+        (game as any)._ai2ThinkingSince = Date.now();
+        let r: Awaited<ReturnType<typeof ai2Mod.ai2LiveDecide>>;
+        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId); } finally { (game as any)._ai2ThinkingSince = undefined; }
+        // [2026-10-23] 실전 기록: 결정 수·평균 시간·평균 탐색 횟수·폴백 사유 — Supabase 게임 기록(players[].ai2Stats)으로 올라간다
+        if (r.reason !== 'not-decidable') {
+            const p: any = player; const st = (p.ai2Stats ??= { n: 0, ms: 0, sims: 0, maxMs: 0, lowSims: 0, fallback: {} as Record<string, number> });
+            if (r.action) { st.n++; st.ms += r.ms; st.sims += r.sims; st.maxMs = Math.max(st.maxMs, r.ms); if (r.sims < 100) st.lowSims++; }
+            else { const k = String(r.reason ?? 'unknown').slice(0, 40); st.fallback[k] = (st.fallback[k] ?? 0) + 1; }
+        }
         if (r.reason !== 'not-decidable') log(`Bot ${player.name} [AI2] ${r.action ? r.action.type : `fallback(${r.reason})`} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options}`, 'game', game.id);
         action = r.action;
     }

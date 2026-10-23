@@ -111,6 +111,8 @@ function summarizePlayer(player?: PlayerState | null) {
     scoreBreakdown: player.scoreBreakdown ?? null,
     // [실게임 좌석 A/B 2026-09-18] 봇 좌석의 실험 그룹(server/ai/liveExperiment.ts) — liveAbReport.mjs가 집계
     liveVariant: (player as any).liveVariant ?? null,
+    // [2026-10-23] 새 AI 좌석의 실전 결정 통계(botHandler) — 느린 서버에서 탐색이 얼마나 됐는지 확인용
+    ai2Stats: (player as any).ai2Stats ?? null,
   };
 }
 
@@ -467,6 +469,13 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
   { id: 'ivits-sectors-win', name: '느린 하이브로 섹터 미션 1등하고 승리',
     test: (p) => p.faction === 'ivits'
       && (((p.scoreBreakdown as any)?.finalMissionDetails ?? []) as { missionId?: string; vp?: number }[]).some((m) => m.missionId === 'fm_sectors' && m.vp === 18) },
+  // [사용자 2026-10-22] 파워 수령(리치)에 낸 승점 = scoreBreakdown.powerReceived(서버가 수령 때마다 누적).
+  //   값이 없으면(옛 판) 부여하지 않는다 — 0으로 오인해 '한 점도 못 내줘'를 잘못 주지 않게.
+  //   실측(사람 4인 완주): 0점 우승 3회(디애박 9/15·마루 9/26·란란 10/8), 35점+ 우승 5회(최고 군성 10/14 38점).
+  { id: 'leech0-win', name: '한 점도 못 내줘 (파워 수령 0점 지불 우승)',
+    test: (p) => (p.scoreBreakdown as any)?.powerReceived === 0 },
+  { id: 'leech35-win', name: '점수는 나중에 벌면 돼 (파워 수령 35점 이상 지불 우승)',
+    test: (p) => Number((p.scoreBreakdown as any)?.powerReceived) >= 35 },
 ];
 /** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
 const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
