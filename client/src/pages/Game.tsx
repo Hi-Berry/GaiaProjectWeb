@@ -6158,12 +6158,15 @@ export default function Game() {
       {trackCardStrips && game?.players && Object.keys(game.players).map(pid => {
         const isMe = pid === playerId;
         const showFa = isMe && showYouFaStrip;
+        // [사용자 2026-10-24] 남의 카드 칩은 턴 시작 시점(viewGame)으로 — 실시간이면 그 사람이 턴 도중 특수 액션을
+        //   쓰는 순간 칩이 사라져 '무엇을 하는지'가 새었다(로그·연구판은 이미 턴 종료 때 공개). 내 카드는 실시간.
+        const stripGame = isMe ? game : (viewGame ?? game);
         // [사용자 2026-08-07] 패스한 사람은 이번 라운드에 특수 액션을 쓸 수 없으므로 스트립을 띄우지 않는다.
-        const passedThisRound = !!game.players[pid]?.hasPassed;
+        const passedThisRound = !!stripGame.players[pid]?.hasPassed;
         // [사용자 2026-08-24] 비딩·시작광산·보너스 선택 단계(roundNumber 0)에는 아직 쓸 수 없는
         // 특수 액션이 미리 보여 혼란 → 라운드 1이 시작된 뒤부터 표시.
         const roundStarted = (game.roundNumber ?? 0) >= 1;
-        const acts = (showSpecialStrips && roundStarted && !stripQuickOff && !passedThisRound) ? getSpecialActionsForPlayer(game, pid).filter(a => !a.used) : [];
+        const acts = (showSpecialStrips && roundStarted && !stripQuickOff && !passedThisRound) ? getSpecialActionsForPlayer(stripGame, pid).filter(a => !a.used) : [];
         if (!showFa && acts.length === 0) return null;
         return (
           <div
