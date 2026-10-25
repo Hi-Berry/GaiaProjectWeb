@@ -48,6 +48,11 @@ export const BADGES = [
   // [사용자 2026-09-22] 하이브(이비츠)로 최종미션 '섹터 수' 1등(18점) + 1위. 서버 BADGE_RULES와 같은 id. 실측 달성: Sss(8/15)·구구(9/6, 2P)·디애박(9/21).
   { id: 'ivits-sectors-win', name: '느린 하이브로 섹터 미션 1등하고 승리',
     test: (g, pid, p, won) => won && p.faction === 'ivits' && ((p.scoreBreakdown ?? {}).finalMissionDetails ?? []).some((m) => m.missionId === 'fm_sectors' && m.vp === 18) },
+  // [사용자 2026-10-22] 파워 수령에 낸 승점(scoreBreakdown.powerReceived) 0점 / 35점 이상 + 1위. 서버 BADGE_RULES와 같은 id.
+  { id: 'leech0-win', name: '한 점도 못 내줘 (파워 수령 0점 지불 우승)',
+    test: (g, pid, p, won) => won && (p.scoreBreakdown ?? {}).powerReceived === 0 },
+  { id: 'leech35-win', name: '점수는 나중에 벌면 돼 (파워 수령 35점 이상 지불 우승)',
+    test: (g, pid, p, won) => won && Number((p.scoreBreakdown ?? {}).powerReceived) >= 35 },
 ];
 
 const games = loadGames();
