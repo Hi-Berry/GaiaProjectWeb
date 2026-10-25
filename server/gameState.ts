@@ -6565,6 +6565,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (councilPendingActive(game)) return; // 아이타/테란 의회 선택 대기 중 — 라운드 첫 액션 보류
 			if (game.hasDoneMainAction) return;
 			if (game.pendingFederationReward) return;
+			// [사용자 2026-10-25] 거리 보너스(+3거리/글린 +2항해) 중에는 연방도 못 하게 — 다른 메인 액션은 다 막혀 있는데
+			//   연방만 빠져 있었다(거리 보너스는 메인 액션을 쓴 상태가 아니라 hasDoneMainAction 검사로는 안 걸린다).
+			//   연방 모드를 끄는 것(이미 켜진 상태)은 허용 — 켤 때만 막는다.
+			if (game.federationMode?.playerId !== playerId && hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
 
 			if (game.federationMode?.playerId === playerId) {
 				game.federationMode = null;
@@ -6662,6 +6666,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (!game.federationMode || game.federationMode.playerId !== playerId) return;
 			if (game.pendingFederationReward) return;
+			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; } // 위와 같은 이유(이중 방어)
 
 			const selectedHexIds = [...game.federationMode.selectedHexIds];
 			const selectedPlanetIds = [...(game.federationMode.selectedPlanetIds ?? [])];
