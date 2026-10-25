@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { ServerGameState } from '../gameState';
 import {
     HexTile,
+    tileById,
     PlayerState,
     getFederationEntries,
     getNeighbors,
@@ -224,7 +225,7 @@ export class FederationPlanner {
             let labLockPenalty = 0;
             if (getPlayerFlag(playerId, 'fedLabKeepOut', true) && round < 6) {
                 const labsIn = result.selectedPlanetIds.filter(id => {
-                    const t = game.map.find(m => m.id === id);
+                    const t = tileById(game.map, id);
                     return t?.ownerId === playerId && t.structure === 'research_lab';
                 }).length;
                 labLockPenalty = labsIn * 70;
@@ -388,7 +389,7 @@ export class FederationPlanner {
         while (getFederationBuildingPower(game, playerId, selected) < requiredPower && guard++ < 60) {
             let bestId: string | null = null, bestPow = -1;
             for (const id of Array.from(selected)) {
-                const tile = game.map.find(t => t.id === id);
+                const tile = tileById(game.map, id);
                 if (!tile) continue;
                 for (const n of getNeighbors(game.map, tile)) {
                     if (selected.has(n.id) || !component.has(n.id)) continue;
@@ -431,7 +432,7 @@ export class FederationPlanner {
             if (pow >= requiredPower - 2) { seeds++; continue; }
             if (ambasSwap && pow >= requiredPower - 3) {
                 const hasMine = Array.from(clusters[i]).some(id => {
-                    const t = game.map.find(m => m.id === id);
+                    const t = tileById(game.map, id);
                     return t?.ownerId === playerId && (t.structure === 'mine' || t.structure === 'lost_planet_mine');
                 });
                 if (hasMine) seeds++;
@@ -498,7 +499,7 @@ export class FederationPlanner {
 
         // Initialize queue with neighbors of our current component
         initialComponent.forEach(pid => {
-            const tile = game.map.find(t => t.id === pid)!;
+            const tile = tileById(game.map, pid)!;
             getNeighbors(game.map, tile).forEach(n => {
                 // [flag: ivitsFedCumulative] 기존 연방 칸 = 무비용 통로 (선택에 안 넣음 → path 비움)
                 if (fedConnector && fedHexes.includes(n.id) && !visited.has(n.id)) {
@@ -536,7 +537,7 @@ export class FederationPlanner {
             const { currentHexId, path, cost } = queue.shift()!;
             if (tokensSpent + cost > maxTokens) continue;
 
-            const currentTile = game.map.find(t => t.id === currentHexId)!;
+            const currentTile = tileById(game.map, currentHexId)!;
 
             // Does adding this hex connect us to new planets?
             let connectedToNewComponent = false;
@@ -565,7 +566,7 @@ export class FederationPlanner {
                 path.forEach(hid => {
                     if (!currentHexIds.has(hid)) {
                         currentHexIds.add(hid);
-                        const hidTile = game.map.find(t => t.id === hid);
+                        const hidTile = tileById(game.map, hid);
                         // 우주정거장(공간) 타일은 Ivits 파워로 쓰되, QIC(위성/토큰) 비용에는 포함하지 않음.
                         if (isIvits && hidTile?.spaceStation?.ownerId === playerId) return;
 
@@ -592,8 +593,8 @@ export class FederationPlanner {
                 // 모든 현재 연방에 속한 행성들 및 위성들에서 다시 1거리 빈 공간 탐색
                 const currentFedTiles = [
                     ...fedTiles, // 기존 연방에서 출발한 경우 그 칸들도 계속 뻗어 나갈 출발점
-                    ...Array.from(currentPlanetIds).map(id => game.map.find(t => t.id === id)!),
-                    ...Array.from(currentHexIds).map(id => game.map.find(t => t.id === id)!)
+                    ...Array.from(currentPlanetIds).map(id => tileById(game.map, id)!),
+                    ...Array.from(currentHexIds).map(id => tileById(game.map, id)!)
                 ];
 
                 for (const t of currentFedTiles) {
@@ -674,7 +675,7 @@ export class FederationPlanner {
         const allowed = new Set<string>(fedHexes.concat(Array.from(sel)));
         const seen = new Set<string>(fedHexes); const stack = [...fedHexes];
         while (stack.length) {
-            const id = stack.pop()!; const t = game.map.find(x => x.id === id); if (!t) continue;
+            const id = stack.pop()!; const t = tileById(game.map, id); if (!t) continue;
             for (const n of getNeighbors(game.map, t)) if (allowed.has(n.id) && !seen.has(n.id)) { seen.add(n.id); stack.push(n.id); }
         }
         return Array.from(sel).every(id => seen.has(id));
@@ -688,7 +689,7 @@ export class FederationPlanner {
         const orig = { hexIds, planetIds };
         try {
             const powerRank = (id: string): number => {
-                const t = game.map.find(x => x.id === id); if (!t) return 0;
+                const t = tileById(game.map, id); if (!t) return 0;
                 let p = 0;
                 if (t.ownerId === playerId && t.structure && t.structure !== 'ship') {
                     p = (t.structure === 'planetary_institute' || t.structure === 'academy') ? 3 : (t.structure === 'trading_station' || t.structure === 'research_lab') ? 2 : 1;
@@ -705,7 +706,7 @@ export class FederationPlanner {
                 const starts = anchorIds.length > 0 ? anchorIds : [all.values().next().value as string];
                 const seen = new Set<string>(starts); const stack = [...starts];
                 while (stack.length) {
-                    const id = stack.pop()!; const t = game.map.find(x => x.id === id); if (!t) continue;
+                    const id = stack.pop()!; const t = tileById(game.map, id); if (!t) continue;
                     for (const n of getNeighbors(game.map, t)) {
                         if (all.has(n.id) && !seen.has(n.id)) { seen.add(n.id); stack.push(n.id); }
                     }

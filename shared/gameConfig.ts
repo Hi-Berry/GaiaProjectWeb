@@ -2847,6 +2847,24 @@ function neighborIndexOf(map: HexTile[]): { n: number; pos: Map<string, number> 
   }
   return ix;
 }
+/** [성능 2026-10-25] id → 칸 색인(맵 배열별). game.map.find(t => t.id === id)와 같은 결과(id는 유일, 없으면 undefined).
+ *  색인이 낡았으면(그 위치 칸의 id가 다르면) 다시 만든다. 연방 경로 탐색 등 반복 조회가 많은 곳에서 쓴다. */
+const idIndex = new WeakMap<HexTile[], { n: number; pos: Map<string, number> }>();
+export function tileById(map: HexTile[], id: string): HexTile | undefined {
+  let ix = idIndex.get(map);
+  if (!ix || ix.n !== map.length) {
+    const pos = new Map<string, number>();
+    for (let i = map.length - 1; i >= 0; i--) pos.set(map[i].id, i); // 같은 id가 여럿이면 find처럼 첫 번째
+    ix = { n: map.length, pos }; idIndex.set(map, ix);
+  }
+  const i = ix.pos.get(id);
+  if (i === undefined) return map.find(t => t.id === id); // 색인 이후 추가된 칸 대비
+  const t = map[i];
+  if (t && t.id === id) return t;
+  idIndex.delete(map);
+  return map.find(t2 => t2.id === id);
+}
+
 export function getNeighbors(map: HexTile[], tile: HexTile): HexTile[] {
   const coords = getNeighborCoords(tile.q, tile.r);
   const ix = neighborIndexOf(map);

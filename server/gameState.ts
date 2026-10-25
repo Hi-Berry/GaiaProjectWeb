@@ -97,6 +97,7 @@ import {
 	ROLLBACK_REASON_TEXT_MAX,
 	getRollbackQuota,
 	rollbackReasonText,
+	tileById,
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
@@ -1601,7 +1602,7 @@ export function getFederationBuildingPower(
 
 /** 행성만으로 연결된 컴포넌트 (해당 행성 타일 ID 포함, 인접 행성 중 내 건물만 BFS) */
 export function getPlanetConnectedComponent(game: ServerGameState, playerId: string, startTileId: string, blocked?: Set<string>): Set<string> {
-	const start = game.map.find(t => t.id === startTileId);
+	const start = tileById(game.map, startTileId);
 	if (!start) return new Set();
 	// [수정] blocked(예: 이미 다른 연방에 속한 건물)는 새 연방 컴포넌트에서 제외 — 시작점/연결 모두 차단.
 	if (blocked?.has(startTileId)) return new Set();
@@ -1621,7 +1622,7 @@ export function getPlanetConnectedComponent(game: ServerGameState, playerId: str
 
 	while (queue.length > 0) {
 		const tid = queue.shift()!;
-		const tile = game.map.find(t => t.id === tid)!;
+		const tile = tileById(game.map, tid)!;
 		const neighbors = getNeighbors(game.map, tile);
 		for (const n of neighbors) {
 			if (blocked?.has(n.id)) continue;
@@ -1719,13 +1720,13 @@ function computeConnectedFederation(
 	};
 	const selected = [...selectedHexIds, ...selectedSpaceStationHexIds, ...selectedPlanetIds];
 	if (selected.length === 0) return { planetIds: new Set(), power: 0, connected: false };
-	const startId = selected.find(id => { const t = game.map.find(x => x.id === id); return !!t && passable(t); });
+	const startId = selected.find(id => { const t = tileById(game.map, id); return !!t && passable(t); });
 	if (!startId) return { planetIds: new Set(), power: 0, connected: false };
 	const comp = new Set<string>([startId]);
 	const queue = [startId];
 	while (queue.length) {
 		const tid = queue.shift()!;
-		const tile = game.map.find(t => t.id === tid);
+		const tile = tileById(game.map, tid);
 		if (!tile) continue;
 		for (const n of getNeighbors(game.map, tile)) {
 			if (comp.has(n.id) || !passable(n)) continue;
@@ -1736,7 +1737,7 @@ function computeConnectedFederation(
 	// 명시적으로 선택한 모든 칸이 같은 컴포넌트에 있어야 '연결된 연방' (끊긴 위성/건물 거부)
 	const connected = selected.every(id => comp.has(id));
 	const planetIds = new Set<string>();
-	comp.forEach(id => { const t = game.map.find(x => x.id === id); if (t && ownedBuilding(t)) planetIds.add(id); });
+	comp.forEach(id => { const t = tileById(game.map, id); if (t && ownedBuilding(t)) planetIds.add(id); });
 	const power = getFederationBuildingPower(game, playerId, planetIds, [...selectedHexIds, ...selectedSpaceStationHexIds]);
 	return { planetIds, power, connected };
 }

@@ -5058,6 +5058,7 @@ export class BotLogic {
             });
         }
 
+        let easyEmptyTiles: HexTile[] | undefined;
         for (const tile of candidates) {
             // [flag: asteroidCandOpen] 자원기아 패스: 1O2C가 안 드는 소행성만 후보화(그 외는 서버가 거부할 후보)
             if (resStarved && tile.type !== 'asteroid') { BotLogic.traceMine(tile.id, 4448); continue; }
@@ -5099,15 +5100,14 @@ export class BotLogic {
                 let easyTargetsDist1 = 0;
                 let easyTargetsDist2 = 0;
 
-                for (const t of game.map) {
-                    if (t.id !== tile.id && !t.structure && !t.ownerId) {
-                        const isEasy = (t.type === 'gaia' || t.type === homeType || (t.type && getTerraformStepsForFaction(game, player.faction!, t.type) <= 1));
-                        if (isEasy) {
-                            const d = getDistance(tile, t);
-                            if (d === 1) easyTargetsDist1++;
-                            else if (d === 2) easyTargetsDist2++;
-                        }
-                    }
+                // [성능 2026-10-25] '쉬운 빈 행성' 목록은 후보와 무관 — 호출당 한 번만 만든다(예전엔 먼 후보마다 맵 전체 + 테라포밍 단계 계산)
+                easyEmptyTiles ??= game.map.filter(t => !t.structure && !t.ownerId
+                    && (t.type === 'gaia' || t.type === homeType || (t.type && getTerraformStepsForFaction(game, player.faction!, t.type) <= 1)));
+                for (const t of easyEmptyTiles) {
+                    if (t.id === tile.id) continue;
+                    const d = getDistance(tile, t);
+                    if (d === 1) easyTargetsDist1++;
+                    else if (d === 2) easyTargetsDist2++;
                 }
 
                 // 거점이 매우 훌륭한 경우 (주변 1거리에 1개 이상, 혹은 2거리에 다수 포진)
