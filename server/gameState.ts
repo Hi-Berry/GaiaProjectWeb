@@ -6194,6 +6194,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			spendGreenFederation(player);
 			if (!player.coveredTechTiles) player.coveredTechTiles = [];
 			player.coveredTechTiles.push(coverTileId);
+			removeCoveredTileLastingEffect(player, coverTileId);
 			if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
 
 			const immDesc = applyAdvancedTileImmediateEffect(game, playerId, pending.advancedTileId);
@@ -7812,6 +7813,13 @@ export function executeSelectAdvancedTechTile(
 }
 
 /** Bot/서버 공용: 고급 기술 타일 커버 처리 */
+/** [사용자 2026-10-26] 덮인 타일의 능력은 사라진다 — 대부분의 타일은 쓸 때마다 isTechTileCovered로 걸러지지만,
+ *  우주선 기술 'Nav+1'은 획득 때 navigationBonus에 +1을 '한 번' 더해 두는 방식이라 덮어도 거리가 남았다(실측 53회).
+ *  덮는 순간 그 +1을 되돌린다. 사람(confirm_advanced_tech_cover)·봇(executeCoverAdvancedTechTile) 공용. */
+function removeCoveredTileLastingEffect(player: PlayerState, coverTileId: string): void {
+	if (coverTileId === 'ship-tech-nav+1') player.navigationBonus = Math.max(0, (player.navigationBonus ?? 0) - 1);
+}
+
 export function executeCoverAdvancedTechTile(
 	io: SocketIOServer, game: ServerGameState,
 	playerId: string, coverTileId: string
@@ -7832,6 +7840,7 @@ export function executeCoverAdvancedTechTile(
 	if (countGreenFederations(player) < 1) return false;
 	spendGreenFederation(player);
 	player.coveredTechTiles.push(coverTileId);
+	removeCoveredTileLastingEffect(player, coverTileId);
 	if (!player.techTiles.includes(pending.advancedTileId)) player.techTiles.push(pending.advancedTileId);
 
 	// 즉발 효과 → 설명 문자열 반환(별도 'Tech Tile Effect' 로그 없이 아래 'Advanced Tech Tile' 한 줄에 병합)
