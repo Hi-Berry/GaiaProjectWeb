@@ -3444,10 +3444,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			game.pendingItarsGaiaformerExchange = { playerId: pId, tokensRemaining: powerToReturn };
 			player.gaiaformerPower = 0;
 			log(`Player ${player.name} (Itars PI): ${powerToReturn} tokens in Gaiaformer → exchange or Bowl 1 choice`, 'game', undefined, { simulation: (game as any).simulation });
-			executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
-				log(`Bot turn execution error (ItarsInitial): ${err}`, 'error');
-			});
-			return;
+			return; // 봇 실행은 아래에서 롤백 지점을 찍은 뒤에
 		} else {
 			player.power1 = (player.power1 || 0) + powerToReturn;
 			log(`Player ${player.name} returned ${powerToReturn} power tokens from Gaiaformer area to Bowl 1`, 'game', undefined, { simulation: (game as any).simulation });
@@ -3455,15 +3452,23 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 		player.gaiaformerPower = 0;
 	});
 
+	/* [사용자 2026-10-28] 아이타 타일 교환·테란 의회 선택 직전에 롤백 지점을 찍는다. 예전엔 여기서 스냅샷이 없어
+	   이 선택 로그를 롤백하면 '그보다 앞선 마지막 스냅샷' = 전 라운드 마지막 사람의 턴 시작으로 가서, 그 사람의
+	   패스(보너스 타일 반납·선택)·수입까지 같이 되감겼다. 이제 수입·가이아 복귀가 끝난 이 선택 시작으로 돌아간다. */
 	if (game.pendingItarsGaiaformerExchange) {
 		game.terranCouncilQueueAfterItars = terranCouncilQueue.length > 0 ? terranCouncilQueue : undefined;
+		captureTurnStartWithPrev(game as ServerGameState, game.pendingItarsGaiaformerExchange.playerId);
 		clampPlayerResources(game); emitGameUpdated(io, game);
+		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
+			log(`Bot turn execution error (ItarsInitial): ${err}`, 'error');
+		});
 		return;
 	}
 
 	if (terranCouncilQueue.length > 0) {
 		game.pendingTerranCouncilBenefit = terranCouncilQueue[0];
 		game.terranCouncilQueue = terranCouncilQueue.slice(1);
+		captureTurnStartWithPrev(game as ServerGameState, terranCouncilQueue[0].playerId);
 		clampPlayerResources(game); emitGameUpdated(io, game);
 		executeBotTurnIfNeeded(io, game as ServerGameState).catch(err => {
 			log(`Bot turn execution error (TerranInitial): ${err}`, 'error');
