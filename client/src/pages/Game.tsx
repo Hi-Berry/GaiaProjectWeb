@@ -1863,6 +1863,29 @@ export default function Game() {
     voiceLogMarkRef.current = done;
   }, [game?.gameLog?.length, game?.hasDoneMainAction, game]);
 
+  // [사용자 2026-10-28] 종족 비딩도 음성으로 — 입찰은 로그에 안 남아 액션 음성(로그 기반)에 안 잡혔다.
+  //   비딩 상태 변화로 직접 읽는다: 올림 "이름, N점" · 포기 "이름, 패스" · 낙찰(종족 고르기로 넘어감) "이름, N점 낙찰".
+  //   페이지를 연 순간의 상태는 읽지 않는다(첫 관측은 기준점으로만).
+  const bidVoiceRef = useRef<{ key: string; high: number; leader: string | null; inAuction: string[]; phase: string } | null>(null);
+  useEffect(() => {
+    const fb = game?.factionBidding;
+    if (!game || !fb || game.currentPhase !== 'factionBidding') { bidVoiceRef.current = null; return; }
+    const prev = bidVoiceRef.current;
+    const key = `${game.id}|${(fb.remainingFactionIds ?? []).length}`; // 종족 하나가 팔릴 때마다 새 경매
+    const now = { key, high: fb.currentHighBid ?? 0, leader: fb.leaderId ?? null, inAuction: [...(fb.inAuction ?? [])], phase: fb.phase };
+    bidVoiceRef.current = now;
+    if (!prev || prev.key !== key) return;
+    const nameOf = (pid: string | null) => (pid ? game.players[pid]?.name ?? '' : '');
+    if (now.phase === 'pick' && prev.phase === 'bidding') {
+      const w = fb.pickPlayerId ?? prev.leader;
+      enqueueParts([nameOf(w), `${fb.pendingWinningBid ?? prev.high}점 낙찰`]);
+      return;
+    }
+    if (now.phase !== 'bidding') return;
+    if (now.high > prev.high && now.leader) enqueueParts([nameOf(now.leader), `${now.high}점`]);
+    for (const pid of prev.inAuction) if (!now.inAuction.includes(pid)) enqueueParts([nameOf(pid), '패스']);
+  }, [game?.id, game?.currentPhase, game?.factionBidding?.phase, game?.factionBidding?.currentHighBid, game?.factionBidding?.leaderId, game?.factionBidding?.inAuction?.join(','), game?.factionBidding?.remainingFactionIds?.length, game?.factionBidding?.pickPlayerId]);
+
   // Turn behavior notification sounds
   useEffect(() => {
     if (!game || !game.turnOrder || game.currentPlayerIndex === undefined) return;

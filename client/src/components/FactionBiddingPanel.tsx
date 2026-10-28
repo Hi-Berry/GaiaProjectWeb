@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { GameState } from '@/lib/gameClient';
@@ -128,6 +128,26 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
     return out;
   }, [game.players, fb, (game as unknown as { moweyipThreeStepPlanets?: string[] }).moweyipThreeStepPlanets, (game as unknown as { tinkeroidsThreeStepPlanets?: string[] }).tinkeroidsThreeStepPlanets]);
 
+  // [사용자 2026-10-28] 남이 한 번에 5점 이상 올리면(기본 +1이 아닌 크게 뛴 입찰) 화면에 한 번 효과.
+  //   같은 경매(남은 종족 수가 같음) 안에서 최고가가 5 이상 뛰었고, 올린 사람이 내가 아닐 때만. 첫 관측은 기준점.
+  const [bidJump, setBidJump] = useState<{ name: string; bid: number; delta: number; key: number } | null>(null);
+  const bidJumpPrevRef = useRef<{ auction: number; high: number } | null>(null);
+  useEffect(() => {
+    if (!fb || fb.phase !== 'bidding') { bidJumpPrevRef.current = fb ? { auction: (fb.remainingFactionIds ?? []).length, high: fb.currentHighBid ?? 0 } : null; return; }
+    const auction = (fb.remainingFactionIds ?? []).length; const high = fb.currentHighBid ?? 0;
+    const prev = bidJumpPrevRef.current; bidJumpPrevRef.current = { auction, high };
+    if (!prev || prev.auction !== auction) return;
+    const delta = high - prev.high;
+    if (delta >= 5 && fb.leaderId && fb.leaderId !== playerId) {
+      setBidJump({ name: game.players[fb.leaderId]?.name ?? '', bid: high, delta, key: Date.now() });
+    }
+  }, [fb?.phase, fb?.currentHighBid, fb?.leaderId, fb?.remainingFactionIds?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!bidJump) return;
+    const t = setTimeout(() => setBidJump(null), 2300);
+    return () => clearTimeout(t);
+  }, [bidJump]);
+
   if (!shouldRender) return null;
 
   const takenTurnOrders = new Set(
@@ -154,6 +174,15 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
 
   return (
     <div className="absolute inset-0 z-[140] flex flex-col bg-zinc-950 border-l border-amber-500/40">
+      {bidJump && (
+        <div key={bidJump.key} className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+          <div className="absolute inset-0 gaia-bid-flash" />
+          <div className="gaia-bid-jump flex flex-col items-center gap-1 rounded-2xl border border-amber-400/70 bg-zinc-950/90 px-6 py-4 shadow-[0_0_40px_rgba(251,191,36,0.45)]">
+            <span className="font-orbitron text-5xl font-black text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.9)] tabular-nums">+{bidJump.delta}</span>
+            <span className="text-sm font-bold text-amber-100">{bidJump.name} · {bidJump.bid}점 입찰!</span>
+          </div>
+        </div>
+      )}
       {/* 헤더(고정) */}
       <div className="shrink-0 px-4 py-3 border-b border-amber-500/30 bg-zinc-950/80">
         <div className="flex items-center justify-center gap-2">
