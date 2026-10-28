@@ -482,6 +482,10 @@ export default function Game() {
     | { kind: 'artifact'; artifactId: string; converts: number; need: number; label: string }
     | null
   >(null);
+  /** [사용자 2026-10-28] 위 세 확인창(파워 태우기·포머→QIC·광물→토큰)을 '접어두기' — 창이 화면을 덮어 맵·트랙을
+   *  못 보던 문제. 접으면 아래 작은 바로 내려가고, 거기서 다시 열거나 취소한다. 새 확인창이 뜨면 펼친 채로 시작. */
+  const [confirmFolded, setConfirmFolded] = useState(false);
+  useEffect(() => { setConfirmFolded(false); }, [confirmBurnAction, confirmQicConvert, confirmOreToToken]);
   /** 하이브 우주정거장 배치 모드: 켜면 안내 모달 표시, 다른 액션 차단, 빈 우주 클릭 후 배치하면 종료 */
   const [ivitsSpaceStationMode, setIvitsSpaceStationMode] = useState(false);
   /** 엠바스(Ambas) Special: 의회↔광산 교체 모드 (광산 클릭 시 교체 실행) */
@@ -1708,6 +1712,9 @@ export default function Game() {
       setTerranCouncilChoice({ qic: 0, knowledge: 0, ore: 0, credits: 0 });
     }
   }, [game?.pendingTerranCouncilBenefit?.playerId, playerId]);
+  /** [사용자 2026-10-28] 테란 의회 혜택 창도 접어두기 — 맵·트랙을 보고 고를 수 있게. 필수 선택이라 취소는 없고 다시 열기만. */
+  const [terranCouncilFolded, setTerranCouncilFolded] = useState(false);
+  useEffect(() => { setTerranCouncilFolded(false); }, [game?.pendingTerranCouncilBenefit?.playerId, game?.pendingTerranCouncilBenefit?.tokenCount]);
 
   // [사용자 2026-08-20] 음성 안내는 첫 사용자 제스처 뒤에만 재생이 허용된다(모바일 자동재생 정책).
   //   접속 직후 몇 턴이 조용하다가 갑자기 나오는 일을 막으려고 첫 탭에서 한 번 잠금을 푼다.
@@ -5310,7 +5317,7 @@ export default function Game() {
         )}
 
         {/* 파워/우주선 액션: 3그릇 부족분을 2그릇 태우기로 충당할지 확인 */}
-        {confirmBurnAction && gameId && (() => {
+        {confirmBurnAction && gameId && !confirmFolded && (() => {
           const { burns, brainBurnFirst } = confirmBurnAction;
           const label = confirmBurnAction.kind === 'power'
             ? (game.powerActions?.find(a => a.id === confirmBurnAction.actionId)?.label ?? confirmBurnAction.actionId)
@@ -5336,6 +5343,9 @@ export default function Game() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
+                  <button type="button" onClick={() => setConfirmFolded(true)} className="sm:mr-auto h-10 px-3 rounded-md border border-white/15 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                    접어두기 (보드 보기)
+                  </button>
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                     Cancel
                   </AlertDialogCancel>
@@ -5360,8 +5370,19 @@ export default function Game() {
           );
         })()}
 
+        {/* [사용자 2026-10-28] 접어둔 확인창 — 다른 걸 보다가 다시 열거나 취소 */}
+        {confirmFolded && (confirmBurnAction || confirmQicConvert || confirmOreToToken) && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 rounded-xl border border-amber-400/60 bg-zinc-950/95 px-3 py-2 shadow-[0_0_24px_rgba(251,191,36,0.35)]">
+            <span className="text-xs font-bold text-amber-200 whitespace-nowrap">
+              {confirmBurnAction ? '파워 태우기' : confirmQicConvert ? '포머 → QIC' : '광물 → 토큰'} 확인 대기 중
+            </span>
+            <button type="button" onClick={() => setConfirmFolded(false)} className="h-8 px-3 rounded-md bg-amber-500 text-zinc-950 text-xs font-black hover:bg-amber-400">다시 열기</button>
+            <button type="button" onClick={() => { setConfirmBurnAction(null); setConfirmQicConvert(null); setConfirmOreToToken(null); }} className="h-8 px-3 rounded-md border border-white/15 text-xs font-bold text-zinc-300 hover:bg-white/10">취소</button>
+          </div>
+        )}
+
         {/* 토큰 비용(연방 위성 / 인공물) 부족 → 광물을 토큰으로 바꿔서 바로 진행할지 확인 */}
-        {confirmOreToToken && gameId && (() => {
+        {confirmOreToToken && gameId && !confirmFolded && (() => {
           const { converts, need } = confirmOreToToken;
           const what = confirmOreToToken.kind === 'federation'
             ? `연방 (위성 ${need}개)`
@@ -5399,6 +5420,9 @@ export default function Game() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
+                  <button type="button" onClick={() => setConfirmFolded(true)} className="sm:mr-auto h-10 px-3 rounded-md border border-white/15 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                    접어두기 (보드 보기)
+                  </button>
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                     Cancel
                   </AlertDialogCancel>
@@ -5420,7 +5444,7 @@ export default function Game() {
         })()}
 
         {/* [발타크] QIC 부족 → 포머를 QIC로 바꿔서 바로 실행할지 확인 */}
-        {confirmQicConvert && gameId && (() => {
+        {confirmQicConvert && gameId && !confirmFolded && (() => {
           const { converts } = confirmQicConvert;
           const label = confirmQicConvert.kind === 'power'
             ? (game.powerActions?.find(a => a.id === confirmQicConvert.actionId)?.label ?? confirmQicConvert.actionId)
@@ -5442,6 +5466,9 @@ export default function Game() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
+                  <button type="button" onClick={() => setConfirmFolded(true)} className="sm:mr-auto h-10 px-3 rounded-md border border-white/15 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                    접어두기 (보드 보기)
+                  </button>
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                     Cancel
                   </AlertDialogCancel>
@@ -5704,6 +5731,12 @@ export default function Game() {
           if (!(isTargetMe || (viewingBot && targetHuman))) return null;
 
           const { tokenCount } = pending;
+          if (terranCouncilFolded) return (
+            <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 rounded-xl border border-amber-400/60 bg-zinc-950/95 px-3 py-2 shadow-[0_0_24px_rgba(251,191,36,0.35)]">
+              <span className="text-xs font-bold text-amber-200 whitespace-nowrap">테란 의회 혜택 선택 대기 중 ({tokenCount} tokens)</span>
+              <button type="button" onClick={() => setTerranCouncilFolded(false)} className="h-8 px-3 rounded-md bg-amber-500 text-zinc-950 text-xs font-black hover:bg-amber-400">다시 열기</button>
+            </div>
+          );
           const cost = terranCouncilChoice.qic * 4 + terranCouncilChoice.knowledge * 4 + terranCouncilChoice.ore * 3 + terranCouncilChoice.credits * 1;
           const valid = cost <= tokenCount;
           return (
@@ -5751,6 +5784,9 @@ export default function Game() {
                 </div>
                 <p className="text-xs text-zinc-400 mb-2">Spent: {cost} / {tokenCount} tokens</p>
                 <AlertDialogFooter>
+                  <button type="button" onClick={() => setTerranCouncilFolded(true)} className="sm:mr-auto h-10 px-3 rounded-md border border-white/15 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                    접어두기 (보드 보기)
+                  </button>
                   <Button
                     className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
                     disabled={!valid}
