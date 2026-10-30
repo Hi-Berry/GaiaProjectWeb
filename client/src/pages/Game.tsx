@@ -6,7 +6,7 @@ import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePl
 import { getCommitSeq, createViewFreeze } from '@/lib/turnCommit';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
+import { getSquareLayout, isNearSquare, type SquareLayout, isMobileV2 } from '@/lib/viewMode';
 
 import { ResearchBoard } from '@/components/ResearchBoard';
 import { RoundBoard } from '@/components/RoundBoard';
@@ -525,6 +525,17 @@ export default function Game() {
     window.addEventListener('square-layout-change', onChange);
     return () => window.removeEventListener('square-layout-change', onChange);
   }, []);
+  /** [사용자 2026-10-31] 모바일 v2(큰 글씨 탭 패널) — "?" 다이얼로그에서 변경, localStorage+커스텀이벤트로 동기화 */
+  const [mobileV2Enabled, setMobileV2Enabled] = useState<boolean>(() => isMobileV2());
+  useEffect(() => {
+    const onChange = (e: Event) => setMobileV2Enabled((e as CustomEvent).detail !== false);
+    window.addEventListener('mobile-v2-change', onChange);
+    return () => window.removeEventListener('mobile-v2-change', onChange);
+  }, []);
+  /** v2 패널의 현재 탭 */
+  const [v2Tab, setV2Tab] = useState<'players' | 'tech' | 'ships' | 'round' | 'log'>('players');
+  /** v2 플레이어 탭에서 요약 줄 아래에 기존 상세 카드로 보여줄 사람(null이면 나, 관전자는 현재 차례) */
+  const [v2DetailId, setV2DetailId] = useState<string | null>(null);
   /** 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글. 모바일·데스크톱 공통, 기본 숨김(사용자: 항상 떠있는 게 보기 안 좋음). localStorage 기억 */
   const [isMapControlsOpen, setIsMapControlsOpen] = useState(() => {
     try { return localStorage.getItem('map-controls-open') === 'on'; } catch { return false; }
@@ -622,9 +633,25 @@ export default function Game() {
   // 화면 방향: 세로(portrait, 높이>너비) ↔ 가로(landscape). 레이아웃 결정에 사용(정보창 내용 표시방식과는 별개).
   // [사용자 2026-08-26] 정사각형에 가까우면(폴드8 울트라) 어느 쪽으로 볼지 사용자가 고른다 — 미세한 비율/브라우저 UI 차이로 레이아웃이 오락가락하는 것도 막는다.
   const isPortrait = isNearSquare(winW, winH) && squareLayout !== 'auto' ? squareLayout === 'split' : winH > winW;
-  const effectiveSidebarWidth = isMobileViewport
+  /** [사용자 2026-10-31] 모바일 v2: 세로는 하단 절반 전체 폭 패널(위에 가로 탭줄), 가로는 오른쪽 45% 패널(왼쪽에 세로 탭줄).
+   *  좌우로 쪼개지 않으니 같은 308px 디자인이 세로 ×1.2·가로 ×1.0 안팎으로 보인다(v1은 ×0.5대). */
+  const mobileV2 = isMobileViewport && mobileV2Enabled;
+  const V2_TAB_COL_W = 52;
+  const v2LandscapePanelW = Math.round(winW * 0.45);
+  const v2Landscape = mobileV2 && !isPortrait;
+  const effectiveSidebarWidth = v2Landscape
+    ? v2LandscapePanelW - V2_TAB_COL_W
+    : isMobileViewport
     ? Math.min(sidebarWidth, Math.max(75, Math.round(winW * 0.22)))
     : sidebarWidth;
+  /** v2에선 상태창(플레이어 탭)이 늘 떠 있다 — PC용 상태창 열림/닫힘 저장값과 무관 */
+  const sidebarOpenEff = isSidebarOpen || mobileV2;
+  /** v2에선 로그가 별도 토글이 아니라 탭 */
+  const logShown = mobileV2 ? v2Tab === 'log' : isLogPanelOpen;
+  /** v2 플레이어 탭에서 카드를 펼쳐 둘 사람 — 고른 사람 → 나(좌석이 있으면) → 현재 차례 */
+  const v2DetailEffId = (v2DetailId && game?.players?.[v2DetailId] ? v2DetailId : null)
+    ?? (playerId && game?.players?.[playerId] && !isSpectator ? playerId : null)
+    ?? game?.turnOrder?.[game?.currentPlayerIndex ?? 0] ?? null;
   // 모바일: 내용을 디자인폭(308px)으로 렌더 후 zoom으로 축소 → 영역과 함께 글자도 줄어 안 겹침.
   const MOBILE_PANEL_DESIGN_WIDTH = 308;
   const mobilePanelZoom = isMobileViewport ? effectiveSidebarWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
@@ -633,14 +660,14 @@ export default function Game() {
   const infoOverlayZoom = isMobileViewport ? infoOverlayWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
   // 세로(portrait) 모바일에선 정보창을 상시 표시 — i 버튼 토글 없이 항상 하단-좌측에 둠(사용자 요청). 가로(landscape)에선 i 버튼으로 토글.
   const portraitMobile = isMobileViewport && isPortrait;
-  const infoEffectivelyOpen = isInfoOpen || portraitMobile;
+  const infoEffectivelyOpen = !mobileV2 && (isInfoOpen || portraitMobile);
   // 하단 분할: 세로 화면(portrait)일 때 상단 절반은 맵, 하단 절반을 정보창(좌)/상태창(우)으로 나눔. 정보창이 상시라 portrait면 항상 분할.
   // (가로 화면이면 정보창 풀하이트 좌측 + 상태창 우측.) 레이아웃은 화면 방향에 좌우되고, 정보창 내용 표시방식(스와이프/스크롤)은 infoLayout이 따로 결정.
   // 분할 비율은 반반이 아니라 정보창:상태창 = 1.2:1(정보창이 더 큼).
   const splitActive = portraitMobile;
   // [2026-07-27 사용자] 헤더탭 더블터치 → 해당 패널 전체화면(맵까지 덮음), 다시 더블터치 → 원복
   const [mobileZoomPanel, setMobileZoomPanel] = useState<null | 'info' | 'status'>(null);
-  const splitInfoWidth = splitActive ? (mobileZoomPanel === 'info' ? winW : mobileZoomPanel === 'status' ? 0 : Math.round(winW * 1.2 / 2.2)) : 0;
+  const splitInfoWidth = splitActive && !mobileV2 ? (mobileZoomPanel === 'info' ? winW : mobileZoomPanel === 'status' ? 0 : Math.round(winW * 1.2 / 2.2)) : 0;
   const splitStatusWidth = splitActive ? winW - splitInfoWidth : 0;
   const splitInfoZoom = splitActive ? splitInfoWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
   const splitStatusZoom = splitActive ? splitStatusWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
@@ -648,7 +675,7 @@ export default function Game() {
   //   패널 내용은 zoom이 0.7 → 1.3배로 커지는데 탭바만 그대로라 상대적으로 납작해 보이고, 22px는 탭 타깃으로
   //   너무 작아 '되돌리려고 다시 더블터치'가 어려웠다 → 최대화 중에는 탭바를 키운다.
   //   또 최대화 시 top:0이라 노치/브라우저 UI에 물리므로 safe-area만큼 내리고, 패널 padding도 같이 맞춘다.
-  const mobileTabBarH = mobileZoomPanel === 'status' ? 34 : 22;
+  const mobileTabBarH = v2Landscape ? 0 : mobileV2 ? (mobileZoomPanel === 'status' ? 40 : 36) : mobileZoomPanel === 'status' ? 34 : 22;
 
   /** 세로 분할에서 하단 패널이 차지하는 높이(px). 맵 하단 여백 = 배너를 붙일 기준선. */
   const mapBottomInsetPx = splitActive && mobileZoomPanel !== 'status' && mobileZoomPanel !== 'info' ? Math.round(winH * 0.5) : 0;
@@ -4469,7 +4496,7 @@ export default function Game() {
             // [사용자 2026-08-27] 팬 한도를 패널에 안 가리는 가시 영역 기준으로 — 모바일 패널은 fixed 오버레이라
             // 컨테이너가 그 뒤까지 뻗는다(좌: 가로 정보창, 우: 가로 상태창/로그). PC 상태창은 flex 이웃이라 컨테이너가 이미 줄어 인셋 불필요.
             mapLeftInset={isMobileViewport && !splitActive && infoEffectivelyOpen ? infoEffectiveWidth : 0}
-            mapRightInset={isMobileViewport && !splitActive && (isSidebarOpen || isLogPanelOpen) ? effectiveSidebarWidth : 0}
+            mapRightInset={v2Landscape ? 0 : isMobileViewport && !splitActive && (isSidebarOpen || isLogPanelOpen) ? effectiveSidebarWidth : 0}
           />
         </div>
 
@@ -6333,12 +6360,14 @@ export default function Game() {
         border-l border-border bg-card/95 backdrop-blur-sm lg:bg-card flex flex-col shadow-2xl lg:shadow-none
         ${splitActive
           ? `fixed right-0 left-auto ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} translate-x-0 opacity-100 border-t`
-          : `${isSidebarOpen ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'} right-0 top-0 bottom-0 max-w-[85vw] md:max-w-none relative`
+          : `${sidebarOpenEff ? 'translate-x-0 opacity-100 md:relative fixed' : 'w-0 translate-x-full lg:translate-x-0 lg:w-0 opacity-0 overflow-hidden pointer-events-none fixed'} right-0 top-0 bottom-0 max-w-[85vw] md:max-w-none relative`
         }
       `}
         style={{
           // pt는 탭바 높이(최대화 시 safe-area 포함)를 따라간다 — 예전엔 pt-[22px] 고정이라 탭바를 키우면 겹쳤다
-          ...(splitActive ? { width: splitStatusWidth } : (isSidebarOpen ? { width: effectiveSidebarWidth } : {})),
+          // v2 가로: 상태창은 맵 옆에 자리를 차지하는(in-flow) 요소라, 탭 세로줄 폭까지 포함해 패널 전체 폭을 잡고
+          //   왼쪽을 탭줄 자리로 비운다 → 맵 컨테이너가 패널 뒤로 들어가지 않는다. 다른 탭(기술·로그 등)은 이 위를 덮는 오버레이.
+          ...(splitActive ? { width: splitStatusWidth } : v2Landscape ? { width: v2LandscapePanelW, paddingLeft: V2_TAB_COL_W } : (sidebarOpenEff ? { width: effectiveSidebarWidth } : {})),
           ...(isMobileViewport ? { paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom } : {}),
         }}
       >
@@ -6358,7 +6387,7 @@ export default function Game() {
             <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
           </div>
         )}
-        {(isSidebarOpen || splitActive) && (
+        {(sidebarOpenEff || splitActive) && (
           <div
             className="flex flex-col h-full w-full md:min-w-[308px] overflow-hidden"
             style={splitActive
@@ -6368,6 +6397,53 @@ export default function Game() {
             <div ref={playerListScrollRef} className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
               {/* 연방 구현: GameBoard의 줌 컨트롤 좌측으로 이동됨 */}
 
+
+              {/* [사용자 2026-10-31] 모바일 v2 — 다른 플레이어의 큰 글씨 요약 줄(점수·자원·파워·차례/패스).
+                  위에는 고른 한 명(기본: 나, 관전자는 현재 차례)의 기존 카드(액션 버튼·상세 팝오버 포함)가 오고,
+                  줄을 누르면 그 사람 카드로 바뀐다. order-last: DOM은 카드 목록 앞이지만 화면에선 카드 아래. */}
+              {mobileV2 && game.currentPhase !== 'factionBidding' && (() => {
+                const order = [...(game.turnOrder ?? Object.keys(game.players))];
+                const currentId = game.turnOrder?.[game.currentPlayerIndex];
+                return (
+                  <div className="order-last flex flex-col gap-1.5 flex-none">
+                    {order.filter((id) => id !== v2DetailEffId).map((id) => {
+                      const p = ((id === playerId ? game : (viewGame ?? game)).players[id]) as PlayerState | undefined;
+                      if (!p) return null;
+                      const faction = p.faction ? FACTIONS.find((f) => f.id === p.faction) : null;
+                      const color = playerColorOverrides[id] ?? faction?.color ?? '#666';
+                      const isCur = currentId === id && !p.hasPassed;
+                      const isMe = id === playerId && !game.botPlayerIds?.includes(id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setV2DetailId(id)}
+                          className={`w-full text-left rounded-lg border px-2 py-1.5 transition-colors active:scale-[0.99] ${isCur ? 'border-amber-400/80 bg-amber-500/10' : isMe ? 'border-primary/50 bg-primary/15' : 'border-border bg-muted/40'} ${p.hasPassed ? 'opacity-60' : ''}`}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-3 h-3 rounded-full flex-shrink-0 ring-1 ring-white/30" style={{ backgroundColor: color }} />
+                            <span className="truncate text-[14px] font-bold text-zinc-100">{faction?.name ?? p.name}</span>
+                            <span className="truncate text-[11px] text-zinc-400 min-w-0">{faction ? p.name : ''}</span>
+                            {isMe && <span className="text-[11px] font-bold text-primary flex-shrink-0">나</span>}
+                            {isCur && <span className="flex-shrink-0 rounded bg-amber-400 px-1 text-[10px] font-black text-zinc-950">차례</span>}
+                            {p.hasPassed && <span className="flex-shrink-0 rounded bg-zinc-700 px-1 text-[10px] font-black text-zinc-300">패스</span>}
+                            <span className="ml-auto flex-shrink-0 text-[20px] font-black tabular-nums leading-none text-white">{p.score}</span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-[13px] font-bold tabular-nums leading-none">
+                            <span className="text-amber-300">C{p.credits}</span>
+                            <span className="text-orange-300">O{p.ore}</span>
+                            <span className="text-sky-300">K{p.knowledge}</span>
+                            <span className="text-emerald-300">Q{p.qic}</span>
+                            <span className="ml-auto text-violet-300">
+                              <span className="text-violet-400/70">{p.power1}</span>/<span>{p.power2}</span>/<span className="text-fuchsia-200">{p.power3}</span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* 플레이어 영역: 콘텐츠 높이만 사용(flex-none으로 줄어들지 않음), 빈 공간 없음 */}
               <div className="space-y-2 md:space-y-4 flex-none overflow-visible">
@@ -6393,6 +6469,8 @@ export default function Game() {
                 //   누구 차례인지(isCurrentTurn)·봇 여부는 실시간 game을 그대로 쓴다.
                 //   단 **내 카드는 항상 실시간** — 남의 턴 중에도 내가 리치(파워 수령)를 수락하면
                 //   그 결과가 바로 보여야 한다(내가 누른 것이 화면에 안 나타나면 고장으로 보인다).
+                // 모바일 v2: 카드는 요약 줄에서 고른 한 명만(나머지는 위 요약 줄로 충분)
+                if (mobileV2 && game.currentPhase !== 'factionBidding' && id !== v2DetailEffId) return null;
                 const cardGame = (id === playerId ? game : (viewGame ?? game));
                 const p = cardGame.players[id] as PlayerState | undefined;
                 if (!p) return null;
@@ -7688,9 +7766,89 @@ export default function Game() {
         </button>
       )}
 
+      {/* [사용자 2026-10-31] 모바일 v2 탭줄 — 세로: 하단 패널 위 가로 줄(더블터치 = 패널 전체화면), 가로: 오른쪽 패널 왼쪽 세로 줄.
+          탭을 바꾸면 같은 자리(세로 하단 절반 / 가로 오른쪽 45%)에 상태창·기술·우주선·라운드·로그 중 하나만 크게 뜬다. */}
+      {mobileV2 && game && (() => {
+        const tabs: { id: typeof v2Tab; label: string }[] = [
+          { id: 'players', label: '플레이어' },
+          { id: 'tech', label: '기술' },
+          { id: 'ships', label: '우주선' },
+          { id: 'round', label: '라운드' },
+          { id: 'log', label: '로그' },
+        ];
+        const tabCls = (on: boolean) => `flex items-center justify-center font-black leading-tight transition-colors ${on ? 'bg-blue-500/30 text-blue-50' : 'bg-zinc-900/95 text-zinc-400 active:bg-zinc-800'}`;
+        const filterBtn = v2Tab === 'log' && (
+          <button
+            type="button"
+            aria-label="로그 필터 켜기/끄기"
+            onClick={() => setLogFilterOpen((v) => !v)}
+            className={`shrink-0 flex items-center justify-center text-base leading-none ${v2Landscape ? 'h-10 border-t' : 'w-10 border-l'} border-white/10 ${logFilterOpen ? 'bg-blue-500/40 text-white' : 'bg-zinc-900/95 text-zinc-400'}`}
+          >
+            {logFilterOpen ? '−' : '+'}
+          </button>
+        );
+        if (v2Landscape) {
+          return (
+            <div
+              className={`md:hidden fixed top-0 bottom-0 z-[113] flex flex-col border-l border-r border-white/10 bg-zinc-950 ${myTurnEdgeClass}`}
+              style={{ right: effectiveSidebarWidth, width: V2_TAB_COL_W, paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+              data-tour="mobile-tabs"
+            >
+              {tabs.map((t) => (
+                <button key={t.id} type="button" onClick={() => setV2Tab(t.id)} className={`flex-1 min-h-0 border-b border-white/10 text-[12px] px-0.5 ${tabCls(v2Tab === t.id)}`}>
+                  {t.label}
+                </button>
+              ))}
+              {filterBtn}
+            </div>
+          );
+        }
+        return (
+          <div
+            className={`md:hidden fixed left-0 right-0 z-[113] flex border-t border-b border-white/10 ${myTurnTabBarClass}`}
+            style={{ top: mobileTabBarTop, height: mobileTabBarH }}
+            data-tour="mobile-tabs"
+            onDoubleClick={() => setMobileZoomPanel((p) => (p === 'status' ? null : 'status'))}
+            title="더블터치: 전체화면 전환"
+          >
+            {tabs.map((t) => (
+              <button key={t.id} type="button" onClick={() => setV2Tab(t.id)} className={`flex-1 h-full border-r border-white/10 last:border-r-0 text-[14px] ${tabCls(v2Tab === t.id)}`}>
+                {t.label}
+              </button>
+            ))}
+            {filterBtn}
+          </div>
+        );
+      })()}
+
+      {/* 모바일 v2 — 기술/우주선/라운드 탭 내용. 플레이어 탭(상태창)·로그 탭과 같은 자리를 쓰고, 308px 디자인을 패널 폭에 맞춰 키운다. */}
+      {mobileV2 && game && (v2Tab === 'tech' || v2Tab === 'ships' || v2Tab === 'round') && (() => {
+        const w = v2Landscape ? effectiveSidebarWidth : winW;
+        const z = w / MOBILE_PANEL_DESIGN_WIDTH;
+        return (
+          <div
+            className={`md:hidden fixed right-0 z-[110] flex flex-col bg-card overflow-hidden ${myTurnEdgeClass} ${v2Landscape ? 'top-0 bottom-0 border-l border-border' : `${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} border-t border-border`}`}
+            style={{ width: w, paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom }}
+          >
+            {v2Tab !== 'round' && (
+              <div className="shrink-0 px-3 py-1 text-[11px] text-zinc-400 border-b border-white/10 bg-black/30">칸을 길게 누르면 사용 기록</div>
+            )}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar" onWheel={(e) => e.stopPropagation()}>
+              <div className="flex flex-col px-2 pt-2 pb-2" style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: z } as CSSProperties}>
+                {v2Tab === 'tech' && renderInfoResearch('tech')}
+                {v2Tab === 'ships' && renderInfoResearch('ships')}
+                {v2Tab === 'round' && renderInfoRoundBonus()}
+              </div>
+              {/* 좌하단 원형 버튼(채팅·프리액션)에 마지막 줄이 가리지 않게 */}
+              <div style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 4.5rem)' }} />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 모바일 전용 — Info(좌하단, 보드 3페이지 오버레이) + 로그(우하단, 상태창↔로그). 서로 배타적(하나 열면 다른 건 닫힘).
           세로(portrait)에선 정보창이 상시 표시라 i 버튼 숨김(토글 불필요). 데스크톱은 좌측 미니뷰/도킹 로그 사용(md:hidden). */}
-      {game && !portraitMobile && (
+      {game && !portraitMobile && !mobileV2 && (
         <button
           type="button"
           aria-label={isInfoOpen ? 'Info 닫기' : '보드 정보 열기'}
@@ -7711,7 +7869,7 @@ export default function Game() {
           비딩 단계가 제외돼 있어, 종족을 잘못 고르고도 롤백 진입점(로그 줄 → '여기로 롤백 요청')에 닿을 수 없었다.
           서버는 factionBidding 롤백을 이미 허용하고(2026-09-09) 넓은 화면에서는 같은 상황에서 로그가 보인다 —
           폰만 막혀 있던 것. 제외를 푼다. */}
-      {isMobileViewport && (isSidebarOpen || splitActive) && game && (
+      {isMobileViewport && !mobileV2 && (isSidebarOpen || splitActive) && game && (
         <div
           className={`md:hidden fixed right-0 z-[113] flex ${mobileZoomPanel === 'status' ? 'text-[11px]' : 'text-[9px]'} font-black uppercase tracking-wide overflow-hidden rounded-bl-lg border-l border-b border-white/10 ${myTurnTabBarClass} ${mobileZoomPanel === 'info' ? 'hidden' : ''}`}
           style={{ top: mobileTabBarTop, height: mobileTabBarH, width: splitActive ? splitStatusWidth : effectiveSidebarWidth }}
@@ -7749,9 +7907,9 @@ export default function Game() {
       )}
 
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
-      {isMobileViewport && isLogPanelOpen && game && (
+      {isMobileViewport && logShown && game && (
         <div
-          className={`md:hidden fixed z-[110] flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden ${myTurnEdgeClass} ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
+          className={`md:hidden fixed z-[110] flex flex-col ${mobileV2 ? 'bg-card' : 'bg-card/95 backdrop-blur-sm'} overflow-hidden ${myTurnEdgeClass} ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
           style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth, paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom }}
         >
           <div

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { applyViewportMeta, canOfferPcViewMode, isPcViewMode, setPcViewMode, getSquareLayout, setSquareLayout, isNearSquare, type SquareLayout } from '@/lib/viewMode';
+import { applyViewportMeta, canOfferPcViewMode, isPcViewMode, setPcViewMode, getSquareLayout, setSquareLayout, isNearSquare, type SquareLayout, isMobileV2, setMobileV2, canOfferLandscapeMobile, isLandscapeMobileOn, setLandscapeMobile } from '@/lib/viewMode';
 import {
   Dialog,
   DialogContent,
@@ -575,6 +575,32 @@ function TechViewSelector() {
   );
 }
 
+/** [사용자 2026-10-31] 모바일 v2(큰 글씨 탭 패널) ↔ v1(좌우 분할) 선택. Game.tsx와 localStorage+커스텀이벤트로 동기화. */
+function MobileV2Selector() {
+  const [on, setOn] = useState(true);
+  useEffect(() => { setOn(isMobileV2()); }, []);
+  const choose = (v: boolean) => { setOn(v); setMobileV2(v); };
+  const btnCls = (active: boolean) =>
+    `flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${active ? 'border-sky-400/60 bg-sky-500/20 text-sky-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`;
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-400">
+        모바일 화면 버전
+      </h3>
+      <div className="px-2 py-1.5">
+        <div className="flex gap-1.5">
+          <button type="button" onClick={() => choose(true)} className={btnCls(on)}>
+            v2 (큰 글씨)<div className="text-[8px] font-normal opacity-70 mt-0.5">패널 하나 + 탭 전환</div>
+          </button>
+          <button type="button" onClick={() => choose(false)} className={btnCls(!on)}>
+            v1 (기존)<div className="text-[8px] font-normal opacity-70 mt-0.5">정보창 · 상태창 나란히</div>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** 모바일 전용: 화면 줌 ON/OFF — ON이면 브라우저 핀치줌(페이지 전체 확대)을 켜고 맵 자체 줌 기능은 끈다. localStorage+커스텀이벤트로 GameBoard와 동기화. */
 function PinchZoomSelector() {
   const [on, setOn] = useState(false);
@@ -653,6 +679,43 @@ function ViewModeSelector() {
             className={`flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${pc ? 'border-sky-400/60 bg-sky-500/20 text-sky-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`}
           >
             PC 모드<div className="text-[8px] font-normal opacity-70 mt-0.5">상태창 아래 로그 같이</div>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * [사용자 2026-10-31] 넓은 가로 폰(가로 폭 768px 이상) 전용 — 가로로 돌렸을 때 PC 화면 대신 모바일(v2 가로) 화면.
+ * 가로에선 PC 화면(md:)이 켜져 있으므로 md:hidden 밖에 둬야 끌 수 있다. 일반 폰에만 노출(canOfferLandscapeMobile).
+ */
+function LandscapeMobileSelector() {
+  const [show, setShow] = useState(false);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    setShow(canOfferLandscapeMobile());
+    setOn(isLandscapeMobileOn());
+  }, []);
+  if (!show) return null;
+  const choose = (v: boolean) => { setOn(v); setLandscapeMobile(v); };
+  const btnCls = (active: boolean) =>
+    `flex-1 rounded border px-2 py-1.5 text-[10px] font-bold transition-colors ${active ? 'border-sky-400/60 bg-sky-500/20 text-sky-200' : 'border-white/10 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'}`;
+  return (
+    <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
+      <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-400">
+        폰을 가로로 돌렸을 때
+      </h3>
+      <div className="px-2 py-1.5 space-y-1.5">
+        <div className="text-[9px] leading-snug text-zinc-500">
+          가로 화면이 넓은 폰은 기본으로 PC 화면이 나옵니다. 모바일 화면을 고르면 맵 + 오른쪽 탭 패널로 크게 보입니다.
+        </div>
+        <div className="flex gap-1.5">
+          <button type="button" onClick={() => choose(false)} className={btnCls(!on)}>
+            PC 화면<div className="text-[8px] font-normal opacity-70 mt-0.5">기존 방식</div>
+          </button>
+          <button type="button" onClick={() => choose(true)} className={btnCls(on)}>
+            모바일 화면<div className="text-[8px] font-normal opacity-70 mt-0.5">맵 + 탭 패널, 큰 글씨</div>
           </button>
         </div>
       </div>
@@ -779,11 +842,12 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
         >
           {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
           <div className="hidden md:block"><NotifyToggle /></div>
-          <div className="md:hidden"><TechViewSelector /><SquareLayoutSelector /><PinchZoomSelector /></div>
+          <div className="md:hidden"><MobileV2Selector /><TechViewSelector /><SquareLayoutSelector /><PinchZoomSelector /></div>
           {/* 좌하단 액션 버튼은 데스크톱·모바일(가로) 양쪽에 뜨므로 md 분기 밖에 둔다 */}
           <DisplayTogglesSection />
           {/* md:hidden 밖에 둔다 — PC 모드를 켜면 md:가 켜져 이 안에 있으면 되돌릴 버튼이 사라진다 */}
           <ViewModeSelector />
+          <LandscapeMobileSelector />
           {gameId && playerId && <ContinueOnDeviceSection gameId={gameId} playerId={playerId} />}
           <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
             <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-400">사운드 조절</h3>
