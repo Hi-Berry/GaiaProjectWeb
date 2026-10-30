@@ -654,7 +654,9 @@ export default function Game() {
   /** [사용자 2026-10-31] 모바일 v2: 세로는 하단 절반 전체 폭 패널(위에 가로 탭줄), 가로는 오른쪽 45% 패널(왼쪽에 세로 탭줄).
    *  좌우로 쪼개지 않으니 같은 308px 디자인이 세로 ×1.2·가로 ×1.0 안팎으로 보인다(v1은 ×0.5대). */
   const mobileV2 = isMobileViewport && mobileV2Enabled;
-  const V2_TAB_COL_W = 52;
+  // [사용자 2026-10-31 "탭도 공간 너무 많이 차지해, 눌리는 크기는 좋아"] 보이는 탭줄은 얇게(세로 26px·가로 28px 세로쓰기),
+  //   누르는 영역은 투명 연장(after:)으로 맵 쪽으로 10px 더 줘서 예전(36·52px)과 비슷하게 유지한다.
+  const V2_TAB_COL_W = 28;
   const v2LandscapePanelW = Math.round(winW * 0.45);
   const v2Landscape = mobileV2 && !isPortrait;
   const effectiveSidebarWidth = v2Landscape
@@ -730,7 +732,7 @@ export default function Game() {
   //   패널 내용은 zoom이 0.7 → 1.3배로 커지는데 탭바만 그대로라 상대적으로 납작해 보이고, 22px는 탭 타깃으로
   //   너무 작아 '되돌리려고 다시 더블터치'가 어려웠다 → 최대화 중에는 탭바를 키운다.
   //   또 최대화 시 top:0이라 노치/브라우저 UI에 물리므로 safe-area만큼 내리고, 패널 padding도 같이 맞춘다.
-  const mobileTabBarH = v2Landscape ? 0 : mobileV2 ? (mobileZoomPanel === 'status' ? 40 : 36) : mobileZoomPanel === 'status' ? 34 : 22;
+  const mobileTabBarH = v2Landscape ? 0 : mobileV2 ? (mobileZoomPanel === 'status' ? 32 : 26) : mobileZoomPanel === 'status' ? 34 : 22;
 
   /** 세로 분할에서 하단 패널이 차지하는 높이(px). 맵 하단 여백 = 배너를 붙일 기준선. */
   const mapBottomInsetPx = splitActive && mobileZoomPanel !== 'status' && mobileZoomPanel !== 'info' ? Math.round(winH * 0.5) : 0;
@@ -7832,7 +7834,7 @@ export default function Game() {
             type="button"
             aria-label="로그 필터 켜기/끄기"
             onClick={() => setLogFilterOpen((v) => !v)}
-            className={`shrink-0 flex items-center justify-center text-base leading-none ${v2Landscape ? 'h-10 border-t' : 'w-10 border-l'} border-white/10 ${logFilterOpen ? 'bg-blue-500/40 text-white' : 'bg-zinc-900/95 text-zinc-400'}`}
+            className={`shrink-0 flex items-center justify-center text-base leading-none ${v2Landscape ? 'h-9 border-t' : 'w-9 border-l'} border-white/10 ${logFilterOpen ? 'bg-blue-500/40 text-white' : 'bg-zinc-900/95 text-zinc-400'}`}
           >
             {logFilterOpen ? '−' : '+'}
           </button>
@@ -7845,7 +7847,7 @@ export default function Game() {
               data-tour="mobile-tabs"
             >
               {tabs.map((t) => (
-                <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`flex-1 min-h-0 border-b border-white/10 text-[12px] px-0.5 ${tabCls(v2Tab === t.id)}`}>
+                <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`relative flex-1 min-h-0 border-b border-white/10 text-[12px] tracking-[0.15em] [writing-mode:vertical-rl] after:absolute after:inset-y-0 after:right-full after:w-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
                   {t.label}
                 </button>
               ))}
@@ -7862,7 +7864,7 @@ export default function Game() {
             title="더블터치: 전체화면 전환"
           >
             {tabs.map((t) => (
-              <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`flex-1 h-full border-r border-white/10 last:border-r-0 text-[14px] ${tabCls(v2Tab === t.id)}`}>
+              <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`relative flex-1 h-full border-r border-white/10 last:border-r-0 text-[13px] after:absolute after:inset-x-0 after:bottom-full after:h-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
                 {t.label}
               </button>
             ))}
