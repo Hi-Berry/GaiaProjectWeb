@@ -32,8 +32,19 @@ export function applyViewportMeta(): void {
 	meta.setAttribute('content', isPcViewMode()
 		? `width=${PC_MODE_VIEWPORT_WIDTH}${noZoom}`
 		: shouldForceLandscapeMobile()
-		? `width=${LANDSCAPE_MOBILE_VIEWPORT_WIDTH}${noZoom}`
+		? landscapeMobileViewportContent(pinch)
 		: `width=device-width, initial-scale=1.0${noZoom}`);
+}
+
+/**
+ * [버그 2026-10-31 사용자 S22 울트라 "모바일 화면으로 해도 PC 화면으로 나온다"] width=760에 maximum-scale=1을 같이 주면,
+ * 760폭을 915px 화면에 채우려면 1.2배 확대가 필요한데 최대 배율 1에 막혀 브라우저가 폭을 915로 되돌린다(PC 모드는
+ * 축소 방향이라 문제없었음). → 배율(긴 변/760)을 직접 계산해 initial-scale로 주고, 핀치줌 OFF면 maximum-scale도 같은 값으로 막는다.
+ */
+function landscapeMobileViewportContent(pinch: boolean): string {
+	const long = Math.max(window.screen?.width ?? 0, window.screen?.height ?? 0) || window.innerWidth;
+	const scale = Math.round((long / LANDSCAPE_MOBILE_VIEWPORT_WIDTH) * 1000) / 1000;
+	return `width=${LANDSCAPE_MOBILE_VIEWPORT_WIDTH}, initial-scale=${scale}${pinch ? '' : `, maximum-scale=${scale}`}`;
 }
 
 /**
@@ -41,33 +52,34 @@ export function applyViewportMeta(): void {
  * 나왔고 모바일로 돌아갈 방법이 없었다. PC 모드의 반대 방향: 옵션을 켜면 가로일 때만 viewport 폭을 760으로
  * 선언해 모바일(v2 가로) 레이아웃을 쓰게 한다. 세로로 돌리면 원래(device-width)로 돌아간다.
  */
-export const LANDSCAPE_MOBILE_KEY = 'landscape-mobile'; // 'on' | 'off'(기본)
+export const LANDSCAPE_MOBILE_KEY = 'landscape-mobile'; // 'on'(기본) | 'off'  — [사용자 2026-10-31] 기본을 모바일 화면으로
 /** md(768) 바로 아래 — 모바일 레이아웃이면서 최대한 덜 축소되는 폭 */
 export const LANDSCAPE_MOBILE_VIEWPORT_WIDTH = 760;
 
 export function isLandscapeMobileOn(): boolean {
-	try { return localStorage.getItem(LANDSCAPE_MOBILE_KEY) === 'on'; } catch { return false; }
+	try { return localStorage.getItem(LANDSCAPE_MOBILE_KEY) !== 'off'; } catch { return true; }
 }
 
-/** 이 옵션을 보여줄 기기인지 — 일반 폰(터치 + 짧은 변 540 미만)이고, 가로로 돌리면 768 이상이 되는 경우.
- *  screen 값은 viewport meta와 무관하고, iOS는 회전해도 바뀌지 않으므로 긴 변/짧은 변으로 본다. */
-export function canOfferLandscapeMobile(): boolean {
+/** 가로로 돌리면 768을 넘는 일반 폰인지 — 터치 + 짧은 변 540 미만(폴드 펼침·태블릿 제외) + 긴 변 768 이상.
+ *  screen 값은 viewport meta와 무관하고, iOS는 회전해도 바뀌지 않으므로 긴 변/짧은 변으로 본다.
+ *  기본값이 ON이라 이 판정이 데스크톱·태블릿을 확실히 걸러야 한다. */
+function isWideLandscapePhone(): boolean {
 	if (typeof window === 'undefined') return false;
-	if (isLandscapeMobileOn()) return true; // 켜져 있으면 끌 수 있게 항상 노출
-	const touch = (navigator.maxTouchPoints ?? 0) > 0;
-	if (!touch) return false;
+	if ((navigator.maxTouchPoints ?? 0) <= 0) return false;
 	const w = window.screen?.width ?? window.innerWidth;
 	const h = window.screen?.height ?? window.innerHeight;
 	return Math.min(w, h) < 540 && Math.max(w, h) >= 768;
 }
 
+/** 이 옵션을 보여줄 기기인지 — 가로로 돌리면 768을 넘는 일반 폰만 */
+export function canOfferLandscapeMobile(): boolean {
+	return isWideLandscapePhone();
+}
+
 /** 지금 viewport 폭을 760으로 줄여야 하는가 — 옵션 ON + 가로 + 기기 긴 변이 768 이상.
  *  가로 판정은 orientation 미디어쿼리: viewport 폭을 바꿔도 화면비는 그대로라 판정이 뒤집히지 않는다. */
 function shouldForceLandscapeMobile(): boolean {
-	if (!isLandscapeMobileOn()) return false;
-	const w = window.screen?.width ?? window.innerWidth;
-	const h = window.screen?.height ?? window.innerHeight;
-	if (Math.max(w, h) < 768) return false; // 원래도 모바일 화면
+	if (!isLandscapeMobileOn() || !isWideLandscapePhone()) return false;
 	return window.matchMedia?.('(orientation: landscape)').matches ?? false;
 }
 

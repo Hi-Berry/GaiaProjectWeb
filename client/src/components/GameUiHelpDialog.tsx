@@ -688,11 +688,11 @@ function ViewModeSelector() {
 
 /**
  * [사용자 2026-10-31] 넓은 가로 폰(가로 폭 768px 이상) 전용 — 가로로 돌렸을 때 PC 화면 대신 모바일(v2 가로) 화면.
- * 가로에선 PC 화면(md:)이 켜져 있으므로 md:hidden 밖에 둬야 끌 수 있다. 일반 폰에만 노출(canOfferLandscapeMobile).
+ * PC 화면을 고르면 가로에서 md:가 켜지므로 md:hidden 밖에 둬야 되돌릴 수 있다. 일반 폰에만 노출(canOfferLandscapeMobile).
  */
 function LandscapeMobileSelector() {
   const [show, setShow] = useState(false);
-  const [on, setOn] = useState(false);
+  const [on, setOn] = useState(true);
   useEffect(() => {
     setShow(canOfferLandscapeMobile());
     setOn(isLandscapeMobileOn());
@@ -708,14 +708,14 @@ function LandscapeMobileSelector() {
       </h3>
       <div className="px-2 py-1.5 space-y-1.5">
         <div className="text-[9px] leading-snug text-zinc-500">
-          가로 화면이 넓은 폰은 기본으로 PC 화면이 나옵니다. 모바일 화면을 고르면 맵 + 오른쪽 탭 패널로 크게 보입니다.
+          기본은 모바일 화면(맵 + 오른쪽 탭 패널, 큰 글씨)입니다. PC 화면을 고르면 넓은 화면용 배치가 나옵니다.
         </div>
         <div className="flex gap-1.5">
-          <button type="button" onClick={() => choose(false)} className={btnCls(!on)}>
-            PC 화면<div className="text-[8px] font-normal opacity-70 mt-0.5">기존 방식</div>
-          </button>
           <button type="button" onClick={() => choose(true)} className={btnCls(on)}>
             모바일 화면<div className="text-[8px] font-normal opacity-70 mt-0.5">맵 + 탭 패널, 큰 글씨</div>
+          </button>
+          <button type="button" onClick={() => choose(false)} className={btnCls(!on)}>
+            PC 화면<div className="text-[8px] font-normal opacity-70 mt-0.5">넓은 화면용 배치</div>
           </button>
         </div>
       </div>
