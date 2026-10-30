@@ -1789,6 +1789,76 @@ export function federationFormsWithoutSatellite(
 	return false;
 }
 
+/** [사용자 2026-10-30] 연방 건물들을 잇는 데 필요한 '최소 위성 수' (위성은 최소 개수로 놓는 게 원칙 — 경고용).
+ *  위 federationFormsWithoutSatellite는 '위성 1개를 빼도 되나'만 봐서, 일부러 한 칸 돌아가는 경로를 깔면
+ *  어느 위성도 단독으론 못 빼 우회가 됐다(실측: 구오 14개 선언, 최소 13개 — 최종미션이 위성 수일 때 이득).
+ *  노드 가중 Steiner 트리(Dreyfus-Wagner): 내 미연방 건물=0(연방 밖 건물을 거쳐 더 짧으면 그게 최소 — 사용자 확정),
+ *  위성 놓을 수 있는 빈 우주칸=1, 그 외 통과 불가. 터미널은 인접 건물끼리 묶은 덩어리. 덩어리가 너무 많으면(>10) null. */
+export function minFederationSatellites(game: ServerGameState, playerId: string, buildingIds: Set<string> | string[]): number | null {
+	const fedHexes = new Set(game.playerFederationHexes?.[playerId] ?? []);
+	const sats = game.satellites || {};
+	const ownedBuilding = (t: HexTile) =>
+		(t.ownerId === playerId && t.structure != null && t.structure !== 'ship') ||
+		t.parasiticMine?.ownerId === playerId ||
+		t.spaceStation?.ownerId === playerId;
+	const cost = (t: HexTile): number => {
+		if (fedHexes.has(t.id)) return Infinity;
+		if (ownedBuilding(t)) return 0;
+		if ((t.type === 'space' || t.type === 'deep_space') && t.structure == null) {
+			const on = sats[t.id];
+			const mine = Array.isArray(on) ? on.includes(playerId) : on === playerId;
+			return mine ? Infinity : 1;
+		}
+		return Infinity;
+	};
+	const nodes = game.map.filter(t => cost(t) < Infinity);
+	const idx = new Map(nodes.map((t, i) => [t.id, i]));
+	const w = nodes.map(cost);
+	const adj = nodes.map(t => getNeighbors(game.map, t).filter(n => idx.has(n.id)).map(n => idx.get(n.id)!));
+	// 터미널: 건물들을 서로 인접한 덩어리로 묶고 덩어리마다 대표 1칸
+	const bset = new Set(Array.from(buildingIds).filter(id => idx.has(id)));
+	const terms: number[] = [];
+	const seen = new Set<string>();
+	for (const id of Array.from(bset)) {
+		if (seen.has(id)) continue;
+		terms.push(idx.get(id)!);
+		const q = [id]; seen.add(id);
+		while (q.length) {
+			const cur = q.pop()!;
+			for (const n of adj[idx.get(cur)!]) {
+				const nid = nodes[n].id;
+				if (bset.has(nid) && !seen.has(nid)) { seen.add(nid); q.push(nid); }
+			}
+		}
+	}
+	const K = terms.length;
+	if (K <= 1) return 0;
+	if (K > 10) return null;
+	const N = nodes.length, INF = 1e9, full = (1 << K) - 1;
+	const dp: number[][] = Array.from({ length: 1 << K }, () => new Array(N).fill(INF));
+	terms.forEach((v, i) => { dp[1 << i][v] = 0; });
+	for (let m = 1; m <= full; m++) {
+		const d = dp[m];
+		for (let s = (m - 1) & m; s > 0; s = (s - 1) & m) {
+			if (s < (m ^ s)) continue;
+			const a = dp[s], b = dp[m ^ s];
+			for (let v = 0; v < N; v++) { const c = a[v] + b[v] - w[v]; if (c < d[v]) d[v] = c; }
+		}
+		// 가중치가 0/1뿐이라 0-1 BFS로 전파
+		const dq: number[] = [];
+		for (let v = 0; v < N; v++) if (d[v] < INF) dq.push(v);
+		dq.sort((x, y) => d[x] - d[y]);
+		while (dq.length) {
+			const u = dq.shift()!;
+			for (const x of adj[u]) {
+				const c = d[u] + w[x];
+				if (c < d[x]) { d[x] = c; if (w[x] === 0) dq.unshift(x); else dq.push(x); }
+			}
+		}
+	}
+	return Math.min(...dp[full]);
+}
+
 /** Ivits(하이브) 연방 연결성: 선택한 위성·건물·우주정거장이 (내 건물망 + 기존 연방 칸을 통과해) 하나로 연결되는지.
  *  통과 가능: 선택 위성 + 내 건물/우주정거장/기생광산 + 기존 연방 칸. 새로 선택한 모든 칸이 한 컴포넌트면 connected.
  *  (Ivits는 완성 시 파워만 검사했어서 A옆·B옆 따로 위성을 놓아도 연방이 서던 버그 수정용.) */
@@ -1845,7 +1915,7 @@ export function computeIvitsFederationPower(game: ServerGameState, playerId: str
 }
 
 /** 연방 모드 선택 기준으로 포함될 건물·파워 미리보기 계산 */
-function computeFederationPreview(game: ServerGameState, playerId: string): { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected: boolean; redundant: number } | null {
+function computeFederationPreview(game: ServerGameState, playerId: string): { power: number; requiredPower: number; items: Array<{ tileId: string; label: string; power: number }>; connected: boolean; redundant: number; minSatellites?: number } | null {
 	const mode = game.federationMode;
 	if (!mode || mode.playerId !== playerId) return null;
 	const isIvits = game.players[playerId]?.faction === 'ivits';
@@ -1895,7 +1965,13 @@ function computeFederationPreview(game: ServerGameState, playerId: string): { po
 			federationFormsWithoutSatellite(game, playerId, selectedHexIds.filter(id => id !== sid), planetIds, requiredPower)
 		).length;
 	}
-	return { power, requiredPower, items, connected, redundant };
+	// [사용자 2026-10-30] 최소 위성 수(Steiner) 초과분도 같은 경고로 — federation_complete와 같은 계산.
+	let minSatellites: number | undefined;
+	if (!isIvits && selectedHexIds.length > 0 && connected && power >= requiredPower) {
+		const m = minFederationSatellites(game, playerId, planetIds);
+		if (m != null) { minSatellites = m; redundant = Math.max(redundant, selectedHexIds.length - m); }
+	}
+	return { power, requiredPower, items, connected, redundant, minSatellites };
 }
 
 /** 연방에 속한 본인 건물/우주정거장 바로 옆에 건설한 타일이면 해당 타일도 연방에 포함시킴 */
@@ -6717,13 +6793,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 불필요한 위성 경고: 위성 하나를 빼도 연결+파워 충족이면 토큰 낭비 → 확인 후 진행 (force=true면 통과)
 				// [2026-08-10 사용자 지적] 판정 시드를 '클릭 목록'이 아니라 '이번 연방에 든 건물(net.planetIds)'에서 잡는다.
 				// 예전 방식은 위성만 클릭한 경우 위성을 빼면 시드가 비어 판정 불가 → 경고가 안 떴다(클릭 순서로 갈림).
+				// [사용자 2026-10-30] 최소 위성 수(Steiner)보다 많아도 같은 경고 — 한 칸 돌아가는 우회를 잡는다.
+				//   하우스룰이 사람마다 달라 차단하지 않고 경고만(force로 진행 가능).
 				if (!force && selectedHexIds.length > 0) {
 					const redundantCount = selectedHexIds.filter(sid =>
 						federationFormsWithoutSatellite(game, playerId, selectedHexIds.filter(id => id !== sid), net.planetIds, requiredPower)
 					).length;
-					if (redundantCount > 0) {
-						log(`Federation complete warning: ${redundantCount} redundant satellite(s)`, 'game', undefined, { simulation: (game as any).simulation });
-						socket.emit('federation_redundant_warning', { count: redundantCount });
+					const minSats = minFederationSatellites(game, playerId, net.planetIds);
+					const extra = minSats != null ? Math.max(0, selectedHexIds.length - minSats) : 0;
+					if (redundantCount > 0 || extra > 0) {
+						log(`Federation complete warning: ${redundantCount} redundant, ${selectedHexIds.length} satellites vs minimum ${minSats}`, 'game', undefined, { simulation: (game as any).simulation });
+						socket.emit('federation_redundant_warning', { count: Math.max(redundantCount, extra), minSatellites: minSats ?? undefined, selected: selectedHexIds.length });
 						return;
 					}
 				}

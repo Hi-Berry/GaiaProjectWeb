@@ -429,7 +429,7 @@ export default function Game() {
   const [shipTech2TfMineFromMini, setShipTech2TfMineFromMini] = useState(false);
   const [confirmPassWithTileId, setConfirmPassWithTileId] = useState<string | null>(null);
   /** 연방 선언 시 불필요한 위성 경고 다이얼로그 (서버 federation_redundant_warning 수신 시) */
-  const [federationRedundantWarning, setFederationRedundantWarning] = useState<{ count: number } | null>(null);
+  const [federationRedundantWarning, setFederationRedundantWarning] = useState<{ count: number; minSatellites?: number; selected?: number } | null>(null);
   /** 프리액션 모드: 내 상태창에서 자원/파워 숫자 클릭으로 즉시 변환 */
   // [사용자] FA 모드 기본 ON. 선택은 localStorage에 기억(끄면 유지), 미설정이면 ON.
   const [freeActionMode, setFreeActionMode] = useState(() => {
@@ -1509,7 +1509,7 @@ export default function Game() {
     });
 
     const unsubFedRedundant = GameClient.onFederationRedundantWarning((data) => {
-      setFederationRedundantWarning({ count: data?.count ?? 1 });
+      setFederationRedundantWarning({ count: data?.count ?? 1, minSatellites: data?.minSatellites, selected: data?.selected });
     });
 
     // 방장이 방을 삭제하면 방 안의 모두를 로비로 내보낸다
@@ -2282,7 +2282,7 @@ export default function Game() {
       //   서버가 federationPreview.redundant로 같은 계산을 미리 내려주므로 여기서 먼저 물어볼 수 있다.
       //   경고에서 OK를 누르면 force=true로 다시 들어와 이 분기를 건너뛰고 변환 단계로 넘어간다.
       const redundant = game.federationPreview?.redundant ?? 0;
-      if (!force && redundant > 0) { setFederationRedundantWarning({ count: redundant }); return; }
+      if (!force && redundant > 0) { setFederationRedundantWarning({ count: redundant, minSatellites: game.federationPreview?.minSatellites, selected: game.federationMode?.selectedHexIds?.length }); return; }
       if (converts > 0) { setConfirmOreToToken({ kind: 'federation', converts, need, force }); return; }
       // 서버가 조용히 회수하므로(게임 로그에만 남음) 여기서 이유를 알려준다
       const cash = predictBowl3Cash(need);
@@ -5294,7 +5294,9 @@ export default function Game() {
                   ⚠️ 위성이 필요 이상으로 포함됨
                 </AlertDialogTitle>
                 <AlertDialogDescription className="text-zinc-300">
-                  일부 위성을 제외해도 연방이 가능합니다.
+                  {federationRedundantWarning.minSatellites != null && federationRedundantWarning.selected != null && federationRedundantWarning.selected > federationRedundantWarning.minSatellites
+                    ? <>이 건물들은 위성 {federationRedundantWarning.minSatellites}개로 연결할 수 있습니다. (지금 선택 {federationRedundantWarning.selected}개)</>
+                    : <>일부 위성을 제외해도 연방이 가능합니다.</>}
                   <br />그래도 진행하시겠습니까?
                 </AlertDialogDescription>
               </AlertDialogHeader>

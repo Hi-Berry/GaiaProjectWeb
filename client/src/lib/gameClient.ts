@@ -721,7 +721,7 @@ export const GameClient = {
   },
 
   /** 연방 선언 시 불필요한 위성이 있을 때 서버가 보내는 경고 (force=true로 재요청하면 그대로 진행) */
-  onFederationRedundantWarning(callback: (data: { count: number }) => void) {
+  onFederationRedundantWarning(callback: (data: { count: number; minSatellites?: number; selected?: number }) => void) {
     const s = getSocket();
     s.on('federation_redundant_warning', callback);
     return () => s.off('federation_redundant_warning', callback);
