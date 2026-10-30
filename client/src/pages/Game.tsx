@@ -219,6 +219,16 @@ type PotentialAction =
   | { type: 'useSpecialAction', actionId: string }
   | { type: 'bonusAction' };
 
+/** [2026-10-31] 모바일 v2 패널 탭 — 탭줄 순서이자 좌우 스와이프 순서 */
+type V2Tab = 'players' | 'tech' | 'ships' | 'round' | 'log';
+const V2_TABS: { id: V2Tab; label: string }[] = [
+  { id: 'players', label: '플레이어' },
+  { id: 'tech', label: '기술' },
+  { id: 'ships', label: '우주선' },
+  { id: 'round', label: '라운드' },
+  { id: 'log', label: '로그' },
+];
+
 const MIN_MINI_WIDTH = 280;
 const MAX_MINI_WIDTH = 600;
 const MINI_CONTENT_BASE_WIDTH = 340;
@@ -533,7 +543,15 @@ export default function Game() {
     return () => window.removeEventListener('mobile-v2-change', onChange);
   }, []);
   /** v2 패널의 현재 탭 */
-  const [v2Tab, setV2Tab] = useState<'players' | 'tech' | 'ships' | 'round' | 'log'>('players');
+  const [v2Tab, setV2Tab] = useState<V2Tab>('players');
+  /** 마지막 탭 이동 방향 — 새 탭 내용이 그 방향에서 밀려 들어오게(스와이프 느낌) */
+  const [v2SlideFrom, setV2SlideFrom] = useState<'left' | 'right' | null>(null);
+  const goV2Tab = useCallback((next: V2Tab) => {
+    setV2Tab((cur) => {
+      if (cur !== next) setV2SlideFrom(V2_TABS.findIndex((t) => t.id === next) > V2_TABS.findIndex((t) => t.id === cur) ? 'right' : 'left');
+      return next;
+    });
+  }, []);
   /** v2 플레이어 탭에서 요약 줄 아래에 기존 상세 카드로 보여줄 사람(null이면 나, 관전자는 현재 차례) */
   const [v2DetailId, setV2DetailId] = useState<string | null>(null);
   /** 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글. 모바일·데스크톱 공통, 기본 숨김(사용자: 항상 떠있는 게 보기 안 좋음). localStorage 기억 */
@@ -646,6 +664,43 @@ export default function Game() {
     : sidebarWidth;
   /** v2에선 상태창(플레이어 탭)이 늘 떠 있다 — PC용 상태창 열림/닫힘 저장값과 무관 */
   const sidebarOpenEff = isSidebarOpen || mobileV2;
+  /** [사용자 2026-10-31 "탭들 간에 드래그로 이동돼야"] v2 패널(data-v2-panel)에서 좌우로 밀면 옆 탭으로.
+   *  세로 스크롤·길게 누르기·버튼 탭과 안 겹치게 가로 이동이 충분히 크고(60px) 세로보다 확실히 클 때만.
+   *  passive 리스너로 손 뗄 때만 판정 — 스크롤을 막지 않는다. 슬라이더(input range) 위에서 시작한 건 제외. */
+  useEffect(() => {
+    if (!mobileV2) return;
+    let start: { x: number; y: number; t: number } | null = null;
+    const onStart = (e: TouchEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.touches.length !== 1 || !el?.closest?.('[data-v2-panel]') || el.closest('input[type="range"]')) { start = null; return; }
+      start = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!start) return;
+      const tch = e.changedTouches[0];
+      const dx = tch.clientX - start.x, dy = tch.clientY - start.y;
+      const quick = Date.now() - start.t < 700;
+      start = null;
+      if (!quick || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      setV2Tab((cur) => {
+        const i = V2_TABS.findIndex((t) => t.id === cur);
+        const j = dx < 0 ? Math.min(V2_TABS.length - 1, i + 1) : Math.max(0, i - 1);
+        if (j !== i) setV2SlideFrom(dx < 0 ? 'right' : 'left');
+        return V2_TABS[j].id;
+      });
+    };
+    const onCancel = () => { start = null; };
+    window.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('touchend', onEnd, { passive: true });
+    window.addEventListener('touchcancel', onCancel, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onStart);
+      window.removeEventListener('touchend', onEnd);
+      window.removeEventListener('touchcancel', onCancel);
+    };
+  }, [mobileV2]);
+  /** 탭 내용이 들어올 때 슬라이드 애니메이션 클래스 */
+  const v2SlideCls = v2SlideFrom === 'right' ? 'animate-in fade-in-0 slide-in-from-right-8 duration-200' : v2SlideFrom === 'left' ? 'animate-in fade-in-0 slide-in-from-left-8 duration-200' : '';
   /** v2에선 로그가 별도 토글이 아니라 탭 */
   const logShown = mobileV2 ? v2Tab === 'log' : isLogPanelOpen;
   /** v2 플레이어 탭에서 카드를 펼쳐 둘 사람 — 고른 사람 → 나(좌석이 있으면) → 현재 차례 */
@@ -6354,6 +6409,7 @@ export default function Game() {
 
       {/* Right Sidebar — 분할 모드(세로 Info)에선 하단-우측 사분면(top-1/2 ~ bottom-0) */}
       <div
+        data-v2-panel={mobileV2 ? '' : undefined}
         className={`
         z-[80]
         transition-[transform,opacity] duration-300 ease-in-out
@@ -7769,13 +7825,7 @@ export default function Game() {
       {/* [사용자 2026-10-31] 모바일 v2 탭줄 — 세로: 하단 패널 위 가로 줄(더블터치 = 패널 전체화면), 가로: 오른쪽 패널 왼쪽 세로 줄.
           탭을 바꾸면 같은 자리(세로 하단 절반 / 가로 오른쪽 45%)에 상태창·기술·우주선·라운드·로그 중 하나만 크게 뜬다. */}
       {mobileV2 && game && (() => {
-        const tabs: { id: typeof v2Tab; label: string }[] = [
-          { id: 'players', label: '플레이어' },
-          { id: 'tech', label: '기술' },
-          { id: 'ships', label: '우주선' },
-          { id: 'round', label: '라운드' },
-          { id: 'log', label: '로그' },
-        ];
+        const tabs = V2_TABS;
         const tabCls = (on: boolean) => `flex items-center justify-center font-black leading-tight transition-colors ${on ? 'bg-blue-500/30 text-blue-50' : 'bg-zinc-900/95 text-zinc-400 active:bg-zinc-800'}`;
         const filterBtn = v2Tab === 'log' && (
           <button
@@ -7795,7 +7845,7 @@ export default function Game() {
               data-tour="mobile-tabs"
             >
               {tabs.map((t) => (
-                <button key={t.id} type="button" onClick={() => setV2Tab(t.id)} className={`flex-1 min-h-0 border-b border-white/10 text-[12px] px-0.5 ${tabCls(v2Tab === t.id)}`}>
+                <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`flex-1 min-h-0 border-b border-white/10 text-[12px] px-0.5 ${tabCls(v2Tab === t.id)}`}>
                   {t.label}
                 </button>
               ))}
@@ -7812,7 +7862,7 @@ export default function Game() {
             title="더블터치: 전체화면 전환"
           >
             {tabs.map((t) => (
-              <button key={t.id} type="button" onClick={() => setV2Tab(t.id)} className={`flex-1 h-full border-r border-white/10 last:border-r-0 text-[14px] ${tabCls(v2Tab === t.id)}`}>
+              <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`flex-1 h-full border-r border-white/10 last:border-r-0 text-[14px] ${tabCls(v2Tab === t.id)}`}>
                 {t.label}
               </button>
             ))}
@@ -7827,6 +7877,7 @@ export default function Game() {
         const z = w / MOBILE_PANEL_DESIGN_WIDTH;
         return (
           <div
+            data-v2-panel=""
             className={`md:hidden fixed right-0 z-[110] flex flex-col bg-card overflow-hidden ${myTurnEdgeClass} ${v2Landscape ? 'top-0 bottom-0 border-l border-border' : `${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} border-t border-border`}`}
             style={{ width: w, paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom }}
           >
@@ -7834,7 +7885,7 @@ export default function Game() {
               <div className="shrink-0 px-3 py-1 text-[11px] text-zinc-400 border-b border-white/10 bg-black/30">칸을 길게 누르면 사용 기록</div>
             )}
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar" onWheel={(e) => e.stopPropagation()}>
-              <div className="flex flex-col px-2 pt-2 pb-2" style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: z } as CSSProperties}>
+              <div key={v2Tab} className={`flex flex-col px-2 pt-2 pb-2 ${v2SlideCls}`} style={{ width: MOBILE_PANEL_DESIGN_WIDTH, zoom: z } as CSSProperties}>
                 {v2Tab === 'tech' && renderInfoResearch('tech')}
                 {v2Tab === 'ships' && renderInfoResearch('ships')}
                 {v2Tab === 'round' && renderInfoRoundBonus()}
@@ -7909,6 +7960,7 @@ export default function Game() {
       {/* 모바일: 로그 버튼 누르면 상태창 자리에 로그 오버레이. 세로(분할)에선 상태창과 동일한 하단-우측 사분면, 가로에선 우측 풀하이트. */}
       {isMobileViewport && logShown && game && (
         <div
+          data-v2-panel={mobileV2 ? '' : undefined}
           className={`md:hidden fixed z-[110] flex flex-col ${mobileV2 ? 'bg-card' : 'bg-card/95 backdrop-blur-sm'} overflow-hidden ${myTurnEdgeClass} ${splitActive ? `right-0 ${mobileZoomPanel === 'status' ? 'top-0 h-[100dvh] bottom-auto' : 'top-1/2 bottom-0'} ${mobileZoomPanel === 'info' ? 'hidden' : ''} border-t border-l border-border` : 'top-0 bottom-0 right-0 border-l border-border'}`}
           style={{ width: splitActive ? splitStatusWidth : effectiveSidebarWidth, paddingTop: mobilePanelPadTop, paddingBottom: mobilePanelPadBottom }}
         >
@@ -7918,7 +7970,7 @@ export default function Game() {
               ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / splitStatusZoom}%`, zoom: splitStatusZoom } as CSSProperties)
               : ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties)}
           >
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pt-2 pb-3" onWheel={(e) => e.stopPropagation()}>
+            <div className={`flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pt-2 pb-3 ${mobileV2 ? v2SlideCls : ''}`} onWheel={(e) => e.stopPropagation()}>
               {(!game.gameLog || game.gameLog.length === 0) ? (
                 <div className="text-center text-muted-foreground text-xs py-8">No actions yet</div>
               ) : (
