@@ -6550,6 +6550,29 @@ export default function Game() {
                               <span className="text-violet-400/70">{p.power1}</span>/<span>{p.power2}</span>/<span className="text-fuchsia-200">{p.power3}</span>
                             </span>
                           </div>
+                          {/* [사용자 2026-10-31] 건물 수·포머도 줄에서 바로 비교 — 카드와 같은 계산(건물: getStructureCountsForPlayer, 포머: 가이아 트랙 단계로 총수) */}
+                          {(() => {
+                            const c = getStructureCountsForPlayer(id === playerId ? game : (viewGame ?? game), id);
+                            const gp = p.research?.gaiaProject ?? 0;
+                            const totalGF = gp >= 4 ? 3 : gp >= 3 ? 2 : gp >= 1 ? 1 : 0;
+                            const lockedGF = p.faction === 'bal_tak' ? ((p as any).balTakGaiaformersUsedForQic ?? 0) : 0;
+                            const availGF = Math.max(0, (p.gaiaformers ?? 0) - lockedGF);
+                            const b = (label: string, n: number) => (
+                              <span className={n === 0 ? 'text-zinc-600' : 'text-zinc-200'}>{label}<span className="ml-px">{n}</span></span>
+                            );
+                            return (
+                              <div className="mt-1 flex items-center gap-2 text-[12px] font-bold tabular-nums leading-none">
+                                {b('M', c.physicalMineCount)}
+                                {b('TS', c.tsCount)}
+                                {b('Lab', c.labCount)}
+                                {b('PI', c.piCount)}
+                                {b('AC', c.academyLeft + c.academyRight)}
+                                <span className={`ml-auto ${totalGF === 0 ? 'text-zinc-600' : 'text-cyan-300'}`} title="쓸 수 있는 포머 / 전체">
+                                  포머 {totalGF === 0 ? '-' : `${availGF}/${totalGF}`}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </button>
                       );
                     })}
