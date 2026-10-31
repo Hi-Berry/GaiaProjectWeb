@@ -7847,8 +7847,9 @@ export default function Game() {
               data-tour="mobile-tabs"
             >
               {tabs.map((t) => (
-                <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`relative flex-1 min-h-0 border-b border-white/10 text-[12px] tracking-[0.15em] [writing-mode:vertical-rl] after:absolute after:inset-y-0 after:right-full after:w-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
-                  {t.label}
+                <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`relative flex-1 min-h-0 flex-col border-b border-white/10 text-[12px] leading-[1.1] after:absolute after:inset-y-0 after:right-full after:w-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
+                  {/* 세로쓰기(writing-mode)는 자간·글꼴에 따라 가운데가 틀어져 보여 — 글자를 한 줄에 하나씩 쌓아 정확히 가운데 정렬 */}
+                  {Array.from(t.label).map((ch, i) => <span key={i} className="block">{ch}</span>)}
                 </button>
               ))}
               {filterBtn}

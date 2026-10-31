@@ -57,7 +57,10 @@ function visibleWindowWidth(): number {
 function landscapeMobileViewportContent(pinch: boolean): string {
 	// 0.01 단위로 내림 — 1px 오차로 값이 흔들려 meta가 계속 바뀌는 것을 막고, 내림이라 폭은 760~767(md 미만)에 머문다
 	const scale = Math.floor((visibleWindowWidth() / LANDSCAPE_MOBILE_VIEWPORT_WIDTH) * 100) / 100;
-	return `width=${LANDSCAPE_MOBILE_VIEWPORT_WIDTH}, initial-scale=${scale}${pinch ? '' : `, maximum-scale=${scale}`}`;
+	// [사용자 2026-10-31 "자동회전으로 가로 되는 순간 오른쪽이 잘린다"] initial-scale을 직접 주면 회전 직후 아직 옛 폭으로 계산된
+	// 값이 크게 들어가 760 화면이 창보다 넓게 확대돼 오른쪽이 잘렸다. → initial-scale은 빼서 브라우저가 760 폭을 창에 맞춰
+	// 넣게 하고(잘림 없음), 계산값은 '이 이상 확대 금지' 상한으로만 쓴다. 상한이 작게 잡혀도 resize 때 다시 맞춘다.
+	return `width=${LANDSCAPE_MOBILE_VIEWPORT_WIDTH}${pinch ? '' : `, maximum-scale=${scale}`}`;
 }
 
 /**
@@ -111,6 +114,9 @@ export function installViewportOrientationListener(): void {
 		applyViewportMeta();
 		// matchMedia change가 안 오는 브라우저 대비(setPcViewMode와 같은 이유) — 레이아웃 재판정 강제
 		requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+		// 회전 애니메이션 도중엔 창 폭이 아직 옛 값일 수 있다 — 회전이 끝난 뒤 한 번 더 맞춘다
+		setTimeout(refit, 300);
+		setTimeout(refit, 800);
 	};
 	mql.addEventListener?.('change', onChange);
 	// 전체화면 진입/해제·주소창 접힘처럼 방향은 그대로인데 보이는 폭이 바뀌는 경우 — 가로 모바일일 때만 배율을 다시 맞춘다.
