@@ -198,12 +198,13 @@ export function setPcViewMode(on: boolean): void {
 /**
  * [사용자 2026-10-31] 모바일 모드 v2 — "모바일이 여전히 다 작다". 하단/측면을 좌우로 쪼개 308px 디자인을
  * 0.5배대로 줄이던 v1 대신, 패널 하나를 화면 폭 전체(세로) 또는 45%(가로)로 쓰고 탭(플레이어/기술/우주선/
- * 라운드/로그)으로 전환한다. 플레이어 탭은 큰 글씨 요약 줄 + 고른 사람의 기존 카드. 기본 켜짐, 끄면 v1.
+ * 라운드/로그)으로 전환한다. 플레이어 탭은 큰 글씨 요약 줄 + 고른 사람의 기존 카드.
+ * 기본은 v1 — v2는 직접 켠 사람('on')만 (사용자 2026-10-31: 아직 개선할 게 많다).
  */
-export const MOBILE_V2_KEY = 'mobile-ui-v2'; // 'on'(기본) | 'off'
+export const MOBILE_V2_KEY = 'mobile-ui-v2'; // 'on' | 'off'(기본)
 
 export function isMobileV2(): boolean {
-	try { return localStorage.getItem(MOBILE_V2_KEY) !== 'off'; } catch { return true; }
+	try { return localStorage.getItem(MOBILE_V2_KEY) === 'on'; } catch { return false; }
 }
 
 export function setMobileV2(on: boolean): void {

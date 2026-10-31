@@ -2260,6 +2260,26 @@ export default function Game() {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const stripRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const playerListScrollRef = useRef<HTMLDivElement | null>(null);
+  /** 모바일 상태창 상세 팝오버 위치(CSS 변수)를 카드 행 rect 기준으로 잡는다. 세로=행 Y, 가로=상태창 왼쪽에 붙임.
+   *  폭(288px×zoom)만큼 왼쪽에 두되, 화면 밖으로 나가면 8px로만 클램프.
+   *  [사용자 2026-10-31] v2 요약 줄로 열 때도 써야 한다 — 안 그러면 지난 위치(화면 맨 위 배너 뒤)에 떠서 한 번 더 눌러야 보였음. */
+  const placeMobileDetailPopover = (rect: DOMRect) => {
+    const top = Math.min(Math.max(8, rect.top), window.innerHeight - 120);
+    const zoom = playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom);
+    const popW = 288 * zoom; // w-72(288px) × zoom (padding 포함=border-box)
+    const left = Math.max(8, rect.left - popW - 4); // 상태창 왼쪽에 4px 간격, 넘치면 8px 클램프
+    document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(top)}px`);
+    document.documentElement.style.setProperty('--gp-detail-left', `${Math.round(left)}px`);
+    // [사용자] 아래쪽 카드(3·4번째) 클릭 시 팝오버가 화면 아래로 잘려 액션 선택 불가 →
+    // 렌더 후 실제 높이를 재서 전체가 화면 안에 들어오도록 top을 위로 재클램프
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = document.querySelector('[data-radix-popper-content-wrapper] > .gp-detail-mobile');
+      if (!el) return;
+      const h = el.getBoundingClientRect().height;
+      const fitTop = Math.max(8, Math.min(top, window.innerHeight - h - 8));
+      document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(fitTop)}px`);
+    }));
+  };
   const applyStripPos = useRef<() => void>(() => { });
   applyStripPos.current = () => {
     const cont = playerListScrollRef.current;
@@ -6541,7 +6561,12 @@ export default function Game() {
                           type="button"
                           // [사용자 2026-10-31 "다른 사람 상태창 누르면 상세 정보 나오는 거 아니야?"] 카드만 바꾸면 한 번 더 눌러야 했다
                           //   → 그 사람 카드로 바꾸면서 상세(팝오버)도 바로 연다. 카드가 위에 있으니 맨 위로 스크롤.
-                          onClick={() => { setV2DetailId(id); setExpandedPlayerId(id); playerListScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          onClick={() => {
+                            setV2DetailId(id); setExpandedPlayerId(id);
+                            playerListScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+                            // 카드가 새로 그려진 뒤 그 카드 위치로 상세 팝오버를 놓는다
+                            requestAnimationFrame(() => { const el = cardRefs.current[id]; if (el) placeMobileDetailPopover(el.getBoundingClientRect()); });
+                          }}
                           className={`w-full text-left rounded-lg border px-2 py-1.5 transition-colors active:scale-[0.99] ${isCur ? 'border-amber-400/80 bg-amber-500/10' : isMe ? 'border-primary/50 bg-primary/15' : 'border-border bg-muted/40'} ${p.hasPassed ? 'opacity-60' : ''}`}
                         >
                           <div className="flex items-center gap-1.5 min-w-0">
@@ -6558,9 +6583,19 @@ export default function Game() {
                             <span className="text-orange-300">O{p.ore}</span>
                             <span className="text-sky-300">K{p.knowledge}</span>
                             <span className="text-emerald-300">Q{p.qic}</span>
-                            <span className="ml-auto text-violet-300">
-                              <span className="text-violet-400/70">{p.power1}</span>/<span>{p.power2}</span>/<span className="text-fuchsia-200">{p.power3}</span>
-                            </span>
+                            {/* [사용자 2026-10-31] 타클론 브레인 스톤 위치도 줄에서 보이게 — 카드와 같은 자홍 채움 + 🧠 (가이아 구역이면 G🧠) */}
+                            {(() => {
+                              const bs = p.faction === 'taklons' ? (p as any).brainStoneInGaia ? 'G' : (p as any).brainStoneBowl as number | undefined : undefined;
+                              const bowl = (n: 1 | 2 | 3, v: number | undefined, cls: string) => (
+                                <span className={`${cls}${bs === n ? ' rounded bg-fuchsia-600/45 px-0.5' : ''}`}>{v}{bs === n && <span className="text-[10px]">🧠</span>}</span>
+                              );
+                              return (
+                                <span className="ml-auto text-violet-300">
+                                  {bs === 'G' && <span className="mr-1 text-emerald-300 text-[11px]">G🧠</span>}
+                                  {bowl(1, p.power1, 'text-violet-400/70')}/{bowl(2, p.power2, '')}/{bowl(3, p.power3, 'text-fuchsia-200')}
+                                </span>
+                              );
+                            })()}
                           </div>
                           {/* [사용자 2026-10-31] 건물 수·포머도 줄에서 바로 비교 — 카드와 같은 계산(건물: getStructureCountsForPlayer, 포머: 가이아 트랙 단계로 총수) */}
                           {(() => {
@@ -6870,24 +6905,7 @@ export default function Game() {
                           onClickCapture={(e) => {
                             // 모바일: 상세 팝오버 위치를 직접 계산. 세로=클릭한 행 Y, 가로=상태창 왼쪽에 자연스럽게 붙임.
                             //   폭(288px×zoom)만큼 왼쪽에 두되, 화면 밖으로 나가면 8px로만 클램프(불필요하게 끝까지 안 보냄).
-                            if (isMobileViewport) {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const top = Math.min(Math.max(8, rect.top), window.innerHeight - 120);
-                              const zoom = playerDetailScale * (splitActive ? splitStatusZoom : mobilePanelZoom);
-                              const popW = 288 * zoom; // w-72(288px) × zoom (padding 포함=border-box)
-                              const left = Math.max(8, rect.left - popW - 4); // 상태창 왼쪽에 4px 간격, 넘치면 8px 클램프
-                              document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(top)}px`);
-                              document.documentElement.style.setProperty('--gp-detail-left', `${Math.round(left)}px`);
-                              // [사용자] 아래쪽 카드(3·4번째) 클릭 시 팝오버가 화면 아래로 잘려 액션 선택 불가 →
-                              // 렌더 후 실제 높이를 재서 전체가 화면 안에 들어오도록 top을 위로 재클램프
-                              requestAnimationFrame(() => requestAnimationFrame(() => {
-                                const el = document.querySelector('[data-radix-popper-content-wrapper] > .gp-detail-mobile');
-                                if (!el) return;
-                                const h = el.getBoundingClientRect().height;
-                                const fitTop = Math.max(8, Math.min(top, window.innerHeight - h - 8));
-                                document.documentElement.style.setProperty('--gp-detail-top', `${Math.round(fitTop)}px`);
-                              }));
-                            }
+                            if (isMobileViewport) placeMobileDetailPopover(e.currentTarget.getBoundingClientRect());
                           }}
                           className={`w-full text-left flex items-stretch min-w-0 hover:bg-white/5 transition-colors focus:outline-none rounded-lg group ${hasPassed ? 'cursor-default' : ''}`}
                         >

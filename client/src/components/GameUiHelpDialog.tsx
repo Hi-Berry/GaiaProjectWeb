@@ -577,7 +577,7 @@ function TechViewSelector() {
 
 /** [사용자 2026-10-31] 모바일 v2(큰 글씨 탭 패널) ↔ v1(좌우 분할) 선택. Game.tsx와 localStorage+커스텀이벤트로 동기화. */
 function MobileV2Selector() {
-  const [on, setOn] = useState(true);
+  const [on, setOn] = useState(false);
   useEffect(() => { setOn(isMobileV2()); }, []);
   const choose = (v: boolean) => { setOn(v); setMobileV2(v); };
   const btnCls = (active: boolean) =>
