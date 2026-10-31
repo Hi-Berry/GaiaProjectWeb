@@ -29,11 +29,21 @@ export function applyViewportMeta(): void {
 	try { pinch = localStorage.getItem(PINCH_ZOOM_KEY) === 'on'; } catch { /* 접근 불가 시 기본값 */ }
 	// 줌 OFF면 maximum-scale=1로 브라우저 핀치줌을 막는다(맵 자체 줌을 쓰기 위함 — 기존 동작).
 	const noZoom = pinch ? '' : ', maximum-scale=1';
-	meta.setAttribute('content', isPcViewMode()
+	const content = isPcViewMode()
 		? `width=${PC_MODE_VIEWPORT_WIDTH}${noZoom}`
 		: shouldForceLandscapeMobile()
 		? landscapeMobileViewportContent(pinch)
-		: `width=device-width, initial-scale=1.0${noZoom}`);
+		: `width=device-width, initial-scale=1.0${noZoom}`;
+	// 같은 값이면 건드리지 않는다 — resize마다 다시 부르므로 불필요한 재배치/되먹임 방지
+	if (meta.getAttribute('content') !== content) meta.setAttribute('content', content);
+}
+
+/** 지금 실제로 보이는 창 폭(배율 1 기준 CSS px). viewport meta·핀치 배율과 무관한 값이어야 한다.
+ *  visualViewport.width × scale = 화면에 보이는 폭(배율을 곱해 되돌림). 없으면 기기 화면 긴 변. */
+function visibleWindowWidth(): number {
+	const vv = window.visualViewport;
+	if (vv && vv.width > 0 && vv.scale > 0) return Math.round(vv.width * vv.scale);
+	return Math.max(window.screen?.width ?? 0, window.screen?.height ?? 0) || window.innerWidth;
 }
 
 /**
@@ -41,9 +51,12 @@ export function applyViewportMeta(): void {
  * 760폭을 915px 화면에 채우려면 1.2배 확대가 필요한데 최대 배율 1에 막혀 브라우저가 폭을 915로 되돌린다(PC 모드는
  * 축소 방향이라 문제없었음). → 배율(긴 변/760)을 직접 계산해 initial-scale로 주고, 핀치줌 OFF면 maximum-scale도 같은 값으로 막는다.
  */
+/* [버그 2026-10-31 사용자 "가로에서 전체화면 하면 PC 화면이 된다"] 배율을 기기 화면 긴 변으로 계산했더니, 전체화면에서
+ * 주소창·내비게이션 바가 사라져 보이는 폭이 그보다 넓어지면 브라우저가 폭을 760÷배율 이상(768 초과)으로 잡아 PC 레이아웃이
+ * 됐다. → 지금 보이는 창 폭으로 계산하고, 전체화면 전환·resize 때마다 다시 맞춘다(installViewportOrientationListener). */
 function landscapeMobileViewportContent(pinch: boolean): string {
-	const long = Math.max(window.screen?.width ?? 0, window.screen?.height ?? 0) || window.innerWidth;
-	const scale = Math.round((long / LANDSCAPE_MOBILE_VIEWPORT_WIDTH) * 1000) / 1000;
+	// 0.01 단위로 내림 — 1px 오차로 값이 흔들려 meta가 계속 바뀌는 것을 막고, 내림이라 폭은 760~767(md 미만)에 머문다
+	const scale = Math.floor((visibleWindowWidth() / LANDSCAPE_MOBILE_VIEWPORT_WIDTH) * 100) / 100;
 	return `width=${LANDSCAPE_MOBILE_VIEWPORT_WIDTH}, initial-scale=${scale}${pinch ? '' : `, maximum-scale=${scale}`}`;
 }
 
@@ -100,6 +113,18 @@ export function installViewportOrientationListener(): void {
 		requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 	};
 	mql.addEventListener?.('change', onChange);
+	// 전체화면 진입/해제·주소창 접힘처럼 방향은 그대로인데 보이는 폭이 바뀌는 경우 — 가로 모바일일 때만 배율을 다시 맞춘다.
+	// 보이는 폭(visibleWindowWidth)은 meta를 바꿔도 그대로라 같은 문자열이 나와 되먹임이 생기지 않는다.
+	const refit = () => {
+		if (!shouldForceLandscapeMobile()) return;
+		const meta = document.querySelector('meta[name="viewport"]');
+		const before = meta?.getAttribute('content');
+		applyViewportMeta();
+		if (meta?.getAttribute('content') !== before) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+	};
+	window.addEventListener('resize', refit);
+	document.addEventListener('fullscreenchange', refit);
+	document.addEventListener('webkitfullscreenchange', refit);
 }
 
 /**
