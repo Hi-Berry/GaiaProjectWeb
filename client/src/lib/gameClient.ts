@@ -715,6 +715,12 @@ export const GameClient = {
     s.emit('federation_toggle_hex', { gameId, tileId });
   },
 
+  /** 지금 연방 선택을 최소 위성 배치로 교체 (위성 경고창 '최적 배치로 바꾸기') */
+  federationApplyOptimal(gameId: string) {
+    const s = getSocket();
+    s.emit('federation_apply_optimal', { gameId });
+  },
+
   federationComplete(gameId: string, force = false) {
     const s = getSocket();
     s.emit('federation_complete', { gameId, force });

@@ -5438,6 +5438,18 @@ export default function Game() {
                 <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                   취소 (위성 다시 선택)
                 </AlertDialogCancel>
+                {federationRedundantWarning.minSatellites != null && federationRedundantWarning.selected != null && federationRedundantWarning.selected > federationRedundantWarning.minSatellites && (
+                  <AlertDialogAction
+                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold"
+                    onClick={() => {
+                      GameClient.federationApplyOptimal(gameId);
+                      setFederationRedundantWarning(null);
+                      toast({ title: '최적 배치로 바꿨습니다', description: `위성 ${federationRedundantWarning.minSatellites}개 — 맵에서 확인 후 완료를 누르세요.` });
+                    }}
+                  >
+                    최적 배치로 바꾸기
+                  </AlertDialogAction>
+                )}
                 <AlertDialogAction
                   className="bg-amber-600 hover:bg-amber-500 text-white font-bold"
                   onClick={() => {

@@ -1795,16 +1795,26 @@ export function federationFormsWithoutSatellite(
  *  노드 가중 Steiner 트리(Dreyfus-Wagner): 내 미연방 건물=0(연방 밖 건물을 거쳐 더 짧으면 그게 최소 — 사용자 확정),
  *  위성 놓을 수 있는 빈 우주칸=1, 그 외 통과 불가. 터미널은 인접 건물끼리 묶은 덩어리. 덩어리가 너무 많으면(>10) null. */
 export function minFederationSatellites(game: ServerGameState, playerId: string, buildingIds: Set<string> | string[]): number | null {
+	return minFederationSatelliteLayout(game, playerId, buildingIds)?.count ?? null;
+}
+
+/** minFederationSatellites의 본체 — 개수와 함께 최적 위성 칸 목록(hexIds)도 돌려준다(경고창 '최적 배치로 바꾸기'용). */
+export function minFederationSatelliteLayout(game: ServerGameState, playerId: string, buildingIds: Set<string> | string[]): { count: number; hexIds: string[] } | null {
 	const fedHexes = new Set(game.playerFederationHexes?.[playerId] ?? []);
 	const sats = game.satellites || {};
 	const ownedBuilding = (t: HexTile) =>
 		(t.ownerId === playerId && t.structure != null && t.structure !== 'ship') ||
 		t.parasiticMine?.ownerId === playerId ||
 		t.spaceStation?.ownerId === playerId;
+	// [사용자 2026-10-31] 새 위성은 내 기존 연방(건물·위성) 옆 칸에 놓을 수 없다 — 그 칸을 지나는 '최적'은 실제로 못 쓴다
+	//   (실측: mks 테란 R6 18개 선언에 15개라 경고됐지만 15개 경로는 기존 연방 옆을 지나감).
+	const nearFed = new Set<string>();
+	for (const t of game.map) if (fedHexes.has(t.id)) for (const n of getNeighbors(game.map, t)) nearFed.add(n.id);
 	const cost = (t: HexTile): number => {
 		if (fedHexes.has(t.id)) return Infinity;
 		if (ownedBuilding(t)) return 0;
 		if ((t.type === 'space' || t.type === 'deep_space') && t.structure == null) {
+			if (nearFed.has(t.id)) return Infinity;
 			const on = sats[t.id];
 			const mine = Array.isArray(on) ? on.includes(playerId) : on === playerId;
 			return mine ? Infinity : 1;
@@ -1832,17 +1842,19 @@ export function minFederationSatellites(game: ServerGameState, playerId: string,
 		}
 	}
 	const K = terms.length;
-	if (K <= 1) return 0;
+	if (K <= 1) return { count: 0, hexIds: [] };
 	if (K > 10) return null;
 	const N = nodes.length, INF = 1e9, full = (1 << K) - 1;
 	const dp: number[][] = Array.from({ length: 1 << K }, () => new Array(N).fill(INF));
+	// 역추적: via[m][v] >= 0 → 부분집합 via로 쪼갬, <= -2 → 이웃 (-via-2)에서 넘어옴, -1 → 시작점
+	const via: Int32Array[] = Array.from({ length: 1 << K }, () => new Int32Array(N).fill(-1));
 	terms.forEach((v, i) => { dp[1 << i][v] = 0; });
 	for (let m = 1; m <= full; m++) {
 		const d = dp[m];
 		for (let s = (m - 1) & m; s > 0; s = (s - 1) & m) {
 			if (s < (m ^ s)) continue;
 			const a = dp[s], b = dp[m ^ s];
-			for (let v = 0; v < N; v++) { const c = a[v] + b[v] - w[v]; if (c < d[v]) d[v] = c; }
+			for (let v = 0; v < N; v++) { const c = a[v] + b[v] - w[v]; if (c < d[v]) { d[v] = c; via[m][v] = s; } }
 		}
 		// 가중치가 0/1뿐이라 0-1 BFS로 전파
 		const dq: number[] = [];
@@ -1852,11 +1864,28 @@ export function minFederationSatellites(game: ServerGameState, playerId: string,
 			const u = dq.shift()!;
 			for (const x of adj[u]) {
 				const c = d[u] + w[x];
-				if (c < d[x]) { d[x] = c; if (w[x] === 0) dq.unshift(x); else dq.push(x); }
+				if (c < d[x]) { d[x] = c; via[m][x] = -u - 2; if (w[x] === 0) dq.unshift(x); else dq.push(x); }
 			}
 		}
 	}
-	return Math.min(...dp[full]);
+	let best = 0;
+	for (let v = 1; v < N; v++) if (dp[full][v] < dp[full][best]) best = v;
+	if (!(dp[full][best] < INF)) return null; // 기존 연방 옆 금지 등으로 이을 길이 없음 → 판정 안 함
+	const picked = new Set<number>();
+	const stack: Array<[number, number]> = [[full, best]];
+	const visited = new Set<string>();
+	while (stack.length) {
+		const [m, v] = stack.pop()!;
+		const key = m + ':' + v;
+		if (visited.has(key)) continue;
+		visited.add(key);
+		picked.add(v);
+		const b = via[m][v];
+		if (b >= 0) { stack.push([b, v], [m ^ b, v]); }
+		else if (b <= -2) stack.push([m, -b - 2]);
+	}
+	const hexIds = Array.from(picked).filter(v => w[v] === 1).map(v => nodes[v].id);
+	return { count: dp[full][best], hexIds };
 }
 
 /** Ivits(하이브) 연방 연결성: 선택한 위성·건물·우주정거장이 (내 건물망 + 기존 연방 칸을 통과해) 하나로 연결되는지.
@@ -6738,6 +6767,25 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [낙관적 동기화] 토글 시퀀스 증가 → 클라가 자기 낙관 토글 수와 비교해 옛(stale) 패킷을 무시(rubber-banding 방지).
 			if (game.federationMode) game.federationMode.toggleSeq = (game.federationMode.toggleSeq ?? 0) + 1;
 			clampPlayerResources(game); emitGameUpdated(io, game);
+		});
+
+		// [사용자 2026-10-31] 위성 경고창 '최적 배치로 바꾸기': 지금 선택이 묶는 건물들을 최소 위성으로 잇는 배치로 선택을 교체.
+		//   경고만으론 어디가 최적인지 몰라서. 완료는 사용자가 맵에서 확인한 뒤 직접 누른다.
+		socket.on('federation_apply_optimal', ({ gameId }: { gameId: string }) => {
+			const game = games.get(gameId); if (!game) return;
+			if (game.currentPhase !== 'main') return;
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			const mode = game.federationMode;
+			if (!mode || mode.playerId !== playerId || game.pendingFederationReward) return;
+			if (game.players[playerId]?.faction === 'ivits') return;
+			const net = computeConnectedFederation(game, playerId, mode.selectedHexIds, mode.selectedSpaceStationHexIds ?? [], mode.selectedPlanetIds ?? []);
+			if (!net.connected) return;
+			const layout = minFederationSatelliteLayout(game, playerId, net.planetIds);
+			if (!layout || layout.count >= mode.selectedHexIds.length) return;
+			mode.selectedHexIds = layout.hexIds;
+			mode.toggleSeq = (mode.toggleSeq ?? 0) + 1;
+			game.federationPreview = computeFederationPreview(game, playerId);
+			emitGameUpdated(io, game);
 		});
 
 		socket.on('federation_complete', ({ gameId, force }: { gameId: string; force?: boolean }) => {
