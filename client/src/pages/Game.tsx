@@ -6490,8 +6490,10 @@ export default function Game() {
         {/* 종족 비딩 패널: 상태창+로그 영역을 통째로 덮는 오버레이(가운데 맵/미니뷰는 그대로 보임)
             [사용자 2026-10-18] 폰에선 '종족 비딩' 제목이 위의 상태창/로그 탭과 겹쳤다 — 패널이 absolute inset-0이라
             사이드바의 paddingTop(탭바 높이)을 무시했다. 폰이면 같은 만큼 위·아래를 띄운 상자 안에 넣는다. */}
-        {game.currentPhase === 'factionBidding' && (
-          <div className="absolute inset-x-0" style={isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: 0 }}>
+        {/* v2 가로: 비딩 중에도 기술·우주선·라운드·로그 탭을 누르면 비딩 화면을 내리고 그 구간을 보여준다(플레이어 탭이면 다시 비딩) */}
+        {game.currentPhase === 'factionBidding' && !(v2Landscape && v2Tab !== 'players') && (
+          // [사용자 2026-10-31 "비딩 화면이 잘린다"(가로)] v2 가로는 패널 왼쪽 28px이 탭 세로줄 자리 — 그만큼 비워 가려지지 않게
+          <div className="absolute right-0" style={{ left: v2Landscape ? V2_TAB_COL_W : 0, ...(isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: 0 }) }}>
             <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
           </div>
         )}
@@ -7659,10 +7661,10 @@ export default function Game() {
 
             {/* 모바일 v2 가로 이어보기 — 요약 줄(order-last) 아래로 기술·우주선·라운드·로그. 구간 제목은 위에 붙어(sticky) 지금 어디인지 보인다. */}
             {v2Landscape && (
-              <div className="order-last flex flex-col gap-5 flex-none -mx-3">
+              <div className="order-last flex flex-col gap-5 flex-none -mx-2">
                 {V2_TABS.filter((t) => t.id !== 'players').map((t) => (
                   <section key={t.id} ref={(el) => { v2SectionRefs.current[t.id] = el; }} className="flex flex-col">
-                    <div className="sticky -top-4 z-20 flex items-baseline gap-2 px-3 py-1.5 mb-1.5 bg-card border-b border-white/15 text-[14px] font-black text-blue-100">
+                    <div className="sticky -top-4 z-20 flex items-baseline gap-2 px-2 py-1.5 mb-1.5 bg-card border-b border-white/15 text-[14px] font-black text-blue-100">
                       {t.label}
                       {(t.id === 'tech' || t.id === 'ships') && <span className="text-[10px] font-normal text-zinc-400">칸을 길게 누르면 사용 기록</span>}
                     </div>

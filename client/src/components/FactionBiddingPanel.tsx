@@ -173,7 +173,9 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
   const panelPlayerOrder = playerIdsForFactionBiddingUi(game, fb);
 
   return (
-    <div className="absolute inset-0 z-[140] flex flex-col bg-zinc-950 border-l border-amber-500/40">
+    // [사용자 2026-10-31 "가로에서 비딩 화면이 잘린다"] 가로 폰은 높이가 낮아 위 제목·3삽 안내(shrink-0)가 높이를 다 먹으면
+    // 아래 종족 목록이 0px로 눌려 안 보였다 → 목록에 최소 높이를 주고, 넘치면 패널 전체가 스크롤되게.
+    <div className="absolute inset-0 z-[140] flex flex-col bg-zinc-950 border-l border-amber-500/40 overflow-y-auto custom-scrollbar">
       {bidJump && (
         <div key={bidJump.key} className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
           <div className="absolute inset-0 gaia-bid-flash" />
@@ -252,7 +254,7 @@ export function FactionBiddingPanel({ game, gameId, playerId }: Props) {
       })()}
 
       {/* 본문(스크롤) */}
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
+      <div className="flex-1 min-h-[16rem] overflow-y-auto custom-scrollbar p-3 space-y-3">
         {isPick && isMyPick && (
           <p className="text-center text-sm text-emerald-300">
             낙찰! 낙찰가 {fb.pendingWinningBid} VP — 아래 종족을 누른 뒤 턴 순서를 고르세요.
