@@ -553,7 +553,6 @@ export default function Game() {
     });
   }, []);
   /** v2 플레이어 탭에서 요약 줄 아래에 기존 상세 카드로 보여줄 사람(null이면 나, 관전자는 현재 차례) */
-  const [v2DetailId, setV2DetailId] = useState<string | null>(null);
   /** 맵 우측 세로 컨트롤(상태창 토글·배율·줌·리셋 등) 표시 여부. Menu 버튼으로 토글. 모바일·데스크톱 공통, 기본 숨김(사용자: 항상 떠있는 게 보기 안 좋음). localStorage 기억 */
   const [isMapControlsOpen, setIsMapControlsOpen] = useState(() => {
     try { return localStorage.getItem('map-controls-open') === 'on'; } catch { return false; }
@@ -733,10 +732,9 @@ export default function Game() {
     if (cont.scrollTop + cont.clientHeight >= cont.scrollHeight - 4) active = V2_TABS[V2_TABS.length - 1].id;
     setV2Tab((cur) => (cur === active ? cur : active));
   };
-  /** v2 플레이어 탭에서 카드를 펼쳐 둘 사람 — 고른 사람 → 나(좌석이 있으면) → 현재 차례 */
-  const v2DetailEffId = (v2DetailId && game?.players?.[v2DetailId] ? v2DetailId : null)
-    ?? (playerId && game?.players?.[playerId] && !isSpectator ? playerId : null)
-    ?? game?.turnOrder?.[game?.currentPlayerIndex ?? 0] ?? null;
+  // [사용자 2026-10-31] 위 큰 카드는 '내 것'으로 고정. 관전자(좌석 없음)는 카드 없이 4명 모두 같은 요약 줄.
+  //   요약 줄을 누르면 카드를 바꾸지 않고 그 사람 상세 팝오버만 연다.
+  const v2DetailEffId = (playerId && game?.players?.[playerId] && !isSpectator ? playerId : null);
   // 모바일: 내용을 디자인폭(308px)으로 렌더 후 zoom으로 축소 → 영역과 함께 글자도 줄어 안 겹침.
   const MOBILE_PANEL_DESIGN_WIDTH = 308;
   const mobilePanelZoom = isMobileViewport ? effectiveSidebarWidth / MOBILE_PANEL_DESIGN_WIDTH : 1;
@@ -6541,8 +6539,8 @@ export default function Game() {
 
 
               {/* [사용자 2026-10-31] 모바일 v2 — 다른 플레이어의 큰 글씨 요약 줄(점수·자원·파워·차례/패스).
-                  위에는 고른 한 명(기본: 나, 관전자는 현재 차례)의 기존 카드(액션 버튼·상세 팝오버 포함)가 오고,
-                  줄을 누르면 그 사람 카드로 바뀐다. order-last: DOM은 카드 목록 앞이지만 화면에선 카드 아래. */}
+                  위에는 내 기존 카드(액션 버튼·상세 팝오버 포함)가 오고(관전자는 카드 없이 4명 모두 요약 줄),
+                  줄을 누르면 그 사람 상세 팝오버가 열린다. order-last: DOM은 카드 목록 앞이지만 화면에선 카드 아래. */}
               {mobileV2 && game.currentPhase !== 'factionBidding' && (() => {
                 const order = [...(game.turnOrder ?? Object.keys(game.players))];
                 const currentId = game.turnOrder?.[game.currentPlayerIndex];
@@ -6559,13 +6557,13 @@ export default function Game() {
                         <button
                           key={id}
                           type="button"
-                          // [사용자 2026-10-31 "다른 사람 상태창 누르면 상세 정보 나오는 거 아니야?"] 카드만 바꾸면 한 번 더 눌러야 했다
-                          //   → 그 사람 카드로 바꾸면서 상세(팝오버)도 바로 연다. 카드가 위에 있으니 맨 위로 스크롤.
-                          onClick={() => {
-                            setV2DetailId(id); setExpandedPlayerId(id);
-                            playerListScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-                            // 카드가 새로 그려진 뒤 그 카드 위치로 상세 팝오버를 놓는다
-                            requestAnimationFrame(() => { const el = cardRefs.current[id]; if (el) placeMobileDetailPopover(el.getBoundingClientRect()); });
+                          // [사용자 2026-10-31] 줄을 누르면 위 카드는 그대로 두고 그 사람 상세 팝오버만 연다(다시 누르면 닫힘).
+                          //   팝오버는 그 사람의 숨긴 카드에 붙어 있으므로 위치는 이 줄 기준으로 잡는다.
+                          //   pointerdown을 막아야 열린 팝오버의 '바깥 클릭 닫기'가 먼저 닫아 버려 토글이 꼬이지 않는다.
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            placeMobileDetailPopover(e.currentTarget.getBoundingClientRect());
+                            setExpandedPlayerId((cur) => (cur === id ? null : id));
                           }}
                           className={`w-full text-left rounded-lg border px-2 py-1.5 transition-colors active:scale-[0.99] ${isCur ? 'border-amber-400/80 bg-amber-500/10' : isMe ? 'border-primary/50 bg-primary/15' : 'border-border bg-muted/40'} ${p.hasPassed ? 'opacity-60' : ''}`}
                         >
@@ -6651,8 +6649,9 @@ export default function Game() {
                 //   누구 차례인지(isCurrentTurn)·봇 여부는 실시간 game을 그대로 쓴다.
                 //   단 **내 카드는 항상 실시간** — 남의 턴 중에도 내가 리치(파워 수령)를 수락하면
                 //   그 결과가 바로 보여야 한다(내가 누른 것이 화면에 안 나타나면 고장으로 보인다).
-                // 모바일 v2: 카드는 요약 줄에서 고른 한 명만(나머지는 위 요약 줄로 충분)
-                if (mobileV2 && game.currentPhase !== 'factionBidding' && id !== v2DetailEffId) return null;
+                // 모바일 v2: 보이는 카드는 내 것 하나(관전자는 없음) — 나머지는 요약 줄로 충분
+                //   나머지 사람 카드는 숨겨서 렌더(요약 줄에서 열 상세 팝오버가 여기 붙어 있음)
+                const v2HiddenCard = mobileV2 && game.currentPhase !== 'factionBidding' && id !== v2DetailEffId;
                 const cardGame = (id === playerId ? game : (viewGame ?? game));
                 const p = cardGame.players[id] as PlayerState | undefined;
                 if (!p) return null;
@@ -6864,7 +6863,7 @@ export default function Game() {
                       ref={(el) => { cardRefs.current[id] = el; }}
                       onMouseEnter={() => setHoveredPlayerId(id)}
                       onMouseLeave={() => setHoveredPlayerId(null)}
-                      className={`rounded-lg border text-sm overflow-visible relative transition-all duration-300
+                      className={`${v2HiddenCard ? 'hidden ' : ''}rounded-lg border text-sm overflow-visible relative transition-all duration-300
                     ${isCurrentTurn && !hasPassed
                           ? 'border-amber-400/80 bg-amber-500/10 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
                           : isYou
