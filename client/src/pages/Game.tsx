@@ -684,12 +684,9 @@ export default function Game() {
       const quick = Date.now() - start.t < 700;
       start = null;
       if (!quick || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      setV2Tab((cur) => {
-        const i = V2_TABS.findIndex((t) => t.id === cur);
-        const j = dx < 0 ? Math.min(V2_TABS.length - 1, i + 1) : Math.max(0, i - 1);
-        if (j !== i) setV2SlideFrom(dx < 0 ? 'right' : 'left');
-        return V2_TABS[j].id;
-      });
+      const i = V2_TABS.findIndex((t) => t.id === v2TabRef.current);
+      const j = dx < 0 ? Math.min(V2_TABS.length - 1, i + 1) : Math.max(0, i - 1);
+      if (j !== i) v2SelectRef.current(V2_TABS[j].id);
     };
     const onCancel = () => { start = null; };
     window.addEventListener('touchstart', onStart, { passive: true });
@@ -703,8 +700,39 @@ export default function Game() {
   }, [mobileV2]);
   /** 탭 내용이 들어올 때 슬라이드 애니메이션 클래스 */
   const v2SlideCls = v2SlideFrom === 'right' ? 'animate-in fade-in-0 slide-in-from-right-8 duration-200' : v2SlideFrom === 'left' ? 'animate-in fade-in-0 slide-in-from-left-8 duration-200' : '';
-  /** v2에선 로그가 별도 토글이 아니라 탭 */
-  const logShown = mobileV2 ? v2Tab === 'log' : isLogPanelOpen;
+  /** v2에선 로그가 별도 토글이 아니라 탭(가로는 이어보기 안에 있어 오버레이 안 띄움) */
+  const logShown = mobileV2 ? v2Tab === 'log' && !v2Landscape : isLogPanelOpen;
+  /** [사용자 2026-10-31 "가로는 아래로 스크롤하면 탭 따라 계속 이어지게"] 가로 v2는 상태창 스크롤 안에
+   *  플레이어 → 기술 → 우주선 → 라운드 → 로그를 이어 붙인다. 탭(·좌우 밀기)은 그 구간으로 스크롤, 스크롤하면 보이는 구간의 탭이 켜진다. */
+  const v2SectionRefs = useRef<Partial<Record<V2Tab, HTMLElement | null>>>({});
+  /** 탭을 눌러 부드럽게 스크롤하는 동안엔 스크롤 위치로 탭을 바꾸지 않는다(중간 구간 탭이 깜빡이는 것 방지) */
+  const v2ScrollLockUntil = useRef(0);
+  const v2TabRef = useRef(v2Tab);
+  v2TabRef.current = v2Tab;
+  const v2SelectRef = useRef<(t: V2Tab) => void>(() => { });
+  v2SelectRef.current = (next: V2Tab) => {
+    if (!v2Landscape) { goV2Tab(next); return; }
+    const cont = playerListScrollRef.current;
+    const el = v2SectionRefs.current[next];
+    setV2Tab(next);
+    if (!cont) return;
+    v2ScrollLockUntil.current = Date.now() + 800;
+    // offsetTop은 zoom과 무관한 컨테이너 기준 값(컨테이너가 relative) — getBoundingClientRect는 zoom 처리 차이가 있어 안 씀
+    cont.scrollTo({ top: next === 'players' || !el ? 0 : Math.max(0, el.offsetTop - 4), behavior: 'smooth' });
+  };
+  /** 가로 이어보기 스크롤 → 지금 보이는 구간의 탭 켜기. 상태창 스크롤 div의 onScroll에 직접 단다(패널이 늦게 떠도 확실히 붙음) */
+  const onV2PanelScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!v2Landscape || Date.now() < v2ScrollLockUntil.current) return;
+    const cont = e.currentTarget;
+    let active: V2Tab = 'players';
+    for (const t of V2_TABS) {
+      const el = v2SectionRefs.current[t.id];
+      if (el && el.offsetTop <= cont.scrollTop + 40) active = t.id;
+    }
+    // 맨 끝까지 내렸으면 마지막 구간(로그가 짧아 위 기준에 안 걸려도)
+    if (cont.scrollTop + cont.clientHeight >= cont.scrollHeight - 4) active = V2_TABS[V2_TABS.length - 1].id;
+    setV2Tab((cur) => (cur === active ? cur : active));
+  };
   /** v2 플레이어 탭에서 카드를 펼쳐 둘 사람 — 고른 사람 → 나(좌석이 있으면) → 현재 차례 */
   const v2DetailEffId = (v2DetailId && game?.players?.[v2DetailId] ? v2DetailId : null)
     ?? (playerId && game?.players?.[playerId] && !isSpectator ? playerId : null)
@@ -3756,6 +3784,28 @@ export default function Game() {
     />
   );
 
+  /** 모바일 로그 내용 — 로그 오버레이와 v2 가로 이어보기 공용. 호출은 game 가드 내부에서만 */
+  const renderMobileGameLog = () => (!game!.gameLog || game!.gameLog.length === 0) ? (
+    <div className="text-center text-muted-foreground text-xs py-8">No actions yet</div>
+  ) : (
+    <GameLog
+      game={game!}
+      myPlayerId={playerId}
+      hideHeader
+      showToolbar={logFilterOpen}
+      className="w-full"
+      maxHeight="none"
+      textScale={logTextScale}
+      canRollback={!!(playerId && game!.players?.[playerId]) && ['main','startingMines','bonusSelection','factionBidding'].includes(String(game!.currentPhase))}
+      onRollbackToSeq={openRollbackRequest}
+      rollbackBadge={rollbackBadge}
+      onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
+      onEntryMouseLeave={() => setHighlightedTileId(null)}
+      onFedHexesMouseEnter={(pid, hexIds) => setHoveredLogFed({ playerId: pid, hexIds })}
+      onFedHexesMouseLeave={() => setHoveredLogFed(null)}
+    />
+  );
+
   /** 모바일 Info 오버레이 P3(라운드·보너스) — 가로/세로 모드 공용 */
   const renderInfoRoundBonus = () => (
     <div className="flex flex-col gap-4">
@@ -6452,7 +6502,7 @@ export default function Game() {
               ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / splitStatusZoom}%`, zoom: splitStatusZoom } as CSSProperties)
               : isMobileViewport ? ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties) : undefined}
           >
-            <div ref={playerListScrollRef} className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
+            <div ref={playerListScrollRef} className={`flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar ${v2Landscape ? 'relative overscroll-contain' : ''}`} onScroll={v2Landscape ? onV2PanelScroll : undefined}>
               {/* 연방 구현: GameBoard의 줌 컨트롤 좌측으로 이동됨 */}
 
 
@@ -7607,6 +7657,25 @@ export default function Game() {
               </div>
             </div>
 
+            {/* 모바일 v2 가로 이어보기 — 요약 줄(order-last) 아래로 기술·우주선·라운드·로그. 구간 제목은 위에 붙어(sticky) 지금 어디인지 보인다. */}
+            {v2Landscape && (
+              <div className="order-last flex flex-col gap-5 flex-none -mx-3">
+                {V2_TABS.filter((t) => t.id !== 'players').map((t) => (
+                  <section key={t.id} ref={(el) => { v2SectionRefs.current[t.id] = el; }} className="flex flex-col">
+                    <div className="sticky -top-4 z-20 flex items-baseline gap-2 px-3 py-1.5 mb-1.5 bg-card border-b border-white/15 text-[14px] font-black text-blue-100">
+                      {t.label}
+                      {(t.id === 'tech' || t.id === 'ships') && <span className="text-[10px] font-normal text-zinc-400">칸을 길게 누르면 사용 기록</span>}
+                    </div>
+                    {t.id === 'tech' && renderInfoResearch('tech')}
+                    {t.id === 'ships' && renderInfoResearch('ships')}
+                    {t.id === 'round' && renderInfoRoundBonus()}
+                    {t.id === 'log' && renderMobileGameLog()}
+                  </section>
+                ))}
+                {/* 좌하단 원형 버튼(채팅·프리액션)에 마지막 줄이 가리지 않게 */}
+                <div style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 3rem)' }} />
+              </div>
+            )}
             </div>
 
             {/* Game Log — 상태 영역 아래 항상 표시 (L키 하단시트와 별개, 데스크톱만) */}
@@ -7847,7 +7916,7 @@ export default function Game() {
               data-tour="mobile-tabs"
             >
               {tabs.map((t) => (
-                <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`relative flex-1 min-h-0 flex-col border-b border-white/10 text-[12px] leading-[1.1] after:absolute after:inset-y-0 after:right-full after:w-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
+                <button key={t.id} type="button" onClick={() => v2SelectRef.current(t.id)} className={`relative flex-1 min-h-0 flex-col border-b border-white/10 text-[12px] leading-[1.1] after:absolute after:inset-y-0 after:right-full after:w-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
                   {/* 세로쓰기(writing-mode)는 자간·글꼴에 따라 가운데가 틀어져 보여 — 글자를 한 줄에 하나씩 쌓아 정확히 가운데 정렬 */}
                   {Array.from(t.label).map((ch, i) => <span key={i} className="block">{ch}</span>)}
                 </button>
@@ -7865,7 +7934,7 @@ export default function Game() {
             title="더블터치: 전체화면 전환"
           >
             {tabs.map((t) => (
-              <button key={t.id} type="button" onClick={() => goV2Tab(t.id)} className={`relative flex-1 h-full border-r border-white/10 last:border-r-0 text-[13px] after:absolute after:inset-x-0 after:bottom-full after:h-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
+              <button key={t.id} type="button" onClick={() => v2SelectRef.current(t.id)} className={`relative flex-1 h-full border-r border-white/10 last:border-r-0 text-[13px] after:absolute after:inset-x-0 after:bottom-full after:h-2.5 after:content-[''] ${tabCls(v2Tab === t.id)}`}>
                 {t.label}
               </button>
             ))}
@@ -7875,7 +7944,7 @@ export default function Game() {
       })()}
 
       {/* 모바일 v2 — 기술/우주선/라운드 탭 내용. 플레이어 탭(상태창)·로그 탭과 같은 자리를 쓰고, 308px 디자인을 패널 폭에 맞춰 키운다. */}
-      {mobileV2 && game && (v2Tab === 'tech' || v2Tab === 'ships' || v2Tab === 'round') && (() => {
+      {mobileV2 && !v2Landscape && game && (v2Tab === 'tech' || v2Tab === 'ships' || v2Tab === 'round') && (() => {
         const w = v2Landscape ? effectiveSidebarWidth : winW;
         const z = w / MOBILE_PANEL_DESIGN_WIDTH;
         return (
@@ -7974,26 +8043,7 @@ export default function Game() {
               : ({ width: MOBILE_PANEL_DESIGN_WIDTH, height: `${100 / mobilePanelZoom}%`, zoom: mobilePanelZoom } as CSSProperties)}
           >
             <div className={`flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pt-2 pb-3 ${mobileV2 ? v2SlideCls : ''}`} onWheel={(e) => e.stopPropagation()}>
-              {(!game.gameLog || game.gameLog.length === 0) ? (
-                <div className="text-center text-muted-foreground text-xs py-8">No actions yet</div>
-              ) : (
-                <GameLog
-                  game={game}
-                  myPlayerId={playerId}
-                  hideHeader
-                  showToolbar={logFilterOpen}
-                  className="w-full"
-                  maxHeight="none"
-                  textScale={logTextScale}
-                  canRollback={!!(playerId && game.players?.[playerId]) && ['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))}
-                  onRollbackToSeq={openRollbackRequest}
-                  rollbackBadge={rollbackBadge}
-                  onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
-                  onEntryMouseLeave={() => setHighlightedTileId(null)}
-                  onFedHexesMouseEnter={(pid, hexIds) => setHoveredLogFed({ playerId: pid, hexIds })}
-                  onFedHexesMouseLeave={() => setHoveredLogFed(null)}
-                />
-              )}
+              {renderMobileGameLog()}
             </div>
           </div>
         </div>
