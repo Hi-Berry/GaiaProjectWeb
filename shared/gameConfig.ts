@@ -2732,6 +2732,56 @@ export function computeAdvancedTechPassVp(game: GaiaGameState, playerId: string)
   return results;
 }
 
+export interface TechTileImmediatePreview {
+  /** 세는 대상 (예: '가이아', '섹터') */
+  unit: string;
+  count: number;
+  /** 개당 보상 수치 */
+  per: number;
+  /** 보상 단위 (예: 'VP', 'O', 'K') */
+  reward: string;
+  /** 개수와 무관한 기본 보상 (인공물 '3+행성 유형'의 3) */
+  base?: number;
+}
+
+/** 즉시 효과 기술 타일·인공물을 '지금' 가져가면 받을 양 — 리서치 창 툴팁의 사람별 요약용.
+ *  셈 규칙은 서버 획득 처리(gameState.ts 일반 tech-imm-* / 고급 adv-imm-* / 인공물 art-vp-*)와 동일. 해당 없는 타일은 null. */
+export function techTileImmediatePreview(game: GaiaGameState, playerId: string, tileId: string): TechTileImmediatePreview | null {
+  const player = game.players[playerId];
+  if (!player) return null;
+  const own = (s: string) => game.map.filter(t => t.ownerId === playerId && t.structure === s).length;
+  switch (tileId) {
+    case 'tech-imm-1k-planet': return { unit: '행성 유형', count: getOwnedPlanetTypes(game, playerId).size, per: 1, reward: 'K' };
+    case 'adv-imm-1o-sector': return { unit: '섹터', count: countOccupiedSectors(game, playerId, 0, 9), per: 1, reward: 'O' };
+    case 'adv-imm-2vp-sector': return { unit: '섹터', count: countOccupiedSectors(game, playerId, 0, 9), per: 2, reward: 'VP' };
+    case 'adv-imm-4vp-outer': return { unit: '외곽 섹터', count: countOccupiedSectors(game, playerId, OUTER_SECTOR_RANGE.lo, OUTER_SECTOR_RANGE.hi), per: 4, reward: 'VP' };
+    case 'adv-imm-4vp-ts': return { unit: '무역소', count: own('trading_station'), per: 4, reward: 'VP' };
+    case 'adv-imm-2vp-mine': return { unit: '광산', count: getMineCountForPassAndBonuses(game, playerId), per: 2, reward: 'VP' };
+    case 'adv-imm-6vp-big': return { unit: '큰 건물', count: own('planetary_institute') + own('academy'), per: 6, reward: 'VP' };
+    case 'adv-imm-2vp-gaia': return { unit: '가이아', count: game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length, per: 2, reward: 'VP' };
+    case 'adv-imm-5vp-fed': return { unit: '연방', count: getFederationEntries(player).length, per: 5, reward: 'VP' };
+    case 'art-vp-science': return { unit: '과학 트랙', count: player.research?.science ?? 0, per: 3, reward: 'VP' };
+    case 'art-vp-gaia': return { unit: '가이아 트랙', count: player.research?.gaiaProject ?? 0, per: 3, reward: 'VP' };
+    case 'art-vp-tracks3': return { unit: '3단계 이상 트랙', count: (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const).filter((t) => (player.research?.[t] ?? 0) >= 3).length, per: 3, reward: 'VP' };
+    case 'art-vp-planet-types': return { unit: '행성 유형', count: getOwnedPlanetTypes(game, playerId).size, per: 1, reward: 'VP', base: 3 };
+    case 'art-vp-bridge': return { unit: '다리 섹터', count: countOccupiedSectors(game, playerId, OUTER_SECTOR_RANGE.lo, OUTER_SECTOR_RANGE.hi), per: 3, reward: 'VP' };
+    default: return null;
+  }
+}
+
+/** techTileImmediatePreview의 보상 총량 */
+export const immediatePreviewTotal = (p: TechTileImmediatePreview) => (p.base ?? 0) + p.count * p.per;
+
+/** title 속성(브라우저 기본 툴팁)용 사람별 요약 텍스트. 해당 없는 타일이면 '' */
+export function techTileImmediateSummaryText(game: GaiaGameState, tileId: string): string {
+  const rows = Object.keys(game.players).flatMap((pid) => {
+    const prev = techTileImmediatePreview(game, pid, tileId);
+    return prev ? [{ name: game.players[pid]?.name ?? pid, prev }] : [];
+  });
+  if (rows.length === 0) return '';
+  return `\n\n지금 가져가면 (${rows[0].prev.unit})\n${rows.map(({ name, prev }) => `${name}: ${prev.count}개 → +${immediatePreviewTotal(prev)}${prev.reward}`).join('\n')}`;
+}
+
 export interface PassScorePreview {
   bonusTile: PassBonusTileResult | null;
   advTiles: PassAdvTechResult[];

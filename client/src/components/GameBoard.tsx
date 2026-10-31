@@ -104,6 +104,7 @@ import {
   SECTOR_CENTERS,
   getGaiaBaseQic,
   ARTIFACTS,
+  techTileImmediateSummaryText,
   SHIP_TECH_BY_SHIP,
   SHIP_TECH_TILES,
   SPACESHIP_FEDERATION_REWARDS,
@@ -2772,7 +2773,7 @@ export function GameBoard({
                                     <button key={i} disabled={!canTake}
                                       onClick={() => { if (canTake) { onTakeTwilightArtifact!(aid); setSelectedTile(null); } }}
                                       className="h-12 p-0.5 rounded border border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-40"
-                                      title={`${art.label}: ${art.description}`}>
+                                      title={`${art.label}: ${art.description}${techTileImmediateSummaryText(game, art.id)}`}>
                                       {artImg ? <img src={artImg} alt={art.label} className="h-full w-full object-contain" /> : <span className="text-[8px]">{art.label}</span>}
                                     </button>
                                   );
@@ -2859,7 +2860,7 @@ export function GameBoard({
                                 return (
                                   <div key={i}
                                     className="h-12 p-0.5 rounded border border-purple-500/30 bg-purple-900/15 opacity-70"
-                                    title={`${art.label}: ${art.description}`}>
+                                    title={`${art.label}: ${art.description}${techTileImmediateSummaryText(game, art.id)}`}>
                                     {artImg ? <img src={artImg} alt={art.label} className="h-full w-full object-contain" /> : <span className="text-[8px]">{art.label}</span>}
                                   </div>
                                 );

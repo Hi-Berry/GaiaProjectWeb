@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { FlaskConical, Gift, Lock } from 'lucide-react';
 import type { GaiaGameState as GameState, ResearchTrack, TechTile } from '@shared/gameConfig';
 import { ActionHistoryTip, useActionHistory, powerKey, shipKey } from '@/components/ActionHistoryTip';
-import { FACTIONS, RESEARCH_TRACKS, SHIP_TECH_BY_SHIP, SHIP_TECH_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, FEDERATION_REWARDS, ARTIFACTS, getFirstTrackTile, countGreenFederations, isTechTileCovered, SPACESHIP_FEDERATION_REWARDS, getFederationEntries } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, SHIP_TECH_BY_SHIP, SHIP_TECH_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, FEDERATION_REWARDS, ARTIFACTS, getFirstTrackTile, countGreenFederations, isTechTileCovered, SPACESHIP_FEDERATION_REWARDS, getFederationEntries, techTileImmediatePreview, techTileImmediateSummaryText, immediatePreviewTotal } from '@shared/gameConfig';
 
 interface ResearchBoardProps {
     game: GameState;
@@ -184,6 +184,32 @@ const POWER_ACTION_BTN = {
     costUsed: 'text-zinc-600',
     panelAvailable: 'bg-amber-950/50 hover:bg-amber-900/55 border-amber-500/45 hover:border-amber-400/65',
 };
+
+/** [사용자 2026-11-01] 즉시 효과 기술 타일 툴팁 하단: 지금 가져가면 사람별로 몇 개 → 얼마 받는지 요약 */
+function TileImmediateCounts({ game, tileId }: { game: GameState; tileId?: string }) {
+    if (!tileId) return null;
+    const ids = Object.keys(game.players);
+    const rows = ids.map((pid) => ({ pid, prev: techTileImmediatePreview(game, pid, tileId) })).filter((r) => r.prev);
+    if (rows.length === 0) return null;
+    const unit = rows[0].prev!.unit;
+    return (
+        <div className="mt-1.5 pt-1 border-t border-white/10 space-y-0.5">
+            <div className="text-[8px] font-bold text-zinc-500">지금 가져가면 ({unit})</div>
+            {rows.map(({ pid, prev }) => {
+                const p = game.players[pid];
+                const color = FACTIONS.find((f) => f.id === p?.faction)?.color ?? '#888';
+                return (
+                    <div key={pid} className="flex items-center gap-1 text-[9px] leading-tight">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="truncate text-zinc-300 flex-1 min-w-0">{p?.name ?? pid}</span>
+                        <span className="text-zinc-400 tabular-nums">{prev!.count}개</span>
+                        <span className="text-amber-300 font-bold tabular-nums w-10 text-right">+{immediatePreviewTotal(prev!)}{prev!.reward}</span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
 
 export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHallasPIAction, onUseBalTakGaiaformerToQic, onGainTechTile, onUseTechAction, onAdvanceTech, onUseShipAction, onSelectTechTile, onSkipTechTileSelection, onSelectAdvancedTechTile, onConfirmAdvancedTechCover, onTakeTwilightArtifact, onUseAcademyQic, onEndTurn, onResetTurn, isMini, section = 'all', showPendingSelections }: ResearchBoardProps) {
     const showTech = section !== 'ships';
@@ -675,7 +701,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         <>
                                                             <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
                                                             <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none hidden group-hover:block z-[130]">
-                                                                <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}{canTakeAdvMini && <span className="text-cyan-400 block mt-0.5">클릭 시 획득 (일반 1개 덮기+연방 1)</span>}
+                                                                <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}{canTakeAdvMini && <span className="text-cyan-400 block mt-0.5">클릭 시 획득 (일반 1개 덮기+연방 1)</span>}<TileImmediateCounts game={game} tileId={advTile.id} />
                                                             </div>
                                                         </>
                                                     ) : advTile && isAdvTaken ? (
@@ -696,7 +722,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 <>
                                                     <img src={trackTile.image} alt={trackTile.label} className="w-full h-full object-contain" />
                                                     <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-[130] w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none">
-                                                        <span className="text-yellow-400 font-bold block mb-0.5">{trackTile.label}</span>{trackTile.description}
+                                                        <span className="text-yellow-400 font-bold block mb-0.5">{trackTile.label}</span>{trackTile.description}<TileImmediateCounts game={game} tileId={trackTile.id} />
                                                     </div>
                                                 </>
                                             ) : (
@@ -741,7 +767,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                     )}
                                                     <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
                                                         <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
-                                                            <span className="text-yellow-400 font-bold block mb-0.5">{tile.label}</span>{tile.description}
+                                                            <span className="text-yellow-400 font-bold block mb-0.5">{tile.label}</span>{tile.description}<TileImmediateCounts game={game} tileId={tile.id} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -778,6 +804,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
                                                                         <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>
                                                                         {advTile.description}
+                                                                        <TileImmediateCounts game={game} tileId={advTile.id} />
                                                                         <div className="mt-1 pt-1 border-t border-white/10 text-amber-400/80 text-[8px] font-bold">
                                                                             조건: {game.extraAdvancedTechCondition === '25vp' ? '진행 점수 25 VP 이상 도달' : '어떤 우주선이든 3회 진입 달성'}
                                                                         </div>
@@ -922,7 +949,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                             key={idx} 
                                                                             onClick={() => canTake && onTakeTwilightArtifact?.(aid)}
                                                                             className={`w-[54px] h-[35px] rounded-[2px] bg-purple-900/40 overflow-hidden border shadow-sm transition-all ${canTake ? 'border-purple-500 cursor-pointer hover:bg-purple-800/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]' : 'border-purple-500/20 cursor-default'}`}
-                                                                            title={art ? `${art.label}: ${art.description}` : ''}
+                                                                            title={art ? `${art.label}: ${art.description}${techTileImmediateSummaryText(game, art.id)}` : ''}
                                                                         >
                                                                             {artImgUrl && <img src={artImgUrl} alt="Art" className="w-full h-full object-contain" />}
                                                                         </div>
@@ -1078,6 +1105,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             <p className="text-[10px] text-zinc-300 leading-relaxed font-medium">
                                                                 {trackTile.description}
                                                             </p>
+                                                            <TileImmediateCounts game={game} tileId={trackTile.id} />
                                                         </div>
                                                     </div>
                                                 );
@@ -1269,6 +1297,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                     </div>
                                                                     <p className="text-[10px] font-bold text-zinc-100 mb-1">{advTile?.label}</p>
                                                                     <p className="text-[9px] text-zinc-400 leading-relaxed">{advTile?.description}</p>
+                                                                    <TileImmediateCounts game={game} tileId={advTile?.id} />
                                                                     {canTakeAdvanced && <p className="text-[9px] text-cyan-400 mt-1">클릭 시 이 타일 획득 (일반 타일 1개 덮기 + 연방 1 소모 + 트랙 1칸)</p>}
                                                                 </div>
                                                             </div>
@@ -1341,6 +1370,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:block z-[110] w-56 p-3 bg-zinc-950/95 backdrop-blur-md border border-yellow-500/30 rounded-xl shadow-2xl pointer-events-none">
                                                 <div className="text-[11px] font-black text-yellow-500 mb-1 uppercase tracking-wider pb-1.5 border-b border-white/5">{tile.label}</div>
                                                 <p className="text-[10px] text-zinc-300 leading-relaxed font-medium">{tile.description}</p>
+                                                <TileImmediateCounts game={game} tileId={tile.id} />
                                             </div>
                                         </div>
                                     );
@@ -1390,6 +1420,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                             </div>
                                             <button
                                                 type="button"
+                                                title={`${extra.label}: ${extra.description}${techTileImmediateSummaryText(game, extra.id)}`}
                                                 disabled={!canTakeExtra}
                                                 onClick={() => canTakeExtra && onSelectAdvancedTechTile(extra.id)}
                                                 className="w-full h-full min-h-[3.5rem] p-2 pt-6 pb-2 text-left flex flex-col justify-center hover:bg-cyan-500/10 disabled:opacity-60 disabled:cursor-default"
@@ -1624,7 +1655,7 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                                                     className="h-20 w-20 p-1 border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 disabled:opacity-100 disabled:cursor-default"
                                                                                     disabled={!canTake}
                                                                                     onClick={() => onTakeTwilightArtifact?.(aid)}
-                                                                                    title={`${art.label}: ${art.description}`}
+                                                                                    title={`${art.label}: ${art.description}${techTileImmediateSummaryText(game, art.id)}`}
                                                                                 >
                                                                                     {artImgUrl ? (
                                                                                         <img src={artImgUrl} alt={art.label} className="h-full w-full object-contain" />
