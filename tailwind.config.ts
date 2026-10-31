@@ -4,6 +4,11 @@ export default {
   darkMode: ["class"],
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
+    // [버그 2026-10-31 사용자 S22 "가로에서 전체보기 누르면 PC 화면이 된다"] 크롬은 전체화면 API 동안 viewport meta(폭 760)를
+    // 무시하고 실제 화면 폭(960 등)으로 그린다 → md(768) 미디어쿼리가 켜져 PC 레이아웃이 됐다. 그래서 md/lg는 아래 plugin에서
+    // 'html.force-mobile이 아닐 때만' 켜지는 변형으로 다시 만든다(viewMode.ts가 가로 폰 모바일 화면일 때 이 클래스를 붙임).
+    // sm·xl·2xl은 기존 값 그대로.
+    screens: { sm: "640px", xl: "1280px", "2xl": "1536px" },
     extend: {
       borderRadius: {
         lg: ".5625rem", /* 9px */
@@ -118,5 +123,14 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/typography"),
+    // md → lg 순서로 등록해야 CSS에서도 lg가 뒤에 나와 둘 다 맞을 때 lg가 이긴다(기존 screens 순서와 동일).
+    // :where()로 감싸 선택자 우선순위는 기존 md:/lg:와 같게 유지.
+    ({ addVariant }: { addVariant: (name: string, def: string) => void }) => {
+      addVariant("md", "@media (min-width: 768px) { :where(html:not(.force-mobile)) & }");
+      addVariant("lg", "@media (min-width: 1024px) { :where(html:not(.force-mobile)) & }");
+    },
+  ],
 } satisfies Config;

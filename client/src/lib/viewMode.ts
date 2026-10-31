@@ -29,13 +29,23 @@ export function applyViewportMeta(): void {
 	try { pinch = localStorage.getItem(PINCH_ZOOM_KEY) === 'on'; } catch { /* 접근 불가 시 기본값 */ }
 	// 줌 OFF면 maximum-scale=1로 브라우저 핀치줌을 막는다(맵 자체 줌을 쓰기 위함 — 기존 동작).
 	const noZoom = pinch ? '' : ', maximum-scale=1';
+	const forceMobile = !isPcViewMode() && shouldForceLandscapeMobile();
 	const content = isPcViewMode()
 		? `width=${PC_MODE_VIEWPORT_WIDTH}${noZoom}`
-		: shouldForceLandscapeMobile()
+		: forceMobile
 		? landscapeMobileViewportContent(pinch)
 		: `width=device-width, initial-scale=1.0${noZoom}`;
 	// 같은 값이면 건드리지 않는다 — resize마다 다시 부르므로 불필요한 재배치/되먹임 방지
 	if (meta.getAttribute('content') !== content) meta.setAttribute('content', content);
+	// 전체화면에선 크롬이 위 meta를 무시하고 실제 폭(768 이상)으로 그린다 — 이 클래스가 있으면 md:/lg:가 꺼지고(tailwind.config.ts)
+	// useIsMobile도 모바일로 본다. 그래서 전체화면이든 아니든 가로 폰 모바일 화면이 유지된다.
+	document.documentElement.classList.toggle(FORCE_MOBILE_CLASS, forceMobile);
+}
+
+/** 가로 폰 모바일 화면 강제 중 표시 — 화면 폭이 768 이상이어도 모바일 레이아웃 */
+export const FORCE_MOBILE_CLASS = 'force-mobile';
+export function isForcedMobile(): boolean {
+	return typeof document !== 'undefined' && document.documentElement.classList.contains(FORCE_MOBILE_CLASS);
 }
 
 /** 지금 실제로 보이는 창 폭(배율 1 기준 CSS px). viewport meta·핀치 배율과 무관한 값이어야 한다.
@@ -122,11 +132,11 @@ export function installViewportOrientationListener(): void {
 	// 전체화면 진입/해제·주소창 접힘처럼 방향은 그대로인데 보이는 폭이 바뀌는 경우 — 가로 모바일일 때만 배율을 다시 맞춘다.
 	// 보이는 폭(visibleWindowWidth)은 meta를 바꿔도 그대로라 같은 문자열이 나와 되먹임이 생기지 않는다.
 	const refit = () => {
-		if (!shouldForceLandscapeMobile()) return;
+		if (!shouldForceLandscapeMobile() && !isForcedMobile()) return;
 		const meta = document.querySelector('meta[name="viewport"]');
-		const before = meta?.getAttribute('content');
+		const before = `${meta?.getAttribute('content')}|${isForcedMobile()}`;
 		applyViewportMeta();
-		if (meta?.getAttribute('content') !== before) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+		if (`${meta?.getAttribute('content')}|${isForcedMobile()}` !== before) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 	};
 	window.addEventListener('resize', refit);
 	document.addEventListener('fullscreenchange', refit);
