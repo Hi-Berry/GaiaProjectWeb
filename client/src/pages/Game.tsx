@@ -6527,7 +6527,9 @@ export default function Game() {
                         <button
                           key={id}
                           type="button"
-                          onClick={() => setV2DetailId(id)}
+                          // [사용자 2026-10-31 "다른 사람 상태창 누르면 상세 정보 나오는 거 아니야?"] 카드만 바꾸면 한 번 더 눌러야 했다
+                          //   → 그 사람 카드로 바꾸면서 상세(팝오버)도 바로 연다. 카드가 위에 있으니 맨 위로 스크롤.
+                          onClick={() => { setV2DetailId(id); setExpandedPlayerId(id); playerListScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                           className={`w-full text-left rounded-lg border px-2 py-1.5 transition-colors active:scale-[0.99] ${isCur ? 'border-amber-400/80 bg-amber-500/10' : isMe ? 'border-primary/50 bg-primary/15' : 'border-border bg-muted/40'} ${p.hasPassed ? 'opacity-60' : ''}`}
                         >
                           <div className="flex items-center gap-1.5 min-w-0">
