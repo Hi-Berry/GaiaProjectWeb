@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { FlaskConical, Gift, Lock } from 'lucide-react';
 import type { GaiaGameState as GameState, ResearchTrack, TechTile } from '@shared/gameConfig';
 import { ActionHistoryTip, useActionHistory, powerKey, shipKey } from '@/components/ActionHistoryTip';
-import { FACTIONS, RESEARCH_TRACKS, SHIP_TECH_BY_SHIP, SHIP_TECH_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, FEDERATION_REWARDS, ARTIFACTS, getFirstTrackTile, countGreenFederations, isTechTileCovered, SPACESHIP_FEDERATION_REWARDS, getFederationEntries, techTileImmediatePreview, techTileImmediateSummaryText, immediatePreviewTotal } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, SHIP_TECH_BY_SHIP, SHIP_TECH_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, FEDERATION_REWARDS, ARTIFACTS, getFirstTrackTile, countGreenFederations, isTechTileCovered, SPACESHIP_FEDERATION_REWARDS, getFederationEntries, techTileImmediatePreview, techTileImmediateSummaryText, immediatePreviewTotal, immediatePreviewHeader } from '@shared/gameConfig';
 
 interface ResearchBoardProps {
     game: GameState;
@@ -185,16 +185,15 @@ const POWER_ACTION_BTN = {
     panelAvailable: 'bg-amber-950/50 hover:bg-amber-900/55 border-amber-500/45 hover:border-amber-400/65',
 };
 
-/** [사용자 2026-11-01] 즉시 효과 기술 타일 툴팁 하단: 지금 가져가면 사람별로 몇 개 → 얼마 받는지 요약 */
+/** [사용자 2026-11-01] 즉시/패스 효과 기술 타일 툴팁 하단: 사람별로 몇 개 → 얼마 받는지 요약 */
 function TileImmediateCounts({ game, tileId }: { game: GameState; tileId?: string }) {
     if (!tileId) return null;
     const ids = Object.keys(game.players);
     const rows = ids.map((pid) => ({ pid, prev: techTileImmediatePreview(game, pid, tileId) })).filter((r) => r.prev);
     if (rows.length === 0) return null;
-    const unit = rows[0].prev!.unit;
     return (
         <div className="mt-1.5 pt-1 border-t border-white/10 space-y-0.5">
-            <div className="text-[8px] font-bold text-zinc-500">지금 가져가면 ({unit})</div>
+            <div className="text-[8px] font-bold text-zinc-500">{immediatePreviewHeader(rows[0].prev!)}</div>
             {rows.map(({ pid, prev }) => {
                 const p = game.players[pid];
                 const color = FACTIONS.find((f) => f.id === p?.faction)?.color ?? '#888';

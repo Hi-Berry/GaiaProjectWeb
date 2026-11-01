@@ -2742,6 +2742,8 @@ export interface TechTileImmediatePreview {
   reward: string;
   /** 개수와 무관한 기본 보상 (인공물 '3+행성 유형'의 3) */
   base?: number;
+  /** 패스 시 점수 타일(adv-pass-*) — 즉시가 아니라 매 패스마다 받음 */
+  onPass?: boolean;
 }
 
 /** 즉시 효과 기술 타일·인공물을 '지금' 가져가면 받을 양 — 리서치 창 툴팁의 사람별 요약용.
@@ -2760,6 +2762,12 @@ export function techTileImmediatePreview(game: GaiaGameState, playerId: string, 
     case 'adv-imm-6vp-big': return { unit: '큰 건물', count: own('planetary_institute') + own('academy'), per: 6, reward: 'VP' };
     case 'adv-imm-2vp-gaia': return { unit: '가이아', count: game.map.filter(t => t.ownerId === playerId && t.type === 'gaia').length, per: 2, reward: 'VP' };
     case 'adv-imm-5vp-fed': return { unit: '연방', count: getFederationEntries(player).length, per: 5, reward: 'VP' };
+    // 패스 고급 타일: 셈 규칙은 computeAdvancedTechPassVp와 동일
+    case 'adv-pass-1vp-type': return { unit: '행성 유형', count: getOwnedPlanetTypes(game, playerId).size, per: 1, reward: 'VP', onPass: true };
+    case 'adv-pass-3vp-lab': return { unit: '연구소', count: own('research_lab'), per: 3, reward: 'VP', onPass: true };
+    case 'adv-pass-3vp-fed': return { unit: '연방', count: getFederationEntries(player).length, per: 3, reward: 'VP', onPass: true };
+    case 'adv-pass-2vp-asteroid': return { unit: '소행성', count: game.map.filter(t => t.ownerId === playerId && t.type === 'asteroid').length + (player.virtualMineAsteroid ? 1 : 0), per: 2, reward: 'VP', onPass: true };
+    case 'adv-pass-2vp-outer': return { unit: '외곽 섹터', count: countOccupiedSectors(game, playerId, OUTER_SECTOR_RANGE.lo, OUTER_SECTOR_RANGE.hi), per: 2, reward: 'VP', onPass: true };
     case 'art-vp-science': return { unit: '과학 트랙', count: player.research?.science ?? 0, per: 3, reward: 'VP' };
     case 'art-vp-gaia': return { unit: '가이아 트랙', count: player.research?.gaiaProject ?? 0, per: 3, reward: 'VP' };
     case 'art-vp-tracks3': return { unit: '3단계 이상 트랙', count: (['terraforming', 'navigation', 'artificialIntelligence', 'gaiaProject', 'economy', 'science'] as const).filter((t) => (player.research?.[t] ?? 0) >= 3).length, per: 3, reward: 'VP' };
@@ -2768,6 +2776,9 @@ export function techTileImmediatePreview(game: GaiaGameState, playerId: string, 
     default: return null;
   }
 }
+
+/** 요약 머리말 — 즉시 타일은 '지금 가져가면', 패스 타일은 '지금 패스하면' */
+export const immediatePreviewHeader = (p: TechTileImmediatePreview) => `${p.onPass ? '지금 패스하면' : '지금 가져가면'} (${p.unit})`;
 
 /** techTileImmediatePreview의 보상 총량 */
 export const immediatePreviewTotal = (p: TechTileImmediatePreview) => (p.base ?? 0) + p.count * p.per;
@@ -2779,7 +2790,7 @@ export function techTileImmediateSummaryText(game: GaiaGameState, tileId: string
     return prev ? [{ name: game.players[pid]?.name ?? pid, prev }] : [];
   });
   if (rows.length === 0) return '';
-  return `\n\n지금 가져가면 (${rows[0].prev.unit})\n${rows.map(({ name, prev }) => `${name}: ${prev.count}개 → +${immediatePreviewTotal(prev)}${prev.reward}`).join('\n')}`;
+  return `\n\n${immediatePreviewHeader(rows[0].prev)}\n${rows.map(({ name, prev }) => `${name}: ${prev.count}개 → +${immediatePreviewTotal(prev)}${prev.reward}`).join('\n')}`;
 }
 
 export interface PassScorePreview {
