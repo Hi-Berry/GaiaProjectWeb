@@ -407,7 +407,15 @@ export async function exportHumanGameDataset(game: GaiaGameState & {
   const storage = (process.env.HUMAN_LOG_STORAGE || '').toLowerCase();
   const hasSupabaseCreds = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (storage === 'supabase' || (hasSupabaseCreds && storage !== 'local')) {
-    await uploadToSupabase(payload);
+    // [사용자 2026-11-01] Supabase 무료 DB 용량 초과(104%) 등으로 업로드가 거부되면 기록이 통째로 사라지던 문제 →
+    //   실패 시 서버 디스크(data/human-games)에 남겨 rsync로 회수할 수 있게 한다.
+    try {
+      await uploadToSupabase(payload);
+    } catch (e) {
+      log(`${(e as Error)?.message} → 로컬 저장으로 대체`, 'error', payload.gameId);
+      writeLocalPayload(payload);
+      return;
+    }
     void triggerStatsRebuild(payload.gameId); // 업로드 성공 후 통계 사이트 재빌드 (fire-and-forget)
     return;
   }
