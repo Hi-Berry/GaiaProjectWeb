@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FlaskConical, Gift, Lock } from 'lucide-react';
 import type { GaiaGameState as GameState, ResearchTrack, TechTile } from '@shared/gameConfig';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { ActionHistoryTip, useActionHistory, powerKey, shipKey } from '@/components/ActionHistoryTip';
 import { FACTIONS, RESEARCH_TRACKS, SHIP_TECH_BY_SHIP, SHIP_TECH_TILES, ALL_TECH_TILES, ALL_ADVANCED_TECH_TILES, FEDERATION_REWARDS, ARTIFACTS, getFirstTrackTile, countGreenFederations, isTechTileCovered, SPACESHIP_FEDERATION_REWARDS, getFederationEntries, techTileImmediatePreview, techTileImmediateSummaryText, immediatePreviewTotal, immediatePreviewHeader } from '@shared/gameConfig';
 
@@ -207,6 +208,18 @@ function TileImmediateCounts({ game, tileId }: { game: GameState; tileId?: strin
                 );
             })}
         </div>
+    );
+}
+
+/** 미니 리서치 창 타일 툴팁 — 타일 칸이 overflow-hidden이라 안에 그린 툴팁이 잘려 안 보였다 → body로 포털해 그린다 */
+function MiniTileTip({ accent, side, children, content }: { accent: 'cyan' | 'yellow'; side: 'top' | 'bottom'; children: ReactElement; content: ReactNode }) {
+    return (
+        <Tooltip delayDuration={100}>
+            <TooltipTrigger asChild>{children}</TooltipTrigger>
+            <TooltipContent side={side} className={`w-48 p-2 bg-zinc-950 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal ${accent === 'cyan' ? 'border-cyan-500/30' : 'border-yellow-500/30'}`}>
+                {content}
+            </TooltipContent>
+        </Tooltip>
     );
 }
 
@@ -698,10 +711,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                 >
                                                     {advTile && !isAdvTaken && advTile.image ? (
                                                         <>
-                                                            <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
-                                                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none hidden group-hover:block z-[130]">
-                                                                <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}{canTakeAdvMini && <span className="text-cyan-400 block mt-0.5">클릭 시 획득 (일반 1개 덮기+연방 1)</span>}<TileImmediateCounts game={game} tileId={advTile.id} />
-                                                            </div>
+                                                            <MiniTileTip accent="cyan" side="top" content={<><span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>{advTile.description}{canTakeAdvMini && <span className="text-cyan-400 block mt-0.5">클릭 시 획득 (일반 1개 덮기+연방 1)</span>}<TileImmediateCounts game={game} tileId={advTile.id} /></>}>
+                                                                <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
+                                                            </MiniTileTip>
                                                         </>
                                                     ) : advTile && isAdvTaken ? (
                                                         <span className="text-[6px] text-cyan-600/60 uppercase font-black tracking-wider">획득</span>
@@ -719,10 +731,9 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                         >
                                             {trackTile?.image ? (
                                                 <>
-                                                    <img src={trackTile.image} alt={trackTile.label} className="w-full h-full object-contain" />
-                                                    <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-[130] w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal pointer-events-none">
-                                                        <span className="text-yellow-400 font-bold block mb-0.5">{trackTile.label}</span>{trackTile.description}<TileImmediateCounts game={game} tileId={trackTile.id} />
-                                                    </div>
+                                                    <MiniTileTip accent="yellow" side="bottom" content={<><span className="text-yellow-400 font-bold block mb-0.5">{trackTile.label}</span>{trackTile.description}<TileImmediateCounts game={game} tileId={trackTile.id} /></>}>
+                                                        <img src={trackTile.image} alt={trackTile.label} className="w-full h-full object-contain" />
+                                                    </MiniTileTip>
                                                 </>
                                             ) : (
                                                 <span className="text-[6px] text-zinc-700 opacity-30">—</span>
@@ -759,16 +770,13 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                         }
                                                     }}
                                                 >
-                                                    {tile.image ? (
-                                                        <img src={tile.image} alt={tile.label} className="w-full h-full object-contain" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{tile.label}</div>
-                                                    )}
-                                                    <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
-                                                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-yellow-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
-                                                            <span className="text-yellow-400 font-bold block mb-0.5">{tile.label}</span>{tile.description}<TileImmediateCounts game={game} tileId={tile.id} />
-                                                        </div>
-                                                    </div>
+                                                    <MiniTileTip accent="yellow" side="top" content={<><span className="text-yellow-400 font-bold block mb-0.5">{tile.label}</span>{tile.description}<TileImmediateCounts game={game} tileId={tile.id} /></>}>
+                                                        {tile.image ? (
+                                                            <img src={tile.image} alt={tile.label} className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{tile.label}</div>
+                                                        )}
+                                                    </MiniTileTip>
                                                 </div>
                                             ))}
                                         </div>
@@ -794,21 +802,20 @@ export function ResearchBoard({ game, playerId, onUsePowerAction, onUseHadschHal
                                                             <div className="w-full h-full flex items-center justify-center bg-black/50 text-[6px] text-cyan-600/70 font-black uppercase tracking-wider" title={`획득됨${Object.values(game.players).find(p => p.techTiles?.includes(advTile.id))?.name ? ` — ${Object.values(game.players).find(p => p.techTiles?.includes(advTile.id))!.name}` : ''}`}>획득됨</div>
                                                         ) : (
                                                             <>
-                                                                {advTile.image ? (
-                                                                    <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{advTile.label}</div>
-                                                                )}
-                                                                <div className="absolute top-0 left-0 w-full h-full hidden group-hover:block z-[130] pointer-events-none">
-                                                                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-48 p-2 bg-zinc-950 border border-cyan-500/30 rounded-lg shadow-2xl text-[9px] text-zinc-300 whitespace-normal">
-                                                                        <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>
-                                                                        {advTile.description}
-                                                                        <TileImmediateCounts game={game} tileId={advTile.id} />
-                                                                        <div className="mt-1 pt-1 border-t border-white/10 text-amber-400/80 text-[8px] font-bold">
-                                                                            조건: {game.extraAdvancedTechCondition === '25vp' ? '진행 점수 25 VP 이상 도달' : '어떤 우주선이든 3회 진입 달성'}
-                                                                        </div>
+                                                                <MiniTileTip accent="cyan" side="top" content={<>
+                                                                    <span className="text-cyan-400 font-bold block mb-0.5">{advTile.label}</span>
+                                                                    {advTile.description}
+                                                                    <TileImmediateCounts game={game} tileId={advTile.id} />
+                                                                    <div className="mt-1 pt-1 border-t border-white/10 text-amber-400/80 text-[8px] font-bold">
+                                                                        조건: {game.extraAdvancedTechCondition === '25vp' ? '진행 점수 25 VP 이상 도달' : '어떤 우주선이든 3회 진입 달성'}
                                                                     </div>
-                                                                </div>
+                                                                </>}>
+                                                                    {advTile.image ? (
+                                                                        <img src={advTile.image} alt={advTile.label} className="w-full h-full object-contain" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center text-[6px] text-zinc-500 text-center px-0.5 leading-none">{advTile.label}</div>
+                                                                    )}
+                                                                </MiniTileTip>
                                                             </>
                                                         );
                                                     })()}
