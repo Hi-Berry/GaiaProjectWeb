@@ -8,7 +8,7 @@
  *   (보류 선택을 신경망에 맡기면 판당 −11~12점 — RESULTS.md).
  * 안전: 라이브 상태는 절대 건드리지 않는다(prepareHeadless 복제본에서만 탐색). 실패·시간 초과·예외면 null →
  *   호출부가 기존 봇으로 폴백. 모델은 처음 쓸 때 한 번 불러온다.
- * 설정(환경변수): AI2_MODEL(정책, 기본 server/ai2/models/ai2_v4h10e.onnx) · AI2_VALUE_MODEL(가치, 기본 ai2_vnet3.onnx, none=끔) · AI2_SIMS(400) · AI2_MAX_MS(15000) — 2026-10-22 사용자 요청으로 160회·8초에서 상향(400회가 160회보다 중간 결과 +6.7)
+ * 설정(환경변수): AI2_MODEL(정책, 기본 server/ai2/models/ai2_v4h10e.onnx) · AI2_VALUE_MODEL(가치, 기본 ai2_vnet3.onnx, none=끔) · AI2_SIMS(400) · AI2_MAX_MS(30000) — 2026-10-22 160회·8초 → 400회·15초, 2026-11-01 상한 30초(사용자 요청: Render는 이 맥보다 ~10배 느려 15초에 탐색 ~100회. 빠른 서버는 400회를 상한 전에 끝내 영향 없음)
  */
 import * as path from 'path';
 import { BotAction } from '../ai/bot';
@@ -69,7 +69,7 @@ export async function ai2LiveDecide(game: ServerGameState, pid: string): Promise
 		const options = generateMoves(g, pid);
 		if (!options.length) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'no-options' };
 		const st = newPuctStats();
-		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 400), maxMs: Number(process.env.AI2_MAX_MS || 15000), valueNet: vn ?? undefined, earlyStop: process.env.AI2_EARLY_STOP !== '0' });
+		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 400), maxMs: Number(process.env.AI2_MAX_MS || 30000), valueNet: vn ?? undefined, earlyStop: process.env.AI2_EARLY_STOP !== '0' });
 		const action = await policy(g, { kind: 'main', playerId: pid, options });
 		return { action, ms: Date.now() - t0, sims: st.sims, options: options.length, reason: action ? undefined : 'no-pick' };
 	} catch (e) {
