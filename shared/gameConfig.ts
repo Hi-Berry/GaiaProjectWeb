@@ -179,7 +179,7 @@ export function endgameLeftoverUnits(game: GaiaGameState, pid: string, p: Player
  *   "3은 지금은 3인데 추후에는 2로 바꿀 예정" → 이 한 줄만 바꾸면 서버·클라·관리자 화면이 같이 바뀐다.
  *   관리자가 특정 사람의 잔여 횟수를 고치면 그 사람만 따로 한도가 붙는다(rollbackUsage.limitByPlayer).
  */
-export const ROLLBACK_LIMIT_PER_PLAYER = 3;
+export const ROLLBACK_LIMIT_PER_PLAYER = 2; // [사용자 2026-11-02] 3 → 2
 
 /** 롤백 요청 사유 — 요청 창에서 고르고, 다른 사람들 동의 창에 그대로 뜬다. 'custom'만 직접 입력. */
 export const ROLLBACK_REASONS = [
