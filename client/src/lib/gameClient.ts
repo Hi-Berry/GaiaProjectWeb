@@ -490,6 +490,17 @@ export const GameClient = {
     });
   },
 
+  /** GM/Admin: 관전자 강퇴 — 방에서 내보내고 같은 브라우저로는 다시 관전 못 하게 막는다 */
+  adminKickSpectator(gameId: string, spectatorId: string, adminCode: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('admin_kick_spectator', { gameId, spectatorId, adminCode }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve(response?.name ?? '관전자');
+      });
+    });
+  },
+
   /** GM/Admin: 연방 토큰의 초록/빨강 상태 토글 (이미 뒤집힌 연방을 다시 초록으로 되돌리기 등) */
   adminToggleFederationGreen(gameId: string, targetPlayerId: string, federationIndex: number, adminCode: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
@@ -837,6 +848,12 @@ export const GameClient = {
     const s = getSocket();
     s.on('connect', callback);
     return () => s.off('connect', callback);
+  },
+
+  onSpectatorKicked(callback: (payload: { gameId: string }) => void) {
+    const s = getSocket();
+    s.on('spectator_kicked', callback);
+    return () => s.off('spectator_kicked', callback);
   },
 
   onGameDeleted(callback: (payload: { gameId: string }) => void) {

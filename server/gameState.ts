@@ -861,6 +861,7 @@ const _netOutAtGameStart = new Map<string, number>();
  *  게임 종료 경로엔 이미 정리가 있지만 '방 삭제'는 그 경로를 안 탄다. */
 function clearGameMeasurementState(gameId: string): void {
 	rollbackCounts.delete(gameId);   // 방이 사라지면 집계도 버린다(모듈 레벨 Map이라 안 지우면 누수)
+	kickedSpectators.delete(gameId);
 	chatHistories.delete(gameId);
 	chatBlocks.delete(gameId);
 	_emitPrev.delete(gameId);
@@ -886,6 +887,8 @@ const CHAT_HISTORY_CAP = 100;
 const chatHistories = new Map<string, ChatMsg[]>();
 const chatBlocks = new Map<string, Set<string>>(); // gameId → 채팅 차단된 관전자 id
 const chatBlockRoom = (gameId: string) => `chatblock:${gameId}`;
+/** [사용자 2026-11-02] 관리자가 강퇴한 관전자 id — 같은 브라우저(저장된 관전 id)로 다시 관전하려 하면 막는다 */
+const kickedSpectators = new Map<string, Set<string>>(); // gameId → 강퇴된 관전자 id
 function chatHistoryOf(game: GaiaGameState): ChatMsg[] {
 	let h = chatHistories.get(game.id);
 	if (!h) {
@@ -4363,6 +4366,33 @@ export function setupGameServer(httpServer: HTTPServer) {
 			executeBotTurnIfNeeded(io, game as ServerGameState).catch(() => { });
 		});
 
+		/* [사용자 2026-11-02] 관리자: 관전자 강퇴. 방에서 내보내고 재접속 명단에서도 지운다.
+		   같은 브라우저가 저장된 관전 id 로 다시 들어오려 하면 watch_game 에서 막는다(브라우저 저장소를 지우면 새로 들어올 수는 있다). */
+		socket.on('admin_kick_spectator', ({ gameId, spectatorId, adminCode }: { gameId: string; spectatorId: string; adminCode: string }, callback?: (r: { ok?: boolean; name?: string; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			if (adminCode !== '0011') { callback?.({ error: 'Invalid admin password' }); return; }
+			if (!game.spectatorIds?.includes(spectatorId)) { callback?.({ error: '이 방의 관전자가 아닙니다.' }); return; }
+			const name = (game as any).spectatorNames?.[spectatorId] ?? '관전자';
+			let kicked = kickedSpectators.get(gameId);
+			if (!kicked) { kicked = new Set(); kickedSpectators.set(gameId, kicked); }
+			kicked.add(spectatorId);
+			for (const t of socketsOfSpectator(io, spectatorId)) {
+				t.emit('spectator_kicked', { gameId });
+				t.leave(gameId);
+				t.leave(chatBlockRoom(gameId));
+				socketToSpectatorMap.delete(t.id);
+			}
+			spectatorToGameMap.delete(spectatorId);
+			game.spectatorIds = game.spectatorIds.filter((id) => id !== spectatorId);
+			if ((game as any).spectatorNames) delete (game as any).spectatorNames[spectatorId];
+			setSpectatorConnected(game, spectatorId, false);
+			chatBlocks.get(gameId)?.delete(spectatorId);
+			log(`Admin: spectator kicked ${name} (${spectatorId})`, 'game', gameId);
+			emitGameUpdated(io, game); // 관전자 목록 갱신
+			callback?.({ ok: true, name });
+		});
+
 		socket.on('watch_game', ({ gameId, name, spectatorId: prevId }: { gameId: string; name?: string; spectatorId?: string }, callback) => {
 			const game = games.get(gameId);
 			if (!game) { callback({ error: 'Game not found' }); return; }
@@ -4390,6 +4420,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			//   ② 예전에 이 게임에서 쓰던 관전 ID를 클라가 보내오면 그대로 재사용한다(새로 만들지 않음).
 			//      rejoin_game 대신 watch_game으로 재사용하는 이유: 이름을 바꿔 다시 관전할 때
 			//      새 이름이 반영되어야 하는데 rejoin_game은 이름을 받지 않는다.
+			// [사용자 2026-11-02] 관리자에게 강퇴된 관전 id 로는 다시 관전할 수 없다
+			if (typeof prevId === 'string' && kickedSpectators.get(gameId)?.has(prevId)) { callback({ error: '관리자에 의해 이 방 관전이 제한되었습니다.' }); return; }
 			const reusable = typeof prevId === 'string' && game.spectatorIds?.includes(prevId) ? prevId : null;
 			const spectatorId = reusable ?? ('spec-' + generatePlayerId());
 			if (!game.spectatorIds) game.spectatorIds = [];

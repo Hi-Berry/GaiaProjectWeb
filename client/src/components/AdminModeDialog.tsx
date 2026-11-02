@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getFederationEntries, getRollbackQuota, ROLLBACK_LIMIT_PER_PLAYER } from '@shared/gameConfig';
+import { getFederationEntries, getRollbackQuota, isHiddenSpectatorName, ROLLBACK_LIMIT_PER_PLAYER } from '@shared/gameConfig';
 
 const ADMIN_PASSWORD = '0011';
 
@@ -349,6 +349,60 @@ function ForceEndGameButton({ gameId, ended }: { gameId: string; ended: boolean 
   );
 }
 
+/* [사용자 2026-11-02] "관리자 모드 들어가면 관전자 강퇴시킬 수 있는 기능" — 이름 있는 관전자(접속 중·나감 모두)를 나열 */
+function KickSpectatorPanel({ game }: { game: GameState }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  const g = game as unknown as { spectatorNames?: Record<string, string>; connectedSpectators?: string[] };
+  const online = new Set(g.connectedSpectators ?? []);
+  const specs = Object.entries(g.spectatorNames ?? {})
+    .filter(([, name]) => !!name && !isHiddenSpectatorName(name))
+    .sort(([a], [b]) => Number(online.has(b)) - Number(online.has(a)));
+
+  const kick = async (spectatorId: string, name: string) => {
+    if (!window.confirm(`${name}님을 강퇴할까요? 이 방에서 나가게 되고, 같은 브라우저로는 다시 관전할 수 없습니다.`)) return;
+    setBusy(spectatorId);
+    setMessage('');
+    try {
+      await GameClient.adminKickSpectator(game.id, spectatorId, ADMIN_PASSWORD);
+      setMessage(`${name}님을 강퇴했습니다.`);
+    } catch (err: any) {
+      setMessage(err?.message || '실패');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-3 space-y-2">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-red-300">관전자 강퇴</div>
+        <div className="text-[10px] text-zinc-400">누른 관전자를 방에서 내보내고, 같은 브라우저로는 다시 관전하지 못하게 막습니다.</div>
+      </div>
+      {specs.length === 0 ? (
+        <div className="text-[11px] text-zinc-500">관전자가 없습니다.</div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {specs.map(([id, name]) => (
+            <Button
+              key={id}
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-red-500/40 text-red-200 hover:bg-red-500/20"
+              disabled={busy !== null}
+              onClick={() => kick(id, name)}
+            >
+              {busy === id ? '강퇴 중…' : `${name}${online.has(id) ? '' : ' (나감)'}`}
+            </Button>
+          ))}
+        </div>
+      )}
+      {message && <div className="text-[10px] text-zinc-400">{message}</div>}
+    </div>
+  );
+}
+
 function RollbackTurnPanel({ game }: { game: GameState }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -644,6 +698,7 @@ export function AdminModeDialog({ open, onOpenChange, game }: AdminModeDialogPro
               <RollbackTurnPanel game={game} />
               <RollbackQuotaPanel game={game} />
               <FederationTogglePanel game={game} />
+              <KickSpectatorPanel game={game} />
               {Object.entries(game.players).map(([pid, player]) => (
                 <PlayerAdminEditor key={pid} gameId={game.id} playerId={pid} player={player} />
               ))}

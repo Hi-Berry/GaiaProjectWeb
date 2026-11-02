@@ -394,7 +394,8 @@ export default function Game() {
          → 입력한 이름(없으면 이 기기에 저장된 이름, 그것도 없으면 '관전자')을 실어 보내고,
            실패 사유는 토스트 대신 모달 안에도 띄운다. */
       const name = rejoinName.trim() || (localStorage.getItem('gaia-playerName') || '').trim() || '관전자';
-      const res = await GameClient.watchGame(gameId, name);
+      // 저장된 관전 id 를 함께 보낸다 — 관리자에게 강퇴된 브라우저가 이 버튼으로 새 id 를 받아 다시 들어오지 못하게
+      const res = await GameClient.watchGame(gameId, name, getStoredSpectatorId(gameId) ?? undefined);
       localStorage.setItem('gaia-playerName', name);
       storeSpectatorId(gameId, res.spectatorId);
       window.location.reload(); // 저장된 관전 ID로 정상 관전 부트
@@ -1630,6 +1631,13 @@ export default function Game() {
       setLocation('/');
     });
 
+    /* [사용자 2026-11-02] 관리자 강퇴 — 로비로 돌려보낸다. 저장된 관전 id 는 지우지 않는다(서버가 그 id 로 재입장을 막는다). */
+    const unsubKicked = GameClient.onSpectatorKicked((payload) => {
+      if (payload?.gameId && payload.gameId !== gameId) return;
+      toast({ title: '관전이 종료되었습니다', description: '관리자에 의해 이 방에서 강퇴되었습니다.', variant: 'destructive' });
+      setLocation('/');
+    });
+
     return () => {
       if (uiRaf != null) cancelAnimationFrame(uiRaf);
       window.clearInterval(bgWatchdog);
@@ -1645,6 +1653,7 @@ export default function Game() {
       unsubGameError();
       unsubFedRedundant();
       unsubDeleted();
+      unsubKicked();
     };
   }, [gameId, playerId, toast]);
 
