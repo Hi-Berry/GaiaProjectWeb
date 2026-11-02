@@ -311,6 +311,12 @@ export function ChatPanel({ gameId, game, canChat, selfId, infoButtonHidden }: C
                     >
                         <span className="text-xs font-black uppercase tracking-widest text-zinc-200 flex items-center gap-1.5 min-w-0">
                             <span className="text-zinc-500">⠿</span>채팅
+                            {/* [사용자 2026-11-02] 관전자 채팅 분리 방 — 지금 누구끼리의 채팅인지 표시 */}
+                            {game.separateSpectatorChat && (
+                                <span className="normal-case tracking-normal font-medium text-[10px] text-sky-300/90 shrink-0">
+                                    {game.players?.[selfId ?? ''] ? '[플레이어끼리]' : '[관전자끼리]'}
+                                </span>
+                            )}
                             {/* [사용자 2026-08-01] 현재 관전 중인 사람 표시 — 서버 connectedSpectators(접속 중) × spectatorNames */}
                             {(() => {
                                 const g = game as unknown as { connectedSpectators?: string[]; spectatorNames?: Record<string, string> };

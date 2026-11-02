@@ -263,6 +263,16 @@ export const GameClient = {
     });
   },
 
+  setSeparateSpectatorChat(gameId: string, separate: boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('set_separate_spectator_chat', { gameId, separate }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve();
+      });
+    });
+  },
+
   factionBidRaise(gameId: string, newBid: number) {
     const s = getSocket();
     s.emit('faction_bid_raise', { gameId, newBid });

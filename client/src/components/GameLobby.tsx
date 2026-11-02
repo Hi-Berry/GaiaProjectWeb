@@ -228,6 +228,22 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
                     친선전 (기록 사이트에 자동 저장되지 않습니다)
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2 rounded-lg border border-sky-500/30 bg-sky-950/20 px-3 py-2">
+                  <Checkbox
+                    id="separate-spectator-chat"
+                    checked={!!game.separateSpectatorChat}
+                    onCheckedChange={async (v) => {
+                      try {
+                        await GameClient.setSeparateSpectatorChat(gameId, v === true);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="separate-spectator-chat" className="text-sm cursor-pointer leading-tight">
+                    관전자 채팅 분리 (플레이어끼리·관전자끼리만 채팅)
+                  </Label>
+                </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   {game.aiBotsAllowed !== false && (
                     <Button
@@ -261,6 +277,9 @@ export function GameLobby({ game, gameId, playerId, isSpectator, onStartGame, on
                   </div>
                   <div className={game.friendlyMatch ? 'text-emerald-300 font-bold' : 'text-zinc-500'}>
                     {game.friendlyMatch ? '☑' : '☐'} 친선전 {game.friendlyMatch ? '(기록 미저장)' : '(기록 저장)'}
+                  </div>
+                  <div className={game.separateSpectatorChat ? 'text-sky-300 font-bold' : 'text-zinc-500'}>
+                    {game.separateSpectatorChat ? '☑' : '☐'} 관전자 채팅 분리
                   </div>
                 </div>
                 <div className="text-muted-foreground text-sm text-center sm:text-right">

@@ -662,6 +662,8 @@ export interface GaiaGameState {
   useFactionBidding?: boolean;
   /** 친선전: 켜면 게임 종료 시 기록(점수) 사이트에 자동 저장하지 않음. 방 전체에 표시. */
   friendlyMatch?: boolean;
+  /** 관전자 채팅 분리: 켜면 플레이어는 플레이어끼리, 관전자는 관전자끼리만 채팅이 보임(관전자 목록은 그대로 보임). 로비에서 호스트 토글. */
+  separateSpectatorChat?: boolean;
   /** 이 서버가 AI 봇 추가/Auto Setup을 허용하는지(env AI_BOTS_ENABLED). false면 로비에서 봇 추가·Auto Setup 버튼 숨김. */
   aiBotsAllowed?: boolean;
   /** [롤백 투표] 호스트가 특정 지점 롤백을 요청하면 세팅 — 다른 사람 전원(사람) 동의 시 실행. 봇은 자동 승인. */

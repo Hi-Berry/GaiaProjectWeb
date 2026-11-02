@@ -897,12 +897,30 @@ function chatHistoryOf(game: GaiaGameState): ChatMsg[] {
 	if ((game as any).chatMessages) delete (game as any).chatMessages;
 	return h;
 }
+/** [사용자 2026-11-02] 관전자 채팅 분리 방이면 플레이어 말은 플레이어끼리, 관전자 말은 관전자끼리만 본다.
+ *  시스템 메시지(채팅 차단 알림 등)는 양쪽 모두에게 보인다. */
+function chatVisibleTo(game: GaiaGameState, msg: ChatMsg, viewerIsPlayer: boolean): boolean {
+	if (!game.separateSpectatorChat || msg.senderId === 'system') return true;
+	return !!msg.isSpectator !== viewerIsPlayer;
+}
 /** 채팅 한 줄 기록 + 차단된 관전자를 뺀 방 전원에게 전송 */
 function pushChat(io: SocketIOServer, game: GaiaGameState, msg: ChatMsg): void {
 	const h = chatHistoryOf(game);
 	h.push(msg);
 	if (h.length > CHAT_HISTORY_CAP) h.splice(0, h.length - CHAT_HISTORY_CAP);
-	io.to(game.id).except(chatBlockRoom(game.id)).emit('chat_message', msg);
+	if (!game.separateSpectatorChat) {
+		io.to(game.id).except(chatBlockRoom(game.id)).emit('chat_message', msg);
+		return;
+	}
+	// 분리 방: 방 소켓마다 플레이어/관전자를 가려 보낸다(좌석 판정은 send_chat 과 같은 기준)
+	const roomSids = io.sockets.adapter.rooms.get(game.id);
+	const blockedSids = io.sockets.adapter.rooms.get(chatBlockRoom(game.id));
+	for (const sid of Array.from(roomSids ?? [])) {
+		if (blockedSids?.has(sid)) continue;
+		const pid = socketToPlayerMap.get(sid);
+		if (!chatVisibleTo(game, msg, !!pid && !!game.players[pid])) continue;
+		io.sockets.sockets.get(sid)?.emit('chat_message', msg);
+	}
 }
 function chatBlockOf(gameId: string): Set<string> {
 	let b = chatBlocks.get(gameId);
@@ -4038,6 +4056,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				economyVariant: Math.random() < 0.5 ? 'power' : 'vp', // 랜덤으로 경제 트랙 변형 선택
 				useFactionBidding: true, // [사용자] 기본 체크
 				friendlyMatch: false, // [사용자] 친선전(기록 사이트 미저장) — 방 전체 표시, 호스트 토글
+				separateSpectatorChat: false, // [사용자 2026-11-02] 관전자 채팅 분리 — 로비에서 호스트 토글
 			};
 
 			// Randomize Standard Tech Tiles (9종류를 6트랙 + 3풀에 무작위 배정, 각 4개씩 스택)
@@ -4478,6 +4497,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Lobby only' }); return; }
 			game.friendlyMatch = !!friendlyMatch;
 			clampPlayerResources(game); emitGameUpdated(io, game);
+			callback?.({ ok: true });
+		});
+
+		// [사용자 2026-11-02] 관전자 채팅 분리 토글: 로비에서 호스트만. 켜면 플레이어끼리·관전자끼리만 채팅이 보인다.
+		socket.on('set_separate_spectator_chat', ({ gameId, separate }: { gameId: string; separate: boolean }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (playerId !== game.hostId) { callback?.({ error: 'Host only' }); return; }
+			if (game.currentPhase !== 'lobby') { callback?.({ error: 'Lobby only' }); return; }
+			game.separateSpectatorChat = !!separate;
+			emitGameUpdated(io, game);
 			callback?.({ ok: true });
 		});
 
@@ -6140,7 +6171,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const isSpec = !!sid && !!game.spectatorIds?.includes(sid);
 			if (!isPlayer && !isSpec) { callback?.({ error: 'Not in this game' }); return; }
 			if (!isPlayer && isChatBlocked(gameId, sid)) { callback?.({ blocked: true }); return; }
-			callback?.({ messages: chatHistoryOf(game) });
+			callback?.({ messages: chatHistoryOf(game).filter((m) => chatVisibleTo(game, m, isPlayer)) });
 		});
 
 		/* [2026-10-01] 관전자 채팅 차단/해제 — 이 방에 앉은 사람 플레이어 누구나. 관전은 계속되고 채팅만 막힌다. */
