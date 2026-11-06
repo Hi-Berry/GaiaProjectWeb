@@ -1260,6 +1260,45 @@ export function getNextRoundIncomePreview(
   return result;
 }
 
+/** 자원 상한 (server/gameState.ts clampPlayerResources와 같은 값) */
+export const RESOURCE_CAPS = { ore: 15, knowledge: 15, credits: 30 } as const;
+
+export type PassIncomeOverflow = { key: 'ore' | 'credits' | 'knowledge' | 'power'; label: string; lost: number; detail: string };
+
+/** [사용자 2026-11-05] 패스 확인창 경고용 — 새 패스 타일을 들고 받을 다음 라운드 수익이 상한을 넘어 버려지는 양.
+ *  자원은 '지금 보유량 + 수익 > 상한'이면 넘친 만큼, 파워는 토큰 수익을 먼저 받는 최선의 순서로도
+ *  다 못 받는 충전량(1그릇·2그릇이 비어 3그릇으로 더 못 올림)을 넘친 것으로 본다.
+ *  패스 후 다른 사람 건물로 받는 파워 등은 모르므로 지금 상태 기준이다. */
+export function getPassIncomeOverflow(game: GaiaGameState, playerId: string, newBonusTileId: string | null | undefined): PassIncomeOverflow[] {
+  const player = game.players[playerId];
+  if (!player) return [];
+  const inc = getNextRoundIncomePreview(playerId, game, { excludeBonusTiles: true });
+  const tile = newBonusTileId ? ALL_BONUS_TILES.find(t => t.id === newBonusTileId) : null;
+  if (tile?.income) {
+    inc.ore += tile.income.ore ?? 0;
+    inc.credits += tile.income.credits ?? 0;
+    inc.knowledge += tile.income.knowledge ?? 0;
+    inc.powerCharge += tile.income.power ?? 0;
+    inc.powerTokens += tile.income.powerTokens ?? 0;
+  }
+  const out: PassIncomeOverflow[] = [];
+  const res: { key: 'ore' | 'credits' | 'knowledge'; label: string }[] = [
+    { key: 'ore', label: '광석' }, { key: 'credits', label: '돈' }, { key: 'knowledge', label: '지식' },
+  ];
+  for (const { key, label } of res) {
+    const have = player[key] ?? 0;
+    const cap = RESOURCE_CAPS[key];
+    const lost = have + inc[key] - cap;
+    if (inc[key] > 0 && lost > 0) out.push({ key, label, lost, detail: `보유 ${have} + 수익 ${inc[key]} → 최대 ${cap}` });
+  }
+  if (inc.powerCharge > 0) {
+    const room = getMaxPowerGain({ ...player, power1: (player.power1 ?? 0) + inc.powerTokens } as PlayerState);
+    const lost = inc.powerCharge - room;
+    if (lost > 0) out.push({ key: 'power', label: '파워', lost, detail: `충전 수익 ${inc.powerCharge} · 올릴 수 있는 양 ${room}` });
+  }
+  return out;
+}
+
 export function chargePower(player: PlayerState, amount: number) {
   let remaining = amount;
   // Step 1: Bowl 1 -> Bowl 2

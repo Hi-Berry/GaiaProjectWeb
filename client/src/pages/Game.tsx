@@ -55,7 +55,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
-import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getMaxPowerGain, getRollbackQuota, rollbackReasonText, getExpandedFederationHexIds } from '@shared/gameConfig';
+import { FACTIONS, RESEARCH_TRACKS, ALL_TECH_TILES, SHIP_TECH_TILES, ALL_ADVANCED_TECH_TILES, ALL_BONUS_TILES, FEDERATION_REWARDS, SPACESHIP_FEDERATION_REWARDS, GLEENS_FEDERATION_REWARD, BUILDING_LIMITS, PLANET_COLORS, HOME_PLANETS, getTerraformSteps, getTerraformStepsForFaction, getGaiaBaseQic, getTerraformCost, getRange, getEffectiveBaseRange, getDistance, hasNearbyPlayersForTradingDiscount, getFederationEntries, isTechTileCovered, ARTIFACTS, getNextRoundIncomePreview, findOptimalIncomeOrder, simulateIncomeOrder, ROUND_MISSION_POOL, FINAL_MISSION_LABELS, getFinalMissionValue, getFinalMissionVp, canSpendTaklonsPower, planTaklonsPowerBurns, countSpendableTokens, doomedBowl3Tokens, isBrainCashableBeforeTokenCost, computePassScorePreview, getPassIncomeOverflow, getMaxPowerGain, getRollbackQuota, rollbackReasonText, getExpandedFederationHexIds } from '@shared/gameConfig';
 import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfig';
 import { whenVisibleImagesSettled } from '@/lib/imgRetry';
 
@@ -4997,6 +4997,10 @@ export default function Game() {
           const unusedAbilities: string[] = (playerId && currentPlayer)
             ? getSpecialActionsForPlayer(game, playerId).filter(a => !a.used).map(a => a.label)
             : [];
+          // [사용자 2026-11-05] 새 패스 타일 포함 다음 라운드 수익이 광석·돈·지식 상한이나 파워 충전 여유를 넘으면 경고 (마지막 라운드는 수익 없음)
+          const incomeOverflow = (playerId && confirmPassWithTileId && confirmPassWithTileId !== 'dummy')
+            ? getPassIncomeOverflow(game, playerId, confirmPassWithTileId)
+            : [];
 
           return (
             <AlertDialog open={!!confirmPassWithTileId} onOpenChange={(open) => !open && setConfirmPassWithTileId(null)}>
@@ -5085,12 +5089,26 @@ export default function Game() {
                       <p className="text-[11px] text-amber-200/70 mt-2">패스하면 이번 라운드에 다시 쓸 수 없습니다. 정말 패스할까요?</p>
                     </div>
                   )}
+                  {incomeOverflow.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                      <p className="text-amber-300 font-bold text-sm">⚠️ 다음 라운드 수익이 넘쳐요</p>
+                      <ul className="mt-2 space-y-1">
+                        {incomeOverflow.map(o => (
+                          <li key={o.key} className="text-[11px] text-amber-200">
+                            <span className="font-bold">{o.label} {o.lost} 버려짐</span>
+                            <span className="text-amber-200/70"> ({o.detail})</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-[11px] text-amber-200/70 mt-2">넘치는데 그래도 패스하시겠습니까?</p>
+                    </div>
+                  )}
                   <AlertDialogFooter>
                   <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700">
                     Cancel
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    className={unusedAbilities.length > 0
+                    className={unusedAbilities.length > 0 || incomeOverflow.length > 0
                       ? "bg-amber-500 hover:bg-amber-500/90 text-black font-bold"
                       : "bg-primary hover:bg-primary/90 text-black font-bold"}
                     onClick={() => {
