@@ -122,5 +122,29 @@ const logs = (upTo: number) => Array.from({ length: upTo + 1 }, (_, i) => ({ seq
 	check(shown2.roundNumber === 2 && shown2.players.A.credits === 15, '라운드가 바뀌면 붙잡던 지난 라운드 화면을 버린다', shown2.roundNumber, 2);
 }
 
+// ── 6) [사용자 2026-11-06] 아이타 마지막 교환의 후속 처리(트랙 전진 등)가 라운드 시작 뒤에 끝나도 화면에 반영돼야 한다 ──
+//   서버는 후속 처리를 남긴 채 라운드를 시작한다(첫 턴 A, turnMark 그대로). 그 사이 C가 트랙을 올려도
+//   turnMark 가 안 바뀌어 화면이 '트랙 올리기 전'에 붙잡혀 있다가 새로고침해야 보였다.
+{
+	const R = (nav: number) => ({ navigation: nav });
+	const base = (extra: any) => ({ id: 'itars-follow', currentPhase: 'main', roundNumber: 2, currentPlayerIndex: 0, turnOrder: ['A', 'B', 'C', 'D'],
+		turnMark: { A: 58, B: 44, C: 47, D: 50 }, ...extra });
+	for (const [name, pending] of [
+		['우주선 타일 트랙 전진', { pendingShipTechTrackAdvance: { playerId: 'C', fromItars: true } }],
+		['우주선 2TF 광산', { pendingShipTechMine: { playerId: 'C' }, itarsExchangeResumeAfterShipMine: true }],
+		['고급 타일 덮기', { pendingAdvancedTechCover: { playerId: 'C', advancedTileId: 'adv-x', fromItarsExchange: true } }],
+		['고급 타일 트랙 전진', { pendingAdvancedTechTrackAdvance: { playerId: 'C', fromItarsExchange: true } }],
+	] as Array<[string, any]>) {
+		for (const viewer of ['B', 'C']) {
+			resetCommitSeqMemo();
+			const vf = createViewFreeze();
+			vf.view(base({ gameLog: logs(60), ...pending, players: { C: { research: R(1) } } }) as any, viewer);
+			const done = base({ gameLog: logs(61), players: { C: { research: R(2) } } });
+			const shown = vf.view(done as any, viewer) as any;
+			check(shown.players.C.research.navigation === 2, `${name} 끝난 뒤 ${viewer} 화면에 C 트랙 반영`, shown.players.C.research.navigation, 2);
+		}
+	}
+}
+
 console.log(bad === 0 ? '\n전부 통과' : `\n${bad}건 실패`);
 process.exit(bad === 0 ? 0 : 1);

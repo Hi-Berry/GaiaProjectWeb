@@ -66,7 +66,15 @@ export function isRoundStartPending(game: GameState): boolean {
 		|| g.pendingTerranCouncilBenefit
 		|| (g.terranCouncilQueue?.length ?? 0) > 0
 		|| (g.terranCouncilQueueAfterItars?.length ?? 0) > 0
-		|| g.pendingTechTileSelection?.structureType === 'itars_pi_exchange');
+		|| g.pendingTechTileSelection?.structureType === 'itars_pi_exchange'
+		// [사용자 2026-11-06] "아이타 토큰 타일 고르고 트랙 올렸는데 미니뷰에선 안 올라가 있다가 새로고침하면 올라가 있다"
+		//   마지막 교환의 후속 처리(트랙 전진·고급 타일 덮기·우주선 2TF 광산)가 남은 채로 서버가 라운드를 시작한다.
+		//   그 처리는 누구의 턴도 아닌 라운드 시작 처리인데, 위 대기 표시가 이미 꺼져 '첫 턴 진행 중'으로 보고
+		//   화면을 고정했다 — 그 뒤 올린 트랙은 turnMark 가 그대로라 다음 턴까지 안 보였다.
+		|| g.pendingShipTechTrackAdvance?.fromItars
+		|| g.itarsExchangeResumeAfterShipMine
+		|| g.pendingAdvancedTechCover?.fromItarsExchange
+		|| g.pendingAdvancedTechTrackAdvance?.fromItarsExchange);
 }
 
 export function getCommitSeq(game: GameState | null | undefined): number | null {
