@@ -403,6 +403,12 @@ export const GameClient = {
     s.emit('select_all_income_items', { gameId });
   },
 
+  /** [2026-11-06] 받는 순서에 따라 결과가 갈릴 때 두 결과 중 하나 고르기 → 서버가 그 순서로 받고 완료 */
+  chooseIncomeOption(gameId: string, kind: 'now' | 'charge'): Promise<{ ok?: boolean; error?: string }> {
+    const s = getSocket();
+    return new Promise((resolve) => s.emit('choose_income_option', { gameId, kind }, (r: { ok?: boolean; error?: string }) => resolve(r ?? {})));
+  },
+
   undoIncomeItem(gameId: string) {
     const s = getSocket();
     s.emit('undo_income_item', { gameId });

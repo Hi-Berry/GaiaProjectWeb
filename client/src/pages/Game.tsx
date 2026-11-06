@@ -921,6 +921,8 @@ export default function Game() {
   const [advanceTechDialog, setAdvanceTechDialog] = useState<{ open: boolean; trackId: ResearchTrack | null }>({ open: false, trackId: null });
   // 팅커로이드 라운드 Special 팝업 접기(맵·라운드 보며 고르기)
   const [tinkeroidSpecialCollapsed, setTinkeroidSpecialCollapsed] = useState(false);
+  /** [2026-11-06] 수익 두 결과 중 고르기 화면에서 '하나씩 직접 받기'를 누른 라운드 — 그 라운드엔 기존 선택 창을 보여준다 */
+  const [incomeManualRound, setIncomeManualRound] = useState<number | null>(null);
   /** [사용자 제보 2026-10-05] "액션 끝나고 Reset 누르면 1초쯤 렉" — 리셋 자체는 수십 ms인데, 서버 응답이 올 때까지
    *  Reset/End Turn 바가 그대로 있고, 응답 뒤에도 사라지는 애니메이션으로 0.5초 더 남아(실측 508~530ms) 리셋이
    *  안 된 것처럼 보였다. 누르는 즉시 바를 숨긴다. 서버가 거절해 상태가 안 바뀌면 3초 뒤 다시 보인다. */
@@ -6168,6 +6170,63 @@ export default function Game() {
 
           const actualPlayer = game.players[pending.playerId];
           if (!actualPlayer) return null;
+
+          /* [사용자 2026-11-06] 받는 순서에 따라 '지금 쓸 파워'와 '받는 충전'이 엇갈리면 두 결과 중 고른다.
+             (예: JJC 11/05 매안 R4 — 1/1/0 + 의회 토큰 2·충전 4 → '충전 먼저' 2/0/2 vs '토큰 먼저' 0/3/1) */
+          const choices = (pending as { choices?: Array<{ kind: 'now' | 'charge'; ids: string[]; p1: number; p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3; nowPower: number; wastedCharge: number }> }).choices;
+          if (choices && choices.length >= 2 && (pending.appliedItems?.length ?? 0) === 0 && incomeManualRound !== game.roundNumber) {
+            const itemById = new Map(pending.incomeItems.map((i) => [i.id, i]));
+            const orderText = (ids: string[]) => ids.map((id) => {
+              const it = itemById.get(id);
+              return it ? (it.type === 'tokens' ? `토큰 ${it.amount}` : `충전 ${it.amount}`) : '';
+            }).filter(Boolean).join(' → ');
+            const pick = async (kind: 'now' | 'charge') => {
+              if (!gameId) return;
+              const r = await GameClient.chooseIncomeOption(gameId, kind);
+              if (r?.error) toast({ title: '수익 받기 실패', description: r.error, variant: 'destructive' });
+            };
+            const isTak = actualPlayer.faction === 'taklons' && !actualPlayer.brainStoneInGaia;
+            return (
+              <AlertDialog open={true} onOpenChange={() => { }}>
+                <AlertDialogContent className="bg-zinc-900 border-zinc-700 max-w-lg">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white font-black text-lg">수익 받는 순서 고르기</AlertDialogTitle>
+                    <AlertDialogDescription className="text-zinc-300">
+                      받는 순서에 따라 결과가 갈립니다. 지금 쓸 파워를 늘릴지, 충전을 버리지 않고 다 받을지 골라 주세요.
+                      <span className="block mt-1 font-mono text-xs text-zinc-400">
+                        지금 그릇 1/2/3: {actualPlayer.power1 ?? 0} / {actualPlayer.power2 ?? 0} / {actualPlayer.power3 ?? 0}
+                      </span>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="grid grid-cols-2 gap-3 py-2">
+                    {choices.map((c) => (
+                      <button
+                        key={c.kind}
+                        onClick={() => pick(c.kind)}
+                        className={`text-left p-3 rounded-lg border-2 transition-all hover:scale-[1.02] ${c.kind === 'now' ? 'border-amber-500/40 bg-amber-500/10 hover:border-amber-400' : 'border-cyan-500/40 bg-cyan-500/10 hover:border-cyan-400'}`}
+                      >
+                        <div className={`text-sm font-black ${c.kind === 'now' ? 'text-amber-300' : 'text-cyan-300'}`}>
+                          {c.kind === 'now' ? '지금 쓸 파워 우선' : '충전 모두 받기'}
+                        </div>
+                        <div className="mt-1.5 font-mono text-lg font-black text-white">
+                          {c.p1} / {c.p2} / {c.p3}{isTak && c.brainStoneBowl ? <span className="text-sm"> 🧠{c.brainStoneBowl}</span> : null}
+                        </div>
+                        <div className="text-[11px] text-zinc-300 mt-1">지금 쓸 파워 <b className="text-white">{c.nowPower}</b></div>
+                        <div className="text-[11px] text-zinc-300">{c.wastedCharge > 0 ? <>충전 <b className="text-red-300">{c.wastedCharge}</b> 버림</> : '충전 버림 없음'}</div>
+                        <div className="text-[10px] text-zinc-500 mt-1">{orderText(c.ids)}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className="text-[11px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 self-start"
+                    onClick={() => setIncomeManualRound(game.roundNumber)}
+                  >
+                    하나씩 직접 받기
+                  </button>
+                </AlertDialogContent>
+              </AlertDialog>
+            );
+          }
 
           return (
             <AlertDialog open={true} onOpenChange={() => { }}>

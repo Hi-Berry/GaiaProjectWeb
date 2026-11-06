@@ -552,6 +552,8 @@ export interface GaiaGameState {
     appliedItems: Array<{ type: 'power' | 'tokens'; amount: number; id: string }>;
     /** Undo 시 파워 복원용: 적용 직전 (p1,p2,p3[,bs]) 스냅샷. appliedItems[i] 적용 전 상태가 powerBeforeSnapshots[i] */
     powerBeforeSnapshots?: Array<{ p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 }>;
+    /** [사용자 2026-11-06] 받는 순서에 따라 '지금 쓸 파워'와 '받는 충전'이 엇갈리면 서버가 두 결과를 실어 보내고 고르게 한다 */
+    choices?: IncomeOrderChoice[];
   } | null; // 수익 단계에서 파워/토큰 수익 개별 선택 대기
   gameLog?: Array<{ timestamp: number; playerId: string; playerName: string; action: string; details?: string; tileId?: string; aiFeedbackActionId?: string; subLogs?: Array<{ playerId: string; playerName: string; text: string }>; passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; snap?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; base?: { vp: number; c: number; o: number; k: number; q: number; p1: number; p2: number; p3: number; bs?: number }; round?: number; seq?: number; fedHexes?: string[]; rolledBack?: boolean }>; // 게임 액션 로그 (rolledBack=롤백으로 취소된 행동 — 표시용으로 남김, 저장 시 제외) (fedHexes=이 액션으로 연방에 편입된 칸 — 리플레이용) (snap=이 로그 시점 행위자 점수/자원 스냅샷, 클릭 시 직전 대비 변동량 표시용; round=발생 라운드, 라운드 점프용)
   /** 플레이어 채팅 (최근 N개만 유지). 재접속/관전 시 히스토리 복원용으로 게임 상태에 보관 */
@@ -1545,6 +1547,74 @@ export function findOptimalIncomeOrder(
     }
   }
   return bestOrder;
+}
+
+/** 수익 순서 선택지 하나 — 그 순서로 받았을 때의 결과 */
+export type IncomeOrderChoice = {
+  /** 적용 순서(수익 항목 id) */
+  ids: string[];
+  p1: number; p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3;
+  /** 지금 바로 쓸 수 있는 파워(3그릇, 타클론 3그릇 브레인 = 3) */
+  nowPower: number;
+  /** 그릇이 차서 받지 못하고 버려진 충전량 */
+  wastedCharge: number;
+  /** 'now' = 지금 쓸 파워 우선, 'charge' = 충전 모두 받기 우선 */
+  kind: 'now' | 'charge';
+};
+
+/**
+ * [사용자 2026-11-06] "토큰 자동화에서 최적이 '파워 많이 받기'와 '3그릇으로 많이 보내기' 두 가지로 갈리는 경우는 물어봐야 한다."
+ * 실측(JJC 11/05 매안 R3~R5): 의회 토큰 2 + 충전 4~6에서 '충전 먼저'(지금 파워 +1, 충전 1 버림)와
+ * '토큰 먼저'(충전 다 받음)가 우열 없이 갈렸는데, 자동 정리는 3그릇이 많은 쪽을 무조건 골랐다.
+ *
+ * 받는 순서를 모두 따져 결과를 두 잣대로 본다 — 지금 쓸 파워(nowPower), 그릇 진행도(받은 충전).
+ * 어느 결과가 두 잣대 모두에서 같거나 나으면 그게 정답이라 묻지 않는다(빈 배열 → 지금처럼 자동).
+ * 우열이 갈리는 결과가 둘 이상이면 양 끝 둘 — 지금 파워가 가장 많은 것, 받은 충전이 가장 많은 것 — 을 돌려준다.
+ * 토큰은 지금처럼 출처 단위(한 항목)로만 움직인다(의회 2토큰을 쪼개지 않는다 — 사용자 확정).
+ */
+export function getIncomeOrderChoices(
+  base: Pick<PlayerState, 'faction' | 'power1' | 'power2' | 'power3' | 'brainStoneBowl' | 'brainStoneInGaia' | 'brainStoneSpent'>,
+  items: IncomeOrderItem[]
+): IncomeOrderChoice[] {
+  if (items.length < 2 || items.length > 8) return [];
+  if (!items.some(i => i.type === 'tokens') || !items.some(i => i.type === 'power')) return [];
+  const permutations = (arr: IncomeOrderItem[]): IncomeOrderItem[][] => {
+    if (arr.length <= 1) return [arr];
+    const out: IncomeOrderItem[][] = [];
+    for (let i = 0; i < arr.length; i++) {
+      const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const sub of permutations(rest)) out.push([arr[i], ...sub]);
+    }
+    return out;
+  };
+  const hasBrain = base.faction === 'taklons' && !base.brainStoneInGaia && !base.brainStoneSpent && base.brainStoneBowl != null;
+  // 진행도 = 토큰마다 (그릇 - 1)의 합. 브레인 스톤도 토큰 하나로 센다(값어치는 nowPower 에서 3으로 반영).
+  const progress = (s: { p2: number; p3: number; brainStoneBowl?: 1 | 2 | 3 }) =>
+    s.p2 + 2 * s.p3 + (hasBrain && s.brainStoneBowl ? s.brainStoneBowl - 1 : 0);
+  const nowOf = (s: { p3: number; brainStoneBowl?: 1 | 2 | 3 }) => s.p3 + (hasBrain && s.brainStoneBowl === 3 ? 3 : 0);
+  const startProgress = progress({ p2: base.power2 ?? 0, p3: base.power3 ?? 0, brainStoneBowl: base.brainStoneBowl });
+  const totalCharge = items.filter(i => i.type === 'power').reduce((sum, i) => sum + i.amount, 0);
+
+  const seen = new Map<string, { order: IncomeOrderItem[]; s: ReturnType<typeof simulateIncomeOrder>; now: number; prog: number }>();
+  for (const order of permutations(items)) {
+    const s = simulateIncomeOrder(base, order);
+    const key = `${s.p1}/${s.p2}/${s.p3}/${s.brainStoneBowl ?? ''}`;
+    if (!seen.has(key)) seen.set(key, { order, s, now: nowOf(s), prog: progress(s) });
+  }
+  const all = Array.from(seen.values());
+  const front = all.filter(a => !all.some(b => b !== a && b.now >= a.now && b.prog >= a.prog && (b.now > a.now || b.prog > a.prog)));
+  if (front.length < 2) return [];
+  const byNow = front.slice().sort((a, b) => b.now - a.now || b.prog - a.prog)[0];
+  const byCharge = front.slice().sort((a, b) => b.prog - a.prog || b.now - a.now)[0];
+  if (byNow === byCharge) return [];
+  const toChoice = (x: typeof byNow, kind: 'now' | 'charge'): IncomeOrderChoice => ({
+    ids: x.order.map(i => i.id),
+    p1: x.s.p1, p2: x.s.p2, p3: x.s.p3, brainStoneBowl: x.s.brainStoneBowl,
+    nowPower: x.now,
+    wastedCharge: Math.max(0, totalCharge - (x.prog - startProgress)),
+    kind,
+  });
+  return [toChoice(byNow, 'now'), toChoice(byCharge, 'charge')];
 }
 
 export function snapshotPlayerPower(player: PlayerState): { p1: number; p2: number; p3: number; bs?: 1 | 2 | 3 } {

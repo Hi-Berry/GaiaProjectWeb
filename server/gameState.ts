@@ -37,6 +37,7 @@ import {
 	chargePowerTaklons,
 	applyPowerIncome,
 	findOptimalIncomeOrder,
+	getIncomeOrderChoices,
 	simulateIncomeOrder,
 	type IncomeOrderItem,
 	snapshotPlayerPower,
@@ -3188,6 +3189,11 @@ function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string
 	if ((player as any).incomeAutoOff) return false; // [사용자 2026-08-28] '?' 설정에서 자동 최적을 끈 사람 → 기존 선택 팝업
 	const items = ((player as any).pendingIncomeItems ?? []) as IncomeOrderItem[];
 	if (!items.length) return false;
+	// [사용자 2026-11-06] 받는 순서에 따라 '지금 쓸 파워'와 '받는 충전'이 엇갈리면 자동으로 정하지 않고 두 결과 중 고르게 한다
+	//   (실측: JJC 11/05 매안 R3~R5 — '충전 먼저'는 지금 파워 +1·충전 1 버림, '토큰 먼저'는 충전 다 받음).
+	const choices = getIncomeOrderChoices(player, items);
+	if (choices.length >= 2) { (player as any).pendingIncomeChoices = choices; return false; }
+	delete (player as any).pendingIncomeChoices;
 	const before = { p1: player.power1 || 0, p2: player.power2 || 0, p3: player.power3 || 0 };
 	const bestOrder = findOptimalIncomeOrder(player, items);
 	for (const item of bestOrder) {
@@ -3248,6 +3254,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 				incomeItems: [...items],
 				appliedItems: [],
 				powerBeforeSnapshots: [],
+				choices: (player as any).pendingIncomeChoices,
 			};
 			log(`[Income] Next: ${player.name} needs to select income items: ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 			clampPlayerResources(game); emitGameUpdated(io, game);
@@ -3529,6 +3536,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 					incomeItems: [...incomeItems],
 					appliedItems: [],
 					powerBeforeSnapshots: [],
+					choices: (firstPlayer as any).pendingIncomeChoices,
 				};
 				log(`[Income] ${firstPlayer.name} needs to select income items: ${incomeItems.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 				clampPlayerResources(game); emitGameUpdated(io, game);
@@ -7397,27 +7405,15 @@ export function setupGameServer(httpServer: HTTPServer) {
 			else delete (player as any).incomeAutoOff; // 기본값(on)은 필드 자체를 안 남김
 		});
 
-		socket.on('finish_income_selection', ({ gameId }) => {
-			console.log(`[DEBUG_INCOME] Received finish_income_selection: gameId=${gameId}`);
-			const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
-			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
-
-			const isBot = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '');
-			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && !(isBot && game.hostId === playerId))) {
-				console.log(`[DEBUG_INCOME] Finish Auth failed. pendingOrder:`, game.pendingIncomeOrder);
-				return;
-			}
-			if (game.pendingIncomeOrder.incomeItems.length > 0) {
-				console.log(`[DEBUG_INCOME] Finish failed: remaining items:`, game.pendingIncomeOrder.incomeItems.length);
-				log(`Player ${playerId} tried to finish but has remaining income items`, 'game', undefined, { simulation: (game as any).simulation });
-				return; // 아직 남은 아이템이 있으면 완료 불가
-			}
-
+		/** 수익 선택 완료 공통 처리 — '완료' 버튼과 [2026-11-06] 두 결과 중 고르기가 같이 쓴다 */
+		function completeIncomeSelection(game: GaiaGameState, gameId: string) {
+			if (!game.pendingIncomeOrder) return;
 			const targetPlayerId = game.pendingIncomeOrder.playerId;
 			const player = game.players[targetPlayerId];
 
 			// 저장된 수익 정보 제거
 			delete (player as any).pendingIncomeItems;
+			delete (player as any).pendingIncomeChoices;
 
 			/* [사용자 2026-08-26 "자동 최적으로 안 받은 사람을 로그로 볼 수 있나"] 그동안 선택 방식이 서버
 			   파일 로그에만 남아(Render 재시작 시 소실) 저장 게임으로는 알 수 없었다 → 방식과 '최적 대비
@@ -7427,7 +7423,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const po = game.pendingIncomeOrder as any;
 				const appliedList = (po.appliedItems ?? []) as IncomeOrderItem[];
 				if (appliedList.length > 0 && !(game.botPlayerIds ?? []).includes(targetPlayerId)) {
-					const method = po.usedAuto && po.usedManual ? '수동+자동 혼합' : po.usedAuto ? '자동 최적' : '수동';
+					const method = po.usedChoice ? (po.usedChoice === 'now' ? '선택: 지금 쓸 파워 우선' : '선택: 충전 모두 받기')
+						: po.usedAuto && po.usedManual ? '수동+자동 혼합' : po.usedAuto ? '자동 최적' : '수동';
 					let lossText = '';
 					let detailText = ` (${appliedList.length}개)`; // snap 없는 옛 게임 폴백
 					const snap0 = po.powerBeforeSnapshots?.[0];
@@ -7441,7 +7438,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 						const optimal = simulateIncomeOrder(base, findOptimalIncomeOrder(base, appliedList));
 						const d3 = optimal.p3 - actual.p3;
 						const d2 = optimal.p2 - actual.p2;
-						lossText = d3 > 0 ? ` · 최적 대비 3그릇 -${d3}` : d2 > 0 ? ` · 최적 대비 2그릇 -${d2}` : ' · 최적과 동일';
+						lossText = po.usedChoice ? '' // 두 결과 중 본인이 고른 것 — '최적 대비 손해'가 아니다
+							: d3 > 0 ? ` · 최적 대비 3그릇 -${d3}` : d2 > 0 ? ` · 최적 대비 2그릇 -${d2}` : ' · 최적과 동일';
 						// [사용자 2026-09-01 "아이타는 Auto-optimal 상세가 안 뜬다"] 선택 UI 경로(아이타/자동 OFF)도
 						// 비아이타 자동 경로와 동일하게 받은 양 + 그릇 변화를 표기.
 						const tokenGain = appliedList.filter((i) => i.type === 'tokens').reduce((s, i) => s + i.amount, 0);
@@ -7466,6 +7464,52 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// [사용자 2026-08-26] 클로저의 game 참조 대신 실행 시점에 다시 조회 — 그 사이 롤백이
 			// games.set으로 객체를 교체하면 옛 객체에 수입 상태를 쓰고 옛 상태를 방송하는 사고 방지.
 			setTimeout(() => { const g = games.get(gameId); if (g) triggerIncomePhase(g); }, 100);
+		}
+
+		/* [사용자 2026-11-06] 받는 순서에 따라 결과가 갈릴 때 두 결과 중 하나를 고른다 → 그 순서로 받고 바로 완료 */
+		socket.on('choose_income_option', ({ gameId, kind }: { gameId: string; kind: 'now' | 'charge' }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId); if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			const po = game.pendingIncomeOrder as any;
+			if (!playerId || !po || po.playerId !== playerId) { callback?.({ error: '지금 수익을 고를 차례가 아닙니다.' }); return; }
+			const choice = (po.choices ?? []).find((c: { kind: string }) => c.kind === kind);
+			if (!choice) { callback?.({ error: '고를 수 있는 선택지가 없습니다.' }); return; }
+			if ((po.appliedItems ?? []).length > 0) { callback?.({ error: '이미 하나씩 받기 시작해서 선택지를 쓸 수 없습니다. 남은 수익을 직접 받아 주세요.' }); return; }
+			const byId = new Map((po.incomeItems as IncomeOrderItem[]).map((i) => [i.id, i]));
+			const order = (choice.ids as string[]).map((id) => byId.get(id)).filter(Boolean) as IncomeOrderItem[];
+			if (order.length !== byId.size) { callback?.({ error: '수익 항목이 바뀌어 선택지를 쓸 수 없습니다.' }); return; }
+			const player = game.players[playerId];
+			if (!po.powerBeforeSnapshots) po.powerBeforeSnapshots = [];
+			for (const item of order) {
+				po.powerBeforeSnapshots.push(snapshotPlayerPower(player));
+				if (item.type === 'tokens') player.power1 = (player.power1 || 0) + item.amount;
+				else applyPowerIncome(player, item.amount);
+			}
+			po.appliedItems.push(...order);
+			po.incomeItems = [];
+			po.usedChoice = kind;
+			log(`Player ${player.name} chose income option '${kind}' (${order.map((i) => i.id).join(' → ')})`, 'game', undefined, { simulation: (game as any).simulation });
+			callback?.({ ok: true });
+			completeIncomeSelection(game, gameId);
+		});
+
+		socket.on('finish_income_selection', ({ gameId }) => {
+			console.log(`[DEBUG_INCOME] Received finish_income_selection: gameId=${gameId}`);
+			const game = games.get(gameId); if (!game) { console.log(`[DEBUG_INCOME] Game not found: ${gameId}`); return; }
+			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) { console.log(`[DEBUG_INCOME] PlayerId not found for socket: ${socket.id}`); return; }
+
+			const isBot = game.botPlayerIds?.includes(game.pendingIncomeOrder?.playerId || '');
+			if (!game.pendingIncomeOrder || (game.pendingIncomeOrder.playerId !== playerId && !(isBot && game.hostId === playerId))) {
+				console.log(`[DEBUG_INCOME] Finish Auth failed. pendingOrder:`, game.pendingIncomeOrder);
+				return;
+			}
+			if (game.pendingIncomeOrder.incomeItems.length > 0) {
+				console.log(`[DEBUG_INCOME] Finish failed: remaining items:`, game.pendingIncomeOrder.incomeItems.length);
+				log(`Player ${playerId} tried to finish but has remaining income items`, 'game', undefined, { simulation: (game as any).simulation });
+				return; // 아직 남은 아이템이 있으면 완료 불가
+			}
+
+			completeIncomeSelection(game, gameId);
 		});
 
 		// 파워 교환 제안 수락/거부 (타클론: brainFirst, piAddFirst 옵션)
