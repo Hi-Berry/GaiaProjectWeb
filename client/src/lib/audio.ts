@@ -186,6 +186,13 @@ export function playPassWarnSound() {
 }
 
 /**
+ * [사용자 2026-11-06] 내 턴이 1분을 넘겼을 때 — 시계 '똑딱' 같은 짧은 2음을 두 번(부드러운 사인파, 경고성은 리듬으로).
+ */
+export function playTurnOvertimeSound() {
+    playSoftPulses([523.25, 392.0, 523.25, 392.0], 0.16, 0.08, 0.22);   // C5 G4 C5 G4
+}
+
+/**
  * 게임 종료 효과음(~3초). 볼륨 설정을 존중(playBeep 경유).
  * - 1등(isWinner): C5–E5–G5–C6 상승 아르페지오 + 마지막 C장3화음 지속(축하 팡파레).
  * - 그 외: 부드러운 2음 하강(중립 마무리).

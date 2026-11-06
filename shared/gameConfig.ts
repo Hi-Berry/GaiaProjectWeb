@@ -622,6 +622,9 @@ export interface GaiaGameState {
   federationOnTerraforming5?: string;
   /** 연방: 타일 ID -> 해당 타일에 위성을 둔 플레이어 ID 목록 (한 빈칸에 여러 플레이어 가능) */
   satellites?: Record<string, string[]>;
+  /** [사용자 2026-11-06] 턴 시간 경고용 — 지금 액션 턴 주인과 그 턴이 시작된 서버 시각(ms). main 단계가 아니면 null.
+   *  key 가 바뀌면 새 턴(라운드·주인·턴 종료 횟수). 서버 emitGameUpdated 에서 갱신. */
+  turnClock?: { key: string; playerId: string; since: number } | null;
   /** 연방 구현 모드: 빈공간(위성)·내 건물 행성·내 우주정거장 칸 선택 중. 빈공간만 위성/QIC 소모, 건물/우주정거장은 연방 계산 기준점만 */
   federationMode?: { playerId: string; selectedHexIds: string[]; selectedPlanetIds?: string[]; selectedSpaceStationHexIds?: string[]; toggleSeq?: number } | null;
   /** 연방 모드에서 클릭할 때마다 서버가 채우는 미리보기: 포함될 건물·파워·필요 파워 */

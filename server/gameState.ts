@@ -366,10 +366,21 @@ function flushPendingEmit(gameId: string) {
 	if (!cur) return;
 	emitGameUpdatedNow(p.io, cur);
 }
+/** [사용자 2026-11-06] "자기 턴 1분 지나면 경고" — 턴 넘김이 여러 경로라 보내기 직전 한곳에서 턴이 바뀌었는지 본다.
+ *  같은 사람이 연달아 턴을 받는 경우(남들이 다 패스)는 턴 종료 횟수(turnEndCount)로 구분한다. */
+function updateTurnClock(game: any): void {
+	if (!game || game.replay) return;
+	const pid: string | undefined = game.currentPhase === 'main' ? game.turnOrder?.[game.currentPlayerIndex] : undefined;
+	if (!pid) { if (game.turnClock) game.turnClock = null; return; }
+	const key = `${game.roundNumber}|${pid}|${game.turnEndCount ?? 0}`;
+	if (game.turnClock?.key !== key) game.turnClock = { key, playerId: pid, since: Date.now() };
+}
+
 export function emitGameUpdated(io: any, game: any) {
 	// MCTS 복제 상태는 같은 game.id를 사용한다. pending map에 넣으면 flush 시 실제 games 상태로 바뀌어
 	// 계측 revision을 오염시키므로 큐에 넣기 전 차단해야 한다.
 	if (game?.simulation) return;
+	updateTurnClock(game);
 	if (process.env.EMIT_COALESCE === '0' || !game?.id) { emitGameUpdatedNow(io, game); return; }
 	const had = _pendingEmit.has(game.id);
 	_pendingEmit.set(game.id, { io, game });   // 항상 최신 game 참조로 갱신
@@ -2300,6 +2311,7 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 		// 정당한 무료광산을 잃는 회귀버그. 소비는 건설 시 clearFreeMineFlags가 담당(원래 동작 유지).
 	}
 	game.pendingTurnEndPlayerId = undefined;
+	(game as any).turnEndCount = ((game as any).turnEndCount ?? 0) + 1; // 턴 시간 경고: 같은 사람 연속 턴도 새 턴으로
 
 	const _prevIdx = game.currentPlayerIndex;
 	game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.turnOrder.length;

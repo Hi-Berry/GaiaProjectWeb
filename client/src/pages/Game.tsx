@@ -27,7 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound } from '@/lib/audio';
+import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound, playTurnOvertimeSound } from '@/lib/audio';
 import { actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -2012,6 +2012,31 @@ export default function Game() {
     if (now.high > prev.high && now.leader) enqueueParts([nameOf(now.leader), `${now.high}점`]);
     for (const pid of prev.inAuction) if (!now.inAuction.includes(pid)) enqueueParts([nameOf(pid), '패스']);
   }, [game?.id, game?.currentPhase, game?.factionBidding?.phase, game?.factionBidding?.currentHighBid, game?.factionBidding?.leaderId, game?.factionBidding?.inAuction?.join(','), game?.factionBidding?.remainingFactionIds?.length, game?.factionBidding?.pickPlayerId]);
+
+  /* [사용자 2026-11-06] 자기 턴이 1분 지나면 경고 — 모두에게 메시지, 당사자 화면에서만 소리.
+     턴 시작 시각은 서버가 준다(game.turnClock) — 새로고침·늦게 들어온 관전자도 같은 기준. 이미 한참 지난 턴에
+     들어오면(5초 넘게 지남) 띄우지 않는다. 파워 수령 대기(턴 종료 누른 뒤)·봇 턴은 제외. */
+  const latestGameRef = useRef(game);
+  latestGameRef.current = game;
+  const turnClock = game?.turnClock ?? null;
+  useEffect(() => {
+    if (!turnClock || (game as any)?.replay) return;
+    if (latestGameRef.current?.botPlayerIds?.includes(turnClock.playerId)) return;
+    const delay = turnClock.since + 60_000 - Date.now();
+    if (delay < -5_000) return;
+    const t = setTimeout(() => {
+      const g = latestGameRef.current;
+      if (!g || g.turnClock?.key !== turnClock.key || g.pendingTurnEndPlayerId) return;
+      const mine = !isSpectator && turnClock.playerId === playerId;
+      const name = g.players[turnClock.playerId]?.name ?? '';
+      if (mine) playTurnOvertimeSound();
+      toast({
+        title: mine ? '⏰ 1분이 지났습니다' : `⏰ ${name}님 턴 1분이 지났습니다`,
+        duration: 5000,
+      });
+    }, Math.max(0, delay));
+    return () => clearTimeout(t);
+  }, [turnClock?.key, turnClock?.since, playerId, isSpectator]);
 
   // Turn behavior notification sounds
   useEffect(() => {
