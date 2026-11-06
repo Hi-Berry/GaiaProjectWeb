@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound, playTurnOvertimeSound } from '@/lib/audio';
+import { fireTurnNotification } from '@/lib/turnNotify';
 import { actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -2100,6 +2101,26 @@ export default function Game() {
       lastWasMyBidRef.current = isMyBid;
     }
   }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId, isSpectator]);
+
+  /* [사용자 2026-11-06] "롤백도 결국 내가 눌러야 게임이 진행된다 — 다른 사람이 롤백을 신청해 내가 눌러야 하면 내 턴처럼 소리 나게."
+     롤백 투표가 '내 동의'를 기다리면(동의 대상이고 아직 안 눌렀으면) 요청 한 건마다 한 번 내 차례 소리를 낸다.
+     창을 안 보고 있으면 내 차례와 같은 데스크톱 알림도 띄운다(알림 설정을 켠 경우). */
+  const rollbackAlertKeyRef = useRef<string | null>(null);
+  const pendingRollbackForMe = (() => {
+    const pr = (game as { pendingRollback?: { required?: string[]; approvals?: string[]; requesterId?: string; requesterName?: string; seq?: number; ordinal?: number } } | null)?.pendingRollback;
+    if (!pr || !playerId || isSpectator) return null;
+    if (!(pr.required ?? []).includes(playerId) || (pr.approvals ?? []).includes(playerId)) return null;
+    return pr;
+  })();
+  const rollbackAlertKey = pendingRollbackForMe ? `${pendingRollbackForMe.requesterId}:${pendingRollbackForMe.seq}:${pendingRollbackForMe.ordinal ?? ''}` : null;
+  useEffect(() => {
+    if (!rollbackAlertKey) { rollbackAlertKeyRef.current = null; return; }
+    if (rollbackAlertKeyRef.current === rollbackAlertKey) return; // 같은 요청엔 한 번만
+    rollbackAlertKeyRef.current = rollbackAlertKey;
+    playMyTurnSound();
+    const who = pendingRollbackForMe?.requesterName ?? '다른 플레이어';
+    fireTurnNotification('가이아 프로젝트 — 롤백 동의 요청', `${who}님이 롤백을 요청했습니다. 수락 또는 거절을 눌러 주세요.`);
+  }, [rollbackAlertKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Power Receive sound notification
   useEffect(() => {
