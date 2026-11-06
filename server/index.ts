@@ -157,6 +157,10 @@ app.use((req, res, next) => {
   app.get("/api/status/notice", statusNoticeHandler);
   app.post("/api/status/notice", statusNoticeHandler);
 
+  // [사용자 2026-11-06] 끝난 게임 리플레이 기록 제공
+  const { registerReplayRoutes } = await import("./replay");
+  registerReplayRoutes(app);
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type 
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useParams, useLocation } from 'wouter';
+import { ReplayControls } from '@/components/ReplayControls';
 import { GameClient, getSocket, getStoredPlayerId, getStoredSpectatorId, storePlayerId, storeSpectatorId, type GameState, type PlayerState } from '@/lib/gameClient';
 import { getCommitSeq, createViewFreeze } from '@/lib/turnCommit';
 import { playerIdsForFactionBiddingUi } from '@/lib/factionBiddingPlayerOrder';
@@ -4951,6 +4952,11 @@ export default function Game() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* [사용자 2026-11-06] 리플레이 관전 방이면 한 수씩 넘기는 조작 막대 */}
+        {(game as any).replay && gameId && (
+          <ReplayControls roomId={gameId} info={(game as any).replay} round={game.roundNumber} />
         )}
 
         {/* Pass 시 보너스 타일 선택 모달 (0라운드 초기 선택은 하단 패널만 사용, X/Cancel 없음). 관전자에게는 미표시 */}

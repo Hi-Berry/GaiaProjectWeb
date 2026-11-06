@@ -124,6 +124,28 @@ export const GameClient = {
     });
   },
 
+  /** [사용자 2026-11-06] 끝난 게임 기록으로 리플레이 관전 방을 연다 → 방 ID (그 방을 숨은 관전으로 보면 된다) */
+  replayOpen(gameId: string): Promise<{ roomId: string }> {
+    return new Promise((resolve, reject) => {
+      getSocket().emit('replay_open', { gameId }, (response: any) => {
+        if (!response || response.error) reject(new Error(response?.error ?? '리플레이를 열지 못했습니다'));
+        else resolve(response);
+      });
+    });
+  },
+
+  /** 리플레이 방에서 보여줄 수(0 = 시작 전) */
+  replaySeek(roomId: string, index: number) {
+    getSocket().emit('replay_seek', { roomId, index });
+  },
+
+  /** 리플레이 방: from 기준 다음(+1)/이전(-1) 라운드 첫 수로 */
+  replaySeekRound(roomId: string, from: number, roundStep: 1 | -1): Promise<number> {
+    return new Promise(resolve => {
+      getSocket().emit('replay_seek', { roomId, from, roundStep }, (r: { index: number }) => resolve(r?.index ?? from));
+    });
+  },
+
   getGame(gameId: string): Promise<{ game: GameState }> {
     return new Promise((resolve, reject) => {
       const s = getSocket();

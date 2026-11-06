@@ -1,3 +1,4 @@
+import { boardSetupFromGame, type SavedBoardSetup } from '@shared/replay';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FACTIONS, getFederationEntries, type GaiaGameState, type PlayerState } from '@shared/gameConfig';
@@ -86,7 +87,23 @@ type HumanGamePayload = {
    *  시점별 변화는 gameLog의 Federation Reward 항목에 실린 fedHexes로 따라간다. */
   satellites?: Record<string, string | string[]>;
   playerFederationHexes?: Record<string, string[]>;
+  /** [사용자 2026-11-06] 리플레이용 보드 설정(라운드·최종 미션, 기술 타일 배치, 고급 기술, 경제 변형, 부스터).
+   *  없던 시절 기록은 로그로 추정한다(shared/replay.ts inferBoardSetup). */
+  boardSetup?: SavedBoardSetup;
 };
+
+/** 만들 때의 일반 기술 타일 배치 — 4장을 다 가져가면 게임 객체에선 종류를 알 수 없게 되므로 따로 기억 */
+const initialTechBoards = new Map<string, Pick<SavedBoardSetup, 'techByTrack' | 'techPool'>>();
+export function rememberInitialBoard(game: GaiaGameState & { id?: string }): void {
+  if (!game.id) return;
+  const s = boardSetupFromGame(game);
+  initialTechBoards.set(game.id, { techByTrack: s.techByTrack, techPool: s.techPool });
+}
+function boardSetupOf(game: GaiaGameState & { id?: string }, consume = false): SavedBoardSetup | undefined {
+  const initial = game.id ? initialTechBoards.get(game.id) : undefined;
+  if (consume && game.id) initialTechBoards.delete(game.id);
+  try { return boardSetupFromGame(game, initial); } catch { return undefined; }
+}
 
 function summarizePlayer(player?: PlayerState | null) {
   if (!player) return null;
@@ -247,6 +264,7 @@ function buildPayload(game: GaiaGameState & {
     gameLog: (game.gameLog ?? []).filter(e => !(e as { rolledBack?: boolean }).rolledBack),
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: takeFullGameLog(game.id),
+    boardSetup: boardSetupOf(game, true),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
     netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
@@ -285,6 +303,7 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     gameLog: (game.gameLog ?? []).filter(e => !(e as { rolledBack?: boolean }).rolledBack),
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: peekFullGameLog(game.id),
+    boardSetup: boardSetupOf(game),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
     netUsage: (game as { __netUsage?: HumanGamePayload['netUsage'] }).__netUsage,
@@ -395,7 +414,7 @@ export async function exportHumanGameDataset(game: GaiaGameState & {
   botPlayerIds?: string[];
   humanActionJournal?: HumanActionJournalEntry[];
 }) {
-  if ((game as any).simulation) return;
+  if ((game as any).simulation || (game as any).replay) return; // 리플레이 관전 방은 저장 안 함
   // 진짜 사람이 한 명도 없으면(= self-play / head2head 등 봇 전용 게임) 사람 데이터셋에 저장하지 않는다.
   // (러너들이 data/human-games / Supabase 를 오염시키던 문제 수정)
   const playerIds = Object.keys(game.players ?? {});
@@ -533,7 +552,7 @@ export async function submitToScoreSite(game: GaiaGameState & {
   botPlayerIds?: string[];
   simulation?: boolean;
 }) {
-  if (game.simulation) return;
+  if (game.simulation || (game as any).replay) return;
   const url = process.env.SCORE_SITE_URL;
   const token = process.env.SCORE_SITE_TOKEN;
   if (!url || !token) return; // 미설정이면 조용히 스킵

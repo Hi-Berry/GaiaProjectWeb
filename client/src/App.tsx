@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Lobby from "@/pages/Lobby";
 import Game from "@/pages/Game";
+import Replay from "@/pages/Replay";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { preloadImages } from "@/lib/imagePreloader";
@@ -21,6 +22,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Lobby} />
       <Route path="/game/:matchID" component={Game} />
+      <Route path="/replay" component={Replay} />
+      <Route path="/replay/:gameId" component={Replay} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -105,6 +105,8 @@ import { setPlayerVariant, clearAllPlayerVariants, getPlayerFlag, type PlayerVar
 import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
+import { registerReplaySocket } from './replay';
+import { rememberInitialBoard } from './humanGameLogger';
 import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
 
 
@@ -558,7 +560,7 @@ export function setStatusNotice(next: { text?: string; recommend?: boolean }): S
 export function getPublicStatus() {
 	let humanPlayers = 0, activeGames = 0;
 	for (const g of Array.from(games.values())) {
-		if ((g as any).simulation || g.currentPhase === 'gameEnd') continue;
+		if ((g as any).simulation || (g as any).replay || g.currentPhase === 'gameEnd') continue;
 		activeGames++;
 		humanPlayers += Math.max(0, Object.keys(g.players || {}).length - ((g as any).botPlayerIds?.length || 0));
 	}
@@ -582,7 +584,7 @@ export function getPublicStatus() {
 export function getRoomStats(): { games: number; players: number; spectators: number; receivers: number } {
 	let players = 0, spectators = 0, receivers = 0, n = 0;
 	for (const g of Array.from(games.values())) {
-		if ((g as any).simulation || g.currentPhase === 'gameEnd') continue;
+		if ((g as any).simulation || (g as any).replay || g.currentPhase === 'gameEnd') continue;
 		n++;
 		players += Object.keys(g.players || {}).length;
 		spectators += ((g as any).connectedSpectators?.length ?? 0);
@@ -610,7 +612,7 @@ export function isAiEnabled(): boolean {
 export function hasActiveHumanGame(exceptGameId?: string): boolean {
 	for (const [id, g] of Array.from(games.entries())) {
 		if (id === exceptGameId) continue;
-		if ((g as any).simulation) continue;
+		if ((g as any).simulation || (g as any).replay) continue;
 		if (g.currentPhase === 'lobby' || g.currentPhase === 'gameEnd') continue;
 		const bots = new Set(g.botPlayerIds || []);
 		if (Object.keys(g.players).some(pid => !bots.has(pid))) return true;
@@ -3882,6 +3884,9 @@ export function setupGameServer(httpServer: HTTPServer) {
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
 
+		// [사용자 2026-11-06] 끝난 게임 리플레이 관전 방 (server/replay.ts)
+		registerReplaySocket(io, socket, { games, emitGameUpdated, generateGameId, carrySpectatorSession });
+
 		// [배포 반영 2026-08-09, 사용자] 배포하면 서버가 재시작 → 모든 클라가 재접속한다. 그 순간이
 		//   "네 번들 최신이니?"를 물어볼 가장 확실한 타이밍. 클라는 자기 __BUILD_ID__와 비교해 배너를 띄운다.
 		socket.emit('server_build', { buildId: getClientBuildId() });
@@ -3989,7 +3994,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		});
 
 		socket.on('list_games', (callback) => {
-			const gameList = Array.from(games.values()).map(g => {
+			// 리플레이 관전 방(server/replay.ts)은 목록에 안 보인다
+			const gameList = Array.from(games.values()).filter(g => !(g as any).replay).map(g => {
 				const playerEntries = Object.entries(g.players).map(([id, p]) => ({
 					id,
 					name: p.name || id,
@@ -4108,6 +4114,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 최종미션: 9개 중 2개 랜덤 선택
 			const shuffledFinal = shuffled(FINAL_MISSION_IDS);
 			game.finalMissionIds = shuffledFinal.slice(0, 2);
+			rememberInitialBoard(game); // [사용자 2026-11-06] 리플레이용 — 일반 기술 타일 배치 기억
 
 			// 우주선 타일별 상태 초기화
 			game.spaceships = {};
