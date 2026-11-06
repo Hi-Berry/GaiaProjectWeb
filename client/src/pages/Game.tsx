@@ -4758,11 +4758,12 @@ export default function Game() {
           <button
             type="button"
             onClick={() => { setResearchAutoOpenSuppressed(false); setIsResearchOpen(true); }}
-            className="fixed top-36 left-1/2 -translate-x-1/2 z-[130] flex items-center gap-2 px-4 py-2 rounded-full bg-blue-900/90 backdrop-blur border border-blue-400/60 text-blue-100 text-xs font-black uppercase tracking-wider shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-800 transition-colors"
+            /* [사용자 2026-11-02] 폰 폭에서 글자가 여러 줄로 접혀 맵 위에 깨진 덩어리처럼 보였다 → 한 줄 고정, 폰에선 짧게 */
+            className="fixed top-36 left-1/2 -translate-x-1/2 z-[130] flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full bg-blue-900/90 backdrop-blur border border-blue-400/60 text-blue-100 text-[11px] md:text-xs font-black uppercase tracking-wider whitespace-nowrap shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-800 transition-colors"
           >
-            <FlaskConical className="w-4 h-4" />
+            <FlaskConical className="w-4 h-4 shrink-0" />
             Research 창 다시 열기
-            <span className="text-[9px] font-bold text-blue-300/90 normal-case">(타일/트랙 선택 대기 중)</span>
+            <span className="hidden md:inline text-[9px] font-bold text-blue-300/90 normal-case">(타일/트랙 선택 대기 중)</span>
           </button>
         )}
 
