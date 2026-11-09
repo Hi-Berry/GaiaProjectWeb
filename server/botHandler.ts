@@ -584,10 +584,13 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     //   새 AI(정책·가치망 + PUCT 160회)가 고른다. 결정 불가·실패·예외면 null → 기존 봇으로 폴백. 그 외 좌석은 모듈을 불러오지도 않는다.
     let action: BotAction | null = null;
     const ai2Mod = (getPlayerFlag(currentPlayerId, 'ai2', false) || (player as any).liveVariant?.flags?.ai2) ? await import('./ai2/live') : null;
-    if (ai2Mod && ai2Mod.isAi2Seat(game, currentPlayerId)) {
+    // [2026-11-09] 이번 결정에서 실행이 한 번이라도 거부됐으면(failRepick 재시도 중) 신경망 대신 기존 봇이 둔다 — 같은 수를 30초씩 반복하지 않게.
+    const ai2Retrying = ((game as any)._botFailRetry?.[currentPlayerId] ?? 0) > 0;
+    let actionFromAi2 = false;
+    if (ai2Mod && ai2Mod.isAi2Seat(game, currentPlayerId) && !ai2Retrying) {
         (game as any)._ai2ThinkingSince = Date.now();
         let r: Awaited<ReturnType<typeof ai2Mod.ai2LiveDecide>>;
-        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId); } finally { (game as any)._ai2ThinkingSince = undefined; }
+        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId, (game as any)._botFailedKeys?.[currentPlayerId] ?? []); } finally { (game as any)._ai2ThinkingSince = undefined; }
         // [2026-10-23] 실전 기록: 결정 수·평균 시간·평균 탐색 횟수·폴백 사유 — Supabase 게임 기록(players[].ai2Stats)으로 올라간다
         if (r.reason !== 'not-decidable') {
             const p: any = player; const st = (p.ai2Stats ??= { n: 0, ms: 0, sims: 0, maxMs: 0, lowSims: 0, fallback: {} as Record<string, number> });
@@ -596,6 +599,7 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         }
         if (r.reason !== 'not-decidable') log(`Bot ${player.name} [AI2] ${r.action ? r.action.type : `fallback(${r.reason})`} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options}`, 'game', game.id);
         action = r.action;
+        actionFromAi2 = !!r.action;
     }
     if (!action) action = await BotLogic.getNextMove(game, currentPlayerId);
     // [selfJournal] AI_SELF_JOURNAL=1일 때만: 후보 리스트 + 최종 선택을 자가대국 모방 학습용으로 기록(bot.ts 참조)
@@ -720,6 +724,12 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         setTimeout(() => executeBotTurnIfNeeded(io, game), d(500));
     } else {
         log(`Bot ${player.name} failed to execute ${action.type}. Action details: ${JSON.stringify(action)}`, 'error', game.id);
+        // [2026-11-09] 신경망이 고른 수가 실전에서 거부된 기록(탐색용 복제 상태와 서버 판정이 다른 원인 추적용) — Supabase 게임 기록으로 간다
+        if (actionFromAi2) {
+            const p: any = player; const st = (p.ai2Stats ??= { n: 0, ms: 0, sims: 0, maxMs: 0, lowSims: 0, fallback: {} as Record<string, number> });
+            st.execFail = st.execFail ?? {}; st.execFail[action.type] = (st.execFail[action.type] ?? 0) + 1;
+            st.execFailLast = (st.execFailLast ?? []).concat([`R${game.roundNumber} ${action.type} ${JSON.stringify(action.params ?? {}).slice(0, 120)} pend=${Object.keys(game as any).filter(k => /^pending/.test(k) && (game as any)[k] && ((game as any)[k].playerId === currentPlayerId || Array.isArray((game as any)[k]) && (game as any)[k].length)).join(',')}`]).slice(-5);
+        }
         // [hang 근본수정 2026-07-04] pending(우주선기술 무료광산/테라폼스텝) 상태에서 후보가 서버에 거부되면
         // pass도 서버가 거부(pending 우선) → 무한 재스케줄 루프(uk3aybql 수 분 hang). 첫 실패에 즉시 pending을
         // 정면 해소: skip_ship_tech_mine 시도, 안 되면 스텝 포기 — 낭비지만 무한루프·타임아웃보다 압도적으로 나음.

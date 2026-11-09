@@ -55,7 +55,7 @@ function decidable(game: ServerGameState, pid: string): boolean {
 export interface Ai2LiveResult { action: BotAction | null; ms: number; sims: number; options: number; reason?: string }
 
 /** 메인 액션 결정. action=null이면 호출부가 기존 봇으로 폴백. */
-export async function ai2LiveDecide(game: ServerGameState, pid: string): Promise<Ai2LiveResult> {
+export async function ai2LiveDecide(game: ServerGameState, pid: string, excludeKeys: string[] = []): Promise<Ai2LiveResult> {
 	const t0 = Date.now();
 	try {
 		if (!decidable(game, pid)) return { action: null, ms: 0, sims: 0, options: 0, reason: 'not-decidable' };
@@ -66,7 +66,10 @@ export async function ai2LiveDecide(game: ServerGameState, pid: string): Promise
 		const g = prepareHeadless(game);
 		// 탐색 안에서 나 말고는 전부 기존 봇 빠른 경로로 모델링 — 사람 좌석의 리치·보류도 봇처럼 자동 처리되게
 		g.botPlayerIds = g.turnOrder.filter(id => id !== pid);
-		const options = generateMoves(g, pid);
+		// [2026-11-09] 서버가 이미 거부한 수(botHandler failRepick 목록 — 키 = type|params JSON, preActions 제외)는 빼고 고른다.
+		//   전엔 신경망 경로가 이 목록을 안 봐 같은 수를 반복(한 번에 최대 30초 × 4회)하다 라운드를 통째로 잃었다.
+		const ex = new Set(excludeKeys);
+		const options = generateMoves(g, pid).filter(m => !ex.has(`${m.type}|${JSON.stringify(m.params ?? {})}`));
 		if (!options.length) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'no-options' };
 		const st = newPuctStats();
 		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 400), maxMs: Number(process.env.AI2_MAX_MS || 30000), valueNet: vn ?? undefined, earlyStop: process.env.AI2_EARLY_STOP !== '0' });
