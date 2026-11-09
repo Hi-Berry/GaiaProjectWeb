@@ -25,6 +25,7 @@ ap.add_argument('--skill-weight', type=float, default=0.0, help='사람 행 정�
 ap.add_argument('--result-weight', type=float, default=0.0, help='사람 행 정책 가중을 그 판 결과로: clip(1 + (내 점수−상대 평균)/이 값, 0.3, 1.8). 예 40 → +40점 1.8배, −28점 0.3배(사용자 2026-10-21: 잘하는 사람도 못한 판이 있다 — 사람 고정 실력 대신 판 결과)')
 ap.add_argument('--elo-weight', default='', help='사람 행 정책 가중을 실력 점수 파일(scripts/ai2/playerElo.mjs)로: clip(1 + (elo−1500)/150, 0.3, 1.8), 8판 미만은 1')
 ap.add_argument('--val-starts', default='', help='검증 시작 상태 목록 고정(JSON) — 반복 간 같은 기준으로 비교하고 대결 시작 상태가 학습에 새지 않게')
+ap.add_argument('--sib-weight', type=float, default=0.0, help='[2026-11-09 형제 비교] sg(같은 국면에서 둔 후보별 잎) 묶음 안에서 (예측−묶음 평균)이 (목표−묶음 평균)을 맞추게 하는 손실 가중 — 탐색이 실제로 쓰는 후보 간 차이')
 ap.add_argument('--device', default='cpu')  # MPS는 torch 2.0에서 gather 경로 Bus error(실측) — CPU 기본
 args = ap.parse_args()
 random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
@@ -41,7 +42,7 @@ def compact(o):
     gi, gv = o['grid']; fi, fv = o['flat']
     lens = [len(m['f'][0]) for m in o['moves']]
     pi = o.get('pi')
-    return {'g': o['g'], 'p': o['p'], 'y': o['y'], 'k': o.get('kind') if o.get('kind') not in (None, 'human', 'main') else 'main', 'r': int(o.get('r') or 0), 'vo': bool(o.get('vo')), 'q': o.get('q'), 'vt': o.get('vt'),
+    return {'sg': o.get('sg'), 'g': o['g'], 'p': o['p'], 'y': o['y'], 'k': o.get('kind') if o.get('kind') not in (None, 'human', 'main') else 'main', 'r': int(o.get('r') or 0), 'vo': bool(o.get('vo')), 'q': o.get('q'), 'vt': o.get('vt'),
             '_pii': np.asarray(pi[0], np.int32) if pi else None, '_piv': np.asarray(pi[1], np.float32) if pi else None,
             '_gi': np.asarray(gi, np.int32), '_gv': np.asarray(gv, np.float16),
             '_fi': np.asarray(fi, np.int32), '_fv': np.asarray(fv, np.float16),
@@ -178,6 +179,34 @@ def evaluate(rs):
     last_kind = ' '.join(f'{k}:{a / b:.2f}({b})' for k, (a, b) in sorted(kind.items(), key=lambda x: -x[1][1]))
     return t1 / max(1, n), t3 / max(1, n), float(np.abs(vp - vs).mean() * 50), corr, float(((vp > 0) == (vs > 0)).mean()), by_round
 last_kind = ''
+def sib_eval(rs):
+    """형제 묶음 지표: 목표 차 ≥5점인 쌍의 순서 일치율, 묶음 중심화 상관"""
+    rs = [r for r in rs if r.get('sg')]
+    if not rs: return None
+    net.eval(); pred = []
+    with torch.no_grad():
+        for i in range(0, len(rs), 128):
+            g, fl, mv, cell, mask, y, v, _P, pw = batchify(rs[i:i + 128], dev)
+            pred += net(g, fl, mv, cell, mask)[1].cpu().tolist()
+    grp = {}
+    for r, pv in zip(rs, pred): grp.setdefault(r['sg'], []).append((pv, r['vout']))
+    ok = tot = 0; cp, ct = [], []
+    for xs in grp.values():
+        if len(xs) < 2: continue
+        mp = np.mean([a for a, _ in xs]); mt = np.mean([b for _, b in xs])
+        cp += [a - mp for a, _ in xs]; ct += [b - mt for _, b in xs]
+        for i in range(len(xs)):
+            for j in range(i + 1, len(xs)):
+                if abs(xs[i][1] - xs[j][1]) >= 0.1: tot += 1; ok += int((xs[i][0] - xs[j][0]) * (xs[i][1] - xs[j][1]) > 0)
+    c = float(np.corrcoef(cp, ct)[0, 1]) if len(cp) > 2 else 0.0
+    return ok / max(1, tot), tot, c, len(grp)
+def order_rows(rs):
+    """형제 묶음을 붙여 둔 순서로 섞는다(배치 안에 같은 묶음이 모이게)"""
+    if args.sib_weight <= 0: random.shuffle(rs); return rs
+    grp = {}
+    for i, r in enumerate(rs): grp.setdefault(r.get('sg') or i, []).append(r)
+    ks = list(grp); random.shuffle(ks)
+    return [r for k in ks for r in grp[k]]
 
 rand_top1 = np.mean([1 / min(args.maxk, len(r['_c'])) for r in va if not r['vo']] or [0])
 print(f"기준선: 무작위 top-1 {rand_top1:.3f} · 가치 '항상 0' MAE {np.mean([abs(r['vout']) for r in va]) * 50:.1f}VP")
@@ -185,20 +214,36 @@ if args.init:
     a1, a3, mae, corr, sign, by_round = evaluate(va)
     print(f"시작 모델 성능: 정책 top-1 {a1:.3f} · 가치 MAE {mae:.1f}VP 상관 {corr:.2f} · 라운드별 상관 {by_round}", flush=True)
     print(f"   종류별 top-1: {last_kind}", flush=True)
+    se = sib_eval(va)
+    if se: print(f"   형제 묶음(검증 {se[3]}): 5점+ 차 쌍 순서 일치 {se[0]:.3f} ({se[1]}쌍) · 묶음 중심화 상관 {se[2]:.3f}", flush=True)
 best = -1e9
 for ep in range(args.epochs):
-    net.train(); random.shuffle(tr); t0 = time.time(); tl = 0
+    net.train(); tr = order_rows(tr); t0 = time.time(); tl = 0
     for i in range(0, len(tr), args.batch):
         g, fl, mv, cell, mask, y, v, P, pw = batchify(tr[i:i + args.batch], dev)
         logit, val = net(g, fl, mv, cell, mask)
         pol_row = -(P * F.log_softmax(logit, dim=-1)).sum(-1)  # 소프트 목표 CE(원-핫이면 기존 CE와 같음)
         pol = (pol_row * pw).sum() / pw.sum().clamp(min=1.0)  # 가치 전용 행 제외
         loss = (0.0 if args.value_only else pol) + args.vw * F.mse_loss(val, v)
+        if args.sib_weight > 0:
+            sgs = [r.get('sg') for r in tr[i:i + args.batch]]
+            ids = {}; gi = torch.tensor([ids.setdefault(x, len(ids)) if x else -1 for x in sgs])
+            m = gi >= 0
+            if m.sum() > 1:
+                G = len(ids); idx = gi[m]
+                cnt = torch.zeros(G).index_add_(0, idx, torch.ones(len(idx)))
+                mp = torch.zeros(G).index_add_(0, idx, val[m]) / cnt; mt = torch.zeros(G).index_add_(0, idx, v[m]) / cnt
+                keep = cnt[idx] > 1
+                if keep.any():
+                    d = (val[m] - mp[idx]) - (v[m] - mt[idx])
+                    loss = loss + args.sib_weight * (d[keep] ** 2).mean()
         opt.zero_grad(); loss.backward(); opt.step(); tl += loss.item() * len(y)
     a1, a3, mae, corr, sign, by_round = evaluate(va)
     print(f"ep{ep} loss {tl / len(tr):.3f} · val 정책 top-1 {a1:.3f} top-3 {a3:.3f} · 가치 MAE {mae:.1f}VP 상관 {corr:.2f} 부호 {sign:.2f} · 라운드별 상관 {by_round} · {time.time() - t0:.0f}s", flush=True)
     print(f"   종류별 top-1: {last_kind}", flush=True)
-    score = corr if args.value_only else a1 + corr  # 정책 정확도 + 가치 상관 — 둘 다 나아질 때 갱신(가치 전용이면 상관만)
+    se = sib_eval(va)
+    if se: print(f"   형제 묶음(검증 {se[3]}): 5점+ 차 쌍 순서 일치 {se[0]:.3f} ({se[1]}쌍) · 묶음 중심화 상관 {se[2]:.3f}", flush=True)
+    score = corr if not se else corr + se[2] if args.value_only else a1 + corr  # 정책 정확도 + 가치 상관 — 둘 다 나아질 때 갱신(가치 전용이면 상관만)
     if not va or score != score: score = ep  # 검증 행이 없거나 지표가 NaN이면 마지막 에포크를 저장
     if score > best:
         best = score; torch.save({'state_dict': net.state_dict(), 'epoch': ep, 'val': {'top1': a1, 'top3': a3, 'mae': mae, 'corr': corr}}, args.out)

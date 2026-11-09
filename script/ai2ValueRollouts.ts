@@ -18,6 +18,9 @@ import { encodeState } from '../server/ai2/encoder';
 import { ServerGameState } from '../server/gameState';
 import { OnnxNet } from '../server/ai2/onnxNet';
 import { greedyPolicy, valueGreedyPolicy, newSearchStats } from '../server/ai2/ai2Policy';
+import { advanceToOwnMain } from '../server/ai2/puct';
+import { tryApply } from '../server/ai2/moveGen';
+import { BotAction } from '../server/ai/bot';
 
 const args = process.argv.slice(2);
 const opt = (k: string, d: string) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
@@ -30,6 +33,11 @@ const rollMode = opt('--roll', 'bot');
 const rollNet = rollMode === 'net' || rollMode === 'netv' ? new OnnxNet(opt('--model', 'server/ai2/models/ai2_v4h6.onnx')) : null;
 // --roll netv --valueModel <onnx>: 정책 상위 5수를 가치 모델로 1수 앞보기(이어 두는 쪽을 더 강하게 — 다음 반복)
 const rollValue = rollMode === 'netv' ? new OnnxNet(opt('--valueModel', 'server/ai2/models/ai2_vnet2.onnx')) : null;
+// [2026-11-09 형제 비교] --siblings K: 표본 국면에서 메인 결정 좌석의 정책 상위 K개 합법 수를 각각 둬 보고, 탐색과 똑같이
+//   '내 다음 메인 결정'까지 진행한 상태(=탐색이 가치망에 묻는 잎)를 기록. 각 형제에서 같은 난수열로 R번 굴려(공통 난수 — 형제 간
+//   차이의 노이즈를 줄인다) 평균 마진을 목표로. 행에 sg(형제 묶음 id)를 달아 학습이 묶음 안 '차이'를 맞추게 한다(--sib-weight).
+//   왜: vnet3는 국면 전체 가치 상관 0.69에서 정체 — 탐색이 실제로 필요한 건 비슷한 후보 사이 몇 점 차이의 순서.
+const SIB = Number(opt('--siblings', '0'));
 const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] = []; for (let k = 0; k < a.length; k++) if (a[k] !== 0) { i.push(k); v.push(Math.round(a[k] * 1000) / 1000); } return [i, v]; };
 
 // --seed: 반복마다 다른 판(같으면 이전 생성과 똑같은 판이 나온다)
@@ -69,9 +77,13 @@ class Sample { constructor(public g: ServerGameState) {} }
 		const g = prepareHeadless(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
 		// 표본 국면: 메인 결정 시점에 확률 1/every로 상태를 복제해 둔다(게임 진행은 그대로)
 		const picks: ServerGameState[] = [];
+		const sibPicks: { st: ServerGameState; pid: string; options: BotAction[] }[] = [];
 		const base = epsPolicy(0.15);
 		const pol: Policy = async (game, d) => {
-			if (d.kind === 'main' && game.currentPhase === 'main' && rnd() < 1 / every) picks.push(StateCloner.cloneGameStateForSimulation(game));
+			if (d.kind === 'main' && game.currentPhase === 'main' && rnd() < 1 / every) {
+				if (SIB > 0) { if (d.options?.length && d.options.length > 1) sibPicks.push({ st: StateCloner.cloneGameStateForSimulation(game), pid: d.playerId, options: d.options }); }
+				else picks.push(StateCloner.cloneGameStateForSimulation(game));
+			}
 			return base(game, d);
 		};
 		const seatsAll = rollNet ? new Set(g.turnOrder) : undefined;
@@ -97,8 +109,46 @@ class Sample { constructor(public g: ServerGameState) {} }
 			}
 			states++;
 		}
+		for (const [pi, sp] of sibPicks.entries()) {
+			if (!rollNet) throw new Error('--siblings 는 --roll net 필요');
+			const root = prepareHeadless(sp.st);
+			const [o] = await rollNet.evaluate([{ game: root, pov: sp.pid, moves: sp.options }]);
+			const order = sp.options.map((m, i) => ({ m, p: o.priors[i] })).sort((a, b) => b.p - a.p);
+			const kids: { leaf: ServerGameState; terminal: boolean; p: number }[] = [];
+			for (const x of order) {
+				if (kids.length >= SIB) break;
+				const applied = await tryApply(root, sp.pid, x.m);
+				if (!applied) continue;
+				(applied as any).ai2SearchLite = true; // 탐색 안 잎과 같은 상대 모델로 진행
+				const nd = await advanceToOwnMain(applied, sp.pid);
+				delete (applied as any).ai2SearchLite;
+				kids.push({ leaf: applied, terminal: !nd, p: x.p });
+			}
+			if (kids.length < 2) continue;
+			const sg = `${gid}~${pi}`; const seed0 = s; const rows: any[] = [];
+			for (const [ki, kd] of kids.entries()) {
+				const a: number[] = [];
+				if (kd.terminal) a.push(margins(Object.fromEntries(kd.leaf.turnOrder.map(id => [id, kd.leaf.players[id].score ?? 0])))[sp.pid]);
+				else {
+					s = seed0; // 공통 난수: 형제마다 같은 난수열
+					for (let i = 0; i < R; i++) {
+						const c = prepareHeadless(kd.leaf);
+						const r = await runToEnd(c, epsPolicy(eps), { botParity: true, maxSteps: 4000, ai2Seats: new Set(c.turnOrder) });
+						if (r.ended) a.push(margins(r.scores as Record<string, number>)[sp.pid]);
+					}
+				}
+				if (!a.length || (!kd.terminal && a.length < Math.max(2, R / 2))) continue;
+				const mu = a.reduce((x, y) => x + y, 0) / a.length;
+				const e = encodeState(kd.leaf, sp.pid);
+				rows.push({ g: gid, p: sp.pid, r: kd.leaf.roundNumber, y: 0, vo: 1, vt: Math.round(mu / 50 * 1000) / 1000, n: a.length, sg, sk: ki, sp: Math.round(kd.p * 1000) / 1000,
+					flat: sparse(e.flat), grid: sparse(e.grid), moves: [{ f: [[], []], c: -1, k: '-' }] });
+			}
+			if (rows.length < 2) continue;
+			for (const r of rows) write(r);
+			const vs = rows.map(r => r.vt * 50); sdSum += Math.max(...vs) - Math.min(...vs); states++;
+		}
 		write({ final: true, g: gid, ended: r0.ended, scores: r0.scores });
-		if (games % 10 === 0) fs.writeSync(1, `[vr s${shard}] 게임 ${games} · 국면 ${states} · 굴림 표준편차 평균 ${(sdSum / Math.max(1, states * 4)).toFixed(1)}점 · ${((Date.now() - t0) / 60000).toFixed(0)}분\n`);
+		if (games % 10 === 0) fs.writeSync(1, `[vr s${shard}] 게임 ${games} · 국면 ${states} · ${SIB ? '형제 최대−최소 평균' : '굴림 표준편차 평균'} ${(sdSum / Math.max(1, states * (SIB ? 1 : 4))).toFixed(1)}점 · ${((Date.now() - t0) / 60000).toFixed(0)}분\n`);
 	}
 	gz.end(); await new Promise(r => ws.on('finish', r));
 	fs.writeSync(1, `[vr s${shard}] 완료 게임 ${games} · 국면 ${states} → ${outPath}\n`);
