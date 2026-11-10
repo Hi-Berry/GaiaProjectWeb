@@ -2064,6 +2064,18 @@ function isSpaceshipFederationRewardTaken(game: GaiaGameState, rewardId: string)
 function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId: string): void {
 	const nearbyPlayers = findNearbyPlayersForPower(game, tile, sourcePlayerId);
 	if (!game.queuedPowerOffers) game.queuedPowerOffers = [];
+	/* [사용자 2026-11-10] "연구소/아카데미 짓고 2삽 무료 광산·잊혀진 행성을 놓으면 누군가 파워를 두 번 받는데 순서가 안 맞다.
+	   연구소 몫을 먼저 받고 그 결과로 다음 파워를 받아야 한다. 첫 창을 받고 난 뒤에 광산 위치가 드러나고 두 번째 창이 뜨면 좋겠다."
+	   → 건물마다 단계 번호를 붙여 턴 종료 뒤 단계별로 처리한다(activateQueuedPowerOffersForPlayer). */
+	const stage = 1 + Math.max(0, ...game.queuedPowerOffers.filter(o => o.sourcePlayerId === sourcePlayerId).map(o => o.stage ?? 1));
+	const revealSeq = (() => {
+		const gl = game.gameLog ?? [];
+		for (let i = gl.length - 1; i >= 0; i--) {
+			const l = gl[i];
+			if (l.playerId === sourcePlayerId && l.tileId === tile.id && typeof l.seq === 'number' && !l.rolledBack) return l.seq;
+		}
+		return typeof (game as any).gameLogSeq === 'number' ? (game as any).gameLogSeq : undefined;
+	})();
 	for (const { playerId, maxPower, tileId } of nearbyPlayers) {
 		const targetPlayer = game.players[playerId];
 		// [2026-08-07 사용자] 타클론 의회는 토큰을 먼저 만들고 파워를 받으므로 그만큼 여력이 더 있다.
@@ -2094,7 +2106,10 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 			amount: maxAffordable,
 			vpCost,
 			tileId,
-			responded: false
+			responded: false,
+			stage,
+			sourceTileId: tile.id,
+			revealSeq,
 		});
 	}
 }
@@ -2137,18 +2152,32 @@ function shouldBotAcceptPowerOffer(game: ServerGameState, targetPlayerId: string
 
 function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerId: string): number {
 	const queued = game.queuedPowerOffers ?? [];
-	if (!queued.length) return 0;
 	if (!game.pendingPowerOffers) game.pendingPowerOffers = [];
+	if (!queued.length) { updatePowerRevealHold(game, sourcePlayerId); return game.pendingPowerOffers.filter(o => !o.responded).length; }
 
 	const sourcePlayer = game.players[sourcePlayerId];
-	const remaining: NonNullable<GaiaGameState['pendingPowerOffers']> = [];
-	for (const offer of queued) {
-		if (offer.sourcePlayerId !== sourcePlayerId) {
-			remaining.push(offer);
-			continue;
-		}
+	const remaining: NonNullable<GaiaGameState['pendingPowerOffers']> = queued.filter(o => o.sourcePlayerId !== sourcePlayerId);
+	/* [사용자 2026-11-10] 단계(건물)별로 처리한다. 앞 단계에 사람이 결정할 창이 남으면 거기서 멈추고, 뒤 단계는 큐에 남긴다.
+	   모두 답하면 continueStagedPowerOffers 가 다음 단계를 연다. 뒤 단계의 양·VP 는 그때의 충전여력·점수로 다시 잰다
+	   (예전엔 무료 1파워 자동 수락이 앞 단계 결정을 기다리지 않고 먼저 들어가, 앞 제안의 조건이 바뀌었다). */
+	let mineQueue = queued.filter(o => o.sourcePlayerId === sourcePlayerId);
+	const stages = Array.from(new Set(mineQueue.map(o => o.stage ?? 1))).sort((x, y) => x - y);
+	for (const stage of stages) {
+	if (game.pendingPowerOffers.some(o => !o.responded)) break; // 앞 단계 결정 대기 중
+	const batch = mineQueue.filter(o => (o.stage ?? 1) === stage);
+	mineQueue = mineQueue.filter(o => (o.stage ?? 1) !== stage);
+	for (const offer of batch) {
 		const targetPlayer = game.players[offer.targetPlayerId];
 		if (!targetPlayer) continue;
+		// 지금(앞 단계 반영 후) 충전여력·점수로 다시 잰다 — 처음 만들 때 값은 앞 단계 수령 전 기준이라 크다
+		{
+			const taklonsPI = targetPlayer.faction === 'taklons' && game.map.some(t => t.ownerId === offer.targetPlayerId && t.structure === 'planetary_institute');
+			const capNow = getMaxPowerGainForOrder(game, offer.targetPlayerId, true);
+			const chargeNow = Math.min(offer.amount, capNow, (targetPlayer.score ?? 0) + 1);
+			if (chargeNow <= 0 && !taklonsPI) continue; // 앞 단계에서 그릇이 찼다 — 받을 것이 없으니 묻지 않는다
+			offer.amount = Math.max(chargeNow, taklonsPI ? offer.amount : 0);
+			offer.vpCost = Math.max(0, offer.amount - 1);
+		}
 
 		// 마지막 라운드(6)에 이미 패스한 플레이어: 파워 제안 창을 띄우지 않고 자동 처리.
 		// [버그수정 2026-08-03, 사용자 제보 "2파워 받을 타이밍에 1파워만 올라감"] 예전 코드는 오퍼 크기와 무관하게
@@ -2162,14 +2191,14 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
 					text: `↳ Received Power +1P ${targetPlayer.name}`
-				});
+				}, offer.revealSeq);
 				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `+1P from ${sourcePlayer?.name} (auto)`, offer.tileId);
 			} else if (offer.amount >= 2) {
 				const added = addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
 					text: `↳ Declined Power (auto: passed) ${targetPlayer.name}`
-				});
+				}, offer.revealSeq);
 				if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `from ${sourcePlayer?.name} (auto: passed)`, offer.tileId);
 			}
 			continue;
@@ -2185,7 +2214,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				playerId: offer.targetPlayerId,
 				playerName: targetPlayer.name,
 				text: `↳ Declined Power (auto: bowls full) ${targetPlayer.name}`
-			});
+			}, offer.revealSeq);
 			if (!added) addGameLog(game, offer.targetPlayerId, 'Declined Power', `from ${sourcePlayer?.name} (auto: bowls full)`, offer.tileId);
 			continue;
 		}
@@ -2206,14 +2235,14 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
 					text: `↳ Received Power ${text} ${targetPlayer.name}`
-				});
+				}, offer.revealSeq);
 				if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
 			} else {
 				addSubLogToLastAction(game, sourcePlayerId, {
 					playerId: offer.targetPlayerId,
 					playerName: targetPlayer.name,
 					text: `↳ Declined Power ${targetPlayer.name}`
-				});
+				}, offer.revealSeq);
 			}
 			continue;
 		}
@@ -2225,15 +2254,46 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 				playerId: offer.targetPlayerId,
 				playerName: targetPlayer.name,
 				text: `↳ Received Power ${text} ${targetPlayer.name}`
-			});
+			}, offer.revealSeq);
 			if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
 			continue;
 		}
 		game.pendingPowerOffers.push({ ...offer, responded: false });
 	}
+	}
 
-	game.queuedPowerOffers = remaining;
-	return game.pendingPowerOffers.length;
+	game.queuedPowerOffers = [...remaining, ...mineQueue];
+	updatePowerRevealHold(game, sourcePlayerId);
+	return game.pendingPowerOffers.filter(o => !o.responded).length;
+}
+
+/** [2026-11-10] 아직 처리 전 단계가 남았으면, 그 단계 건설(로그 줄·칸)을 행동한 사람 외에게 감추도록 표시한다.
+ *  칸은 턴 시작 스냅샷의 모습으로 보여준다(그 칸은 이번 턴에 지은 것이라 턴 시작엔 비어 있었다). */
+function updatePowerRevealHold(game: ServerGameState, sourcePlayerId: string): void {
+	const later = (game.queuedPowerOffers ?? []).filter(o => o.sourcePlayerId === sourcePlayerId);
+	if (!later.length) { if (game.powerRevealHold?.playerId === sourcePlayerId) game.powerRevealHold = null; return; }
+	const seqs = later.map(o => o.revealSeq).filter((x): x is number => typeof x === 'number');
+	if (!seqs.length) { game.powerRevealHold = null; return; }
+	const startMap = ((game.turnStartState?.[sourcePlayerId] as any)?.fullGameState?.map ?? []) as HexTile[];
+	const tileIds = Array.from(new Set(later.map(o => o.sourceTileId).filter((x): x is string => !!x)));
+	const tiles = tileIds.map(id => {
+		const before = startMap.find(t => t.id === id);
+		if (before) return deepClone(before);
+		const now = game.map.find(t => t.id === id);
+		return now ? ({ ...now, ownerId: null, structure: null } as unknown as HexTile) : null;
+	}).filter((t): t is HexTile => !!t);
+	game.powerRevealHold = { playerId: sourcePlayerId, fromSeq: Math.min(...seqs), tiles };
+}
+
+/** [2026-11-10] 턴 종료 대기 중 파워 응답이 모두 끝났을 때 — 다음 단계가 있으면 열고, 없으면 턴을 넘긴다 */
+function continueStagedPowerOffers(io: SocketIOServer, game: ServerGameState, endingPlayerId: string, reason: string): void {
+	const waiting = activateQueuedPowerOffersForPlayer(game, endingPlayerId);
+	if (waiting > 0) {
+		clampPlayerResources(game); emitGameUpdated(io, game);
+		executeBotTurnIfNeeded(io, game).catch(err => log(`Bot turn execution error (power stage): ${err}`, 'error'));
+		return;
+	}
+	finalizeTurnEnd(io, game, endingPlayerId, { triggerBot: true, reason });
 }
 
 /** 다른 플레이어의 '사전 처리'가 진행 중이면 true → 그동안 어떤 새 메인 액션도 막는다('당신의 턴이 아닙니다'와 동급).
@@ -2312,6 +2372,7 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 		// 정당한 무료광산을 잃는 회귀버그. 소비는 건설 시 clearFreeMineFlags가 담당(원래 동작 유지).
 	}
 	game.pendingTurnEndPlayerId = undefined;
+	game.powerRevealHold = null; // [2026-11-10] 단계 공개 대기 끝
 	(game as any).turnEndCount = ((game as any).turnEndCount ?? 0) + 1; // 턴 시간 경고: 같은 사람 연속 턴도 새 턴으로
 
 	const _prevIdx = game.currentPlayerIndex;
@@ -2846,9 +2907,19 @@ function saveAiExpertFeedback(game: GaiaGameState, submitterId: string, role: 'p
 	return record;
 }
 
-export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: string, subLog: { playerId: string; playerName: string; text: string }): boolean {
+export function addSubLogToLastAction(game: GaiaGameState, sourcePlayerId: string, subLog: { playerId: string; playerName: string; text: string }, atSeq?: number): boolean {
 	if (!game.gameLog || game.gameLog.length === 0) return false;
 	if (!subLog.text) return false;
+	// [2026-11-10] 단계별 파워 제안: 그 제안을 만든 건설 줄(atSeq)에 단다 — 안 그러면 연구소 몫 수령이 뒤에 지은 광산 줄에 붙는다
+	if (typeof atSeq === 'number') {
+		const at = game.gameLog.find(l => l.seq === atSeq && l.playerId === sourcePlayerId && !l.rolledBack);
+		if (at) {
+			if (!at.subLogs) at.subLogs = [];
+			at.subLogs.push(subLog);
+			recordFullGameLog(game as ServerGameState, subLog.playerId, 'Received Power', subLog.text);
+			return true;
+		}
+	}
 
 	// 뒤에서부터 탐색하여 sourcePlayerId가 일으킨 최근 메인 액션을 찾음
 	for (let i = game.gameLog.length - 1; i >= 0; i--) {
@@ -7551,7 +7622,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				applyPlayerPowerCharge(game, offer.targetPlayerId, chargeNow, { brainFirst: true });
 				const sourcePlayer = game.players[offer.sourcePlayerId];
 				const subTxt = `↳ Received Power +${chargeNow}P${vpNow > 0 ? ` (-${vpNow}VP)` : ''} ${targetPlayer.name}`;
-				const subAdded = addSubLogToLastAction(game, offer.sourcePlayerId, { playerId: offer.targetPlayerId, playerName: targetPlayer.name, text: subTxt });
+				const subAdded = addSubLogToLastAction(game, offer.sourcePlayerId, { playerId: offer.targetPlayerId, playerName: targetPlayer.name, text: subTxt }, offer.revealSeq);
 				if (!subAdded) addGameLog(game, offer.targetPlayerId, 'Received Power', `+${chargeNow}P from ${sourcePlayer?.name} (-${vpNow}VP)`, offer.tileId);
 			}
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
@@ -7562,7 +7633,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 종료돼 다음 사람이 먼저 둔다. 단일 응답(executeRespondPowerOffer)과 동일하게 '모든 오퍼 해소' 시에만 종료.
 				if ((game.pendingPowerOffers?.length || 0) === 0) {
 					const endingPlayerId = game.pendingTurnEndPlayerId;
-					finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
+					continueStagedPowerOffers(io, game as ServerGameState, endingPlayerId, 'power_offers_done');
 				} else {
 					clampPlayerResources(game); emitGameUpdated(io, game); // 다른 플레이어 오퍼 대기 — 종료 보류
 				}
@@ -11083,7 +11154,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 			playerId: actualTargetId,
 			playerName: targetPlayer.name,
 			text: `↳ Received Power ${text} ${targetPlayer.name}`
-		});
+		}, offer.revealSeq);
 		if (!added) {
 			addGameLog(game, actualTargetId, 'Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
 		} else {
@@ -11097,7 +11168,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 			playerId: actualTargetId,
 			playerName: targetPlayer.name,
 			text: `↳ Declined Power ${targetPlayer.name}`
-		});
+		}, offer.revealSeq);
 		if (!declined) addGameLog(game, actualTargetId, 'Declined Power', `from ${game.players[offer.sourcePlayerId]?.name}`, offer.tileId);
 		log(`Player ${targetPlayer.name} declined power offer`, 'game', undefined, { simulation: (game as any).simulation });
 	}
@@ -11109,7 +11180,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 
 	if ((game.pendingPowerOffers?.length || 0) === 0 && game.pendingTurnEndPlayerId) {
 		const endingPlayerId = game.pendingTurnEndPlayerId;
-		finalizeTurnEnd(io, game as ServerGameState, endingPlayerId, { triggerBot: true, reason: 'power_offers_done' });
+		continueStagedPowerOffers(io, game as ServerGameState, endingPlayerId, 'power_offers_done');
 		return;
 	}
 

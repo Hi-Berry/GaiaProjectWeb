@@ -81,9 +81,14 @@ export function getCommitSeq(game: GameState | null | undefined): number | null 
 	if (!game) return null;
 
 	const marks = Object.values((game.turnMark ?? {}) as Record<string, number>);
-	const raw = (game.currentPhase !== 'main' || game.pendingTurnEndPlayerId || !marks.length || isRoundStartPending(game))
-		? null
-		: Math.max(...marks);
+	/* [사용자 2026-11-10] 같은 턴에 파워를 두 번 주는 건설(연구소 → 무료 광산·잊혀진 행성)은 턴 종료 뒤 단계별로 묻는다.
+	   앞 단계 창에 모두 답할 때까지 뒤 단계 건설 줄(hold.fromSeq 이상)은 남에게 감춘다 — 서버가 powerRevealHold 로 알려 준다. */
+	const hold = (game as { powerRevealHold?: { fromSeq: number } | null }).powerRevealHold;
+	const raw = (game.currentPhase === 'main' && game.pendingTurnEndPlayerId && hold && typeof hold.fromSeq === 'number')
+		? hold.fromSeq - 1
+		: (game.currentPhase !== 'main' || game.pendingTurnEndPlayerId || !marks.length || isRoundStartPending(game))
+			? null
+			: Math.max(...marks);
 
 	const id = (game as { id?: string }).id;
 	if (!id) return raw; // 게임 id를 모르면 붙잡아 둘 곳이 없다 — 원래 값 그대로
@@ -114,6 +119,19 @@ export function resetCommitSeqMemo(): void {
  * 화면 표시용 상태 고르기(Game.tsx viewGame) — 남의 턴 진행 중엔 그 턴 시작 시점으로 고정한다.
  * 컴포넌트마다 하나씩(useRef) 만들어 렌더마다 view() 를 부른다.
  */
+/** [2026-11-10] 단계별 파워 처리 중 아직 공개 전인 칸을 턴 시작 모습으로 바꿔 보여준다(행동한 사람 본인은 그대로) */
+const maskCache = new WeakMap<object, { viewer: string | null | undefined; out: unknown }>();
+function maskHeldTiles<T extends GameState>(game: T, viewer: string | null | undefined): T {
+	const hold = (game as { powerRevealHold?: { playerId: string; tiles: Array<{ id: string }> } | null }).powerRevealHold;
+	if (!hold?.tiles?.length || !game.pendingTurnEndPlayerId || viewer === hold.playerId) return game;
+	const hit = maskCache.get(game as object);
+	if (hit && hit.viewer === viewer) return hit.out as T;
+	const byId = new Map(hold.tiles.map((t) => [t.id, t]));
+	const out = { ...game, map: (game.map ?? []).map((t) => (byId.get(t.id) as typeof t | undefined) ?? t) } as T;
+	maskCache.set(game as object, { viewer, out });
+	return out;
+}
+
 export function createViewFreeze() {
 	let lastSeq: number | null | undefined;
 	let lastTop: number | null = null;
@@ -130,7 +148,8 @@ export function createViewFreeze() {
 			const newRound = !!committed && committed.roundNumber !== game.roundNumber;
 			if (seq === null || seq !== lastSeq || rewound || newRound || !committed) { lastSeq = seq; committed = game; }
 			const myTurn = !!myPlayerId && game.turnOrder?.[game.currentPlayerIndex] === myPlayerId;
-			return (!myTurn && seq !== null && committed) ? committed as T : game;
+			const shown = (!myTurn && seq !== null && committed) ? committed as T : game;
+			return maskHeldTiles(shown, myPlayerId);
 		},
 	};
 }

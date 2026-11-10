@@ -583,7 +583,16 @@ export interface GaiaGameState {
     vpCost: number;
     tileId: string;
     responded: boolean;
+    /** [2026-11-10] 같은 턴에 파워를 두 번 주는 건물(연구소→무료 광산·잊혀진 행성 등)의 순서. 1부터, 단계마다 차례로 처리 */
+    stage?: number;
+    /** 이 제안을 만든 건물 칸 */
+    sourceTileId?: string;
+    /** 이 제안을 만든 건설 로그 줄의 seq — 단계 공개 경계·수령 서브로그 위치 */
+    revealSeq?: number;
   }>; // 파워 교환 제안 대기
+  /** [2026-11-10] 파워 제안을 단계별로 처리하는 동안, 아직 처리 전 단계의 건설을 남에게 감춘다.
+   *  fromSeq 이상 로그 줄과 tiles(턴 시작 시점 모습으로 보여줄 칸)를 행동한 사람 외에게 감춘다. */
+  powerRevealHold?: { playerId: string; fromSeq: number; tiles: HexTile[] } | null;
   /** 턴 종료는 눌렀지만 파워 수락/거절 응답 대기 때문에 다음 턴으로 아직 넘기지 못한 플레이어 ID */
   pendingTurnEndPlayerId?: string;
   /** 우주선: 맵 타일 ID -> { 잠금해제 여부, 입장한 플레이어 ID 순서, 이번 라운드 사용한 액션 번호(1,2,3) 목록 } */
