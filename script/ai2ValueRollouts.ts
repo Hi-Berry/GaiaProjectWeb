@@ -38,6 +38,9 @@ const rollValue = rollMode === 'netv' ? new OnnxNet(opt('--valueModel', 'server/
 //   차이의 노이즈를 줄인다) 평균 마진을 목표로. 행에 sg(형제 묶음 id)를 달아 학습이 묶음 안 '차이'를 맞추게 한다(--sib-weight).
 //   왜: vnet3는 국면 전체 가치 상관 0.69에서 정체 — 탐색이 실제로 필요한 건 비슷한 후보 사이 몇 점 차이의 순서.
 const SIB = Number(opt('--siblings', '0'));
+// [2026-11-10 재측정] --retest: 형제 묶음마다 서로 다른 난수로 두 번 굴려 vt·vt2 — 목표 자체의 재현성(후보 순서 일치) 확인용.
+// --seedMath: 굴리는 동안 Math.random(봇 내부)도 같은 난수열로 — 공통 난수가 실제로 형제 간에 맞춰지게.
+const RETEST = args.includes('--retest'), SEED_MATH = args.includes('--seedMath');
 const sparse = (a: ArrayLike<number>) => { const i: number[] = [], v: number[] = []; for (let k = 0; k < a.length; k++) if (a[k] !== 0) { i.push(k); v.push(Math.round(a[k] * 1000) / 1000); } return [i, v]; };
 
 // --seed: 반복마다 다른 판(같으면 이전 생성과 똑같은 판이 나온다)
@@ -125,22 +128,30 @@ class Sample { constructor(public g: ServerGameState) {} }
 				kids.push({ leaf: applied, terminal: !nd, p: x.p });
 			}
 			if (kids.length < 2) continue;
-			const sg = `${gid}~${pi}`; const seed0 = s; const rows: any[] = [];
-			for (const [ki, kd] of kids.entries()) {
+			const sg = `${gid}~${pi}`; const seedBase = s; const rows: any[] = [];
+			const rollKid = async (kd: { leaf: ServerGameState; terminal: boolean }, seed0: number) => {
 				const a: number[] = [];
-				if (kd.terminal) a.push(margins(Object.fromEntries(kd.leaf.turnOrder.map(id => [id, kd.leaf.players[id].score ?? 0])))[sp.pid]);
-				else {
-					s = seed0; // 공통 난수: 형제마다 같은 난수열
+				if (kd.terminal) { a.push(margins(Object.fromEntries(kd.leaf.turnOrder.map(id => [id, kd.leaf.players[id].score ?? 0])))[sp.pid]); return a; }
+				s = seed0; // 공통 난수: 형제마다 같은 난수열
+				const mr = Math.random; if (SEED_MATH) Math.random = rnd;
+				try {
 					for (let i = 0; i < R; i++) {
 						const c = prepareHeadless(kd.leaf);
 						const r = await runToEnd(c, epsPolicy(eps), { botParity: true, maxSteps: 4000, ai2Seats: new Set(c.turnOrder) });
 						if (r.ended) a.push(margins(r.scores as Record<string, number>)[sp.pid]);
 					}
-				}
+				} finally { Math.random = mr; }
+				return a;
+			};
+			const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+			for (const [ki, kd] of kids.entries()) {
+				const a = await rollKid(kd, seedBase);
 				if (!a.length || (!kd.terminal && a.length < Math.max(2, R / 2))) continue;
-				const mu = a.reduce((x, y) => x + y, 0) / a.length;
+				const mu = mean(a);
+				let vt2: number | undefined;
+				if (RETEST) { const b = await rollKid(kd, (seedBase * 31 + 999983) >>> 0); if (!b.length) continue; vt2 = Math.round(mean(b) / 50 * 1000) / 1000; }
 				const e = encodeState(kd.leaf, sp.pid);
-				rows.push({ g: gid, p: sp.pid, r: kd.leaf.roundNumber, y: 0, vo: 1, vt: Math.round(mu / 50 * 1000) / 1000, n: a.length, sg, sk: ki, sp: Math.round(kd.p * 1000) / 1000,
+				rows.push({ g: gid, p: sp.pid, r: kd.leaf.roundNumber, y: 0, vo: 1, vt: Math.round(mu / 50 * 1000) / 1000, n: a.length, sg, sk: ki, vt2, sp: Math.round(kd.p * 1000) / 1000,
 					flat: sparse(e.flat), grid: sparse(e.grid), moves: [{ f: [[], []], c: -1, k: '-' }] });
 			}
 			if (rows.length < 2) continue;
