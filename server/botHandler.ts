@@ -152,6 +152,11 @@ export async function executeBotTurnIfNeeded(io: SocketIOServer, game: ServerGam
         // 감지해 forceSkip → 게임 재개.
         const heldMs = Date.now() - (botExecutingSince.get(game.id) ?? Date.now());
         if (heldMs <= 45000) return;
+        // [2026-11-10] 새 AI(신경망)가 생각 중이면 살아 있는 루프다 — 느린 서버(Render)에선 한 수에 30초 상한 + 준비 시간으로 45초를
+        //   넘기는데, 그때 락을 뺏으면 두 번째 루프가 같은 차례를 동시에 진행하고(또 30초 생각) 늦게 끝난 결과는 바뀐 상태에서 거부돼
+        //   결국 강제 패스됐다(사용자 신고: "1분 넘게 생각하다 아무것도 안 하고 패스"). 생각 시작 후 120초까지는 회수하지 않는다.
+        const ai2Since = (game as any)._ai2ThinkingSince;
+        if (ai2Since && Date.now() - ai2Since < 120000) return;
         botLoopGen.set(game.id, (botLoopGen.get(game.id) ?? 0) + 1);
         botExecutingGames.delete(game.id);
         log(`[LOCK-STEAL] bot loop lock held ${Math.round(heldMs / 1000)}s → 죽은 루프 간주, 회수 (gen=${botLoopGen.get(game.id)})`, 'error', game.id);
@@ -587,7 +592,9 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     // [2026-11-09] 이번 결정에서 실행이 한 번이라도 거부됐으면(failRepick 재시도 중) 신경망 대신 기존 봇이 둔다 — 같은 수를 30초씩 반복하지 않게.
     const ai2Retrying = ((game as any)._botFailRetry?.[currentPlayerId] ?? 0) > 0;
     let actionFromAi2 = false;
+    const turnFpr = () => `${game.turnOrder[game.currentPlayerIndex]}|${(game.gameLog ?? []).filter(e => e.playerId === currentPlayerId).length}|${game.roundNumber}|${game.currentPhase}|${game.hasDoneMainAction ? 1 : 0}|${player.hasPassed ? 1 : 0}`; // 내 로그만 — 다른 사람 채팅·리치 응답 등으로 헛되이 버리지 않게
     if (ai2Mod && ai2Mod.isAi2Seat(game, currentPlayerId) && !ai2Retrying) {
+        const fpr0 = turnFpr();
         (game as any)._ai2ThinkingSince = Date.now();
         let r: Awaited<ReturnType<typeof ai2Mod.ai2LiveDecide>>;
         try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId, (game as any)._botFailedKeys?.[currentPlayerId] ?? []); } finally { (game as any)._ai2ThinkingSince = undefined; }
@@ -600,6 +607,12 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         if (r.reason !== 'not-decidable') log(`Bot ${player.name} [AI2] ${r.action ? r.action.type : `fallback(${r.reason})`} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options}`, 'game', game.id);
         action = r.action;
         actionFromAi2 = !!r.action;
+        // [2026-11-10] 생각하는 동안 차례·상태가 바뀌었으면(다른 루프가 진행·강제 스킵 등) 이 결과는 낡았다 — 두지 말고 새로 판단
+        if (turnFpr() !== fpr0) {
+            log(`Bot ${player.name} [AI2] 생각 중 상태가 바뀜 → 결과 버림 (${fpr0} → ${turnFpr()})`, 'error', game.id);
+            setTimeout(() => executeBotTurnIfNeeded(io, game), d(300));
+            return;
+        }
     }
     if (!action) action = await BotLogic.getNextMove(game, currentPlayerId);
     // [selfJournal] AI_SELF_JOURNAL=1일 때만: 후보 리스트 + 최종 선택을 자가대국 모방 학습용으로 기록(bot.ts 참조)
