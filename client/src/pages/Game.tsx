@@ -3723,8 +3723,13 @@ export default function Game() {
         const baseRange = getEffectiveBaseRange(player);
         const rangeTiles = game.map.filter(t => (t.ownerId === playerId && t.structure !== null && t.structure !== 'ship') || t.spaceStation?.ownerId === playerId || t.parasiticMine?.ownerId === playerId);
         const minDist = rangeTiles.length > 0 ? Math.min(...rangeTiles.map(t => getDistance(t, tile))) : 0;
-        const neededQIC = minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
-        const freeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree;
+        // [버그수정 2026-11-12 사용자: "무한거리 연방으로 소행성에 포머 부수며 짓기가 클라에서 막힌다 —
+        //   QIC 를 들고 있으면 지어지고 차감은 안 됨"] 우주선 연방 무한거리 무료광산은 서버가 거리 QIC·기본 1O2C 를
+        //   받지 않는데(executeBuildMine 전용 분기) 여기선 거리 QIC 를 셌다. 일반 행성은 클릭 경로가 비용 검사를
+        //   통째로 건너뛰어 티가 안 났지만, 소행성 분기는 이 값으로 'QIC 부족'을 띄워 막았다. 서버·GameBoard 표시와 맞춘다.
+        const isFedFreeMine = game.pendingSpaceshipFedMine?.playerId === playerId;
+        const neededQIC = !isFedFreeMine && minDist > baseRange ? Math.ceil((minDist - baseRange) / 2) : 0;
+        const freeMine = !!player.nextMineFreeFromShipTech || !!player.spaceshipFed3TfMineFree || isFedFreeMine;
         let oreCost = freeMine ? 0 : 1;
         let credits = freeMine ? 0 : 2;
         let qicCost = neededQIC;
