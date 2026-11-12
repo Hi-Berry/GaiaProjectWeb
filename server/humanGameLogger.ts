@@ -91,6 +91,8 @@ type HumanGamePayload = {
    *  시점별 변화는 gameLog의 Federation Reward 항목에 실린 fedHexes로 따라간다. */
   satellites?: Record<string, string | string[]>;
   playerFederationHexes?: Record<string, string[]>;
+  /** [사용자 2026-11-12] 친선전(기록 사이트 미제출) 여부 — 통계 사이트가 이 판을 뺀다. 이전 판엔 없음. */
+  friendlyMatch?: boolean;
   /** [사용자 2026-11-06] 리플레이용 보드 설정(라운드·최종 미션, 기술 타일 배치, 고급 기술, 경제 변형, 부스터).
    *  없던 시절 기록은 로그로 추정한다(shared/replay.ts inferBoardSetup). */
   boardSetup?: SavedBoardSetup;
@@ -321,6 +323,7 @@ function buildPayload(game: GaiaGameState & {
     rollbacks: (game as { __rollbacks?: HumanGamePayload['rollbacks'] }).__rollbacks,
     satellites: (game as { satellites?: HumanGamePayload['satellites'] }).satellites,
     playerFederationHexes: (game as { playerFederationHexes?: HumanGamePayload['playerFederationHexes'] }).playerFederationHexes,
+    ...((game as { friendlyMatch?: boolean }).friendlyMatch ? { friendlyMatch: true } : {}),
   };
 }
 
@@ -360,6 +363,7 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     rollbacks: (game as { __rollbacks?: HumanGamePayload['rollbacks'] }).__rollbacks,
     satellites: (game as { satellites?: HumanGamePayload['satellites'] }).satellites,
     playerFederationHexes: (game as { playerFederationHexes?: HumanGamePayload['playerFederationHexes'] }).playerFederationHexes,
+    ...((game as { friendlyMatch?: boolean }).friendlyMatch ? { friendlyMatch: true } : {}),
     inProgress: true,
     snapshotAt: now,
   };

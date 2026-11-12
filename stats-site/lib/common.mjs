@@ -1,7 +1,7 @@
 /**
  * 통계 사이트 공용 모듈 — 게임 로더(표준 전처리), 페이지 셸(공통 디자인), 리더보드 유틸.
  *
- * 표준 전처리(사용자 확정): 전원 사람 4인 게임만 · 계정 통합 ALIAS · 제외 게임 EXCLUDE_GAMES.
+ * 표준 전처리(사용자 확정): 전원 사람 4인 게임만 · 친선전 제외 · 계정 통합 ALIAS · 제외 게임 EXCLUDE_GAMES.
  * 새 별칭 쌍은 '두 이름이 한 게임에 동시 등장하지 않는지' 검사 후 추가할 것.
  */
 import fs from 'fs';
@@ -32,7 +32,8 @@ export function caseOnlyDuplicates(names) {
   for (const n of names) (by[n.toLowerCase()] ??= new Set()).add(n);
   return Object.values(by).filter((s) => s.size > 1).map((s) => [...s]);
 }
-export const EXCLUDE_GAMES = new Set(['2026-07-15_fi1njhdj.json']);
+// [사용자 2026-11-12] 2026-11-10_lulflqem: '.'·Kidern·라비·Un 판 — 친선전 여부 저장 전 판이라 이름으로 뺀다
+export const EXCLUDE_GAMES = new Set(['2026-07-15_fi1njhdj.json', '2026-11-10_lulflqem.json']);
 export const isBot = (g, pid) => (g.botPlayerIds ?? []).includes(pid) || /^AI Bot/.test(g.players?.[pid]?.name ?? '');
 
 /** 리포트 판당비율 순위 진입 최소 판수 (표본 왜곡 방지) */
@@ -48,6 +49,7 @@ export function loadGames() {
     const ids = Object.keys(g.players ?? {});
     if (ids.length !== 4) continue;
     if (ids.some((id) => isBot(g, id))) continue;
+    if (g.friendlyMatch) continue; // [사용자 2026-11-12] 친선전은 통계에서 뺀다(2026-11-12 이후 저장 판부터 표시됨)
     games.push({ file: f, game: g });
   }
   return games;

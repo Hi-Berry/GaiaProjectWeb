@@ -85,7 +85,7 @@ export function build({ dist, pub }) {
     const ci = chunks.length;
     index.push({
       id: gid, d: f.slice(0, 10), c: ci, r: g.roundNumber ?? 0, n: ids.length, bots,
-      std: ids.length === 4 && bots === 0 && (g.roundNumber ?? 0) >= 6 ? 1 : 0,
+      std: ids.length === 4 && bots === 0 && !g.friendlyMatch && (g.roundNumber ?? 0) >= 6 ? 1 : 0, // 친선전은 표준 판 아님(사용자 2026-11-12)
       ps: ids.map((id) => ({ n: canon(P[id].name), f: P[id].faction, s: P[id].score ?? 0, rk: rankOf(P, id), bot: isBot(g, id) ? 1 : 0 })).sort((a, b) => a.rk - b.rk),
     });
     cur[gid] = gameDetail(g, f, pub); curN++;

@@ -13,6 +13,8 @@
  * 사용: 서버를 5050에 띄운 뒤 npx tsx script/testGameEndSummary.ts   (exit 2 = 다시 실행)
  */
 import { io, type Socket } from 'socket.io-client';
+import fs from 'fs';
+import path from 'path';
 import { FACTIONS } from '@shared/gameConfig';
 
 const URL = process.env.URL ?? 'http://localhost:5050';
@@ -87,6 +89,10 @@ socks[0].on('connect', async () => {
 	const g2 = (await call(solo, 'get_game', { gameId: c2.gameId })).game;
 	check(!!g2.gameEndSummary && (g2.gameEndSummary.badges ?? []).length === 0, `④ 봇이 낀 판: 요약 ${!!g2.gameEndSummary} · 뱃지 ${(g2.gameEndSummary?.badges ?? []).length}개`);
 
+	// 테스트 판 저장 파일은 지운다 — 로컬 서버는 data/human-games 에 저장해 통계에 '가나다라'가 섞인다
+	await sleep(800);
+	const dir = path.join(process.cwd(), 'data', 'human-games');
+	for (const f of fs.readdirSync(dir)) if (f.endsWith(`_${gameId}.json`) || f.endsWith(`_${c2.gameId}.json`)) fs.rmSync(path.join(dir, f));
 	console.log(`\nGAME ${gameId}`);
 	console.log(bad === 0 ? '전부 통과' : `${bad}건 실패`);
 	process.exit(bad === 0 ? 0 : 1);
