@@ -49,6 +49,10 @@ export type FullGameLogEntry = {
    *  롤백 1회 이상인 게임에서 주요 행동이 실제보다 6~11개 많게 집계됐다(305판 중 260판이 롤백 경험).
    *  사후 분석(봇 갭 측정·통계)은 이 플래그가 붙은 항목을 제외해야 한다. */
   rolledBack?: boolean;
+  /** [2026-11-12] 파워 받기 응답: 창이 뜬 뒤 응답까지 걸린 시간과 그 파워를 준 사람.
+   *  동시에 여러 명이 창을 받으면 각자 뜬 시점부터 따로 센다(사용 시간 합이 실제 게임 시간보다 길 수 있다). */
+  powerWaitMs?: number;
+  powerWaitSource?: string;
 };
 
 const fullGameLogs = new Map<string, FullGameLogEntry[]>();
@@ -243,12 +247,37 @@ export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, start
   const out: Record<string, number> = {};
   for (const pid of Object.keys(game.players ?? {})) out[pid] = 0;
   let prev = startedAt || rows[0]?.timestamp || 0;
-  for (const e of rows) {
+  for (const e of rows as (typeof rows[number] & Pick<FullGameLogEntry, 'powerWaitMs' | 'powerWaitSource'>)[]) {
+    if (typeof e.powerWaitMs === 'number') {
+      /* [사용자 2026-11-12] 파워 받기 창은 받은 사람마다 '창이 뜬 시점부터 응답까지'를 따로 센다.
+         창이 뜨기 전 공백(건설 뒤 턴 종료를 누르기까지)은 파워를 준 사람 몫. */
+      const shown = e.timestamp! - e.powerWaitMs;
+      if (shown > prev && e.powerWaitSource && e.powerWaitSource in out) out[e.powerWaitSource] += shown - prev;
+      if (e.playerId && e.playerId in out) out[e.playerId] += e.powerWaitMs;
+      prev = Math.max(prev, e.timestamp!);
+      continue;
+    }
     const gap = e.timestamp! - prev;
     prev = Math.max(prev, e.timestamp!);
     if (gap > 0 && e.playerId && e.playerId in out) out[e.playerId] += gap;
   }
   return out;
+}
+
+/** [2026-11-12] 방금 남긴 파워 받기 응답 기록에 '창이 뜬 뒤 걸린 시간'을 붙인다(종료 화면 사용 시간용). */
+export function notePowerWait(game: GaiaGameState & { id?: string }, targetPlayerId: string, sourcePlayerId: string, shownAt?: number): void {
+  if (typeof shownAt !== 'number' || !game.id) return;
+  const arr = fullGameLogs.get(game.id);
+  if (!arr) return;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const e = arr[i];
+    if (e.playerId !== targetPlayerId) continue;
+    if (/Power/.test(e.action) && e.powerWaitMs === undefined) {
+      e.powerWaitMs = Math.max(0, e.timestamp - shownAt);
+      e.powerWaitSource = sourcePlayerId;
+    }
+    return;
+  }
 }
 
 /** 진행 중 스냅샷용: fullGameLog를 비우지 않고 복사만(반복 다운로드 가능). */

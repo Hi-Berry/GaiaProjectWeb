@@ -108,7 +108,7 @@ import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
 import { rememberInitialBoard } from './humanGameLogger';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, notePowerWait, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -2282,7 +2282,7 @@ function activateQueuedPowerOffersForPlayer(game: ServerGameState, sourcePlayerI
 			if (!added) addGameLog(game, offer.targetPlayerId, '↳ Received Power', `${text} from ${sourcePlayer?.name}`, offer.tileId);
 			continue;
 		}
-		game.pendingPowerOffers.push({ ...offer, responded: false });
+		game.pendingPowerOffers.push({ ...offer, responded: false, shownAt: Date.now() });
 	}
 	}
 
@@ -7651,6 +7651,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				const subTxt = `↳ Received Power +${chargeNow}P${vpNow > 0 ? ` (-${vpNow}VP)` : ''} ${targetPlayer.name}`;
 				const subAdded = addSubLogToLastAction(game, offer.sourcePlayerId, { playerId: offer.targetPlayerId, playerName: targetPlayer.name, text: subTxt }, offer.revealSeq);
 				if (!subAdded) addGameLog(game, offer.targetPlayerId, 'Received Power', `+${chargeNow}P from ${sourcePlayer?.name} (-${vpNow}VP)`, offer.tileId);
+				notePowerWait(game, offer.targetPlayerId, offer.sourcePlayerId, offer.shownAt);
 			}
 			game.pendingPowerOffers = game.pendingPowerOffers.filter(o => !o.responded);
 			if (game.pendingPowerOffers.length === 0) game.pendingPowerOffers = [];
@@ -11190,6 +11191,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 			/* 서브로그(건물 아래 ↳)와 중복이라 개별 'Power Gained' 로그는 생략 */
 		}
 		log(`Player ${targetPlayer.name} accepted power: +${chargeNow}P, -${vpNow}VP`, 'game', undefined, { simulation: (game as any).simulation });
+		notePowerWait(game, actualTargetId, offer.sourcePlayerId, offer.shownAt);
 	} else {
 		// [2026-07-27 사용자] 수락은 로그창에 뜨는데 거절은 무반응이던 것 — 거절도 같은 서브로그(↳)로 표기
 		const declined = addSubLogToLastAction(game, offer.sourcePlayerId, {
@@ -11199,6 +11201,7 @@ export function executeRespondPowerOffer(io: SocketIOServer, game: ServerGameSta
 		}, offer.revealSeq);
 		if (!declined) addGameLog(game, actualTargetId, 'Declined Power', `from ${game.players[offer.sourcePlayerId]?.name}`, offer.tileId);
 		log(`Player ${targetPlayer.name} declined power offer`, 'game', undefined, { simulation: (game as any).simulation });
+		notePowerWait(game, actualTargetId, offer.sourcePlayerId, offer.shownAt);
 	}
 
 	game.pendingPowerOffers.splice(offerIndex, 1);
