@@ -708,6 +708,21 @@ export interface GaiaGameState {
     used: Record<string, number>;        // 사람별 실행된 롤백 수
     limitByPlayer: Record<string, number>; // 관리자가 고친 사람별 한도(없으면 기본)
   };
+  /** [2026-11-12] 게임 시작(로비 → 종족 선택) 시각. 종료 화면의 '총 게임 시간' 기준. */
+  startedAt?: number;
+  /**
+   * [2026-11-12 사용자] 종료 화면 요약 — 게임이 끝나는 순간 서버가 한 번 찍는다.
+   * playerTimeMs: 기록 사이 시간을 '다음 기록을 남긴 사람'에게 붙인 합(파워 받기 응답 대기도 응답한 사람 몫).
+   * badges: 기록 사이트에 자동 제출되는 뱃지와 같은 판정(사람 4인 · 친선전 아님일 때만).
+   */
+  gameEndSummary?: {
+    startedAt: number;
+    endedAt: number;
+    playerTimeMs: Record<string, number>;
+    rollbacks: Record<string, number>;
+    adminRollbacks: number;
+    badges: { playerId: string; playerName: string; badgeId: string; badgeName: string }[];
+  };
   /** 종족 비딩 진행 상태 (factionBidding 단계에서만) */
   factionBidding?: FactionBiddingState | null;
 }

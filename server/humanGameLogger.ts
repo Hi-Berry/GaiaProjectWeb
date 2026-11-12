@@ -230,6 +230,27 @@ function takeFullGameLog(gameId?: string): FullGameLogEntry[] {
   return arr;
 }
 
+/**
+ * [2026-11-12 사용자: 종료 화면에 '이번 게임 사용한 시간'] 사람별 사용 시간(ms).
+ * 기록 사이의 시간을 '다음 기록을 남긴 사람'에게 붙인다 — 내 차례 생각 시간 + 파워 받기 같은 응답 대기 시간.
+ * 되돌린 기록도 실제로 쓴 시간이라 포함한다. 풀 로그(파워 받기 응답까지 따로 남음)가 있으면 그걸, 서버 재시작으로
+ * 잃었으면 화면 로그로 센다. 첫 기록은 게임 시작(startedAt)부터 잰다.
+ */
+export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, startedAt: number): Record<string, number> {
+  const full = game.id ? fullGameLogs.get(game.id) : undefined;
+  const src: { timestamp?: number; playerId?: string }[] = full && full.length ? full : (game.gameLog ?? []);
+  const rows = src.filter((e) => typeof e.timestamp === 'number').sort((a, b) => a.timestamp! - b.timestamp!);
+  const out: Record<string, number> = {};
+  for (const pid of Object.keys(game.players ?? {})) out[pid] = 0;
+  let prev = startedAt || rows[0]?.timestamp || 0;
+  for (const e of rows) {
+    const gap = e.timestamp! - prev;
+    prev = Math.max(prev, e.timestamp!);
+    if (gap > 0 && e.playerId && e.playerId in out) out[e.playerId] += gap;
+  }
+  return out;
+}
+
 /** 진행 중 스냅샷용: fullGameLog를 비우지 않고 복사만(반복 다운로드 가능). */
 function peekFullGameLog(gameId?: string): FullGameLogEntry[] {
   if (!gameId) return [];

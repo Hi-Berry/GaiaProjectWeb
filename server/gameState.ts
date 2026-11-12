@@ -108,7 +108,7 @@ import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
 import { rememberInitialBoard } from './humanGameLogger';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -1025,6 +1025,30 @@ export function buildRollbackSummary(game: GaiaGameState): string | null {
 		.map(([pid, n]) => `${game.players[pid]?.name ?? pid} ${n}회`);
 	if (c.admin > 0) parts.push(`GM ${c.admin}회`);
 	return `총 ${c.total}회${parts.length ? ` (${parts.join(', ')})` : ''}`;
+}
+/** [2026-11-12 사용자] 종료 화면 요약(사용 시간 · 롤백 · 뱃지)을 게임에 찍는다 — 종료 순간 1회.
+ *  rollbackCounts·풀 로그가 종료 직후 비워지므로(아래 delete, 저장 시 takeFullGameLog) 그 전에 불러야 한다.
+ *  뱃지는 기록 사이트 제출(submitToScoreSite)과 같은 조건 — 사람 4인 · 봇 없음 · 친선전 아님 — 일 때만 싣는다. */
+function stampGameEndSummary(game: GaiaGameState): void {
+	if (game.gameEndSummary) return;
+	const endedAt = Date.now();
+	const logStart = Math.min(...(game.gameLog ?? []).map((e) => e.timestamp).filter((t): t is number => typeof t === 'number'), endedAt);
+	const startedAt = game.startedAt ?? logStart;
+	const c = rollbackCountOf(game);
+	const pids = Object.keys(game.players ?? {});
+	let badges: NonNullable<GaiaGameState['gameEndSummary']>['badges'] = [];
+	const badgeEligible = pids.length === 4 && !pids.some((id) => game.botPlayerIds?.includes(id)) && !(game as any).friendlyMatch;
+	if (badgeEligible) {
+		try {
+			badges = computeBadgeAwards(game).map((b) => {
+				const playerId = pids.find((id) => game.players[id]?.name === b.player) ?? '';
+				return { playerId, playerName: b.player, badgeId: b.badge_id, badgeName: b.badge_name };
+			});
+		} catch (e) { log(`stampGameEndSummary: badge check failed: ${e}`, 'error', game.id); }
+	}
+	let playerTimeMs: Record<string, number> = {};
+	try { playerTimeMs = computePlayerTimeMs(game, startedAt); } catch (e) { log(`stampGameEndSummary: time calc failed: ${e}`, 'error', game.id); }
+	game.gameEndSummary = { startedAt, endedAt, playerTimeMs, rollbacks: { ...c.byPlayer }, adminRollbacks: c.admin, badges };
 }
 const TURN_HISTORY_CAP = 300; // 안전 상한(게임당). dedup 후엔 보통 이보다 훨씬 적음.
 
@@ -2580,6 +2604,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	// [ai2 2026-10-05] 시뮬 상태(MCTS·헤드리스 구동기)가 종료에 닿아도 라이브 부수효과 금지 — 같은 game.id라 라이브 게임의
 	//   롤백 히스토리를 지우고 final_state 덮어쓰기·사람 데이터 export·점수사이트 제출까지 시도하던 경로(헤드리스 검증 중 발견).
 	if (!(game as any).simulation) {
+		stampGameEndSummary(game); // 롤백 집계·풀 로그가 아래에서 비워지기 전에
 		turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
 		rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
 		saveFinalGameState(game);
@@ -4766,6 +4791,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (playerId !== game.hostId) return;
+			if (!game.startedAt) game.startedAt = Date.now(); // 종료 화면 '총 게임 시간' 기준
 			// 턴 순서 초기화: 일단 조인 순서 등으로 임시 설정 (이후 executeSelectFaction 완료 시 확정)
 			if (!game.turnOrder || game.turnOrder.length === 0) {
 				game.turnOrder = Object.keys(game.players);
@@ -4885,6 +4911,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 			// 2. 게임 시작 (팩션 선택 단계로 진입)
 			game.currentPhase = 'factionSelect';
+			if (!game.startedAt) game.startedAt = Date.now();
 
 			// 3. 모든 플레이어에게 랜덤 팩션 및 턴 순서 배정 (무작위성 확보)
 			const playerIds = Object.keys(game.players);
@@ -9727,6 +9754,7 @@ export function executePassRound(
 			for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 			game.currentPhase = 'gameEnd';
 			if (!(game as any).simulation) { // [ai2 2026-10-05] 시뮬 종료는 라이브 부수효과 금지(위 종료 경로 주석 참조)
+				stampGameEndSummary(game); // 롤백 집계·풀 로그가 아래에서 비워지기 전에
 				turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
 				rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
 				saveFinalGameState(game);

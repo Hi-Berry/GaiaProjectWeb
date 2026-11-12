@@ -3038,6 +3038,18 @@ export default function Game() {
       .filter(x => x.player)
       .sort((a, b) => (b.player!.score ?? 0) - (a.player!.score ?? 0));
 
+    // [사용자 2026-11-12] 종료 요약: 사용 시간 · 롤백 · 뱃지 (서버가 종료 순간 gameEndSummary 로 찍는다)
+    const endSummary = game.gameEndSummary;
+    const fmtDuration = (ms: number) => {
+      if (ms > 0 && ms < 60000) return `${Math.max(1, Math.round(ms / 1000))}초`;
+      const totalMin = Math.round(Math.max(0, ms) / 60000);
+      const h = Math.floor(totalMin / 60), m = totalMin % 60;
+      return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+    };
+    const rollbackOf = (pid: string) => endSummary?.rollbacks?.[pid] ?? game.rollbackUsage?.used?.[pid] ?? 0;
+    const rollbackTotal = playersWithScores.reduce((s, x) => s + rollbackOf(x.pid), 0) + (endSummary?.adminRollbacks ?? 0);
+    const endBadges = endSummary?.badges ?? [];
+
     const getRoundMissionImage = (id: string) => {
       if (!id) return null;
       const numStr = id.replace('rs', '');
@@ -3094,6 +3106,18 @@ export default function Game() {
           </AlertDialogHeader>
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-6 pt-2 custom-scrollbar">
+            {endBadges.length > 0 && (
+              <div className="mb-4 rounded-xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-yellow-400/10 to-amber-500/15 px-4 py-3 shadow-[0_0_20px_rgba(251,191,36,0.15)]">
+                {endBadges.map((b, i) => (
+                  <div key={`${b.badgeId}-${b.playerName}-${i}`} className="flex items-start gap-2 text-sm sm:text-base">
+                    <span className="text-xl leading-none shrink-0">🎉</span>
+                    <span className="text-amber-100">
+                      축하합니다! <b className="text-white">{b.playerName}</b>님이 <b className="text-amber-300">「{b.badgeName}」</b> 뱃지를 획득하셨습니다.
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <Tabs value={scoreTab} onValueChange={setScoreTab} className="flex-1 flex flex-col min-h-0">
               <TabsList className="bg-zinc-900/50 p-1 rounded-xl border border-white/5 self-start mb-6">
                 <TabsTrigger
@@ -3175,6 +3199,12 @@ export default function Game() {
                   );
                   return (
                     <div className="overflow-x-auto">
+                      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-zinc-300">
+                        {endSummary && (
+                          <span>⏱ 총 게임 시간 <b className="text-white tabular-nums">{fmtDuration(endSummary.endedAt - endSummary.startedAt)}</b></span>
+                        )}
+                        <span>↩ 롤백 <b className="text-white tabular-nums">{rollbackTotal}회</b>{endSummary?.adminRollbacks ? <span className="text-zinc-500"> (GM {endSummary.adminRollbacks}회 포함)</span> : null}</span>
+                      </div>
                       <table className="w-full border-collapse text-sm">
                         <thead>
                           <tr className="border-b border-white/10">
@@ -3220,6 +3250,20 @@ export default function Game() {
                               <td key={c.pid} className="py-2 px-3 text-center">
                                 <span className="text-2xl font-black tabular-nums text-white">{c.total}</span>
                               </td>
+                            ))}
+                          </tr>
+                          {endSummary && (
+                            <tr className="border-t border-white/10">
+                              <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap" title="내 차례 생각 시간 + 파워 받기 같은 응답 시간">사용 시간</td>
+                              {cols.map(c => (
+                                <td key={c.pid} className="py-1.5 px-3 text-center tabular-nums font-bold text-zinc-100">{fmtDuration(endSummary.playerTimeMs?.[c.pid] ?? 0)}</td>
+                              ))}
+                            </tr>
+                          )}
+                          <tr className="border-b border-white/5">
+                            <td className="py-1.5 pr-3 text-zinc-400 font-medium whitespace-nowrap">롤백</td>
+                            {cols.map(c => (
+                              <td key={c.pid} className="py-1.5 px-3 text-center">{cell(rollbackOf(c.pid))}</td>
                             ))}
                           </tr>
                         </tbody>
