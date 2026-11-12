@@ -17,7 +17,21 @@ export const ALIAS = {
   '222': '하이', 'chrome': '하이', '산타': '디애박', '소통맨': '지수홍', '보노보노': 'mks', 'GUHO': '구오',
   'Hi': '하이', 'HI': '하이', '군성`': '군성', '시리티드': '시리', 'Happygaia': '행복가이아',
 };
-export const canon = (n) => ALIAS[n] ?? n;
+/** [사용자 2026-11-12] "un Un shin Shin 안 합쳐져서 나온다" — 영문 이름은 대소문자만 다르면 같은 사람으로 본다.
+ *  여기엔 소문자 키 → 표시할 이름. ALIAS 키도 대소문자 무시로 함께 찾는다(예: 'hi' → 하이). */
+const CASE_ALIAS = { un: 'un', shin: 'shin' };
+const ALIAS_CI = Object.fromEntries([
+  ...Object.entries(ALIAS).map(([k, v]) => [k.toLowerCase(), v]),
+  ...Object.entries(CASE_ALIAS),
+]);
+export const canon = (n) => ALIAS[n] ?? ALIAS_CI[String(n ?? '').toLowerCase()] ?? n;
+
+/** 대소문자만 다른데 아직 안 합쳐진 이름 묶음 — 빌드할 때 경고로 띄워 별칭 추가를 잊지 않게 한다. */
+export function caseOnlyDuplicates(names) {
+  const by = {};
+  for (const n of names) (by[n.toLowerCase()] ??= new Set()).add(n);
+  return Object.values(by).filter((s) => s.size > 1).map((s) => [...s]);
+}
 export const EXCLUDE_GAMES = new Set(['2026-07-15_fi1njhdj.json']);
 export const isBot = (g, pid) => (g.botPlayerIds ?? []).includes(pid) || /^AI Bot/.test(g.players?.[pid]?.name ?? '');
 

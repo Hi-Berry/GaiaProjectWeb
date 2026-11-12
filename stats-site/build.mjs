@@ -21,7 +21,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { loadGames, playerGameCounts, pageShell, esc } from './lib/common.mjs';
+import { loadGames, playerGameCounts, pageShell, esc, caseOnlyDuplicates } from './lib/common.mjs';
 
 const SITE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPORTS_DIR = path.join(SITE_DIR, 'reports');
@@ -33,6 +33,7 @@ console.log('가이아 통계 사이트 빌드 시작…');
 const games = loadGames();
 const gamesPerPlayer = playerGameCounts(games);
 console.log(`데이터: 전원 사람 4인 게임 ${games.length}판, 플레이어 ${Object.keys(gamesPerPlayer).length}명`);
+for (const dup of caseOnlyDuplicates(Object.keys(gamesPerPlayer))) console.warn(`  ⚠ 대소문자만 다른 이름이 따로 집계됨: ${dup.join(' / ')} — lib/common.mjs CASE_ALIAS 에 추가하세요`);
 
 const reports = [];
 for (const f of fs.readdirSync(REPORTS_DIR).filter((x) => x.endsWith('.mjs')).sort()) {
