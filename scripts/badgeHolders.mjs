@@ -22,9 +22,14 @@ const shipEntries = (p) => (p.scoreBreakdown?.other ?? []).filter((o) => o.sourc
 /** 그 사람이 건물을 지은 가이아 행성 수 — 가이아포밍한 초차원도 저장 시점 type이 'gaia'라 함께 세진다(isGaiaformed 플래그 불필요) */
 /** 종족 id → 홈 행성 타입 / 시작 광산 수 (shared 설정을 그대로 읽는다 — 여기 다시 적으면 갈라진다) */
 const HOME = Object.fromEntries(FACTIONS.map((f) => [f.id, f.homePlanet]));
+const START_NAV = Object.fromEntries(FACTIONS.map((f) => [f.id, f.startingTech?.navigation ?? 0]));
 const START_MINES = Object.fromEntries(FACTIONS.map((f) => [f.id, f.startingMines ?? 2]));
 /** 그 사람이 건물을 올린 모행성 타입 타일 수 (시작 광산 포함) */
 const homePlanets = (g, pid, faction) => (g.map ?? []).filter((t) => t.ownerId === pid && t.structure && t.type === HOME[faction]).length;
+/** 턴으로 치지 않는 로그 — 서버 humanGameLogger NON_TURN_LOG_ACTIONS와 같은 목록 */
+const NON_TURN_LOG_ACTIONS = new Set(['Free Actions', 'Power Burn', 'Selected Bonus', 'Income Order', 'Round Start', 'Undo Free Action', 'Received Power', 'Tinkeroid: Round Special']);
+/** 그 사람의 1라운드 첫 행동 로그 */
+const firstRoundOneAction = (g, pid) => (g.gameLog ?? []).find((e) => e.playerId === pid && e.round === 1 && !e.rolledBack && !NON_TURN_LOG_ACTIONS.has(e.action));
 const gaiaPlanets = (g, pid) => (g.map ?? []).filter((t) => t.ownerId === pid && t.structure && t.type === 'gaia').length;
 
 /** 뱃지 정의: id, 이름, 조건(g, pid, p, won) → boolean.  won = 그 판 1위(동점 포함) */
@@ -53,15 +58,27 @@ export const BADGES = [
     test: (g, pid, p, won) => won && (p.scoreBreakdown ?? {}).powerReceived === 0 },
   { id: 'leech35-win', name: '점수는 나중에 벌면 돼 (파워 수령 35점 이상 지불 우승)',
     test: (g, pid, p, won) => won && Number((p.scoreBreakdown ?? {}).powerReceived) >= 35 },
+  // [사용자 2026-11-06] 1라 첫 행동으로 이웃 없는 교역소(2O, 6C)를 짓고 1위. 서버 BADGE_RULES와 같은 id.
+  { id: 'lonely-trading-station-win', name: '외로운 교역소 (1라 첫 행동 2광 6돈 교역소로 시작해 승리)',
+    test: (g, pid, p, won) => { const e = firstRoundOneAction(g, pid); return won && e?.action === 'Upgraded to Trading Station' && /^2O, 6C/.test(e.details ?? ''); } },
+  // [사용자 2026-11-06] 항법을 시작 단계에서 한 칸도 안 올리고 우주선 Nav+1도 안 쓰고 1위. 하이브 제외. 서버 BADGE_RULES와 같은 id.
+  { id: 'no-navigation-win', name: '항법 없이 승리 (항법 한 칸·우주선 Nav+1 없이, 하이브 제외)',
+    test: (g, pid, p, won) => won && p.faction !== 'ivits' && (p.research?.navigation ?? 0) === START_NAV[p.faction]
+      && !(g.gameLog ?? []).some((e) => e.playerId === pid && !e.rolledBack && e.action === 'Ship Tech: Nav+1') },
 ];
 
+/** 게임이 끝난 날짜(KST) — 파일명 날짜는 UTC라 한국 시간 새벽 0~9시에 끝난 판이 전날로 찍힌다. 서버 자동 부여(computeBadgeAwards)도 종료 시각 KST. */
+const endDateKst = (g, file) => {
+  const ms = typeof g.completedAt === 'number' ? g.completedAt : Date.parse(g.completedAt ?? '');
+  return Number.isFinite(ms) ? new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10) : file.slice(0, 10);
+};
 const games = loadGames();
 const out = Object.fromEntries(BADGES.map((b) => [b.id, []]));
 for (const { file, game: g } of games) {
   const ranks = gameRanks(g);
   for (const [pid, p] of Object.entries(g.players)) {
     const n = canon(p.name); const r = ranks.find((x) => x.name === n && x.faction === p.faction); const won = r?.rank === 1;
-    for (const b of BADGES) if (b.test(g, pid, p, won)) out[b.id].push({ n, d: file.slice(0, 10), fac: FACTION_KO[p.faction] ?? p.faction, score: p.score ?? 0, id: g.gameId ?? file });
+    for (const b of BADGES) if (b.test(g, pid, p, won)) out[b.id].push({ n, d: endDateKst(g, file), fac: FACTION_KO[p.faction] ?? p.faction, score: p.score ?? 0, id: g.gameId ?? file });
   }
 }
 console.log(`사람 4인 게임 ${games.length}판 기준 뱃지 달성자\n`);

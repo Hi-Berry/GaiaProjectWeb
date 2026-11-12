@@ -511,7 +511,7 @@ const FACTION_KO: Record<string, string> = {
  * badge_id 는 기록 사이트 badges.json 의 custom_badges[].id 와 같아야 한다(다르면 사이트가 unknown 으로 돌려주고 무시).
  * 판정은 scripts/badgeHolders.mjs(과거 로그 기준)와 같은 조건. "승리" = 최고점(동점 포함).
  */
-export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[]; gaiaPlanets?: number; homePlanets?: number }) => boolean }[] = [
+export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { artifacts?: string[]; gaiaPlanets?: number; homePlanets?: number; firstRoundOneAction?: { action: string; details?: string }; usedShipNav?: boolean }) => boolean }[] = [
   { id: 'federation14-win', name: '무한거리 광산 연방 먹고 승리',
     test: (p) => getFederationEntries(p).some((f) => f.rewardId === 'ship-fed-mine-free') },
   { id: 'artifact4-win', name: '계란(인공물) 4개 먹고 승리',
@@ -553,7 +553,20 @@ export const BADGE_RULES: { id: string; name: string; test: (p: PlayerState & { 
     test: (p) => (p.scoreBreakdown as any)?.powerReceived === 0 },
   { id: 'leech35-win', name: '점수는 나중에 벌면 돼 (파워 수령 35점 이상 지불 우승)',
     test: (p) => Number((p.scoreBreakdown as any)?.powerReceived) >= 35 },
+  // [사용자 2026-11-06] 1라운드 첫 행동으로 이웃 없는 교역소(광석 2·돈 6)를 짓고 승리.
+  //   '첫 행동'은 프리 액션·파워 태우기·수입 순서·보너스 선택 같은 턴 아닌 기록을 건너뛴 첫 기록(firstRoundOneAction).
+  //   실측(사람 4인 완주 전체): 이렇게 시작한 판 22판 중 1위 5회 — 아이페르 8/7·가야 8/11·준 9/24·mks 10/24·쿠니 10/27.
+  { id: 'lonely-trading-station-win', name: '외로운 교역소 (1라 첫 행동 2광 6돈 교역소로 시작해 승리)',
+    test: (p) => p.firstRoundOneAction?.action === 'Upgraded to Trading Station' && /^2O, 6C/.test(p.firstRoundOneAction.details ?? '') },
+  // [사용자 2026-11-06] 항법 트랙을 시작 단계에서 한 칸도 안 올리고(기술 타일·리벨리온 포함) 우주선 Nav+1 기술도 안 쓰고 승리.
+  //   하이브는 큐빗으로 거리를 늘리는 게 기본이라 쉬워서 제외. 시작 항법은 종족 startingTech(글린·엠바스 등은 1).
+  //   실측(사람 4인 완주 전체): 하이브 제외 9회 — 마루·가야·시리·jjc 등.
+  { id: 'no-navigation-win', name: '항법 없이 승리 (항법 한 칸·우주선 Nav+1 없이, 하이브 제외)',
+    test: (p) => p.faction !== 'ivits' && !p.usedShipNav
+      && (p.research?.navigation ?? 0) === (FACTIONS.find((f) => f.id === p.faction)?.startingTech?.navigation ?? 0) },
 ];
+/** 턴으로 치지 않는 로그(1라 첫 행동 판정에서 건너뜀) — scripts/badgeHolders.mjs와 같은 목록 */
+const NON_TURN_LOG_ACTIONS = new Set(['Free Actions', 'Power Burn', 'Selected Bonus', 'Income Order', 'Round Start', 'Undo Free Action', 'Received Power', 'Tinkeroid: Round Special']);
 /** 일반 기술 타일 9종 id (shared ALL_TECH_TILES 중 tech-*; adv-/ship-tech- 제외) */
 const NORMAL_TECH9 = new Set(['tech-inc-1o-1p', 'tech-inc-4c', 'tech-inc-1k-1c', 'tech-imm-7vp', 'tech-imm-1k-planet', 'tech-imm-1o-1q', 'tech-gaia-3vp', 'tech-big-4str', 'tech-act-4p']);
 
@@ -582,11 +595,19 @@ export function computeBadgeAwards(game: GaiaGameState): { badge_id: string; pla
       homePlanets[pid] = game.map.filter((t) => t.ownerId === pid && t.structure && t.type === home).length;
     }
   }
+  // 1라운드 첫 행동(lonely-trading-station-win용) — 롤백된 기록·턴 아닌 기록은 건너뛴다.
+  const firstRoundOneAction: Record<string, { action: string; details?: string }> = {};
+  for (const e of (game.gameLog ?? [])) {
+    if (e.round !== 1 || e.rolledBack || firstRoundOneAction[e.playerId] || NON_TURN_LOG_ACTIONS.has(e.action)) continue;
+    firstRoundOneAction[e.playerId] = { action: e.action, details: e.details };
+  }
+  // 우주선 Nav+1 기술을 쓴 사람(no-navigation-win용)
+  const usedShipNav = new Set((game.gameLog ?? []).filter((e) => !e.rolledBack && e.action === 'Ship Tech: Nav+1').map((e) => e.playerId));
   for (const [pid, p] of Object.entries(game.players ?? {})) {
     if ((p.score ?? 0) !== top || !p.name) continue;
     const note = `${FACTION_KO[String(p.faction)] ?? String(p.faction ?? '')} ${p.score ?? 0}점 1위`;
     for (const r of BADGE_RULES) {
-      try { if (r.test({ ...p, gaiaPlanets: gaiaPlanets[pid] ?? 0, homePlanets: homePlanets[pid] } as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
+      try { if (r.test({ ...p, gaiaPlanets: gaiaPlanets[pid] ?? 0, homePlanets: homePlanets[pid], firstRoundOneAction: firstRoundOneAction[pid], usedShipNav: usedShipNav.has(pid) } as any)) out.push({ badge_id: r.id, player: p.name, badge_name: r.name, note, date }); } catch { /* 규칙 하나가 깨져도 제출은 계속 */ }
     }
   }
   return out;
