@@ -13,7 +13,8 @@
  *
  * 사용: PORT=5097 npx tsx script/testPowerOfferStages.ts
  */
-import { executeUpgradeStructure, executePlaceLostPlanet, executeEndTurn, executeRespondPowerOffer } from '../server/gameState';
+import { executeUpgradeStructure, executePlaceLostPlanet, executeEndTurn, executeRespondPowerOffer, addGameLog } from '../server/gameState';
+import { getCommitSeq, resetCommitSeqMemo } from '../client/src/lib/turnCommit';
 
 let bad = 0;
 const check = (ok: boolean, msg: string) => { if (!ok) bad++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); };
@@ -44,6 +45,8 @@ function makeGame(id: string): any {
 function playTurn(g: any) {
 	const okLab = executeUpgradeStructure(noop, g, 'A', 'a-ts', 'research_lab' as any);
 	g.pendingTechTileSelection = null; g.availableShipTechTileIds = []; // 기술 타일 고르기는 이 시험의 관심 밖
+	// [2026-11-13] 실제 판처럼 두 건설 사이에 '뭘 지을지' 예고하는 줄이 낀다 — 이 줄도 감춰야 한다
+	addGameLog(g, 'A', 'Advanced Tech: Advanced track', 'navigation → Lv.5');
 	g.pendingLostPlanet = { playerId: 'A' };
 	const okLp = executePlaceLostPlanet(noop, g, 'A', 'space-1');
 	const okEnd = executeEndTurn(noop, g, 'A');
@@ -59,13 +62,20 @@ setTimeout(() => { console.log('시간 초과'); process.exit(1); }, 60_000);
 	const g = makeGame('stage-accept');
 	const r = playTurn(g);
 	const pend = (g.pendingPowerOffers ?? []).filter((o: any) => !o.responded);
-	const lpLog = g.gameLog.find((e: any) => e.tileId === 'space-1' && /Lost Planet/.test(e.action));
+	const labLog = g.gameLog.find((e: any) => e.tileId === 'a-ts' && /Research Lab/.test(e.action));
 	check(r.okLab && r.okLp && r.okEnd, `연구소·잊혀진 행성·턴 종료 실행 (${JSON.stringify(r)})`);
 	check(pend.length === 1 && pend[0].targetPlayerId === 'B' && pend[0].sourceTileId === 'a-ts' && pend[0].amount === 2 && pend[0].vpCost === 1,
 		`① 턴 종료 뒤 B에게 연구소 몫만 창: ${pend.map((o: any) => `${o.sourceTileId} ${o.amount}P/${o.vpCost}VP`).join(', ')}`);
 	check(bowls(g.players.B) === '0/2/0', `① 잊혀진 행성 몫(무료 1)이 먼저 들어가지 않았다 — B 그릇 ${bowls(g.players.B)}`);
-	check(!!g.powerRevealHold && g.powerRevealHold.tiles.some((t: any) => t.id === 'space-1' && !t.structure) && g.powerRevealHold.fromSeq === lpLog?.seq,
-		`① 남에게 감출 칸·로그: ${JSON.stringify(g.powerRevealHold && { fromSeq: g.powerRevealHold.fromSeq, tiles: g.powerRevealHold.tiles.map((t: any) => `${t.id}:${t.structure}`) })} (잊혀진 행성 줄 seq ${lpLog?.seq})`);
+	check(!!g.powerRevealHold && g.powerRevealHold.tiles.some((t: any) => t.id === 'space-1' && !t.structure) && g.powerRevealHold.fromSeq === labLog?.seq + 1,
+		`① 남에게 감출 칸·로그: ${JSON.stringify(g.powerRevealHold && { fromSeq: g.powerRevealHold.fromSeq, tiles: g.powerRevealHold.tiles.map((t: any) => `${t.id}:${t.structure}`) })} (연구소 줄 seq ${labLog?.seq} 다음부터)`);
+	{
+		resetCommitSeqMemo();
+		const cut = getCommitSeq(g);
+		const visible = g.gameLog.filter((e: any) => cut === null || e.seq <= cut).map((e: any) => e.action);
+		check(visible.some((a: string) => /Research Lab/.test(a)) && !visible.some((a: string) => /Advanced track|Lost Planet/.test(a)),
+			`① 남 화면 로그: 연구소는 보이고 예고 줄·잊혀진 행성은 안 보인다 — 보이는 줄 ${JSON.stringify(visible)}`);
+	}
 	executeRespondPowerOffer(noop, g, 'B', pend[0].id, true);
 	check(bowls(g.players.B) === '0/0/2' && g.players.B.score === 9, `② B 수락 → 그릇 ${bowls(g.players.B)}, 점수 ${g.players.B.score}`);
 	check(!g.pendingTurnEndPlayerId && (g.pendingPowerOffers ?? []).length === 0 && g.currentPlayerIndex === 1 && !g.powerRevealHold,

@@ -2298,6 +2298,14 @@ function updatePowerRevealHold(game: ServerGameState, sourcePlayerId: string): v
 	if (!later.length) { if (game.powerRevealHold?.playerId === sourcePlayerId) game.powerRevealHold = null; return; }
 	const seqs = later.map(o => o.revealSeq).filter((x): x is number => typeof x === 'number');
 	if (!seqs.length) { game.powerRevealHold = null; return; }
+	/* [사용자 2026-11-13] "단계는 잘 나뉘는데 로그에 뭘 짓는지 이미 보여서 스포가 된다."
+	   뒤 단계 건설 줄만 감추면 그 앞에 낀 예고 줄이 보였다 — 'Ship Tech: 2TF+Mine(다음 광산 무료)',
+	   'Built Mine on Proto +6VP', 'Advanced track navigation → Lv.5'(잊혀진 행성 예고) 등.
+	   → 지금 묻고 있는 단계의 건설 줄 바로 다음부터 전부 감춘다(그 단계 응답이 끝나면 다음 단계까지 열린다). */
+	const curSeqs = (game.pendingPowerOffers ?? [])
+		.filter(o => o.sourcePlayerId === sourcePlayerId && typeof o.revealSeq === 'number')
+		.map(o => o.revealSeq as number);
+	const fromSeq = curSeqs.length ? Math.min(Math.max(...curSeqs) + 1, Math.min(...seqs)) : Math.min(...seqs);
 	const startMap = ((game.turnStartState?.[sourcePlayerId] as any)?.fullGameState?.map ?? []) as HexTile[];
 	const tileIds = Array.from(new Set(later.map(o => o.sourceTileId).filter((x): x is string => !!x)));
 	const tiles = tileIds.map(id => {
@@ -2306,7 +2314,7 @@ function updatePowerRevealHold(game: ServerGameState, sourcePlayerId: string): v
 		const now = game.map.find(t => t.id === id);
 		return now ? ({ ...now, ownerId: null, structure: null } as unknown as HexTile) : null;
 	}).filter((t): t is HexTile => !!t);
-	game.powerRevealHold = { playerId: sourcePlayerId, fromSeq: Math.min(...seqs), tiles };
+	game.powerRevealHold = { playerId: sourcePlayerId, fromSeq, tiles };
 }
 
 /** [2026-11-10] 턴 종료 대기 중 파워 응답이 모두 끝났을 때 — 다음 단계가 있으면 열고, 없으면 턴을 넘긴다 */
