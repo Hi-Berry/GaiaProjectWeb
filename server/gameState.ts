@@ -2085,6 +2085,28 @@ function isSpaceshipFederationRewardTaken(game: GaiaGameState, rewardId: string)
 	return false;
 }
 
+/* [사용자 2026-11-13] 단계별 파워 처리 중 남 화면에 보여 줄 '그 단계 건설 직후' 모습.
+   로그만 감추면 연구 트랙(항법 5)·점수(+6VP)·기술 타일·보드가 뒤 단계를 드러냈다.
+   건설마다 떠 두되 서버 메모리에만 두고(상태에 실으면 매 전송마다 보드가 한 벌 더 간다),
+   실제로 단계 대기에 들어갔을 때만 powerRevealHold.view 로 보낸다. 턴이 끝나면 버린다. */
+const POWER_STAGE_BOARD_KEYS = [
+	'map', 'powerActions', 'techTilesByTrack', 'advancedTechTilesByTrack', 'extraAdvancedTechTile', 'techTilesPool',
+	'availableShipTechTileIds', 'shipTechByShip', 'shipTechPool', 'spaceships', 'twilightArtifactSlots', 'federationPool',
+	'spaceshipFederationByShip', 'satellites', 'playerFederationHexes', 'usedRoundMissions', 'availableBonusTiles',
+] as const;
+type PowerStageView = NonNullable<NonNullable<GaiaGameState['powerRevealHold']>['view']>;
+const powerStageViews = new Map<string, Map<number, PowerStageView>>();
+function rememberPowerStageView(game: ServerGameState, sourcePlayerId: string, revealSeq: number | undefined): void {
+	if ((game as any).simulation || typeof revealSeq !== 'number' || !game.id) return;
+	const player = game.players[sourcePlayerId];
+	if (!player) return;
+	const board: Record<string, unknown> = {};
+	for (const k of POWER_STAGE_BOARD_KEYS) if ((game as any)[k] !== undefined) board[k] = deepClone((game as any)[k]);
+	let m = powerStageViews.get(game.id);
+	if (!m) { m = new Map(); powerStageViews.set(game.id, m); }
+	m.set(revealSeq, { player: deepClone(player), board: board as Partial<GaiaGameState> });
+}
+
 function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId: string): void {
 	const nearbyPlayers = findNearbyPlayersForPower(game, tile, sourcePlayerId);
 	if (!game.queuedPowerOffers) game.queuedPowerOffers = [];
@@ -2100,6 +2122,7 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 		}
 		return typeof (game as any).gameLogSeq === 'number' ? (game as any).gameLogSeq : undefined;
 	})();
+	let madeOffer = false;
 	for (const { playerId, maxPower, tileId } of nearbyPlayers) {
 		const targetPlayer = game.players[playerId];
 		// [2026-08-07 사용자] 타클론 의회는 토큰을 먼저 만들고 파워를 받으므로 그만큼 여력이 더 있다.
@@ -2135,7 +2158,9 @@ function createPowerOffers(game: ServerGameState, tile: HexTile, sourcePlayerId:
 			sourceTileId: tile.id,
 			revealSeq,
 		});
+		madeOffer = true;
 	}
+	if (madeOffer) rememberPowerStageView(game, sourcePlayerId, revealSeq);
 }
 
 /** 봇의 파워 누출(leech) 수락 판단: 무료면 무조건, 유료(VP 차감)면 라운드·충전여력·패스여부로 전략적 평가. */
@@ -2314,7 +2339,9 @@ function updatePowerRevealHold(game: ServerGameState, sourcePlayerId: string): v
 		const now = game.map.find(t => t.id === id);
 		return now ? ({ ...now, ownerId: null, structure: null } as unknown as HexTile) : null;
 	}).filter((t): t is HexTile => !!t);
-	game.powerRevealHold = { playerId: sourcePlayerId, fromSeq, tiles };
+	const curTop = curSeqs.length ? Math.max(...curSeqs) : undefined;
+	const view = curTop !== undefined ? powerStageViews.get(game.id)?.get(curTop) : undefined;
+	game.powerRevealHold = { playerId: sourcePlayerId, fromSeq, tiles, ...(view ? { view } : {}) };
 }
 
 /** [2026-11-10] 턴 종료 대기 중 파워 응답이 모두 끝났을 때 — 다음 단계가 있으면 열고, 없으면 턴을 넘긴다 */
@@ -2405,6 +2432,7 @@ function finalizeTurnEnd(io: SocketIOServer, game: ServerGameState, endedPlayerI
 	}
 	game.pendingTurnEndPlayerId = undefined;
 	game.powerRevealHold = null; // [2026-11-10] 단계 공개 대기 끝
+	powerStageViews.delete(game.id); // [2026-11-13] 이 턴의 단계별 모습은 이제 필요 없다
 	(game as any).turnEndCount = ((game as any).turnEndCount ?? 0) + 1; // 턴 시간 경고: 같은 사람 연속 턴도 새 턴으로
 
 	const _prevIdx = game.currentPlayerIndex;

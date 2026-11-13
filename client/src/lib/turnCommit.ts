@@ -122,12 +122,19 @@ export function resetCommitSeqMemo(): void {
 /** [2026-11-10] 단계별 파워 처리 중 아직 공개 전인 칸을 턴 시작 모습으로 바꿔 보여준다(행동한 사람 본인은 그대로) */
 const maskCache = new WeakMap<object, { viewer: string | null | undefined; out: unknown }>();
 function maskHeldTiles<T extends GameState>(game: T, viewer: string | null | undefined): T {
-	const hold = (game as { powerRevealHold?: { playerId: string; tiles: Array<{ id: string }> } | null }).powerRevealHold;
-	if (!hold?.tiles?.length || !game.pendingTurnEndPlayerId || viewer === hold.playerId) return game;
+	const hold = (game as { powerRevealHold?: { playerId: string; tiles: Array<{ id: string }>; view?: { player: unknown; board: Record<string, unknown> } } | null }).powerRevealHold;
+	if (!(hold?.tiles?.length || hold?.view) || !game.pendingTurnEndPlayerId || viewer === hold.playerId) return game;
 	const hit = maskCache.get(game as object);
 	if (hit && hit.viewer === viewer) return hit.out as T;
-	const byId = new Map(hold.tiles.map((t) => [t.id, t]));
-	const out = { ...game, map: (game.map ?? []).map((t) => (byId.get(t.id) as typeof t | undefined) ?? t) } as T;
+	let out: T;
+	if (hold.view) {
+		/* [사용자 2026-11-13] 로그뿐 아니라 연구 트랙·점수·기술 타일·보드도 '지금 묻는 단계 건설 직후' 모습으로.
+		   행동한 사람 상태와 보드 공용 정보만 덮는다 — 파워를 받는 사람들의 그릇·점수는 실시간 그대로. */
+		out = { ...game, ...hold.view.board, players: { ...game.players, [hold.playerId]: hold.view.player } } as T;
+	} else {
+		const byId = new Map(hold.tiles.map((t) => [t.id, t]));
+		out = { ...game, map: (game.map ?? []).map((t) => (byId.get(t.id) as typeof t | undefined) ?? t) } as T;
+	}
 	maskCache.set(game as object, { viewer, out });
 	return out;
 }

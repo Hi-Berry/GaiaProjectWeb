@@ -594,7 +594,12 @@ export interface GaiaGameState {
   }>; // 파워 교환 제안 대기
   /** [2026-11-10] 파워 제안을 단계별로 처리하는 동안, 아직 처리 전 단계의 건설을 남에게 감춘다.
    *  fromSeq 이상 로그 줄과 tiles(턴 시작 시점 모습으로 보여줄 칸)를 행동한 사람 외에게 감춘다. */
-  powerRevealHold?: { playerId: string; fromSeq: number; tiles: HexTile[] } | null;
+  powerRevealHold?: {
+    playerId: string; fromSeq: number; tiles: HexTile[];
+    /** [2026-11-13] 지금 묻는 단계 건설 직후의 모습 — 행동한 사람 상태(트랙·점수·타일)와 보드 공용 정보.
+     *  남 화면은 이걸로 덮어 뒤 단계(무료 광산·잊혀진 행성 등)를 미리 드러내지 않는다. */
+    view?: { player: PlayerState; board: Partial<GaiaGameState> };
+  } | null;
   /** 턴 종료는 눌렀지만 파워 수락/거절 응답 대기 때문에 다음 턴으로 아직 넘기지 못한 플레이어 ID */
   pendingTurnEndPlayerId?: string;
   /** 우주선: 맵 타일 ID -> { 잠금해제 여부, 입장한 플레이어 ID 순서, 이번 라운드 사용한 액션 번호(1,2,3) 목록 } */

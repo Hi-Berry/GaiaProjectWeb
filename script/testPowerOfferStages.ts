@@ -14,7 +14,7 @@
  * 사용: PORT=5097 npx tsx script/testPowerOfferStages.ts
  */
 import { executeUpgradeStructure, executePlaceLostPlanet, executeEndTurn, executeRespondPowerOffer, addGameLog } from '../server/gameState';
-import { getCommitSeq, resetCommitSeqMemo } from '../client/src/lib/turnCommit';
+import { getCommitSeq, resetCommitSeqMemo, createViewFreeze } from '../client/src/lib/turnCommit';
 
 let bad = 0;
 const check = (ok: boolean, msg: string) => { if (!ok) bad++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); };
@@ -47,6 +47,8 @@ function playTurn(g: any) {
 	g.pendingTechTileSelection = null; g.availableShipTechTileIds = []; // 기술 타일 고르기는 이 시험의 관심 밖
 	// [2026-11-13] 실제 판처럼 두 건설 사이에 '뭘 지을지' 예고하는 줄이 낀다 — 이 줄도 감춰야 한다
 	addGameLog(g, 'A', 'Advanced Tech: Advanced track', 'navigation → Lv.5');
+	g.__afterLab = { score: g.players.A.score, nav: g.players.A.research.navigation };
+	g.players.A.research.navigation = 5; g.players.A.score += 6; // 예고 줄과 함께 상태도 바뀐다(트랙·점수)
 	g.pendingLostPlanet = { playerId: 'A' };
 	const okLp = executePlaceLostPlanet(noop, g, 'A', 'space-1');
 	const okEnd = executeEndTurn(noop, g, 'A');
@@ -75,6 +77,17 @@ setTimeout(() => { console.log('시간 초과'); process.exit(1); }, 60_000);
 		const visible = g.gameLog.filter((e: any) => cut === null || e.seq <= cut).map((e: any) => e.action);
 		check(visible.some((a: string) => /Research Lab/.test(a)) && !visible.some((a: string) => /Advanced track|Lost Planet/.test(a)),
 			`① 남 화면 로그: 연구소는 보이고 예고 줄·잊혀진 행성은 안 보인다 — 보이는 줄 ${JSON.stringify(visible)}`);
+	}
+	{
+		// [2026-11-13] 상태 패널도: 남(B·관전자) 화면은 연구소 직후 모습, 행동한 A 본인은 실시간
+		resetCommitSeqMemo();
+		const vB = createViewFreeze().view(g, 'B'); const vS = createViewFreeze().view(g, null); const vA = createViewFreeze().view(g, 'A');
+		const a = g.__afterLab;
+		const tileOf = (v: any) => v.map.find((t: any) => t.id === 'space-1')?.structure ?? null;
+		check(vB.players.A.research.navigation === a.nav && vB.players.A.score === a.score && tileOf(vB) === null && vS.players.A.research.navigation === a.nav,
+			`① 남 화면 A 상태: 항법 ${vB.players.A.research.navigation}(기대 ${a.nav}) · 점수 ${vB.players.A.score}(기대 ${a.score}) · 잊혀진 행성 칸 ${tileOf(vB)} · 관전자 항법 ${vS.players.A.research.navigation}`);
+		check(vA.players.A.research.navigation === 5 && vA.players.A.score === a.score + 6, `① A 본인 화면은 실시간: 항법 ${vA.players.A.research.navigation} · 점수 ${vA.players.A.score}`);
+		check(vB.players.B === g.players.B, '① 파워를 받는 B 자신의 상태는 실시간 그대로');
 	}
 	executeRespondPowerOffer(noop, g, 'B', pend[0].id, true);
 	check(bowls(g.players.B) === '0/0/2' && g.players.B.score === 9, `② B 수락 → 그릇 ${bowls(g.players.B)}, 점수 ${g.players.B.score}`);
