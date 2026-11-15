@@ -47,7 +47,9 @@ function decidable(game: ServerGameState, pid: string): boolean {
 	if (game.players[pid]?.hasPassed) return false;
 	const g: any = game;
 	if (Object.keys(g).some(k => /^pending/.test(k) && g[k] && (g[k].playerId === pid))) return false;
-	if (((game.players[pid] as any)?.pendingTerraformSteps ?? 0) > 0) return false;
+	// [2026-11-15] 메인 전 테라포밍 스텝(우주 거인 +2 등)은 신경망이 이어서 광산을 고른다 — 전엔 기존 봇에 넘겨 스텝을 버리고 패스하기도 했다.
+	//   메인 뒤 남은 스텝은 그대로 기존 봇 보류 처리.
+	if (((game.players[pid] as any)?.pendingTerraformSteps ?? 0) > 0 && game.hasDoneMainAction) return false;
 	if ((game.pendingPowerOffers ?? []).some(o => !o.responded)) return false;
 	return !generatePendingOptions(game, pid);
 }
@@ -70,6 +72,8 @@ export async function ai2LiveDecide(game: ServerGameState, pid: string, excludeK
 		//   전엔 신경망 경로가 이 목록을 안 봐 같은 수를 반복(한 번에 최대 30초 × 4회)하다 라운드를 통째로 잃었다.
 		const ex = new Set(excludeKeys);
 		const options = generateMoves(g, pid).filter(m => !ex.has(`${m.type}|${JSON.stringify(m.params ?? {})}`));
+		// 스텝이 남았는데 지을 광산이 하나도 없으면 기존 봇(스텝 포기 처리 포함)에 맡긴다
+		if (((g.players[pid] as any)?.pendingTerraformSteps ?? 0) > 0 && !options.some(m => m.type === 'build_mine')) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'steps-no-mine' };
 		if (!options.length) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'no-options' };
 		const st = newPuctStats();
 		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 400), maxMs: Number(process.env.AI2_MAX_MS || 30000), valueNet: vn ?? undefined, earlyStop: process.env.AI2_EARLY_STOP !== '0' });

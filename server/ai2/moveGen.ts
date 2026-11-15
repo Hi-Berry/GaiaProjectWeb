@@ -268,7 +268,13 @@ function freeActionMoves(game: ServerGameState, pid: string): BotAction[] {
 export function generateMoves(game: ServerGameState, pid: string, opts: { freeActions?: boolean } = {}): BotAction[] {
 	if (game.currentPhase !== 'main') return [];
 	if (game.turnOrder[game.currentPlayerIndex] !== pid || game.players[pid]?.hasPassed) return [];
-	const moves = game.hasDoneMainAction ? [{ type: 'end_turn', params: {} } as BotAction] : mainActionMoves(game, pid);
+	let moves = game.hasDoneMainAction ? [{ type: 'end_turn', params: {} } as BotAction] : mainActionMoves(game, pid);
+	// [2026-11-15] 테라포밍 스텝을 받는 특수 액션(우주 거인 +2·팅커로이드) 뒤엔 그 스텝으로 광산을 짓는 게 같은 액션의 나머지 —
+	//   지을 곳이 있으면 광산만 후보(다른 메인 액션은 스텝을 버린다). 실전 기오덴 판: 신경망이 +2 스텝 뒤 광산 없이 패스.
+	if (!game.hasDoneMainAction && ((game.players[pid] as any)?.pendingTerraformSteps ?? 0) > 0) {
+		const mines = moves.filter(m => m.type === 'build_mine');
+		if (mines.length) moves = mines;
+	}
 	if (opts.freeActions !== false) moves.push(...freeActionMoves(game, pid));
 	const seen = new Set<string>(); const outM: BotAction[] = [];
 	for (const m of moves) { const key = moveKey(m); if (!seen.has(key)) { seen.add(key); outM.push(m); } }
