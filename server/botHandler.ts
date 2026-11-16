@@ -24,6 +24,7 @@ import {
 import { MCTS } from './ai/mcts';
 import { log } from './index';
 import { ResearchTrack } from '@shared/gameConfig';
+import { itarsCouncilFollowUpOwner } from '@shared/itarsCouncil';
 import { recordDecisionFeatures } from './ai/valueData';
 import { getPlayerFlag } from './ai/variant';
 
@@ -496,6 +497,13 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
     log(`BotHandler DEBUG: phase=${game.currentPhase}, currentPlayer=${currentPlayerId}, isBot=${botPlayerIds.includes(currentPlayerId || '')}`, 'game');
 
     if (!currentPlayerId || !botPlayerIds.includes(currentPlayerId)) return;
+
+    // [사용자 2026-11-16] 사람 아이타가 의회 교환 후속 처리(2TF 무료 광산·트랙 전진 등) 중이면 라운드 첫 차례 봇도 기다린다.
+    //   끝나면 helperStartNewRoundTurn 이 봇을 다시 부른다. (아이타가 봇이면 종전 흐름 그대로 — 스스로 해소)
+    if (game.currentPhase === 'main') {
+        const itarsOwner = itarsCouncilFollowUpOwner(game);
+        if (itarsOwner && itarsOwner !== currentPlayerId && !botPlayerIds.includes(itarsOwner)) return;
+    }
 
     // === 모웨이드: 의회 보유 + 링 미사용 상태면 자동으로 링 놓기 처리 (메인 액션 전에만) ===
     if (game.currentPhase === 'main' && !game.hasDoneMainAction) {

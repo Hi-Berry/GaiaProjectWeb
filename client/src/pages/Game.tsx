@@ -62,6 +62,7 @@ import type { StructureType, ResearchTrack, PlanetType } from '@shared/gameConfi
 import { whenVisibleImagesSettled } from '@/lib/imgRetry';
 
 import { applyGameStateDelta, buildClientGameState, type GameDeltaMessage, type GameSyncMessage } from '@shared/gameSync';
+import { itarsCouncilFollowUpOwner } from '@shared/itarsCouncil';
 
 /** 미리 받기는 탭 하나에 한 번이면 된다(게임을 옮겨 다녀도 브라우저 캐시에 남는다) */
 let preloadStarted = false;
@@ -2935,13 +2936,16 @@ export default function Game() {
   //   이미 그 구간(pendingTechTileSelection[itars_pi_exchange])을 막고 있으므로 배너도 같은 조건으로 맞춰 끝까지 유지.
   const itarsTechPick = (game as any).pendingTechTileSelection?.structureType === 'itars_pi_exchange'
     ? { playerId: (game as any).pendingTechTileSelection.playerId } : null;
-  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || itarsTechPick
+  // [사용자 2026-11-16] 교환 뒤 2TF 무료 광산·트랙 전진 같은 후속 처리까지가 아이타 의회 행동 — 서버도 그동안 남의 행동을 막는다
+  const itarsFollowUpId = itarsCouncilFollowUpOwner(game);
+  const itarsFollowUp = itarsFollowUpId ? { playerId: itarsFollowUpId } : null;
+  const councilPendingRaw = (game as any).pendingItarsGaiaformerExchange || itarsTechPick || itarsFollowUp
     || (game as any).pendingTerranCouncilBenefit || (game as any).pendingTinkeroidSpecialChoice;
   const councilPendingInfo = councilPendingRaw && councilPendingRaw.playerId !== playerId
     ? {
       name: game.players[councilPendingRaw.playerId]?.name ?? '플레이어',
-      kind: ((game as any).pendingItarsGaiaformerExchange || itarsTechPick) ? '아이타' : (game as any).pendingTerranCouncilBenefit ? '테란' : '팅커로이드',
-      what: ((game as any).pendingItarsGaiaformerExchange || itarsTechPick || (game as any).pendingTerranCouncilBenefit) ? '의회 능력 처리 중' : '특수 타일 선택 중',
+      kind: ((game as any).pendingItarsGaiaformerExchange || itarsTechPick || itarsFollowUp) ? '아이타' : (game as any).pendingTerranCouncilBenefit ? '테란' : '팅커로이드',
+      what: ((game as any).pendingItarsGaiaformerExchange || itarsTechPick || itarsFollowUp || (game as any).pendingTerranCouncilBenefit) ? '의회 능력 처리 중' : '특수 타일 선택 중',
     }
     : null;
   const pendingPowerWaiters = (() => {

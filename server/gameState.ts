@@ -107,6 +107,7 @@ import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
+import { itarsFollowUpBlockMessage } from '@shared/itarsCouncil';
 import { rememberInitialBoard } from './humanGameLogger';
 import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, notePowerWait, type HumanActionJournalEntry } from './humanGameLogger';
 
@@ -4038,6 +4039,18 @@ export function setupGameServer(httpServer: HTTPServer) {
 
 		// [사용자 2026-11-06] 끝난 게임 리플레이 관전 방 (server/replay.ts)
 		registerReplaySocket(io, socket, { games, emitGameUpdated, generateGameId, carrySpectatorSession });
+
+		/* [사용자 2026-11-16] "아이타가 의회 능력으로 타일 가져오는 사이에 란티다가 액션을 해버렸다" · "광산 건설까지 완료해야 아이타 의회 행동 종료"
+		   아이타 교환에서 2TF+무료광산(또는 트랙 전진·고급 타일 덮기)을 고르면 교환 대기 표시가 꺼져 councilPendingActive 가
+		   풀렸다 — 라운드 첫 차례인 사람이 그 틈에 메인 액션을 했다. 후속 처리가 끝날 때까지 아이타 본인 말고는 막는다.
+		   핸들러마다 가드를 다는 대신 이벤트 입구 한 곳에서 거른다(파워 받기·수입·채팅·롤백 투표는 통과). */
+		socket.use((packet, next) => {
+			const [event, payload] = packet as [string, { gameId?: string } | undefined];
+			const game = payload?.gameId ? games.get(payload.gameId) : undefined;
+			const blocked = itarsFollowUpBlockMessage(game, event, socketToPlayerMap.get(socket.id));
+			if (blocked) { socket.emit('game_error', { message: blocked }); return; }
+			next();
+		});
 
 		// [배포 반영 2026-08-09, 사용자] 배포하면 서버가 재시작 → 모든 클라가 재접속한다. 그 순간이
 		//   "네 번들 최신이니?"를 물어볼 가장 확실한 타이밍. 클라는 자기 __BUILD_ID__와 비교해 배너를 띄운다.
