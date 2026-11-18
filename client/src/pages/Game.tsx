@@ -3044,11 +3044,12 @@ export default function Game() {
 
     // [사용자 2026-11-12] 종료 요약: 사용 시간 · 롤백 · 뱃지 (서버가 종료 순간 gameEndSummary 로 찍는다)
     const endSummary = game.gameEndSummary;
+    // [사용자 2026-11-18] 초 단위까지 표시 — "25분 9초", "1시간 3분 45초"
     const fmtDuration = (ms: number) => {
-      if (ms > 0 && ms < 60000) return `${Math.max(1, Math.round(ms / 1000))}초`;
-      const totalMin = Math.round(Math.max(0, ms) / 60000);
-      const h = Math.floor(totalMin / 60), m = totalMin % 60;
-      return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+      const totalSec = ms > 0 ? Math.max(1, Math.floor(ms / 1000)) : 0;
+      const h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), s = totalSec % 60;
+      if (h > 0) return `${h}시간 ${m}분 ${s}초`;
+      return m > 0 ? `${m}분 ${s}초` : `${s}초`;
     };
     const rollbackOf = (pid: string) => endSummary?.rollbacks?.[pid] ?? game.rollbackUsage?.used?.[pid] ?? 0;
     const rollbackTotal = playersWithScores.reduce((s, x) => s + rollbackOf(x.pid), 0) + (endSummary?.adminRollbacks ?? 0);
