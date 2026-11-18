@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
-import { getStoredSpectatorId } from '@/lib/gameClient';
+import { getSocket, getStoredSpectatorId } from '@/lib/gameClient';
 import {
   PLANET_COLORS, FACTIONS, RESEARCH_TRACKS, RESEARCH_TRACK_END_BONUS, isHiddenSpectatorName,
   computeBonusTilePassVp, computeAdvancedTechPassVp, getFinalMissionVp, endgameLeftoverUnits,
@@ -137,6 +137,66 @@ export interface UtilityPanelProps {
   onClearSatMemo: (pid: string | null) => void;
   canFederateFromMemo: boolean;
   onFederateFromMemo: () => void;
+}
+
+/** [사용자 2026-11-18] 운영진 '사용 시간 (실시간)' — 서버에서 5초마다 받아 오고, 그 사이엔 지금 행동 중인 사람(▶)만
+ *  화면에서 1초씩 올린다. 이 항목이 열려 있을 때만 받아 온다(Section은 닫히면 children을 그리지 않음).
+ *  계산은 종료 화면 '사용 시간'과 같은 서버 함수라, 게임이 끝나면 종료 화면 값과 같아진다. */
+function fmtClock(ms: number) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function LiveTimeList({ game, playerId }: { game: GaiaGameState; playerId: string | null }) {
+  const [data, setData] = useState<{ times: Record<string, number>; active: string[]; at: number; ended?: boolean } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [, setTick] = useState(0);
+  const gameId = game.id;
+
+  useEffect(() => {
+    let alive = true;
+    const fetchNow = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      getSocket().timeout(4000).emit('get_live_player_time', { gameId }, (timeoutErr: Error | null, r: any) => {
+        if (!alive) return;
+        if (timeoutErr || !r || r.error) { setErr(timeoutErr ? '응답 없음' : (r?.error ?? '오류')); return; }
+        setErr(null);
+        setData({ times: r.times ?? {}, active: r.active ?? [], at: Date.now(), ended: r.ended });
+      });
+    };
+    fetchNow();
+    const poll = window.setInterval(fetchNow, 5000);
+    const tick = window.setInterval(() => setTick((v) => v + 1), 1000);
+    return () => { alive = false; window.clearInterval(poll); window.clearInterval(tick); };
+  }, [gameId]);
+
+  if (!data) return <div className="text-[10px] text-zinc-500">{err ? `불러오지 못함 (${err})` : '불러오는 중…'}</div>;
+  const elapsed = data.ended ? 0 : Date.now() - data.at;
+  const order = (game.turnOrder ?? Object.keys(game.players ?? {})).filter((pid) => game.players?.[pid]);
+  return (
+    <div className="space-y-0.5">
+      {order.map((pid) => {
+        const p = game.players[pid];
+        const color = FACTIONS.find((f) => f.id === p.faction)?.color ?? '#a1a1aa';
+        const isActive = data.active.includes(pid);
+        const ms = (data.times[pid] ?? 0) + (isActive ? elapsed : 0);
+        return (
+          <div key={pid} className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${isActive ? 'bg-sky-500/15 border border-sky-400/30' : 'border border-transparent'}`}>
+            <span className="w-2 h-2 rounded-full shrink-0 border border-black/40" style={{ background: color }} />
+            <span className={`text-[10px] font-bold truncate ${pid === playerId ? 'text-amber-100' : 'text-zinc-300'}`}>{p.name}</span>
+            {isActive && <span className="text-[9px] text-sky-300">▶</span>}
+            <span className={`ml-auto text-[12px] font-black tabular-nums ${isActive ? 'text-sky-300' : 'text-zinc-200'}`}>{fmtClock(ms)}</span>
+          </div>
+        );
+      })}
+      <div className="mt-1 text-[8px] leading-snug text-zinc-600">
+        {data.ended ? '게임 종료 — 종료 화면과 같은 값' : '▶ 지금 행동할 차례(파워 받기 창이 떠 있으면 받는 사람)의 시간이 올라갑니다.'}
+        {err && <span className="text-red-400/80"> · 갱신 실패({err})</span>}
+      </div>
+    </div>
+  );
 }
 
 export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMode, setMeasureMode, measureA, measureB, onClearMeasure, onHoverLandType,
@@ -335,6 +395,13 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
             <br />이미 받은 점수(패스한 사람의 패스분, 종료 후 정산분)는 '현재'에 들어 있어 다시 더하지 않습니다.
             <br />남은 라운드의 패스·미션 진행분은 빠져 있어 최종 예상치는 아닙니다.
           </div>
+        </Section>
+        )}
+
+        {/* [사용자 2026-11-18] 운영진 전용: 사람별 사용 시간 실시간 */}
+        {canSeeScore && game.currentPhase !== 'lobby' && (
+        <Section id="livetime" title="사용 시간 (실시간)" accent="text-sky-400">
+          <LiveTimeList game={game} playerId={playerId ?? null} />
         </Section>
         )}
 

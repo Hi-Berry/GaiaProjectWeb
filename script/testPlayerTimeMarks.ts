@@ -5,9 +5,11 @@
  *   ① 종족 비딩: un 선택 → 하이 선택 사이 경매(네 명 입찰) 3분 36초가 전부 낙찰자 하이 몫이 됐다.
  *   ② 턴 종료 클릭은 기록에 없어서, 앞사람이 행동 뒤 턴 종료를 누르기까지가 다음 사람 몫이 됐다.
  *
+ *   ④ [같은 날] 운영진 편의기능 '사용 시간 (실시간)': 마지막 기록 뒤 지금까지를 행동할 사람(또는 파워 창 받은 사람)에게.
+ *
  * 사용: npx tsx script/testPlayerTimeMarks.ts
  */
-import { computePlayerTimeMs, noteTimeMark, type TimeMark } from '../server/humanGameLogger';
+import { computePlayerTimeMs, computeLivePlayerTime, noteTimeMark, type TimeMark } from '../server/humanGameLogger';
 
 let bad = 0;
 const check = (ok: boolean, msg: string) => { if (!ok) bad++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); };
@@ -56,6 +58,18 @@ function game(log: { t: number; p: string; a: string }[], id?: string): any {
 	const sim = { ...game([], 'test-time-marks-sim'), simulation: true };
 	noteTimeMark(sim, 'A', 'turn_end');
 	check(Object.values(computePlayerTimeMs(sim, 0)).every((v) => v === 0), '③ 시뮬레이션 판은 기록 안 함');
+}
+
+// ④ 실시간: A 행동 100초 → (지금 130초) B 차례 / 파워 창(C, 120초에 뜸)
+{
+	const g = game([{ t: T0 + 100 * S, p: 'A', a: 'Built Mine' }]);
+	const live = computeLivePlayerTime(g, T0 + 90 * S, 'B', T0 + 130 * S);
+	check(live.times.A === 10 * S && live.times.B === 30 * S && live.active.join() === 'B', `④ 마지막 기록 뒤 30초는 차례인 B: A ${live.times.A / S} · B ${live.times.B / S}초`);
+	g.pendingPowerOffers = [{ targetPlayerId: 'C', sourcePlayerId: 'A', responded: false, shownAt: T0 + 120 * S }];
+	const p = computeLivePlayerTime(g, T0 + 90 * S, 'B', T0 + 130 * S);
+	check(p.times.C === 10 * S && p.times.B === 0 && p.active.join() === 'C', `④ 파워 창이 떠 있으면 받는 사람이 창 뜬 때부터: C ${p.times.C / S} · B ${p.times.B / S}초`);
+	const fin = computePlayerTimeMs(game([{ t: T0 + 100 * S, p: 'A', a: 'Built Mine' }, { t: T0 + 130 * S, p: 'B', a: 'Built Mine' }]), T0 + 90 * S);
+	check(fin.B === live.times.B && fin.A === live.times.A, '④ B가 130초에 행동하면 종료 계산과 실시간 값이 같다');
 }
 
 console.log(bad === 0 ? '\n전부 통과' : `\n${bad}건 실패`);

@@ -107,9 +107,9 @@ import { assignLiveBotVariant } from './ai/liveExperiment';
 import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
-import { itarsFollowUpBlockMessage } from '@shared/itarsCouncil';
+import { itarsFollowUpBlockMessage, itarsCouncilFollowUpOwner } from '@shared/itarsCouncil';
 import { rememberInitialBoard } from './humanGameLogger';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, notePowerWait, noteTimeMark, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, computeLivePlayerTime, notePowerWait, noteTimeMark, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -1030,6 +1030,18 @@ export function buildRollbackSummary(game: GaiaGameState): string | null {
 /** [2026-11-12 사용자] 종료 화면 요약(사용 시간 · 롤백 · 뱃지)을 게임에 찍는다 — 종료 순간 1회.
  *  rollbackCounts·풀 로그가 종료 직후 비워지므로(아래 delete, 저장 시 takeFullGameLog) 그 전에 불러야 한다.
  *  뱃지는 기록 사이트 제출(submitToScoreSite)과 같은 조건 — 사람 4인 · 봇 없음 · 친선전 아님 — 일 때만 싣는다. */
+/** [사용자 2026-11-18] 실시간 사용 시간: 마지막 기록 뒤 지금까지를 붙일 '지금 행동해야 하는 사람'. */
+function liveTimeActorOf(game: GaiaGameState): string | null {
+	if (game.currentPhase === 'factionBidding') return game.factionBidding?.currentBidderId ?? game.factionBidding?.pickPlayerId ?? null;
+	return game.pendingIncomeOrder?.playerId
+		?? game.pendingItarsGaiaformerExchange?.playerId
+		?? game.pendingTerranCouncilBenefit?.playerId
+		?? itarsCouncilFollowUpOwner(game)
+		?? game.pendingTechTileSelection?.playerId
+		?? game.turnOrder?.[game.currentPlayerIndex]
+		?? null;
+}
+
 function stampGameEndSummary(game: GaiaGameState): void {
 	if (game.gameEndSummary) return;
 	const endedAt = Date.now();
@@ -4061,6 +4073,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 		//   '연결은 살았지만 방에서 빠진'(서버 재시작 후 재접속 등) 상태도 판별한다.
 		socket.on('client_ping', ({ gameId }: { gameId?: string } = {}, callback?: (r: { ok: true; inRoom: boolean }) => void) => {
 			try { callback?.({ ok: true, inRoom: !!gameId && socket.rooms.has(gameId) }); } catch { /* noop */ }
+		});
+
+		// [사용자 2026-11-18] 운영진 편의기능 창 '사용 시간 (실시간)' — 몇백 바이트라 몇 초 주기로 불러도 부담 없다.
+		//   화면 노출은 클라에서 이름으로 제한(예상 점수와 같은 수준 — 보안 장치는 아님).
+		socket.on('get_live_player_time', ({ gameId }: { gameId?: string } = {}, callback?: (r: { times: Record<string, number>; active: string[]; ended?: boolean } | { error: string }) => void) => {
+			if (typeof callback !== 'function') return;
+			const game = gameId ? games.get(gameId) : undefined;
+			if (!game) { callback({ error: 'Game not found' }); return; }
+			try {
+				if (game.currentPhase === 'gameEnd') { callback({ times: game.gameEndSummary?.playerTimeMs ?? {}, active: [], ended: true }); return; }
+				const logStart = Math.min(...(game.gameLog ?? []).map((e) => e.timestamp).filter((t): t is number => typeof t === 'number'), Date.now());
+				callback(computeLivePlayerTime(game, game.startedAt ?? logStart, liveTimeActorOf(game)));
+			} catch (e) { callback({ error: String(e) }); }
 		});
 
 		/**

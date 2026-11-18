@@ -272,6 +272,10 @@ function takeTimeMarks(gameId?: string): TimeMark[] {
  * [2026-11-18] 턴 종료 클릭·비딩 입찰/패스(timeMarks)도 '그 사람이 남긴 기록'으로 같이 끼워 경계로 쓴다.
  */
 export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, startedAt: number, marksOverride?: TimeMark[]): Record<string, number> {
+  return accumulatePlayerTime(game, startedAt, marksOverride).out;
+}
+
+function accumulatePlayerTime(game: GaiaGameState & { id?: string }, startedAt: number, marksOverride?: TimeMark[]): { out: Record<string, number>; lastTs: number } {
   const full = game.id ? fullGameLogs.get(game.id) : undefined;
   const marks = marksOverride ?? (game.id ? timeMarks.get(game.id) : undefined) ?? [];
   const src: { timestamp?: number; playerId?: string }[] = [...(full && full.length ? full : (game.gameLog ?? [])), ...marks];
@@ -293,7 +297,35 @@ export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, start
     prev = Math.max(prev, e.timestamp!);
     if (gap > 0 && e.playerId && e.playerId in out) out[e.playerId] += gap;
   }
-  return out;
+  return { out, lastTs: prev };
+}
+
+/**
+ * [사용자 2026-11-18 "운영진(하이) 편의기능 창에 아이디 옆 실시간 시간"] 진행 중 사용 시간.
+ * 마지막 기록까지는 종료 화면과 같은 계산, 그 뒤 지금까지는 '지금 행동해야 하는 사람'(active)에게 붙인다.
+ * 파워 받기 창이 떠 있으면 창을 받은 사람마다 창이 뜬 때부터 센다(종료 화면 계산과 같은 규칙).
+ */
+export function computeLivePlayerTime(
+  game: GaiaGameState & { id?: string },
+  startedAt: number,
+  actorId: string | null,
+  now = Date.now(),
+): { times: Record<string, number>; active: string[] } {
+  const { out, lastTs } = accumulatePlayerTime(game, startedAt);
+  const offers = (game.pendingPowerOffers ?? []).filter((o) => !o.responded && o.targetPlayerId in out);
+  if (offers.length) {
+    const active = Array.from(new Set(offers.map((o) => o.targetPlayerId)));
+    for (const t of active) {
+      const shownAt = Math.min(...offers.filter((o) => o.targetPlayerId === t).map((o) => o.shownAt ?? lastTs));
+      out[t] += Math.max(0, now - Math.max(lastTs, shownAt));
+    }
+    return { times: out, active };
+  }
+  if (actorId && actorId in out && lastTs > 0) {
+    out[actorId] += Math.max(0, now - lastTs);
+    return { times: out, active: [actorId] };
+  }
+  return { times: out, active: [] };
 }
 
 /** [2026-11-12] 방금 남긴 파워 받기 응답 기록에 '창이 뜬 뒤 걸린 시간'을 붙인다(종료 화면 사용 시간용). */
