@@ -58,6 +58,25 @@ export type FullGameLogEntry = {
 const fullGameLogs = new Map<string, FullGameLogEntry[]>();
 const FULL_LOG_CAP = 4000; // 비정상 성장(버려진 게임 등) 방지용 상한. 6R 4인플은 보통 600~1000.
 
+/**
+ * [사용자 2026-11-18 "하이 발타크 30분 넘게 쓴 게 맞나"] 사용 시간 계산용 '시간 표시' — 화면 로그에 남지 않는 클릭.
+ *  - turn_end: 턴 종료 클릭. 없으면 '행동 뒤 턴 종료를 누르기까지'가 다음 사람 몫으로 넘어갔다.
+ *  - bid: 종족 비딩 입찰·패스. 없으면 경매 전체 시간이 낙찰자 한 명에게 붙었다(ex. 하이 3분 36초).
+ * 풀 로그(fullGameLog)는 행동 수를 세는 분석 스크립트가 많아 섞지 않고 따로 둔다.
+ */
+export type TimeMark = { timestamp: number; playerId: string; kind: 'turn_end' | 'bid' };
+const timeMarks = new Map<string, TimeMark[]>();
+
+export function noteTimeMark(game: GaiaGameState & { id?: string; botPlayerIds?: string[]; simulation?: boolean }, playerId: string, kind: TimeMark['kind']): void {
+  if (game.simulation || !game.id || !game.players?.[playerId]) return;
+  const botIds = game.botPlayerIds ?? [];
+  if (!Object.keys(game.players).some((id) => !botIds.includes(id))) return; // 전원 봇 제외(풀 로그와 같은 기준)
+  let arr = timeMarks.get(game.id);
+  if (!arr) { arr = []; timeMarks.set(game.id, arr); }
+  if (arr.length >= FULL_LOG_CAP) return;
+  arr.push({ timestamp: Date.now(), playerId, kind });
+}
+
 type HumanGamePayload = {
   version: 1;
   gameId: string;
@@ -69,6 +88,8 @@ type HumanGamePayload = {
   gameLog: NonNullable<GaiaGameState['gameLog']>;
   actionJournal: HumanActionJournalEntry[];
   fullGameLog: FullGameLogEntry[];
+  /** [2026-11-18] 사용 시간 계산용 턴 종료·비딩 클릭 시각(화면 로그엔 없음) */
+  timeMarks?: TimeMark[];
   // [2026-06-28] 봇/사람 구분 명시. actionJournal은 사람 전용이라 분석엔 충분했지만, self-play 오염 가드와
   // fullGameLog의 isBot 라벨 신뢰를 위해 저장파일에 botPlayerIds를 박는다(런타임엔 있는데 export 누락이던 것).
   botPlayerIds: string[];
@@ -236,15 +257,24 @@ function takeFullGameLog(gameId?: string): FullGameLogEntry[] {
   return arr;
 }
 
+function takeTimeMarks(gameId?: string): TimeMark[] {
+  if (!gameId) return [];
+  const arr = timeMarks.get(gameId) ?? [];
+  timeMarks.delete(gameId);
+  return arr;
+}
+
 /**
  * [2026-11-12 사용자: 종료 화면에 '이번 게임 사용한 시간'] 사람별 사용 시간(ms).
  * 기록 사이의 시간을 '다음 기록을 남긴 사람'에게 붙인다 — 내 차례 생각 시간 + 파워 받기 같은 응답 대기 시간.
  * 되돌린 기록도 실제로 쓴 시간이라 포함한다. 풀 로그(파워 받기 응답까지 따로 남음)가 있으면 그걸, 서버 재시작으로
  * 잃었으면 화면 로그로 센다. 첫 기록은 게임 시작(startedAt)부터 잰다.
+ * [2026-11-18] 턴 종료 클릭·비딩 입찰/패스(timeMarks)도 '그 사람이 남긴 기록'으로 같이 끼워 경계로 쓴다.
  */
-export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, startedAt: number): Record<string, number> {
+export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, startedAt: number, marksOverride?: TimeMark[]): Record<string, number> {
   const full = game.id ? fullGameLogs.get(game.id) : undefined;
-  const src: { timestamp?: number; playerId?: string }[] = full && full.length ? full : (game.gameLog ?? []);
+  const marks = marksOverride ?? (game.id ? timeMarks.get(game.id) : undefined) ?? [];
+  const src: { timestamp?: number; playerId?: string }[] = [...(full && full.length ? full : (game.gameLog ?? [])), ...marks];
   const rows = src.filter((e) => typeof e.timestamp === 'number').sort((a, b) => a.timestamp! - b.timestamp!);
   const out: Record<string, number> = {};
   for (const pid of Object.keys(game.players ?? {})) out[pid] = 0;
@@ -316,6 +346,7 @@ function buildPayload(game: GaiaGameState & {
     gameLog: (game.gameLog ?? []).filter(e => !(e as { rolledBack?: boolean }).rolledBack),
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: takeFullGameLog(game.id),
+    timeMarks: takeTimeMarks(game.id),
     boardSetup: boardSetupOf(game, true),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],
@@ -356,6 +387,7 @@ export function buildLiveSnapshot(game: GaiaGameState & {
     gameLog: (game.gameLog ?? []).filter(e => !(e as { rolledBack?: boolean }).rolledBack),
     actionJournal: game.humanActionJournal ?? [],
     fullGameLog: peekFullGameLog(game.id),
+    timeMarks: [...(game.id ? timeMarks.get(game.id) ?? [] : [])],
     boardSetup: boardSetupOf(game),
     botPlayerIds: [...(game.botPlayerIds ?? [])],
     map: game.map ?? [],

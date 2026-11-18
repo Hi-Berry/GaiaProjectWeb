@@ -109,7 +109,7 @@ import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
 import { itarsFollowUpBlockMessage } from '@shared/itarsCouncil';
 import { rememberInitialBoard } from './humanGameLogger';
-import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, notePowerWait, type HumanActionJournalEntry } from './humanGameLogger';
+import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, notePowerWait, noteTimeMark, type HumanActionJournalEntry } from './humanGameLogger';
 
 
 
@@ -5347,6 +5347,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				emitRoomError(io, game, playerId, err);
 				return;
 			}
+			noteTimeMark(game as ServerGameState, playerId, 'bid'); // [사용자 2026-11-18] 비딩 시간은 입찰한 사람 몫
 			clampPlayerResources(game); emitGameUpdated(io, game);
 		});
 
@@ -5360,6 +5361,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				emitRoomError(io, game, playerId, err);
 				return;
 			}
+			noteTimeMark(game as ServerGameState, playerId, 'bid'); // [사용자 2026-11-18] 비딩 시간은 입찰한 사람 몫
 			// [롤백 2026-09-09 사용자] 낙찰 확정(pick 진입) 시점을 롤백 지점으로 남긴다 — 여기로 되돌리면 입찰액·낙찰자는 그대로고
 			//   종족·턴 순서만 다시 고른다. 'Selected Faction' 로그(종족당 1줄, 기존과 동일)를 클릭하면 이 지점으로 온다.
 			if (game.factionBidding?.phase === 'pick' && game.factionBidding.pickPlayerId) captureTurnStartWithPrev(game as ServerGameState, game.factionBidding.pickPlayerId);
@@ -7395,6 +7397,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 
 			const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
+			// [사용자 2026-11-18] 턴 종료 클릭 시각 — 행동 뒤 턴 종료까지의 시간이 다음 사람 사용 시간으로 넘어가지 않게
+			noteTimeMark(game as ServerGameState, endingPlayerId, 'turn_end');
 			const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
 			if (manualOfferCount > 0) {
 				game.pendingTurnEndPlayerId = endingPlayerId;
@@ -10793,6 +10797,7 @@ export function executeEndTurn(
 	if (game.pendingTwilightFederation?.playerId === playerId) return false;
 
 	const endingPlayerId = game.turnOrder[game.currentPlayerIndex];
+	noteTimeMark(game as ServerGameState, endingPlayerId, 'turn_end'); // 봇·자동 턴 종료도 같은 경계
 	const manualOfferCount = activateQueuedPowerOffersForPlayer(game as ServerGameState, endingPlayerId);
 	if (manualOfferCount > 0) {
 		game.pendingTurnEndPlayerId = endingPlayerId;
