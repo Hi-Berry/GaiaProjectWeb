@@ -39,3 +39,6 @@ data/ai2/
 # ai2 학습용 사람 결정 시점 상태(서버가 data/human-states/<날짜>_<gameId>.jsonl 로 기록) — 대용량·플레이어 이름 포함이라 레포에 올리지 않는다.
 #   받기: rsync -avz --partial root@172.104.86.178:GaiaProjectWeb/data/human-states/ data/human-states/
 data/human-states/
+# 웹 푸시: 서명 키(비밀)와 기기 구독 목록 — 서버마다 다르고 커밋 금지
+data/vapid-keys.json
+data/push-subscriptions.json

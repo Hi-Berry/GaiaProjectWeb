@@ -28,7 +28,8 @@ export function serveStatic(app: Express) {
   // 해시 번들(assets)은 영구 캐시, html은 매번 재검증 → 일반 새로고침(또는 재접속)만으로 새 버전 반영.
   app.use(express.static(distPath, {
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith(".html")) {
+      if (filePath.endsWith(".html") || filePath.endsWith(`${path.sep}sw.js`) || filePath.endsWith(".webmanifest")) {
+        // 서비스 워커·매니페스트도 매번 재검증 — 옛 워커가 남으면 알림 동작 수정이 늦게 반영된다
         res.setHeader("Cache-Control", "no-cache");
       } else if (/[.-][0-9a-zA-Z_]{8,}\.(js|css)$/.test(filePath) || filePath.includes(`${path.sep}assets${path.sep}`)) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");

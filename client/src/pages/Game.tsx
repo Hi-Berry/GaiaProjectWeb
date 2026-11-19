@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDecisionSound, playEndSound, playPassWarnSound, playTurnOvertimeSound } from '@/lib/audio';
 import { fireTurnNotification } from '@/lib/turnNotify';
+import { installPushPresence } from '@/lib/webPush';
 import { actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
 import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -2102,6 +2103,13 @@ export default function Game() {
       lastWasMyBidRef.current = isMyBid;
     }
   }, [game?.currentPlayerIndex, game?.turnOrder, game?.pendingBonusSelection, game?.pendingTechTileSelection?.playerId, game?.factionBidding?.currentBidderId, game?.factionBidding?.pickPlayerId, game?.factionBidding?.phase, playerId, isSpectator]);
+
+  /* [사용자 2026-11-19] 폰 알림(웹 푸시) — 켜져 있으면 이 게임 구독을 서버에 다시 등록하고, 화면을 보고 있는지 알린다
+     (보고 있을 땐 서버가 폰 알림을 안 보낸다). 관전자는 좌석이 없어 대상 아님. */
+  useEffect(() => {
+    if (!gameId || !playerId || isSpectator) return;
+    return installPushPresence(gameId);
+  }, [gameId, playerId, isSpectator]);
 
   /* [사용자 2026-11-06] "롤백도 결국 내가 눌러야 게임이 진행된다 — 다른 사람이 롤백을 신청해 내가 눌러야 하면 내 턴처럼 소리 나게."
      롤백 투표가 '내 동의'를 기다리면(동의 대상이고 아직 안 눌렀으면) 요청 한 건마다 한 번 내 차례 소리를 낸다.

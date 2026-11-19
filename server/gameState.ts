@@ -109,6 +109,7 @@ import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
 import { itarsFollowUpBlockMessage, itarsCouncilFollowUpOwner } from '@shared/itarsCouncil';
 import { rememberInitialBoard } from './humanGameLogger';
+import { initPush, getVapidPublicKey, addSubscription, removeSubscription, setPresence, clearSocketPresence, notePushState, sendTestPush, clearGamePush } from './push';
 import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, computeLivePlayerTime, notePowerWait, noteTimeMark, type HumanActionJournalEntry } from './humanGameLogger';
 
 
@@ -391,6 +392,8 @@ export function emitGameUpdated(io: any, game: any) {
 function emitGameUpdatedNow(io: any, game: any) {
 	// MCTS/정책 탐색은 실제 방이 아닌 dummyIo를 사용한다. 네트워크 동기화·계측 상태와 절대 섞지 않는다.
 	if (game?.simulation) return;
+	// [사용자 2026-11-19] 폰 웹 푸시 — 차례·파워 결정 등 '새로 생긴 할 일'을 감지해 보이지 않는 사람에게 알린다
+	try { notePushState(game); } catch { /* 알림 실패가 게임 진행을 막지 않게 */ }
 
 	const payload = clientStateOf(game, true);
 	// [계측, EMIT_BYTES=1일 때만] 게임당 emit 바이트 실측(원본+deflate 근사 — 실제 스트림 압축은 이보다 유리)
@@ -4047,8 +4050,35 @@ export function setupGameServer(httpServer: HTTPServer) {
 		log('[WARN] EMIT_BYTES=1 — emit마다 직렬화·압축·복원검증을 수행합니다. 계측용이며 운영 서버에서는 끄세요.', 'system');
 	}
 
+	initPush((id) => games.get(id));
+
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
+
+		// [사용자 2026-11-19] 폰 웹 푸시(PWA) — 구독 등록/해지, '보고 있는지' 보고, 테스트 발송 (server/push.ts)
+		//   playerId는 이 소켓이 앉은 좌석으로만 인정한다(남의 좌석 알림을 가로채지 못하게).
+		socket.on('push_public_key', (_p: unknown, callback?: (r: { key: string | null }) => void) => {
+			try { callback?.({ key: getVapidPublicKey() }); } catch { /* noop */ }
+		});
+		socket.on('push_subscribe', ({ gameId, subscription, title, body }: { gameId: string; subscription: any; title?: string; body?: string }, callback?: (r: { ok: boolean; error?: string }) => void) => {
+			const playerId = socketToPlayerMap.get(socket.id);
+			const game = gameId ? games.get(gameId) : undefined;
+			if (!game || !playerId || !game.players[playerId]) { callback?.({ ok: false, error: '게임에 참가한 플레이어만 알림을 등록할 수 있습니다.' }); return; }
+			callback?.(addSubscription({ gameId, playerId, subscription, title, body }));
+		});
+		socket.on('push_unsubscribe', ({ endpoint, gameId }: { endpoint: string; gameId?: string }) => {
+			if (typeof endpoint === 'string' && endpoint) removeSubscription(endpoint, gameId);
+		});
+		socket.on('push_presence', ({ gameId, active }: { gameId: string; active: boolean }) => {
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!gameId || !playerId) return;
+			setPresence(gameId, playerId, socket.id, !!active);
+		});
+		socket.on('push_test', async ({ gameId, endpoint }: { gameId: string; endpoint: string }, callback?: (r: { ok: boolean; error?: string }) => void) => {
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!gameId || !playerId) { callback?.({ ok: false, error: '게임에 참가한 플레이어만 테스트할 수 있습니다.' }); return; }
+			callback?.(await sendTestPush(gameId, playerId, endpoint));
+		});
 
 		// [사용자 2026-11-06] 끝난 게임 리플레이 관전 방 (server/replay.ts)
 		registerReplaySocket(io, socket, { games, emitGameUpdated, generateGameId, carrySpectatorSession });
@@ -4400,6 +4430,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 				// 사람이 아무도 안 남으면(봇만 남거나 빈 방) 방 자체를 정리
 				io.to(gameId).emit('game_deleted', { gameId });
 				games.delete(gameId);
+				clearGamePush(gameId);
 				turnHistories.delete(gameId);
 				rollbackCounts.delete(gameId);
 				clearGameMeasurementState(gameId);
@@ -4856,6 +4887,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 버려진 사람 방 정리가 목적 — 클라이언트에서 다른 사람이 있으면 경고 confirm을 띄운다.
 			io.to(gameId).emit('game_deleted', { gameId });
 			games.delete(gameId);
+			clearGamePush(gameId);
 			turnHistories.delete(gameId); // [롤백] 히스토리 메모리 정리
 			rollbackCounts.delete(gameId);
 			clearGameMeasurementState(gameId);
@@ -7880,6 +7912,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 		}
 
 		socket.on('disconnect', () => {
+			clearSocketPresence(socket.id);
 			releaseSocketPlayer();
 			releaseSocketSpectator();
 		});

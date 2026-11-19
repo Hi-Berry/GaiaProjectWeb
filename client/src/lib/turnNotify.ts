@@ -89,6 +89,8 @@ export async function requestNotifyPermission(): Promise<NotificationPermission 
  */
 export function fireTurnNotification(title: string, body: string): void {
   if (!getNotifyPref()) return;
+  // [사용자 2026-11-19] 폰 알림(웹 푸시, webPush.ts)이 켜져 있으면 서버가 같은 알림을 보낸다 → 두 번 뜨지 않게 생략
+  try { if (localStorage.getItem('gaia_push_on') === '1') return; } catch { /* */ }
   if (!notificationsSupported() || Notification.permission !== 'granted') return;
   // [사용자 제보 2026-08-24] 기존엔 visibilityState만 봐서, 듀얼 모니터·창이 옆에 보이는 채로
   // 다른 앱을 쓰는 동안(탭은 'visible'이지만 포커스 없음) 알림이 통째로 생략됐다.

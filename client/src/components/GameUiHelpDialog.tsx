@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { applyViewportMeta, canOfferPcViewMode, isPcViewMode, setPcViewMode, getSquareLayout, setSquareLayout, isNearSquare, type SquareLayout, isMobileV2, setMobileV2, canOfferLandscapeMobile, isLandscapeMobileOn, setLandscapeMobile } from '@/lib/viewMode';
 import {
   Dialog,
@@ -19,6 +19,7 @@ import {
   setNotifyBody,
   fireTestNotification,
 } from '@/lib/turnNotify';
+import { pushSupported, isIos, isStandalone, isPushActive, enablePush, disablePush, sendTestPush, syncPushForGame } from '@/lib/webPush';
 import { VolumeControl } from '@/components/VolumeControl';
 import { clipRateFor, getVoiceName, getVoiceRate, getVoiceStyle, getVoiceWho, isVoiceOn, listKoVoices, setVoiceName, setVoiceOn, setVoiceRate, setVoiceStyle, setVoiceWho, speakParts, type VoiceStyle, type VoiceWho } from '@/lib/speech';
 import { GameClient } from '@/lib/gameClient';
@@ -187,7 +188,7 @@ function HelpSectionBlock({ section }: { section: HelpSection }) {
   );
 }
 
-function NotifyToggle() {
+function NotifyToggle({ gameId }: { gameId?: string }) {
   const [on, setOn] = useState(false);
   const [msg, setMsg] = useState<string>('');
   const [title, setTitle] = useState('');
@@ -201,12 +202,23 @@ function NotifyToggle() {
 
   const supported = notificationsSupported();
   const secure = typeof window !== 'undefined' ? window.isSecureContext : true;
+  const [pushOn, setPushOn] = useState(false);
+  useEffect(() => { setPushOn(isPushActive()); }, []);
+  // 알림 문구를 바꾸면 서버에 저장된 폰 알림 문구도 갱신(입력 멈춘 뒤 한 번)
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queueSync = () => {
+    if (!gameId || !isPushActive()) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => { void syncPushForGame(gameId); }, 800);
+  };
 
   // 버튼은 항상 클릭 가능 — 안 되는 이유를 메시지로 피드백(비활성화하면 "클릭이 안 된다"로 느껴짐).
   const toggle = async () => {
     setMsg('');
     if (!supported) {
-      setMsg('이 브라우저는 알림 API를 지원하지 않습니다.');
+      setMsg(isIos() && !isStandalone()
+        ? '아이폰은 사파리 공유 버튼 → "홈 화면에 추가" 후, 홈 화면의 가이아 아이콘으로 열어야 알림을 켤 수 있어요 (iOS 16.4 이상).'
+        : '이 브라우저는 알림 API를 지원하지 않습니다.');
       return;
     }
     if (!secure) {
@@ -216,6 +228,8 @@ function NotifyToggle() {
     if (on) {
       setNotifyPref(false);
       setOn(false);
+      setPushOn(false);
+      void disablePush();
       return;
     }
     // 켜는 중: 권한 확인/요청
@@ -235,6 +249,16 @@ function NotifyToggle() {
     }
     setNotifyPref(true);
     setOn(true);
+    // [사용자 2026-11-19] 폰 알림(웹 푸시) — 게임 화면을 닫거나 다른 앱을 써도 서버가 알림을 보낸다
+    if (gameId && pushSupported()) {
+      setMsg('폰 알림 등록 중…');
+      const r = await enablePush(gameId);
+      setPushOn(r.ok);
+      setMsg(r.ok
+        ? '알림이 켜졌습니다. 다른 앱을 쓰거나 화면이 꺼져 있어도 내 차례에 알림이 옵니다 (이 게임 기준).'
+        : `탭 알림만 켜졌습니다 — 폰 알림 등록 실패: ${r.error ?? '알 수 없는 오류'}`);
+      return;
+    }
     setMsg('알림이 켜졌습니다. 탭을 백그라운드에 두면 내 차례에 알림이 뜹니다.');
   };
 
@@ -245,9 +269,9 @@ function NotifyToggle() {
       </h3>
       <div className="flex items-center justify-between gap-3 px-2 py-1.5">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold text-zinc-200">내 차례 데스크톱 알림</div>
+          <div className="text-[10px] font-semibold text-zinc-200">내 차례 알림{pushOn ? ' · 폰 알림 켜짐' : ''}</div>
           <div className="text-[9px] leading-snug text-zinc-500">
-            {msg || '탭을 백그라운드에 둬도 내 차례가 되면 알려줍니다 (보고 있을 땐 안 뜸).'}
+            {msg || '다른 탭·앱을 보고 있어도 내 차례가 되면 알려줍니다 (보고 있을 땐 안 뜸). 폰은 화면이 꺼져 있어도 옵니다.'}
           </div>
         </div>
         <button
@@ -269,21 +293,27 @@ function NotifyToggle() {
         <input
           type="text"
           value={title}
-          onChange={(e) => { setTitle(e.target.value); setNotifyTitle(e.target.value); }}
+          onChange={(e) => { setTitle(e.target.value); setNotifyTitle(e.target.value); queueSync(); }}
           placeholder="제목 예: Claude 작업이 완료되었습니다."
           className="w-full rounded border border-white/10 bg-zinc-900/70 px-2 py-1 text-[10px] text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500/60 focus:outline-none"
         />
         <input
           type="text"
           value={body}
-          onChange={(e) => { setBody(e.target.value); setNotifyBody(e.target.value); }}
+          onChange={(e) => { setBody(e.target.value); setNotifyBody(e.target.value); queueSync(); }}
           placeholder="내용 (선택) 예: 결과를 확인하세요."
           className="w-full rounded border border-white/10 bg-zinc-900/70 px-2 py-1 text-[10px] text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500/60 focus:outline-none"
         />
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
+              if (gameId && isPushActive()) {
+                setMsg('폰 알림 테스트 발송 중…');
+                const r = await sendTestPush(gameId);
+                setMsg(r.ok ? '테스트 알림을 보냈습니다 — 몇 초 안에 알림이 와야 합니다.' : `테스트 실패: ${r.error ?? ''}`);
+                return;
+              }
               const ok = fireTestNotification();
               setMsg(ok ? '테스트 알림을 보냈습니다 (화면 오른쪽 아래 확인).' : '알림 권한이 없거나 지원되지 않아 테스트할 수 없습니다. 먼저 위 토글로 권한을 허용하세요.');
             }}
@@ -293,7 +323,7 @@ function NotifyToggle() {
           </button>
           <button
             type="button"
-            onClick={() => { setTitle('Claude 작업이 완료되었습니다.'); setNotifyTitle('Claude 작업이 완료되었습니다.'); setBody(''); setNotifyBody(''); }}
+            onClick={() => { setTitle('Claude 작업이 완료되었습니다.'); setNotifyTitle('Claude 작업이 완료되었습니다.'); setBody(''); setNotifyBody(''); queueSync(); }}
             className="rounded border border-white/10 bg-zinc-800/60 px-2 py-1 text-[10px] text-zinc-300 hover:bg-zinc-700/60"
           >
             예시 채우기
@@ -840,8 +870,9 @@ export function GameUiHelpDialog({ open, onOpenChange, gameId, playerId, showTak
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-2"
           style={{ maxHeight: 'calc(min(92vh, 820px) - 3.5rem)' }}
         >
-          {/* 데스크톱: 차례 알림 토글·문구 / 모바일: 그 자리에 보드 정보 보기(가로·세로) 선택 */}
-          <div className="hidden md:block"><NotifyToggle /></div>
+          {/* 차례 알림 토글·문구(공통) / 모바일: 보드 정보 보기(가로·세로) 선택 */}
+          {/* [사용자 2026-11-19] 폰 알림(웹 푸시)이 생겨 모바일에서도 알림 토글을 보여준다 */}
+          <NotifyToggle gameId={gameId} />
           <div className="md:hidden"><MobileV2Selector /><TechViewSelector /><SquareLayoutSelector /><PinchZoomSelector /></div>
           {/* 좌하단 액션 버튼은 데스크톱·모바일(가로) 양쪽에 뜨므로 md 분기 밖에 둔다 */}
           <DisplayTogglesSection />
