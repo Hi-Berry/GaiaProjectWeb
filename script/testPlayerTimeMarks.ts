@@ -72,5 +72,25 @@ function game(log: { t: number; p: string; a: string }[], id?: string): any {
 	check(fin.B === live.times.B && fin.A === live.times.A, '④ B가 130초에 행동하면 종료 계산과 실시간 값이 같다');
 }
 
+// ⑤ [사용자 2026-11-19] 롤백 투표 중엔 아무 시간도 안 올라간다.
+//   A 행동 100초 → (B 차례) 130초에 롤백 요청(pause_start, 그때 차례 B) → 190초 투표 끝(pause_end) → A 다시 행동 200초
+{
+	const g = game([{ t: T0 + 100 * S, p: 'A', a: 'Built Mine' }, { t: T0 + 130 * S, p: 'C', a: 'Rollback' }, { t: T0 + 200 * S, p: 'A', a: 'Built Mine' }]);
+	const marks: TimeMark[] = [
+		{ timestamp: T0 + 130 * S, playerId: 'B', kind: 'pause_start' },
+		{ timestamp: T0 + 190 * S, playerId: '', kind: 'pause_end' },
+	];
+	const t = computePlayerTimeMs(g, T0 + 90 * S, marks);
+	check(t.A === 20 * S && t.B === 30 * S && t.C === 0, `⑤ 요청 전까진 차례인 B, 투표 60초는 아무도, 끝난 뒤는 A: A ${t.A / S} · B ${t.B / S} · C ${t.C / S}초 (기대 20·30·0)`);
+	// 실시간: 투표 중이면 아무도 안 올라감
+	const g2: any = game([{ t: T0 + 100 * S, p: 'A', a: 'Built Mine' }]);
+	g2.pendingRollback = { requesterId: 'C' };
+	const live = computeLivePlayerTime(g2, T0 + 90 * S, 'B', T0 + 500 * S);
+	check(live.active.length === 0 && live.times.B === 0 && live.paused === true, `⑤ 실시간: 투표 중엔 차례인 B도 멈춤 (B ${live.times.B / S}초, active ${live.active.length})`);
+	// 짝 없는 pause_end(운영진 즉시 롤백)는 시간을 버리지 않는다
+	const t3 = computePlayerTimeMs(game([{ t: T0 + 100 * S, p: 'A', a: 'Built Mine' }, { t: T0 + 160 * S, p: 'B', a: 'Built Mine' }]), T0 + 100 * S, [{ timestamp: T0 + 150 * S, playerId: '', kind: 'pause_end' }]);
+	check(t3.B === 10 * S, `⑤ 짝 없는 투표 끝 표시: 그 뒤만 B (B ${t3.B / S}초, 기대 10)`);
+}
+
 console.log(bad === 0 ? '\n전부 통과' : `\n${bad}건 실패`);
 process.exit(bad === 0 ? 0 : 1);

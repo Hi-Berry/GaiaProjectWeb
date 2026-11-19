@@ -1136,6 +1136,7 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	restored.turnStartState = { [entry.playerId]: buildTurnStartStateEntryForPlayer(restored, entry.playerId) };
 	restored.prevTurnStartState = undefined;
 	(restored as any).pendingRollback = null;
+	noteTimeMark(game, '', 'pause_end'); // [사용자 2026-11-19] 롤백 투표 끝 — 되돌린 차례부터 다시 시간이 흐른다
 	// 진행 중 봇 루프 무효화 후 복원 지점에서 재시작
 	(game as any).botCanceled = true;
 	cancelBotExecution(game.id);
@@ -4788,6 +4789,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const others = Object.keys(game.players).filter(id => id !== playerId && !bots.has(id));
 			const autoApproved = others.filter(isFinishedForGood);
 			const required = others.filter(id => !isFinishedForGood(id));
+			// [사용자 2026-11-19] 롤백 투표 동안은 사용 시간이 아무에게도 안 올라가게 — 요청 순간까지는 그때 차례였던 사람 몫.
+			noteTimeMark(game, liveTimeActorOf(game) ?? '', 'pause_start');
 			if (autoApproved.length) {
 				const names = autoApproved.map(id => game.players[id]?.name ?? id).join(', ');
 				addGameLog(game, playerId, 'Rollback', `auto-approved: ${names} (passed, final round)`);
@@ -4830,13 +4833,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!playerId) { rej('좌석 확인에 실패했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
 			if (!pr.required.includes(playerId)) { rej('이 롤백에 동의가 필요한 대상이 아닙니다.'); return; }
 			callback?.({ ok: true });
-			if (!accept) { (game as any).pendingRollback = null; emitGameUpdated(io, game); return; }
+			if (!accept) { (game as any).pendingRollback = null; noteTimeMark(game, '', 'pause_end'); emitGameUpdated(io, game); return; }
 			if (!pr.approvals.includes(playerId)) pr.approvals.push(playerId);
 			if (pr.required.every((id: string) => pr.approvals.includes(id))) {
 				const hist = turnHistories.get(gameId) || [];
 				const target = hist.find(h => h.seq === pr.seq);
 				if (target) { countRollback(gameId, pr.requesterId); executeRollbackToHistory(io, game, hist, target); }
-				else { (game as any).pendingRollback = null; emitGameUpdated(io, game); }
+				else { (game as any).pendingRollback = null; noteTimeMark(game, '', 'pause_end'); emitGameUpdated(io, game); }
 			} else {
 				emitGameUpdated(io, game);
 			}

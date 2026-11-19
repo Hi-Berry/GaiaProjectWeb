@@ -10,11 +10,12 @@
  *  4) 위성 메모 [2026-10-18]: 플레이어 색을 골라 빈 우주 칸을 찍으면 그 색 위성 예정 칸으로 체크/해제, 색별 개수 표시.
  *     내 색은 내 차례에 '이대로 연방하기'로 실제 연방 선언까지(연방 구현 → 그 칸 클릭 → 완료와 같음).
  *
- * [사용자 2026-08-11] 넣을 기능이 계속 늘어날 예정이라 각 항목을 제목 클릭으로 여닫는 접이식으로 둔다.
- *   열림 상태는 항목별로 localStorage에 남아 다음에 열 때 그대로 복원된다.
+ * [사용자 2026-08-11] 넣을 기능이 계속 늘어날 예정이라 각 항목을 제목 클릭으로 여닫는 접이식으로 뒀다.
+ * [사용자 2026-11-19 "편의기능이 너무 많아 불편 — 접는 것 말고 헤더에서 온/오프로 체크한 것만 보이게"]
+ *   → 헤더 바로 아래 항목별 켜기/끄기 칩. 켠 항목만 펼친 채로 보인다. 켠 목록은 localStorage에 남는다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { getSocket, getStoredSpectatorId } from '@/lib/gameClient';
 import {
   PLANET_COLORS, FACTIONS, RESEARCH_TRACKS, RESEARCH_TRACK_END_BONUS, isHiddenSpectatorName,
@@ -23,24 +24,44 @@ import {
 } from '@shared/gameConfig';
 import { getDistance } from '@shared/gameConfig';
 
-/** 접이식 항목 — 제목을 누르면 열리고 다시 누르면 닫힌다. 상태는 항목별 localStorage. */
-function Section({ id, title, accent, children }: { id: string; title: string; accent: string; children: React.ReactNode }) {
-  const key = `gaia-utility-sec-${id}`;
-  const [open, setOpen] = useState(() => {
-    try { const v = localStorage.getItem(key); return v === null ? id === 'score' : v === '1'; } catch { return id === 'score'; }
-  });
-  useEffect(() => { try { localStorage.setItem(key, open ? '1' : '0'); } catch { /* noop */ } }, [key, open]);
+/** [사용자 2026-11-19] 항목 목록 — 헤더 아래 칩으로 켜고 끈다. adminOnly는 예상 점수를 볼 수 있는 사람(하이 등)에게만 칩이 보인다. */
+type SectionId = 'score' | 'livetime' | 'land' | 'dist' | 'satmemo';
+const SECTION_DEFS: { id: SectionId; label: string; on: string; adminOnly?: boolean }[] = [
+  { id: 'score', label: '점수', on: 'bg-amber-500/25 border-amber-400/60 text-amber-200', adminOnly: true },
+  { id: 'livetime', label: '시간', on: 'bg-sky-500/25 border-sky-400/60 text-sky-200', adminOnly: true },
+  { id: 'land', label: '남은 땅', on: 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200' },
+  { id: 'dist', label: '거리', on: 'bg-sky-500/25 border-sky-400/60 text-sky-200' },
+  { id: 'satmemo', label: '위성', on: 'bg-violet-500/25 border-violet-400/60 text-violet-200' },
+];
+const SHOWN_KEY = 'gaia-utility-shown';
+
+/** 처음 켜져 있을 항목 — 예전 접이식에서 펼쳐 두던 항목이 있으면 그걸 이어받고, 없으면 점수·시간·남은 땅. */
+function initialShown(): SectionId[] {
+  try {
+    const v = localStorage.getItem(SHOWN_KEY);
+    if (v) return (JSON.parse(v) as string[]).filter((id): id is SectionId => SECTION_DEFS.some((d) => d.id === id));
+    const legacy = (id: string) => localStorage.getItem(`gaia-utility-sec-${id}`);
+    if (['score', 'livetime-v2', 'land', 'dist', 'satmemo'].some((id) => legacy(id) !== null)) {
+      const out: SectionId[] = [];
+      if (legacy('score') !== '0') out.push('score');
+      if (legacy('livetime-v2') !== '0') out.push('livetime');
+      if (legacy('land') === '1') out.push('land');
+      if (legacy('dist') === '1') out.push('dist');
+      if (legacy('satmemo') === '1') out.push('satmemo');
+      return out;
+    }
+  } catch { /* noop */ }
+  return ['score', 'livetime', 'land'];
+}
+
+/** 켜진 항목 한 칸 — 제목 + 내용(항상 펼침). */
+function Section({ title, accent, children }: { title: string; accent: string; children: React.ReactNode }) {
   return (
     <div className="border-b border-white/10 last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-1 px-2 py-1.5 hover:bg-white/5 transition-colors"
-      >
-        {open ? <ChevronDown className="w-3 h-3 shrink-0 text-zinc-500" /> : <ChevronRight className="w-3 h-3 shrink-0 text-zinc-500" />}
+      <div className="px-2 pt-1.5 pb-1">
         <span className={`text-[9px] font-black uppercase tracking-wide ${accent}`}>{title}</span>
-      </button>
-      {open && <div className="px-2.5 pb-2">{children}</div>}
+      </div>
+      <div className="px-2.5 pb-2">{children}</div>
     </div>
   );
 }
@@ -140,7 +161,7 @@ export interface UtilityPanelProps {
 }
 
 /** [사용자 2026-11-18] 운영진 '사용 시간 (실시간)' — 서버에서 5초마다 받아 오고, 그 사이엔 지금 행동 중인 사람(▶)만
- *  화면에서 1초씩 올린다. 이 항목이 열려 있을 때만 받아 온다(Section은 닫히면 children을 그리지 않음).
+ *  화면에서 1초씩 올린다. 이 항목이 켜져 있을 때만 받아 온다(꺼지면 그리지 않음).
  *  계산은 종료 화면 '사용 시간'과 같은 서버 함수라, 게임이 끝나면 종료 화면 값과 같아진다. */
 function fmtClock(ms: number) {
   const t = Math.max(0, Math.floor(ms / 1000));
@@ -150,10 +171,12 @@ function fmtClock(ms: number) {
 }
 
 function LiveTimeList({ game, playerId }: { game: GaiaGameState; playerId: string | null }) {
-  const [data, setData] = useState<{ times: Record<string, number>; active: string[]; at: number; ended?: boolean } | null>(null);
+  const [data, setData] = useState<{ times: Record<string, number>; active: string[]; at: number; ended?: boolean; paused?: boolean } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const gameId = game.id;
+  // [사용자 2026-11-19 "롤백 요청하면 시간이 아무도 안 올라가야"] 투표 중엔 화면 시계도 멈추고, 시작·끝나는 순간 바로 다시 받아 온다.
+  const paused = !!(game as any).pendingRollback;
 
   useEffect(() => {
     let alive = true;
@@ -163,24 +186,25 @@ function LiveTimeList({ game, playerId }: { game: GaiaGameState; playerId: strin
         if (!alive) return;
         if (timeoutErr || !r || r.error) { setErr(timeoutErr ? '응답 없음' : (r?.error ?? '오류')); return; }
         setErr(null);
-        setData({ times: r.times ?? {}, active: r.active ?? [], at: Date.now(), ended: r.ended });
+        setData({ times: r.times ?? {}, active: r.active ?? [], at: Date.now(), ended: r.ended, paused: r.paused });
       });
     };
     fetchNow();
     const poll = window.setInterval(fetchNow, 5000);
     const tick = window.setInterval(() => setTick((v) => v + 1), 1000);
     return () => { alive = false; window.clearInterval(poll); window.clearInterval(tick); };
-  }, [gameId]);
+  }, [gameId, paused]);
 
   if (!data) return <div className="text-[10px] text-zinc-500">{err ? `불러오지 못함 (${err})` : '불러오는 중…'}</div>;
-  const elapsed = data.ended ? 0 : Date.now() - data.at;
+  const stopped = data.ended || paused || data.paused;
+  const elapsed = stopped ? 0 : Date.now() - data.at;
   const order = (game.turnOrder ?? Object.keys(game.players ?? {})).filter((pid) => game.players?.[pid]);
   return (
     <div className="space-y-0.5">
       {order.map((pid) => {
         const p = game.players[pid];
         const color = FACTIONS.find((f) => f.id === p.faction)?.color ?? '#a1a1aa';
-        const isActive = data.active.includes(pid);
+        const isActive = !stopped && data.active.includes(pid);
         const ms = (data.times[pid] ?? 0) + (isActive ? elapsed : 0);
         return (
           <div key={pid} className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${isActive ? 'bg-sky-500/15 border border-sky-400/30' : 'border border-transparent'}`}>
@@ -192,7 +216,9 @@ function LiveTimeList({ game, playerId }: { game: GaiaGameState; playerId: strin
         );
       })}
       <div className="mt-1 text-[8px] leading-snug text-zinc-600">
-        {data.ended ? '게임 종료 — 종료 화면과 같은 값' : '▶ 지금 행동할 차례(파워 받기 창이 떠 있으면 받는 사람)의 시간이 올라갑니다.'}
+        {data.ended ? '게임 종료 — 종료 화면과 같은 값'
+          : (paused || data.paused) ? <span className="text-amber-400/80">⏸ 롤백 투표 중 — 아무의 시간도 올라가지 않습니다.</span>
+          : '▶ 지금 행동할 차례(파워 받기 창이 떠 있으면 받는 사람)의 시간이 올라갑니다.'}
         {err && <span className="text-red-400/80"> · 갱신 실패({err})</span>}
       </div>
     </div>
@@ -307,6 +333,17 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
     } catch { return ''; }
   })();
   const canSeeScore = scorePreviewAllowed(myName);
+  const [shown, setShown] = useState<SectionId[]>(initialShown);
+  useEffect(() => { try { localStorage.setItem(SHOWN_KEY, JSON.stringify(shown)); } catch { /* noop */ } }, [shown]);
+  const toggleShown = (id: SectionId) => {
+    const turningOff = shown.includes(id);
+    // 끄는 항목이 맵 클릭을 잡고 있으면 같이 풀어 준다(안 보이는데 맵 클릭이 측정·위성 체크로 먹히지 않게).
+    if (turningOff && id === 'dist') setMeasureMode(null);
+    if (turningOff && id === 'satmemo') setSatMemoEditPid(null);
+    setShown((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  };
+  const chips = SECTION_DEFS.filter((d) => !d.adminOnly || canSeeScore);
+  const isShown = (id: SectionId) => shown.includes(id) && chips.some((d) => d.id === id);
 
   // 예상 점수 — 높은 순으로. 계산 실패(옛 게임 등)해도 패널 전체가 죽지 않게 방어.
   const projections = !canSeeScore ? [] : (game.turnOrder ?? Object.keys(game.players ?? {}))
@@ -361,9 +398,30 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           </button>
         </div>
 
+        {/* [사용자 2026-11-19] 항목 켜기/끄기 — 켠 것만 아래에 보인다 */}
+        <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b border-white/10 bg-zinc-900/40">
+          {chips.map((d) => {
+            const on = shown.includes(d.id);
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => toggleShown(d.id)}
+                aria-pressed={on}
+                className={`px-1.5 py-0.5 rounded border text-[10px] font-bold leading-none transition-colors ${on ? d.on : 'border-white/10 text-zinc-500 hover:text-zinc-300 hover:border-white/25'}`}
+              >
+                {on ? '✓ ' : ''}{d.label}
+              </button>
+            );
+          })}
+        </div>
+        {!chips.some((d) => isShown(d.id)) && (
+          <div className="px-2.5 py-2 text-[10px] text-zinc-500">위에서 볼 항목을 켜 주세요.</div>
+        )}
+
         {/* 1) 예상 점수 — '지금 이 보드로 게임이 끝나면' 몇 점인지. 남은 라운드의 패스·미션은 안 들어간다. */}
-        {canSeeScore && (
-        <Section id="score" title="예상 점수 (지금 끝나면)" accent="text-amber-400">
+        {isShown('score') && (
+        <Section title="예상 점수 (지금 끝나면)" accent="text-amber-400">
           <div className="space-y-1">
             {projections.map(({ pid, s }) => {
               const p = game.players[pid];
@@ -399,14 +457,15 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
         )}
 
         {/* [사용자 2026-11-18] 운영진 전용: 사람별 사용 시간 실시간 */}
-        {canSeeScore && game.currentPhase !== 'lobby' && (
-        <Section id="livetime" title="사용 시간 (실시간)" accent="text-sky-400">
+        {isShown('livetime') && game.currentPhase !== 'lobby' && (
+        <Section title="사용 시간 (실시간)" accent="text-sky-400">
           <LiveTimeList game={game} playerId={playerId ?? null} />
         </Section>
         )}
 
         {/* 2) 남은 땅 */}
-        <Section id="land" title={`남은 땅 (합계 ${total})`} accent="text-emerald-400">
+        {isShown('land') && (
+        <Section title={`남은 땅 (합계 ${total})`} accent="text-emerald-400">
           {/* 열 수는 폭에 맞춰 자동 — 넓히면 3·4열로 늘어난다(영어 라벨이 길어 최소 84px 확보).
               [사용자 2026-08-11] 1fr이면 칸이 폭에 맞춰 늘어나 이름과 숫자가 멀어진다 → max-content로 칸을 내용
               크기에 묶고 justify-start. 남는 폭은 열 사이가 아니라 오른쪽에 남는다. */}
@@ -430,9 +489,11 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
             ))}
           </div>
         </Section>
+        )}
 
         {/* 3) 거리 측정기 */}
-        <Section id="dist" title="거리 측정기" accent="text-sky-400">
+        {isShown('dist') && (
+        <Section title="거리 측정기" accent="text-sky-400">
           <div className="flex gap-1 mb-1.5">
             {(['A', 'B'] as const).map((k) => {
               const active = measureMode === k;
@@ -473,9 +534,11 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           </div>
           <div className="mt-1 text-[8px] leading-snug text-zinc-600">최종미션 &apos;의회-아카데미 거리&apos;와 같은 계산입니다. 내 화면에서만 보입니다.</div>
         </Section>
+        )}
 
         {/* 4) 위성 메모 */}
-        <Section id="satmemo" title="위성 메모" accent="text-violet-300">
+        {isShown('satmemo') && (
+        <Section title="위성 메모" accent="text-violet-300">
           <div className="flex items-center gap-1 mb-1.5">
             <button
               type="button"
@@ -545,6 +608,7 @@ export function UtilityPanel({ game, onClose, anchorRightPx, playerId, measureMo
           )}
           <div className="mt-1 text-[8px] leading-snug text-zinc-600">색을 고르고 맵의 빈 우주 칸을 누르면 체크/해제됩니다. 내 화면에서만 보입니다.</div>
         </Section>
+        )}
       </div>
     </div>
   );

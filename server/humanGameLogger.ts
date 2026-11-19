@@ -63,17 +63,21 @@ const FULL_LOG_CAP = 4000; // 비정상 성장(버려진 게임 등) 방지용 �
  *  - turn_end: 턴 종료 클릭. 없으면 '행동 뒤 턴 종료를 누르기까지'가 다음 사람 몫으로 넘어갔다.
  *  - bid: 종족 비딩 입찰·패스. 없으면 경매 전체 시간이 낙찰자 한 명에게 붙었다(ex. 하이 3분 36초).
  * 풀 로그(fullGameLog)는 행동 수를 세는 분석 스크립트가 많아 섞지 않고 따로 둔다.
+ *  - pause_start / pause_end: [사용자 2026-11-19 "롤백 요청하면 시간이 아무도 안 올라가야"] 롤백 투표 동안은 아무에게도
+ *    시간을 붙이지 않는다. pause_start의 playerId는 요청 순간 행동할 차례였던 사람(그때까지가 그 사람 몫), 없으면 ''.
  */
-export type TimeMark = { timestamp: number; playerId: string; kind: 'turn_end' | 'bid' };
+export type TimeMark = { timestamp: number; playerId: string; kind: 'turn_end' | 'bid' | 'pause_start' | 'pause_end' };
 const timeMarks = new Map<string, TimeMark[]>();
 
 export function noteTimeMark(game: GaiaGameState & { id?: string; botPlayerIds?: string[]; simulation?: boolean }, playerId: string, kind: TimeMark['kind']): void {
-  if (game.simulation || !game.id || !game.players?.[playerId]) return;
+  const isPause = kind === 'pause_start' || kind === 'pause_end';
+  if (game.simulation || !game.id) return;
+  if (!game.players?.[playerId] && !(isPause && playerId === '')) return;
   const botIds = game.botPlayerIds ?? [];
   if (!Object.keys(game.players).some((id) => !botIds.includes(id))) return; // 전원 봇 제외(풀 로그와 같은 기준)
   let arr = timeMarks.get(game.id);
   if (!arr) { arr = []; timeMarks.set(game.id, arr); }
-  if (arr.length >= FULL_LOG_CAP) return;
+  if (arr.length >= FULL_LOG_CAP && !isPause) return; // 멈춤 표시는 짝이 깨지면 시계가 영영 멈추므로 상한 예외
   arr.push({ timestamp: Date.now(), playerId, kind });
 }
 
@@ -275,15 +279,32 @@ export function computePlayerTimeMs(game: GaiaGameState & { id?: string }, start
   return accumulatePlayerTime(game, startedAt, marksOverride).out;
 }
 
-function accumulatePlayerTime(game: GaiaGameState & { id?: string }, startedAt: number, marksOverride?: TimeMark[]): { out: Record<string, number>; lastTs: number } {
+function accumulatePlayerTime(game: GaiaGameState & { id?: string }, startedAt: number, marksOverride?: TimeMark[]): { out: Record<string, number>; lastTs: number; paused: boolean } {
   const full = game.id ? fullGameLogs.get(game.id) : undefined;
   const marks = marksOverride ?? (game.id ? timeMarks.get(game.id) : undefined) ?? [];
-  const src: { timestamp?: number; playerId?: string }[] = [...(full && full.length ? full : (game.gameLog ?? [])), ...marks];
-  const rows = src.filter((e) => typeof e.timestamp === 'number').sort((a, b) => a.timestamp! - b.timestamp!);
+  const src: { timestamp?: number; playerId?: string; kind?: TimeMark['kind'] }[] = [...(full && full.length ? full : (game.gameLog ?? [])), ...marks];
+  // 같은 시각이면 pause_start를 먼저 — 롤백 요청과 같은 ms에 남은 'Rollback' 로그가 직전 공백을 가져가지 않게.
+  const rows = src.filter((e) => typeof e.timestamp === 'number')
+    .sort((a, b) => (a.timestamp! - b.timestamp!) || ((a.kind === 'pause_start' ? 0 : 1) - (b.kind === 'pause_start' ? 0 : 1)));
   const out: Record<string, number> = {};
   for (const pid of Object.keys(game.players ?? {})) out[pid] = 0;
   let prev = startedAt || rows[0]?.timestamp || 0;
+  let paused = false;
   for (const e of rows as (typeof rows[number] & Pick<FullGameLogEntry, 'powerWaitMs' | 'powerWaitSource'>)[]) {
+    // 롤백 투표 중(pause_start ~ pause_end)에 흐른 시간은 아무에게도 붙이지 않는다.
+    if (paused) {
+      prev = Math.max(prev, e.timestamp!);
+      if (e.kind === 'pause_end') paused = false;
+      continue;
+    }
+    if (e.kind === 'pause_end') { prev = Math.max(prev, e.timestamp!); continue; } // 짝 없는 종료(운영진 즉시 롤백 등) — 공백은 다음 기록 몫 그대로
+    if (e.kind === 'pause_start') {
+      const gap = e.timestamp! - prev;
+      prev = Math.max(prev, e.timestamp!);
+      if (gap > 0 && e.playerId && e.playerId in out) out[e.playerId] += gap;
+      paused = true;
+      continue;
+    }
     if (typeof e.powerWaitMs === 'number') {
       /* [사용자 2026-11-12] 파워 받기 창은 받은 사람마다 '창이 뜬 시점부터 응답까지'를 따로 센다.
          창이 뜨기 전 공백(건설 뒤 턴 종료를 누르기까지)은 파워를 준 사람 몫. */
@@ -297,7 +318,7 @@ function accumulatePlayerTime(game: GaiaGameState & { id?: string }, startedAt: 
     prev = Math.max(prev, e.timestamp!);
     if (gap > 0 && e.playerId && e.playerId in out) out[e.playerId] += gap;
   }
-  return { out, lastTs: prev };
+  return { out, lastTs: prev, paused };
 }
 
 /**
@@ -310,8 +331,10 @@ export function computeLivePlayerTime(
   startedAt: number,
   actorId: string | null,
   now = Date.now(),
-): { times: Record<string, number>; active: string[] } {
-  const { out, lastTs } = accumulatePlayerTime(game, startedAt);
+): { times: Record<string, number>; active: string[]; paused?: boolean } {
+  const { out, lastTs, paused } = accumulatePlayerTime(game, startedAt);
+  // [사용자 2026-11-19] 롤백 투표 중엔 아무 시계도 안 올라간다.
+  if (paused || (game as any).pendingRollback) return { times: out, active: [], paused: true };
   const offers = (game.pendingPowerOffers ?? []).filter((o) => !o.responded && o.targetPlayerId in out);
   if (offers.length) {
     const active = Array.from(new Set(offers.map((o) => o.targetPlayerId)));
