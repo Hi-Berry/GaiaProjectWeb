@@ -1488,6 +1488,8 @@ export function GameBoard({
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
       // [2026-09-10] 서버 unbuildable과 동기화: transdim(포머 없음)·lost_planet엔 무한거리 무료광산 불가
       if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'].includes(selectedTile.type)) return false;
+      // [2026-11-19] 서버와 동일: 포머가 올라간 칸은 내 포머(성숙·회수대기)일 때만
+      if (selectedTile.hasGaiaformer && !currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) return false;
       // [사용자 룰 2026-09-10] 소행성은 사용 가능한 포머가 있을 때만(서버 getEffectiveGaiaformers와 동일: 발타크는 QIC로 잠근 포머 제외)
       if (selectedTile.type === 'asteroid') return Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0)) >= 1;
       return true;
@@ -1577,6 +1579,8 @@ export function GameBoard({
     if (game.pendingSpaceshipFedMine?.playerId === playerId) {
       // [2026-09-10] 서버 unbuildable과 동기화: transdim(포머 없음)·lost_planet엔 무한거리 무료광산 불가
       if (['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse', 'transdim', 'lost_planet'].includes(selectedTile.type)) return false;
+      // [2026-11-19] 서버와 동일: 포머가 올라간 칸은 내 포머(성숙·회수대기)일 때만
+      if (selectedTile.hasGaiaformer && !currentPlayer.pendingGaiaformerTiles?.includes(selectedTile.id)) return false;
       // [사용자 룰 2026-09-10] 소행성은 사용 가능한 포머가 있을 때만(서버 getEffectiveGaiaformers와 동일: 발타크는 QIC로 잠근 포머 제외)
       if (selectedTile.type === 'asteroid') return Math.max(0, (currentPlayer.gaiaformers ?? 0) - (currentPlayer.faction === 'bal_tak' ? (currentPlayer.balTakGaiaformersUsedForQic ?? 0) : 0)) >= 1;
       return true;
@@ -3173,8 +3177,10 @@ export function GameBoard({
                   const effectiveBaseRange = getEffectiveBaseRange(playerForRange ?? currentPlayer);
                   const minDist = playerTiles.length > 0 ? Math.min(...playerTiles.map((t: HexTile) => getDistance(t, selectedTile))) : Infinity;
                   const neededQIC = minDist > effectiveBaseRange ? Math.ceil((minDist - effectiveBaseRange) / 2) : 0;
-                  const canReach = minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);
-                  const canAfford = (currentPlayer?.ore ?? 0) >= 1 && (currentPlayer?.credits ?? 0) >= 2 && (currentPlayer?.qic ?? 0) >= neededQIC;
+                  // [사용자 룰 2026-11-19] 우주선 연방 무한거리 무료광산으로도 기생 가능 — 거리·1O2C·QIC 모두 면제(서버와 동일)
+                  const isFedFree = game.pendingSpaceshipFedMine?.playerId === playerId;
+                  const canReach = isFedFree || minDist <= effectiveBaseRange + ((currentPlayer?.qic ?? 0) * 2);
+                  const canAfford = isFedFree || ((currentPlayer?.ore ?? 0) >= 1 && (currentPlayer?.credits ?? 0) >= 2 && (currentPlayer?.qic ?? 0) >= neededQIC);
 
                   if (!canReach) return <p className="text-xs text-red-400 p-2">기생 광산: 거리가 너무 멉니다</p>;
 
@@ -3189,7 +3195,7 @@ export function GameBoard({
                         setSelectedTile(null);
                       }}
                     >
-                      Build Parasitic Mine (1O, 2C){neededQIC > 0 ? ` + ${neededQIC} QIC` : ''}
+                      {isFedFree ? 'Build Parasitic Mine (Free · 무한거리)' : <>Build Parasitic Mine (1O, 2C){neededQIC > 0 ? ` + ${neededQIC} QIC` : ''}</>}
                     </Button>
                   );
                 })()}

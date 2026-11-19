@@ -8481,9 +8481,37 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		const notifyReject = (msg: string) => {
 			if (!game.botPlayerIds?.includes(playerId) && !(game as any).simulation) emitRoomError(io, game, playerId, msg);
 		};
+		// [사용자 룰 2026-11-19] 란티다는 무한거리 무료광산으로 남의 건물 위에 기생 광산을 지을 수 있다.
+		//   일반 기생(아래 'Lantids Parasitic')과 같은 보상, 비용(1O2C·거리QIC)만 면제. 테라포밍·새 행성 종류·가이아 점수는 원래 기생 규칙대로 없음.
+		if (player.faction === 'lantids' && tile.structure != null && tile.ownerId != null && tile.ownerId !== playerId && !tile.parasiticMine) {
+			game.pendingSpaceshipFedMine = null;
+			const rm7QualifyFedPara = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+			tile.parasiticMine = { ownerId: playerId };
+			addGameLog(game, playerId, 'Built Parasitic Mine', 'Free (Spaceship Fed unlimited range, Lantida)', tileId);
+			applyRoundMissionScore(game, playerId, 'build_mine');
+			if (rm7QualifyFedPara) applyRoundMissionScore(game, playerId, 'new_sector');
+			applyAdvancedTechTileEffect(game, playerId, 'build_mine');
+			createPowerOffers(game, tile, playerId);
+			addBuildingToFederationIfAdjacent(game, playerId, tileId);
+			if (game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) {
+				player.knowledge = (player.knowledge || 0) + 2;
+				addGameLog(game, playerId, 'Lantida Council', '+2 Knowledge (parasitic build with PI)', tileId);
+			}
+			game.hasDoneMainAction = true;
+			clampPlayerResources(game); emitGameUpdated(io, game);
+			return true;
+		}
 		if (unbuildable.includes(tile.type) || tile.structure !== null) {
 			debugLog(game, `executeBuildMine failed (Spaceship Fed): Tile ${tileId} is unbuildable (${tile.type}) or has structure (${tile.structure})`, 'error');
 			notifyReject(tile.structure !== null ? '연방 보상 광산은 건물이 없는 행성에만 지을 수 있습니다.' : '연방 보상 광산은 행성에만 지을 수 있습니다 (빈 우주/우주선 불가).');
+			return false;
+		}
+		// [버그수정 2026-11-19] 포머가 올라간 칸은 일반 건설과 같게: 남의 포머 칸·아직 성숙 안 된 내 포머 칸은 불가.
+		//   (포머가 성숙하면 칸이 'gaia'로 바뀌어 위 transdim 거부를 통과 → 남의 포머 위에 광산이 서고 그 포머가 갇히던 구멍)
+		if (tile.hasGaiaformer && (
+			(tile.gaiaformerOwnerId != null && tile.gaiaformerOwnerId !== playerId) || !player.pendingGaiaformerTiles?.includes(tileId))) {
+			debugLog(game, `executeBuildMine failed (Spaceship Fed): Tile ${tileId} has a gaiaformer not buildable by ${playerId} (owner ${tile.gaiaformerOwnerId})`, 'error');
+			notifyReject('다른 플레이어의 가이아 포머가 있는 행성에는 지을 수 없습니다.');
 			return false;
 		}
 		// [사용자 룰 2026-09-10] 소행성: 사용 가능한 가이아 포머가 있으면 일반 건설처럼 포머 1개를 파괴하며 짓는다(거리 무시, 다른 비용 없음). 포머 없으면 거부.
@@ -8500,13 +8528,13 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		//   가이아 행성 기본 QIC와 테라포밍 스텝(광석)은 정상 청구한다. 자원 부족 시 그 행성엔 못 짓는다.
 		//   (기존엔 전부 면제라 비-원주민/가이아 행성도 완전 공짜였음 — 사용자 관찰로 교정.)
 		const isFedGaiaReclaim = (tile.type === 'transdim' || tile.type === 'gaia') && player.pendingGaiaformerTiles?.includes(tileId);
-		let fedGaiaQic = 0, fedTerraOre = 0, fedDiscountSteps = 0;
+		let fedGaiaQic = 0, fedTerraOre = 0, fedDiscountSteps = 0, fedSteps = 0;
 		if (!isFedGaiaReclaim && !fedAsteroid) {
 			if (tile.type === 'gaia') {
 				if (player.faction === 'gleens') fedTerraOre = 1; // 글린스는 가이아 비용을 1광석으로
 				else fedGaiaQic = getGaiaBaseQic(player.faction || '');
 			} else {
-				const fedSteps = getTerraformStepsForFaction(game, player.faction!, tile.type as any);
+				fedSteps = getTerraformStepsForFaction(game, player.faction!, tile.type as any);
 				const pend = player.pendingTerraformSteps || 0;
 				fedDiscountSteps = Math.min(pend, fedSteps);
 				const actual = fedSteps - fedDiscountSteps;
@@ -8525,6 +8553,14 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		game.pendingSpaceshipFedMine = null;
 		const geodensTypesBefore = getPlayerPlanetTypesForGeodens(game, playerId);
 		const rm7Qualify = qualifiesForNewSectorRoundMission(game, playerId, tileId);
+		// [버그수정 2026-11-19 사용자 제보: "무한거리 광산 연방으로 원시행성에 다카가 지으니까 6점도 안 주고 1지식 2원도 안 줬다"]
+		//   이 분기는 일반 건설 경로와 따로 끝나서 원시행성 +6VP·다카니안 의회 새 섹터 +1K2C·가이아 광산 VP·테라포밍 스텝 점수가 전부 빠져 있었다.
+		//   일반 경로(아래 '여기부터 성공 확정' 이후)와 같은 판정으로 맞춘다.
+		const fedHadInSector = game.map.some(t => t.id !== tileId && t.sector === tile.sector && tileOccupiesSector(t, playerId));
+		const fedHadInOuter = game.map.some(t => t.id !== tileId && OUTER_SECTORS.includes(t.sector) && tileOccupiesSector(t, playerId));
+		const fedNewSector = tile.sector !== 90 && !fedHadInSector;
+		const fedNewOuter = OUTER_SECTORS.includes(tile.sector) && !fedHadInOuter;
+		const fedDarkaniansPiBonus = player.faction === 'darkanians' && game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute') && (fedNewSector || fedNewOuter);
 		tile.structure = 'mine';
 		tile.ownerId = playerId;
 		if (fedAsteroid) {
@@ -8542,7 +8578,25 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 			/* 'Gaiaformer Returned' 로그 제거 — 불필요(사용자 요청). 포머 복귀 로직은 위에서 이미 처리됨 */
 		}
 
+		if (fedDarkaniansPiBonus) {
+			player.knowledge = (player.knowledge ?? 0) + 1;
+			player.credits = (player.credits ?? 0) + 2;
+			addGameLog(game, playerId, 'Darkanians PI', 'New sector / new outer sector: +1K, +2C', tileId);
+		}
 		addGameLog(game, playerId, 'Spaceship Fed', `Mine unlimited range (Free${fedTerraOre ? `, ${fedTerraOre}O terraform` : ''}${fedGaiaQic ? `, ${fedGaiaQic}QIC gaia` : ''}${fedAsteroid ? `, asteroid: used 1 Gaiaformer (${player.gaiaformers} left)` : ''})`, tileId);
+		// 원시행성·가이아 광산 VP는 별도 로그줄 대신 위 줄에 (+NVP ...)로 병합 — 'Built Mine on Proto' 줄을 따로 쓰면 리플레이·감사가 광산을 두 번 센다.
+		if (tile.type === 'proto') {
+			addScore(game, playerId, 6, 'other', { source: 'Proto Planet', noLog: true });
+			appendVpSegmentToLastLog(game, playerId, 6, 'Proto Planet');
+		}
+		if (tile.type === 'gaia' && player.techTiles.includes('tech-gaia-3vp') && !isTechTileCovered(player, 'tech-gaia-3vp')) {
+			addScore(game, playerId, 3, 'techTiles', { tileId: 'tech-gaia-3vp' });
+			appendVpSegmentToLastLog(game, playerId, 3, 'Tech Gaia Planet');
+		}
+		if (tile.type === 'gaia' && player.faction === 'gleens') {
+			addScore(game, playerId, 2, 'other', { source: 'Gleens Gaia Bonus', noLog: true });
+			appendVpSegmentToLastLog(game, playerId, 2, 'Gleens Gaia');
+		}
 		applyRoundMissionScore(game, playerId, 'build_mine');
 		if (rm7Qualify) applyRoundMissionScore(game, playerId, 'new_sector');
 		if (tile.type === 'gaia') applyRoundMissionScore(game, playerId, 'build_gaia');
@@ -8551,6 +8605,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 		const geodensTypesAfter = getPlayerPlanetTypesForGeodens(game, playerId);
 		if (geodensTypesAfter.size > geodensTypesBefore.size) {
 			applyRoundMissionScore(game, playerId, 'new_planet_type');
+		}
+		// 테라포밍 스텝 점수(라운드 미션·고급 기술) — 일반 경로와 동일하게 행성에 필요한 스텝 수만큼
+		for (let i = 0; i < fedSteps; i++) {
+			applyRoundMissionScore(game, playerId, 'terraform_step');
+			applyAdvancedTechTileEffect(game, playerId, 'terraform');
 		}
 
 		applyAdvancedTechTileEffect(game, playerId, 'build_mine');
