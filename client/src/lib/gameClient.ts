@@ -487,6 +487,17 @@ export const GameClient = {
     });
   },
 
+  /** 본인 좌석 비밀번호 설정(덮어쓰기). 로그인은 '내 좌석 이어하기'에 이름 + 이 비번. */
+  setMySeatPassword(gameId: string, playerId: string, password: string): Promise<{ name: string }> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('set_my_seat_password', { gameId, playerId, password }, (response: any) => {
+        if (response?.error) reject(new Error(response.error));
+        else resolve({ name: response?.name ?? '' });
+      });
+    });
+  },
+
   adminSetCurrentTurn(gameId: string, targetPlayerId: string, adminCode: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const s = getSocket();

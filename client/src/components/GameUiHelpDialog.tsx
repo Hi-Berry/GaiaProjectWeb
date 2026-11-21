@@ -796,9 +796,16 @@ function SquareLayoutSelector() {
   );
 }
 
-/** 다른 기기로 이어하기: 좌석 소유권(localStorage playerId)을 ?as= 링크로 옮긴다 (Game.tsx의 파라미터 처리와 한 쌍) */
+/** 다른 기기로 이어하기: 좌석 소유권(localStorage playerId)을 ?as= 링크로 옮긴다 (Game.tsx의 파라미터 처리와 한 쌍)
+ *  [사용자 2026-11-20] 링크 복사 옆 '비번 설정' — 관리자가 정해 주던 좌석 비밀번호를 본인이 직접 건다(덮어쓰기).
+ *  로그인은 기존 '내 좌석 이어하기'(이름 + 비번). */
 function ContinueOnDeviceSection({ gameId, playerId }: { gameId: string; playerId: string }) {
   const [msg, setMsg] = useState('');
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState('');
+  const [pwDone, setPwDone] = useState(false);
   const link = `${window.location.origin}/game/${gameId}?as=${playerId}`;
   const copy = async () => {
     try {
@@ -808,6 +815,22 @@ function ContinueOnDeviceSection({ gameId, playerId }: { gameId: string; playerI
       setMsg(link); // 클립보드 불가(비보안 컨텍스트 등) 시 링크 자체를 표시
     }
   };
+  const savePw = async () => {
+    if (!pw.trim()) { setPwMsg('비밀번호를 입력하세요'); return; }
+    setPwBusy(true);
+    setPwMsg('');
+    try {
+      const { name } = await GameClient.setMySeatPassword(gameId, playerId, pw);
+      setPw('');
+      setPwDone(true);
+      setPwMsg(`설정했습니다 — 다른 기기에서 게임 주소를 열고 '내 좌석 이어하기'에 이름 ${name} + 이 비밀번호로 들어오세요.`);
+    } catch (err: any) {
+      setPwMsg(err?.message || '설정하지 못했습니다');
+    } finally {
+      setPwBusy(false);
+    }
+  };
+  const btnCls = 'shrink-0 rounded border px-2 py-1 text-[10px] font-bold';
   return (
     <section className="mb-2 overflow-hidden rounded-md border border-white/8 bg-zinc-900/25">
       <h3 className="border-b border-white/8 bg-zinc-900/80 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-400">
@@ -815,19 +838,57 @@ function ContinueOnDeviceSection({ gameId, playerId }: { gameId: string; playerI
       </h3>
       <div className="flex items-center justify-between gap-3 px-2 py-1.5">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold text-zinc-200">이어하기 링크 복사</div>
+          <div className="text-[10px] font-semibold text-zinc-200">이어하기 링크 복사 · 비밀번호 설정</div>
           <div className="text-[9px] leading-snug break-all text-zinc-500">
-            {msg || '컴퓨터↔폰 이동용. 링크를 아는 사람은 이 자리를 조작할 수 있으니 같이 하는 사람에게만 공유하세요.'}
+            {msg || '컴퓨터↔폰 이동용. 링크를 아는 사람은 이 자리를 조작할 수 있으니 같이 하는 사람에게만 공유하세요. 비밀번호를 걸어 두면 링크 없이 이름 + 비번으로도 들어올 수 있어요.'}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={copy}
-          className="shrink-0 rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-200 hover:bg-emerald-500/25"
-        >
-          링크 복사
-        </button>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={copy}
+            className={`${btnCls} border-emerald-400/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25`}
+          >
+            링크 복사
+          </button>
+          <button
+            type="button"
+            onClick={() => { setPwOpen((v) => !v); setPwMsg(''); }}
+            aria-expanded={pwOpen}
+            className={`${btnCls} border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25`}
+          >
+            {pwDone ? '비번 변경' : '비번 설정'}
+          </button>
+        </div>
       </div>
+      {pwOpen && (
+        <div className="border-t border-white/8 px-2 py-1.5 space-y-1">
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={pw}
+              onChange={(e) => { setPw(e.target.value); setPwMsg(''); }}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') savePw(); }}
+              placeholder="새 비밀번호"
+              autoComplete="off"
+              maxLength={64}
+              aria-label="내 좌석 비밀번호"
+              className="h-7 min-w-0 flex-1 rounded border border-white/10 bg-zinc-900 px-2 text-[11px] text-zinc-100 outline-none focus:border-violet-400/60"
+            />
+            <button
+              type="button"
+              onClick={savePw}
+              disabled={pwBusy}
+              className={`${btnCls} border-violet-400/50 bg-violet-600/70 text-white hover:bg-violet-500 disabled:opacity-50`}
+            >
+              {pwBusy ? '설정 중…' : '설정'}
+            </button>
+          </div>
+          <div className="text-[9px] leading-snug text-zinc-500">
+            {pwMsg || '이미 비밀번호가 있으면(방 만들 때·관리자가 정해 준 것) 새 비밀번호로 바뀝니다.'}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

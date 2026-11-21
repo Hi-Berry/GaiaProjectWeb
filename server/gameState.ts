@@ -5246,6 +5246,23 @@ export function setupGameServer(httpServer: HTTPServer) {
 			callback?.({ ok: true, name: target.name });
 		});
 
+		// [사용자 2026-11-20] 본인 좌석 비밀번호 설정 — 도움말 '다른 기기로 이어하기'의 링크 복사 옆.
+		//   관리자 설정(admin_set_seat_password)과 같은 저장소·같은 로그인('내 좌석 이어하기' 이름 + 비번), 기존 비번은 덮어쓴다.
+		//   좌석 확인은 다른 모든 행동과 같은 기준(그 좌석 playerId를 가진 클라 = 그 좌석). 비번 원문은 로그에 남기지 않는다.
+		socket.on('set_my_seat_password', ({ gameId, playerId, password }: { gameId: string; playerId: string; password: string }, callback?: (r: { ok?: boolean; name?: string; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: '게임을 찾을 수 없습니다' }); return; }
+			const me = playerId ? game.players[playerId] : undefined;
+			if (!me) { callback?.({ error: '이 게임의 플레이어가 아닙니다' }); return; }
+			if ((game.botPlayerIds ?? []).includes(playerId)) { callback?.({ error: '봇 좌석에는 비밀번호를 걸 수 없습니다' }); return; }
+			const pw = String(password ?? '');
+			if (!pw.trim()) { callback?.({ error: '비밀번호를 입력하세요' }); return; }
+			if (pw.length > 64) { callback?.({ error: '비밀번호가 너무 깁니다 (64자 이하)' }); return; }
+			setSeatPassword(gameId, playerId, me.name, pw);
+			log(`Seat password set by player ${me.name} (${playerId})`, 'game', gameId);
+			callback?.({ ok: true, name: me.name });
+		});
+
 		// GM/Admin: 게임 즉시 종료 → 최종 점수 계산 후 점수 화면 표시 (테스트용)
 		socket.on('admin_force_end_game', ({ gameId, adminCode }: { gameId: string; adminCode: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
 			const game = games.get(gameId);
