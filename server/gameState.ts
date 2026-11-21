@@ -1245,6 +1245,24 @@ function clampPlayerResources(game: GaiaGameState): void {
 	}
 }
 
+/** [사용자 2026-11-22] 수입으로 상한(광석 15·지식 15·돈 30)을 넘어 버려질 양 — 'Income Order' 로그에 "1O 넘침, 2C 넘침"으로 붙인다.
+ *  clampPlayerResources 전에 불러야 한다(그 뒤엔 이미 잘려 있음). 넘침이 없으면 빈 문자열. */
+function incomeOverflowNote(player: PlayerState): string {
+	const parts: string[] = [];
+	const o = (player.ore ?? 0) - MAX_ORE, c = (player.credits ?? 0) - MAX_CREDITS, k = (player.knowledge ?? 0) - MAX_KNOWLEDGE;
+	if (o > 0) parts.push(`${o}O 넘침`);
+	if (c > 0) parts.push(`${c}C 넘침`);
+	if (k > 0) parts.push(`${k}K 넘침`);
+	return parts.join(', ');
+}
+
+/** 저장해 둔 수입 넘침 문구를 꺼내 한 번만 쓴다(' · ' 접두 포함, 없으면 빈 문자열) */
+function takeIncomeOverflowSuffix(player: PlayerState): string {
+	const note = (player as any).incomeOverflowNote as string | undefined;
+	delete (player as any).incomeOverflowNote;
+	return note ? ` · ${note}` : '';
+}
+
 function ensureScoreBreakdown(player: PlayerState): ScoreBreakdown {
 	if (!player.scoreBreakdown) {
 		player.scoreBreakdown = {
@@ -1525,13 +1543,13 @@ function spendPowerTokens(player: PlayerState, amount: number): boolean {
 	return true;
 }
 
-/** 플레이어 광산 수 (오레 수익용: 일반 광산 + 기생 + 가상만, 잊혀진 행성 제외) */
+/** 플레이어 광산 수 (오레 수익용: 일반 광산 + 기생만, 잊혀진 행성 제외)
+ *  [버그수정 2026-11-22 사용자: "가상 광산은 광석 수입을 안 주는데"] 인공물 가상 광산(소행성/원시행성 7VP)은
+ *  광산 판에서 광산을 꺼내지 않으므로 광석 수입이 없다(인공물 설명 'no O'). 예전엔 여기서 +1씩 세어
+ *  수입을 1광석 더 줬고, 화면 미리보기(getNextRoundIncomePreview)와도 달랐다. 점수·행성 종류 집계는 그대로 센다. */
 function getEffectiveMineCount(game: GaiaGameState, playerId: string): number {
-	const player = game.players[playerId];
 	let n = game.map.filter(t => t.ownerId === playerId && t.structure === 'mine').length;
 	n += game.map.filter(t => t.parasiticMine?.ownerId === playerId).length;
-	if (player?.virtualMineAsteroid) n += 1;
-	if (player?.virtualMineProto) n += 1;
 	return n;
 }
 
@@ -3358,7 +3376,7 @@ function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string
 	const brainNote = player.faction === 'taklons' && !(player as any).brainStoneInGaia && (player as any).brainStoneBowl
 		? ` 🧠${(player as any).brainStoneBowl}` : '';
 	const bowls = `${before.p1}/${before.p2}/${before.p3} → ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}${brainNote}`;
-	addGameLog(game, playerId, 'Income Order', `Auto-optimal: ${gains || 'none'} · ${bowls}`);
+	addGameLog(game, playerId, 'Income Order', `Auto-optimal: ${gains || 'none'} · ${bowls}${takeIncomeOverflowSuffix(player)}`);
 	log(`[Income] ${player.name} auto-optimal income applied (non-Itars, no selection UI): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 	return true;
 }
@@ -3422,6 +3440,7 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 
 			player.hasPassed = false;
 			const factionId = player.faction;
+			delete (player as any).incomeOverflowNote; // 지난 라운드에 못 쓴 넘침 문구가 이번 로그에 묻지 않게
 
 			const beforeResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
 			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game', game.id, { simulation: (game as any).simulation });
@@ -3653,6 +3672,14 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			// 아이타: 2그릇 태울 때 보관해 둔 토큰을 1그릇으로 복귀 (이제 gaiaformerPower로 통합 관리되므로 이 부분은 삭제 가능하거나 gaiaformerPower 로직으로 대체됨)
 			// 기존 itarsPendingBowl1Tokens 로직 삭제 (아래 가이아 포머 복귀 로직에서 통합 처리됨)
 
+			// [사용자 2026-11-22] 상한 넘침 표기: 파워 받는 순서 로그('Income Order')가 이어지면 거기에 붙이고,
+			//   그 로그가 없는 경우(파워 수입 0~1건 자동 처리·봇)는 그릇 상태와 함께 바로 한 줄 남긴다.
+			{
+				const note = incomeOverflowNote(player);
+				const willLogIncomeOrder = incomeItems.length > 1 && !(game.botPlayerIds ?? []).includes(pId);
+				if (note && willLogIncomeOrder) (player as any).incomeOverflowNote = note;
+				else if (note) addGameLog(game, pId, 'Income', `${note} · ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}`);
+			}
 			const afterResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
 			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game', game.id, { simulation: (game as any).simulation });
 
@@ -6306,16 +6333,17 @@ export function setupGameServer(httpServer: HTTPServer) {
 				}
 				const after = tokensRemaining - 4;
 				game.itarsGaiaformerRemainingAfterTech = after;
-				game.pendingTechTileSelection = { playerId, tileId: '', structureType: 'itars_pi_exchange' };
+				// [버그수정 2026-11-22] 방장이 좌석 전환으로 대신 처리해도 기술 타일 선택·기록은 아이타 좌석 몫(예전엔 방장 몫으로 열림)
+				game.pendingTechTileSelection = { playerId: targetPlayerId, tileId: '', structureType: 'itars_pi_exchange' };
 				// [룰 2026-07-13 사용자 확정] 아이타 의회 교환에서도 (탑승한 배의) 우주선 기술타일 선택 가능 —
 				// 연구소/아카데미/리벨리온 획득과 동일 풀. 이 필드가 없으면 UI 미표시 + 선택 검증 거부.
-				game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, playerId);
-				addGameLog(game, playerId, 'Itars PI', '4 tokens → 1 Tech Tile (choose tile + track)');
+				game.availableShipTechTileIds = getShipTechTileIdsForPlayer(game, targetPlayerId);
+				addGameLog(game, targetPlayerId, 'Itars PI', '4 tokens → 1 Tech Tile (choose tile + track)');
 				clampPlayerResources(game); emitGameUpdated(io, game);
 				return;
 			}
 			player.power1 = (player.power1 || 0) + tokensRemaining;
-			if (tokensRemaining > 0) addGameLog(game, playerId, 'Itars PI', `${tokensRemaining} tokens → Bowl 1`);
+			if (tokensRemaining > 0) addGameLog(game, targetPlayerId, 'Itars PI', `${tokensRemaining} tokens → Bowl 1`);
 			// [hang수정 2026-07-07] 소켓 핸들러 내 예외는 조용히 죽어 액션 단계가 영영 시작 안 됨 — 가시화 + 최후 복구
 			try {
 				proceedAfterItarsGaiaformerOrTerran(game);
@@ -6775,7 +6803,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			player.tinkeroidsChosenSpecialIds = [...(player.tinkeroidsChosenSpecialIds ?? []), specialId];
 
 			game.pendingTinkeroidSpecialChoice = null;
-			addGameLog(game, playerId, 'Tinkeroid Special', `Selected ${specialId} for Round ${game.roundNumber}`);
+			addGameLog(game, targetPlayerId, 'Tinkeroid Special', `Selected ${specialId} for Round ${game.roundNumber}`);
 			log(`Player ${player.name} (Tinkeroids) selected special ${specialId} for round ${game.roundNumber}`, 'game', undefined, { simulation: (game as any).simulation });
 
 			clampPlayerResources(game); emitGameUpdated(io, game);
@@ -6882,11 +6910,14 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const currentLevel = player.research?.[trackId] ?? 0;
 			if (currentLevel !== minLevel || currentLevel >= 5) return;
 			if (currentLevel === 4 && isTrackLevel5Taken(game, trackId, playerId)) return;
+			// [버그수정 2026-11-22] 5단계는 다른 모든 트랙 진행 경로처럼 초록 연방 토큰 필요(뒤집어 소모)
+			if (currentLevel === 4 && countGreenFederations(player) < 1) { emitRoomError(io, game, playerId, '5단계로 가려면 초록 연방 토큰이 필요합니다.'); return; }
 			if (trackId === 'navigation' && !canBalTakAdvanceNavigation(game, playerId)) return;
 
 			saveActionStartState(game, playerId);
 			if (!player.usedSpecialActions) player.usedSpecialActions = [];
 			player.usedSpecialActions.push('bescods-advance-lowest');
+			if (currentLevel === 4) spendGreenFederation(player);
 			player.research[trackId] = currentLevel + 1;
 			const newLevel = player.research[trackId];
 			addGameLog(game, playerId, 'Bescods/매안: Special', `가장 낮은 트랙 +1 → ${trackId} Lv.${newLevel}`, undefined);
@@ -7599,6 +7630,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!pending || (pending.playerId !== playerId && game.hostId !== playerId)) return;
 			const targetPlayerId = pending.playerId;
 			const player = game.players[targetPlayerId];
+			// [버그수정 2026-11-22] 음수·소수 차단 — 예전엔 qic=-3, credits=+12 같은 조작 요청이 합계 검사를 통과해 공짜 돈이 생겼다
+			if (![qic, knowledge, ore, credits].every((v) => Number.isInteger(v) && v >= 0)) {
+				emitRoomError(io, game, playerId, 'Terran council: invalid benefit values.');
+				return;
+			}
 			const totalCost = qic * 4 + knowledge * 4 + ore * 3 + credits * 1;
 			if (totalCost > pending.tokenCount || totalCost < 0) {
 				emitRoomError(io, game, playerId, 'Terran council: invalid benefit total (4=QIC/K, 3=O, 1=C).');
@@ -7606,11 +7642,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 			}
 			// [버그수정] 테란 의회 보너스는 '추가 자원'만 준다 — 가이아포머 토큰은 종족 능력대로 이미 2그릇으로
 			// 복귀했고(위), 여기서 차감하면 토큰이 사라짐(사용자 관찰). totalCost는 '받을 자원량 한도(토큰 수)'일 뿐.
-			grantQic(game, playerId, qic);
+			// [버그수정 2026-11-22] 방장이 대신 확인해도 QIC·기록은 테란 좌석 몫(예전엔 QIC만 방장에게 갔다)
+			grantQic(game, targetPlayerId, qic);
 			player.knowledge = (player.knowledge ?? 0) + knowledge;
 			player.ore = (player.ore ?? 0) + ore;
 			player.credits = (player.credits ?? 0) + credits;
-			addGameLog(game, playerId, 'Terran Council', `${pending.tokenCount} tokens (2그릇 유지) → ${[qic&&`+${qic}Q`,knowledge&&`+${knowledge}K`,ore&&`+${ore}O`,credits&&`+${credits}C`].filter(Boolean).join(' ')||'없음'}`);
+			addGameLog(game, targetPlayerId, 'Terran Council', `${pending.tokenCount} tokens (2그릇 유지) → ${[qic&&`+${qic}Q`,knowledge&&`+${knowledge}K`,ore&&`+${ore}O`,credits&&`+${credits}C`].filter(Boolean).join(' ')||'없음'}`);
 			game.pendingTerranCouncilBenefit = null;
 			const queue = game.terranCouncilQueue ?? [];
 			if (queue.length > 0) {
@@ -7677,7 +7714,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 							? ` 🧠${(player as any).brainStoneBowl}` : '';
 						detailText = `: ${gains || 'none'} · ${snap0.p1}/${snap0.p2}/${snap0.p3} → ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}${brainNote}`;
 					}
-					addGameLog(game, targetPlayerId, 'Income Order', `${method}${detailText}${lossText}`);
+					addGameLog(game, targetPlayerId, 'Income Order', `${method}${detailText}${lossText}${takeIncomeOverflowSuffix(player)}`);
 				}
 			} catch { /* 기록 실패는 게임에 무영향 */ }
 
@@ -8762,6 +8799,11 @@ export function executeBuildMine(io: SocketIOServer, game: ServerGameState, play
 	const unbuildableTypes = ['space', 'deep_space', 'lost_fleet_ship', 'ship_rebellion', 'ship_twilight', 'ship_tf_mars', 'ship_eclipse'];
 	if (unbuildableTypes.includes(tile.type)) {
 		debugLog(game, `executeBuildMine failed: Tile ${tileId} type ${tile.type} is unbuildable`, 'error');
+		return false;
+	}
+	// [버그수정 2026-11-22] 차원변형 행성은 가이아 포머로 가이아 행성이 된 뒤에만 광산 가능(클라는 이미 막음, 서버만 1O2C로 받아주던 구멍)
+	if (tile.type === 'transdim' && !player.pendingGaiaformerTiles?.includes(tileId)) {
+		debugLog(game, `executeBuildMine failed: Tile ${tileId} is a transdim planet without a ready gaiaformer`, 'error');
 		return false;
 	}
 
@@ -11029,10 +11071,20 @@ export function executeBotSelectTechTile(
 		game.availableShipTechTileIds = undefined;
 	};
 	const tracks: ResearchTrack[] = ['economy', 'terraforming', 'science', 'navigation', 'artificialIntelligence', 'gaiaProject'];
+	// [버그수정 2026-11-22] 폴백 경로도 정상 경로(select_tech_tile)와 같은 즉시 보상을 준다 — 예전엔 7VP·1O1Q·행성종류당 1K가 빠졌다
+	const applyImmediateTechReward = (techTileId: string): string => {
+		if (techTileId === 'tech-imm-7vp') { addScore(game, playerId, 7, 'techTiles', { tileId: techTileId }); return ' · +7 VP'; }
+		if (techTileId === 'tech-imm-1o-1q') { player.ore = (player.ore || 0) + 1; grantQic(game, playerId, 1); return ' · +1 Ore, +1 QIC'; }
+		if (techTileId === 'tech-imm-1k-planet') { const n = getPlayerPlanetTypesForGeodens(game, playerId).size; player.knowledge = (player.knowledge || 0) + n; return ` · +${n} Knowledge`; }
+		return '';
+	};
+	// 발타크는 의회 없이 항법 트랙 불가(정상 경로와 동일)
+	const canAdvance = (track: ResearchTrack) => track !== 'navigation' || canBalTakAdvanceNavigation(game, playerId);
 
 	// 1. 트랙 타일 시도: 진행 가능한 트랙에 남은 타일이 있으면 선택
 	for (const track of tracks) {
 		if (player.research[track] >= 5) continue;
+		if (!canAdvance(track)) continue;
 		const arr = game.techTilesByTrack?.[track];
 		const tiles = Array.isArray(arr) ? arr : (arr ? [arr] : []);
 		for (const tile of tiles) {
@@ -11050,7 +11102,7 @@ export function executeBotSelectTechTile(
 			for (let i = 0; i < greenNeeded; i++) spendGreenFederation(player);
 			player.research[track]++;
 			applyTrackLevelBonus(game, playerId, player, track, newLevel);
-			addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId}, ${track} → Lv.${newLevel}`);
+			addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId}, ${track} → Lv.${newLevel}${applyImmediateTechReward(techTileId)}`);
 			applyRoundMissionScore(game, playerId, 'research_track');
 			applyAdvancedTechTileEffect(game, playerId, 'research');
 			if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
@@ -11075,6 +11127,7 @@ export function executeBotSelectTechTile(
 			// 진행 가능한 트랙 아무거나 찾기
 			for (const track of tracks) {
 				if (player.research[track] >= 5) continue;
+				if (!canAdvance(track)) continue;
 				const newLevel = (player.research[track] ?? 0) + 1;
 				if (newLevel === 5 && isTrackLevel5Taken(game, track, playerId)) continue;
 				const greenNeeded = newLevel === 5 ? 1 : 0;
@@ -11082,7 +11135,7 @@ export function executeBotSelectTechTile(
 				for (let i = 0; i < greenNeeded; i++) spendGreenFederation(player);
 				player.research[track]++;
 				applyTrackLevelBonus(game, playerId, player, track, newLevel);
-				addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId} from pool, ${track} → Lv.${newLevel}`);
+				addGameLog(game, playerId, 'Bot: Gained Tech Tile', `${techTileId} from pool, ${track} → Lv.${newLevel}${applyImmediateTechReward(techTileId)}`);
 				applyRoundMissionScore(game, playerId, 'research_track');
 				applyAdvancedTechTileEffect(game, playerId, 'research');
 				if (!player.techTiles.includes(techTileId)) player.techTiles.push(techTileId);
@@ -11196,6 +11249,7 @@ export function executeBotBescodsAdvanceLowestTrack(
 		const lvl = player.research?.[t] ?? 0;
 		if (lvl !== minLevel || lvl >= 5) return false;
 		if (lvl === 4 && isTrackLevel5Taken(game, t, playerId)) return false;
+		if (lvl === 4 && countGreenFederations(player) < 1) return false; // [버그수정 2026-11-22] 5단계는 초록 연방 토큰 필요
 		return true;
 	});
 	if (candidates.length === 0) return false;
@@ -11209,6 +11263,7 @@ export function executeBotBescodsAdvanceLowestTrack(
 	saveActionStartState(game, playerId);
 	if (!player.usedSpecialActions) player.usedSpecialActions = [];
 	player.usedSpecialActions.push('bescods-advance-lowest');
+	if ((player.research[chosen as ResearchTrack] ?? 0) === 4) spendGreenFederation(player);
 	player.research[chosen as ResearchTrack] = (player.research[chosen as ResearchTrack] ?? 0) + 1;
 	const newLevel = player.research[chosen as ResearchTrack];
 	addGameLog(game, playerId, 'Bot: Bescods Special', `가장 낮은 트랙 +1 → ${chosen} Lv.${newLevel}`); applyAdvancedTechTileEffect(game, playerId, 'research'); /* adv-vp-research(+2/연구전진) 누락 수정 */
@@ -11448,9 +11503,13 @@ export function executeBotFederation(
 	// [2026-10-22] 비-하이브 봇 연방은 연결·파워 검사가 없어, 이미 연방에 든 건물을 다시 묶은 후보도 섰다(대결 기록 11,808석 중
 	//   6석이 7~17연방 — 기존 봇 4·새 AI 2, 모두 봇 경로). 사람 경로(federation_complete)와 같은 판정(computeConnectedFederation:
 	//   기존 연방 칸 제외 + 하나로 연결 + 파워 ≥ 요구치)을 적용. BOT_FED_STRICT=warn 이면 거절하지 않고 세기만(검증용).
+	// [버그수정 2026-11-22] 사람 경로(federation_complete)처럼 '이어진 건물 전체'를 연방으로 기록하려고 보관
+	//   — 예전엔 계획기가 골라 보낸 건물만 기록해, 남은 인접 건물로 연방을 하나 더 만들 수 있었다.
+	let botFedClusterPlanetIds: string[] = [];
 	if (!isIvits) {
 		const required = getFederationRequiredPower(game, playerId);
 		const net = computeConnectedFederation(game, playerId, selectedHexIds, [], selectedPlanetIds);
+		botFedClusterPlanetIds = Array.from(net.planetIds ?? []);
 		if (!net.connected || net.power < required) {
 			const g: any = globalThis; g.__botFedReject = (g.__botFedReject ?? 0) + 1;
 			if (process.env.BOT_FED_DEBUG) { const fh = new Set(game.playerFederationHexes?.[playerId] ?? []); process.stderr.write(`[botfed] ${player.faction} R${game.roundNumber} connected=${net.connected} power=${net.power}/${required} 위성${selectedHexIds.length} 건물${selectedPlanetIds.length} 기존연방칸과 겹침 ${[...selectedHexIds, ...selectedPlanetIds].filter(id => fh.has(id)).length} 보상 ${rewardId}\n`); }
@@ -11544,6 +11603,7 @@ export function executeBotFederation(
 		...game.playerFederationHexes[playerId],
 		...selectedHexIds,
 		...selectedPlanetIds,
+		...botFedClusterPlanetIds,
 	]));
 
 	// [문구 통일 2026-08-09 사용자] 사람 경로(소켓)는 'Formed federation (...)' 영문인데 봇 경로만 한글이라
@@ -12099,10 +12159,8 @@ export function executeTakeTwilightArtifact(io: SocketIOServer, game: ServerGame
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Tracks >= 3' });
 		addGameLog(game, playerId, 'Artifact: Tracks≥3×3 VP', `${tracks}×3 = ${vp} VP`, art.id);
 	} else if (art.id === 'art-vp-planet-types') {
-		const structures = game.map.filter(t => t.ownerId === playerId && t.structure && t.structure !== 'ship');
-		const types = new Set(structures.map(t => t.type).filter(x => x && x !== 'space' && x !== 'deep_space'));
-		if (player.virtualMineAsteroid) types.add('asteroid');
-		if (player.virtualMineProto) types.add('proto');
+		// [버그수정 2026-11-22] 사람 경로(2026-07-26 수정)와 같은 규칙 — tile.type 카운트는 잊혀진 행성(space 위)을 빠뜨렸다
+		const types = getPlayerPlanetTypesForGeodens(game, playerId);
 		const vp = 3 + types.size;
 		addScore(game, playerId, vp, 'other', { source: 'Artifact: Planet types' });
 		addGameLog(game, playerId, 'Artifact: 3+Planet types VP', `3+${types.size} = ${vp} VP`, art.id);

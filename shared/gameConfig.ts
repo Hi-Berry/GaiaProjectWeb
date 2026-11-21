@@ -1293,7 +1293,20 @@ export function getNextRoundIncomePreview(
     // 새 토큰 2개이므로 powerTokens로 집계 (전엔 powerCharge로 잘못 넣어 +2pw로 표시됐음).
     result.powerTokens += 2;
   }
+  // [버그수정 2026-11-22] 글린(오른쪽 아카데미 없음)은 수입 QIC(기본·보너스 타일·의회)를 서버가 전부 광석으로 준다
+  //   (server grantQic) — 미리보기도 똑같이 바꿔야 '+1Q'로 잘못 보이지 않고, 광석 상한 넘침 경고도 맞는다.
+  if (gleensQicBecomesOre(player, game) && result.qic > 0) {
+    result.ore += result.qic;
+    result.qic = 0;
+  }
   return result;
+}
+
+/** 글린: 오른쪽 아카데미가 없으면 얻는 QIC가 광석이 된다 (server/gameState.ts grantQic와 같은 조건) */
+function gleensQicBecomesOre(player: { faction?: string | null } | undefined, game: GaiaGameState, playerId?: string): boolean {
+  if (player?.faction !== 'gleens') return false;
+  const pid = playerId ?? Object.keys(game.players).find(id => game.players[id] === player);
+  return !(game.map ?? []).some(t => t.ownerId === pid && t.structure === 'academy' && t.academyType === 'right');
 }
 
 /** 자원 상한 (server/gameState.ts clampPlayerResources와 같은 값) */
@@ -1311,7 +1324,9 @@ export function getPassIncomeOverflow(game: GaiaGameState, playerId: string, new
   const inc = getNextRoundIncomePreview(playerId, game, { excludeBonusTiles: true });
   const tile = newBonusTileId ? ALL_BONUS_TILES.find(t => t.id === newBonusTileId) : null;
   if (tile?.income) {
-    inc.ore += tile.income.ore ?? 0;
+    // 새 보너스 타일의 QIC도 글린(오른쪽 아카데미 없음)이면 광석으로 들어온다(서버 grantQic)
+    const tileQicAsOre = gleensQicBecomesOre(player, game, playerId) ? (tile.income.qic ?? 0) : 0;
+    inc.ore += (tile.income.ore ?? 0) + tileQicAsOre;
     inc.credits += tile.income.credits ?? 0;
     inc.knowledge += tile.income.knowledge ?? 0;
     inc.powerCharge += tile.income.power ?? 0;
@@ -1328,7 +1343,11 @@ export function getPassIncomeOverflow(game: GaiaGameState, playerId: string, new
     if (inc[key] > 0 && lost > 0) out.push({ key, label, lost, detail: `보유 ${have} + 수익 ${inc[key]} → 최대 ${cap}` });
   }
   if (inc.powerCharge > 0) {
-    const room = getMaxPowerGain({ ...player, power1: (player.power1 ?? 0) + inc.powerTokens } as PlayerState);
+    // [버그수정 2026-11-22] 인공물 art-income-2p3의 토큰 2개는 그릇3에 바로 들어가 충전 여력을 늘리지 않는다
+    //   (서버 power3 += 2) — 1그릇 토큰처럼 세면 넘침을 최대 4 적게 경고했다. 아래 자동충전 판정의 bowl3OnlyTokens와 같은 처리.
+    const bowl3OnlyTokens = (player.artifacts ?? []).includes('art-income-2p3') ? 2 : 0;
+    const bowl1Tokens = Math.max(0, inc.powerTokens - bowl3OnlyTokens);
+    const room = getMaxPowerGain({ ...player, power1: (player.power1 ?? 0) + bowl1Tokens } as PlayerState);
     const lost = inc.powerCharge - room;
     if (lost > 0) out.push({ key: 'power', label: '파워', lost, detail: `충전 수익 ${inc.powerCharge} · 올릴 수 있는 양 ${room}` });
   }
