@@ -1245,14 +1245,14 @@ function clampPlayerResources(game: GaiaGameState): void {
 	}
 }
 
-/** [사용자 2026-11-22] 수입으로 상한(광석 15·지식 15·돈 30)을 넘어 버려질 양 — 'Income Order' 로그에 "1O 넘침, 2C 넘침"으로 붙인다.
+/** [사용자 2026-11-22] 수입으로 상한(광석 15·지식 15·돈 30)을 넘어 버려질 양 — 'Income Order' 로그에 "1 ore overflow, 2 credits overflow"으로 붙인다.
  *  clampPlayerResources 전에 불러야 한다(그 뒤엔 이미 잘려 있음). 넘침이 없으면 빈 문자열. */
 function incomeOverflowNote(player: PlayerState): string {
 	const parts: string[] = [];
 	const o = (player.ore ?? 0) - MAX_ORE, c = (player.credits ?? 0) - MAX_CREDITS, k = (player.knowledge ?? 0) - MAX_KNOWLEDGE;
-	if (o > 0) parts.push(`${o}O 넘침`);
-	if (c > 0) parts.push(`${c}C 넘침`);
-	if (k > 0) parts.push(`${k}K 넘침`);
+	if (o > 0) parts.push(`${o} ore overflow`);
+	if (c > 0) parts.push(`${c} ${c === 1 ? 'credit' : 'credits'} overflow`);
+	if (k > 0) parts.push(`${k} knowledge overflow`);
 	return parts.join(', ');
 }
 
