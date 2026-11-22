@@ -217,7 +217,7 @@ export function GameLog({
   type LogPrimaryImage =
     | { src: string; alt: string; rotateDeg?: number }
     | { strip: string; cols: number; index: number; alt: string; extraSrc?: string }
-    | { swap: { fromSrc: string | null; toSrc: string | null; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> }; alt: string };
+    | { swap: { fromSrc: string | null; toSrc: string | null; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }>; overflow?: Array<{ key: 'ore' | 'credits' | 'knowledge' | 'power'; lost: number }> }; alt: string };
 
   const getLogPrimaryImage = (log: { action: string; details?: string; tileId?: string }, playerFactionId?: string | null): LogPrimaryImage | null => {
     const actionText = log.action || '';
@@ -287,12 +287,12 @@ export function GameLog({
     }
     if (/^Selected Bonus$/i.test(actionText)) {
       // 패스 교체: passInfo(있으면) 우선, 없으면 details 파싱 → 반납 타일 → 가져간 타일
-      const info = (log as { passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }> } }).passInfo;
+      const info = (log as { passInfo?: { returnedTileId?: string; tookTileId?: string; bonusVp?: number; advTiles?: Array<{ tileId: string; vp: number }>; overflow?: Array<{ key: 'ore' | 'credits' | 'knowledge' | 'power'; lost: number }> } }).passInfo;
       const tookId = info?.tookTileId ?? details.match(/\btook\s+(bon-[a-z0-9-]+)\b/i)?.[1];
       const returnedId = info?.returnedTileId ?? details.match(/\bReturned\s+(bon-[a-z0-9-]+)\b/i)?.[1];
       const toSrc = getBonusTileImgById(tookId);
       const fromSrc = getBonusTileImgById(returnedId);
-      if (toSrc || fromSrc) return { swap: { fromSrc, toSrc, bonusVp: info?.bonusVp, advTiles: info?.advTiles }, alt: tookId || 'Bonus Tile' };
+      if (toSrc || fromSrc) return { swap: { fromSrc, toSrc, bonusVp: info?.bonusVp, advTiles: info?.advTiles, overflow: info?.overflow }, alt: tookId || 'Bonus Tile' };
     }
 
     // Tech tiles (기술 타일 획득 + 기술 타일 액션 사용 로그)
@@ -626,7 +626,7 @@ export function GameLog({
                     {(() => {
                       // 보너스 패스 교체: 반납 타일(+패스점수) → 가져간 타일, 고급 패스 타일 이미지+점수
                       if ('swap' in primaryImg) {
-                        const { fromSrc, toSrc, bonusVp, advTiles } = primaryImg.swap;
+                        const { fromSrc, toSrc, bonusVp, advTiles, overflow } = primaryImg.swap;
                         const boostImg = (src: string, dim: boolean) => (
                           <div className={`h-9 w-[5rem] sm:h-10 sm:w-[5.5rem] overflow-hidden flex-shrink-0 flex items-center justify-center ${dim ? 'grayscale opacity-50' : ''}`}>
                             <img src={src} alt={primaryImg.alt} title={log.details || primaryImg.alt} loading="lazy"
@@ -662,6 +662,12 @@ export function GameLog({
                                   );
                                 })}
                               </div>
+                            )}
+                            {/* [사용자 2026-11-22] 패스 시점 예측: 다음 라운드 수입으로 상한을 넘어 버려질 자원 */}
+                            {overflow && overflow.length > 0 && (
+                              <span className="text-amber-400 font-bold text-[10px] leading-tight" title="다음 라운드 수입을 받으면 상한(광석 15·돈 30·지식 15)이나 파워 충전 여유를 넘어 버려질 양 (패스 시점 예측 · 파워는 이후 추가로 받지 않아도 넘치는 최소치)">
+                                {overflow.map(o => `${o.lost} ${o.key === 'credits' ? (o.lost === 1 ? 'credit' : 'credits') : o.key} overflow`).join(', ')}
+                              </span>
                             )}
                           </div>
                         );

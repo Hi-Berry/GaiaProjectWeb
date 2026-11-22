@@ -99,6 +99,7 @@ import {
 	getRollbackQuota,
 	rollbackReasonText,
 	tileById,
+	getPassIncomeOverflow,
 	type ScoreBreakdown,
 } from '@shared/gameConfig';
 import { executeBotTurnIfNeeded, setBotDelayMs, cancelBotExecution } from './botHandler';
@@ -1243,24 +1244,6 @@ function clampPlayerResources(game: GaiaGameState): void {
 		if (p.knowledge != null && p.knowledge > MAX_KNOWLEDGE) p.knowledge = MAX_KNOWLEDGE;
 		if (p.credits != null && p.credits > MAX_CREDITS) p.credits = MAX_CREDITS;
 	}
-}
-
-/** [사용자 2026-11-22] 수입으로 상한(광석 15·지식 15·돈 30)을 넘어 버려질 양 — 'Income Order' 로그에 "1 ore overflow, 2 credits overflow"으로 붙인다.
- *  clampPlayerResources 전에 불러야 한다(그 뒤엔 이미 잘려 있음). 넘침이 없으면 빈 문자열. */
-function incomeOverflowNote(player: PlayerState): string {
-	const parts: string[] = [];
-	const o = (player.ore ?? 0) - MAX_ORE, c = (player.credits ?? 0) - MAX_CREDITS, k = (player.knowledge ?? 0) - MAX_KNOWLEDGE;
-	if (o > 0) parts.push(`${o} ore overflow`);
-	if (c > 0) parts.push(`${c} ${c === 1 ? 'credit' : 'credits'} overflow`);
-	if (k > 0) parts.push(`${k} knowledge overflow`);
-	return parts.join(', ');
-}
-
-/** 저장해 둔 수입 넘침 문구를 꺼내 한 번만 쓴다(' · ' 접두 포함, 없으면 빈 문자열) */
-function takeIncomeOverflowSuffix(player: PlayerState): string {
-	const note = (player as any).incomeOverflowNote as string | undefined;
-	delete (player as any).incomeOverflowNote;
-	return note ? ` · ${note}` : '';
 }
 
 function ensureScoreBreakdown(player: PlayerState): ScoreBreakdown {
@@ -3376,7 +3359,7 @@ function autoResolveIncomeOrderForNonItars(game: GaiaGameState, playerId: string
 	const brainNote = player.faction === 'taklons' && !(player as any).brainStoneInGaia && (player as any).brainStoneBowl
 		? ` 🧠${(player as any).brainStoneBowl}` : '';
 	const bowls = `${before.p1}/${before.p2}/${before.p3} → ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}${brainNote}`;
-	addGameLog(game, playerId, 'Income Order', `Auto-optimal: ${gains || 'none'} · ${bowls}${takeIncomeOverflowSuffix(player)}`);
+	addGameLog(game, playerId, 'Income Order', `Auto-optimal: ${gains || 'none'} · ${bowls}`);
 	log(`[Income] ${player.name} auto-optimal income applied (non-Itars, no selection UI): ${items.length} items`, 'game', undefined, { simulation: (game as any).simulation });
 	return true;
 }
@@ -3440,7 +3423,6 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 
 			player.hasPassed = false;
 			const factionId = player.faction;
-			delete (player as any).incomeOverflowNote; // 지난 라운드에 못 쓴 넘침 문구가 이번 로그에 묻지 않게
 
 			const beforeResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
 			log(`[Income] ${player.name} BEFORE: O:${beforeResources.ore} C:${beforeResources.credits} K:${beforeResources.knowledge} Q:${beforeResources.qic} P3:${beforeResources.power3} | BonusTile: ${player.bonusTile}`, 'game', game.id, { simulation: (game as any).simulation });
@@ -3672,14 +3654,6 @@ export function helperTriggerIncomePhase(io: SocketIOServer, game: GaiaGameState
 			// 아이타: 2그릇 태울 때 보관해 둔 토큰을 1그릇으로 복귀 (이제 gaiaformerPower로 통합 관리되므로 이 부분은 삭제 가능하거나 gaiaformerPower 로직으로 대체됨)
 			// 기존 itarsPendingBowl1Tokens 로직 삭제 (아래 가이아 포머 복귀 로직에서 통합 처리됨)
 
-			// [사용자 2026-11-22] 상한 넘침 표기: 파워 받는 순서 로그('Income Order')가 이어지면 거기에 붙이고,
-			//   그 로그가 없는 경우(파워 수입 0~1건 자동 처리·봇)는 그릇 상태와 함께 바로 한 줄 남긴다.
-			{
-				const note = incomeOverflowNote(player);
-				const willLogIncomeOrder = incomeItems.length > 1 && !(game.botPlayerIds ?? []).includes(pId);
-				if (note && willLogIncomeOrder) (player as any).incomeOverflowNote = note;
-				else if (note) addGameLog(game, pId, 'Income', `${note} · ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}`);
-			}
 			const afterResources = { ore: player.ore, credits: player.credits, knowledge: player.knowledge, qic: player.qic, power3: player.power3 };
 			log(`[Income] ${player.name} AFTER: O:${afterResources.ore} C:${afterResources.credits} K:${afterResources.knowledge} Q:${afterResources.qic} P3:${afterResources.power3}`, 'game', game.id, { simulation: (game as any).simulation });
 
@@ -7714,7 +7688,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 							? ` 🧠${(player as any).brainStoneBowl}` : '';
 						detailText = `: ${gains || 'none'} · ${snap0.p1}/${snap0.p2}/${snap0.p3} → ${player.power1 || 0}/${player.power2 || 0}/${player.power3 || 0}${brainNote}`;
 					}
-					addGameLog(game, targetPlayerId, 'Income Order', `${method}${detailText}${lossText}${takeIncomeOverflowSuffix(player)}`);
+					addGameLog(game, targetPlayerId, 'Income Order', `${method}${detailText}${lossText}`);
 				}
 			} catch { /* 기록 실패는 게임에 무영향 */ }
 
@@ -10064,6 +10038,12 @@ export function executePassRound(
 		game.availableBonusTiles.splice(newTileIndex, 1);
 		player.usedBonusAction = false;
 
+		// [사용자 2026-11-22] 다음 라운드 수입으로 광석·돈·지식(상한)과 파워(충전 여유)를 넘어 버려질 양을 패스 시점에 미리 계산해
+		//   패스 로그(반납→가져감 이미지) 밑에 보여준다. 패스 확인창 경고와 같은 함수(새 타일 수입 포함).
+		//   파워도 넣는다 — 패스 뒤 남의 건물로 파워를 더 받으면 충전 여유만 줄어 넘침이 늘 뿐이라, 지금 계산(추가 충전 0)은
+		//   '하나도 안 받아도 이만큼은 넘친다'는 최소치로 항상 맞다. 수입 단계 로그에는 따로 남기지 않는다.
+		const passOverflow = (game as any).simulation ? [] : getPassIncomeOverflow(game, playerId, newBonusTileId)
+			.map(o => ({ key: o.key, lost: o.lost }));
 		addGameLog(game, playerId, 'Selected Bonus', `Returned ${oldBonusId}, took ${newBonusTileId}`);
 		{
 			const lastLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[game.gameLog.length - 1] : null;
@@ -10073,6 +10053,7 @@ export function executePassRound(
 					tookTileId: newBonusTileId,
 					bonusVp: passBonusVpForLog > 0 ? passBonusVpForLog : undefined,
 					advTiles: passAdvTiles.length > 0 ? passAdvTiles : undefined,
+					overflow: passOverflow.length > 0 ? passOverflow : undefined,
 				};
 			}
 		}
