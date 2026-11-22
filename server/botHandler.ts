@@ -605,7 +605,10 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         const fpr0 = turnFpr();
         (game as any)._ai2ThinkingSince = Date.now();
         let r: Awaited<ReturnType<typeof ai2Mod.ai2LiveDecide>>;
-        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId, (game as any)._botFailedKeys?.[currentPlayerId] ?? []); } finally { (game as any)._ai2ThinkingSince = undefined; }
+        // [2026-11-22] 생각한 시간은 월클록 무진행(20초)에 넣지 않는다 — 끝나면 기준 시각을 지금으로. 연속 프리 액션은 로그가 한 줄(×N)로
+        //   합쳐져 gameLog 길이가 그대로라, 30초 생각 뒤 다음 루프 진입에서 '20초 무진행'으로 강제 스킵(패스 기록 없음)되던 문제.
+        //   실전 11/11~21 신경망 좌석 R1~5 중 33라운드가 마지막 줄 'Free Actions …×2' 뒤 패스 기록 없이 끝남(MCTS 5).
+        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId, (game as any)._botFailedKeys?.[currentPlayerId] ?? []); } finally { (game as any)._ai2ThinkingSince = undefined; (game as any)._botWallFprTs = Date.now(); }
         // [2026-10-23] 실전 기록: 결정 수·평균 시간·평균 탐색 횟수·폴백 사유 — Supabase 게임 기록(players[].ai2Stats)으로 올라간다
         if (r.reason !== 'not-decidable') {
             const p: any = player; const st = (p.ai2Stats ??= { n: 0, ms: 0, sims: 0, maxMs: 0, lowSims: 0, fallback: {} as Record<string, number> });
