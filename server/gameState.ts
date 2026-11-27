@@ -511,6 +511,16 @@ function councilPendingActive(game: GaiaGameState): boolean {
 		|| (game as any).pendingEclipseAsteroidMine || (game as any).pendingEclipseResearch);
 }
 
+/** [버그수정 2026-11-27 사용자 제보 "아이타/테란 의회 2개 동시에 있는데 아이타 의회 능력으로 2삽 광산 고르니까 테란 의회 차례라고 지을 수 없음"]
+ *  아이타 교환에서 받은 우주선 타일 2TF+무료광산은 가이아 단계 안에서 **아이타 본인이** 광산 → 트랙 전진까지 끝내야 체인이 이어진다
+ *  (itarsExchangeResumeAfterShipMine). 그런데 테란 의회도 있으면 그 대기열(terranCouncilQueueAfterItars)이 아이타 뒤에서 기다리는 동안
+ *  councilPendingActive가 참이라, build_mine·advance_tech 입구가 아이타 본인의 후속 단계까지 '테란 의회 선택을 기다리는 중'으로 막았다
+ *  → 아이타도 테란도 진행 불가(테란은 아이타 체인이 끝나야 시작). 테란 의회가 없으면 대기열이 비어 문제가 없었다.
+ *  내 아이타 교환 후속 단계는 내가 푼다 — 그 입구에서만 의회 대기 검사를 건너뛴다. */
+export function ownItarsShipFollowUp(game: GaiaGameState, playerId: string): boolean {
+	return itarsCouncilFollowUpOwner(game) === playerId; // 후속 처리 주인 판정은 다른 사람 차단(socket.use)과 같은 기준
+}
+
 /** [버그수정 2026-09-25 사용자 제보 "6원 액션에서 포머 바꾸시겠습니까 확인을 눌러도 안 지어지고 안 넘어간다"]
  *  이클립스 6C(소행성 건설)·2K+3P(트랙 선택)는 **그 사람이 해소해야 하는 자기 대기**인데,
  *  councilPendingActive가 이것까지 포함해서 프리 액션(변환·번·발타크 포머→QIC)을 소유자에게도 막았다.
@@ -5700,7 +5710,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (councilPendingActive(game) && !ownItarsShipFollowUp(game, playerId)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 
 			executeBuildMine(io, game, playerId, tileId, useGaiaformer);
 		});
@@ -6506,7 +6516,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!playerId) return;
 			// [버그수정 2026-07-31] 남의 파워 수령/수입 처리 중엔 연구 전진 불가(자기 pending 트랙전진은 mid-turn이라 pendingPowerOffers 없음 → 미차단).
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
-			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
+			if (councilPendingActive(game) && !ownItarsShipFollowUp(game, playerId)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			// 거리 보너스가 진행 중인데 Eclipse/우주선 트랙 보상 진행이 아니면 막음
 			if (hasActiveRangeBonus(game.players[playerId])
 				&& game.pendingEclipseResearch?.playerId !== playerId
