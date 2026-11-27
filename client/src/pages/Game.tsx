@@ -4336,7 +4336,7 @@ export default function Game() {
             </Button>
           )}
           {/* 하이브 전용: 우주정거장 놓기 (Special) — 클릭 시 모달 + 배치 모드 */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'ivits' && !currentPlayer.usedIvitsSpaceStationThisRound && (
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !((currentPlayer?.pendingTerraformSteps ?? 0) > 0) && currentPlayer?.faction === 'ivits' && !currentPlayer.usedIvitsSpaceStationThisRound && (
             <Button
               variant={ivitsSpaceStationMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
@@ -4350,7 +4350,7 @@ export default function Game() {
             </Button>
           )}
           {/* 엠바스 전용: 의회↔광산 교체 (Special) — 의회 보유 시 라운드당 1회 */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'ambas' && !currentPlayer?.usedSpecialActions?.includes('ambas-swap-pi-mine') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !((currentPlayer?.pendingTerraformSteps ?? 0) > 0) && currentPlayer?.faction === 'ambas' && !currentPlayer?.usedSpecialActions?.includes('ambas-swap-pi-mine') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && (
             <Button
               variant={ambasSwapPiMineMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
@@ -4364,7 +4364,7 @@ export default function Game() {
             </Button>
           )}
           {/* 매안(Bescods) 전용: 가장 낮은 트랙 +1 (Special) — 라운드당 1회 */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'bescods' && !currentPlayer?.usedSpecialActions?.includes('bescods-advance-lowest') && (
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !((currentPlayer?.pendingTerraformSteps ?? 0) > 0) && currentPlayer?.faction === 'bescods' && !currentPlayer?.usedSpecialActions?.includes('bescods-advance-lowest') && (
             <Button
               variant={bescodsAdvanceLowestOpen ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
@@ -4380,7 +4380,7 @@ export default function Game() {
           {/* 파이락(Firaks) Downgrade: 의회 보유 시 연구소→교역소 + 트랙 1칸, 라운드당 1회
               [사용자 2026-08-25] 교역소 4개가 전부 보드에 있으면 되돌릴 토큰이 없어 불가. 버튼을 숨기면
               '이미 썼나' 헷갈린다는 지적 → 버튼은 그대로 두고 누르면 사유를 에러로 안내(광산 8개 한도와 동일 UX). */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !((currentPlayer?.pendingTerraformSteps ?? 0) > 0) && currentPlayer?.faction === 'firaks' && !currentPlayer?.usedSpecialActions?.includes('firaks-downgrade') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'research_lab') && (
             <Button
               variant={firaksDowngradeMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
@@ -4394,7 +4394,7 @@ export default function Game() {
             </Button>
           )}
           {/* 모웨이드(Moweyip) 전용: 링 놓기 — 의회 보유 시 본인 건물 하나에 링 배치 (+2 파워 수신/연방), 라운드당 1회 */}
-          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && currentPlayer?.faction === 'moweyip' && !currentPlayer?.usedSpecialActions?.includes('moweyip-place-ring') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null; moweyipRing?: boolean }) => t.ownerId === playerId && t.structure && t.structure !== 'ship' && !t.moweyipRing) && (
+          {game?.currentPhase === 'main' && game.turnOrder?.[game.currentPlayerIndex] === playerId && !game.hasDoneMainAction && !((currentPlayer?.pendingTerraformSteps ?? 0) > 0) && currentPlayer?.faction === 'moweyip' && !currentPlayer?.usedSpecialActions?.includes('moweyip-place-ring') && game?.map?.some((t: { ownerId: string | null; structure: string | null }) => t.ownerId === playerId && t.structure === 'planetary_institute') && game?.map?.some((t: { ownerId: string | null; structure: string | null; moweyipRing?: boolean }) => t.ownerId === playerId && t.structure && t.structure !== 'ship' && !t.moweyipRing) && (
             <Button
               variant={moweyipPlaceRingMode ? 'default' : 'outline'}
               className="w-full justify-between gap-2 font-black uppercase tracking-widest text-[10px] h-10 shadow-lg transition-all active:scale-95 border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
@@ -6647,7 +6647,8 @@ export default function Game() {
             {acts.map(a => {
               // [2026-08-07 사용자] 내 카드 칩은 눌러서 바로 실행. 남의 것은 표시 전용이라 색을 분리한다
               //   (내 것 = 초록 계열 '실행 가능' / 남의 것 = 시안 '정보'). 실행 분기는 상태창 상세와 동일.
-              const canUseNow = isMe && isCurrentTurn && !game.hasDoneMainAction;
+              // [사용자 2026-11-23] 삽(테라포밍 스텝) 대기 중엔 광산 건설만 — 서버 가드와 같은 기준
+              const canUseNow = isMe && isCurrentTurn && !game.hasDoneMainAction && !((game.players[playerId!]?.pendingTerraformSteps ?? 0) > 0);
               if (!isMe) {
                 return (
                   <span

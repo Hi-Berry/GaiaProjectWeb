@@ -1579,6 +1579,15 @@ export function hasActiveRangeBonus(player: PlayerState | undefined | null): boo
 	return !!(player && (player.tempRangeBonus || player.rangeBonusActive || player.gleensNavBonusActive));
 }
 
+/** [사용자 2026-11-23] 테라포밍 스텝을 들고 있는 동안(보너스 타일 삽·스페이스 자이언트 2TF·팅커 삽 등 hasDoneMainAction=false인 창)은
+ *  광산 건설만 가능하다. 파워/특수/보너스 액션(executeUsePowerAction 등)에만 있던 가드를 전용 경로 핸들러에도 통일한다 —
+ *  실제 제보: 삽 액션 후 광산을 안 짓고 모웨이드 링 놓기가 눌렸다. 봇·시뮬은 기존 가드와 같은 기준으로 제외. */
+const TERRAFORM_STEP_BLOCK_MSG = '테라포밍 스텝 사용 중입니다. 광산 건설만 가능합니다.';
+function terraformStepsBlockAction(game: ServerGameState, playerId: string): boolean {
+	return (game.players[playerId]?.pendingTerraformSteps || 0) > 0
+		&& !game.botPlayerIds?.includes(playerId) && !(game as any).simulation;
+}
+
 /** 보너스 타일 'Pass: N VP per Gaiaformer'용: 파괴되지 않고 남아있는 포머 수.
  *  = 개인판 보유(발타크 QIC 잠금분 포함) + 맵에서 가이아포밍 중인 것. (소행성에 쓰여 파괴된 건 제외) */
 const countRemainingGaiaformers = sharedCountRemainingGaiaformers;
@@ -5571,6 +5580,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			// 테라스텝 경유 추가 건설(executeBuildMine의 스텝 우회) 같은 2액션 exploit이 열리므로 전부 차단.
 			if (game.hasDoneMainAction) { socket.emit('game_error', { message: '이미 이번 턴의 메인 액션을 사용했습니다. 턴 종료 후 다음 턴에 사용하세요.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			saveActionStartState(game, playerId);
 			const player = game.players[playerId];
 			// Nevlas 의회: 3그릇(area III) 토큰 1개 = 파워 2 → 우주선 액션 파워 코스트의 실제 토큰 소모를 절반(올림)으로.
@@ -5854,6 +5864,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
 			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			if (game.hasDoneMainAction) return;
 			const player = game.players[playerId];
 			const entered = player.spaceshipsEntered ?? [];
@@ -6145,6 +6156,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
 			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			if (game.hasDoneMainAction) return;
 
 			const player = game.players[playerId];
@@ -6196,6 +6208,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 
 			executeUpgradeStructure(io, game, playerId, tileId, target);
 		});
@@ -6342,6 +6355,12 @@ export function setupGameServer(httpServer: HTTPServer) {
 				&& game.pendingShipTechTrackAdvance?.playerId !== playerId
 				&& game.pendingAdvancedTechTrackAdvance?.playerId !== playerId) {
 				socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return;
+			}
+			if (terraformStepsBlockAction(game, playerId)
+				&& game.pendingEclipseResearch?.playerId !== playerId
+				&& game.pendingShipTechTrackAdvance?.playerId !== playerId
+				&& game.pendingAdvancedTechTrackAdvance?.playerId !== playerId) {
+				socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return;
 			}
 
 			// 보상 트랙 전진(고급기술/우주선기술)이 거부되면 무반응 대신 사유를 안내 (사용자 관찰: 가이아5 클릭 무반응)
@@ -6758,6 +6777,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (mainActionBlockedByPending(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '수입/파워 처리가 진행 중입니다. 완료 후 진행됩니다.' }); return; }
 			if (councilPendingActive(game)) { socket.emit('game_error', { message: mainActionWaitReason(game) ?? '다른 플레이어의 선택(의회/이클립스)이 진행 중입니다. 완료되면 이어집니다.' }); return; }
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			const ok = executeUseTechAction(io, game, playerId, tileId);
 			if (!ok) {
 				socket.emit('game_error', { message: '기술 타일 액션을 사용할 수 없습니다. (내 턴/메인 액션 상태/소유 여부를 확인하세요)' });
@@ -6841,6 +6861,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
 			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			if (player.faction !== 'ambas') return;
 			if (player.usedSpecialActions?.includes('ambas-swap-pi-mine')) return;
 
@@ -6874,6 +6895,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
 			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			if (player.faction !== 'bescods') return;
 			if (player.usedSpecialActions?.includes('bescods-advance-lowest')) return;
 
@@ -6917,6 +6939,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			//   하이브가 트왈 '1K +3거리' 직후 우주정거장 특수 액션을 눌러 두 액션이 한 턴에 들어갔다(게다가 이 핸들러는 tempRangeBonus를 사거리에
 			//   더하지도 소모하지도 않아 지식 1개가 그냥 증발했다). 나머지 7곳(우주선/업글/연구/파워/기술/스페셜/패스)과 동일 가드로 통일.
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; }
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			if (player.faction !== 'moweyip') return;
 			if (player.usedSpecialActions?.includes('moweyip-place-ring')) return;
 			if (!game.map.some(t => t.ownerId === playerId && t.structure === 'planetary_institute')) return;
@@ -6981,6 +7004,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
 			if (hasActiveRangeBonus(game.players[playerId])) { socket.emit('game_error', { message: RANGE_BONUS_BLOCK_MSG }); return; } // [2026-09-23] 거리 보너스 중 비-거리 메인 액션 차단(위 주석 참조)
+			if (terraformStepsBlockAction(game, playerId)) { socket.emit('game_error', { message: TERRAFORM_STEP_BLOCK_MSG }); return; }
 			const why = firaksDowngradeBlockReason(game, playerId, tileId, trackId);
 			if (why) { socket.emit('game_error', { message: `다운그레이드 불가: ${why}` }); return; } // 예전엔 조용히 무시돼 무반응이었다
 			if (executeFiraksDowngrade(game, playerId, tileId, trackId)) { clampPlayerResources(game); emitGameUpdated(io, game); }
