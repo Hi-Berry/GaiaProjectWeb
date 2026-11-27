@@ -608,14 +608,25 @@ async function doBotTurn(io: SocketIOServer, game: ServerGameState): Promise<voi
         // [2026-11-22] 생각한 시간은 월클록 무진행(20초)에 넣지 않는다 — 끝나면 기준 시각을 지금으로. 연속 프리 액션은 로그가 한 줄(×N)로
         //   합쳐져 gameLog 길이가 그대로라, 30초 생각 뒤 다음 루프 진입에서 '20초 무진행'으로 강제 스킵(패스 기록 없음)되던 문제.
         //   실전 11/11~21 신경망 좌석 R1~5 중 33라운드가 마지막 줄 'Free Actions …×2' 뒤 패스 기록 없이 끝남(MCTS 5).
-        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId, (game as any)._botFailedKeys?.[currentPlayerId] ?? []); } finally { (game as any)._ai2ThinkingSince = undefined; (game as any)._botWallFprTs = Date.now(); }
+        /* [사용자 2026-11-27 "중복해서 2분은 너무 심해 프리액션 합쳐서 1분까지"] 한 턴(프리 액션·특수 능력·메인 결정 전부)의
+           생각 시간 합계를 AI2_TURN_MS(60초) 안으로. 전엔 결정마다 30초 상한이라 프리 액션 2번 + 특수 + 패스 = 2분 6초(otjkh8bi 글린 R4).
+           결정마다 남은 예산의 절반까지만 써서(30 → 15 → 7.5 …초) 뒤에 올 메인 결정 몫을 남기고, 합계가 예산을 넘지 않는다.
+           턴 구분 = 라운드 + 턴 시작 로그 위치(turnMark, 턴이 바뀔 때마다 갱신). 5분 넘게 묵은 기록은 새 턴으로 본다. */
+        const turnKey = `${game.roundNumber}|${(game as any).turnMark?.[currentPlayerId] ?? '-'}`;
+        const budgets = ((game as any)._ai2TurnBudget ??= {}) as Record<string, { key: string; used: number; at: number }>;
+        let tb = budgets[currentPlayerId];
+        if (!tb || tb.key !== turnKey || Date.now() - tb.at > 300000) tb = budgets[currentPlayerId] = { key: turnKey, used: 0, at: Date.now() };
+        const turnMs = Number(process.env.AI2_TURN_MS || 60000);
+        const decisionCap = Math.max(1, Math.min(Number(process.env.AI2_MAX_MS || 30000), Math.floor((turnMs - tb.used) / 2)));
+        const tThink = Date.now();
+        try { r = await ai2Mod.ai2LiveDecide(game, currentPlayerId, (game as any)._botFailedKeys?.[currentPlayerId] ?? [], decisionCap); } finally { (game as any)._ai2ThinkingSince = undefined; (game as any)._botWallFprTs = Date.now(); tb.used += Date.now() - tThink; tb.at = Date.now(); }
         // [2026-10-23] 실전 기록: 결정 수·평균 시간·평균 탐색 횟수·폴백 사유 — Supabase 게임 기록(players[].ai2Stats)으로 올라간다
         if (r.reason !== 'not-decidable') {
             const p: any = player; const st = (p.ai2Stats ??= { n: 0, ms: 0, sims: 0, maxMs: 0, lowSims: 0, fallback: {} as Record<string, number> });
             if (r.action) { st.n++; st.ms += r.ms; st.sims += r.sims; st.maxMs = Math.max(st.maxMs, r.ms); if (r.sims < 100) st.lowSims++; }
             else { const k = String(r.reason ?? 'unknown').slice(0, 40); st.fallback[k] = (st.fallback[k] ?? 0) + 1; }
         }
-        if (r.reason !== 'not-decidable') log(`Bot ${player.name} [AI2] ${r.action ? r.action.type : `fallback(${r.reason})`} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options}`, 'game', game.id);
+        if (r.reason !== 'not-decidable') log(`Bot ${player.name} [AI2] ${r.action ? r.action.type : `fallback(${r.reason})`} · ${r.ms}ms · sims ${r.sims} · 후보 ${r.options} · 상한 ${decisionCap}ms · 이번 턴 ${Math.round(tb.used / 1000)}초`, 'game', game.id);
         action = r.action;
         actionFromAi2 = !!r.action;
         // [2026-11-10] 생각하는 동안 차례·상태가 바뀌었으면(다른 루프가 진행·강제 스킵 등) 이 결과는 낡았다 — 두지 말고 새로 판단

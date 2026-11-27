@@ -57,7 +57,8 @@ function decidable(game: ServerGameState, pid: string): boolean {
 export interface Ai2LiveResult { action: BotAction | null; ms: number; sims: number; options: number; reason?: string }
 
 /** 메인 액션 결정. action=null이면 호출부가 기존 봇으로 폴백. */
-export async function ai2LiveDecide(game: ServerGameState, pid: string, excludeKeys: string[] = []): Promise<Ai2LiveResult> {
+/** maxMs: 이번 결정의 탐색 시간 상한(botHandler가 턴 예산에서 계산). 없으면 AI2_MAX_MS(30초). */
+export async function ai2LiveDecide(game: ServerGameState, pid: string, excludeKeys: string[] = [], maxMs?: number): Promise<Ai2LiveResult> {
 	const t0 = Date.now();
 	try {
 		if (!decidable(game, pid)) return { action: null, ms: 0, sims: 0, options: 0, reason: 'not-decidable' };
@@ -76,7 +77,7 @@ export async function ai2LiveDecide(game: ServerGameState, pid: string, excludeK
 		if (((g.players[pid] as any)?.pendingTerraformSteps ?? 0) > 0 && !options.some(m => m.type === 'build_mine')) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'steps-no-mine' };
 		if (!options.length) return { action: null, ms: Date.now() - t0, sims: 0, options: 0, reason: 'no-options' };
 		const st = newPuctStats();
-		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 400), maxMs: Number(process.env.AI2_MAX_MS || 30000), valueNet: vn ?? undefined, earlyStop: process.env.AI2_EARLY_STOP !== '0' });
+		const policy = puctPolicy(n, st, { sims: Number(process.env.AI2_SIMS || 400), maxMs: maxMs ?? Number(process.env.AI2_MAX_MS || 30000), valueNet: vn ?? undefined, earlyStop: process.env.AI2_EARLY_STOP !== '0' });
 		const action = await policy(g, { kind: 'main', playerId: pid, options });
 		return { action, ms: Date.now() - t0, sims: st.sims, options: options.length, reason: action ? undefined : 'no-pick' };
 	} catch (e) {
