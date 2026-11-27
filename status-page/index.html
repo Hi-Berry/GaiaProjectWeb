@@ -70,9 +70,11 @@
   <button class="btn" id="createBtn" onclick="createRoom()">＋ 방 만들기</button>
 </div>
 <div class="hint">비밀번호를 걸면 다른 기기에서 같은 이름·비밀번호로 이어할 수 있습니다 (이 방에서만 쓰는 일회용).</div>
-<div class="grid" id="grid"></div>
-<h2>🎲 열린 방 <span id="roomCount" style="color:#94a3b8;font-weight:400;font-size:.85rem"></span></h2>
+<!-- [사용자 2026-11-27] 방 목록을 서버 목록보다 위에 — 들어갈 방 찾기가 먼저 -->
+<h2 style="margin-top:.4rem">🎲 방 목록 <span id="roomCount" style="color:#94a3b8;font-weight:400;font-size:.85rem"></span></h2>
 <div class="rooms" id="rooms"><div class="none">불러오는 중…</div></div>
+<h2>🖥️ 서버</h2>
+<div class="grid" id="grid"></div>
 <div class="links">
   <a class="link" href="https://hikary.pythonanywhere.com" target="_blank" rel="noopener">
     <span style="font-size:1.3rem">📊</span>
@@ -273,12 +275,15 @@ function ago(ts){
 function renderRooms(list){
   const box = document.getElementById('rooms');
   const rooms = [];
-  list.forEach((inst, i)=>{ if (inst.state==='up' && inst.rooms) inst.rooms.forEach(r=>rooms.push({ r, inst, i })); });
+  // [사용자 2026-11-27] AI 봇이 낀 방은 안 보인다 — 사람끼리 모여 들어갈 방을 찾는 목록이다(봇 테스트 방이 섞이면 방해).
+  list.forEach((inst, i)=>{ if (inst.state==='up' && inst.rooms) inst.rooms
+    .filter(r=>!r.players.some(p=>p.bot))
+    .forEach(r=>rooms.push({ r, inst, i })); });
   rooms.sort((a,b)=>((a.r.phase==='lobby'?0:1)-(b.r.phase==='lobby'?0:1)) || (b.r.createdAt-a.r.createdAt));
   document.getElementById('roomCount').textContent = rooms.length ? `${rooms.length}개` : '';
   if (!rooms.length){
     box.innerHTML = list.some(x=>x.state==='wait') ? '<div class="none">불러오는 중…</div>'
-      : '<div class="none">열린 방이 없습니다. 위에서 방을 만들어 보세요.</div>';
+      : '<div class="none">방이 없습니다. 위에서 방을 만들어 보세요.</div>';
     return;
   }
   box.innerHTML = rooms.map(({r, inst, i})=>{
