@@ -2562,6 +2562,13 @@ export default function Game() {
     }
     setFiraksDowngradeMode(true);
   };
+  /** [사용자 2026-11-27] 롤백 취소 요청 — 확인 후 서버로 보낸다(실패 사유는 토스트로) */
+  const requestRollbackUndo = () => {
+    if (!gameId) return;
+    const ru = (game as { rollbackUndo?: { label?: string } } | null)?.rollbackUndo;
+    if (!window.confirm(`방금 한 롤백(${ru?.label ?? '최근 롤백'})을 취소하고 롤백 전 상태로 되돌릴까요?\n다른 사람 전원 동의가 필요합니다. 롤백 횟수는 쓰지 않습니다.`)) return;
+    GameClient.requestRollbackUndo(gameId).catch((e) => toast({ title: '롤백 취소 요청 실패', description: e?.message || '', variant: 'destructive' }));
+  };
   const openRollbackRequest = (seq: number, label?: string) => {
     if (!gameId) return;
     if (getRollbackQuota(game, playerId).exhausted) {
@@ -3936,6 +3943,7 @@ export default function Game() {
       textScale={logTextScale}
       canRollback={!!(playerId && game!.players?.[playerId]) && ['main','startingMines','bonusSelection','factionBidding'].includes(String(game!.currentPhase))}
       onRollbackToSeq={openRollbackRequest}
+                    onRequestRollbackUndo={requestRollbackUndo}
       rollbackBadge={rollbackBadge}
       onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
       onEntryMouseLeave={() => setHighlightedTileId(null)}
@@ -4939,7 +4947,7 @@ export default function Game() {
               <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
                 <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-amber-500/40 bg-zinc-950 shadow-2xl">
                   <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-3 space-y-3">
-                  <div className="text-amber-300 font-black text-lg">↩ 롤백 요청{pr.ordinal && pr.limit ? <span className="text-amber-200/90"> ({pr.ordinal}/{pr.limit})</span> : null}</div>
+                  <div className="text-amber-300 font-black text-lg">{pr.kind === 'undo' ? '↺ 롤백 취소 요청' : '↩ 롤백 요청'}{pr.ordinal && pr.limit ? <span className="text-amber-200/90"> ({pr.ordinal}/{pr.limit})</span> : null}</div>
                   {/* [사용자 2026-09-30] 왜 되돌리자는지 — 보고 수락/거절한다 */}
                   {pr.reason && (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
@@ -4947,10 +4955,17 @@ export default function Game() {
                       <div className="text-sm font-bold text-amber-100 break-words">{rollbackReasonText(pr.reason)}</div>
                     </div>
                   )}
+                  {pr.kind === 'undo' ? (
+                    <p className="text-sm text-zinc-200 leading-relaxed">
+                      <span className="font-bold text-white">{pr.requesterName}</span>님이 방금 한 롤백(<span className="font-bold text-amber-200">{pr.label.replace(/ 롤백 취소$/, '')}</span>)을 취소하자고 요청했습니다.
+                      <br />롤백 전 상태로 돌아가고, 되돌렸던 행동 <span className="font-black text-emerald-300">{pr.undoneCount}개</span>가 다시 살아납니다. 전원 동의 필요.
+                    </p>
+                  ) : (
                   <p className="text-sm text-zinc-200 leading-relaxed">
                     <span className="font-bold text-white">{pr.requesterName}</span>님이 <span className="font-bold text-amber-200">{pr.label}</span>(으)로 되돌리자고 요청했습니다.
                     <br />약 <span className="font-black text-amber-300">{pr.turnsBack}턴 전</span> · 행동 <span className="font-black text-red-300">{pr.undoneCount}개</span> 되돌림. 전원 동의 필요.
                   </p>
+                  )}
                   {pr.undoneActions?.length > 0 && (
                     <div className="rounded-lg border border-white/10 bg-black/30 p-2 max-h-40 overflow-y-auto text-[11px] leading-relaxed">
                       <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">되돌릴 내용{pr.undoneCount > pr.undoneActions.length ? ` (최근 ${pr.undoneActions.length}개)` : ''}</div>
@@ -4975,7 +4990,9 @@ export default function Game() {
           }
           return (
             <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] max-w-[92vw] rounded-2xl border border-amber-500/40 bg-zinc-900/95 px-4 py-2 text-xs text-amber-200 pointer-events-auto shadow-lg backdrop-blur">
-              <div>↩ 롤백 대기 중{pr.ordinal && pr.limit ? ` (${pr.ordinal}/${pr.limit})` : ''}: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>
+              {pr.kind === 'undo'
+                ? <div>↺ 롤백 취소 대기 중: <span className="font-bold">{pr.label}</span> (되돌렸던 행동 {pr.undoneCount}개 복구) · 동의 {got}/{need}</div>
+                : <div>↩ 롤백 대기 중{pr.ordinal && pr.limit ? ` (${pr.ordinal}/${pr.limit})` : ''}: <span className="font-bold">{pr.label}</span> (약 {pr.turnsBack}턴 전, 행동 {pr.undoneCount}개) · 동의 {got}/{need}</div>}
               {pr.reason && <div className="mt-0.5 text-amber-100/90">사유: <span className="font-bold">{rollbackReasonText(pr.reason)}</span></div>}
               {/* 누구를 기다리는지 보이게 — 내가 이미 동의했거나 대상이 아니어도 진행 상황은 알아야 한다 */}
               <div className="mt-1"><RosterList /></div>
@@ -8016,6 +8033,7 @@ export default function Game() {
                     showToolbar={logToolsOpen}
                     canRollback={!!(playerId && game.players?.[playerId]) && ['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))}
                     onRollbackToSeq={openRollbackRequest}
+                    onRequestRollbackUndo={requestRollbackUndo}
                     rollbackBadge={rollbackBadge}
                     onEntryMouseEnter={(tileId) => setHighlightedTileId(tileId)}
                     onEntryMouseLeave={() => setHighlightedTileId(null)}

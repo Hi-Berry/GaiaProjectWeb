@@ -841,6 +841,36 @@ const turnHistories = new Map<string, TurnHistoryEntry[]>();
  *  stampRollbackUsage 가 game.rollbackUsage 로 찍어 준 거울만 본다. */
 type RollbackCount = { total: number; byPlayer: Record<string, number>; admin: number; limitByPlayer: Record<string, number> };
 const rollbackCounts = new Map<string, RollbackCount>();
+/** [사용자 2026-11-27] 롤백 취소 — 가장 최근 롤백 1건의 '롤백 직전 상태'를 보관한다.
+ *  "롤백한 걸 그 롤백 줄 아무거나 찍고 롤백 취소 요청하면 그 부분 삭제되고 하던 대로 — 아직 아무도 턴을 안 한 마지막 롤백에서만."
+ *  롤백 직후 상태의 지문(after*)을 같이 남겨, 그 뒤로 누가 무엇이든 하면(로그 seq·저널·자원·차례가 바뀌면) 취소할 수 없다. */
+type RollbackUndoInfo = {
+	before: any;            // 롤백 직전 게임(무거운 필드 제외 깊은 복사)
+	heavy: Record<string, any>; // 롤백 직전의 turnStartState·prevTurnStartState·humanActionJournal·fullGameLog (참조)
+	histTail: TurnHistoryEntry[]; // 롤백이 잘라낸 턴 히스토리 꼬리
+	fullLogMarked: Array<{ rolledBack?: boolean }>; // 이 롤백이 풀 로그에 새로 단 ✕ 표시
+	requesterId: string | null;
+	requesterName: string;
+	label: string;
+	rolledBackSeqs: number[]; // 이 롤백으로 ✕ 가 붙은 로그 줄 seq — 클라는 이 줄에서만 '롤백 취소 요청'을 보여 준다
+	afterFp: string;
+};
+const rollbackUndos = new Map<string, RollbackUndoInfo>();
+/** 롤백 직후와 지금이 같은지 보는 가벼운 지문 — 어떤 행동이든 로그 seq·저널·자원·차례 중 하나는 바꾼다 */
+function rollbackUndoFingerprint(game: GaiaGameState): string {
+	const ps = Object.keys(game.players || {}).sort().map(id => {
+		const p: any = game.players[id];
+		return [id, p.score, p.ore, p.credits, p.knowledge, p.qic, p.power1, p.power2, p.power3, p.brainStoneBowl ?? null, !!p.hasPassed, p.bonusTile ?? null, p.faction ?? null, p.pendingTerraformSteps ?? 0];
+	});
+	return JSON.stringify([(game as any).gameLogSeq ?? 0, ((game as any).humanActionJournal ?? []).length, game.currentPhase, game.roundNumber, game.currentPlayerIndex, !!game.hasDoneMainAction, ps]);
+}
+/** 지금 취소할 수 있는 롤백 정보(없거나 그 뒤로 누가 뭘 했으면 null — 그 경우 보관분도 버린다) */
+function validRollbackUndo(game: GaiaGameState): RollbackUndoInfo | null {
+	const info = rollbackUndos.get(game.id);
+	if (!info) return null;
+	if (rollbackUndoFingerprint(game) !== info.afterFp) { rollbackUndos.delete(game.id); return null; }
+	return info;
+}
 /** 이 게임의 집계를 꺼낸다. 없으면 게임에 실려 있던 거울로 되살린다(서버가 게임만 복원한 경우의 보험). */
 function rollbackCountOf(game: GaiaGameState): RollbackCount {
 	let c = rollbackCounts.get(game.id);
@@ -862,6 +892,12 @@ function stampRollbackUsage(game: GaiaGameState): void {
 /** 클라로 보낼 상태 — 항상 사용 현황을 최신으로 찍은 뒤 만든다 */
 function clientStateOf(game: GaiaGameState, broadcast: boolean): Record<string, unknown> {
 	stampRollbackUsage(game);
+	// [사용자 2026-11-27 롤백 취소] 지금 취소할 수 있는 롤백이 있으면 그 롤백의 ✕ 줄 seq를 알려 준다(없으면 지운다)
+	{
+		const u = validRollbackUndo(game);
+		if (u) (game as any).rollbackUndo = { seqs: u.rolledBackSeqs, label: u.label, requesterName: u.requesterName };
+		else delete (game as any).rollbackUndo;
+	}
 	chatHistoryOf(game); // 채팅 기록은 게임 상태에 싣지 않는다(게임 객체에 남아 있으면 여기서 옮긴다)
 	(game as any).chatBlockedSpectators = Array.from(chatBlocks.get(game.id) ?? []);
 	return buildClientGameState(game, broadcast);
@@ -880,6 +916,7 @@ const _netOutAtGameStart = new Map<string, number>();
  *  게임 종료 경로엔 이미 정리가 있지만 '방 삭제'는 그 경로를 안 탄다. */
 function clearGameMeasurementState(gameId: string): void {
 	rollbackCounts.delete(gameId);   // 방이 사라지면 집계도 버린다(모듈 레벨 Map이라 안 지우면 누수)
+	rollbackUndos.delete(gameId);
 	kickedSpectators.delete(gameId);
 	chatHistories.delete(gameId);
 	chatBlocks.delete(gameId);
@@ -1123,6 +1160,15 @@ function captureTurnStartWithPrev(game: ServerGameState, playerId: string): void
 /** [롤백 실행] 압축 히스토리 엔트리로 게임 상태 전체 복원 (admin_rollback_turn과 동일 복원부).
  *  해당 seq 이후 히스토리는 잘라내고, 봇 루프 취소 후 복원 지점에서 재가동. */
 function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, hist: TurnHistoryEntry[], entry: TurnHistoryEntry): void {
+	// [사용자 2026-11-27 롤백 취소] 롤백 직전 상태를 보관 — 아직 아무도 행동하지 않았으면 '롤백 취소'로 그대로 되돌린다
+	const undoBefore = deepClone(game) as any; // 무거운 필드는 non-enumerable이라 복사되지 않는다(아래 heavy로 참조 보관)
+	undoBefore.pendingRollback = null;
+	delete undoBefore.botCanceled;
+	delete undoBefore.rollbackUndo;
+	const undoHeavy: Record<string, any> = {};
+	for (const k of ['turnStartState', 'prevTurnStartState', 'humanActionJournal', 'fullGameLog']) undoHeavy[k] = (game as any)[k];
+	const undoReq = (game as any).pendingRollback as { requesterId?: string; requesterName?: string; label?: string } | null | undefined;
+	let undoFullLogMarked: Array<{ rolledBack?: boolean }> = [];
 	const fullGameState = JSON.parse(zlib.gunzipSync(entry.gz).toString('utf8'));
 	const restored = deepClone(fullGameState) as ServerGameState;
 	const synthStart: any = { gameLogSeqAt: entry.gameLogSeqAt, humanActionJournalLength: entry.humanActionJournalLength };
@@ -1134,7 +1180,7 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	});
 	// 분석용 풀 로그(fullGameLog)는 append-only라 되돌린 행동이 '진짜 한 행동'처럼 섞여 있었다
 	// (실측: 롤백 1회 이상인 게임에서 주요 행동이 실제보다 6~11개 많음). 같은 시점 이후를 표시해 사후 분석이 걸러낼 수 있게 한다.
-	if (rolledBackSince != null && Number.isFinite(rolledBackSince)) markFullGameLogRolledBack(game.id, rolledBackSince);
+	if (rolledBackSince != null && Number.isFinite(rolledBackSince)) undoFullLogMarked = markFullGameLogRolledBack(game.id, rolledBackSince);
 	restored.humanActionJournal = (game.humanActionJournal || []).slice(0, entry.humanActionJournalLength || 0);
 	clearFreeActionUndo(restored);
 	restored.turnStartState = { [entry.playerId]: buildTurnStartStateEntryForPlayer(restored, entry.playerId) };
@@ -1150,10 +1196,58 @@ function executeRollbackToHistory(io: SocketIOServer, game: ServerGameState, his
 	clampPlayerResources(restored);
 	// 이 seq 이후 히스토리 제거(새 타임라인)
 	const cut = hist.findIndex(h => h.seq === entry.seq);
-	if (cut >= 0) hist.splice(cut + 1);
+	const undoHistTail = cut >= 0 ? hist.splice(cut + 1) : [];
+	{
+		// 이번 롤백으로 ✕ 가 붙은 줄 = 새 객체로 바뀐 줄(restoreGameLogForReset이 {...e, rolledBack} 사본을 만든다).
+		//   이전 롤백의 ✕ 줄은 같은 객체 그대로라 걸러진다.
+		const liveLines = new Set<any>(game.gameLog || []);
+		const rolledBackSeqs = (restored.gameLog || [])
+			.filter(e => (e as any).rolledBack && typeof (e as any).seq === 'number' && !liveLines.has(e))
+			.map(e => (e as any).seq as number);
+		rollbackUndos.set(game.id, {
+			before: undoBefore, heavy: undoHeavy, histTail: undoHistTail, fullLogMarked: undoFullLogMarked,
+			requesterId: undoReq?.requesterId ?? null,
+			requesterName: undoReq?.requesterName ?? 'GM',
+			label: undoReq?.label ?? `R${entry.round} · ${entry.playerName} 턴 시작`,
+			rolledBackSeqs,
+			afterFp: rollbackUndoFingerprint(restored),
+		});
+	}
 	log(`[ROLLBACK] ${game.id} → seq ${entry.seq} (R${entry.round} ${entry.playerName} 턴 시작)`, 'game', game.id);
 	emitGameUpdated(io, restored); // [대역폭 2026-08-07] 전체 로그 직접 emit → 헬퍼 경유(꼬리40 델타)
 	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback): ${err}`, 'error'));
+}
+
+/** [사용자 2026-11-27] 롤백 취소 실행 — 보관해 둔 '롤백 직전 상태'로 통째 되돌린다.
+ *  ✕ 로 표시됐던 줄은 원래대로 돌아오고(롤백 직전 로그 그대로), 잘라냈던 턴 히스토리·풀 로그 표시도 복구한다.
+ *  롤백이 취소됐으니 요청자의 롤백 사용 횟수도 1 돌려준다. */
+function executeRollbackUndo(io: SocketIOServer, game: ServerGameState, cancelerId: string): boolean {
+	const info = validRollbackUndo(game);
+	if (!info) return false;
+	const restored = deepClone(info.before) as ServerGameState;
+	for (const [k, v] of Object.entries(info.heavy)) (restored as any)[k] = v;
+	(restored as any).pendingRollback = null;
+	noteTimeMark(game, '', 'pause_end');
+	(game as any).botCanceled = true;
+	cancelBotExecution(game.id);
+	hideHeavyServerFields(restored);
+	carrySpectatorSession(game, restored);
+	// 턴 히스토리: 롤백이 잘라낸 꼬리를 다시 붙인다(롤백 뒤 새 턴이 없다는 건 지문으로 이미 확인)
+	const hist = turnHistories.get(game.id);
+	if (hist && info.histTail.length) hist.push(...info.histTail);
+	for (const e of info.fullLogMarked) delete e.rolledBack;
+	if (info.requesterId) {
+		const c = rollbackCountOf(game);
+		if ((c.byPlayer[info.requesterId] ?? 0) > 0) { c.byPlayer[info.requesterId]--; c.total = Math.max(0, c.total - 1); }
+	}
+	rollbackUndos.delete(game.id);
+	games.set(game.id, restored);
+	addGameLog(restored, cancelerId, 'Rollback', `롤백 취소 — ${info.label} 롤백 전으로 복귀`);
+	clampPlayerResources(restored);
+	log(`[ROLLBACK-UNDO] ${game.id} ${game.players[cancelerId]?.name ?? cancelerId} — ${info.label} 롤백 취소`, 'game', game.id);
+	emitGameUpdated(io, restored);
+	executeBotTurnIfNeeded(io, restored).catch(err => log(`Bot turn execution error (rollback undo): ${err}`, 'error'));
+	return true;
 }
 
 /** [롤백 표시 2026-09-23 사용자] opts.markRolledBack=true면 잘라낼 꼬리를 버리지 않고 `rolledBack: true`로 표시해 그대로 둔다.
@@ -2669,6 +2763,7 @@ export function forceFinishStalledGame(io: SocketIOServer, game: ServerGameState
 	if (!(game as any).simulation) {
 		stampGameEndSummary(game); // 롤백 집계·풀 로그가 아래에서 비워지기 전에
 		turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제(끝난 게임엔 롤백 불필요)
+		rollbackUndos.delete(game.id);
 		rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
 		saveFinalGameState(game);
 		flushGameData(game);
@@ -4863,6 +4958,36 @@ export function setupGameServer(httpServer: HTTPServer) {
 		//      delete_game과 같은 신뢰모델(playerId 자체가 비밀값)로 payload playerId를 폴백 인정한다.
 		//      단 그 id가 실제 이 방의 좌석이고 required에 든 사람일 때만 — 아니면 거부.
 		//   ③ 거부는 서버 로그에 남겨 다음 제보 때 바로 확인할 수 있게 한다.
+		// [사용자 2026-11-27] 롤백 취소 요청 — 가장 최근 롤백 뒤로 아무도 행동하지 않았을 때만. 롤백과 같은 전원 동의 투표.
+		//   롤백 횟수를 쓰지 않는다(오히려 취소되면 원래 롤백 요청자의 횟수를 돌려준다).
+		socket.on('request_rollback_undo', ({ gameId }: { gameId: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
+			const game = games.get(gameId);
+			if (!game) { callback?.({ error: 'Game not found' }); return; }
+			const playerId = socketToPlayerMap.get(socket.id);
+			if (!playerId || !game.players[playerId] || (game.botPlayerIds || []).includes(playerId)) { callback?.({ error: '게임 참가자만 롤백 취소를 요청할 수 있습니다.' }); return; }
+			if (!['main','startingMines','bonusSelection','factionBidding'].includes(String(game.currentPhase))) { callback?.({ error: '진행 중·시작 배치·보너스 선택·종족 비딩 단계에서만 롤백 취소가 가능합니다.' }); return; }
+			if ((game as any).pendingRollback) { callback?.({ error: '이미 롤백 투표가 진행 중입니다.' }); return; }
+			const info = validRollbackUndo(game);
+			if (!info) { callback?.({ error: '취소할 수 있는 롤백이 없습니다 — 롤백 뒤에 이미 누군가 행동했거나, 가장 최근 롤백이 아닙니다.' }); return; }
+			const bots = new Set(game.botPlayerIds || []);
+			const required = Object.keys(game.players).filter(id => id !== playerId && !bots.has(id));
+			noteTimeMark(game, liveTimeActorOf(game) ?? '', 'pause_start');
+			(game as any).pendingRollback = {
+				kind: 'undo',
+				requesterId: playerId, requesterName: game.players[playerId]?.name ?? '요청자',
+				seq: -1, label: `${info.label} 롤백 취소`,
+				turnsBack: 0, undoneCount: info.rolledBackSeqs.length, undoneActions: [],
+				required, approvals: [], autoApproved: [],
+			};
+			log(`[ROLLBACK-UNDO-REQ] ${gameId} ${game.players[playerId]?.name} — ${info.label}`, 'game', gameId);
+			if (required.length === 0) {
+				if (!executeRollbackUndo(io, game as ServerGameState, playerId)) { (game as any).pendingRollback = null; noteTimeMark(game, '', 'pause_end'); emitGameUpdated(io, game); callback?.({ error: '롤백을 취소하지 못했습니다.' }); return; }
+				callback?.({ ok: true }); return;
+			}
+			emitGameUpdated(io, game);
+			callback?.({ ok: true });
+		});
+
 		socket.on('respond_rollback', ({ gameId, accept, playerId: claimedId }: { gameId: string; accept: boolean; playerId?: string }, callback?: (r: { ok?: boolean; error?: string }) => void) => {
 			const rej = (why: string) => { log(`respond_rollback rejected: ${why} (socket ${socket.id})`, 'game', gameId); callback?.({ error: why }); };
 			const game = games.get(gameId);
@@ -4877,6 +5002,11 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!accept) { (game as any).pendingRollback = null; noteTimeMark(game, '', 'pause_end'); emitGameUpdated(io, game); return; }
 			if (!pr.approvals.includes(playerId)) pr.approvals.push(playerId);
 			if (pr.required.every((id: string) => pr.approvals.includes(id))) {
+				if (pr.kind === 'undo') {
+					// 투표 중엔 행동이 막혀 있어 보통 그대로 유효하다. 그래도 무효면 투표만 닫는다.
+					if (!executeRollbackUndo(io, game as ServerGameState, pr.requesterId)) { (game as any).pendingRollback = null; noteTimeMark(game, '', 'pause_end'); emitGameUpdated(io, game); }
+					return;
+				}
 				const hist = turnHistories.get(gameId) || [];
 				const target = hist.find(h => h.seq === pr.seq);
 				if (target) { countRollback(gameId, pr.requesterId); executeRollbackToHistory(io, game, hist, target); }
@@ -4900,6 +5030,7 @@ export function setupGameServer(httpServer: HTTPServer) {
 			clearGamePush(gameId);
 			turnHistories.delete(gameId); // [롤백] 히스토리 메모리 정리
 			rollbackCounts.delete(gameId);
+			rollbackUndos.delete(gameId);
 			clearGameMeasurementState(gameId);
 			log(`Game ${gameId} deleted by host ${playerId}`, 'game', gameId);
 			callback?.({ ok: true });
@@ -9987,6 +10118,7 @@ export function executePassRound(
 			if (!(game as any).simulation) { // [ai2 2026-10-05] 시뮬 종료는 라이브 부수효과 금지(위 종료 경로 주석 참조)
 				stampGameEndSummary(game); // 롤백 집계·풀 로그가 아래에서 비워지기 전에
 				turnHistories.delete(game.id); // [롤백] 게임 종료 → 히스토리 메모리 즉시 해제
+				rollbackUndos.delete(game.id);
 				rollbackCounts.delete(game.id); // 위 종료 로그에 요약을 남긴 뒤이므로 함께 해제
 				saveFinalGameState(game);
 				flushGameData(game);

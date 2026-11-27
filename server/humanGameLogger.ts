@@ -246,11 +246,14 @@ export function recordFullGameLog(game: GaiaGameState & {
 /** [롤백 표시 2026-09-23] sinceTimestamp 이후에 기록된 풀 로그 항목을 '되돌린 행동'으로 표시한다.
  *  롤백은 턴 시작 지점으로 되감으므로 그 시점 이후의 기록은 전부 무효다. 지우지 않고 표시만 해
  *  '무엇이 취소됐는지'까지 사후에 복원할 수 있게 둔다. */
-export function markFullGameLogRolledBack(gameId: string | undefined, sinceTimestamp: number): void {
-  if (!gameId) return;
+export function markFullGameLogRolledBack(gameId: string | undefined, sinceTimestamp: number): Array<{ rolledBack?: boolean }> {
+  if (!gameId) return [];
   const arr = fullGameLogs.get(gameId);
-  if (!arr) return;
-  for (const e of arr) if ((e.timestamp ?? 0) >= sinceTimestamp) e.rolledBack = true;
+  if (!arr) return [];
+  // [사용자 2026-11-27 롤백 취소] 이번에 새로 표시한 줄만 돌려준다 — 롤백을 취소하면 이 줄들만 표시를 되돌린다
+  const marked: Array<{ rolledBack?: boolean }> = [];
+  for (const e of arr) if ((e.timestamp ?? 0) >= sinceTimestamp && !e.rolledBack) { e.rolledBack = true; marked.push(e); }
+  return marked;
 }
 
 /** export 시점에 풀 로그를 꺼내고 메모리에서 비운다(게임당 1회). */

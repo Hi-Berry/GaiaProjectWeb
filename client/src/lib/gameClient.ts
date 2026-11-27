@@ -370,6 +370,16 @@ export const GameClient = {
     });
   },
 
+  /** [2026-11-27] 가장 최근 롤백 취소 요청 (아직 아무도 행동하지 않았을 때만 · 다른 사람 전원 동의 시 실행) */
+  requestRollbackUndo(gameId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = getSocket();
+      s.emit('request_rollback_undo', { gameId }, (r: any) => {
+        if (r?.error) reject(new Error(r.error)); else resolve();
+      });
+    });
+  },
+
   /** [롤백 투표] 요청받은 사람: 동의/거절
    *  [버그 2026-08-17 사용자 제보 "폰에서 롤백창 버튼이 반응 없다"] 예전엔 fire-and-forget이라
    *  서버가 어떤 이유로 거부해도(좌석 매핑 없음 등) 화면에 아무 변화가 없어 원인을 알 수 없었다.

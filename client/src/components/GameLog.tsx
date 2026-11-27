@@ -44,6 +44,8 @@ interface GameLogProps {
   onRollbackToSeq?: (seq: number, label?: string) => void;
   /** [2026-09-30] 롤백 버튼 옆 사용 현황 — "1/3" 또는 "모두 사용" */
   rollbackBadge?: string;
+  /** [2026-11-27] 롤백 취소 요청 — 가장 최근 롤백의 ✕ 줄(game.rollbackUndo.seqs)에서만 버튼이 뜬다 */
+  onRequestRollbackUndo?: () => void;
   /** [진행 중 로그 2026-09-24] 보는 사람의 playerId — 아직 확정 안 된(되돌릴 수 있는) 줄은 본인에게만 보여준다. 관전자는 undefined. */
   myPlayerId?: string | null;
 }
@@ -62,6 +64,7 @@ export function GameLog({
   canRollback = false,
   onRollbackToSeq,
   rollbackBadge,
+  onRequestRollbackUndo,
   myPlayerId,
 }: GameLogProps) {
   const logs = game.gameLog || [];
@@ -883,6 +886,20 @@ export function GameLog({
                 })()}
                 {/* [롤백] 호스트만: 이 지점(턴 시작)으로 되돌리기 요청 — 다른 사람 전원 동의 시 실행 */}
                 {/* 취소된 줄은 롤백 대상이 아니다 — seq가 이후 새 액션과 겹쳐(롤백 시 카운터도 되감김) 엉뚱한 지점으로 갈 수 있다. */}
+                {/* [사용자 2026-11-27] 롤백 취소: 가장 최근 롤백의 ✕ 줄 아무거나 → '롤백 취소 요청'(아직 아무도 행동하지 않았을 때만 서버가 알려 준다) */}
+                {openIdx === origIdx && canRollback && isRolledBack && typeof log.seq === 'number' && onRequestRollbackUndo
+                  && (game as { rollbackUndo?: { seqs?: number[] } }).rollbackUndo?.seqs?.includes(log.seq) && (
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onRequestRollbackUndo(); }}
+                      className="px-2 py-0.5 rounded bg-sky-700/70 hover:bg-sky-600 text-white text-[10px] font-bold border border-sky-400/30"
+                      title="방금 한 롤백을 취소하고 롤백 전 상태로 되돌리기 요청 (다른 사람 전원 동의 필요 · 롤백 횟수 안 씀)"
+                    >
+                      ↺ 롤백 취소 요청
+                    </button>
+                  </div>
+                )}
                 {openIdx === origIdx && canRollback && !isRolledBack && typeof log.seq === 'number' && onRollbackToSeq && (
                   <div className="mt-1">
                     <button

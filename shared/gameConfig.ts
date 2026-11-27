@@ -689,6 +689,8 @@ export interface GaiaGameState {
   aiBotsAllowed?: boolean;
   /** [롤백 투표] 호스트가 특정 지점 롤백을 요청하면 세팅 — 다른 사람 전원(사람) 동의 시 실행. 봇은 자동 승인. */
   pendingRollback?: {
+    /** [2026-11-27] 'undo' = 가장 최근 롤백을 취소하자는 투표(롤백 전 상태로 복귀) */
+    kind?: 'undo';
     requesterId: string;
     requesterName: string;
     seq: number;        // 되돌릴 턴 시작 스냅샷의 seq
@@ -706,6 +708,8 @@ export interface GaiaGameState {
     ordinal?: number;
     limit?: number;
   } | null;
+  /** [2026-11-27] 지금 취소할 수 있는 롤백(가장 최근 롤백 뒤로 아무도 행동하지 않음). seqs = 그 롤백으로 ✕ 가 붙은 로그 줄 */
+  rollbackUndo?: { seqs: number[]; label: string; requesterName: string };
   /**
    * [2026-09-30] 롤백 사용 현황 거울. 원본은 서버 모듈의 rollbackCounts 이고(게임 밖이라 롤백으로 안 되감긴다),
    * 서버가 매 전송 직전에 여기에 찍어 보낸다. 클라는 읽기만 한다.
