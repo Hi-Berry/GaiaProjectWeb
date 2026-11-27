@@ -6391,6 +6391,10 @@ export function setupGameServer(httpServer: HTTPServer) {
 			if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id);
 			if (!playerId) return;
+			/* [버그수정 2026-11-27 사용자 "최신 게임 시간 버그"] 롤백 투표 중 리셋을 막는다. 리셋은 턴 시작 스냅샷(투표 전)을
+			   통째로 복원해 pendingRollback까지 지웠다 → 투표가 말없이 사라지고 'pause_end'가 안 찍혀 그 뒤 게임 끝까지
+			   모든 사람의 사용 시간이 멈췄다(bluef9el: 15:24 디애박 리셋 뒤 1시간 16분이 누구에게도 안 붙음). */
+			if ((game as any).pendingRollback) { socket.emit('game_error', { message: '롤백 투표 중에는 리셋할 수 없습니다. 투표가 끝난 뒤 다시 눌러 주세요.' }); return; }
 			if (game.pendingTurnEndPlayerId === playerId) { socket.emit('game_error', { message: '파워 수락 대기 중에는 리셋할 수 없습니다.' }); return; }
 			// 현재 턴 플레이어만 자기 턴 시작 스냅샷으로 복구 (다른 소켓/착오 방지)
 			if (game.turnOrder[game.currentPlayerIndex] !== playerId) return;
@@ -6700,6 +6704,8 @@ export function setupGameServer(httpServer: HTTPServer) {
 		socket.on('undo_free_action', ({ gameId, steps }: { gameId: string; steps?: number }) => {
 			const game = games.get(gameId); if (!game) return;
 			const playerId = socketToPlayerMap.get(socket.id); if (!playerId) return;
+			// [버그수정 2026-11-27] 리셋과 같은 이유 — 되돌리기 스냅샷은 투표 전 상태라 복원하면 롤백 투표가 지워진다.
+			if ((game as any).pendingRollback) { socket.emit('game_error', { message: '롤백 투표 중에는 되돌릴 수 없습니다. 투표가 끝난 뒤 다시 눌러 주세요.' }); return; }
 
 			if (!game.freeActionUndoStack) game.freeActionUndoStack = [];
 			// 하위 호환: 기존 단일 스냅샷을 스택으로 승격

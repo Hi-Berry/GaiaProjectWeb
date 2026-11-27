@@ -298,6 +298,13 @@ function accumulatePlayerTime(game: GaiaGameState & { id?: string }, startedAt: 
     if (paused) {
       prev = Math.max(prev, e.timestamp!);
       if (e.kind === 'pause_end') paused = false;
+      /* [버그수정 2026-11-27 bluef9el] 짝 없는 멈춤 방어 — 투표가 pause_end 없이 사라지면(투표 중 리셋이 투표째 지움)
+         게임 끝까지 아무 시계도 안 갔다. 투표 중엔 게임이 얼어 있으니 턴 종료·입찰 표시나 사람의 메인 기록이 나오면
+         투표는 이미 끝난 것 — 거기서 멈춤을 푼다(그 기록까지의 공백은 투표 시간으로 보고 아무에게도 안 붙임).
+         파워 받기 응답·롤백 안내 줄은 투표 중에도 생길 수 있어 신호로 안 쓴다. */
+      else if (e.kind === 'turn_end' || e.kind === 'bid'
+        || (!e.kind && e.playerId && typeof e.powerWaitMs !== 'number'
+          && (e as any).action !== 'Rollback' && (e as any).action !== 'Received Power')) paused = false;
       continue;
     }
     if (e.kind === 'pause_end') { prev = Math.max(prev, e.timestamp!); continue; } // 짝 없는 종료(운영진 즉시 롤백 등) — 공백은 다음 기록 몫 그대로
