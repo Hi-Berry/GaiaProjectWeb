@@ -9755,11 +9755,11 @@ export function executeSelectBonus(
 		game.pendingBonusSelection = null;
 		for (const pid of Object.keys(game.players)) ensureScoreBreakdown(game.players[pid]);
 
-		const firstPlayerId = game.turnOrder[0];
-		if (firstPlayerId) {
-			captureTurnStartWithPrev(game as ServerGameState, firstPlayerId);
-		}
-
+		/* [버그수정 2026-11-27 사용자 "팅커로 의회 타일 고르고 파워 오토 부분 롤백했더니 진행이 안 된다"]
+		   여기서 첫 플레이어 턴 시작을 찍으면 '메인 단계인데 1라운드 수입은 아직 안 받은' 상태가 롤백 지점으로 남는다.
+		   1라운드 수입 줄(Income Order)·팅커 라운드 타일 줄로 롤백하면 바로 이 스냅샷이 타깃이 되고, 복원해도 수입·팅커 선택을
+		   다시 시작시키는 것이 없어 멈췄다(종족 무관 — 1라운드 수입 줄이면 누구든). 2라운드 이후 전환 경로는 2026-08-26에
+		   같은 이유로 캡처를 뺐다(executePassRound). 깨끗한 라운드 시작 스냅샷은 helperStartNewRoundTurn이 수입 뒤에 찍는다. */
 		helperTriggerIncomePhase(io, game);
 	} else {
 		game.pendingBonusSelection = game.turnOrder[game.currentPlayerIndex];
