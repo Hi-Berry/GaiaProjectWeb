@@ -6725,7 +6725,9 @@ export default function Game() {
         {/* v2 가로: 비딩 중에도 기술·우주선·라운드·로그 탭을 누르면 비딩 화면을 내리고 그 구간을 보여준다(플레이어 탭이면 다시 비딩) */}
         {game.currentPhase === 'factionBidding' && !(v2Landscape && v2Tab !== 'players') && (
           // [사용자 2026-10-31 "비딩 화면이 잘린다"(가로)] v2 가로는 패널 왼쪽 28px이 탭 세로줄 자리 — 그만큼 비워 가려지지 않게
-          <div className="absolute right-0" style={{ left: v2Landscape ? V2_TAB_COL_W : 0, ...(isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: 0 }) }}>
+          // [사용자 2026-11-27 "비딩 롤백은 모바일만 되고 PC는 로그를 볼 방법이 없다"] PC는 비딩 패널이 사이드바 전체(아래 도킹 로그창
+          //   포함)를 덮어, 종족 롤백 진입점(로그 줄 → '여기로 롤백 요청')에 닿을 수 없었다 → 넓은 화면은 도킹 로그창 높이만큼 위에서 멈춘다.
+          <div className="absolute right-0" style={{ left: v2Landscape ? V2_TAB_COL_W : 0, ...(isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: (sidebarOpenEff || splitActive) ? `${logDockHeightVh}vh` : 0 }) }}>
             <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
           </div>
         )}
