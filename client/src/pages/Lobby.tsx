@@ -104,16 +104,19 @@ export default function Lobby() {
      ?go=create|join|watch&game=<id>&name=<이름> 을 달고 들어온다. 현황 페이지는 이 서버의 localStorage에
      좌석을 심을 수 없으므로, 실제 생성·참가·관전은 여기(이 서버 출처)에서 해야 좌석 ID가 이 기기에 저장된다.
      연결되면 한 번만 실행하고 주소창의 파라미터는 지운다(새로고침해도 방이 또 생기지 않게).
-     좌석 비밀번호는 주소에 싣지 않는다 — 걸고 싶으면 로비에서 직접 만든다. */
+     [사용자 2026-11-27 "비번 입력 칸이 없네?"] 좌석 비밀번호는 ?쿼리가 아니라 #pw=… (해시)로 받는다 —
+     해시는 서버로 전송되지 않아 서버·프록시 접근 로그에 안 남는다. 읽자마자 주소창에서 지운다.
+     go=rejoin: 시작된 방에 이름+비번으로 내 자리 복귀(account_rejoin). 비번이 없으면 게임 화면의 이어하기/관전 안내로 보낸다. */
   const autoActionDoneRef = useRef(false);
   useEffect(() => {
     if (!connected || autoActionDoneRef.current) return;
     const q = new URLSearchParams(window.location.search);
     const go = q.get('go');
-    if (go !== 'create' && go !== 'join' && go !== 'watch') return;
+    if (go !== 'create' && go !== 'join' && go !== 'watch' && go !== 'rejoin') return;
     autoActionDoneRef.current = true;
     const gameId = (q.get('game') || '').trim();
     const name = (q.get('name') || '').trim().slice(0, 30) || playerName.trim();
+    const pw = (new URLSearchParams(window.location.hash.replace(/^#/, '')).get('pw') || '').trim() || undefined;
     window.history.replaceState(null, '', window.location.pathname);
     if (!name) {
       toast({ title: '이름을 입력하세요', description: '이름을 넣고 다시 눌러 주세요.', variant: 'destructive' });
@@ -125,7 +128,7 @@ export default function Lobby() {
       try {
         if (go === 'create') {
           setCreating(true);
-          const { gameId: gid, playerId } = await GameClient.createGame(name);
+          const { gameId: gid, playerId } = await GameClient.createGame(name, pw);
           localStorage.setItem(`gaia-${gid}-playerId`, playerId);
           setLocation(`/game/${gid}`);
         } else if (!gameId) {
@@ -135,8 +138,16 @@ export default function Lobby() {
           setLocation(`/game/${gameId}`);
         } else if (go === 'join') {
           setJoining(gameId);
-          const { playerId } = await GameClient.joinGame(gameId, name);
+          const { playerId } = await GameClient.joinGame(gameId, name, pw);
           localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
+          setLocation(`/game/${gameId}`);
+        } else if (go === 'rejoin') {
+          if (pw) {
+            setJoining(gameId);
+            const { playerId } = await GameClient.accountRejoin(gameId, name, pw);
+            localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
+            localStorage.removeItem(`gaia-${gameId}-spectatorId`); // 관전으로 열었던 기기도 좌석으로 전환
+          }
           setLocation(`/game/${gameId}`);
         } else {
           setWatching(gameId);
@@ -146,7 +157,7 @@ export default function Lobby() {
         }
       } catch (error: any) {
         toast({
-          title: go === 'create' ? '방 만들기 실패' : go === 'join' ? '참가 실패' : '관전 실패',
+          title: go === 'create' ? '방 만들기 실패' : go === 'join' ? '참가 실패' : go === 'rejoin' ? '이어하기 실패 — 이름/비밀번호 확인' : '관전 실패',
           description: error?.message || '다시 시도해 주세요.',
           variant: 'destructive',
         });

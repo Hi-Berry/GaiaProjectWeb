@@ -35,9 +35,13 @@
   a.link .meta{font-size:.78rem;color:#94a3b8;margin-top:.15rem}
   .foot{color:#64748b;font-size:.75rem;margin-top:1.6rem}
   /* [사용자 2026-11-27] 현황 페이지에서 바로 방 만들기·참가·관전 */
-  .ctl{width:100%;max-width:560px;display:flex;gap:.5rem;margin-bottom:1rem}
+  .ctl{width:100%;max-width:560px;display:flex;gap:.5rem;margin-bottom:.3rem}
   .ctl input{flex:1;min-width:0;background:#141a2a;border:1px solid #ffffff22;border-radius:10px;color:#e5e7eb;padding:.6rem .8rem;font-size:.95rem}
   .ctl input:focus{outline:none;border-color:#4f46e5}
+  .ctl input{box-sizing:border-box}
+  .ctl input#ppw{flex:0 1 10rem}
+  @media (max-width:480px){.ctl input#ppw{flex:1}}
+  .hint{width:100%;max-width:560px;font-size:.75rem;color:#64748b;margin-bottom:1rem}
   button.btn{flex:none;border:0;border-radius:9px;background:#4f46e5;color:#fff;font-weight:700;font-size:.85rem;padding:.55rem .9rem;cursor:pointer}
   button.btn:disabled{opacity:.55;cursor:default}
   button.btn.sec{background:#334155}
@@ -62,8 +66,10 @@
 <div class="banner" id="banner"></div>
 <div class="ctl">
   <input id="pname" placeholder="내 이름" maxlength="30" autocomplete="nickname">
+  <input id="ppw" type="password" placeholder="비밀번호 (선택)" autocomplete="off">
   <button class="btn" id="createBtn" onclick="createRoom()">＋ 방 만들기</button>
 </div>
+<div class="hint">비밀번호를 걸면 다른 기기에서 같은 이름·비밀번호로 이어할 수 있습니다 (이 방에서만 쓰는 일회용).</div>
 <div class="grid" id="grid"></div>
 <h2>🎲 열린 방 <span id="roomCount" style="color:#94a3b8;font-weight:400;font-size:.85rem"></span></h2>
 <div class="rooms" id="rooms"><div class="none">불러오는 중…</div></div>
@@ -210,7 +216,11 @@ function goTo(inst, go, gameId){
   const name = needName(); if (!name) return;
   const q = new URLSearchParams({ go, name });
   if (gameId) q.set('game', gameId);
-  location.href = inst.url + '/?' + q.toString();
+  // 좌석 비밀번호는 #해시로 — 해시는 서버로 전송되지 않아 서버 접근 로그에 남지 않고, 로비가 읽자마자 주소창에서 지운다.
+  //   이 페이지에도 저장하지 않는다(로비와 같은 일회용 취급). 관전엔 필요 없다.
+  const pw = document.getElementById('ppw').value.trim();
+  const hash = (pw && go !== 'watch') ? '#' + new URLSearchParams({ pw }).toString() : '';
+  location.href = inst.url + '/?' + q.toString() + hash;
 }
 
 /** 방 만들기 서버 고르기 — 운영자 지정(📢 여기서 플레이) > 메인이 비어 있으면 메인 > 빈 예비 1·2·3 중 무작위.
@@ -242,6 +252,13 @@ async function createRoom(){
   }
 }
 
+/** 시작된 방 이어하기 — 이름이 있으면 로비가 (이 기기 좌석 → 이름·비번 복귀) 순으로 처리,
+ *  이름이 없으면 게임 화면으로 바로 보내 거기서 이어하기/관전을 고르게 한다. */
+function rejoin(i, gameId){
+  if (!nameInput.value.trim()) { location.href = last[i].url + '/game/' + encodeURIComponent(gameId); return; }
+  goTo(last[i], 'rejoin', gameId);
+}
+
 function phaseText(r){
   if (r.phase==='lobby') return '대기 중';
   if (r.phase==='main') return `${r.round||1}라운드`;
@@ -270,7 +287,7 @@ function renderRooms(list){
     const chips = r.players.map(p=>`<span class="chip">${p.host?'★ ':''}${p.bot?'🤖 ':''}${esc(p.name)}</span>`).join('')
       + (lobby ? Array.from({length:Math.max(0,r.maxPlayers-r.players.length)}).map(()=>'<span class="chip empty">빈 자리</span>').join('') : '');
     const acts = (lobby && !full ? `<button class="btn sm" onclick="goTo(last[${i}],'join','${esc(r.id)}')">참가</button>` : '')
-      + (!lobby ? `<a class="go" style="padding:.35rem .65rem;font-size:.78rem" href="${inst.url}/game/${encodeURIComponent(r.id)}" title="이 기기에 내 자리가 있으면 이어서, 없으면 비밀번호로 이어하기/관전을 고릅니다">이어하기</a>` : '')
+      + (!lobby ? `<button class="btn sm" onclick="rejoin(${i},'${esc(r.id)}')" title="이 기기에 내 자리가 있으면 바로, 없으면 위 이름·비밀번호로 내 자리에 복귀합니다">이어하기</button>` : '')
       + `<button class="btn sm sec" onclick="goTo(last[${i}],'watch','${esc(r.id)}')">관전</button>`;
     return `<div class="room ${lobby?'lobby':''}">
       <div class="info">
