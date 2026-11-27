@@ -8,7 +8,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './index';
 import { getClientBuildId } from './static';
-import { setSeatPassword, findSeatByPassword } from './accounts';
+import { setSeatPassword, findSeatByPassword, exportSeatAuth, importSeatAuth } from './accounts';
+import { liveSnapshotEnabled, encodeSnapshot, decodeSnapshot, upsertLiveGame, deleteLiveGame, fetchLiveGame, fetchLiveGamesForServer, logLive, type LiveRow } from './liveSnapshot';
 import { StateCloner } from './ai/stateCloner';
 import {
 	GAME_SYNC_PROTOCOL,
@@ -109,7 +110,7 @@ import { flushGameData } from './ai/valueData';
 import * as FactionBidding from './factionBidding';
 import { registerReplaySocket } from './replay';
 import { itarsFollowUpBlockMessage, itarsCouncilFollowUpOwner } from '@shared/itarsCouncil';
-import { rememberInitialBoard } from './humanGameLogger';
+import { rememberInitialBoard, exportLoggerState, importLoggerState, type LoggerSnapshot } from './humanGameLogger';
 import { initPush, getVapidPublicKey, addSubscription, removeSubscription, setPresence, clearSocketPresence, notePushState, sendTestPush, clearGamePush } from './push';
 import { exportHumanGameDataset, recordHumanActionFromLog, recordFullGameLog, markFullGameLogRolledBack, buildLiveSnapshot, submitToScoreSite, computeBadgeAwards, computePlayerTimeMs, computeLivePlayerTime, notePowerWait, noteTimeMark, type HumanActionJournalEntry } from './humanGameLogger';
 
@@ -393,6 +394,7 @@ export function emitGameUpdated(io: any, game: any) {
 function emitGameUpdatedNow(io: any, game: any) {
 	// MCTS/정책 탐색은 실제 방이 아닌 dummyIo를 사용한다. 네트워크 동기화·계측 상태와 절대 섞지 않는다.
 	if (game?.simulation) return;
+	markLiveDirty(game); // [사용자 2026-11-28] 진행 중 게임 저장 — 바뀐 판만 30초마다 Supabase에 덮어쓴다
 	// [사용자 2026-11-19] 폰 웹 푸시 — 차례·파워 결정 등 '새로 생긴 할 일'을 감지해 보이지 않는 사람에게 알린다
 	try { notePushState(game); } catch { /* 알림 실패가 게임 진행을 막지 않게 */ }
 
@@ -4173,6 +4175,174 @@ export function helperFinishAfterGaiaformerPhase(io: SocketIOServer, game: GaiaG
 	});
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * [사용자 2026-11-28 "render 서버가 갑자기 재부팅" → 진행 중 게임 저장·복원]  (저장소 입출력: server/liveSnapshot.ts)
+ *  - 저장: 화면 갱신(emitGameUpdatedNow) 때 '바뀜' 표시 → 30초마다 바뀐 판만 게임당 한 줄 덮어쓰기. 끝난 판·지운 방은 줄 삭제.
+ *    정상 종료 신호(SIGTERM: 배포·재시작)를 받으면 그 자리에서 한 번 더 저장하고 끈다.
+ *  - 복원: 재시작 뒤 그 게임으로 재접속·조회가 오면 그때 불러온다(소켓 입구). 1분 뒤엔 이 서버의 나머지 판도 불러온다.
+ *    Render 배포는 새 서버가 먼저 뜨고 옛 서버가 나중에 꺼진다 — 곧바로 다 불러오면 옛 서버가 마지막에 진행·저장한 걸 놓친다.
+ *    재접속은 옛 서버가 꺼진(=마지막 저장을 마친) 뒤에 오므로 '요청 올 때 불러오기'가 최신본을 가져간다.
+ *  - 담는 것: 게임 객체 + 게임 밖 상태(현재 차례 리셋 스냅샷, 행동 저널, 풀 로그·사용 시간·처음 기술 타일, 좌석 비번 해시,
+ *    롤백 횟수, 채팅·차단·강퇴, 최근 롤백 지점 6개). 롤백 취소(직전 1건)와 그보다 오래된 롤백 지점은 버린다.
+ * ════════════════════════════════════════════════════════════════════════════ */
+const LIVE_FLUSH_MS = Number(process.env.LIVE_SNAPSHOT_FLUSH_MS || 30_000); // 테스트에서만 줄인다
+const LIVE_STALE_MS = 24 * 60 * 60 * 1000; // 하루 넘게 저장이 없던 판은 버려진 것으로 보고 되살리지 않는다
+const LIVE_TURN_HISTORY_KEEP = 6;
+const liveOn = liveSnapshotEnabled();
+const liveDirty = new Set<string>();
+const liveSaved = new Set<string>();        // 표에 줄이 있는(이 서버가 저장했거나 되살린) 게임
+const liveRestoring = new Map<string, Promise<void>>();
+let liveFlushing: Promise<void> | null = null;
+
+type LiveGameSnapshot = {
+	v: 1;
+	game: any;
+	tss?: Record<string, any>;
+	journal?: any[];
+	logger?: LoggerSnapshot;
+	seat?: ReturnType<typeof exportSeatAuth>;
+	rb?: RollbackCount;
+	chat?: ChatMsg[];
+	blocks?: string[];
+	kicked?: string[];
+	hist?: TurnHistoryEntry[];
+};
+
+function markLiveDirty(game: any) {
+	if (!liveOn || !game?.id || game.replay || game.headless) return;
+	liveDirty.add(game.id);
+}
+
+function liveWorthSaving(game: any): boolean {
+	if (!game || game.simulation || game.replay || game.headless || game.currentPhase === 'gameEnd') return false;
+	const bots = new Set(game.botPlayerIds || []);
+	if (process.env.LIVE_SNAPSHOT_INCLUDE_BOTS === '1') return true; // 테스트 전용(봇끼리 판으로 재시작 검증)
+	return Object.keys(game.players || {}).some(id => !bots.has(id)); // 봇끼리 판은 저장 안 함
+}
+
+function buildGameSnapshot(game: ServerGameState): LiveGameSnapshot {
+	const cur = game.turnOrder?.[game.currentPlayerIndex];
+	const tssAll: any = (game as any).turnStartState || {};
+	return {
+		v: 1,
+		game, // JSON 직렬화는 enumerable 필드만 — 무거운 필드(hideHeavyServerFields)는 아래에서 골라 담는다
+		tss: cur && tssAll[cur] ? { [cur]: tssAll[cur] } : undefined, // 지금 차례 사람의 '턴 리셋' 지점만
+		journal: (game as any).humanActionJournal,
+		logger: exportLoggerState(game.id),
+		seat: exportSeatAuth(game.id),
+		rb: rollbackCounts.get(game.id),
+		chat: chatHistories.get(game.id),
+		blocks: Array.from(chatBlocks.get(game.id) ?? []),
+		kicked: Array.from(kickedSpectators.get(game.id) ?? []),
+		hist: (turnHistories.get(game.id) ?? []).slice(-LIVE_TURN_HISTORY_KEEP),
+	};
+}
+
+/** 바뀐 판 저장 + 사라진·끝난 판 줄 삭제. 동시에 두 번 돌지 않는다. */
+function flushLiveSnapshots(all = false): Promise<void> {
+	if (!liveOn) return Promise.resolve();
+	if (liveFlushing) return liveFlushing;
+	liveFlushing = (async () => {
+		const ids = new Set<string>(all ? Array.from(games.keys()) : Array.from(liveDirty));
+		for (const id of Array.from(liveSaved)) if (!games.has(id)) ids.add(id); // 지운 방
+		liveDirty.clear();
+		for (const id of Array.from(ids)) {
+			const game = games.get(id);
+			try {
+				if (!liveWorthSaving(game)) {
+					if (liveSaved.has(id)) { await deleteLiveGame(id); liveSaved.delete(id); }
+					continue;
+				}
+				const state = encodeSnapshot(buildGameSnapshot(game!));
+				await upsertLiveGame(id, state);
+				liveSaved.add(id);
+			} catch (e) {
+				if (games.has(id)) liveDirty.add(id); // 다음 차례에 다시
+				logLive(`저장 실패 ${id}: ${(e as Error)?.message}`, 'error', id);
+			}
+		}
+	})().finally(() => { liveFlushing = null; });
+	return liveFlushing;
+}
+
+function restoreGameFromRow(io: SocketIOServer, row: LiveRow): boolean {
+	if (games.has(row.game_id)) return false;
+	const snap = decodeSnapshot<LiveGameSnapshot>(row.state);
+	const g = snap?.game as ServerGameState;
+	if (!g || g.id !== row.game_id) throw new Error('스냅샷 형식이 맞지 않음');
+	// 옛 서버의 봇 루프·생각 중 표시·무진행 감시 시각은 의미 없다 — 그대로 두면 감시 장치가 '20초 무진행'으로 보고
+	//   되살리자마자 봇 차례를 강제로 넘긴다(테스트에서 확인). 차례 시계도 지금부터 다시 잰다.
+	delete (g as any).botCanceled;
+	(g as any)._ai2ThinkingSince = undefined;
+	(g as any)._botWallFpr = null;
+	(g as any)._botWallFprTs = undefined;
+	(g as any)._botNoProgress = 0;
+	(g as any)._botFailRetry = {};
+	(g as any)._ai2TurnBudget = {};
+	(g as any).turnClock = null;
+	(g as any).turnStartState = snap.tss ?? {};
+	(g as any).prevTurnStartState = undefined;
+	(g as any).humanActionJournal = snap.journal ?? [];
+	(g as any).fullGameLog = undefined;
+	hideHeavyServerFields(g);
+	games.set(g.id, g);
+	for (const pid of Object.keys(g.players || {})) playerGameMap.set(pid, g.id);
+	importLoggerState(g.id, snap.logger, { from: Date.parse(row.saved_at), to: Date.now() });
+	importSeatAuth(g.id, snap.seat);
+	if (snap.rb) rollbackCounts.set(g.id, snap.rb);
+	if (snap.chat) chatHistories.set(g.id, snap.chat);
+	if (snap.blocks?.length) chatBlocks.set(g.id, new Set(snap.blocks));
+	if (snap.kicked?.length) kickedSpectators.set(g.id, new Set(snap.kicked));
+	if (snap.hist?.length) turnHistories.set(g.id, snap.hist);
+	liveSaved.add(g.id);
+	const at = new Date(Date.parse(row.saved_at) + 9 * 3600e3).toISOString().slice(11, 19);
+	logLive(`되살림 ${g.id} (R${g.roundNumber} ${g.currentPhase}, ${at} KST 저장분)`, 'system', g.id);
+	pushChat(io, g, {
+		id: generatePlayerId(), gameId: g.id, senderId: 'system', name: '시스템', faction: null, isSpectator: false,
+		text: `🔄 서버가 다시 시작되어 마지막 저장 시점(${at})부터 이어집니다. 그 뒤에 한 행동은 다시 해 주세요.`, ts: Date.now(),
+	} as ChatMsg);
+	executeBotTurnIfNeeded(io, g).catch(err => log(`Bot turn execution error (live restore): ${err}`, 'error', g.id));
+	return true;
+}
+
+/** 재접속·조회 요청이 온 게임을 표에서 불러온다(같은 게임 동시 요청은 한 번만). 실패해도 요청은 그대로 진행(게임 없음 응답). */
+function restoreLiveGameOnDemand(io: SocketIOServer, gameId: string): Promise<void> {
+	if (!liveOn || !gameId || games.has(gameId)) return Promise.resolve();
+	const pending = liveRestoring.get(gameId);
+	if (pending) return pending;
+	const p = (async () => {
+		try {
+			const row = await fetchLiveGame(gameId);
+			if (!row) return;
+			if (Date.now() - Date.parse(row.saved_at) > LIVE_STALE_MS) { await deleteLiveGame(gameId).catch(() => { }); return; }
+			restoreGameFromRow(io, row);
+		} catch (e) {
+			logLive(`되살리기 실패 ${gameId}: ${(e as Error)?.message}`, 'error', gameId);
+		}
+	})().finally(() => liveRestoring.delete(gameId));
+	liveRestoring.set(gameId, p);
+	return p;
+}
+
+/** 이 서버의 나머지 판 전부(시작 1분 뒤) — 목록에 보이고 봇 차례도 이어지게 */
+async function restoreAllLiveGames(io: SocketIOServer): Promise<void> {
+	if (!liveOn) return;
+	try {
+		const rows = await fetchLiveGamesForServer();
+		let n = 0;
+		for (const row of rows) {
+			if (games.has(row.game_id) || liveRestoring.has(row.game_id)) continue;
+			if (Date.now() - Date.parse(row.saved_at) > LIVE_STALE_MS) { await deleteLiveGame(row.game_id).catch(() => { }); continue; }
+			try { if (restoreGameFromRow(io, row)) n++; } catch (e) { logLive(`되살리기 실패 ${row.game_id}: ${(e as Error)?.message}`, 'error', row.game_id); }
+		}
+		logLive(`시작 후 일괄 복원: 저장된 판 ${rows.length}개 중 ${n}개 되살림`);
+	} catch (e) {
+		logLive(`일괄 복원 실패: ${(e as Error)?.message}`, 'error');
+	}
+}
+
+const LIVE_RESTORE_EVENTS = new Set(['rejoin_game', 'get_game', 'account_rejoin', 'watch_game', 'join_game']);
+
 export function setupGameServer(httpServer: HTTPServer) {
 	const io = new SocketIOServer(httpServer, {
 		cors: { origin: '*', methods: ['GET', 'POST'] },
@@ -4189,6 +4359,19 @@ export function setupGameServer(httpServer: HTTPServer) {
 	}
 
 	initPush((id) => games.get(id));
+
+	// [사용자 2026-11-28] 진행 중 게임 저장·복원 (위 LIVE 블록 설명)
+	if (liveOn) {
+		setInterval(() => { flushLiveSnapshots().catch(() => { }); }, LIVE_FLUSH_MS).unref?.();
+		setTimeout(() => { restoreAllLiveGames(io).catch(() => { }); }, 60_000).unref?.();
+		process.once('SIGTERM', () => {
+			logLive('종료 신호 — 진행 중 게임 저장 후 종료');
+			const done = () => process.exit(0);
+			const t = setTimeout(done, 10_000);
+			flushLiveSnapshots(true).catch(() => { }).finally(() => { clearTimeout(t); done(); });
+		});
+		logLive('켜짐');
+	}
 
 	io.on('connection', (socket) => {
 		log(`Player connected: ${socket.id}`, 'socket.io');
@@ -4225,6 +4408,13 @@ export function setupGameServer(httpServer: HTTPServer) {
 		   아이타 교환에서 2TF+무료광산(또는 트랙 전진·고급 타일 덮기)을 고르면 교환 대기 표시가 꺼져 councilPendingActive 가
 		   풀렸다 — 라운드 첫 차례인 사람이 그 틈에 메인 액션을 했다. 후속 처리가 끝날 때까지 아이타 본인 말고는 막는다.
 		   핸들러마다 가드를 다는 대신 이벤트 입구 한 곳에서 거른다(파워 받기·수입·채팅·롤백 투표는 통과). */
+		// [사용자 2026-11-28] 서버 재시작 뒤 첫 재접속·조회 — 저장해 둔 판이면 불러온 다음 원래 처리로 넘긴다
+		socket.use((packet, next) => {
+			const [event, payload] = packet as [string, { gameId?: string } | undefined];
+			const gid = payload?.gameId;
+			if (!liveOn || !gid || games.has(gid) || !LIVE_RESTORE_EVENTS.has(event)) { next(); return; }
+			restoreLiveGameOnDemand(io, gid).finally(() => next());
+		});
 		socket.use((packet, next) => {
 			const [event, payload] = packet as [string, { gameId?: string } | undefined];
 			const game = payload?.gameId ? games.get(payload.gameId) : undefined;

@@ -44,3 +44,12 @@ export function findSeatByPassword(gameId: string, playerName: string, password:
 export function clearSeatAuth(gameId: string) {
     seatAuthByGame.delete(gameId);
 }
+
+/** [사용자 2026-11-28 진행 중 게임 저장·복원] 좌석 비밀번호(솔트+해시)를 스냅샷에 실어 서버 재시작 뒤에도 '이어하기'가 되게 한다. 원문 비번은 없다. */
+export function exportSeatAuth(gameId: string): Array<[string, SeatAuth]> {
+    return Array.from(seatAuthByGame.get(gameId)?.entries() ?? []);
+}
+export function importSeatAuth(gameId: string, entries: Array<[string, SeatAuth]> | undefined) {
+    if (!entries?.length) return;
+    seatAuthByGame.set(gameId, new Map(entries));
+}

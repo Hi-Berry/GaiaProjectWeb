@@ -256,6 +256,25 @@ export function markFullGameLogRolledBack(gameId: string | undefined, sinceTimes
   return marked;
 }
 
+/** [사용자 2026-11-28 진행 중 게임 저장·복원] 서버 재시작 뒤에도 종료 기록(풀 로그·사용 시간·처음 기술 타일 배치)이 이어지게
+ *  게임 밖에 둔 기록을 스냅샷으로 꺼내고 되돌려 넣는다. */
+export type LoggerSnapshot = { full?: FullGameLogEntry[]; marks?: TimeMark[]; board?: Pick<SavedBoardSetup, 'techByTrack' | 'techPool'> };
+export function exportLoggerState(gameId: string): LoggerSnapshot {
+  return { full: fullGameLogs.get(gameId), marks: timeMarks.get(gameId), board: initialTechBoards.get(gameId) };
+}
+export function importLoggerState(gameId: string, s: LoggerSnapshot | undefined, downtime?: { from: number; to: number }): void {
+  if (!s) return;
+  if (s.full) fullGameLogs.set(gameId, s.full);
+  if (s.marks) timeMarks.set(gameId, s.marks);
+  // 마지막 저장 ~ 되살린 순간(서버가 꺼져 있던 시간)은 누구의 사용 시간도 아니다 — 롤백 투표와 같은 멈춤 표시로 뺀다
+  if (downtime && downtime.to > downtime.from) {
+    const arr = timeMarks.get(gameId) ?? [];
+    arr.push({ timestamp: downtime.from, playerId: '', kind: 'pause_start' }, { timestamp: downtime.to, playerId: '', kind: 'pause_end' });
+    timeMarks.set(gameId, arr);
+  }
+  if (s.board) initialTechBoards.set(gameId, s.board);
+}
+
 /** export 시점에 풀 로그를 꺼내고 메모리에서 비운다(게임당 1회). */
 function takeFullGameLog(gameId?: string): FullGameLogEntry[] {
   if (!gameId) return [];
