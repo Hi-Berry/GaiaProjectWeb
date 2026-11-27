@@ -592,8 +592,31 @@ export function getPublicStatus() {
 		notice: statusNotice.text || null,
 		recommend: statusNotice.recommend,
 		noticeAt: statusNotice.updatedAt || null,
+		rooms: getPublicRooms(),
 		ts: Date.now(),
 	};
+}
+/** [사용자 2026-11-27] 서버 현황 페이지가 메인/예비 서버의 방을 한 화면에 모아 보여주고 거기서 참가·관전하려고 쓰는 공개 방 목록.
+ *  로비의 list_games와 같은 정보지만 **플레이어 ID는 절대 싣지 않는다** — ID가 곧 좌석 열쇠다(?as=<playerId>로 그 자리에 앉음).
+ *  이름·인원·단계만 낸다(로비에 누구나 보던 정보). 끝난 게임은 현황 페이지 목적(지금 들어갈 곳 찾기)과 무관해서 뺀다. */
+export function getPublicRooms() {
+	return Array.from(games.values())
+		.filter(g => !(g as any).simulation && !(g as any).replay && g.currentPhase !== 'gameEnd')
+		.map(g => {
+			const bots = new Set(g.botPlayerIds || []);
+			return {
+				id: g.id,
+				phase: g.currentPhase,
+				round: g.roundNumber ?? 0,
+				maxPlayers: g.maxPlayers,
+				createdAt: g.createdAt ?? 0,
+				players: Object.entries(g.players || {}).map(([pid, p]) => ({
+					name: p.name || '?', host: pid === g.hostId, bot: bots.has(pid),
+				})),
+				spectators: (g as any).connectedSpectators?.length ?? 0,
+			};
+		})
+		.sort((a, b) => (a.phase === 'lobby' ? 0 : 1) - (b.phase === 'lobby' ? 0 : 1) || b.createdAt - a.createdAt);
 }
 /** [사용자 2026-08-11] 네트워크 로그용 방 규모 요약.
  *  대역폭은 game_updated를 '방 인원 수'만큼 곱해 나가므로, 송신량을 해석하려면 관전자 수가 같이 있어야 한다

@@ -100,6 +100,62 @@ export default function Lobby() {
     }
   }, [toast]);
 
+  /* [사용자 2026-11-27] 서버 현황 페이지(다른 도메인)에서 방 만들기·참가·관전을 누르면 이 서버 로비로
+     ?go=create|join|watch&game=<id>&name=<이름> 을 달고 들어온다. 현황 페이지는 이 서버의 localStorage에
+     좌석을 심을 수 없으므로, 실제 생성·참가·관전은 여기(이 서버 출처)에서 해야 좌석 ID가 이 기기에 저장된다.
+     연결되면 한 번만 실행하고 주소창의 파라미터는 지운다(새로고침해도 방이 또 생기지 않게).
+     좌석 비밀번호는 주소에 싣지 않는다 — 걸고 싶으면 로비에서 직접 만든다. */
+  const autoActionDoneRef = useRef(false);
+  useEffect(() => {
+    if (!connected || autoActionDoneRef.current) return;
+    const q = new URLSearchParams(window.location.search);
+    const go = q.get('go');
+    if (go !== 'create' && go !== 'join' && go !== 'watch') return;
+    autoActionDoneRef.current = true;
+    const gameId = (q.get('game') || '').trim();
+    const name = (q.get('name') || '').trim().slice(0, 30) || playerName.trim();
+    window.history.replaceState(null, '', window.location.pathname);
+    if (!name) {
+      toast({ title: '이름을 입력하세요', description: '이름을 넣고 다시 눌러 주세요.', variant: 'destructive' });
+      return;
+    }
+    setPlayerName(name);
+    localStorage.setItem('gaia-playerName', name);
+    (async () => {
+      try {
+        if (go === 'create') {
+          setCreating(true);
+          const { gameId: gid, playerId } = await GameClient.createGame(name);
+          localStorage.setItem(`gaia-${gid}-playerId`, playerId);
+          setLocation(`/game/${gid}`);
+        } else if (!gameId) {
+          return;
+        } else if (localStorage.getItem(`gaia-${gameId}-playerId`)) {
+          // 이 기기에 이미 좌석이 있는 방(내가 만든 방 등) — 또 참가하면 같은 사람이 두 자리를 차지한다
+          setLocation(`/game/${gameId}`);
+        } else if (go === 'join') {
+          setJoining(gameId);
+          const { playerId } = await GameClient.joinGame(gameId, name);
+          localStorage.setItem(`gaia-${gameId}-playerId`, playerId);
+          setLocation(`/game/${gameId}`);
+        } else {
+          setWatching(gameId);
+          const { spectatorId } = await GameClient.watchGame(gameId, name, getStoredSpectatorId(gameId) ?? undefined);
+          storeSpectatorId(gameId, spectatorId);
+          setLocation(`/game/${gameId}`);
+        }
+      } catch (error: any) {
+        toast({
+          title: go === 'create' ? '방 만들기 실패' : go === 'join' ? '참가 실패' : '관전 실패',
+          description: error?.message || '다시 시도해 주세요.',
+          variant: 'destructive',
+        });
+      } finally {
+        setCreating(false); setJoining(null); setWatching(null);
+      }
+    })();
+  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!connected) return;
 

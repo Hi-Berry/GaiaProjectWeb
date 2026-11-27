@@ -34,13 +34,39 @@
   a.link .name{font-weight:700;font-size:.9rem}
   a.link .meta{font-size:.78rem;color:#94a3b8;margin-top:.15rem}
   .foot{color:#64748b;font-size:.75rem;margin-top:1.6rem}
+  /* [사용자 2026-11-27] 현황 페이지에서 바로 방 만들기·참가·관전 */
+  .ctl{width:100%;max-width:560px;display:flex;gap:.5rem;margin-bottom:1rem}
+  .ctl input{flex:1;min-width:0;background:#141a2a;border:1px solid #ffffff22;border-radius:10px;color:#e5e7eb;padding:.6rem .8rem;font-size:.95rem}
+  .ctl input:focus{outline:none;border-color:#4f46e5}
+  button.btn{flex:none;border:0;border-radius:9px;background:#4f46e5;color:#fff;font-weight:700;font-size:.85rem;padding:.55rem .9rem;cursor:pointer}
+  button.btn:disabled{opacity:.55;cursor:default}
+  button.btn.sec{background:#334155}
+  button.btn.sm{padding:.35rem .65rem;font-size:.78rem}
+  h2{font-size:1rem;margin:1.6rem 0 .6rem;width:100%;max-width:560px}
+  .rooms{display:flex;flex-direction:column;gap:.6rem;width:100%;max-width:560px}
+  .room{background:#141a2a;border:1px solid #ffffff14;border-radius:12px;padding:.75rem 1rem;display:flex;align-items:center;gap:.8rem}
+  .room.lobby{border-color:#22c55e55}
+  .room .acts{display:flex;gap:.4rem;flex:none}
+  .tag{display:inline-block;font-size:.72rem;font-weight:700;border-radius:6px;padding:.05rem .4rem;margin-right:.35rem;background:#334155;color:#cbd5e1}
+  .tag.g{background:#22c55e22;color:#86efac}
+  .chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
+  .chip{font-size:.75rem;background:#1e2638;border-radius:6px;padding:.1rem .45rem;color:#cbd5e1}
+  .chip.empty{background:none;border:1px dashed #ffffff22;color:#64748b}
+  .none{color:#64748b;font-size:.85rem;text-align:center;padding:.8rem}
+  @media (max-width:480px){.room{flex-direction:column;align-items:stretch}.room .acts{justify-content:flex-end}}
 </style>
 </head>
 <body>
 <h1>🪐 Gaia Project 서버 현황</h1>
 <div class="sub">무료 서버 용량이 소진되면 해당 서버는 접속이 안 됩니다.<br>🟢 비어 있음 · ⛔ 게임 진행 중 · 🔴 응답 없음<br><span class="warn">🤖 AI 봇 가능 서버는 AI 연산으로 느려서 사람 간의 대전은 추천하지 않습니다.</span></div>
 <div class="banner" id="banner"></div>
+<div class="ctl">
+  <input id="pname" placeholder="내 이름" maxlength="30" autocomplete="nickname">
+  <button class="btn" id="createBtn" onclick="createRoom()">＋ 방 만들기</button>
+</div>
 <div class="grid" id="grid"></div>
+<h2>🎲 열린 방 <span id="roomCount" style="color:#94a3b8;font-weight:400;font-size:.85rem"></span></h2>
+<div class="rooms" id="rooms"><div class="none">불러오는 중…</div></div>
 <div class="links">
   <a class="link" href="https://hikary.pythonanywhere.com" target="_blank" rel="noopener">
     <span style="font-size:1.3rem">📊</span>
@@ -51,7 +77,7 @@
     <span class="info"><span class="name">가이아 통계 사이트</span><span class="meta" style="display:block">개인·종족·연방·인공물·미션·상성 통계 (게임 로그 기반)</span></span>
   </a>
 </div>
-<div class="foot">30초마다 자동 갱신 · 응답 없음 = 이번 달 무료 용량 소진</div>
+<div class="foot">15초마다 자동 갱신 · 응답 없음 = 이번 달 무료 용량 소진</div>
 <script>
 // ★ 여기에 운영 중인 인스턴스를 추가/수정하세요 (이름, 주소)
 const INSTANCES = [
@@ -61,9 +87,10 @@ const INSTANCES = [
   //   인증서를 안 내주기 때문. 나중에 도메인을 붙이면 Caddyfile 첫 줄과 이 URL만 바꾸면 된다.
   //   ※ http(:5000)로 두면 https인 이 페이지에서 혼합 콘텐츠로 차단돼 항상 '응답 없음'이 된다.
   { name: '메인 서버', url: 'https://172-104-86-178.sslip.io', main: true },
-  { name: '예비 서버 1', url: 'https://gaiaprojectweb.onrender.com' },
-  { name: '예비 서버 2', url: 'https://gaiaprojectweb-1.onrender.com' },
-  { name: '예비 서버 3', url: 'https://gaiaprojectweb-49wr.onrender.com' },
+  // spare: true = '방 만들기'가 메인이 차 있을 때 무작위로 고르는 후보 (사용자 2026-11-27: 예비 1·2·3)
+  { name: '예비 서버 1', url: 'https://gaiaprojectweb.onrender.com', spare: true },
+  { name: '예비 서버 2', url: 'https://gaiaprojectweb-1.onrender.com', spare: true },
+  { name: '예비 서버 3', url: 'https://gaiaprojectweb-49wr.onrender.com', spare: true },
   { name: '예비 서버 4', url: 'https://gaiaprojectweb-8plp.onrender.com' },
   { name: '예비 서버 5', url: 'https://gaiaprojectweb-tvog.onrender.com' },
 ];
@@ -82,7 +109,8 @@ async function check(inst){
     return { ...inst, state:'up', games:j.activeGames||0, humans:j.humanPlayers||0, ai:j.aiEnabled!==false,
              online: typeof j.online==='number' ? j.online : null,
              spectators: typeof j.spectators==='number' ? j.spectators : null,
-             notice:j.notice||null, recommend:j.recommend===true, noticeAt:j.noticeAt||0 };
+             notice:j.notice||null, recommend:j.recommend===true, noticeAt:j.noticeAt||0,
+             rooms: Array.isArray(j.rooms) ? j.rooms : null };   // 구버전 서버면 null(방 목록 없음)
   }catch(e){ clearTimeout(to); return { ...inst, state:'down' }; }
 }
 
@@ -164,13 +192,107 @@ function render(list){
   }
 }
 
-async function tick(){
-  render(INSTANCES.map(i=>({ ...i, state:'wait' })));
-  const results = await Promise.all(INSTANCES.map(check));
-  render(results);
+/* ───── [사용자 2026-11-27] 현황 페이지에서 방 만들기·참가·관전 ─────
+   좌석 ID는 각 서버 도메인의 localStorage에 저장돼야 하므로, 여기서는 그 서버 로비로
+   ?go=create|join|watch&game=<id>&name=<이름> 을 달아 보내고 실제 생성·참가·관전은 로비가 한다. */
+const NAME_KEY = 'gaia-status-playerName';
+const nameInput = document.getElementById('pname');
+try { nameInput.value = localStorage.getItem(NAME_KEY) || ''; } catch(e){}
+nameInput.addEventListener('input', ()=>{ try{ localStorage.setItem(NAME_KEY, nameInput.value.trim()); }catch(e){} });
+
+function needName(){
+  const n = nameInput.value.trim();
+  if (!n){ nameInput.focus(); nameInput.placeholder = '이름을 먼저 입력하세요'; nameInput.style.borderColor = '#ef4444'; return null; }
+  nameInput.style.borderColor = '';
+  return n;
 }
+function goTo(inst, go, gameId){
+  const name = needName(); if (!name) return;
+  const q = new URLSearchParams({ go, name });
+  if (gameId) q.set('game', gameId);
+  location.href = inst.url + '/?' + q.toString();
+}
+
+/** 방 만들기 서버 고르기 — 운영자 지정(📢 여기서 플레이) > 메인이 비어 있으면 메인 > 빈 예비 1·2·3 중 무작위.
+ *  누르는 순간 상태를 다시 받아서 고른다(30초 전 정보로 방금 다른 사람이 연 메인에 또 만들지 않게). */
+async function createRoom(){
+  if (!needName()) return;
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true; btn.textContent = '서버 확인 중…';
+  try{
+    const fresh = await Promise.all(INSTANCES.map(check));
+    last = fresh; render(fresh);
+    const ups = fresh.filter(x=>x.state==='up');
+    const pinned = ups.filter(x=>x.recommend).sort((a,b)=>b.noticeAt-a.noticeAt)[0];
+    const main = ups.find(x=>x.main);
+    let target = pinned || ((main && main.games===0) ? main : null);
+    if (!target){
+      const free = ups.filter(x=>x.spare && x.games===0);
+      if (free.length) target = free[Math.floor(Math.random()*free.length)];
+    }
+    if (!target){
+      const fallback = main || ups.find(x=>x.spare);
+      if (!fallback) { alert('지금 응답하는 서버가 없습니다. 잠시 후 다시 시도해 주세요.'); return; }
+      if (!confirm(`빈 서버가 없습니다. ${fallback.name}에 방을 하나 더 만들까요? (게임이 겹치면 느려질 수 있습니다)`)) return;
+      target = fallback;
+    }
+    goTo(target, 'create');
+  } finally {
+    btn.disabled = false; btn.textContent = '＋ 방 만들기';
+  }
+}
+
+function phaseText(r){
+  if (r.phase==='lobby') return '대기 중';
+  if (r.phase==='main') return `${r.round||1}라운드`;
+  if (r.phase==='factionBidding' || r.phase==='factionSelection') return '종족 선택';
+  return '셋업';
+}
+function ago(ts){
+  if (!ts) return '';
+  const m = Math.floor((Date.now()-ts)/60000);
+  return m<1 ? '방금' : m<60 ? `${m}분 전` : `${Math.floor(m/60)}시간 전`;
+}
+function renderRooms(list){
+  const box = document.getElementById('rooms');
+  const rooms = [];
+  list.forEach((inst, i)=>{ if (inst.state==='up' && inst.rooms) inst.rooms.forEach(r=>rooms.push({ r, inst, i })); });
+  rooms.sort((a,b)=>((a.r.phase==='lobby'?0:1)-(b.r.phase==='lobby'?0:1)) || (b.r.createdAt-a.r.createdAt));
+  document.getElementById('roomCount').textContent = rooms.length ? `${rooms.length}개` : '';
+  if (!rooms.length){
+    box.innerHTML = list.some(x=>x.state==='wait') ? '<div class="none">불러오는 중…</div>'
+      : '<div class="none">열린 방이 없습니다. 위에서 방을 만들어 보세요.</div>';
+    return;
+  }
+  box.innerHTML = rooms.map(({r, inst, i})=>{
+    const lobby = r.phase==='lobby';
+    const full = r.players.length >= r.maxPlayers;
+    const chips = r.players.map(p=>`<span class="chip">${p.host?'★ ':''}${p.bot?'🤖 ':''}${esc(p.name)}</span>`).join('')
+      + (lobby ? Array.from({length:Math.max(0,r.maxPlayers-r.players.length)}).map(()=>'<span class="chip empty">빈 자리</span>').join('') : '');
+    const acts = (lobby && !full ? `<button class="btn sm" onclick="goTo(last[${i}],'join','${esc(r.id)}')">참가</button>` : '')
+      + (!lobby ? `<a class="go" style="padding:.35rem .65rem;font-size:.78rem" href="${inst.url}/game/${encodeURIComponent(r.id)}" title="이 기기에 내 자리가 있으면 이어서, 없으면 비밀번호로 이어하기/관전을 고릅니다">이어하기</a>` : '')
+      + `<button class="btn sm sec" onclick="goTo(last[${i}],'watch','${esc(r.id)}')">관전</button>`;
+    return `<div class="room ${lobby?'lobby':''}">
+      <div class="info">
+        <div><span class="tag ${lobby?'g':''}">${esc(inst.name)}</span><b style="font-family:ui-monospace,monospace">#${esc(r.id)}</b>
+          <span class="meta" style="display:inline"> · ${phaseText(r)} · ${r.players.length}/${r.maxPlayers}${r.spectators?` · 관전 ${r.spectators}`:''}${r.createdAt?` · ${ago(r.createdAt)}`:''}</span></div>
+        <div class="chips">${chips}</div>
+      </div>
+      <div class="acts">${acts}</div>
+    </div>`;
+  }).join('');
+}
+
+let last = INSTANCES.map(i=>({ ...i, state:'wait' }));
+async function tick(){
+  // 첫 회만 '확인 중'을 그린다 — 매번 그리면 15초마다 방 목록이 깜빡였다가 다시 채워진다
+  const results = await Promise.all(INSTANCES.map(check));
+  last = results;
+  render(results); renderRooms(results);
+}
+render(last);
 tick();
-setInterval(tick, 30000);
+setInterval(tick, 15000);
 </script>
 </body>
 </html>
