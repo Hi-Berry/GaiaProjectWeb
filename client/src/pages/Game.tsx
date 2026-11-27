@@ -31,7 +31,7 @@ import { playMyTurnSound, playOtherTurnSound, playPowerReceiveSound, playPowerDe
 import { fireTurnNotification } from '@/lib/turnNotify';
 import { installPushPresence } from '@/lib/webPush';
 import { actionParts, clearVoiceQueue, ENABLER_LABELS, enqueueParts, isFollowupInfo, isVoiceOn, primeSpeech, whoLabel } from '@/lib/speech';
-import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Users, Gift, Clock, User, ChevronDown, ChevronUp, ChevronsDown, Gamepad2, FlaskConical, Layers, Trophy, Star, Flag, Shield, Ship, Mountain, Menu, X, Eye, ChevronRight, Info, Maximize, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -592,6 +592,8 @@ export default function Game() {
   });
   // 데스크톱 사이드바 도킹 로그 높이(vh). 줄이면 플레이어 상태(4번째 등)가 더 보임.
   const LOG_DOCK_MIN_VH = 16;
+  /** 비딩 중 접힌 도킹 로그창 높이(제목 줄만) — 비딩 패널 아래 여백도 이 값 */
+  const LOG_DOCK_COLLAPSED_H = '2.75rem';
   const LOG_DOCK_MAX_VH = 60;
   const [logDockHeightVh, setLogDockHeightVh] = useState<number>(() => {
     const saved = parseFloat(localStorage.getItem('game-log-dock-height') ?? '');
@@ -599,6 +601,9 @@ export default function Game() {
   });
   /** 도크 로그의 최신/라운드 점프 툴바 표시 (Game Log 타이틀 클릭으로 토글, 기본 숨김) */
   const [logToolsOpen, setLogToolsOpen] = useState(false);
+  /** [사용자 2026-11-27 "비딩 중 로그창이 자리를 너무 차지한다 — 접어둘 수 없을까?"] PC 비딩 중 도킹 로그창 펼침 여부.
+   *  기본은 접힘(제목 줄만) — 롤백할 때만 펼쳐 쓴다. 비딩이 아닐 땐 쓰지 않는다(항상 펼침). */
+  const [biddingLogOpen, setBiddingLogOpen] = useState(false);
   // [2026-07-14 사용자] 플레이어 색 로컬 오버라이드 — 색이 겹칠 때 보드의 건물·위성·잊혀진 행성 색만 바꿔 봄
   // (로그/텍스트 등은 원래 종족색 유지). 기기 로컬 저장, '기본값'으로 언제든 복귀.
   const [playerColorOverrides, setPlayerColorOverrides] = useState<Record<string, string>>(() => {
@@ -6744,7 +6749,7 @@ export default function Game() {
           // [사용자 2026-10-31 "비딩 화면이 잘린다"(가로)] v2 가로는 패널 왼쪽 28px이 탭 세로줄 자리 — 그만큼 비워 가려지지 않게
           // [사용자 2026-11-27 "비딩 롤백은 모바일만 되고 PC는 로그를 볼 방법이 없다"] PC는 비딩 패널이 사이드바 전체(아래 도킹 로그창
           //   포함)를 덮어, 종족 롤백 진입점(로그 줄 → '여기로 롤백 요청')에 닿을 수 없었다 → 넓은 화면은 도킹 로그창 높이만큼 위에서 멈춘다.
-          <div className="absolute right-0" style={{ left: v2Landscape ? V2_TAB_COL_W : 0, ...(isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: (sidebarOpenEff || splitActive) ? `${logDockHeightVh}vh` : 0 }) }}>
+          <div className="absolute right-0" style={{ left: v2Landscape ? V2_TAB_COL_W : 0, ...(isMobileViewport ? { top: mobilePanelPadTop, bottom: mobilePanelPadBottom } : { top: 0, bottom: (sidebarOpenEff || splitActive) ? (biddingLogOpen ? `${logDockHeightVh}vh` : LOG_DOCK_COLLAPSED_H) : 0 }) }}>
             <FactionBiddingPanel game={game} gameId={gameId!} playerId={playerId} />
           </div>
         )}
@@ -7956,17 +7961,31 @@ export default function Game() {
             </div>
 
             {/* Game Log — 상태 영역 아래 항상 표시 (L키 하단시트와 별개, 데스크톱만) */}
-            <div className="border-t border-white/10 flex-none flex-col hidden md:flex" style={{ height: `${logDockHeightVh}vh` }}>
-              <div className="flex items-center justify-between gap-2 shrink-0 px-4 pt-3 pb-2">
+            {/* [사용자 2026-11-27] 비딩 중엔 기본으로 접어 제목 줄만 보인다(▲ 펼치기). 비딩 패널은 이 높이에 맞춰 아래가 멈춘다. */}
+            {(() => { const dockCollapsed = game.currentPhase === 'factionBidding' && !biddingLogOpen; return (
+            <div className="border-t border-white/10 flex-none flex-col hidden md:flex" style={{ height: dockCollapsed ? LOG_DOCK_COLLAPSED_H : `${logDockHeightVh}vh` }}>
+              <div className={`flex items-center justify-between gap-2 shrink-0 px-4 ${dockCollapsed ? 'h-full' : 'pt-3 pb-2'}`}>
                 <button
                   type="button"
                   onClick={() => setLogToolsOpen(v => !v)}
-                  className={`font-semibold flex items-center gap-2 text-xs md:text-sm rounded px-1 -mx-1 transition-colors hover:text-white ${logToolsOpen ? 'text-blue-300' : ''}`}
+                  className={`font-semibold flex items-center gap-2 text-xs md:text-sm whitespace-nowrap shrink-0 rounded px-1 -mx-1 transition-colors hover:text-white ${logToolsOpen ? 'text-blue-300' : ''}`}
                   title="클릭: 최신/라운드 점프 표시"
                 >
                   <Clock className="w-3.5 h-3.5 text-blue-400" /> Game Log
                   {logToolsOpen ? <ChevronUp className="w-3 h-3 opacity-60" /> : <ChevronDown className="w-3 h-3 opacity-60" />}
                 </button>
+                {game.currentPhase === 'factionBidding' && (
+                  <button
+                    type="button"
+                    onClick={() => setBiddingLogOpen(v => !v)}
+                    // 펼친 상태는 오른쪽 배율·높이 조절과 한 줄을 나눠 써서 아이콘만(제목이 두 줄로 깨지지 않게)
+                    className={`shrink-0 flex items-center justify-center gap-1 rounded border border-white/10 bg-zinc-900/60 h-6 text-[11px] font-bold text-zinc-300 hover:bg-zinc-800 hover:text-white ${dockCollapsed ? 'ml-auto px-2' : 'w-6'}`}
+                    title={dockCollapsed ? '로그 펼치기 (로그 줄을 눌러 롤백 요청)' : '로그 접기 (비딩 화면 넓게)'}
+                  >
+                    {dockCollapsed ? <><ChevronUp className="w-3.5 h-3.5" /> 펼치기</> : <ChevronsDown className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+                {!dockCollapsed && (
                 <div className="flex items-center gap-1">
                   {/* [2026-07-14 사용자] 로그 배율 슬라이더(볼륨바식): 100%~300% 연속 조절 */}
                   <div className="flex items-center gap-1.5 px-1" title="로그 배율 (100%~300%)">
@@ -7981,7 +8000,7 @@ export default function Game() {
                         setLogTextScale(v);
                         localStorage.setItem('game-log-text-scale', String(v));
                       }}
-                      className="w-20 h-1.5 cursor-pointer accent-blue-500"
+                      className={`${game.currentPhase === 'factionBidding' ? 'w-12' : 'w-20'} h-1.5 cursor-pointer accent-blue-500`}
                     />
                     <span className="text-[10px] font-black text-zinc-300 tabular-nums w-9 text-right">
                       {Math.round(logTextScale * 100)}%
@@ -8013,7 +8032,9 @@ export default function Game() {
                     </Button>
                   </div>
                 </div>
+                )}
               </div>
+              {!dockCollapsed && (
               <div
                 className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-4 pb-3"
                 onWheel={(e) => e.stopPropagation()}
@@ -8042,7 +8063,9 @@ export default function Game() {
                   />
                 )}
               </div>
+              )}
             </div>
+            ); })()}
 
             {/* Free Actions Modal */}
             <FreeActionsDialog
