@@ -1,6 +1,7 @@
 import { boardSetupFromGame, type SavedBoardSetup } from '@shared/replay';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as zlib from 'zlib';
 import { FACTIONS, getFederationEntries, type GaiaGameState, type PlayerState } from '@shared/gameConfig';
 import { log } from './index';
 import { recordDecisionFeatures } from './ai/valueData';
@@ -504,6 +505,15 @@ export function normalizeSupabaseProjectUrl(raw: string): string {
   return base;
 }
 
+/** human_game_sessions 한 줄에서 게임 기록 꺼내기 — 압축본(payload_gz: gzip→base64)이 있으면 그것, 없으면 예전 jsonb payload. */
+export function decodeHumanSessionRow(row: { payload?: unknown; payload_gz?: string | null } | undefined | null): unknown | null {
+  if (!row) return null;
+  if (typeof row.payload_gz === 'string' && row.payload_gz) {
+    return JSON.parse(zlib.gunzipSync(Buffer.from(row.payload_gz, 'base64')).toString('utf8'));
+  }
+  return row.payload ?? null;
+}
+
 /** public.human_game_sessions 처럼 넣으면 REST 경로가 깨집니다. */
 export function normalizeSupabaseTableName(raw: string): string {
   const name = raw.trim().replace(/^public\./i, '').replace(/^\//, '').replace(/\/$/, '');
@@ -519,7 +529,7 @@ function buildHumanSessionsRestUrl(projectUrl: string, tableName: string): strin
   return `${base}/rest/v1/${table}?on_conflict=game_id`;
 }
 
-async function uploadToSupabase(payload: HumanGamePayload) {
+export async function uploadToSupabase(payload: HumanGamePayload) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const tableName = process.env.HUMAN_LOG_SUPABASE_TABLE || 'human_game_sessions';
@@ -529,7 +539,7 @@ async function uploadToSupabase(payload: HumanGamePayload) {
   }
 
   const endpoint = buildHumanSessionsRestUrl(supabaseUrl, tableName);
-  const res = await fetch(endpoint, {
+  const post = (row: Record<string, unknown>) => fetch(endpoint, {
     method: 'POST',
     headers: {
       apikey: serviceKey,
@@ -540,12 +550,22 @@ async function uploadToSupabase(payload: HumanGamePayload) {
       'Content-Profile': 'public',
       Prefer: 'resolution=merge-duplicates,return=minimal',
     },
-    body: JSON.stringify({
-      game_id: payload.gameId,
-      completed_at: payload.completedAt,
-      payload,
-    }),
+    body: JSON.stringify({ game_id: payload.gameId, completed_at: payload.completedAt, ...row }),
   });
+  // [사용자 2026-11-28 "로그 너무 많이 쌓여서 문제 되는거 아닌지" → Supabase 무료 DB 0.5GB 초과(511MB, 이 표가 485MB)]
+  //   jsonb 그대로면 Postgres 기본 압축 후에도 판당 ~354KB, gzip이면 ~60KB(약 1/6) → 압축본(payload_gz, gzip→base64)만 넣고 payload는 비운다.
+  //   읽는 쪽(replay.ts·scripts/fetchSupabaseGames.mjs)은 decodeHumanSessionRow로 둘 다 읽는다.
+  //   표에 payload_gz 칸이 아직 없으면(다른 Supabase·스키마 변경 전) 예전처럼 jsonb로 다시 보낸다.
+  let res = await post({ payload: null, payload_gz: zlib.gzipSync(Buffer.from(JSON.stringify(payload), 'utf8'), { level: 9 }).toString('base64') });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    if (/payload_gz|PGRST204|null value in column "payload"/i.test(body)) {
+      log(`Supabase에 payload_gz 칸이 없어 압축 없이 저장: ${body.slice(0, 120)}`, 'system', payload.gameId);
+      res = await post({ payload });
+    } else {
+      throw new Error(`Supabase upload failed: ${res.status} ${body} (POST ${endpoint.replace(/\?.*$/, '')})`);
+    }
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');

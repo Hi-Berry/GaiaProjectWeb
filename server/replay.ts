@@ -10,7 +10,7 @@
 import type { Express } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { normalizeSupabaseProjectUrl, normalizeSupabaseTableName } from './humanGameLogger';
+import { normalizeSupabaseProjectUrl, normalizeSupabaseTableName, decodeHumanSessionRow } from './humanGameLogger';
 import { buildReplayFrames, buildReplayGameState, inferBoardSetup, type BoardSetup, type ReplayFrame, type ReplayPayload } from '@shared/replay';
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'human-games');
@@ -33,11 +33,11 @@ async function fetchFromSupabase(gameId: string): Promise<unknown | null> {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   const table = normalizeSupabaseTableName(process.env.HUMAN_LOG_SUPABASE_TABLE || 'human_game_sessions');
-  const endpoint = `${normalizeSupabaseProjectUrl(url)}/rest/v1/${table}?game_id=eq.${encodeURIComponent(gameId)}&select=payload&limit=1`;
+  const endpoint = `${normalizeSupabaseProjectUrl(url)}/rest/v1/${table}?game_id=eq.${encodeURIComponent(gameId)}&select=*&limit=1`; // payload(jsonb) 또는 압축본 payload_gz — 칸 유무와 무관하게 *
   const res = await fetch(endpoint, { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  const rows = await res.json() as Array<{ payload?: unknown }>;
-  return rows[0]?.payload ?? null;
+  const rows = await res.json() as Array<{ payload?: unknown; payload_gz?: string | null }>;
+  return decodeHumanSessionRow(rows[0]);
 }
 
 export function registerReplayRoutes(app: Express) {

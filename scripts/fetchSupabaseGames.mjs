@@ -7,6 +7,7 @@
 // ②로컬 파일과 대조해 없는 것만 ③건별 payload 다운로드. 이미 다 받은 상태면 인덱스 쿼리 1~2회로 끝.
 import * as fs from 'fs';
 import * as path from 'path';
+import * as zlib from 'zlib';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rsfrwzesgkdntcketkhd.supabase.co').replace(/\/+$/, '');
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
@@ -74,10 +75,14 @@ async function main() {
   // ③ 없는 것만 건별 다운로드 (행 1개짜리 쿼리 — 빠르고 타임아웃 없음)
   let written = 0;
   for (const row of missing) {
-    const url = `${SUPABASE_URL}/rest/v1/${TABLE}?select=payload,completed_at&game_id=eq.${encodeURIComponent(row.game_id)}&limit=1`;
+    const url = `${SUPABASE_URL}/rest/v1/${TABLE}?select=*&game_id=eq.${encodeURIComponent(row.game_id)}&limit=1`;
     let rows;
     try { rows = await getJson(url); } catch (e) { console.error(`  ✗ ${row.game_id}: ${e.message}`); continue; }
-    const payload = rows?.[0]?.payload;
+    // [2026-11-28] 용량 때문에 새 기록·옮긴 기록은 압축본(payload_gz: gzip→base64)으로 저장된다 — 있으면 그것, 없으면 예전 jsonb
+    const r0 = rows?.[0];
+    let payload;
+    try { payload = r0?.payload_gz ? JSON.parse(zlib.gunzipSync(Buffer.from(r0.payload_gz, 'base64')).toString('utf8')) : r0?.payload; }
+    catch (e) { console.error(`  ✗ ${row.game_id}: 압축 풀기 실패 ${e.message}`); continue; }
     if (!payload) { console.error(`  ✗ ${row.game_id}: payload 없음`); continue; }
     const completed = rows[0].completed_at || row.completed_at || '';
     const datePart = String(completed).slice(0, 10) || 'nodate';
